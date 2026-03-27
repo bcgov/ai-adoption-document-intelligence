@@ -29,6 +29,7 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
@@ -61,8 +62,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { GroupRole } from "@/generated/edge";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 @ApiTags("Azure")
@@ -72,13 +72,12 @@ export class AzureController {
     private readonly classifierService: ClassifierService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
-    private readonly databaseService: DatabaseService,
     private readonly azureService: AzureService,
     private readonly logger: AppLoggerService,
   ) {}
 
   @Get("classifier")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -96,24 +95,20 @@ export class AzureController {
   })
   async getClassifiers(@Request() req, @Query("group_id") groupId?: string) {
     if (groupId) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-        this.databaseService,
-      );
-      return this.databaseService.getClassifierModelsForGroups([groupId]);
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
+      return this.classifierService.findAllClassifierModelsForGroups([groupId]);
     }
-    const groupIds = await getIdentityGroupIds(
-      req.resolvedIdentity,
-      this.databaseService,
-    );
+    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
     const classifiers =
-      await this.databaseService.getClassifierModelsForGroups(groupIds);
+      await this.classifierService.findAllClassifierModelsForGroups(groupIds);
     return classifiers;
   }
 
   @Post("classifier")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { body: "group_id" },
+  })
   @ApiOperation({
     summary: "Create a new classifier",
     description: "Creates a new classifier for a group.",
@@ -128,21 +123,16 @@ export class AzureController {
   })
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { name, description, source, group_id } = body;
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
 
     // Does this classifier already exist?
-    const classifier = await this.databaseService.getClassifierModel(
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
     if (classifier != null) {
       throw new ForbiddenException("Classifier with this name already exists.");
     }
-    const creationResult = await this.databaseService.createClassifierModel(
+    const creationResult = await this.classifierService.createClassifierModel(
       name,
       {
         description,
@@ -151,13 +141,16 @@ export class AzureController {
         config: { labels: [] },
         group_id: group_id,
       },
-      req.resolvedIdentity.userId,
+      req.resolvedIdentity.actorId,
     );
     return creationResult;
   }
 
   @Patch("classifier")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { body: "group_id" },
+  })
   @ApiOperation({
     summary: "Update a classifier",
     description: "Updates an existing classifier's properties.",
@@ -173,14 +166,8 @@ export class AzureController {
   async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
     const { name, group_id, description, source } = body;
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
-
     // Check if classifier exists
-    const classifier = await this.databaseService.getClassifierModel(
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -197,24 +184,28 @@ export class AzureController {
       updateData.source = source;
     }
 
-    const updateResult = await this.databaseService.updateClassifierModel(
+    const updateResult = await this.classifierService.updateClassifierModel(
       name,
       group_id,
       updateData,
-      req.resolvedIdentity.userId,
+      req.resolvedIdentity.actorId,
     );
 
     return updateResult;
   }
 
   @Post("classifier/documents")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { query: "group_id" },
+  })
   @ApiOperation({
     summary: "Upload training documents",
     description: "Upload training documents for a classifier.",
   })
   @UseInterceptors(FilesInterceptor("files"))
   @ApiConsumes("multipart/form-data")
+  @ApiQuery({ name: "group_id", required: true, description: "Group ID" })
   @ApiBody({
     schema: {
       type: "object",
@@ -228,9 +219,8 @@ export class AzureController {
         },
         name: { type: "string" },
         label: { type: "string" },
-        group_id: { type: "string" },
       },
-      required: ["files", "name", "label", "group_id"],
+      required: ["files", "name", "label"],
     },
     description: "Upload training documents for a classifier",
   })
@@ -242,15 +232,11 @@ export class AzureController {
     @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body() body: UploadClassifierDocumentsDto,
+    @Query("group_id") group_id: string,
   ): Promise<UploadClassifierDocumentsResponseDto> {
-    const { name, label, group_id } = body;
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
+    const { name, label } = body;
 
-    const existingModelData = await this.databaseService.getClassifierModel(
+    const existingModelData = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -274,7 +260,10 @@ export class AzureController {
   }
 
   @Get("classifier/documents")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { query: "group_id" },
+  })
   @ApiOperation({
     summary: "Get training documents",
     description: "Get the list of training documents for a classifier.",
@@ -288,13 +277,8 @@ export class AzureController {
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
 
-    const existingModelData = await this.databaseService.getClassifierModel(
+    const existingModelData = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -308,7 +292,10 @@ export class AzureController {
   }
 
   @Delete("classifier/documents")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { query: "group_id" },
+  })
   @ApiOperation({
     summary: "Delete training documents",
     description: "Delete training documents for a classifier.",
@@ -323,13 +310,8 @@ export class AzureController {
     @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
     const { name, group_id, folder } = query;
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
 
-    const existingModelData = await this.databaseService.getClassifierModel(
+    const existingModelData = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -356,7 +338,10 @@ export class AzureController {
   }
 
   @Post("classifier/train")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { body: "group_id" },
+  })
   @ApiOperation({
     summary: "Request classifier training",
     description: "Request training for a classifier.",
@@ -374,19 +359,13 @@ export class AzureController {
     @Body() body: RequestClassifierTrainingDto,
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = body;
-    const userId = req.user.sub;
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
-
+    const actorId = req.resolvedIdentity.actorId;
     // Respond immediately and run the heavy work in the background
-    const model = await this.databaseService.updateClassifierModel(
+    const model = await this.classifierService.updateClassifierModel(
       name,
       group_id,
       { status: ClassifierStatus.TRAINING },
-      userId,
+      actorId,
     );
 
     setImmediate(async () => {
@@ -406,18 +385,18 @@ export class AzureController {
         await this.classifierService.requestClassifierTraining(
           name,
           group_id,
-          userId,
+          actorId,
         );
       } catch (e) {
         this.logger.error(
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
           e,
         );
-        await this.databaseService.updateClassifierModel(
+        await this.classifierService.updateClassifierModel(
           name,
           group_id,
           { status: ClassifierStatus.FAILED },
-          userId,
+          actorId,
         );
       }
     });
@@ -430,13 +409,17 @@ export class AzureController {
   }
 
   @Post("classifier/classify")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { query: "group_id" },
+  })
   @ApiOperation({
     summary: "Request document classification",
     description: "Request classification for a document using a classifier.",
   })
   @UseInterceptors(FileInterceptor("file"))
   @ApiConsumes("multipart/form-data")
+  @ApiQuery({ name: "group_id", required: true, description: "Group ID" })
   @ApiBody({
     schema: {
       type: "object",
@@ -446,9 +429,8 @@ export class AzureController {
           format: "binary",
         },
         name: { type: "string" },
-        group_id: { type: "string" },
       },
-      required: ["file", "name", "group_id"],
+      required: ["file", "name"],
     },
     description: "Request classification for a document",
   })
@@ -460,16 +442,12 @@ export class AzureController {
     @Request() req,
     @Body() body: RequestClassificationDto,
     @UploadedFile() file: Express.Multer.File,
+    @Query("group_id") group_id: string,
   ): Promise<ClassifierResponseDto> {
-    const { name, group_id } = body;
-    const userId = req.user.sub;
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
+    const { name } = body;
+    const actorId = req.resolvedIdentity.actorId;
     // Is there a classifier trained for this group?
-    const classifier = await this.databaseService.getClassifierModel(
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -483,19 +461,20 @@ export class AzureController {
       group_id,
     );
 
-    await this.databaseService.updateClassifierModel(
+    await this.classifierService.updateClassifierModel(
       name,
       group_id,
       {
         last_used_at: new Date(),
       },
-      userId,
+      actorId,
     );
     return response;
   }
 
   @Get("classifier/classify")
-  @KeycloakSSOAuth()
+  // No identity check, as caller is providing only the operation location url, which we do not store.
+  @Identity()
   @ApiOperation({
     summary: "Get classification result",
     description: "Get the result of a classification operation.",
@@ -524,7 +503,10 @@ export class AzureController {
   }
 
   @Get("classifier/train")
-  @KeycloakSSOAuth()
+  @Identity({
+    minimumRole: GroupRole.MEMBER,
+    groupIdFrom: { query: "group_id" },
+  })
   @ApiOperation({
     summary: "Get training result",
     description: "Get the result of a classifier training operation.",
@@ -543,13 +525,9 @@ export class AzureController {
         "Must provide both name and group_id query parameters.",
       );
     }
-    const userId = req.user.sub;
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      group_id,
-      this.databaseService,
-    );
-    const classifier = await this.databaseService.getClassifierModel(
+    identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const actorId = req.resolvedIdentity.actorId;
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -565,11 +543,11 @@ export class AzureController {
     await this.azureService.pollOperationUntilResolved(
       classifier.operation_location,
       async (r) => {
-        returnValue = await this.databaseService.updateClassifierModel(
+        returnValue = await this.classifierService.updateClassifierModel(
           name,
           group_id,
           { status: ClassifierStatus.READY },
-          userId,
+          actorId,
         );
       },
       (r) => {

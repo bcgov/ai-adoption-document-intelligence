@@ -6,6 +6,8 @@ metadata:
     app: temporal-worker
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: temporal-worker
@@ -14,9 +16,6 @@ spec:
       labels:
         app: temporal-worker
     spec:
-      # Allow app user (nodeuser/nodejs 1001) to write to logs PVC
-      securityContext:
-        fsGroup: 1001
       containers:
         - name: temporal-worker
           image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal:develop-latest
@@ -27,7 +26,7 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: postgres-cluster-pguser-admin
+                  name: app-pg-pguser-admin
                   key: uri
             # Crunchy Postgres on OpenShift requires SSL; uselibpqcompat allows self-signed certs
             - name: PGSSLMODE
@@ -59,6 +58,66 @@ spec:
                 secretKeyRef:
                   name: temporal-worker-secrets
                   key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+            - name: BENCHMARK_TASK_QUEUE
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: BENCHMARK_TASK_QUEUE
+            - name: ENABLE_BENCHMARK_QUEUE
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: ENABLE_BENCHMARK_QUEUE
+            - name: BLOB_STORAGE_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: BLOB_STORAGE_PROVIDER
+            - name: AZURE_STORAGE_CONTAINER_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: AZURE_STORAGE_CONTAINER_NAME
+            - name: AZURE_STORAGE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: AZURE_STORAGE_CONNECTION_STRING
+            - name: AZURE_STORAGE_ACCOUNT_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: AZURE_STORAGE_ACCOUNT_NAME
+            - name: AZURE_STORAGE_ACCOUNT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: AZURE_STORAGE_ACCOUNT_KEY
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: AZURE_OPENAI_ENDPOINT
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: AZURE_OPENAI_API_KEY
+            - name: AZURE_OPENAI_DEPLOYMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: AZURE_OPENAI_DEPLOYMENT
+            - name: AZURE_OPENAI_API_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: AZURE_OPENAI_API_VERSION
+            - name: ENRICHMENT_REDACT_PII
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: ENRICHMENT_REDACT_PII
           volumeMounts:
             - name: storage
               mountPath: /app/data/blobs
@@ -105,6 +164,24 @@ spec:
             limits:
               memory: "64Mi"
               cpu: "50m"
+        - name: promtail
+          image: grafana/promtail:3.4.2
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/app
+              readOnly: true
+            - name: promtail-config
+              mountPath: /etc/promtail
+              readOnly: true
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
       volumes:
         - name: storage
           persistentVolumeClaim:
@@ -117,3 +194,6 @@ spec:
             name: temporal-worker-logrotate
         - name: logrotate-state
           emptyDir: {}
+        - name: promtail-config
+          configMap:
+            name: temporal-worker-promtail

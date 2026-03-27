@@ -1,13 +1,15 @@
-import { DocumentStatus, Prisma } from "@generated/client";
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
+import { Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService, DocumentData } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { WorkflowService } from "../workflow/workflow.service";
+import { DocumentDbService } from "./document-db.service";
+import type { DocumentData } from "./document-db.types";
+
+export type { DocumentData };
 
 export interface UploadedDocument {
   id: string;
@@ -28,11 +30,10 @@ export interface UploadedDocument {
 @Injectable()
 export class DocumentService {
   constructor(
-    private databaseService: DatabaseService,
+    private readonly documentDb: DocumentDbService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
-    private readonly workflowService: WorkflowService,
   ) {}
 
   private getFileExtension(fileType: string): string {
@@ -42,6 +43,22 @@ export class DocumentService {
       scan: "pdf",
     };
     return typeMap[fileType.toLowerCase()] || "bin";
+  }
+
+  /**
+   * Creates a document record directly in the database without uploading a file.
+   * Use this when the file has already been written to blob storage.
+   *
+   * @param data - Document data without auto-generated timestamps.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns The created document record.
+   */
+  async createDocument(
+    data: Omit<DocumentData, "created_at" | "updated_at">,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData> {
+    this.logger.debug(`DocumentService.createDocument: ${data.id}`);
+    return this.documentDb.createDocument(data, tx);
   }
 
   async uploadDocument(
@@ -83,21 +100,6 @@ export class DocumentService {
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);
 
-      let workflowLineageId: string | null = null;
-      let workflowVersionId: string | null = null;
-      const trimmedWorkflowId = workflowId?.trim();
-      if (trimmedWorkflowId) {
-        const wf =
-          await this.workflowService.getWorkflowById(trimmedWorkflowId);
-        if (!wf) {
-          throw new BadRequestException(
-            `Workflow not found for id: ${trimmedWorkflowId}`,
-          );
-        }
-        workflowLineageId = wf.id;
-        workflowVersionId = wf.workflowVersionId;
-      }
-
       // Store metadata in database via API
       const documentData: Omit<DocumentData, "created_at" | "updated_at"> = {
         id: documentId,
@@ -110,15 +112,14 @@ export class DocumentService {
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,
-        workflow_id: workflowLineageId,
-        workflow_config_id: workflowVersionId,
+        workflow_id: workflowId || null, // Legacy field, kept for backward compatibility
+        workflow_config_id: workflowId || null, // New field for workflow configuration ID
         workflow_execution_id: null, // Will be set when workflow starts
         model_id: modelId,
         group_id: groupId,
       };
 
-      const savedDocument =
-        await this.databaseService.createDocument(documentData);
+      const savedDocument = await this.documentDb.createDocument(documentData);
       this.logger.debug(`Document saved to database: ${savedDocument.id}`);
 
       const result: UploadedDocument = {
@@ -146,66 +147,21 @@ export class DocumentService {
     }
   }
 
-  async getDocument(id: string): Promise<UploadedDocument | null> {
-    this.logger.debug(`DocumentService.getDocument: ${id}`);
-    const document = await this.databaseService.findDocument(id);
-    if (!document) {
-      return null;
-    }
-
-    return {
-      id: document.id!,
-      title: document.title,
-      original_filename: document.original_filename,
-      file_path: document.file_path,
-      file_type: document.file_type,
-      file_size: document.file_size,
-      metadata: document.metadata as Record<string, unknown>,
-      source: document.source,
-      status: document.status,
-      created_at: document.created_at || new Date(),
-      updated_at: document.updated_at || new Date(),
-      model_id: document.model_id,
-      group_id: document.group_id,
-    };
-  }
-
   /**
-   * Updates editable fields of a document.
+   * Updates a document with the provided fields.
    *
    * @param id - The document ID.
-   * @param data - Fields to update (title and/or metadata).
-   * @returns The updated document, or `null` if not found.
+   * @param data - Fields to update.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns The updated document record, or `null` if not found.
    */
   async updateDocument(
     id: string,
-    data: { title?: string; metadata?: Record<string, unknown> },
-  ): Promise<UploadedDocument | null> {
+    data: Partial<Omit<DocumentData, "id" | "created_at">>,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData | null> {
     this.logger.debug(`DocumentService.updateDocument: ${id}`);
-    const updated = await this.databaseService.updateDocument(id, {
-      ...(data.title !== undefined ? { title: data.title } : {}),
-      ...(data.metadata !== undefined
-        ? { metadata: data.metadata as Prisma.JsonValue }
-        : {}),
-    });
-    if (!updated) {
-      return null;
-    }
-    return {
-      id: updated.id!,
-      title: updated.title,
-      original_filename: updated.original_filename,
-      file_path: updated.file_path,
-      file_type: updated.file_type,
-      file_size: updated.file_size,
-      metadata: updated.metadata as Record<string, unknown>,
-      source: updated.source,
-      status: updated.status,
-      created_at: updated.created_at || new Date(),
-      updated_at: updated.updated_at || new Date(),
-      model_id: updated.model_id,
-      group_id: updated.group_id,
-    };
+    return this.documentDb.updateDocument(id, data, tx);
   }
 
   /**
@@ -216,11 +172,11 @@ export class DocumentService {
    */
   async deleteDocument(id: string): Promise<boolean> {
     this.logger.debug(`DocumentService.deleteDocument: ${id}`);
-    const document = await this.databaseService.findDocument(id);
+    const document = await this.documentDb.findDocument(id);
     if (!document) {
       return false;
     }
-    await this.databaseService.deleteDocument(id);
+    await this.documentDb.deleteDocument(id);
     try {
       await this.blobStorage.delete(document.file_path);
     } catch (error) {
@@ -229,5 +185,47 @@ export class DocumentService {
       );
     }
     return true;
+  }
+
+  /**
+   * Finds a document by its ID and returns the raw database record.
+   *
+   * @param id - The unique identifier of the document.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns The document record, or `null` if not found.
+   */
+  async findDocument(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData | null> {
+    return this.documentDb.findDocument(id, tx);
+  }
+
+  /**
+   * Returns all documents, optionally filtered by group IDs.
+   *
+   * @param groupIds - Optional list of group IDs to filter by.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns Array of matching document records.
+   */
+  async findAllDocuments(
+    groupIds?: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData[]> {
+    return this.documentDb.findAllDocuments(groupIds, tx);
+  }
+
+  /**
+   * Returns the most recent OCR result for a document.
+   *
+   * @param documentId - The document ID.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns The OCR result, or `null` if none exists.
+   */
+  async findOcrResult(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OcrResult | null> {
+    return this.documentDb.findOcrResult(documentId, tx);
   }
 }

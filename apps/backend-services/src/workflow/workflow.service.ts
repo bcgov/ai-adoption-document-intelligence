@@ -18,7 +18,7 @@ export interface WorkflowInfo {
   workflowVersionId: string;
   name: string;
   description: string | null;
-  userId: string;
+  actorId: string;
   groupId: string;
   config: GraphWorkflowConfig;
   schemaVersion: string;
@@ -50,6 +50,22 @@ export class WorkflowService {
 
   private get prisma() {
     return this.prismaService.prisma;
+  }
+
+  private readonly lineageWithHeadAndUser = {
+    headVersion: true,
+    user: { select: { actor_id: true } },
+  } as const;
+
+  private async resolveUserIdFromActor(actorId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({
+      where: { actor_id: actorId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User not found for actor ${actorId}`);
+    }
+    return user.id;
   }
 
   private stableStringify(obj: unknown): string {
@@ -89,10 +105,10 @@ export class WorkflowService {
       id: string;
       name: string;
       description: string | null;
-      user_id: string;
       group_id: string;
       created_at: Date;
       updated_at: Date;
+      user: { actor_id: string };
     },
     version: {
       id: string;
@@ -106,7 +122,7 @@ export class WorkflowService {
       workflowVersionId: version.id,
       name: lineage.name,
       description: lineage.description,
-      userId: lineage.user_id,
+      actorId: lineage.user.actor_id,
       groupId: lineage.group_id,
       config,
       schemaVersion: config.schemaVersion,
@@ -124,7 +140,9 @@ export class WorkflowService {
   ): Promise<WorkflowInfo | null> {
     const byVersion = await this.prisma.workflowVersion.findUnique({
       where: { id: workflowOrVersionId },
-      include: { lineage: true },
+      include: {
+        lineage: { include: { user: { select: { actor_id: true } } } },
+      },
     });
     if (byVersion) {
       return this.mapLineageAndVersion(byVersion.lineage, byVersion);
@@ -132,7 +150,7 @@ export class WorkflowService {
 
     const lineage = await this.prisma.workflowLineage.findUnique({
       where: { id: workflowOrVersionId },
-      include: { headVersion: true },
+      include: this.lineageWithHeadAndUser,
     });
     if (!lineage?.headVersion) {
       return null;
@@ -145,7 +163,9 @@ export class WorkflowService {
   ): Promise<WorkflowInfo | null> {
     const row = await this.prisma.workflowVersion.findUnique({
       where: { id: workflowVersionId },
-      include: { lineage: true },
+      include: {
+        lineage: { include: { user: { select: { actor_id: true } } } },
+      },
     });
     if (!row) {
       return null;
@@ -154,15 +174,15 @@ export class WorkflowService {
   }
 
   async getUserWorkflows(
-    userId: string,
+    actorId: string,
     includeBenchmarkCandidates = false,
   ): Promise<WorkflowInfo[]> {
     const lineages = await this.prisma.workflowLineage.findMany({
       where: {
-        user_id: userId,
+        user: { actor_id: actorId },
         ...(includeBenchmarkCandidates ? {} : { workflow_kind: "primary" }),
       },
-      include: { headVersion: true },
+      include: this.lineageWithHeadAndUser,
       orderBy: { created_at: "desc" },
     });
 
@@ -185,7 +205,7 @@ export class WorkflowService {
         group_id: { in: groupIds },
         ...(includeBenchmarkCandidates ? {} : { workflow_kind: "primary" }),
       },
-      include: { headVersion: true },
+      include: this.lineageWithHeadAndUser,
       orderBy: { created_at: "desc" },
     });
 
@@ -199,23 +219,45 @@ export class WorkflowService {
       .map((l) => this.mapLineageAndVersion(l, l.headVersion));
   }
 
-  async getWorkflow(lineageId: string, userId: string): Promise<WorkflowInfo> {
+  /**
+   * All workflow lineages (system admin listing).
+   */
+  async getAllWorkflowLineages(
+    includeBenchmarkCandidates = false,
+  ): Promise<WorkflowInfo[]> {
+    const lineages = await this.prisma.workflowLineage.findMany({
+      where: includeBenchmarkCandidates ? {} : { workflow_kind: "primary" },
+      include: this.lineageWithHeadAndUser,
+      orderBy: { created_at: "desc" },
+    });
+
+    return lineages
+      .filter(
+        (
+          l,
+        ): l is typeof l & { headVersion: NonNullable<typeof l.headVersion> } =>
+          Boolean(l.headVersion),
+      )
+      .map((l) => this.mapLineageAndVersion(l, l.headVersion));
+  }
+
+  async getWorkflow(lineageId: string, actorId: string): Promise<WorkflowInfo> {
     const lineage = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
-      include: { headVersion: true },
+      include: this.lineageWithHeadAndUser,
     });
 
     if (!lineage?.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
 
-    this.logger.debug(`getWorkflow: ${lineageId} requested by user ${userId}`);
+    this.logger.debug(`getWorkflow: ${lineageId} requested by actor ${actorId}`);
 
     return this.mapLineageAndVersion(lineage, lineage.headVersion);
   }
 
   async createWorkflow(
-    userId: string,
+    actorId: string,
     dto: CreateWorkflowDto,
   ): Promise<WorkflowInfo> {
     const validation = validateGraphConfig(dto.config);
@@ -226,7 +268,9 @@ export class WorkflowService {
       });
     }
 
-    const { lineage, version } = await this.prisma.$transaction(async (tx) => {
+    const userId = await this.resolveUserIdFromActor(actorId);
+
+    const { lineageId } = await this.prisma.$transaction(async (tx) => {
       const lineageRow = await tx.workflowLineage.create({
         data: {
           name: dto.name,
@@ -242,39 +286,43 @@ export class WorkflowService {
           config: dto.config as object,
         },
       });
-      const updated = await tx.workflowLineage.update({
+      await tx.workflowLineage.update({
         where: { id: lineageRow.id },
         data: { head_version_id: versionRow.id },
-        include: { headVersion: true },
       });
-      return {
-        lineage: updated,
-        version: updated.headVersion!,
-      };
+      return { lineageId: lineageRow.id };
     });
 
+    const full = await this.prisma.workflowLineage.findUnique({
+      where: { id: lineageId },
+      include: this.lineageWithHeadAndUser,
+    });
+    if (!full?.headVersion) {
+      throw new NotFoundException(`Workflow not found after create: ${lineageId}`);
+    }
+
     this.logger.log(
-      `Workflow lineage created: ${lineage.id} v${version.version_number} by user ${userId}`,
+      `Workflow lineage created: ${full.id} v${full.headVersion.version_number} by actor ${actorId}`,
     );
 
-    return this.mapLineageAndVersion(lineage, version);
+    return this.mapLineageAndVersion(full, full.headVersion);
   }
 
   async updateWorkflow(
     lineageId: string,
-    userId: string,
+    actorId: string,
     dto: Partial<CreateWorkflowDto>,
   ): Promise<WorkflowInfo> {
     const existing = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
-      include: { headVersion: true },
+      include: this.lineageWithHeadAndUser,
     });
 
     if (!existing?.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
 
-    this.logger.debug(`updateWorkflow: ${lineageId} by user ${userId}`);
+    this.logger.debug(`updateWorkflow: ${lineageId} by actor ${actorId}`);
 
     const lineageUpdates: {
       name?: string;
@@ -322,14 +370,20 @@ export class WorkflowService {
                 config: nextConfig as object,
               },
             });
-            const updatedLineage = await tx.workflowLineage.update({
+            await tx.workflowLineage.update({
               where: { id: lineageId },
               data: { head_version_id: versionRow.id },
-              include: { headVersion: true },
             });
+            const updatedLineage = await tx.workflowLineage.findUnique({
+              where: { id: lineageId },
+              include: this.lineageWithHeadAndUser,
+            });
+            if (!updatedLineage?.headVersion) {
+              throw new NotFoundException(`Workflow not found: ${lineageId}`);
+            }
             return {
               lineage: updatedLineage,
-              version: updatedLineage.headVersion!,
+              version: updatedLineage.headVersion,
             };
           },
         );
@@ -340,7 +394,7 @@ export class WorkflowService {
 
     if (newVersion) {
       this.logger.log(
-        `Workflow updated: ${lineageId} by user ${userId}, new version ${newVersion.version}`,
+        `Workflow updated: ${lineageId} by actor ${actorId}, new version ${newVersion.version}`,
       );
       return newVersion;
     }
@@ -348,13 +402,13 @@ export class WorkflowService {
     if (Object.keys(lineageUpdates).length === 0) {
       const unchanged = await this.prisma.workflowLineage.findUnique({
         where: { id: lineageId },
-        include: { headVersion: true },
+        include: this.lineageWithHeadAndUser,
       });
       if (!unchanged?.headVersion) {
         throw new NotFoundException(`Workflow not found: ${lineageId}`);
       }
       this.logger.log(
-        `Workflow unchanged: ${lineageId} by user ${userId} (no metadata or config change)`,
+        `Workflow unchanged: ${lineageId} by actor ${actorId} (no metadata or config change)`,
       );
       return this.mapLineageAndVersion(unchanged, unchanged.headVersion);
     }
@@ -362,7 +416,7 @@ export class WorkflowService {
     const lineageOnly = await this.prisma.workflowLineage.update({
       where: { id: lineageId },
       data: lineageUpdates,
-      include: { headVersion: true },
+      include: this.lineageWithHeadAndUser,
     });
 
     if (!lineageOnly.headVersion) {
@@ -370,7 +424,7 @@ export class WorkflowService {
     }
 
     this.logger.log(
-      `Workflow metadata updated: ${lineageId} by user ${userId} (version unchanged)`,
+      `Workflow metadata updated: ${lineageId} by actor ${actorId} (version unchanged)`,
     );
 
     return this.mapLineageAndVersion(lineageOnly, lineageOnly.headVersion);
@@ -382,7 +436,7 @@ export class WorkflowService {
   async createCandidateVersion(
     sourceWorkflowVersionId: string,
     candidateConfig: GraphWorkflowConfig,
-    userId: string,
+    actorId: string,
   ): Promise<WorkflowInfo> {
     const source = await this.prisma.workflowVersion.findUnique({
       where: { id: sourceWorkflowVersionId },
@@ -396,6 +450,7 @@ export class WorkflowService {
     }
 
     const baseLineageId = source.lineage.id;
+    const userId = await this.resolveUserIdFromActor(actorId);
 
     const validation = validateGraphConfig(candidateConfig);
     if (!validation.valid) {
@@ -405,40 +460,51 @@ export class WorkflowService {
       });
     }
 
-    const { lineage, version } = await this.prisma.$transaction(async (tx) => {
-      const lineageRow = await tx.workflowLineage.create({
-        data: {
-          name: `${source.lineage.name} (candidate v${source.version_number + 1})`,
-          description: `AI-generated candidate from workflow version ${sourceWorkflowVersionId}`,
-          user_id: userId,
-          group_id: source.lineage.group_id,
-          workflow_kind: "benchmark_candidate",
-          source_workflow_id: baseLineageId,
-        },
-      });
-      const versionRow = await tx.workflowVersion.create({
-        data: {
-          lineage_id: lineageRow.id,
-          version_number: 1,
-          config: candidateConfig as object,
-        },
-      });
-      const updated = await tx.workflowLineage.update({
-        where: { id: lineageRow.id },
-        data: { head_version_id: versionRow.id },
-        include: { headVersion: true },
-      });
-      return { lineage: updated, version: updated.headVersion! };
-    });
-
-    this.logger.log(
-      `Candidate workflow lineage created: ${lineage.id} from source version ${sourceWorkflowVersionId}`,
+    const { lineageId: newLineageId } = await this.prisma.$transaction(
+      async (tx) => {
+        const lineageRow = await tx.workflowLineage.create({
+          data: {
+            name: `${source.lineage.name} (candidate v${source.version_number + 1})`,
+            description: `AI-generated candidate from workflow version ${sourceWorkflowVersionId}`,
+            user_id: userId,
+            group_id: source.lineage.group_id,
+            workflow_kind: "benchmark_candidate",
+            source_workflow_id: baseLineageId,
+          },
+        });
+        const versionRow = await tx.workflowVersion.create({
+          data: {
+            lineage_id: lineageRow.id,
+            version_number: 1,
+            config: candidateConfig as object,
+          },
+        });
+        await tx.workflowLineage.update({
+          where: { id: lineageRow.id },
+          data: { head_version_id: versionRow.id },
+        });
+        return { lineageId: lineageRow.id };
+      },
     );
 
-    return this.mapLineageAndVersion(lineage, version);
+    const full = await this.prisma.workflowLineage.findUnique({
+      where: { id: newLineageId },
+      include: this.lineageWithHeadAndUser,
+    });
+    if (!full?.headVersion) {
+      throw new NotFoundException(
+        `Candidate workflow not found after create: ${newLineageId}`,
+      );
+    }
+
+    this.logger.log(
+      `Candidate workflow lineage created: ${full.id} from source version ${sourceWorkflowVersionId}`,
+    );
+
+    return this.mapLineageAndVersion(full, full.headVersion);
   }
 
-  async deleteWorkflow(lineageId: string, userId: string): Promise<void> {
+  async deleteWorkflow(lineageId: string, actorId: string): Promise<void> {
     const existing = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
     });
@@ -463,7 +529,7 @@ export class WorkflowService {
       throw error;
     }
 
-    this.logger.log(`Workflow lineage deleted: ${lineageId} by user ${userId}`);
+    this.logger.log(`Workflow lineage deleted: ${lineageId} by actor ${actorId}`);
   }
 
   async listVersions(lineageId: string): Promise<WorkflowVersionSummary[]> {
@@ -491,7 +557,7 @@ export class WorkflowService {
   async revertHeadToVersion(
     lineageId: string,
     workflowVersionId: string,
-    userId: string,
+    actorId: string,
   ): Promise<WorkflowInfo> {
     const version = await this.prisma.workflowVersion.findUnique({
       where: { id: workflowVersionId },
@@ -510,13 +576,13 @@ export class WorkflowService {
     }
 
     this.logger.log(
-      `revertHeadToVersion: lineage ${lineageId} -> version ${workflowVersionId} by ${userId}`,
+      `revertHeadToVersion: lineage ${lineageId} -> version ${workflowVersionId} by ${actorId}`,
     );
 
     const updated = await this.prisma.workflowLineage.update({
       where: { id: lineageId },
       data: { head_version_id: workflowVersionId },
-      include: { headVersion: true },
+      include: this.lineageWithHeadAndUser,
     });
     if (!updated.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);

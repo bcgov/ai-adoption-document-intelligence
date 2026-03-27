@@ -35,14 +35,18 @@ FROM nginx:alpine
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY nginx-default.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 
-# Create nginx temp/cache dirs (nginx does not create parent dirs); world-writable for OpenShift arbitrary UID
+# Create nginx temp/cache dirs (nginx does not create parent dirs); world-writable for OpenShift arbitrary UID.
+# Make entrypoint and nginx config writable so the entrypoint can substitute env vars at startup.
 RUN mkdir -p /tmp/nginx/client_temp /tmp/nginx/proxy_temp /tmp/nginx/fastcgi_temp \
-    /tmp/nginx/uwsgi_temp /tmp/nginx/scgi_temp && chmod -R 777 /tmp/nginx
+    /tmp/nginx/uwsgi_temp /tmp/nginx/scgi_temp && chmod -R 777 /tmp/nginx \
+    && chmod +x /docker-entrypoint.sh \
+    && chmod 777 /etc/nginx/conf.d \
+    && chmod 666 /etc/nginx/conf.d/default.conf
 
 # Run as non-root so OpenShift's random UID or nginx user can write /tmp/nginx
 USER nginx
 
 EXPOSE 8080
-# Skip default entrypoint (modifies conf, expects root); run nginx directly
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

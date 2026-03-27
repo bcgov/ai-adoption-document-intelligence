@@ -241,7 +241,7 @@ export const usePromoteCandidateWorkflow = (
 export interface BaselinePromotionHistory {
   promotedAt: string;
   runId: string;
-  userId: string;
+  actorId: string;
   definitionId?: string;
   projectId?: string;
 }

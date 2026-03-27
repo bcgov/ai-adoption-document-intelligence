@@ -9,25 +9,26 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:backend": "cd apps/backend-services && npm run start:dev",
-    "dev:frontend": "cd apps/frontend && npm run dev",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "mkdir -p logs && cd apps/backend-services && npm run start:dev 2>&1 | tee ../../logs/backend-services.log",
+    "dev:frontend": "mkdir -p logs && cd apps/frontend && npm run dev 2>&1 | tee ../../logs/frontend.log",
+    "dev": "mkdir -p logs && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:backend-services": "cd apps/backend-services && npm run build",
     "build:frontend": "cd apps/frontend && npm run build",
     "build": "npm run build:backend-services && npm run build:frontend",
     "install:all": "npm install && cd apps/backend-services && npm install && cd ../frontend && npm install",
-    "prepare": "husky",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:file": "playwright test",
     "test:dir": "playwright test",
     "test:db:reset": "cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force && npm run db:seed",
     "generate:openapi": "cd apps/backend-services && SSO_AUTH_SERVER_URL=http://localhost:8080/realms/test SSO_REALM=test SSO_CLIENT_ID=test-client SSO_CLIENT_SECRET=test-secret FRONTEND_URL=http://localhost:3000 KEYCLOAK_PUBLIC_KEY=dummy-key DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy BLOB_STORAGE_TYPE=filesystem BLOB_STORAGE_ROOT=/tmp/uploads TEMPORAL_ADDRESS=localhost:7233 TEMPORAL_NAMESPACE=default TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register -r tsconfig-paths/register ../../docs/generate-openapi.ts",
+    "dev:monitoring": "docker compose -f deployments/local/docker-compose.monitoring.yml up -d",
+    "dev:monitoring:down": "docker compose -f deployments/local/docker-compose.monitoring.yml down",
+    "dev:monitoring:logs": "docker compose -f deployments/local/docker-compose.monitoring.yml logs -f",
     "docs:build": "npm run generate:openapi && cd docs && bash build.sh"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "husky": "^9.1.7"
+    "concurrently": "^9.2.1"
   },
   "engines": {
     "node": ">=24.0.0",

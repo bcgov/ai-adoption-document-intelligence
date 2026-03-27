@@ -21,7 +21,6 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
-import { DatabaseService } from "../database/database.service";
 import { GroupService } from "../group/group.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import {
@@ -40,6 +39,7 @@ import {
   setAuthCookies,
 } from "./cookie-auth.utils";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
+import { Identity } from "./identity.decorator";
 import { Public } from "./public.decorator";
 import { User } from "./types";
 
@@ -54,7 +54,6 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly groupService: GroupService,
-    private readonly databaseService: DatabaseService,
     private readonly logger: AppLoggerService,
   ) {}
 
@@ -281,17 +280,20 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
+  @Identity({ allowApiKey: false })
   async getMe(@Req() req: Request): Promise<MeResponseDto> {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);
     const exp = (user.exp as number) || now;
-    const userId = req.resolvedIdentity?.userId ?? "";
 
-    const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
-    const groups = await this.groupService.getUserGroups(userId, userId);
+    const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
+    const groups = await this.groupService.getUserGroups(
+      req.resolvedIdentity,
+      req.resolvedIdentity?.userId,
+    );
 
     return {
-      sub: userId,
+      sub: req.resolvedIdentity?.userId,
       name: (user.name as string) || (user.display_name as string),
       preferred_username:
         (user.preferred_username as string) || (user.idir_username as string),

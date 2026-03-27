@@ -25,11 +25,6 @@ export class GroupMembershipRequestDto {
   status: string;
 
   @ApiPropertyOptional({
-    description: "The ID of the admin who acted on the request",
-  })
-  actorId?: string;
-
-  @ApiPropertyOptional({
     description: "The reason provided when acting on the request",
   })
   reason?: string;

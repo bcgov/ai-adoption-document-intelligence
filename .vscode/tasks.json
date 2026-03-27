@@ -149,6 +149,30 @@
         "runOn": "folderOpen"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "monitoring: docker up",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev:monitoring"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: all + monitoring",
+      "dependsOn": [
+        "Dev: prerequisites",
+        "monitoring: docker up",
+        "Dev: runtime"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
     }
   ]
 }

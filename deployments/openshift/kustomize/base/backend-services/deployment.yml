@@ -6,6 +6,8 @@ metadata:
     app: backend-services
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: backend-services
@@ -14,9 +16,6 @@ spec:
       labels:
         app: backend-services
     spec:
-      # Allow app user (nestjs/nodejs 1001) to write to logs PVC
-      securityContext:
-        fsGroup: 1001
       initContainers:
       - name: migrate-db
         # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
@@ -45,7 +44,7 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: postgres-cluster-pguser-admin
+              name: app-pg-pguser-admin
               key: uri
         - name: PGSSLMODE
           value: "require"
@@ -88,6 +87,12 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: FRONTEND_URL
+        - name: BOOTSTRAP_ADMIN_EMAIL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BOOTSTRAP_ADMIN_EMAIL
+              optional: true
         - name: BACKEND_URL
           valueFrom:
             configMapKeyRef:
@@ -101,7 +106,7 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: postgres-cluster-pguser-admin
+              name: app-pg-pguser-admin
               key: uri
         - name: PGSSLMODE
           value: "require"
@@ -138,11 +143,6 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
-        - name: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
-          valueFrom:
-            configMapKeyRef:
-              name: backend-services-config
-              key: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
         - name: AZURE_DOC_INTELLIGENCE_MODELS
           valueFrom:
             configMapKeyRef:
@@ -168,6 +168,76 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: TEMPORAL_TASK_QUEUE
+        - name: BENCHMARK_TASK_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BENCHMARK_TASK_QUEUE
+        - name: ENABLE_BENCHMARK_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: ENABLE_BENCHMARK_QUEUE
+        - name: BLOB_STORAGE_PROVIDER
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BLOB_STORAGE_PROVIDER
+        - name: AZURE_STORAGE_CONTAINER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_STORAGE_CONTAINER_NAME
+        - name: AZURE_STORAGE_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_STORAGE_CONNECTION_STRING
+        - name: AZURE_STORAGE_ACCOUNT_NAME
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_STORAGE_ACCOUNT_NAME
+        - name: AZURE_STORAGE_ACCOUNT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_STORAGE_ACCOUNT_KEY
+        - name: BODY_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BODY_LIMIT
+        - name: THROTTLE_GLOBAL_TTL_MS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_GLOBAL_TTL_MS
+        - name: THROTTLE_GLOBAL_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_GLOBAL_LIMIT
+        - name: THROTTLE_AUTH_TTL_MS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_TTL_MS
+        - name: THROTTLE_AUTH_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_LIMIT
+        - name: THROTTLE_AUTH_REFRESH_TTL_MS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_REFRESH_TTL_MS
+        - name: THROTTLE_AUTH_REFRESH_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_REFRESH_LIMIT
         volumeMounts:
         - name: storage
           mountPath: /app/data/blobs
@@ -218,6 +288,24 @@ spec:
           limits:
             memory: "64Mi"
             cpu: "50m"
+      - name: promtail
+        image: grafana/promtail:3.4.2
+        args:
+          - -config.file=/etc/promtail/promtail.yaml
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+          readOnly: true
+        - name: promtail-config
+          mountPath: /etc/promtail
+          readOnly: true
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
       volumes:
       - name: storage
         persistentVolumeClaim:
@@ -230,4 +318,6 @@ spec:
           name: backend-services-logrotate
       - name: logrotate-state
         emptyDir: {}
-
+      - name: promtail-config
+        configMap:
+          name: backend-services-promtail

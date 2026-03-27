@@ -15,8 +15,8 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
+import { ReviewDbService } from "../hitl/review-db.service";
 import { AuditLogService } from "./audit-log.service";
 import { DatasetService } from "./dataset.service";
 import {
@@ -56,7 +56,7 @@ export class HitlDatasetService {
   private readonly logger = new Logger(HitlDatasetService.name);
 
   constructor(
-    private readonly db: DatabaseService,
+    private readonly reviewDbService: ReviewDbService,
     private readonly datasetService: DatasetService,
     private readonly auditLogService: AuditLogService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
@@ -74,7 +74,7 @@ export class HitlDatasetService {
     const limit = Math.min(filters.limit ?? 20, 100);
     const offset = (page - 1) * limit;
 
-    const documents = (await this.db.findReviewQueue({
+    const documents = (await this.reviewDbService.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       reviewStatus: "reviewed",
       limit: 1000,
@@ -134,7 +134,7 @@ export class HitlDatasetService {
    */
   async createDatasetFromHitl(
     dto: CreateDatasetFromHitlDto,
-    userId: string,
+    actorId: string,
   ): Promise<{
     dataset: DatasetResponseDto;
     version: VersionResponseDto;
@@ -152,14 +152,14 @@ export class HitlDatasetService {
         metadata: { ...dto.metadata, source: "hitl" },
         groupId: dto.groupId,
       },
-      userId,
+      actorId,
     );
 
     // Create version and package documents
     const { version, skipped } = await this.packageDocumentsIntoVersion(
       dataset.id,
       dto.documentIds,
-      userId,
+      actorId,
     );
 
     return { dataset, version, skipped };
@@ -171,7 +171,7 @@ export class HitlDatasetService {
   async addVersionFromHitl(
     datasetId: string,
     dto: AddVersionFromHitlDto,
-    userId: string,
+    actorId: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
     this.logger.log(
       `Adding HITL version to dataset ${datasetId} from ${dto.documentIds.length} documents`,
@@ -180,7 +180,7 @@ export class HitlDatasetService {
     return this.packageDocumentsIntoVersion(
       datasetId,
       dto.documentIds,
-      userId,
+      actorId,
       dto.version,
       dto.name,
     );
@@ -192,12 +192,12 @@ export class HitlDatasetService {
   private async packageDocumentsIntoVersion(
     datasetId: string,
     documentIds: string[],
-    userId: string,
+    actorId: string,
     versionLabel?: string,
     versionName?: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
     // Fetch all reviewed documents once
-    const allDocuments = (await this.db.findReviewQueue({
+    const allDocuments = (await this.reviewDbService.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       reviewStatus: "reviewed",
       limit: 10000,
@@ -212,7 +212,7 @@ export class HitlDatasetService {
         version: versionLabel,
         name: versionName,
       },
-      userId,
+      actorId,
     );
 
     const storagePrefix = `datasets/${datasetId}/${version.id}`;
@@ -280,7 +280,7 @@ export class HitlDatasetService {
 
     // Audit log
     await this.auditLogService.logVersionPublished(
-      userId,
+      actorId,
       version.id,
       datasetId,
       {

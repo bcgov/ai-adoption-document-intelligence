@@ -109,6 +109,31 @@ describe("createLogger", () => {
         out.restore();
       }
     });
+
+    it("includes sessionId in the emitted object when provided", () => {
+      const out = captureStdout();
+      try {
+        const log = createLogger(SERVICE);
+        log.info("session log", { sessionId: "sess-abc-123" });
+        const entry = parseLastLine(out.lines);
+        expect(entry.sessionId).toBe("sess-abc-123");
+      } finally {
+        out.restore();
+      }
+    });
+
+    it("omits sessionId from the emitted object when not provided", () => {
+      const out = captureStdout();
+      try {
+        const log = createLogger(SERVICE);
+        log.info("no session", { requestId: "req-1" });
+        const entry = parseLastLine(out.lines);
+        expect(entry.sessionId).toBeUndefined();
+        expect(entry.requestId).toBe("req-1");
+      } finally {
+        out.restore();
+      }
+    });
   });
 
   describe("LOG_LEVEL filtering", () => {
@@ -167,13 +192,13 @@ describe("createLogger", () => {
         log.info("auth", {
           apiKey: "secret-key",
           token: "jwt-xxx",
-          userId: "u1",
+          actorId: "u1",
         });
         const entry = parseLastLine(out.lines);
         expect(entry.apiKey).toBe("[REDACTED]");
         expect(entry.token).toBe("[REDACTED]");
         expect(entry.authorization).toBeUndefined();
-        expect(entry.userId).toBe("u1");
+        expect(entry.actorId).toBe("u1");
       } finally {
         out.restore();
       }

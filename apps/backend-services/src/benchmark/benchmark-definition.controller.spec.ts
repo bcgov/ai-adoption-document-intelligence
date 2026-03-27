@@ -14,7 +14,6 @@ import { AuditAction } from "@generated/client";
 import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkDefinitionController } from "./benchmark-definition.controller";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
@@ -48,12 +47,6 @@ describe("BenchmarkDefinitionController", () => {
 
   const mockAuditLogService = {
     queryAuditLogs: jest.fn(),
-  };
-
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-    isUserInGroup: jest.fn().mockResolvedValue(true),
   };
 
   const mockReq = {
@@ -93,7 +86,6 @@ describe("BenchmarkDefinitionController", () => {
         },
         { provide: BenchmarkProjectService, useValue: mockProjectService },
         { provide: AuditLogService, useValue: mockAuditLogService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
       ],
     }).compile();
 

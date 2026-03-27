@@ -1,0 +1,456 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the shared base manifests
+resources:
+  - ../../base
+
+# Prefix all resource names with the instance name.
+# The deploy script replaces __INSTANCE_NAME__ before running kustomize build.
+namePrefix: "__INSTANCE_NAME__-"
+
+# Tell Kustomize how to update name references in OpenShift Route resources.
+# Without this, namePrefix updates metadata.name but not spec.to.name (service reference).
+configurations:
+  - kustomize-config.yml
+
+# Apply instance label to all resources for isolation and selection.
+# Kustomize propagates commonLabels into metadata.labels, spec.selector.matchLabels,
+# and spec.template.metadata.labels automatically.
+commonLabels:
+  app.kubernetes.io/instance: "__INSTANCE_NAME__"
+
+# Image overrides — the deploy script replaces these placeholders with actual
+# Artifactory image references for the current branch.
+images:
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
+    newName: "__BACKEND_IMAGE__"
+    newTag: "__IMAGE_TAG__"
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+    newName: "__WORKER_IMAGE__"
+    newTag: "__IMAGE_TAG__"
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+    newName: "__FRONTEND_IMAGE__"
+    newTag: "__IMAGE_TAG__"
+
+# Patches for resources that contain hardcoded service references or hostnames.
+# Kustomize namePrefix updates metadata.name and cross-references (secretKeyRef,
+# configMapKeyRef, PVC claimName, service selector) automatically, but it does NOT
+# update string values embedded inside env var values or configmap data fields.
+patches:
+  # --- Route hostname patches ---
+  - target:
+      kind: Route
+      name: backend-services
+    patch: |
+      - op: add
+        path: /spec/host
+        value: "__INSTANCE_NAME__-backend-__NAMESPACE__.__CLUSTER_DOMAIN__"
+  - target:
+      kind: Route
+      name: frontend
+    patch: |
+      - op: add
+        path: /spec/host
+        value: "__INSTANCE_NAME__-frontend-__NAMESPACE__.__CLUSTER_DOMAIN__"
+  # --- Temporal server: update hardcoded Postgres service references ---
+  # The Temporal server deployment references temporal-postgres-cluster-primary
+  # in env vars. With namePrefix, the actual service becomes
+  # __INSTANCE_NAME__-temporal-pg-primary.
+  - target:
+      kind: Deployment
+      name: temporal
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: config-init
+                env:
+                  - name: POSTGRES_SEEDS
+                    value: "__INSTANCE_NAME__-temporal-pg-primary"
+              - name: schema-setup
+                env:
+                  - name: POSTGRES_SEEDS
+                    value: "__INSTANCE_NAME__-temporal-pg-primary"
+            containers:
+              - name: temporal
+                env:
+                  - name: POSTGRES_SEEDS
+                    value: "__INSTANCE_NAME__-temporal-pg-primary"
+
+  # --- Temporal UI: update hardcoded Temporal server address ---
+  - target:
+      kind: Deployment
+      name: temporal-ui
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal-ui
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: config-init
+                env:
+                  - name: TEMPORAL_ADDRESS
+                    value: "__INSTANCE_NAME__-temporal:7233"
+            containers:
+              - name: temporal-ui
+                env:
+                  - name: TEMPORAL_ADDRESS
+                    value: "__INSTANCE_NAME__-temporal:7233"
+
+  # --- Backend services ConfigMap: update in-cluster service references ---
+  # Also adds instance-specific values that are not in the base ConfigMap
+  # (route-derived URLs, SSO config) using template placeholders.
+  - target:
+      kind: ConfigMap
+      name: backend-services-config
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: backend-services-config
+      data:
+        TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
+        FRONTEND_URL: "https://__INSTANCE_NAME__-frontend-__NAMESPACE__.__CLUSTER_DOMAIN__"
+        BACKEND_URL: "https://__INSTANCE_NAME__-backend-__NAMESPACE__.__CLUSTER_DOMAIN__"
+        SSO_REDIRECT_URI: "https://__INSTANCE_NAME__-frontend-__NAMESPACE__.__CLUSTER_DOMAIN__/api/auth/callback"
+        SSO_AUTH_SERVER_URL: "__SSO_AUTH_SERVER_URL__"
+        SSO_REALM: "__SSO_REALM__"
+        SSO_CLIENT_ID: "__SSO_CLIENT_ID__"
+        BOOTSTRAP_ADMIN_EMAIL: "__BOOTSTRAP_ADMIN_EMAIL__"
+        BLOB_STORAGE_PROVIDER: "__BLOB_STORAGE_PROVIDER__"
+        AZURE_STORAGE_CONTAINER_NAME: "__AZURE_STORAGE_CONTAINER_NAME__"
+        BENCHMARK_TASK_QUEUE: "__BENCHMARK_TASK_QUEUE__"
+        ENABLE_BENCHMARK_QUEUE: "__ENABLE_BENCHMARK_QUEUE__"
+        BODY_LIMIT: "__BODY_LIMIT__"
+        THROTTLE_GLOBAL_TTL_MS: "__THROTTLE_GLOBAL_TTL_MS__"
+        THROTTLE_GLOBAL_LIMIT: "__THROTTLE_GLOBAL_LIMIT__"
+        THROTTLE_AUTH_TTL_MS: "__THROTTLE_AUTH_TTL_MS__"
+        THROTTLE_AUTH_LIMIT: "__THROTTLE_AUTH_LIMIT__"
+        THROTTLE_AUTH_REFRESH_TTL_MS: "__THROTTLE_AUTH_REFRESH_TTL_MS__"
+        THROTTLE_AUTH_REFRESH_LIMIT: "__THROTTLE_AUTH_REFRESH_LIMIT__"
+
+  # --- Temporal worker ConfigMap: update Temporal server address ---
+  - target:
+      kind: ConfigMap
+      name: temporal-worker-config
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: temporal-worker-config
+      data:
+        TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
+        BLOB_STORAGE_PROVIDER: "__BLOB_STORAGE_PROVIDER__"
+        AZURE_STORAGE_CONTAINER_NAME: "__AZURE_STORAGE_CONTAINER_NAME__"
+        BENCHMARK_TASK_QUEUE: "__BENCHMARK_TASK_QUEUE__"
+        ENABLE_BENCHMARK_QUEUE: "__ENABLE_BENCHMARK_QUEUE__"
+        AZURE_OPENAI_ENDPOINT: "__AZURE_OPENAI_ENDPOINT__"
+        AZURE_OPENAI_DEPLOYMENT: "__AZURE_OPENAI_DEPLOYMENT__"
+        AZURE_OPENAI_API_VERSION: "__AZURE_OPENAI_API_VERSION__"
+        ENRICHMENT_REDACT_PII: "__ENRICHMENT_REDACT_PII__"
+
+  # --- Frontend: set backend proxy target for nginx reverse proxy ---
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: frontend
+                env:
+                  - name: BACKEND_SERVICE_URL
+                    value: "http://__INSTANCE_NAME__-backend-services:3002"
+
+  # --- Crunchy Postgres secret name patches ---
+  # The Crunchy operator auto-creates secrets named after the PostgresCluster CR.
+  # Kustomize namePrefix updates metadata.name but not secretKeyRef references to
+  # operator-managed secrets. These patches fix the secret names.
+  - target:
+      kind: Deployment
+      name: backend-services
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: backend-services
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: migrate-db
+                env:
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-app-pg-pguser-admin
+                        key: uri
+            containers:
+              - name: backend-services
+                env:
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-app-pg-pguser-admin
+                        key: uri
+
+  - target:
+      kind: Deployment
+      name: temporal
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: config-init
+                env:
+                  - name: POSTGRES_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: user
+                  - name: POSTGRES_PWD
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: password
+              - name: schema-setup
+                env:
+                  - name: POSTGRES_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: user
+                  - name: SQL_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: password
+            containers:
+              - name: temporal
+                env:
+                  - name: POSTGRES_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: user
+                  - name: POSTGRES_PWD
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: password
+
+  - target:
+      kind: Deployment
+      name: temporal-worker
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal-worker
+      spec:
+        template:
+          spec:
+            containers:
+              - name: temporal-worker
+                env:
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-app-pg-pguser-admin
+                        key: uri
+
+  # --- Crunchy PostgresCluster: fix databaseInitSQL ConfigMap reference ---
+  # Kustomize namePrefix does not update spec.databaseInitSQL.name in PostgresCluster CRDs.
+  - target:
+      kind: PostgresCluster
+      name: temporal-pg
+    patch: |
+      apiVersion: postgres-operator.crunchydata.com/v1beta1
+      kind: PostgresCluster
+      metadata:
+        name: temporal-pg
+      spec:
+        databaseInitSQL:
+          name: __INSTANCE_NAME__-temporal-postgres-init-sql
+          key: init.sql
+
+  # --- Crunchy PostgresCluster: configurable backup PVC sizes ---
+  # Default is 10Gi (matching the base manifests). Override via PG_BACKUP_STORAGE_SIZE
+  # in config env files to reduce backup storage for test instances.
+  - target:
+      kind: PostgresCluster
+      name: app-pg
+    patch: |
+      - op: replace
+        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
+        value: "__PG_BACKUP_STORAGE_SIZE__"
+  - target:
+      kind: PostgresCluster
+      name: temporal-pg
+    patch: |
+      - op: replace
+        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
+        value: "__PG_BACKUP_STORAGE_SIZE__"
+
+  # --- Promtail configmaps: fix Loki URL to use instance-prefixed service name ---
+  # Kustomize namePrefix does not update string values inside configmap data fields.
+  # The PLG Helm chart creates the Loki service as __INSTANCE_NAME__-plg-loki.
+  - target:
+      kind: ConfigMap
+      name: backend-services-promtail
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: backend-services-promtail
+      data:
+        promtail.yaml: |
+          server:
+            http_listen_port: 0
+            grpc_listen_port: 0
+          positions:
+            filename: /tmp/positions.yaml
+          clients:
+            - url: http://__INSTANCE_NAME__-plg-loki:3100/loki/api/v1/push
+          scrape_configs:
+            - job_name: backend-services
+              static_configs:
+                - targets:
+                    - localhost
+                  labels:
+                    service: backend-services
+                    __path__: /var/log/app/*.log
+  - target:
+      kind: ConfigMap
+      name: frontend-promtail
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: frontend-promtail
+      data:
+        promtail.yaml: |
+          server:
+            http_listen_port: 0
+            grpc_listen_port: 0
+          positions:
+            filename: /tmp/positions.yaml
+          clients:
+            - url: http://__INSTANCE_NAME__-plg-loki:3100/loki/api/v1/push
+          scrape_configs:
+            - job_name: frontend
+              static_configs:
+                - targets:
+                    - localhost
+                  labels:
+                    service: frontend
+                    __path__: /var/log/app/*.log
+  - target:
+      kind: ConfigMap
+      name: temporal-server-promtail
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: temporal-server-promtail
+      data:
+        promtail.yaml: |
+          server:
+            http_listen_port: 0
+            grpc_listen_port: 0
+          positions:
+            filename: /tmp/positions.yaml
+          clients:
+            - url: http://__INSTANCE_NAME__-plg-loki:3100/loki/api/v1/push
+          scrape_configs:
+            - job_name: temporal-server
+              static_configs:
+                - targets:
+                    - localhost
+                  labels:
+                    service: temporal-server
+                    __path__: /var/log/app/*.log
+  - target:
+      kind: ConfigMap
+      name: temporal-worker-promtail
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: temporal-worker-promtail
+      data:
+        promtail.yaml: |
+          server:
+            http_listen_port: 0
+            grpc_listen_port: 0
+          positions:
+            filename: /tmp/positions.yaml
+          clients:
+            - url: http://__INSTANCE_NAME__-plg-loki:3100/loki/api/v1/push
+          scrape_configs:
+            - job_name: temporal-worker
+              static_configs:
+                - targets:
+                    - localhost
+                  labels:
+                    service: temporal-worker
+                    __path__: /var/log/app/*.log
+
+  # --- NetworkPolicy patches: scope ingress to instance label ---
+  - target:
+      kind: NetworkPolicy
+      name: allow-all-ingress-nestjs
+    patch: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-ingress-nestjs
+      spec:
+        ingress:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: "__INSTANCE_NAME__"
+            # Allow ingress from OpenShift router for external route access
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    network.openshift.io/policy-group: ingress
+
+  - target:
+      kind: NetworkPolicy
+      name: allow-all-ingress-frontend
+    patch: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-ingress-frontend
+      spec:
+        ingress:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: "__INSTANCE_NAME__"
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    network.openshift.io/policy-group: ingress
