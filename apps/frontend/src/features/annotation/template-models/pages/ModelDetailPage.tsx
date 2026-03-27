@@ -254,12 +254,15 @@ export const ModelDetailPage: FC = () => {
     try {
       const text = await file.text();
       const json = JSON.parse(text);
-      const fields: Array<{ fieldKey: string; fieldType: string; fieldFormat?: string }> =
-        json.fields;
+      const fields: Array<{
+        fieldKey: string;
+        fieldType: string;
+        fieldFormat?: string;
+      }> = json.fields;
       if (!Array.isArray(fields) || fields.length === 0) {
         notifications.show({
           title: "Invalid file",
-          message: "Expected a fields.json with a non-empty \"fields\" array.",
+          message: 'Expected a fields.json with a non-empty "fields" array.',
           color: "red",
         });
         return;
@@ -301,7 +304,8 @@ export const ModelDetailPage: FC = () => {
     } catch {
       notifications.show({
         title: "Import failed",
-        message: "Could not parse file. Expected JSON with { fields: [...] } format.",
+        message:
+          "Could not parse file. Expected JSON with { fields: [...] } format.",
         color: "red",
       });
     } finally {
@@ -332,9 +336,7 @@ export const ModelDetailPage: FC = () => {
             Back
           </Button>
           <Stack gap={2}>
-            <Title order={2}>
-              {templateModel?.name || "Template Model"}
-            </Title>
+            <Title order={2}>{templateModel?.name || "Template Model"}</Title>
             {templateModel?.model_id && (
               <Group gap="xs">
                 <Code>{templateModel.model_id}</Code>

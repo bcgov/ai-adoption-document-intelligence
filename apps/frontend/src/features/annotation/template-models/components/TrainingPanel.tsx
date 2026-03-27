@@ -240,7 +240,9 @@ export function TrainingPanel({
           <Alert color="green" title="Model Trained" icon={<IconCheck />}>
             <Text size="sm">
               Last successful training completed on{" "}
-              {formatDate(latestSucceededJob.completedAt || latestSucceededJob.startedAt)}
+              {formatDate(
+                latestSucceededJob.completedAt || latestSucceededJob.startedAt,
+              )}
             </Text>
           </Alert>
         </Paper>

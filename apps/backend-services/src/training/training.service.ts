@@ -21,9 +21,9 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { ExportFormat } from "../template-model/dto/export.dto";
 import { TemplateModelService } from "../template-model/template-model.service";
-import { AppLoggerService } from "../logging/app-logger.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
@@ -108,7 +108,9 @@ export class TrainingService {
       await this.templateModelService.getTemplateModel(templateModelId);
 
     const documents =
-      await this.templateModelService.getTemplateModelDocuments(templateModelId);
+      await this.templateModelService.getTemplateModelDocuments(
+        templateModelId,
+      );
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );
@@ -123,7 +125,10 @@ export class TrainingService {
     }
 
     // Check field schema exists
-    if (!templateModel.field_schema || templateModel.field_schema.length === 0) {
+    if (
+      !templateModel.field_schema ||
+      templateModel.field_schema.length === 0
+    ) {
       issues.push("Template model has no field schema defined");
     }
 
@@ -181,7 +186,9 @@ export class TrainingService {
 
     // Add document images and their labels/OCR files
     const documents =
-      await this.templateModelService.getTemplateModelDocuments(templateModelId);
+      await this.templateModelService.getTemplateModelDocuments(
+        templateModelId,
+      );
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );
@@ -253,9 +260,8 @@ export class TrainingService {
     await this.deleteModelIfExists(modelId);
 
     // Remove any local record with the same model ID
-    const existingModel = await this.trainingDb.findTrainedModelByModelId(
-      modelId,
-    );
+    const existingModel =
+      await this.trainingDb.findTrainedModelByModelId(modelId);
     if (existingModel) {
       await this.trainingDb.deleteTrainedModel(modelId);
     }
@@ -589,10 +595,7 @@ export class TrainingService {
     return this.trainingDb.findAllTrainedModelIds();
   }
 
-  /**
-   * Map database model to DTO
-   */
-  private mapTrainedModelToDto(model: TrainedModel): TrainedModelDto {
+  mapTrainedModelToDto(model: TrainedModel): TrainedModelDto {
     return {
       id: model.id,
       templateModelId: model.template_model_id,

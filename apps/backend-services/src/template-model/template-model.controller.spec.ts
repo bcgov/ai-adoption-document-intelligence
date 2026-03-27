@@ -3,17 +3,14 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { BLOB_STORAGE } from "../blob-storage/blob-storage.interface";
-import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
   UpdateTemplateModelDto,
 } from "./dto/create-template-model.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import {
-  LabelingFileType,
-  LabelingUploadDto,
-} from "./dto/labeling-upload.dto";
+import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelController } from "./template-model.controller";
 import { TemplateModelService } from "./template-model.service";
 
@@ -178,7 +175,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when group_id is provided and user is not a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
 
       await expect(
@@ -236,7 +238,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
@@ -286,7 +293,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
@@ -336,15 +348,20 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
 
-      await expect(
-        controller.deleteTemplateModel("tm-1", req),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.deleteTemplateModel("tm-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(templateModelService.deleteTemplateModel).not.toHaveBeenCalled();
     });
 
@@ -355,9 +372,9 @@ describe("TemplateModelController", () => {
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      await expect(
-        controller.deleteTemplateModel("tm-1", req),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.deleteTemplateModel("tm-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(templateModelService.deleteTemplateModel).not.toHaveBeenCalled();
     });
   });
@@ -384,15 +401,21 @@ describe("TemplateModelController", () => {
       );
       const result = await controller.uploadLabelingDocument("tm-1", dto, req);
       expect(result).toEqual(mockLabelingDocResult);
-      expect(
-        templateModelService.uploadLabelingDocument,
-      ).toHaveBeenCalledWith("tm-1", dto);
+      expect(templateModelService.uploadLabelingDocument).toHaveBeenCalledWith(
+        "tm-1",
+        dto,
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
 
       await expect(
@@ -443,7 +466,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
 
       await expect(
@@ -456,9 +484,16 @@ describe("TemplateModelController", () => {
 
     it("throws NotFoundException when labeling document does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
-      labelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(null);
+      labelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
+        null,
+      );
       await expect(
         controller.addDocumentToTemplateModel("tm-1", dto, req),
       ).rejects.toThrow(NotFoundException);
@@ -504,7 +539,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
@@ -556,7 +596,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
@@ -620,7 +665,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
@@ -688,7 +738,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
@@ -732,7 +787,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
@@ -775,7 +835,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,

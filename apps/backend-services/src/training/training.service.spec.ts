@@ -1,7 +1,4 @@
-import {
-  LabelingStatus,
-  TrainingStatus,
-} from "@generated/client";
+import { LabelingStatus, TrainingStatus } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -320,9 +317,9 @@ describe("TrainingService", () => {
       const result = await service.validateTrainingData("tm-1");
 
       expect(result.valid).toBe(false);
-      expect(
-        result.issues.some((i) => i.includes("no field schema")),
-      ).toBe(true);
+      expect(result.issues.some((i) => i.includes("no field schema"))).toBe(
+        true,
+      );
     });
 
     it("should return issues when documents have no labels", async () => {
@@ -452,9 +449,9 @@ describe("TrainingService", () => {
         mockLabeledDocument,
       ]);
 
-      await expect(
-        service.startTraining("tm-1", dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("should delete existing trained model before training", async () => {

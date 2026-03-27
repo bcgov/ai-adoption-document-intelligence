@@ -370,7 +370,9 @@ export class TemplateModelDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<LabeledDocumentData[]> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding labeled documents for template model", { templateModelId });
+    this.logger.debug("Finding labeled documents for template model", {
+      templateModelId,
+    });
     const docs = await client.labeledDocument.findMany({
       where: { template_model_id: templateModelId },
       orderBy: { created_at: "desc" },

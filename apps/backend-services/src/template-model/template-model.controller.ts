@@ -46,6 +46,8 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
+import { LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import {
   DeleteDocumentResponseDto,
   DeleteResponseDto,
@@ -55,10 +57,8 @@ import {
   TemplateModelResponseDto,
   UploadLabelingResponseDto,
 } from "./dto/template-model-responses.dto";
-import { LabelingUploadDto } from "./dto/labeling-upload.dto";
-import { LabelSuggestionDto } from "./dto/suggestion.dto";
-import { TemplateModelService } from "./template-model.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
+import { TemplateModelService } from "./template-model.service";
 
 @ApiTags("Template Models")
 @Controller("api/template-models")
@@ -342,8 +342,10 @@ export class TemplateModelController {
     @Param("docId") documentId: string,
     @Req() req: Request,
   ) {
-    const labeledDoc =
-      await this.templateModelService.getTemplateModelDocument(id, documentId);
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      id,
+      documentId,
+    );
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
@@ -366,8 +368,10 @@ export class TemplateModelController {
     @Res() res: Response,
     @Req() req: Request,
   ) {
-    const labeledDoc =
-      await this.templateModelService.getTemplateModelDocument(id, documentId);
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      id,
+      documentId,
+    );
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
@@ -406,8 +410,10 @@ export class TemplateModelController {
     @Param("docId") documentId: string,
     @Req() req: Request,
   ) {
-    const labeledDoc =
-      await this.templateModelService.getTemplateModelDocument(id, documentId);
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      id,
+      documentId,
+    );
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
@@ -436,8 +442,10 @@ export class TemplateModelController {
     @Param("docId") documentId: string,
     @Req() req: Request,
   ) {
-    const labeledDoc =
-      await this.templateModelService.getTemplateModelDocument(id, documentId);
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      id,
+      documentId,
+    );
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
@@ -462,8 +470,10 @@ export class TemplateModelController {
     @Body() dto: SaveLabelsDto,
     @Req() req: Request,
   ) {
-    const labeledDoc =
-      await this.templateModelService.getTemplateModelDocument(id, documentId);
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      id,
+      documentId,
+    );
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
@@ -489,8 +499,10 @@ export class TemplateModelController {
     @Param("labelId") labelId: string,
     @Req() req: Request,
   ) {
-    const labeledDoc =
-      await this.templateModelService.getTemplateModelDocument(id, documentId);
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      id,
+      documentId,
+    );
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
@@ -515,8 +527,10 @@ export class TemplateModelController {
     @Param("docId") documentId: string,
     @Req() req: Request,
   ) {
-    const labeledDoc =
-      await this.templateModelService.getTemplateModelDocument(id, documentId);
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      id,
+      documentId,
+    );
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
@@ -573,8 +587,7 @@ export class TemplateModelController {
     @Body() options: ExportDto,
     @Req() req: Request,
   ) {
-    const templateModel =
-      await this.templateModelService.getTemplateModel(id);
+    const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
     return this.templateModelService.exportTemplateModel(id, options);
   }

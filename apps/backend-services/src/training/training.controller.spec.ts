@@ -150,15 +150,10 @@ describe("TrainingController", () => {
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      trainingService.startTraining.mockResolvedValue(
-        mockTrainingJob as never,
-      );
+      trainingService.startTraining.mockResolvedValue(mockTrainingJob as never);
       const result = await controller.startTraining("tm-1", dto, req);
       expect(result).toEqual(mockTrainingJob);
-      expect(trainingService.startTraining).toHaveBeenCalledWith(
-        "tm-1",
-        dto,
-      );
+      expect(trainingService.startTraining).toHaveBeenCalledWith("tm-1", dto);
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -173,9 +168,9 @@ describe("TrainingController", () => {
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      await expect(
-        controller.startTraining("tm-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.startTraining("tm-1", dto, req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(trainingService.startTraining).not.toHaveBeenCalled();
     });
 
@@ -186,9 +181,9 @@ describe("TrainingController", () => {
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      await expect(
-        controller.startTraining("tm-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.startTraining("tm-1", dto, req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(trainingService.startTraining).not.toHaveBeenCalled();
     });
   });

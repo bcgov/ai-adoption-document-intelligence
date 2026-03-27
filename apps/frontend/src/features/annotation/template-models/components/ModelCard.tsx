@@ -74,11 +74,7 @@ export const ModelCard: FC<ModelCardProps> = ({ model, onClick }) => {
                     copy();
                   }}
                 >
-                  {copied ? (
-                    <IconCheck size={14} />
-                  ) : (
-                    <IconCopy size={14} />
-                  )}
+                  {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
                 </ActionIcon>
               </Tooltip>
             )}

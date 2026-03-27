@@ -17,10 +17,10 @@ import type {
   LabeledDocumentData,
   TemplateModelData,
 } from "@/database/template-model-db.types";
-import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
-import { TemplateModelOcrService } from "@/template-model/template-model-ocr.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AnalysisResponse, Page } from "@/ocr/azure-types";
+import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
+import { TemplateModelOcrService } from "@/template-model/template-model-ocr.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
@@ -71,7 +71,8 @@ export class TemplateModelService {
 
   async generateUniqueModelId(name: string): Promise<string> {
     const base = this.generateModelIdBase(name);
-    const existing = await this.templateModelDb.findTemplateModelByModelId(base);
+    const existing =
+      await this.templateModelDb.findTemplateModelByModelId(base);
     if (!existing) {
       return base;
     }
@@ -79,7 +80,8 @@ export class TemplateModelService {
     let suffix = 2;
     while (suffix <= 1000) {
       const candidate = `${base}-${suffix}`.slice(0, 64);
-      const exists = await this.templateModelDb.findTemplateModelByModelId(candidate);
+      const exists =
+        await this.templateModelDb.findTemplateModelByModelId(candidate);
       if (!exists) {
         return candidate;
       }
@@ -145,7 +147,8 @@ export class TemplateModelService {
     this.logger.debug(
       `Getting field schema for template model: ${templateModelId}`,
     );
-    const templateModel = await this.templateModelDb.findTemplateModel(templateModelId);
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
@@ -159,7 +162,8 @@ export class TemplateModelService {
       `Adding field ${dto.field_key} to template model: ${templateModelId}`,
     );
 
-    const templateModel = await this.templateModelDb.findTemplateModel(templateModelId);
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
@@ -218,7 +222,8 @@ export class TemplateModelService {
     this.logger.debug(
       `Getting documents for template model: ${templateModelId}`,
     );
-    const templateModel = await this.templateModelDb.findTemplateModel(templateModelId);
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
@@ -235,14 +240,17 @@ export class TemplateModelService {
       `Adding document ${dto.labelingDocumentId} to template model: ${templateModelId}`,
     );
 
-    const templateModel = await this.templateModelDb.findTemplateModel(templateModelId);
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
       );
     }
 
-    const document = await this.labelingDocumentDb.findLabelingDocument(dto.labelingDocumentId);
+    const document = await this.labelingDocumentDb.findLabelingDocument(
+      dto.labelingDocumentId,
+    );
     if (!document) {
       throw new NotFoundException(
         `Labeling document with id ${dto.labelingDocumentId} not found`,
@@ -255,10 +263,7 @@ export class TemplateModelService {
     );
   }
 
-  async getTemplateModelDocument(
-    templateModelId: string,
-    documentId: string,
-  ) {
+  async getTemplateModelDocument(templateModelId: string, documentId: string) {
     this.logger.debug(
       `Getting document ${documentId} from template model: ${templateModelId}`,
     );
@@ -345,12 +350,12 @@ export class TemplateModelService {
       dto.labels.length > 0
         ? LabelingStatus.labeled
         : LabelingStatus.in_progress;
-    await this.templateModelDb.updateLabeledDocument(
-      labeledDoc.id,
-      newStatus,
-    );
+    await this.templateModelDb.updateLabeledDocument(labeledDoc.id, newStatus);
 
-    return this.templateModelDb.findLabeledDocument(templateModelId, documentId);
+    return this.templateModelDb.findLabeledDocument(
+      templateModelId,
+      documentId,
+    );
   }
 
   async deleteLabel(
@@ -418,7 +423,8 @@ export class TemplateModelService {
       );
     }
 
-    const templateModel = await this.templateModelDb.findTemplateModel(templateModelId);
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
@@ -443,14 +449,16 @@ export class TemplateModelService {
       `Exporting template model ${templateModelId} in format: ${options.format}`,
     );
 
-    const templateModel = await this.templateModelDb.findTemplateModel(templateModelId);
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
       );
     }
 
-    let documents = await this.templateModelDb.findLabeledDocuments(templateModelId);
+    let documents =
+      await this.templateModelDb.findLabeledDocuments(templateModelId);
 
     if (options.documentIds?.length) {
       documents = documents.filter((d: LabeledDocumentData) =>
@@ -625,7 +633,8 @@ export class TemplateModelService {
       `Uploading labeling document for template model: ${templateModelId}`,
     );
 
-    const templateModel = await this.templateModelDb.findTemplateModel(templateModelId);
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,

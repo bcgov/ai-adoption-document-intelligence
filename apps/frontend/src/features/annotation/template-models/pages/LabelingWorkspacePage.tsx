@@ -30,8 +30,8 @@ import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldPanel } from "../../core/field-panel/FieldPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import { type LabelDto, useLabels } from "../hooks/useLabels";
-import { useTemplateModelDocument } from "../hooks/useTemplateModels";
 import { useSuggestions } from "../hooks/useSuggestions";
+import { useTemplateModelDocument } from "../hooks/useTemplateModels";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 

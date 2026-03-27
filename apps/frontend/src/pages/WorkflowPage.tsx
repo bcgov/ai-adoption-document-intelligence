@@ -141,7 +141,10 @@ export function WorkflowPage() {
     false;
 
   const { templateModels, isLoading: projectsLoading } = useTemplateModels();
-  const projectOptions = templateModels.map((p) => ({ value: p.id, label: p.name }));
+  const projectOptions = templateModels.map((p) => ({
+    value: p.id,
+    label: p.name,
+  }));
 
   const handleCreateWorkflow = async () => {
     if (!workflowName.trim()) {

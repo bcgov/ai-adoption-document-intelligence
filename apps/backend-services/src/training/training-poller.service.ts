@@ -7,7 +7,10 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { TrainingDbService, type TrainingJobWithTemplateModel } from "./training-db.service";
+import {
+  TrainingDbService,
+  type TrainingJobWithTemplateModel,
+} from "./training-db.service";
 
 interface AzureErrorResponse {
   error?: {

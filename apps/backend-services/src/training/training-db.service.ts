@@ -10,6 +10,7 @@ import { TrainingStatus } from "@generated/client";
 export type TrainingJobWithTemplateModel = TrainingJob & {
   template_model: TemplateModel;
 };
+
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
@@ -73,7 +74,10 @@ export class TrainingDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<TrainingJobWithTemplateModel | null> {
     const client = tx ?? this.prisma;
-    return client.trainingJob.findUnique({ where: { id }, include: { template_model: true } });
+    return client.trainingJob.findUnique({
+      where: { id },
+      include: { template_model: true },
+    });
   }
 
   /**

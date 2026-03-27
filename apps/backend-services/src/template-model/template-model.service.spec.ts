@@ -6,13 +6,13 @@ import {
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ResolvedIdentity } from "@/auth/types";
+import { TemplateModelDbService } from "@/database/template-model-db.service";
 import {
   LabeledDocumentData,
   TemplateModelData,
 } from "@/database/template-model-db.types";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { TemplateModelDbService } from "@/database/template-model-db.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
@@ -25,14 +25,11 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import {
-  LabelingFileType,
-  LabelingUploadDto,
-} from "./dto/labeling-upload.dto";
-import { TemplateModelService } from "./template-model.service";
-import { TemplateModelOcrService } from "./template-model-ocr.service";
+import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { SuggestionService } from "./suggestion.service";
+import { TemplateModelService } from "./template-model.service";
+import { TemplateModelOcrService } from "./template-model-ocr.service";
 
 describe("TemplateModelService", () => {
   let service: TemplateModelService;
@@ -226,7 +223,9 @@ describe("TemplateModelService", () => {
 
   describe("generateUniqueModelId", () => {
     it("should return base model_id when no collision", async () => {
-      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(null);
+      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(
+        null,
+      );
       const result = await service.generateUniqueModelId("My Template");
       expect(result).toBe("my-template");
     });
@@ -255,25 +254,29 @@ describe("TemplateModelService", () => {
   describe("getTemplateModels", () => {
     it("should return all template models", async () => {
       const models = [mockTemplateModel];
-      mockTemplateModelDbService.findAllTemplateModels.mockResolvedValueOnce(models);
+      mockTemplateModelDbService.findAllTemplateModels.mockResolvedValueOnce(
+        models,
+      );
 
       const result = await service.getTemplateModels();
 
-      expect(mockTemplateModelDbService.findAllTemplateModels).toHaveBeenCalledWith(
-        undefined,
-      );
+      expect(
+        mockTemplateModelDbService.findAllTemplateModels,
+      ).toHaveBeenCalledWith(undefined);
       expect(result).toEqual(models);
     });
 
     it("should return template models for specific groups", async () => {
       const models = [mockTemplateModel];
-      mockTemplateModelDbService.findAllTemplateModels.mockResolvedValueOnce(models);
+      mockTemplateModelDbService.findAllTemplateModels.mockResolvedValueOnce(
+        models,
+      );
 
       const result = await service.getTemplateModels(["group-1"]);
 
-      expect(mockTemplateModelDbService.findAllTemplateModels).toHaveBeenCalledWith([
-        "group-1",
-      ]);
+      expect(
+        mockTemplateModelDbService.findAllTemplateModels,
+      ).toHaveBeenCalledWith(["group-1"]);
       expect(result).toEqual(models);
     });
   });
@@ -286,14 +289,18 @@ describe("TemplateModelService", () => {
         group_id: "group-1",
       };
 
-      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(null);
+      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(
+        null,
+      );
       mockTemplateModelDbService.createTemplateModel.mockResolvedValueOnce(
         mockTemplateModel,
       );
 
       const result = await service.createTemplateModel(dto, "user-1");
 
-      expect(mockTemplateModelDbService.createTemplateModel).toHaveBeenCalledWith({
+      expect(
+        mockTemplateModelDbService.createTemplateModel,
+      ).toHaveBeenCalledWith({
         name: dto.name,
         model_id: "new-template-model",
         description: dto.description,
@@ -306,11 +313,15 @@ describe("TemplateModelService", () => {
 
   describe("getTemplateModel", () => {
     it("should return a template model by id", async () => {
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
 
       const result = await service.getTemplateModel("tm-1");
 
-      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith("tm-1");
+      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
+      );
       expect(result).toEqual(mockTemplateModel);
     });
 
@@ -333,19 +344,22 @@ describe("TemplateModelService", () => {
         ...mockTemplateModel,
         name: "Updated Template Model",
       };
-      mockTemplateModelDbService.updateTemplateModel.mockResolvedValueOnce(updatedModel);
+      mockTemplateModelDbService.updateTemplateModel.mockResolvedValueOnce(
+        updatedModel,
+      );
 
       const result = await service.updateTemplateModel("tm-1", dto);
 
-      expect(mockTemplateModelDbService.updateTemplateModel).toHaveBeenCalledWith(
-        "tm-1",
-        dto,
-      );
+      expect(
+        mockTemplateModelDbService.updateTemplateModel,
+      ).toHaveBeenCalledWith("tm-1", dto);
       expect(result).toEqual(updatedModel);
     });
 
     it("should throw NotFoundException when template model not found", async () => {
-      mockTemplateModelDbService.updateTemplateModel.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.updateTemplateModel.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.updateTemplateModel("non-existent", { name: "test" }),
@@ -355,20 +369,26 @@ describe("TemplateModelService", () => {
 
   describe("deleteTemplateModel", () => {
     it("should delete a template model", async () => {
-      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(true);
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.deleteTemplateModel("tm-1");
 
-      expect(mockTemplateModelDbService.deleteTemplateModel).toHaveBeenCalledWith("tm-1");
+      expect(
+        mockTemplateModelDbService.deleteTemplateModel,
+      ).toHaveBeenCalledWith("tm-1");
       expect(result).toEqual({ success: true, id: "tm-1" });
     });
 
     it("should throw NotFoundException when template model not found", async () => {
-      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(false);
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        false,
+      );
 
-      await expect(
-        service.deleteTemplateModel("non-existent"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.deleteTemplateModel("non-existent")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -376,11 +396,15 @@ describe("TemplateModelService", () => {
 
   describe("getFieldSchema", () => {
     it("should return field schema for a template model", async () => {
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
 
       const result = await service.getFieldSchema("tm-1");
 
-      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith("tm-1");
+      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
+      );
       expect(result).toEqual(mockTemplateModel.field_schema);
     });
 
@@ -409,13 +433,21 @@ describe("TemplateModelService", () => {
         template_model_id: "tm-1",
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
-      mockTemplateModelDbService.createFieldDefinition.mockResolvedValueOnce(newField);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.createFieldDefinition.mockResolvedValueOnce(
+        newField,
+      );
 
       const result = await service.addField("tm-1", dto);
 
-      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith("tm-1");
-      expect(mockTemplateModelDbService.createFieldDefinition).toHaveBeenCalledWith(
+      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
+      );
+      expect(
+        mockTemplateModelDbService.createFieldDefinition,
+      ).toHaveBeenCalledWith(
         "tm-1",
         expect.objectContaining({
           field_key: "total_amount",
@@ -442,7 +474,9 @@ describe("TemplateModelService", () => {
         field_type: FieldType.STRING,
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
 
       await expect(service.addField("tm-1", dto)).rejects.toThrow(
         ConflictException,
@@ -461,19 +495,22 @@ describe("TemplateModelService", () => {
         field_format: "currency",
       };
 
-      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(updatedField);
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        updatedField,
+      );
 
       const result = await service.updateField("tm-1", "field-1", dto);
 
-      expect(mockTemplateModelDbService.updateFieldDefinition).toHaveBeenCalledWith(
-        "field-1",
-        dto,
-      );
+      expect(
+        mockTemplateModelDbService.updateFieldDefinition,
+      ).toHaveBeenCalledWith("field-1", dto);
       expect(result).toEqual(updatedField);
     });
 
     it("should throw NotFoundException when field not found", async () => {
-      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.updateField("tm-1", "non-existent", {}),
@@ -483,22 +520,26 @@ describe("TemplateModelService", () => {
 
   describe("deleteField", () => {
     it("should delete a field", async () => {
-      mockTemplateModelDbService.deleteFieldDefinition.mockResolvedValueOnce(true);
+      mockTemplateModelDbService.deleteFieldDefinition.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.deleteField("tm-1", "field-1");
 
-      expect(mockTemplateModelDbService.deleteFieldDefinition).toHaveBeenCalledWith(
-        "field-1",
-      );
+      expect(
+        mockTemplateModelDbService.deleteFieldDefinition,
+      ).toHaveBeenCalledWith("field-1");
       expect(result).toEqual({ success: true, id: "field-1" });
     });
 
     it("should throw NotFoundException when field not found", async () => {
-      mockTemplateModelDbService.deleteFieldDefinition.mockResolvedValueOnce(false);
+      mockTemplateModelDbService.deleteFieldDefinition.mockResolvedValueOnce(
+        false,
+      );
 
-      await expect(
-        service.deleteField("tm-1", "non-existent"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.deleteField("tm-1", "non-existent")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -507,13 +548,21 @@ describe("TemplateModelService", () => {
   describe("getTemplateModelDocuments", () => {
     it("should return documents for a template model", async () => {
       const documents = [mockLabeledDocument];
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
-      mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce(
+        documents,
+      );
 
       const result = await service.getTemplateModelDocuments("tm-1");
 
-      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith("tm-1");
-      expect(mockTemplateModelDbService.findLabeledDocuments).toHaveBeenCalledWith("tm-1");
+      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
+      );
+      expect(
+        mockTemplateModelDbService.findLabeledDocuments,
+      ).toHaveBeenCalledWith("tm-1");
       expect(result).toEqual(documents);
     });
 
@@ -532,7 +581,9 @@ describe("TemplateModelService", () => {
         labelingDocumentId: "labeling-doc-1",
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
       mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as never,
       );
@@ -542,14 +593,15 @@ describe("TemplateModelService", () => {
 
       const result = await service.addDocumentToTemplateModel("tm-1", dto);
 
-      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith("tm-1");
-      expect(mockLabelingDocumentDbService.findLabelingDocument).toHaveBeenCalledWith(
-        "labeling-doc-1",
-      );
-      expect(mockTemplateModelDbService.addDocumentToTemplateModel).toHaveBeenCalledWith(
+      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith(
         "tm-1",
-        "labeling-doc-1",
       );
+      expect(
+        mockLabelingDocumentDbService.findLabelingDocument,
+      ).toHaveBeenCalledWith("labeling-doc-1");
+      expect(
+        mockTemplateModelDbService.addDocumentToTemplateModel,
+      ).toHaveBeenCalledWith("tm-1", "labeling-doc-1");
       expect(result).toEqual(mockLabeledDocument);
     });
 
@@ -564,8 +616,12 @@ describe("TemplateModelService", () => {
     });
 
     it("should throw NotFoundException when labeling document not found", async () => {
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
-      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.addDocumentToTemplateModel("tm-1", {
@@ -586,15 +642,16 @@ describe("TemplateModelService", () => {
         "labeled-doc-1",
       );
 
-      expect(mockTemplateModelDbService.findLabeledDocument).toHaveBeenCalledWith(
-        "tm-1",
-        "labeled-doc-1",
-      );
+      expect(
+        mockTemplateModelDbService.findLabeledDocument,
+      ).toHaveBeenCalledWith("tm-1", "labeled-doc-1");
       expect(result).toEqual(mockLabeledDocument);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.getTemplateModelDocument("tm-1", "non-existent"),
@@ -604,7 +661,9 @@ describe("TemplateModelService", () => {
 
   describe("removeDocumentFromTemplateModel", () => {
     it("should remove a document from template model", async () => {
-      mockTemplateModelDbService.removeDocumentFromTemplateModel.mockResolvedValueOnce(true);
+      mockTemplateModelDbService.removeDocumentFromTemplateModel.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.removeDocumentFromTemplateModel(
         "tm-1",
@@ -638,15 +697,16 @@ describe("TemplateModelService", () => {
 
       const result = await service.getDocumentLabels("tm-1", "labeled-doc-1");
 
-      expect(mockTemplateModelDbService.findLabeledDocument).toHaveBeenCalledWith(
-        "tm-1",
-        "labeled-doc-1",
-      );
+      expect(
+        mockTemplateModelDbService.findLabeledDocument,
+      ).toHaveBeenCalledWith("tm-1", "labeled-doc-1");
       expect(result).toEqual(mockLabeledDocument.labels);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.getDocumentLabels("tm-1", "non-existent"),
@@ -673,7 +733,9 @@ describe("TemplateModelService", () => {
       mockTemplateModelDbService.findLabeledDocument
         .mockResolvedValueOnce(mockLabeledDocument)
         .mockResolvedValueOnce(mockLabeledDocument);
-      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce(undefined);
+      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce(
+        undefined,
+      );
       mockTemplateModelDbService.updateLabeledDocument.mockResolvedValueOnce(
         undefined,
       );
@@ -684,7 +746,9 @@ describe("TemplateModelService", () => {
         dto,
       );
 
-      expect(mockTemplateModelDbService.upsertDocumentLabels).toHaveBeenCalledWith(
+      expect(
+        mockTemplateModelDbService.upsertDocumentLabels,
+      ).toHaveBeenCalledWith(
         "labeled-doc-1",
         expect.arrayContaining([
           expect.objectContaining({
@@ -693,10 +757,9 @@ describe("TemplateModelService", () => {
           }),
         ]),
       );
-      expect(mockTemplateModelDbService.updateLabeledDocument).toHaveBeenCalledWith(
-        "labeled-doc-1",
-        LabelingStatus.labeled,
-      );
+      expect(
+        mockTemplateModelDbService.updateLabeledDocument,
+      ).toHaveBeenCalledWith("labeled-doc-1", LabelingStatus.labeled);
       expect(result).toEqual(mockLabeledDocument);
     });
 
@@ -708,21 +771,24 @@ describe("TemplateModelService", () => {
       mockTemplateModelDbService.findLabeledDocument
         .mockResolvedValueOnce(mockLabeledDocument)
         .mockResolvedValueOnce(mockLabeledDocument);
-      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce(undefined);
+      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce(
+        undefined,
+      );
       mockTemplateModelDbService.updateLabeledDocument.mockResolvedValueOnce(
         undefined,
       );
 
       await service.saveDocumentLabels("tm-1", "labeled-doc-1", dto);
 
-      expect(mockTemplateModelDbService.updateLabeledDocument).toHaveBeenCalledWith(
-        "labeled-doc-1",
-        LabelingStatus.in_progress,
-      );
+      expect(
+        mockTemplateModelDbService.updateLabeledDocument,
+      ).toHaveBeenCalledWith("labeled-doc-1", LabelingStatus.in_progress);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.saveDocumentLabels("tm-1", "non-existent", {
@@ -734,7 +800,9 @@ describe("TemplateModelService", () => {
 
   describe("deleteLabel", () => {
     it("should delete a label", async () => {
-      mockTemplateModelDbService.deleteDocumentLabel.mockResolvedValueOnce(true);
+      mockTemplateModelDbService.deleteDocumentLabel.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.deleteLabel(
         "tm-1",
@@ -742,12 +810,16 @@ describe("TemplateModelService", () => {
         "label-1",
       );
 
-      expect(mockTemplateModelDbService.deleteDocumentLabel).toHaveBeenCalledWith("label-1");
+      expect(
+        mockTemplateModelDbService.deleteDocumentLabel,
+      ).toHaveBeenCalledWith("label-1");
       expect(result).toEqual({ success: true, id: "label-1" });
     });
 
     it("should throw NotFoundException when label not found", async () => {
-      mockTemplateModelDbService.deleteDocumentLabel.mockResolvedValueOnce(false);
+      mockTemplateModelDbService.deleteDocumentLabel.mockResolvedValueOnce(
+        false,
+      );
 
       await expect(
         service.deleteLabel("tm-1", "labeled-doc-1", "non-existent"),
@@ -765,15 +837,16 @@ describe("TemplateModelService", () => {
 
       const result = await service.getDocumentOcr("tm-1", "labeled-doc-1");
 
-      expect(mockTemplateModelDbService.findLabeledDocument).toHaveBeenCalledWith(
-        "tm-1",
-        "labeled-doc-1",
-      );
+      expect(
+        mockTemplateModelDbService.findLabeledDocument,
+      ).toHaveBeenCalledWith("tm-1", "labeled-doc-1");
       expect(result).toEqual(mockLabelingDocument.ocr_result);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.getDocumentOcr("tm-1", "non-existent"),
@@ -817,12 +890,18 @@ describe("TemplateModelService", () => {
       mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
       mockSuggestionService.generateSuggestions.mockReturnValueOnce(
         suggestions as never,
       );
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true, groupRoles: {}, actorId: "test-actor" };
+      const mockIdentity: ResolvedIdentity = {
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "test-actor",
+      };
       const result = await service.generateDocumentSuggestions(
         "tm-1",
         "labeled-doc-1",
@@ -834,9 +913,15 @@ describe("TemplateModelService", () => {
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true, groupRoles: {}, actorId: "test-actor" };
+      const mockIdentity: ResolvedIdentity = {
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "test-actor",
+      };
       await expect(
         service.generateDocumentSuggestions(
           "tm-1",
@@ -854,9 +939,15 @@ describe("TemplateModelService", () => {
           ocr_result: null,
         },
       } as unknown as LabeledDocumentData;
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(noOcrDoc);
+      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
+        noOcrDoc,
+      );
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true, groupRoles: {}, actorId: "test-actor" };
+      const mockIdentity: ResolvedIdentity = {
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "test-actor",
+      };
       await expect(
         service.generateDocumentSuggestions(
           "tm-1",
@@ -875,21 +966,24 @@ describe("TemplateModelService", () => {
         format: ExportFormat.AZURE,
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
       mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
       const result = await service.exportTemplateModel("tm-1", dto);
 
-      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith("tm-1");
-      expect(mockTemplateModelDbService.findLabeledDocuments).toHaveBeenCalledWith("tm-1");
+      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
+      );
+      expect(
+        mockTemplateModelDbService.findLabeledDocuments,
+      ).toHaveBeenCalledWith("tm-1");
       expect(result).toHaveProperty("fieldsJson");
       expect(result).toHaveProperty("labelsFiles");
-      expect(result).toHaveProperty(
-        "templateModelName",
-        "Test Template Model",
-      );
+      expect(result).toHaveProperty("templateModelName", "Test Template Model");
     });
 
     it("should export template model in JSON format", async () => {
@@ -897,7 +991,9 @@ describe("TemplateModelService", () => {
         format: ExportFormat.JSON,
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
       mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
@@ -918,7 +1014,9 @@ describe("TemplateModelService", () => {
         documentIds: ["labeling-doc-1"],
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
       mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
         {
@@ -935,9 +1033,9 @@ describe("TemplateModelService", () => {
       expect(
         (result as { documents: { id: string }[] }).documents,
       ).toHaveLength(1);
-      expect(
-        (result as { documents: { id: string }[] }).documents[0].id,
-      ).toBe("labeling-doc-1");
+      expect((result as { documents: { id: string }[] }).documents[0].id).toBe(
+        "labeling-doc-1",
+      );
     });
 
     it("should filter by labeled status when labeledOnly is true", async () => {
@@ -951,7 +1049,9 @@ describe("TemplateModelService", () => {
         status: LabelingStatus.labeled,
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
       mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce([
         labeledDoc,
         mockLabeledDocument,
@@ -999,7 +1099,9 @@ describe("TemplateModelService", () => {
         format: ExportFormat.AZURE,
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(modelWithDateField);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        modelWithDateField,
+      );
       mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
@@ -1062,7 +1164,9 @@ describe("TemplateModelService", () => {
         format: ExportFormat.AZURE,
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(modelWithCheckbox);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        modelWithCheckbox,
+      );
       mockTemplateModelDbService.findLabeledDocuments.mockResolvedValueOnce([
         docWithCheckbox,
       ]);
@@ -1095,7 +1199,9 @@ describe("TemplateModelService", () => {
         group_id: "group-1",
       };
 
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(mockTemplateModel);
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
       mockOcrService.createLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as never,
       );
@@ -1108,15 +1214,16 @@ describe("TemplateModelService", () => {
 
       const result = await service.uploadLabelingDocument("tm-1", dto);
 
-      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith("tm-1");
-      expect(mockOcrService.createLabelingDocument).toHaveBeenCalledWith(dto);
-      expect(mockTemplateModelDbService.addDocumentToTemplateModel).toHaveBeenCalledWith(
+      expect(mockTemplateModelDbService.findTemplateModel).toHaveBeenCalledWith(
         "tm-1",
+      );
+      expect(mockOcrService.createLabelingDocument).toHaveBeenCalledWith(dto);
+      expect(
+        mockTemplateModelDbService.addDocumentToTemplateModel,
+      ).toHaveBeenCalledWith("tm-1", "labeling-doc-1");
+      expect(mockOcrService.processOcrForLabelingDocument).toHaveBeenCalledWith(
         "labeling-doc-1",
       );
-      expect(
-        mockOcrService.processOcrForLabelingDocument,
-      ).toHaveBeenCalledWith("labeling-doc-1");
       expect(result).toEqual({
         labeledDocument: mockLabeledDocument,
         labelingDocument: mockLabelingDocument,
