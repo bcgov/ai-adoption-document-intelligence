@@ -6,11 +6,6 @@ import {
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ResolvedIdentity } from "@/auth/types";
-import { TemplateModelDbService } from "@/database/template-model-db.service";
-import {
-  LabeledDocumentData,
-  TemplateModelData,
-} from "@/database/template-model-db.types";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AddDocumentDto } from "./dto/add-document.dto";
@@ -29,6 +24,11 @@ import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { SuggestionService } from "./suggestion.service";
 import { TemplateModelService } from "./template-model.service";
+import { TemplateModelDbService } from "./template-model-db.service";
+import {
+  LabeledDocumentData,
+  TemplateModelData,
+} from "./template-model-db.types";
 import { TemplateModelOcrService } from "./template-model-ocr.service";
 
 describe("TemplateModelService", () => {

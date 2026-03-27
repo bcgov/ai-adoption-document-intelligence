@@ -12,11 +12,6 @@ import {
 } from "@nestjs/common";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
-import { TemplateModelDbService } from "@/database/template-model-db.service";
-import type {
-  LabeledDocumentData,
-  TemplateModelData,
-} from "@/database/template-model-db.types";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AnalysisResponse, Page } from "@/ocr/azure-types";
 import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
@@ -35,6 +30,11 @@ import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { SuggestionService } from "./suggestion.service";
+import { TemplateModelDbService } from "./template-model-db.service";
+import type {
+  LabeledDocumentData,
+  TemplateModelData,
+} from "./template-model-db.types";
 
 @Injectable()
 export class TemplateModelService {
