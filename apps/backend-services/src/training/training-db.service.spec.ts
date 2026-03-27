@@ -27,10 +27,9 @@ describe("TrainingDbService", () => {
 
   const mockTrainingJob = {
     id: "job-1",
-    project_id: "project-1",
+    template_model_id: "project-1",
     status: TrainingStatus.PENDING,
     container_name: "training-project-1",
-    model_id: "custom-model-1",
     operation_id: null,
     sas_url: null,
     blob_count: null,
@@ -45,7 +44,7 @@ describe("TrainingDbService", () => {
 
   const mockTrainedModel = {
     id: "trained-1",
-    project_id: "project-1",
+    template_model_id: "project-1",
     training_job_id: "job-1",
     model_id: "custom-model-1",
     description: "Test Model",
@@ -94,10 +93,9 @@ describe("TrainingDbService", () => {
   describe("createTrainingJob", () => {
     it("should create and return a training job", async () => {
       const data: TrainingJobCreateData = {
-        project_id: "project-1",
+        template_model_id: "project-1",
         status: TrainingStatus.PENDING,
         container_name: "training-project-1",
-        model_id: "custom-model-1",
       };
 
       mockPrisma.trainingJob.create.mockResolvedValueOnce(mockTrainingJob);
@@ -115,10 +113,9 @@ describe("TrainingDbService", () => {
 
       await expect(
         service.createTrainingJob({
-          project_id: "p1",
+          template_model_id: "p1",
           status: TrainingStatus.PENDING,
           container_name: "c",
-          model_id: "m",
         }),
       ).rejects.toThrow("Prisma error");
     });
@@ -137,6 +134,7 @@ describe("TrainingDbService", () => {
       expect(result).toEqual(mockTrainingJob);
       expect(mockPrisma.trainingJob.findUnique).toHaveBeenCalledWith({
         where: { id: "job-1" },
+        include: { template_model: true },
       });
     });
 
@@ -162,7 +160,7 @@ describe("TrainingDbService", () => {
 
       expect(result).toHaveLength(2);
       expect(mockPrisma.trainingJob.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
+        where: { template_model_id: "project-1" },
         orderBy: { started_at: "desc" },
       });
     });
@@ -189,6 +187,7 @@ describe("TrainingDbService", () => {
             in: [TrainingStatus.TRAINING, TrainingStatus.UPLOADED],
           },
         },
+        include: { template_model: true },
       });
     });
   });
@@ -232,7 +231,7 @@ describe("TrainingDbService", () => {
   describe("createTrainedModel", () => {
     it("should create and return a trained model", async () => {
       const data: TrainedModelCreateData = {
-        project_id: "project-1",
+        template_model_id: "project-1",
         training_job_id: "job-1",
         model_id: "custom-model-1",
         description: "Test Model",
@@ -255,7 +254,7 @@ describe("TrainingDbService", () => {
 
       await expect(
         service.createTrainedModel({
-          project_id: "p1",
+          template_model_id: "p1",
           training_job_id: "j1",
           model_id: "m1",
           doc_types: {},
@@ -308,7 +307,7 @@ describe("TrainingDbService", () => {
 
       expect(result).toHaveLength(2);
       expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
+        where: { template_model_id: "project-1" },
         orderBy: { created_at: "desc" },
       });
     });

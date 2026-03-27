@@ -654,7 +654,7 @@ describe("TemplateModelService", () => {
     });
   });
 
-  describe("upsertDocumentLabels", () => {
+  describe("saveDocumentLabels", () => {
     it("should save labels and update status to labeled", async () => {
       const dto: SaveLabelsDto = {
         labels: [
@@ -678,7 +678,7 @@ describe("TemplateModelService", () => {
         undefined,
       );
 
-      const result = await service.upsertDocumentLabels(
+      const result = await service.saveDocumentLabels(
         "tm-1",
         "labeled-doc-1",
         dto,
@@ -713,7 +713,7 @@ describe("TemplateModelService", () => {
         undefined,
       );
 
-      await service.upsertDocumentLabels("tm-1", "labeled-doc-1", dto);
+      await service.saveDocumentLabels("tm-1", "labeled-doc-1", dto);
 
       expect(mockTemplateModelDbService.updateLabeledDocument).toHaveBeenCalledWith(
         "labeled-doc-1",
@@ -725,7 +725,7 @@ describe("TemplateModelService", () => {
       mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(null);
 
       await expect(
-        service.upsertDocumentLabels("tm-1", "non-existent", {
+        service.saveDocumentLabels("tm-1", "non-existent", {
           labels: [],
         }),
       ).rejects.toThrow(NotFoundException);
@@ -822,7 +822,7 @@ describe("TemplateModelService", () => {
         suggestions as never,
       );
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
+      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true, groupRoles: {}, actorId: "test-actor" };
       const result = await service.generateDocumentSuggestions(
         "tm-1",
         "labeled-doc-1",
@@ -836,7 +836,7 @@ describe("TemplateModelService", () => {
     it("should throw NotFoundException when document not found", async () => {
       mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(null);
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
+      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true, groupRoles: {}, actorId: "test-actor" };
       await expect(
         service.generateDocumentSuggestions(
           "tm-1",
@@ -856,7 +856,7 @@ describe("TemplateModelService", () => {
       } as unknown as LabeledDocumentData;
       mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(noOcrDoc);
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
+      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true, groupRoles: {}, actorId: "test-actor" };
       await expect(
         service.generateDocumentSuggestions(
           "tm-1",

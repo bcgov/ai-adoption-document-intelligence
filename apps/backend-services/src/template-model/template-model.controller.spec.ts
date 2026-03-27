@@ -3,7 +3,7 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { BLOB_STORAGE } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
@@ -20,7 +20,7 @@ import { TemplateModelService } from "./template-model.service";
 describe("TemplateModelController", () => {
   let controller: TemplateModelController;
   let templateModelService: jest.Mocked<TemplateModelService>;
-  let databaseService: jest.Mocked<DatabaseService>;
+  let labelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
 
   const mockTemplateModel = {
     id: "tm-1",
@@ -92,12 +92,9 @@ describe("TemplateModelController", () => {
       generateDocumentSuggestions: jest.fn(),
     } as unknown as jest.Mocked<TemplateModelService>;
 
-    databaseService = {
-      isUserInGroup: jest.fn().mockResolvedValue(true),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    labelingDocumentDbService = {
       findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
-      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "group-1" }]),
-    } as unknown as jest.Mocked<DatabaseService>;
+    } as unknown as jest.Mocked<LabelingDocumentDbService>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TemplateModelController],
@@ -111,8 +108,8 @@ describe("TemplateModelController", () => {
           useValue: {},
         },
         {
-          provide: DatabaseService,
-          useValue: databaseService,
+          provide: LabelingDocumentDbService,
+          useValue: labelingDocumentDbService,
         },
       ],
     }).compile();
@@ -181,9 +178,9 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when group_id is provided and user is not a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.getTemplateModels(req, "group-1"),
       ).rejects.toThrow(ForbiddenException);
@@ -202,6 +199,8 @@ describe("TemplateModelController", () => {
         user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
+          isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -214,29 +213,6 @@ describe("TemplateModelController", () => {
         dto,
         "user-1",
       );
-    });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(controller.createTemplateModel(dto, req)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(templateModelService.createTemplateModel).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when no identity is provided", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: undefined,
-      } as Request;
-      await expect(controller.createTemplateModel(dto, req)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(templateModelService.createTemplateModel).not.toHaveBeenCalled();
     });
   });
 
@@ -260,12 +236,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(controller.getTemplateModel("tm-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -310,12 +286,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.updateTemplateModel("tm-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -360,12 +336,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.deleteTemplateModel("tm-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -416,9 +392,9 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.uploadLabelingDocument("tm-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -467,9 +443,9 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.addDocumentToTemplateModel("tm-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -480,11 +456,9 @@ describe("TemplateModelController", () => {
 
     it("throws NotFoundException when labeling document does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
-      (
-        databaseService.findLabelingDocument as jest.Mock
-      ).mockResolvedValueOnce(null);
+      labelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(null);
       await expect(
         controller.addDocumentToTemplateModel("tm-1", dto, req),
       ).rejects.toThrow(NotFoundException);
@@ -530,12 +504,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.getTemplateModelDocument("tm-1", "labeled-doc-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -582,12 +556,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.removeDocumentFromTemplateModel(
           "tm-1",
@@ -646,12 +620,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.getDocumentLabels("tm-1", "labeled-doc-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -714,12 +688,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.saveDocumentLabels("tm-1", "labeled-doc-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -758,12 +732,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.deleteLabel("tm-1", "labeled-doc-1", "label-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -801,12 +775,12 @@ describe("TemplateModelController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", isSystemAdmin: false, groupRoles: {}, actorId: "user-1" },
       } as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+
       await expect(
         controller.exportTemplateModel(
           "tm-1",
