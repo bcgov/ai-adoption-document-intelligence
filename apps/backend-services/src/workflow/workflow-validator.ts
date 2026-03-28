@@ -125,7 +125,7 @@ export function validateWorkflowConfig(config: WorkflowStepsConfig): {
           errors.push({
             stepId,
             field: "documentType",
-            message: "documentType must be a string (LabelingProject ID)",
+            message: "documentType must be a string (TemplateModel ID)",
           });
         }
         if (params.documentType === "") {

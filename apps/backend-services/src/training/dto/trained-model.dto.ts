@@ -4,8 +4,8 @@ export class TrainedModelDto {
   @ApiProperty({ description: "Trained model record ID" })
   id: string;
 
-  @ApiProperty({ description: "Labeling project ID" })
-  projectId: string;
+  @ApiProperty({ description: "Template model ID" })
+  templateModelId: string;
 
   @ApiProperty({ description: "Training job that produced this model" })
   trainingJobId: string;

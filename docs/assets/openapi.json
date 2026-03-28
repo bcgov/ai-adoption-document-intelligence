@@ -1,6 +1,167 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/api-key": {
+      "get": {
+        "operationId": "ApiKeyController_getApiKey",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "description": "The group ID to look up the API key for",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the group's API key info if it exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyInfoWrapperDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get API key information for a group",
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "post": {
+        "operationId": "ApiKeyController_generateApiKey",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateApiKeyRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns the newly generated API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedApiKeyWrapperDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Generate a new API key for a group",
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "delete": {
+        "operationId": "ApiKeyController_deleteApiKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "query",
+            "description": "The ID of the API key to delete",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "API key deleted successfully"
+          },
+          "401": {
+            "description": "User is not authenticated"
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Delete the API key by its ID",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/api-key/regenerate": {
+      "post": {
+        "operationId": "ApiKeyController_regenerateApiKey",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyByIdRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns the newly generated API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedApiKeyWrapperDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Regenerate the API key by its ID",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "operationId": "AuthController_refreshToken",
@@ -169,170 +330,14 @@
             "description": "Invalid token"
           }
         },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
         "summary": "Get current user profile from validated JWT",
         "tags": [
           "Authorization"
-        ]
-      }
-    },
-    "/api/api-key": {
-      "get": {
-        "operationId": "ApiKeyController_getApiKey",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "query",
-            "description": "The group ID to look up the API key for",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Returns the group's API key info if it exists",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiKeyInfoWrapperDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "User is not authenticated"
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get API key information for a group",
-        "tags": [
-          "API Keys"
-        ]
-      },
-      "post": {
-        "operationId": "ApiKeyController_generateApiKey",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateApiKeyRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Returns the newly generated API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GeneratedApiKeyWrapperDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "User is not authenticated"
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Generate a new API key for a group",
-        "tags": [
-          "API Keys"
-        ]
-      },
-      "delete": {
-        "operationId": "ApiKeyController_deleteApiKey",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "query",
-            "description": "The ID of the API key to delete",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "API key deleted successfully"
-          },
-          "401": {
-            "description": "User is not authenticated"
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Delete the API key by its ID",
-        "tags": [
-          "API Keys"
-        ]
-      }
-    },
-    "/api/api-key/regenerate": {
-      "post": {
-        "operationId": "ApiKeyController_regenerateApiKey",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApiKeyByIdRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Returns the newly generated API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GeneratedApiKeyWrapperDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "User is not authenticated"
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Regenerate the API key by its ID",
-        "tags": [
-          "API Keys"
         ]
       }
     },
@@ -3723,266 +3728,6 @@
         ]
       }
     },
-    "/api/models": {
-      "get": {
-        "operationId": "OcrController_getModels",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "default": {
-                    "models": [
-                      "string"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Get a list of available OCR models (prebuilt + trained)",
-        "tags": [
-          "OCR"
-        ]
-      }
-    },
-    "/api/workflows": {
-      "get": {
-        "operationId": "WorkflowController_getWorkflows",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": false,
-            "in": "query",
-            "description": "Optional group ID to filter workflows by a specific group",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Returns the list of workflows belonging to the authenticated user's groups",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowListResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "List all workflows for the current user's groups",
-        "tags": [
-          "Workflow"
-        ]
-      },
-      "post": {
-        "operationId": "WorkflowController_createWorkflow",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "description": "Workflow name, optional description, and graph configuration",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWorkflowDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Workflow created successfully. Returns the created workflow with id, version, and timestamps.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowResponseDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request body or workflow config validation failed"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Create a new workflow",
-        "tags": [
-          "Workflow"
-        ]
-      }
-    },
-    "/api/workflows/{id}": {
-      "get": {
-        "operationId": "WorkflowController_getWorkflow",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Workflow ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Returns the workflow",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Workflow not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Get a workflow by ID",
-        "tags": [
-          "Workflow"
-        ]
-      },
-      "put": {
-        "operationId": "WorkflowController_updateWorkflow",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Workflow ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "Partial workflow data (name, description, and/or config). Only provided fields are updated.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWorkflowDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Workflow updated successfully. Returns the updated workflow.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowResponseDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request body or workflow config validation failed"
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Workflow not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Update an existing workflow",
-        "tags": [
-          "Workflow"
-        ]
-      },
-      "delete": {
-        "operationId": "WorkflowController_deleteWorkflow",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Workflow ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Workflow deleted successfully"
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Workflow not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Delete a workflow",
-        "tags": [
-          "Workflow"
-        ]
-      }
-    },
     "/api/documents/{documentId}": {
       "get": {
         "operationId": "DocumentController_getDocument",
@@ -4319,33 +4064,33 @@
         ]
       }
     },
-    "/api/upload": {
-      "post": {
-        "operationId": "UploadController_uploadDocument",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UploadDocumentDto"
-              }
+    "/api/workflows": {
+      "get": {
+        "operationId": "WorkflowController_getWorkflows",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": false,
+            "in": "query",
+            "description": "Optional group ID to filter workflows by a specific group",
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
-          "201": {
-            "description": "Document uploaded successfully. Returns document id, title, file info, status, and created_at.",
+          "200": {
+            "description": "Returns the list of workflows belonging to the authenticated user's groups",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UploadDocumentResponseDto"
+                  "$ref": "#/components/schemas/WorkflowListResponseDto"
                 }
               }
             }
           },
-          "400": {
-            "description": "Invalid input or upload failed"
+          "403": {
+            "description": "Access denied: not a group member"
           }
         },
         "security": [
@@ -4356,21 +4101,63 @@
             "api-key": []
           }
         ],
-        "summary": "Upload a new document and start OCR processing",
+        "summary": "List all workflows for the current user's groups",
         "tags": [
-          "Upload"
+          "Workflow"
+        ]
+      },
+      "post": {
+        "operationId": "WorkflowController_createWorkflow",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Workflow name, optional description, and graph configuration",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workflow created successfully. Returns the created workflow with id, version, and timestamps.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body or workflow config validation failed"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Create a new workflow",
+        "tags": [
+          "Workflow"
         ]
       }
     },
-    "/api/labeling/projects": {
+    "/api/workflows/{id}": {
       "get": {
-        "operationId": "LabelingController_getProjects",
+        "operationId": "WorkflowController_getWorkflow",
         "parameters": [
           {
-            "name": "group_id",
-            "required": false,
-            "in": "query",
-            "description": "Filter projects by group ID. When provided, only projects for that group are returned and group membership is verified.",
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Workflow ID",
             "schema": {
               "type": "string"
             }
@@ -4378,13 +4165,429 @@
         ],
         "responses": {
           "200": {
-            "description": "List of labeling projects with their field schemas",
+            "description": "Returns the workflow",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Workflow not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get a workflow by ID",
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "put": {
+        "operationId": "WorkflowController_updateWorkflow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Workflow ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Partial workflow data (name, description, and/or config). Only provided fields are updated.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workflow updated successfully. Returns the updated workflow.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body or workflow config validation failed"
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Workflow not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Update an existing workflow",
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "delete": {
+        "operationId": "WorkflowController_deleteWorkflow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Workflow ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Workflow deleted successfully"
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Workflow not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Delete a workflow",
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/models": {
+      "get": {
+        "operationId": "OcrController_getModels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "default": {
+                    "models": [
+                      "string"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get a list of available OCR models (prebuilt + trained)",
+        "tags": [
+          "OCR"
+        ]
+      }
+    },
+    "/api/template-models/{modelId}/training/validate": {
+      "get": {
+        "operationId": "TrainingController_validateTrainingData",
+        "parameters": [
+          {
+            "name": "modelId",
+            "required": true,
+            "in": "path",
+            "description": "Template model ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validation result indicating whether the template model is ready for training",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Template model not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Validate template model training data",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/template-models/{modelId}/training/train": {
+      "post": {
+        "operationId": "TrainingController_startTraining",
+        "parameters": [
+          {
+            "name": "modelId",
+            "required": true,
+            "in": "path",
+            "description": "Template model ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartTrainingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Training job created and started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Template model not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Start model training for a template model",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/template-models/{modelId}/training/jobs": {
+      "get": {
+        "operationId": "TrainingController_getTrainingJobs",
+        "parameters": [
+          {
+            "name": "modelId",
+            "required": true,
+            "in": "path",
+            "description": "Template model ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of training jobs for the template model",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                    "$ref": "#/components/schemas/TrainingJobDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Template model not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get all training jobs for a template model",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/template-models/training/jobs/{jobId}": {
+      "get": {
+        "operationId": "TrainingController_getJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "description": "Training job ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Training job details and current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Training job not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get training job status",
+        "tags": [
+          "Training"
+        ]
+      },
+      "delete": {
+        "operationId": "TrainingController_cancelJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "description": "Training job ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Training job cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelJobResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Training job not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Cancel a training job",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/template-models": {
+      "get": {
+        "operationId": "TemplateModelController_getTemplateModels",
+        "parameters": [
+          {
+            "name": "group_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter template models by group ID. When provided, only template models for that group are returned and group membership is verified.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of template models with their field schemas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateModelResponseDto"
                   }
                 }
               }
@@ -4402,31 +4605,31 @@
             "api-key": []
           }
         ],
-        "summary": "Get all labeling projects",
+        "summary": "Get all template models",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "post": {
-        "operationId": "LabelingController_createProject",
+        "operationId": "TemplateModelController_createTemplateModel",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateProjectDto"
+                "$ref": "#/components/schemas/CreateTemplateModelDto"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Newly created labeling project",
+            "description": "Newly created template model",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                  "$ref": "#/components/schemas/TemplateModelResponseDto"
                 }
               }
             }
@@ -4440,21 +4643,21 @@
             "api-key": []
           }
         ],
-        "summary": "Create a new labeling project",
+        "summary": "Create a new template model",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}": {
+    "/api/template-models/{id}": {
       "get": {
-        "operationId": "LabelingController_getProject",
+        "operationId": "TemplateModelController_getTemplateModel",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4462,11 +4665,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Labeling project with full field schema",
+            "description": "Template model with full field schema",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                  "$ref": "#/components/schemas/TemplateModelResponseDto"
                 }
               }
             }
@@ -4475,7 +4678,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4486,19 +4689,19 @@
             "api-key": []
           }
         ],
-        "summary": "Get project details with field schema",
+        "summary": "Get template model details with field schema",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "put": {
-        "operationId": "LabelingController_updateProject",
+        "operationId": "TemplateModelController_updateTemplateModel",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4509,18 +4712,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateProjectDto"
+                "$ref": "#/components/schemas/UpdateTemplateModelDto"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Updated labeling project",
+            "description": "Updated template model",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                  "$ref": "#/components/schemas/TemplateModelResponseDto"
                 }
               }
             }
@@ -4529,7 +4732,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4540,19 +4743,19 @@
             "api-key": []
           }
         ],
-        "summary": "Update project",
+        "summary": "Update template model",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "delete": {
-        "operationId": "LabelingController_deleteProject",
+        "operationId": "TemplateModelController_deleteTemplateModel",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4560,7 +4763,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Project deleted successfully",
+            "description": "Template model deleted successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -4573,7 +4776,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4584,21 +4787,21 @@
             "api-key": []
           }
         ],
-        "summary": "Delete project and all associated data",
+        "summary": "Delete template model and all associated data",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/fields": {
+    "/api/template-models/{id}/fields": {
       "get": {
-        "operationId": "LabelingController_getFieldSchema",
+        "operationId": "TemplateModelController_getFieldSchema",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4606,7 +4809,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Ordered list of field definitions for the project",
+            "description": "Ordered list of field definitions for the template model",
             "content": {
               "application/json": {
                 "schema": {
@@ -4622,7 +4825,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4633,19 +4836,19 @@
             "api-key": []
           }
         ],
-        "summary": "Get field schema for project",
+        "summary": "Get field schema for template model",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "post": {
-        "operationId": "LabelingController_addField",
+        "operationId": "TemplateModelController_addField",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4676,7 +4879,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4687,21 +4890,21 @@
             "api-key": []
           }
         ],
-        "summary": "Add a field to the project schema",
+        "summary": "Add a field to the template model schema",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/fields/{fieldId}": {
+    "/api/template-models/{id}/fields/{fieldId}": {
       "put": {
-        "operationId": "LabelingController_updateField",
+        "operationId": "TemplateModelController_updateField",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4741,7 +4944,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4754,17 +4957,17 @@
         ],
         "summary": "Update a field definition",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "delete": {
-        "operationId": "LabelingController_deleteField",
+        "operationId": "TemplateModelController_deleteField",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4794,7 +4997,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4807,19 +5010,19 @@
         ],
         "summary": "Delete a field from schema",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/documents": {
+    "/api/template-models/{id}/documents": {
       "get": {
-        "operationId": "LabelingController_getProjectDocuments",
+        "operationId": "TemplateModelController_getTemplateModelDocuments",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4843,7 +5046,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -4854,19 +5057,19 @@
             "api-key": []
           }
         ],
-        "summary": "Get all documents in project",
+        "summary": "Get all documents in template model",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "post": {
-        "operationId": "LabelingController_addDocumentToProject",
+        "operationId": "TemplateModelController_addDocumentToTemplateModel",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4884,7 +5087,7 @@
         },
         "responses": {
           "201": {
-            "description": "Document added to the project",
+            "description": "Document added to the template model",
             "content": {
               "application/json": {
                 "schema": {
@@ -4908,21 +5111,21 @@
             "api-key": []
           }
         ],
-        "summary": "Add a document to project",
+        "summary": "Add a document to template model",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/upload": {
+    "/api/template-models/{id}/upload": {
       "post": {
-        "operationId": "LabelingController_uploadLabelingDocument",
+        "operationId": "TemplateModelController_uploadLabelingDocument",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -4958,21 +5161,21 @@
             "api-key": []
           }
         ],
-        "summary": "Upload a document into a labeling project",
+        "summary": "Upload a document into a template model",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/documents/{docId}": {
+    "/api/template-models/{id}/documents/{docId}": {
       "get": {
-        "operationId": "LabelingController_getProjectDocument",
+        "operationId": "TemplateModelController_getTemplateModelDocument",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5015,17 +5218,17 @@
         ],
         "summary": "Get document with labels",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "delete": {
-        "operationId": "LabelingController_removeDocumentFromProject",
+        "operationId": "TemplateModelController_removeDocumentFromTemplateModel",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5042,7 +5245,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Document removed from project",
+            "description": "Document removed from template model",
             "content": {
               "application/json": {
                 "schema": {
@@ -5066,21 +5269,21 @@
             "api-key": []
           }
         ],
-        "summary": "Remove document from project",
+        "summary": "Remove document from template model",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/documents/{docId}/download": {
+    "/api/template-models/{id}/documents/{docId}/download": {
       "get": {
-        "operationId": "LabelingController_downloadLabelingDocument",
+        "operationId": "TemplateModelController_downloadLabelingDocument",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5116,19 +5319,19 @@
         ],
         "summary": "Download a labeling document file",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/documents/{docId}/labels": {
+    "/api/template-models/{id}/documents/{docId}/labels": {
       "get": {
-        "operationId": "LabelingController_getDocumentLabels",
+        "operationId": "TemplateModelController_getDocumentLabels",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5174,17 +5377,17 @@
         ],
         "summary": "Get labels for document",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       },
       "post": {
-        "operationId": "LabelingController_saveDocumentLabels",
+        "operationId": "TemplateModelController_saveDocumentLabels",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5237,19 +5440,19 @@
         ],
         "summary": "Save labels for document",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/documents/{docId}/labels/{labelId}": {
+    "/api/template-models/{id}/documents/{docId}/labels/{labelId}": {
       "delete": {
-        "operationId": "LabelingController_deleteLabel",
+        "operationId": "TemplateModelController_deleteLabel",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5301,19 +5504,19 @@
         ],
         "summary": "Delete a specific label",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/documents/{docId}/ocr": {
+    "/api/template-models/{id}/documents/{docId}/ocr": {
       "get": {
-        "operationId": "LabelingController_getDocumentOcr",
+        "operationId": "TemplateModelController_getDocumentOcr",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5349,19 +5552,19 @@
         ],
         "summary": "Get OCR data for document",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/documents/{docId}/suggestions": {
+    "/api/template-models/{id}/documents/{docId}/suggestions": {
       "post": {
-        "operationId": "LabelingController_generateDocumentSuggestions",
+        "operationId": "TemplateModelController_generateDocumentSuggestions",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5407,19 +5610,19 @@
         ],
         "summary": "Generate label suggestions mapped to existing words/selection marks",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
-    "/api/labeling/projects/{id}/export": {
+    "/api/template-models/{id}/export": {
       "post": {
-        "operationId": "LabelingController_exportProject",
+        "operationId": "TemplateModelController_exportTemplateModel",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Project ID",
+            "description": "Template Model ID",
             "schema": {
               "type": "string"
             }
@@ -5437,7 +5640,7 @@
         },
         "responses": {
           "200": {
-            "description": "Exported project data. Shape depends on format: azure returns fieldsJson/labelsFiles, json returns project/documents.",
+            "description": "Exported template model data. Shape depends on format: azure returns fieldsJson/labelsFiles, json returns templateModel/documents.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5457,7 +5660,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Project not found"
+            "description": "Template model not found"
           }
         },
         "security": [
@@ -5470,7 +5673,7 @@
         ],
         "summary": "Export labeled data for training",
         "tags": [
-          "labeling"
+          "Template Models"
         ]
       }
     },
@@ -6034,92 +6237,33 @@
         ]
       }
     },
-    "/api/training/projects/{projectId}/validate": {
-      "get": {
-        "operationId": "TrainingController_validateProject",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "description": "Labeling project ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Validation result indicating whether the project is ready for training",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationResultDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Project not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Validate project training data",
-        "tags": [
-          "Training"
-        ]
-      }
-    },
-    "/api/training/projects/{projectId}/train": {
+    "/api/upload": {
       "post": {
-        "operationId": "TrainingController_startTraining",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "description": "Labeling project ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "UploadController_uploadDocument",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StartTrainingDto"
+                "$ref": "#/components/schemas/UploadDocumentDto"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Training job created and started",
+            "description": "Document uploaded successfully. Returns document id, title, file info, status, and created_at.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TrainingJobDto"
+                  "$ref": "#/components/schemas/UploadDocumentResponseDto"
                 }
               }
             }
           },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Project not found"
+          "400": {
+            "description": "Invalid input or upload failed"
           }
         },
         "security": [
@@ -6130,197 +6274,9 @@
             "api-key": []
           }
         ],
-        "summary": "Start model training for a project",
+        "summary": "Upload a new document and start OCR processing",
         "tags": [
-          "Training"
-        ]
-      }
-    },
-    "/api/training/projects/{projectId}/jobs": {
-      "get": {
-        "operationId": "TrainingController_getTrainingJobs",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "description": "Labeling project ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of training jobs for the project",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TrainingJobDto"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Project not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Get all training jobs for a project",
-        "tags": [
-          "Training"
-        ]
-      }
-    },
-    "/api/training/jobs/{jobId}": {
-      "get": {
-        "operationId": "TrainingController_getJobStatus",
-        "parameters": [
-          {
-            "name": "jobId",
-            "required": true,
-            "in": "path",
-            "description": "Training job ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Training job details and current status",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrainingJobDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Training job not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Get training job status",
-        "tags": [
-          "Training"
-        ]
-      },
-      "delete": {
-        "operationId": "TrainingController_cancelJob",
-        "parameters": [
-          {
-            "name": "jobId",
-            "required": true,
-            "in": "path",
-            "description": "Training job ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Training job cancelled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CancelJobResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Training job not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Cancel a training job",
-        "tags": [
-          "Training"
-        ]
-      }
-    },
-    "/api/training/projects/{projectId}/models": {
-      "get": {
-        "operationId": "TrainingController_getTrainedModels",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "description": "Labeling project ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of trained models produced from this project",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TrainedModelDto"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Project not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Get trained models for a project",
-        "tags": [
-          "Training"
+          "Upload"
         ]
       }
     },
@@ -6906,6 +6862,134 @@
       }
     },
     "schemas": {
+      "ApiKeyInfoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "keyPrefix": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastUsed": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "keyPrefix",
+          "groupId",
+          "actorId",
+          "createdAt",
+          "lastUsed"
+        ]
+      },
+      "ApiKeyInfoWrapperDto": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiKeyInfoDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "apiKey"
+        ]
+      },
+      "GenerateApiKeyRequestDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "description": "The ID of the group this API key should be scoped to"
+          }
+        },
+        "required": [
+          "groupId"
+        ]
+      },
+      "GeneratedApiKeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "keyPrefix": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastUsed": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "keyPrefix",
+          "groupId",
+          "actorId",
+          "createdAt",
+          "lastUsed",
+          "key"
+        ]
+      },
+      "GeneratedApiKeyWrapperDto": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GeneratedApiKeyDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "apiKey"
+        ]
+      },
+      "ApiKeyByIdRequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the API key to operate on"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
       "RefreshReturnDto": {
         "type": "object",
         "properties": {
@@ -6984,126 +7068,6 @@
           "isAdmin",
           "expires_in",
           "groups"
-        ]
-      },
-      "ApiKeyInfoDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "keyPrefix": {
-            "type": "string"
-          },
-          "groupId": {
-            "type": "string"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "lastUsed": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "keyPrefix",
-          "groupId",
-          "createdAt",
-          "lastUsed"
-        ]
-      },
-      "ApiKeyInfoWrapperDto": {
-        "type": "object",
-        "properties": {
-          "apiKey": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiKeyInfoDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "apiKey"
-        ]
-      },
-      "GenerateApiKeyRequestDto": {
-        "type": "object",
-        "properties": {
-          "groupId": {
-            "type": "string",
-            "description": "The ID of the group this API key should be scoped to"
-          }
-        },
-        "required": [
-          "groupId"
-        ]
-      },
-      "GeneratedApiKeyDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "keyPrefix": {
-            "type": "string"
-          },
-          "groupId": {
-            "type": "string"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "lastUsed": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "key": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "keyPrefix",
-          "groupId",
-          "createdAt",
-          "lastUsed",
-          "key"
-        ]
-      },
-      "GeneratedApiKeyWrapperDto": {
-        "type": "object",
-        "properties": {
-          "apiKey": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/GeneratedApiKeyDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "apiKey"
-        ]
-      },
-      "ApiKeyByIdRequestDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The ID of the API key to operate on"
-          }
-        },
-        "required": [
-          "id"
         ]
       },
       "UserGroupDto": {
@@ -7260,10 +7224,6 @@
               "DENIED",
               "CANCELLED"
             ]
-          },
-          "actorId": {
-            "type": "string",
-            "description": "The ID of the admin who acted on the request"
           },
           "reason": {
             "type": "string",
@@ -8681,14 +8641,14 @@
             "type": "string",
             "description": "Project description"
           },
-          "group_id": {
+          "groupId": {
             "type": "string",
-            "description": "Group ID"
+            "description": "Group ID for the project"
           }
         },
         "required": [
           "name",
-          "group_id"
+          "groupId"
         ]
       },
       "DefinitionSummary": {
@@ -9344,9 +9304,9 @@
             "type": "string",
             "description": "Run ID that was promoted to baseline"
           },
-          "userId": {
+          "actorId": {
             "type": "string",
-            "description": "User who promoted the baseline"
+            "description": "Actor who promoted the baseline"
           },
           "definitionId": {
             "type": "string",
@@ -9360,7 +9320,7 @@
         "required": [
           "promotedAt",
           "runId",
-          "userId"
+          "actorId"
         ]
       },
       "CreateRunDto": {
@@ -9817,120 +9777,6 @@
           "thresholds"
         ]
       },
-      "WorkflowInfoDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique workflow ID"
-          },
-          "name": {
-            "type": "string",
-            "description": "Display name for the workflow"
-          },
-          "description": {
-            "type": "string",
-            "description": "Optional description",
-            "nullable": true
-          },
-          "userId": {
-            "type": "string",
-            "description": "ID of the user who owns the workflow"
-          },
-          "groupId": {
-            "type": "string",
-            "description": "ID of the group this workflow belongs to"
-          },
-          "config": {
-            "type": "object",
-            "description": "Graph workflow configuration",
-            "additionalProperties": true
-          },
-          "schemaVersion": {
-            "type": "string",
-            "description": "Schema version for the workflow config"
-          },
-          "version": {
-            "type": "number",
-            "description": "Config version (incremented on config change)"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Creation timestamp"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Last update timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "description",
-          "userId",
-          "groupId",
-          "config",
-          "schemaVersion",
-          "version",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "WorkflowListResponseDto": {
-        "type": "object",
-        "properties": {
-          "workflows": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WorkflowInfoDto"
-            }
-          }
-        },
-        "required": [
-          "workflows"
-        ]
-      },
-      "WorkflowResponseDto": {
-        "type": "object",
-        "properties": {
-          "workflow": {
-            "$ref": "#/components/schemas/WorkflowInfoDto"
-          }
-        },
-        "required": [
-          "workflow"
-        ]
-      },
-      "CreateWorkflowDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Display name for the workflow",
-            "example": "Invoice processing"
-          },
-          "description": {
-            "type": "string",
-            "description": "Optional description of the workflow",
-            "example": "Extract data from vendor invoices"
-          },
-          "config": {
-            "type": "object",
-            "description": "Graph workflow configuration (GraphWorkflowConfig JSON)."
-          },
-          "groupId": {
-            "type": "string",
-            "description": "Group ID"
-          }
-        },
-        "required": [
-          "name",
-          "config",
-          "groupId"
-        ]
-      },
       "DocumentDataDto": {
         "type": "object",
         "properties": {
@@ -10131,95 +9977,235 @@
           "approved"
         ]
       },
-      "UploadDocumentDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string"
-          },
-          "file": {
-            "type": "string"
-          },
-          "file_type": {
-            "type": "string",
-            "enum": [
-              "pdf",
-              "image",
-              "scan"
-            ]
-          },
-          "original_filename": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "model_id": {
-            "type": "string"
-          },
-          "group_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "file",
-          "file_type",
-          "original_filename",
-          "metadata",
-          "model_id",
-          "group_id"
-        ]
-      },
-      "UploadDocumentResponseDocumentDto": {
+      "WorkflowInfoDto": {
         "type": "object",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Unique workflow ID"
           },
-          "title": {
-            "type": "string"
+          "name": {
+            "type": "string",
+            "description": "Display name for the workflow"
           },
-          "original_filename": {
-            "type": "string"
+          "description": {
+            "type": "string",
+            "description": "Optional description",
+            "nullable": true
           },
-          "file_type": {
-            "type": "string"
+          "actorId": {
+            "type": "string",
+            "description": "ID of the user who owns the workflow"
           },
-          "file_size": {
-            "type": "number"
+          "groupId": {
+            "type": "string",
+            "description": "ID of the group this workflow belongs to"
           },
-          "status": {
-            "type": "string"
+          "config": {
+            "type": "object",
+            "description": "Graph workflow configuration",
+            "additionalProperties": true
           },
-          "created_at": {
+          "schemaVersion": {
+            "type": "string",
+            "description": "Schema version for the workflow config"
+          },
+          "version": {
+            "type": "number",
+            "description": "Config version (incremented on config change)"
+          },
+          "createdAt": {
             "format": "date-time",
-            "type": "string"
+            "type": "string",
+            "description": "Creation timestamp"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Last update timestamp"
           }
         },
         "required": [
           "id",
-          "title",
-          "original_filename",
-          "file_type",
-          "file_size",
-          "status",
-          "created_at"
+          "name",
+          "description",
+          "actorId",
+          "groupId",
+          "config",
+          "schemaVersion",
+          "version",
+          "createdAt",
+          "updatedAt"
         ]
       },
-      "UploadDocumentResponseDto": {
+      "WorkflowListResponseDto": {
+        "type": "object",
+        "properties": {
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowInfoDto"
+            }
+          }
+        },
+        "required": [
+          "workflows"
+        ]
+      },
+      "WorkflowResponseDto": {
+        "type": "object",
+        "properties": {
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowInfoDto"
+          }
+        },
+        "required": [
+          "workflow"
+        ]
+      },
+      "CreateWorkflowDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name for the workflow",
+            "example": "Invoice processing"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of the workflow",
+            "example": "Extract data from vendor invoices"
+          },
+          "config": {
+            "type": "object",
+            "description": "Graph workflow configuration (GraphWorkflowConfig JSON)."
+          },
+          "groupId": {
+            "type": "string",
+            "description": "Group ID"
+          }
+        },
+        "required": [
+          "name",
+          "config",
+          "groupId"
+        ]
+      },
+      "ValidationResultDto": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "description": "Whether the template model has sufficient labeled data for training"
+          },
+          "labeledDocumentsCount": {
+            "type": "number",
+            "description": "Number of labeled documents in the template model"
+          },
+          "minimumRequired": {
+            "type": "number",
+            "description": "Minimum number of labeled documents required"
+          },
+          "issues": {
+            "description": "List of validation issues preventing training",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "valid",
+          "labeledDocumentsCount",
+          "minimumRequired",
+          "issues"
+        ]
+      },
+      "StartTrainingDto": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Optional description for the model"
+          }
+        }
+      },
+      "TrainingJobDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Training job ID"
+          },
+          "templateModelId": {
+            "type": "string",
+            "description": "Template model ID"
+          },
+          "status": {
+            "type": "string",
+            "description": "Training job status",
+            "enum": [
+              "PENDING",
+              "UPLOADING",
+              "UPLOADED",
+              "TRAINING",
+              "SUCCEEDED",
+              "FAILED"
+            ]
+          },
+          "containerName": {
+            "type": "string",
+            "description": "Azure blob storage container name"
+          },
+          "sasUrl": {
+            "type": "string",
+            "description": "SAS URL for blob storage access"
+          },
+          "blobCount": {
+            "type": "number",
+            "description": "Number of blobs uploaded for training"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Azure training operation ID"
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Error message if training failed"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When training started"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When training completed"
+          }
+        },
+        "required": [
+          "id",
+          "templateModelId",
+          "status",
+          "containerName",
+          "blobCount",
+          "startedAt"
+        ]
+      },
+      "CancelJobResponseDto": {
         "type": "object",
         "properties": {
           "success": {
             "type": "boolean"
           },
-          "document": {
-            "$ref": "#/components/schemas/UploadDocumentResponseDocumentDto"
+          "message": {
+            "type": "string"
           }
         },
         "required": [
           "success",
-          "document"
+          "message"
         ]
       },
       "FieldDefinitionResponseDto": {
@@ -10228,7 +10214,7 @@
           "id": {
             "type": "string"
           },
-          "project_id": {
+          "template_model_id": {
             "type": "string"
           },
           "field_key": {
@@ -10254,7 +10240,7 @@
         },
         "required": [
           "id",
-          "project_id",
+          "template_model_id",
           "field_key",
           "field_type",
           "display_order",
@@ -10262,13 +10248,16 @@
           "updated_at"
         ]
       },
-      "LabelingProjectResponseDto": {
+      "TemplateModelResponseDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "model_id": {
             "type": "string"
           },
           "description": {
@@ -10288,41 +10277,71 @@
             "format": "date-time",
             "type": "string"
           },
+          "group_id": {
+            "type": "string"
+          },
           "field_schema": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FieldDefinitionResponseDto"
             }
+          },
+          "documents": {
+            "type": "array"
           }
         },
         "required": [
           "id",
           "name",
+          "model_id",
           "status",
           "created_by",
           "created_at",
           "updated_at",
+          "group_id",
           "field_schema"
         ]
       },
-      "UpdateProjectDto": {
+      "CreateTemplateModelDto": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
-            "description": "Project name"
+            "description": "Template model name"
           },
           "description": {
             "type": "string",
-            "description": "Project description"
+            "description": "Template model description"
+          },
+          "group_id": {
+            "type": "string",
+            "description": "Group ID"
+          }
+        },
+        "required": [
+          "name",
+          "group_id"
+        ]
+      },
+      "UpdateTemplateModelDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Template model name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Template model description"
           },
           "status": {
             "type": "string",
-            "description": "Project status",
+            "description": "Template model status",
             "enum": [
-              "active",
-              "archived",
-              "training"
+              "draft",
+              "training",
+              "trained",
+              "failed"
             ]
           }
         }
@@ -10482,7 +10501,7 @@
           "id": {
             "type": "string"
           },
-          "project_id": {
+          "template_model_id": {
             "type": "string"
           },
           "labeling_document_id": {
@@ -10511,7 +10530,7 @@
         },
         "required": [
           "id",
-          "project_id",
+          "template_model_id",
           "labeling_document_id",
           "status",
           "created_at",
@@ -10525,7 +10544,7 @@
         "properties": {
           "labelingDocumentId": {
             "type": "string",
-            "description": "Labeling document ID to add to project"
+            "description": "Labeling document ID to add to template model"
           }
         },
         "required": [
@@ -11242,177 +11261,95 @@
           "summary"
         ]
       },
-      "ValidationResultDto": {
+      "UploadDocumentDto": {
         "type": "object",
         "properties": {
-          "valid": {
-            "type": "boolean",
-            "description": "Whether the project has sufficient labeled data for training"
-          },
-          "labeledDocumentsCount": {
-            "type": "number",
-            "description": "Number of labeled documents in the project"
-          },
-          "minimumRequired": {
-            "type": "number",
-            "description": "Minimum number of labeled documents required"
-          },
-          "issues": {
-            "description": "List of validation issues preventing training",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "valid",
-          "labeledDocumentsCount",
-          "minimumRequired",
-          "issues"
-        ]
-      },
-      "StartTrainingDto": {
-        "type": "object",
-        "properties": {
-          "modelId": {
+          "title": {
             "type": "string"
           },
-          "description": {
+          "file": {
             "type": "string"
-          }
-        },
-        "required": [
-          "modelId"
-        ]
-      },
-      "TrainingJobDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Training job ID"
           },
-          "projectId": {
+          "file_type": {
             "type": "string",
-            "description": "Labeling project ID"
-          },
-          "status": {
-            "type": "string",
-            "description": "Training job status",
             "enum": [
-              "PENDING",
-              "UPLOADING",
-              "UPLOADED",
-              "TRAINING",
-              "SUCCEEDED",
-              "FAILED"
+              "pdf",
+              "image",
+              "scan"
             ]
           },
-          "containerName": {
-            "type": "string",
-            "description": "Azure blob storage container name"
+          "original_filename": {
+            "type": "string"
           },
-          "sasUrl": {
-            "type": "string",
-            "description": "SAS URL for blob storage access"
+          "metadata": {
+            "type": "object"
           },
-          "blobCount": {
-            "type": "number",
-            "description": "Number of blobs uploaded for training"
+          "model_id": {
+            "type": "string"
           },
-          "modelId": {
-            "type": "string",
-            "description": "Azure model ID once training completes"
-          },
-          "operationId": {
-            "type": "string",
-            "description": "Azure training operation ID"
-          },
-          "errorMessage": {
-            "type": "string",
-            "description": "Error message if training failed"
-          },
-          "startedAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "When training started"
-          },
-          "completedAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "When training completed"
+          "group_id": {
+            "type": "string"
           }
         },
         "required": [
-          "id",
-          "projectId",
-          "status",
-          "containerName",
-          "blobCount",
-          "startedAt"
+          "title",
+          "file",
+          "file_type",
+          "original_filename",
+          "metadata",
+          "model_id",
+          "group_id"
         ]
       },
-      "TrainedModelDto": {
+      "UploadDocumentResponseDocumentDto": {
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "description": "Trained model record ID"
+            "type": "string"
           },
-          "projectId": {
-            "type": "string",
-            "description": "Labeling project ID"
+          "title": {
+            "type": "string"
           },
-          "trainingJobId": {
-            "type": "string",
-            "description": "Training job that produced this model"
+          "original_filename": {
+            "type": "string"
           },
-          "modelId": {
-            "type": "string",
-            "description": "Azure Document Intelligence model ID"
+          "file_type": {
+            "type": "string"
           },
-          "description": {
-            "type": "string",
-            "description": "Model description"
+          "file_size": {
+            "type": "number"
           },
-          "docTypes": {
-            "type": "object",
-            "description": "Azure document type definitions",
-            "additionalProperties": true
+          "status": {
+            "type": "string"
           },
-          "fieldCount": {
-            "type": "number",
-            "description": "Number of fields the model recognizes"
-          },
-          "createdAt": {
+          "created_at": {
             "format": "date-time",
-            "type": "string",
-            "description": "When the model was created"
+            "type": "string"
           }
         },
         "required": [
           "id",
-          "projectId",
-          "trainingJobId",
-          "modelId",
-          "fieldCount",
-          "createdAt"
+          "title",
+          "original_filename",
+          "file_type",
+          "file_size",
+          "status",
+          "created_at"
         ]
       },
-      "CancelJobResponseDto": {
+      "UploadDocumentResponseDto": {
         "type": "object",
         "properties": {
           "success": {
             "type": "boolean"
           },
-          "message": {
-            "type": "string"
+          "document": {
+            "$ref": "#/components/schemas/UploadDocumentResponseDocumentDto"
           }
         },
         "required": [
           "success",
-          "message"
+          "document"
         ]
       },
       "ClassifierModelResponseDto": {

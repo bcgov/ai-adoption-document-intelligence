@@ -209,21 +209,21 @@ log_info "Found PostgreSQL pod: ${PG_POD}"
 # ============================================================
 log_step "Step 4: Reading database credentials"
 
-# Crunchy PostgreSQL operator stores credentials in a secret named <instance>-pguser-<instance>
-# The database name and user can be read from the secret.
-PG_SECRET_NAME="${INSTANCE_NAME}-pguser-${INSTANCE_NAME}"
+# Crunchy PostgreSQL operator stores credentials in a secret named <instance>-app-pg-pguser-admin.
+# The database name is read from the secret. For the user, we always use "postgres" because
+# psql runs via local socket inside the pod, and Crunchy pg_hba.conf only allows the
+# postgres superuser for local (non-TCP) connections.
+PG_SECRET_NAME="${INSTANCE_NAME}-app-pg-pguser-admin"
 
 DB_NAME=$(oc get secret "${PG_SECRET_NAME}" -n "${NAMESPACE}" \
   -o jsonpath='{.data.dbname}' 2>/dev/null | base64 -d) || true
 
-DB_USER=$(oc get secret "${PG_SECRET_NAME}" -n "${NAMESPACE}" \
-  -o jsonpath='{.data.user}' 2>/dev/null | base64 -d) || true
+DB_USER="postgres"
 
-if [[ -z "${DB_NAME}" || -z "${DB_USER}" ]]; then
-  # Fallback: use the postgres superuser and default database name
-  log_info "Could not read credentials from secret '${PG_SECRET_NAME}'. Falling back to defaults."
-  DB_NAME="${INSTANCE_NAME}"
-  DB_USER="postgres"
+if [[ -z "${DB_NAME}" ]]; then
+  log_error "Could not read database name from secret '${PG_SECRET_NAME}'."
+  log_error "Ensure the instance is deployed and the Crunchy PostgreSQL cluster is running."
+  exit 1
 fi
 
 log_info "Database name: ${DB_NAME}"
