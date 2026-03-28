@@ -614,11 +614,19 @@ oc label secret "${WORKER_SECRET_NAME}" \
 log_info "Instance secrets created successfully."
 
 # ============================================================
-# Step 9: Wait for rollout completion
+# Step 9: Restart and wait for rollout completion
 # ============================================================
-log_step "Step 9: Waiting for rollout completion"
+log_step "Step 9: Restarting deployments and waiting for rollout"
 
 DEPLOYMENT_SERVICES=("backend-services" "frontend" "temporal" "temporal-ui" "temporal-worker")
+
+# Force a rollout restart so pods pick up new images even when the tag is unchanged.
+for service in "${DEPLOYMENT_SERVICES[@]}"; do
+  DEPLOY_NAME=$(get_resource_name "${INSTANCE_NAME}" "${service}")
+  if oc get deployment "${DEPLOY_NAME}" -n "${NAMESPACE}" &>/dev/null; then
+    oc rollout restart "deployment/${DEPLOY_NAME}" -n "${NAMESPACE}" 2>/dev/null || true
+  fi
+done
 
 for service in "${DEPLOYMENT_SERVICES[@]}"; do
   DEPLOY_NAME=$(get_resource_name "${INSTANCE_NAME}" "${service}")
