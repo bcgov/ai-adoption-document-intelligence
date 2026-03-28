@@ -553,7 +553,7 @@ model BenchmarkDefinition {
   workflowId         String
   workflow           Workflow         @relation(fields: [workflowId], references: [id])
   workflowConfigHash      String
-  workflowConfigOverrides Json?              @default("{}")
+  workflowConfigOverrides Json?              @default("{}") @map("workflow_config_overrides")
   evaluatorType           String
   evaluatorConfig    Json
   runtimeSettings    Json

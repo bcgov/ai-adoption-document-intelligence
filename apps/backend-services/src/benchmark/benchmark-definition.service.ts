@@ -266,12 +266,13 @@ export class BenchmarkDefinitionService {
     }
 
     let workflowConfigHash = existing.workflowConfigHash;
+    let resolvedWorkflow: { config: unknown } | null = null;
     if (dto.workflowId) {
-      const workflow = await this.definitionDbService.findWorkflow(
+      resolvedWorkflow = await this.definitionDbService.findWorkflow(
         dto.workflowId,
       );
 
-      if (!workflow) {
+      if (!resolvedWorkflow) {
         throw new BadRequestException(
           `Workflow with ID "${dto.workflowId}" does not exist`,
         );
@@ -279,7 +280,7 @@ export class BenchmarkDefinitionService {
 
       // Recompute workflow config hash
       workflowConfigHash = computeConfigHash(
-        workflow.config as GraphWorkflowConfig,
+        resolvedWorkflow.config as GraphWorkflowConfig,
       );
     }
 
@@ -294,15 +295,10 @@ export class BenchmarkDefinitionService {
     // Validate workflow config overrides if provided
     if (dto.workflowConfigOverrides && Object.keys(dto.workflowConfigOverrides).length > 0) {
       // Get the workflow config to validate against (new or existing)
-      let workflowConfig: GraphWorkflowConfig;
-      if (dto.workflowId) {
-        // Workflow was already loaded above for the workflowId change
-        const wf = await this.definitionDbService.findWorkflow(dto.workflowId);
-        workflowConfig = wf!.config as GraphWorkflowConfig;
-      } else {
-        const wf = await this.definitionDbService.findWorkflow(existing.workflowId);
-        workflowConfig = wf!.config as GraphWorkflowConfig;
+      if (!resolvedWorkflow) {
+        resolvedWorkflow = await this.definitionDbService.findWorkflow(existing.workflowId);
       }
+      const workflowConfig = resolvedWorkflow!.config as GraphWorkflowConfig;
       const overrideErrors = validateWorkflowConfigOverrides(workflowConfig, dto.workflowConfigOverrides);
       if (overrideErrors.length > 0) {
         throw new BadRequestException(
