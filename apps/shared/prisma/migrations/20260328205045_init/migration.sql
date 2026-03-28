@@ -400,6 +400,7 @@ CREATE TABLE "benchmark_definitions" (
     "splitId" TEXT,
     "workflowId" TEXT NOT NULL,
     "workflowConfigHash" TEXT NOT NULL,
+    "workflow_config_overrides" JSONB DEFAULT '{}',
     "evaluatorType" TEXT NOT NULL,
     "evaluatorConfig" JSONB NOT NULL,
     "runtimeSettings" JSONB NOT NULL,
