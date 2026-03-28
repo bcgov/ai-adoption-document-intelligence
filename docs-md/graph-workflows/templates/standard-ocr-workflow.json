@@ -216,7 +216,7 @@
       "exposedParams": [
         {
           "label": "Confidence Threshold",
-          "path": "nodes.checkConfidence.parameters.threshold",
+          "path": "ctx.confidenceThreshold.defaultValue",
           "type": "number"
         }
       ]
