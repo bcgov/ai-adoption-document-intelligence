@@ -172,6 +172,14 @@ export class DefinitionDetailsDto {
   })
   workflowConfigHash: string;
 
+  @ApiPropertyOptional({
+    description:
+      "Workflow config overrides — map of exposed param paths to values",
+    type: "object",
+    additionalProperties: true,
+  })
+  workflowConfigOverrides?: Record<string, unknown>;
+
   @ApiProperty({ description: "Evaluator type" })
   evaluatorType: string;
 

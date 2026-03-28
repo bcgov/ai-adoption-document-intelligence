@@ -552,8 +552,9 @@ model BenchmarkDefinition {
   split              Split?           @relation(fields: [splitId], references: [id])
   workflowId         String
   workflow           Workflow         @relation(fields: [workflowId], references: [id])
-  workflowConfigHash String
-  evaluatorType      String
+  workflowConfigHash      String
+  workflowConfigOverrides Json?              @default("{}")
+  evaluatorType           String
   evaluatorConfig    Json
   runtimeSettings    Json
   immutable          Boolean          @default(false)
