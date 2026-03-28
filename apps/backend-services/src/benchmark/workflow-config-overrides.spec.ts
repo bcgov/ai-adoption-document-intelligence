@@ -12,10 +12,27 @@ function makeWorkflowConfig(
   return {
     schemaVersion: "1.0",
     metadata: { name: "test-workflow" },
-    nodes: {},
+    nodes: {
+      node1: {
+        id: "node1",
+        type: "activity",
+        label: "Node 1",
+        activityType: "test.activity",
+        parameters: { model: "gpt-4o-mini", temperature: 0.7 },
+      },
+      node2: {
+        id: "node2",
+        type: "activity",
+        label: "Node 2",
+        activityType: "test.activity",
+        parameters: { maxTokens: 1024 },
+      },
+    },
     edges: [],
     entryNodeId: "node1",
-    ctx: {},
+    ctx: {
+      language: { type: "string", defaultValue: "en" },
+    },
     nodeGroups: {
       groupA: {
         label: "Group A",
@@ -26,13 +43,11 @@ function makeWorkflowConfig(
             path: "nodes.node1.parameters.model",
             type: "select",
             options: ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
-            default: "gpt-4o-mini",
           },
           {
             label: "Temperature",
             path: "nodes.node1.parameters.temperature",
             type: "number",
-            default: 0.7,
           },
         ],
       },
@@ -44,14 +59,12 @@ function makeWorkflowConfig(
             label: "Max Tokens",
             path: "nodes.node2.parameters.maxTokens",
             type: "number",
-            default: 1024,
           },
           {
             label: "Language",
             path: "ctx.language.defaultValue",
             type: "select",
             options: ["en", "fr", "de"],
-            default: "en",
           },
         ],
       },
@@ -101,10 +114,9 @@ describe("extractExposedParamDefaults", () => {
           nodeIds: ["node2"],
           exposedParams: [
             {
-              label: "Temperature",
-              path: "nodes.node2.parameters.temperature",
+              label: "Max Tokens",
+              path: "nodes.node2.parameters.maxTokens",
               type: "number",
-              default: 0.5,
             },
           ],
         },
@@ -112,11 +124,11 @@ describe("extractExposedParamDefaults", () => {
     });
     const defaults = extractExposedParamDefaults(config);
     expect(defaults).toEqual({
-      "nodes.node2.parameters.temperature": 0.5,
+      "nodes.node2.parameters.maxTokens": 1024,
     });
   });
 
-  it("handles params with undefined default values", () => {
+  it("returns undefined for paths that don't resolve in the config", () => {
     const config = makeWorkflowConfig({
       nodeGroups: {
         groupA: {
@@ -124,8 +136,8 @@ describe("extractExposedParamDefaults", () => {
           nodeIds: ["node1"],
           exposedParams: [
             {
-              label: "No Default",
-              path: "nodes.node1.parameters.noDefault",
+              label: "No Such Param",
+              path: "nodes.node1.parameters.noSuchParam",
               type: "string",
             },
           ],
@@ -134,7 +146,7 @@ describe("extractExposedParamDefaults", () => {
     });
     const defaults = extractExposedParamDefaults(config);
     expect(defaults).toEqual({
-      "nodes.node1.parameters.noDefault": undefined,
+      "nodes.node1.parameters.noSuchParam": undefined,
     });
     expect(Object.keys(defaults)).toHaveLength(1);
   });
@@ -246,7 +258,7 @@ describe("applyWorkflowConfigOverrides", () => {
     const result = applyWorkflowConfigOverrides(config, {
       "ctx.language.defaultValue": "fr",
     });
-    expect(result.ctx["language"]).toEqual({ defaultValue: "fr" });
+    expect((result.ctx["language"] as Record<string, unknown>).defaultValue).toBe("fr");
   });
 
   it("applies multiple overrides", () => {
@@ -255,7 +267,7 @@ describe("applyWorkflowConfigOverrides", () => {
       "ctx.language.defaultValue": "de",
       "nodes.node1.parameters.temperature": 0.2,
     });
-    expect(result.ctx["language"]).toEqual({ defaultValue: "de" });
+    expect((result.ctx["language"] as Record<string, unknown>).defaultValue).toBe("de");
     const nodes = (result as unknown as Record<string, Record<string, unknown>>)["nodes"];
     expect(
       (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"]["temperature"],

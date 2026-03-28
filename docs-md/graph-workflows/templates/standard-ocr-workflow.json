@@ -196,8 +196,7 @@
           "label": "OCR Model",
           "path": "ctx.modelId.defaultValue",
           "type": "select",
-          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"],
-          "default": "prebuilt-layout"
+          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"]
         }
       ]
     },
@@ -218,8 +217,7 @@
         {
           "label": "Confidence Threshold",
           "path": "nodes.checkConfidence.parameters.threshold",
-          "type": "number",
-          "default": 0.95
+          "type": "number"
         }
       ]
     },
@@ -233,8 +231,7 @@
         {
           "label": "Review Timeout",
           "path": "nodes.humanReview.timeout",
-          "type": "duration",
-          "default": "24h"
+          "type": "duration"
         }
       ]
     },

@@ -165,18 +165,31 @@ export function CreateDefinitionDialog({
           {
             exposedParams?: Array<{
               path: string;
-              default?: unknown;
             }>;
           }
         >
       | undefined;
     if (!nodeGroups) return {};
 
+    // Resolve each exposed param's path against the actual config
+    // to get the real runtime default, not a potentially-stale value.
+    const resolvePathValue = (path: string): unknown => {
+      const parts = path.split(".");
+      let current: unknown = workflow.config;
+      for (const part of parts) {
+        if (current === undefined || current === null || typeof current !== "object") {
+          return undefined;
+        }
+        current = (current as Record<string, unknown>)[part];
+      }
+      return current;
+    };
+
     const defaults: Record<string, unknown> = {};
     for (const group of Object.values(nodeGroups)) {
       if (!group.exposedParams) continue;
       for (const param of group.exposedParams) {
-        defaults[param.path] = param.default;
+        defaults[param.path] = resolvePathValue(param.path);
       }
     }
     return defaults;

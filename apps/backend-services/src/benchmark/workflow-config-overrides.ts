@@ -1,5 +1,11 @@
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 
+/**
+ * Extract a map of { path: currentValue } for all exposed params
+ * by resolving each param's path against the actual config.
+ * This ensures the defaults shown to users match the real runtime values,
+ * rather than relying on a potentially-stale `default` field.
+ */
 export function extractExposedParamDefaults(
   config: GraphWorkflowConfig,
 ): Record<string, unknown> {
@@ -8,7 +14,10 @@ export function extractExposedParamDefaults(
   for (const group of Object.values(config.nodeGroups)) {
     if (!group.exposedParams) continue;
     for (const param of group.exposedParams) {
-      defaults[param.path] = param.default;
+      defaults[param.path] = getNestedValue(
+        config as unknown as Record<string, unknown>,
+        param.path,
+      );
     }
   }
   return defaults;
@@ -52,6 +61,22 @@ export function applyWorkflowConfigOverrides(
     setNestedValue(result as unknown as Record<string, unknown>, path, value);
   }
   return result;
+}
+
+/**
+ * Get a value at a dot-separated path in an object.
+ * Returns undefined if any segment along the path is missing.
+ */
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  const parts = path.split(".");
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current === undefined || current === null || typeof current !== "object") {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
 }
 
 function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
