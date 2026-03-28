@@ -327,8 +327,7 @@ if [[ "${IMAGES_EXIST}" == "false" ]]; then
       log_info "  Image:      ${IMAGE_REF}"
 
       BUILD_START=$(date +%s)
-      docker build \
-        --progress=plain \
+      DOCKER_BUILDKIT=0 docker build \
         -f "${BUILD_DOCKERFILES[${service}]}" \
         -t "${IMAGE_REF}" \
         "${BUILD_CONTEXTS[${service}]}" || {
@@ -412,6 +411,18 @@ if [[ "${IMAGES_EXIST}" == "false" ]]; then
 
 else
   log_info "All images already exist for tag '${IMAGE_TAG}'. Skipping build."
+fi
+
+# ============================================================
+# Step 4b: Clean up orphaned Artifactory manifests
+# ============================================================
+log_info "Cleaning up orphaned Artifactory manifests..."
+CLEANUP_SCRIPT="${SCRIPT_DIR}/artifactory-cleanup.sh"
+if [[ -f "${CLEANUP_SCRIPT}" ]]; then
+  bash "${CLEANUP_SCRIPT}" --env "${ENV_PROFILE}" --delete 2>&1 | tail -5 || \
+    log_info "Artifactory cleanup encountered errors (non-fatal, continuing)."
+else
+  log_info "Cleanup script not found, skipping."
 fi
 
 # ============================================================
