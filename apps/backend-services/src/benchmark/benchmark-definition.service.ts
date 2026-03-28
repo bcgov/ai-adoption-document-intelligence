@@ -34,6 +34,7 @@ import {
   WorkflowInfo,
 } from "./dto";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
+import { validateWorkflowConfigOverrides } from "./workflow-config-overrides";
 
 @Injectable()
 export class BenchmarkDefinitionService {
@@ -120,6 +121,20 @@ export class BenchmarkDefinitionService {
       workflow.config as GraphWorkflowConfig,
     );
 
+    // Validate workflow config overrides if provided
+    const workflowConfigOverrides = dto.workflowConfigOverrides ?? {};
+    if (Object.keys(workflowConfigOverrides).length > 0) {
+      const overrideErrors = validateWorkflowConfigOverrides(
+        workflow.config as GraphWorkflowConfig,
+        workflowConfigOverrides,
+      );
+      if (overrideErrors.length > 0) {
+        throw new BadRequestException(
+          `Invalid workflow config overrides: ${overrideErrors.join("; ")}`,
+        );
+      }
+    }
+
     // Create the definition
     const definition = await this.definitionDbService.createBenchmarkDefinition(
       {
@@ -132,6 +147,7 @@ export class BenchmarkDefinitionService {
         evaluatorType: dto.evaluatorType,
         evaluatorConfig: dto.evaluatorConfig as Prisma.InputJsonValue,
         runtimeSettings: dto.runtimeSettings as Prisma.InputJsonValue,
+        workflowConfigOverrides: workflowConfigOverrides as Prisma.InputJsonValue,
         immutable: false,
         revision: 1,
       },
@@ -275,6 +291,26 @@ export class BenchmarkDefinitionService {
       }
     }
 
+    // Validate workflow config overrides if provided
+    if (dto.workflowConfigOverrides && Object.keys(dto.workflowConfigOverrides).length > 0) {
+      // Get the workflow config to validate against (new or existing)
+      let workflowConfig: GraphWorkflowConfig;
+      if (dto.workflowId) {
+        // Workflow was already loaded above for the workflowId change
+        const wf = await this.definitionDbService.findWorkflow(dto.workflowId);
+        workflowConfig = wf!.config as GraphWorkflowConfig;
+      } else {
+        const wf = await this.definitionDbService.findWorkflow(existing.workflowId);
+        workflowConfig = wf!.config as GraphWorkflowConfig;
+      }
+      const overrideErrors = validateWorkflowConfigOverrides(workflowConfig, dto.workflowConfigOverrides);
+      if (overrideErrors.length > 0) {
+        throw new BadRequestException(
+          `Invalid workflow config overrides: ${overrideErrors.join("; ")}`,
+        );
+      }
+    }
+
     // Determine if we need to create a new revision
     const hasRuns = existing._count.benchmarkRuns > 0;
 
@@ -298,6 +334,8 @@ export class BenchmarkDefinitionService {
             existing.evaluatorConfig) as Prisma.InputJsonValue,
           runtimeSettings: (dto.runtimeSettings ??
             existing.runtimeSettings) as Prisma.InputJsonValue,
+          workflowConfigOverrides: (dto.workflowConfigOverrides ??
+            existing.workflowConfigOverrides ?? {}) as Prisma.InputJsonValue,
           immutable: false,
           revision: existing.revision + 1,
         });
@@ -325,6 +363,9 @@ export class BenchmarkDefinitionService {
       if (dto.runtimeSettings)
         updateData.runtimeSettings =
           dto.runtimeSettings as Prisma.InputJsonValue;
+      if (dto.workflowConfigOverrides !== undefined)
+        updateData.workflowConfigOverrides =
+          dto.workflowConfigOverrides as Prisma.InputJsonValue;
 
       const updated = await this.definitionDbService.updateBenchmarkDefinition(
         definitionId,
@@ -435,6 +476,7 @@ export class BenchmarkDefinitionService {
       projectId: string;
       name: string;
       workflowConfigHash: string;
+      workflowConfigOverrides?: unknown;
       evaluatorType: string;
       evaluatorConfig: unknown;
       runtimeSettings: unknown;
@@ -533,6 +575,7 @@ export class BenchmarkDefinitionService {
       split,
       workflow,
       workflowConfigHash: definition.workflowConfigHash,
+      workflowConfigOverrides: (definition.workflowConfigOverrides ?? {}) as Record<string, unknown>,
       evaluatorType: definition.evaluatorType,
       evaluatorConfig: definition.evaluatorConfig as Record<string, unknown>,
       runtimeSettings: definition.runtimeSettings as Record<string, unknown>,
