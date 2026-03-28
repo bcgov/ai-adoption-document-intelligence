@@ -372,9 +372,10 @@ resource "azurerm_network_security_group" "apim" {
 # goes directly to Internet, bypassing the VWAN hub/firewall.
 # -----------------------------------------------------------------------------
 resource "azurerm_route_table" "apim" {
-  name                = "${var.name_prefix}-apim-rt"
-  location            = var.location
-  resource_group_name = var.resource_group_name
+  name                          = "${var.name_prefix}-apim-rt"
+  location                      = var.location
+  resource_group_name           = var.resource_group_name
+  bgp_route_propagation_enabled = false
 
   route {
     name           = "apimManagementEndPointInternet"
