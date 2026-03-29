@@ -472,6 +472,40 @@ describe("SchemaAwareEvaluator", () => {
       expect(result.metrics.matchedFields).toBe(1);
       expect(result.metrics.precision).toBeCloseTo(1 / 3, 3);
     });
+
+    it("ignores null-like extra fields in prediction", async () => {
+      const groundTruth = {
+        field1: "value1",
+      };
+
+      const prediction = {
+        field1: "value1",
+        field2: null,
+        field3: "",
+        field4: "null",
+      };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-extra-null",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.diagnostics.extraFields).toEqual([]);
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.precision).toBe(1.0);
+      expect(result.metrics.f1).toBe(1.0);
+    });
   });
 
   // -----------------------------------------------------------------------

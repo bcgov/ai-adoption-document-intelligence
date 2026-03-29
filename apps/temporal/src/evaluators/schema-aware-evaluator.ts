@@ -16,6 +16,14 @@ import {
 } from "../benchmark-types";
 
 /**
+ * Check if a value represents "no value" — null, undefined, empty string, or the string "null"
+ * are all treated as semantically equivalent.
+ */
+export function isNullLike(v: unknown): boolean {
+  return v === null || v === undefined || v === "" || v === "null";
+}
+
+/**
  * Matching rule configuration for a field
  */
 export interface FieldMatchingRule {
@@ -137,8 +145,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     }
 
     // Identify extra fields in prediction (for precision calculation)
+    // Null-like prediction values are not meaningful extra fields
     const extraFields = Object.keys(prediction).filter(
-      (field) => !(field in groundTruth),
+      (field) => !(field in groundTruth) && !isNullLike(prediction[field]),
     );
     for (const field of extraFields) {
       comparisonResults.push({
@@ -154,13 +163,13 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
 
     // Build diagnostics
     const missingFields = comparisonResults
-      .filter((r) => r.expected !== undefined && r.predicted === undefined)
+      .filter((r) => !isNullLike(r.expected) && isNullLike(r.predicted))
       .map((r) => r.field);
 
     const mismatchedFields = comparisonResults
       .filter(
         (r) =>
-          !r.matched && r.expected !== undefined && r.predicted !== undefined,
+          !r.matched && !isNullLike(r.expected) && !isNullLike(r.predicted),
       )
       .map((r) => ({
         field: r.field,
@@ -213,11 +222,6 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       config.defaultRule || {
         rule: "exact" as const,
       };
-
-    // Normalize null-like values: null, undefined, empty string, and "null" string
-    // are all treated as semantically equivalent "no value"
-    const isNullLike = (v: unknown): boolean =>
-      v === null || v === undefined || v === "" || v === "null";
 
     if (isNullLike(predicted) && isNullLike(expected)) {
       return {

@@ -88,15 +88,16 @@ function FieldErrorDetails({
     );
     if (fieldResult) {
       // Determine error type
+      // Null-like values: null, undefined, empty string, "null" string
+      const isNullLike = (v: unknown): boolean =>
+        v === null || v === undefined || v === "" || v === "null";
+
       let errorType = "mismatch";
-      if (
-        fieldResult.expected !== undefined &&
-        fieldResult.predicted === undefined
-      ) {
+      if (!isNullLike(fieldResult.expected) && isNullLike(fieldResult.predicted)) {
         errorType = "missing";
       } else if (
-        fieldResult.expected === undefined &&
-        fieldResult.predicted !== undefined
+        isNullLike(fieldResult.expected) &&
+        !isNullLike(fieldResult.predicted)
       ) {
         errorType = "extra";
       }
