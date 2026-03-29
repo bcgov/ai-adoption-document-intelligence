@@ -214,8 +214,22 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         rule: "exact" as const,
       };
 
-    // Handle missing prediction
-    if (predicted === undefined || predicted === null) {
+    // Normalize null-like values: null, undefined, empty string, and "null" string
+    // are all treated as semantically equivalent "no value"
+    const isNullLike = (v: unknown): boolean =>
+      v === null || v === undefined || v === "" || v === "null";
+
+    if (isNullLike(predicted) && isNullLike(expected)) {
+      return {
+        field,
+        matched: true,
+        predicted,
+        expected,
+      };
+    }
+
+    // Handle missing prediction (only predicted is null-like, expected has a real value)
+    if (isNullLike(predicted)) {
       return {
         field,
         matched: false,
