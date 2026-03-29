@@ -195,8 +195,7 @@
         {
           "label": "OCR Model",
           "path": "ctx.modelId.defaultValue",
-          "type": "select",
-          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"]
+          "type": "string"
         }
       ]
     },
