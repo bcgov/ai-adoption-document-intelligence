@@ -25,7 +25,7 @@ ALTER TABLE "datasets" DROP CONSTRAINT "datasets_group_id_fkey";
 ALTER TABLE "workflows" DROP CONSTRAINT "workflows_group_id_fkey";
 
 -- DropForeignKey
-ALTER TABLE "workflows" DROP CONSTRAINT "workflows_user_id_fkey";
+ALTER TABLE "workflows" DROP CONSTRAINT "workflows_actor_id_fkey";
 
 -- DropIndex
 DROP INDEX "benchmark_definitions_workflowId_idx";
@@ -107,7 +107,7 @@ CREATE INDEX "dataset_ground_truth_jobs_workflowVersionId_idx" ON "dataset_groun
 CREATE INDEX "documents_workflow_config_id_idx" ON "documents"("workflow_config_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "group_membership_request_group_id_user_id_status_key" ON "group_membership_request"("group_id", "user_id", "status");
+CREATE UNIQUE INDEX IF NOT EXISTS "group_membership_request_group_id_user_id_status_key" ON "group_membership_request"("group_id", "user_id", "status");
 
 -- AddForeignKey
 ALTER TABLE "documents" ADD CONSTRAINT "documents_workflow_config_id_fkey" FOREIGN KEY ("workflow_config_id") REFERENCES "workflow_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
