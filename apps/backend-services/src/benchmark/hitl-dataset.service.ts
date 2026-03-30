@@ -28,12 +28,14 @@ import {
   EligibleDocumentsResponseDto,
   VersionResponseDto,
 } from "./dto";
+import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 interface DocumentWithReview {
   id: string;
   original_filename: string;
   file_path: string;
   file_type: string;
+  group_id: string;
   ocr_result: {
     keyValuePairs: unknown;
   } | null;
@@ -160,6 +162,7 @@ export class HitlDatasetService {
       dataset.id,
       dto.documentIds,
       actorId,
+      dto.groupId
     );
 
     return { dataset, version, skipped };
@@ -172,6 +175,7 @@ export class HitlDatasetService {
     datasetId: string,
     dto: AddVersionFromHitlDto,
     actorId: string,
+    groupId: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
     this.logger.log(
       `Adding HITL version to dataset ${datasetId} from ${dto.documentIds.length} documents`,
@@ -181,6 +185,7 @@ export class HitlDatasetService {
       datasetId,
       dto.documentIds,
       actorId,
+      groupId,
       dto.version,
       dto.name,
     );
@@ -193,6 +198,7 @@ export class HitlDatasetService {
     datasetId: string,
     documentIds: string[],
     actorId: string,
+    groupId: string,
     versionLabel?: string,
     versionName?: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
@@ -263,7 +269,7 @@ export class HitlDatasetService {
       samples: manifestSamples,
     };
 
-    const manifestKey = `${storagePrefix}/dataset-manifest.json`;
+    const manifestKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [storagePrefix], "dataset-manifest.json")
     await this.blobStorage.write(
       manifestKey,
       Buffer.from(JSON.stringify(manifest, null, 2)),
@@ -348,9 +354,9 @@ export class HitlDatasetService {
     // Copy the original document file
     const inputFilename = `${sampleId}${ext}`;
     const inputRelativePath = `inputs/${inputFilename}`;
-    const inputBlobKey = `${storagePrefix}/${inputRelativePath}`;
+    const inputBlobKey =  buildBlobFilePath(doc.group_id, OperationCategory.BENCHMARK, [storagePrefix, "inputs"], inputFilename);
 
-    const originalFileBuffer = await this.blobStorage.read(doc.file_path);
+    const originalFileBuffer = await this.blobStorage.read(validateBlobFilePath(doc.file_path));
     await this.blobStorage.write(inputBlobKey, originalFileBuffer);
 
     // Build ground truth as flat key-value pairs (same format as uploaded
@@ -363,7 +369,7 @@ export class HitlDatasetService {
 
     // Write ground truth file
     const gtRelativePath = `ground-truth/${sampleId}.json`;
-    const gtBlobKey = `${storagePrefix}/${gtRelativePath}`;
+    const gtBlobKey = buildBlobFilePath(doc.group_id, OperationCategory.BENCHMARK, [storagePrefix, "ground-truth"], `${sampleId}.json`);
     await this.blobStorage.write(
       gtBlobKey,
       Buffer.from(JSON.stringify(groundTruth, null, 2)),

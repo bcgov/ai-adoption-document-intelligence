@@ -28,6 +28,7 @@ import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
 import { TrainingDbService } from "./training-db.service";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 interface LabelsFile {
   filename: string;
@@ -180,7 +181,7 @@ export class TrainingService {
       const filename = doc.labeling_document.original_filename;
 
       // Add document image
-      const blobKey = doc.labeling_document.file_path;
+      const blobKey = validateBlobFilePath(doc.labeling_document.file_path);
       const fileExists = await this.blobStorage.exists(blobKey);
       if (fileExists) {
         files.push({

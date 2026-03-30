@@ -47,6 +47,7 @@ import { type DocumentData, DocumentService } from "./document.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
+import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 @ApiTags("Documents")
 @Controller("api/documents")
@@ -421,12 +422,13 @@ export class DocumentController {
         resource_id: documentId,
         actor_id: req.resolvedIdentity.actorId,
         document_id: documentId,
-        group_id: document.group_id ?? undefined,
+        group_id: document.group_id,
         payload: { action: "download" },
       });
 
       // Read file from blob storage using the blob key
-      const fileBuffer = await this.blobStorage.read(document.file_path);
+      const filePath = validateBlobFilePath(document.file_path);
+      const fileBuffer = await this.blobStorage.read(filePath);
 
       // Set appropriate headers
       const fileName = document.original_filename || `document-${documentId}`;

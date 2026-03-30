@@ -17,6 +17,7 @@ import {
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { buildBlobPrefixPath, OperationCategory, validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 export type {
   ClassifierConfig,
@@ -34,6 +35,7 @@ interface DocType {
 @Injectable()
 export class ClassifierService {
   private readonly client: DocumentIntelligenceClient;
+  // TODO: Needs to be replaced to use the default bucket within the storage module.
   public readonly classifierContainer: string = "classification";
 
   constructor(
@@ -169,6 +171,7 @@ export class ClassifierService {
     );
   };
 
+  // TODO: Does this need to exist if we're going all-in on one storage solution? Maybe we can check if files exist already.
   /**
    * Uploads local documents into Azure blob storage for classifier training.
    * @param groupId The ID of the group that owns this classifier.
@@ -179,26 +182,22 @@ export class ClassifierService {
     await this.azureStorage.ensureContainerExists(this.classifierContainer);
 
     // List all files from primary blob storage under the classifier prefix
-    const primaryPrefix = `classifier/${groupId}/${classifierName}/`;
-    const allKeys = await this.blobStorage.list(primaryPrefix);
+    const allKeys = await this.blobStorage.list(buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [classifierName]));
 
     const uploadResults = await Promise.all(
       allKeys.map(async (key) => {
         // Read file data from primary blob storage
-        const fileBuffer = await this.blobStorage.read(key);
-
-        // Azure training blob name strips the "classifier/" prefix
-        // e.g. "classifier/gid/name/label/file.jpg" -> "gid/name/label/file.jpg"
-        const blobName = key.replace(/^classifier\//, "");
+        const blobFilePath = validateBlobFilePath(key);
+        const fileBuffer = await this.blobStorage.read(blobFilePath);
 
         await this.azureStorage.uploadFile(
           this.classifierContainer,
-          blobName,
+          blobFilePath,
           fileBuffer,
         );
         return {
           originalPath: key,
-          blobPath: blobName,
+          blobPath: blobFilePath,
         };
       }),
     );
@@ -280,6 +279,7 @@ export class ClassifierService {
         "Classifier entry not found. Cannot proceed with training.",
       );
     }
+    console.log("1")
     const containerUrl = await this.azureStorage.generateSasUrl(
       this.classifierContainer,
     );
@@ -290,12 +290,15 @@ export class ClassifierService {
       existingClassifier.description,
       containerUrl,
     );
+    console.log("2")
 
     // Run training of classifier
     const response = await this.client.path("/documentClassifiers:build").post({
       body: trainingConfig,
       queryParameters: { "api-version": "2024-11-30" },
     });
+
+        console.log("3")
 
     // Poll operation status if 202 Accepted
     let operationLocation =
@@ -347,7 +350,8 @@ export class ClassifierService {
       classiferName,
     );
     // Read file and encode to base64
-    const fileData = await this.blobStorage.read(filePath);
+    const blobFilePath = validateBlobFilePath(filePath);
+    const fileData = await this.blobStorage.read(blobFilePath);
     const base64String = Buffer.from(fileData).toString("base64");
 
     const response = await this.client

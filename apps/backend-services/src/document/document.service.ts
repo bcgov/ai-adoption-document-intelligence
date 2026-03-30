@@ -8,6 +8,7 @@ import {
 import { AppLoggerService } from "../logging/app-logger.service";
 import { DocumentDbService } from "./document-db.service";
 import type { DocumentData } from "./document-db.types";
+import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 export type { DocumentData };
 
@@ -95,7 +96,7 @@ export class DocumentService {
 
       const documentId = uuidv4();
       const extension = this.getFileExtension(fileType);
-      const blobKey = `documents/${documentId}/original.${extension}`;
+      const blobKey = buildBlobFilePath(groupId, OperationCategory.OCR, [documentId], `original.${extension}`);
 
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);
@@ -178,7 +179,8 @@ export class DocumentService {
     }
     await this.documentDb.deleteDocument(id);
     try {
-      await this.blobStorage.delete(document.file_path);
+      const documentPath = validateBlobFilePath(document.file_path);
+      await this.blobStorage.delete(documentPath);
     } catch (error) {
       this.logger.warn(
         `Failed to delete blob for document ${id}: ${(error as Error).message}`,
