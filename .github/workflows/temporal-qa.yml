@@ -3,29 +3,26 @@ permissions:
   contents: read
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
     branches: [main, develop]
-    paths:
-      - '.github/workflows/temporal-qa.yml'
-      - 'apps/temporal/**'
   workflow_dispatch:
 
 jobs:
   test-and-lint:
-    name: Test and Lint
+    name: Temporal Quality Assurance
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.env.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Get Environment
         id: env
         uses: ./.github/actions/get-environment
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '25'
       - name: Install dependencies (root)
         run: npm ci
       - name: Install dependencies (temporal)

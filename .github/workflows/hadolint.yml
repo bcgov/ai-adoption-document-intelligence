@@ -1,0 +1,41 @@
+name: Hadolint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-dockerfiles:
+    name: Lint Dockerfiles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Lint repository Dockerfiles
+        run: |
+          set -euo pipefail
+          dockerfile_glob='**/Dockerfile*'
+          echo "Scanning files matching ${dockerfile_glob}"
+
+          mapfile -t dockerfiles < <(
+            find . -type f \( -name 'Dockerfile' -o -name 'Dockerfile.*' \) \
+              -not -path './.git/*' \
+              -not -path './node_modules/*' \
+              | sort
+          )
+
+          if [ "${#dockerfiles[@]}" -eq 0 ]; then
+            echo "No Dockerfiles found."
+            exit 0
+          fi
+
+          for file in "${dockerfiles[@]}"; do
+            echo "Linting $file"
+            docker run --rm -i hadolint/hadolint:latest --failure-threshold error - < "$file"
+          done
