@@ -74,6 +74,10 @@ RUN node -e "const fs=require('fs'); let s=fs.readFileSync('prisma.config.ts','u
 # Copy built application from builder stage (includes generated client in dist)
 COPY --from=builder /app/dist ./dist
 
+# Copy Prisma engines from builder (needed by migrate-db init container at runtime)
+COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+
 # Create storage directory and set permissions
 RUN mkdir -p /app/storage/documents && \
     chown -R nestjs:nodejs /app

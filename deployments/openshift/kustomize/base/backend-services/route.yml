@@ -10,6 +10,7 @@ metadata:
     # The haproxy.router.openshift.io/deny list uses path-based ACLs
     # to return 403 for matching request paths.
     haproxy.router.openshift.io/deny-list: /metrics
+    haproxy.router.openshift.io/proxy-body-size: 100m
 spec:
   to:
     kind: Service

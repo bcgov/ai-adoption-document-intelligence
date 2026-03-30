@@ -1,7 +1,7 @@
 /**
  * Generic enrichment rules for OCR results.
  * Applies type-aware rules (trimWhitespace, fixCharacterConfusion, normalizeDates, normalizeNumbers)
- * based on field schema from a LabelingProject.
+ * based on field schema from a TemplateModel.
  */
 
 import type {
@@ -11,7 +11,7 @@ import type {
   OCRResult,
 } from "../types";
 
-/** Minimal field definition for rule engine (from LabelingProject.field_schema) */
+/** Minimal field definition for rule engine (from TemplateModel.field_schema) */
 export interface FieldDef {
   field_key: string;
   field_type: string;

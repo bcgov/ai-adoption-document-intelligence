@@ -18,10 +18,12 @@ import {
 import { execSync } from "child_process";
 import { createHash } from "crypto";
 import { ResolvedIdentity } from "@/auth/types";
+import { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
+import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 import {
   BaselineComparison,
   CreateRunDto,
@@ -170,6 +172,14 @@ export class BenchmarkRunService {
 
     const runTags = dto.tags || {};
 
+    // Apply workflow config overrides from the definition
+    const workflowConfigOverrides = (definition.workflowConfigOverrides ?? {}) as Record<string, unknown>;
+    const baseWorkflowConfig = definition.workflow.config as unknown as GraphWorkflowConfig;
+    const effectiveWorkflowConfig =
+      Object.keys(workflowConfigOverrides).length > 0
+        ? applyWorkflowConfigOverrides(baseWorkflowConfig, workflowConfigOverrides)
+        : baseWorkflowConfig;
+
     // Create BenchmarkRun record with status 'pending'
     const run = await this.runDbService.createBenchmarkRun({
       definitionId,
@@ -183,6 +193,9 @@ export class BenchmarkRunService {
           ...(definition.runtimeSettings as Record<string, unknown>),
           ...(dto.runtimeSettingsOverride || {}),
         },
+        ...(Object.keys(workflowConfigOverrides).length > 0
+          ? { workflowConfigOverrides }
+          : {}),
       } as Prisma.InputJsonValue,
       tags: runTags as Prisma.InputJsonValue,
     });
@@ -206,7 +219,7 @@ export class BenchmarkRunService {
             ? (definition.split.sampleIds as string[])
             : undefined,
           workflowId: definition.workflowId,
-          workflowConfig: definition.workflow.config as Record<string, unknown>,
+          workflowConfig: effectiveWorkflowConfig as unknown as Record<string, unknown>,
           workflowConfigHash: definition.workflowConfigHash,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<

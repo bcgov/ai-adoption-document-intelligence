@@ -88,15 +88,16 @@ function FieldErrorDetails({
     );
     if (fieldResult) {
       // Determine error type
+      // Null-like values: null, undefined, empty string, "null" string
+      const isNullLike = (v: unknown): boolean =>
+        v === null || v === undefined || v === "" || v === "null";
+
       let errorType = "mismatch";
-      if (
-        fieldResult.expected !== undefined &&
-        fieldResult.predicted === undefined
-      ) {
+      if (!isNullLike(fieldResult.expected) && isNullLike(fieldResult.predicted)) {
         errorType = "missing";
       } else if (
-        fieldResult.expected === undefined &&
-        fieldResult.predicted !== undefined
+        isNullLike(fieldResult.expected) &&
+        !isNullLike(fieldResult.predicted)
       ) {
         errorType = "extra";
       }
@@ -759,6 +760,27 @@ export function RunDetailPage() {
                 </Table>
               </Stack>
             )}
+            {(() => {
+              if (!run.params || typeof run.params !== "object") return null;
+              const params = run.params as Record<string, unknown>;
+              const overrides = params.workflowConfigOverrides;
+              if (
+                !overrides ||
+                typeof overrides !== "object" ||
+                Object.keys(overrides as Record<string, unknown>).length === 0
+              )
+                return null;
+              return (
+                <Stack gap={4}>
+                  <Text size="sm" fw={500}>
+                    Workflow Config Overrides
+                  </Text>
+                  <Code block style={{ fontSize: 13 }}>
+                    {JSON.stringify(overrides, null, 2)}
+                  </Code>
+                </Stack>
+              );
+            })()}
             {run.tags && Object.keys(run.tags).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Tags</Text>

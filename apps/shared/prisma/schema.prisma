@@ -119,7 +119,7 @@ model Actor {
   user   User?
 
   workflows                 Workflow[]
-  labelingProjects          LabelingProject[]
+  templateModels            TemplateModel[]
   classifierModelsCreated   ClassifierModel[]        @relation(name: "ClassifierCreatedByActor")
   classifierModelsUpdated   ClassifierModel[]        @relation(name: "ClassifierUpdatedByActor")
   createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
@@ -153,45 +153,46 @@ model Workflow {
   @@map("workflows")
 }
 
-// ========== LABELING MODELS ==========
+// ========== TEMPLATE MODELS ==========
 
-model LabelingProject {
-  id             String            @id @default(cuid())
+model TemplateModel {
+  id             String              @id @default(cuid())
   name           String
+  model_id       String              @unique
   description    String?
   created_by     String
-  creator        Actor             @relation(fields: [created_by], references: [id])
-  created_at     DateTime          @default(now())
-  updated_at     DateTime          @updatedAt
-  status         ProjectStatus     @default(active)
+  creator        Actor               @relation(fields: [created_by], references: [id])
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  status         TemplateModelStatus @default(draft)
   field_schema   FieldDefinition[]
   documents      LabeledDocument[]
   training_jobs  TrainingJob[]
-  trained_models TrainedModel[]
+  trained_model  TrainedModel?
   group_id       String
-  group          Group             @relation(fields: [group_id], references: [id])
+  group          Group               @relation(fields: [group_id], references: [id])
 
   @@index([group_id])
-  @@map("labeling_projects")
+  @@map("template_models")
 }
 
 model FieldDefinition {
-  id            String          @id @default(cuid())
-  project_id    String
-  project       LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  field_key     String
-  field_type    FieldType       @default(string)
-  field_format  String?
-  display_order Int             @default(0)
+  id                String        @id @default(cuid())
+  template_model_id String
+  template_model    TemplateModel @relation(fields: [template_model_id], references: [id], onDelete: Cascade)
+  field_key         String
+  field_type        FieldType     @default(string)
+  field_format      String?
+  display_order     Int           @default(0)
 
-  @@unique([project_id, field_key])
+  @@unique([template_model_id, field_key])
   @@map("field_definitions")
 }
 
 model LabeledDocument {
   id                   String           @id @default(cuid())
-  project_id           String
-  project              LabelingProject  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  template_model_id    String
+  template_model       TemplateModel    @relation(fields: [template_model_id], references: [id], onDelete: Cascade)
   labeling_document_id String
   labeling_document    LabelingDocument @relation(fields: [labeling_document_id], references: [id], onDelete: Cascade)
   status               LabelingStatus   @default(unlabeled)
@@ -199,7 +200,7 @@ model LabeledDocument {
   created_at           DateTime         @default(now())
   updated_at           DateTime         @updatedAt
 
-  @@unique([project_id, labeling_document_id])
+  @@unique([template_model_id, labeling_document_id])
   @@map("labeled_documents")
 }
 
@@ -221,35 +222,34 @@ model DocumentLabel {
 // ========== TRAINING MODELS ==========
 
 model TrainingJob {
-  id         String          @id @default(cuid())
-  project_id String
-  project    LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  id                String        @id @default(cuid())
+  template_model_id String
+  template_model    TemplateModel @relation(fields: [template_model_id], references: [id], onDelete: Cascade)
 
   status         TrainingStatus @default(PENDING)
   container_name String
   sas_url        String?
   blob_count     Int            @default(0)
 
-  model_id      String?
   operation_id  String?
   error_message String?
 
   started_at   DateTime  @default(now())
   completed_at DateTime?
 
-  trained_models TrainedModel[]
+  trained_model TrainedModel?
 
-  @@index([project_id])
+  @@index([template_model_id])
   @@index([status])
   @@map("training_jobs")
 }
 
 model TrainedModel {
-  id              String          @id @default(cuid())
-  project_id      String
-  project         LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  training_job_id String
-  training_job    TrainingJob     @relation(fields: [training_job_id], references: [id])
+  id                String        @id @default(cuid())
+  template_model_id String        @unique
+  template_model    TemplateModel @relation(fields: [template_model_id], references: [id], onDelete: Cascade)
+  training_job_id   String        @unique
+  training_job      TrainingJob   @relation(fields: [training_job_id], references: [id])
 
   model_id    String  @unique
   description String?
@@ -258,7 +258,6 @@ model TrainedModel {
 
   created_at DateTime @default(now())
 
-  @@index([project_id])
   @@map("trained_models")
 }
 
@@ -303,7 +302,7 @@ model Group {
   membership_requests GroupMembershipRequest[]
   documents           Document[]
   workflows           Workflow[]
-  labeling_projects   LabelingProject[]
+  template_models     TemplateModel[]
   labeling_documents  LabelingDocument[]
   api_keys            ApiKey[]
   datasets            Dataset[]
@@ -402,10 +401,11 @@ model FieldCorrection {
 
 // ========== ENUMS ==========
 // TODO: Standarize these enums as constant casing
-enum ProjectStatus {
-  active
-  archived
+enum TemplateModelStatus {
+  draft
   training
+  trained
+  failed
 }
 
 enum FieldType {
@@ -552,8 +552,9 @@ model BenchmarkDefinition {
   split              Split?           @relation(fields: [splitId], references: [id])
   workflowId         String
   workflow           Workflow         @relation(fields: [workflowId], references: [id])
-  workflowConfigHash String
-  evaluatorType      String
+  workflowConfigHash      String
+  workflowConfigOverrides Json?              @default("{}") @map("workflow_config_overrides")
+  evaluatorType           String
   evaluatorConfig    Json
   runtimeSettings    Json
   immutable          Boolean          @default(false)

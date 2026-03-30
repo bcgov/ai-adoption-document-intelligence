@@ -34,6 +34,7 @@ import {
   WorkflowInfo,
 } from "./dto";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
+import { validateWorkflowConfigOverrides } from "./workflow-config-overrides";
 
 @Injectable()
 export class BenchmarkDefinitionService {
@@ -120,6 +121,20 @@ export class BenchmarkDefinitionService {
       workflow.config as GraphWorkflowConfig,
     );
 
+    // Validate workflow config overrides if provided
+    const workflowConfigOverrides = dto.workflowConfigOverrides ?? {};
+    if (Object.keys(workflowConfigOverrides).length > 0) {
+      const overrideErrors = validateWorkflowConfigOverrides(
+        workflow.config as GraphWorkflowConfig,
+        workflowConfigOverrides,
+      );
+      if (overrideErrors.length > 0) {
+        throw new BadRequestException(
+          `Invalid workflow config overrides: ${overrideErrors.join("; ")}`,
+        );
+      }
+    }
+
     // Create the definition
     const definition = await this.definitionDbService.createBenchmarkDefinition(
       {
@@ -132,6 +147,7 @@ export class BenchmarkDefinitionService {
         evaluatorType: dto.evaluatorType,
         evaluatorConfig: dto.evaluatorConfig as Prisma.InputJsonValue,
         runtimeSettings: dto.runtimeSettings as Prisma.InputJsonValue,
+        workflowConfigOverrides: workflowConfigOverrides as Prisma.InputJsonValue,
         immutable: false,
         revision: 1,
       },
@@ -250,12 +266,13 @@ export class BenchmarkDefinitionService {
     }
 
     let workflowConfigHash = existing.workflowConfigHash;
+    let resolvedWorkflow: { config: unknown } | null = null;
     if (dto.workflowId) {
-      const workflow = await this.definitionDbService.findWorkflow(
+      resolvedWorkflow = await this.definitionDbService.findWorkflow(
         dto.workflowId,
       );
 
-      if (!workflow) {
+      if (!resolvedWorkflow) {
         throw new BadRequestException(
           `Workflow with ID "${dto.workflowId}" does not exist`,
         );
@@ -263,7 +280,7 @@ export class BenchmarkDefinitionService {
 
       // Recompute workflow config hash
       workflowConfigHash = computeConfigHash(
-        workflow.config as GraphWorkflowConfig,
+        resolvedWorkflow.config as GraphWorkflowConfig,
       );
     }
 
@@ -271,6 +288,21 @@ export class BenchmarkDefinitionService {
       if (!this.evaluatorRegistry.hasEvaluator(dto.evaluatorType)) {
         throw new BadRequestException(
           `Evaluator type "${dto.evaluatorType}" is not registered. Available types: ${this.evaluatorRegistry.getAvailableTypes().join(", ")}`,
+        );
+      }
+    }
+
+    // Validate workflow config overrides if provided
+    if (dto.workflowConfigOverrides && Object.keys(dto.workflowConfigOverrides).length > 0) {
+      // Get the workflow config to validate against (new or existing)
+      if (!resolvedWorkflow) {
+        resolvedWorkflow = await this.definitionDbService.findWorkflow(existing.workflowId);
+      }
+      const workflowConfig = resolvedWorkflow!.config as GraphWorkflowConfig;
+      const overrideErrors = validateWorkflowConfigOverrides(workflowConfig, dto.workflowConfigOverrides);
+      if (overrideErrors.length > 0) {
+        throw new BadRequestException(
+          `Invalid workflow config overrides: ${overrideErrors.join("; ")}`,
         );
       }
     }
@@ -298,6 +330,8 @@ export class BenchmarkDefinitionService {
             existing.evaluatorConfig) as Prisma.InputJsonValue,
           runtimeSettings: (dto.runtimeSettings ??
             existing.runtimeSettings) as Prisma.InputJsonValue,
+          workflowConfigOverrides: (dto.workflowConfigOverrides ??
+            existing.workflowConfigOverrides ?? {}) as Prisma.InputJsonValue,
           immutable: false,
           revision: existing.revision + 1,
         });
@@ -325,6 +359,9 @@ export class BenchmarkDefinitionService {
       if (dto.runtimeSettings)
         updateData.runtimeSettings =
           dto.runtimeSettings as Prisma.InputJsonValue;
+      if (dto.workflowConfigOverrides !== undefined)
+        updateData.workflowConfigOverrides =
+          dto.workflowConfigOverrides as Prisma.InputJsonValue;
 
       const updated = await this.definitionDbService.updateBenchmarkDefinition(
         definitionId,
@@ -435,6 +472,7 @@ export class BenchmarkDefinitionService {
       projectId: string;
       name: string;
       workflowConfigHash: string;
+      workflowConfigOverrides?: unknown;
       evaluatorType: string;
       evaluatorConfig: unknown;
       runtimeSettings: unknown;
@@ -533,6 +571,7 @@ export class BenchmarkDefinitionService {
       split,
       workflow,
       workflowConfigHash: definition.workflowConfigHash,
+      workflowConfigOverrides: (definition.workflowConfigOverrides ?? {}) as Record<string, unknown>,
       evaluatorType: definition.evaluatorType,
       evaluatorConfig: definition.evaluatorConfig as Record<string, unknown>,
       runtimeSettings: definition.runtimeSettings as Record<string, unknown>,
