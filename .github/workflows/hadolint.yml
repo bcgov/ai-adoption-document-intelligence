@@ -37,5 +37,5 @@ jobs:
 
           for file in "${dockerfiles[@]}"; do
             echo "Linting $file"
-            docker run --rm -i hadolint/hadolint:latest --failure-threshold error - < "$file"
+            docker run --rm -i hadolint/hadolint:latest hadolint --failure-threshold error - < "$file"
           done
