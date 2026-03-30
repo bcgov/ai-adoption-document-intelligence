@@ -15,6 +15,7 @@ interface FieldPanelProps {
   activeFieldKey?: string | null;
   onSelectField?: (fieldKey: string) => void;
   onValueChange?: (fieldKey: string, value: string) => void;
+  onClearField?: (fieldKey: string) => void;
   readOnly?: boolean;
   emptyMessage?: string;
 }
@@ -25,6 +26,7 @@ export const FieldPanel: FC<FieldPanelProps> = ({
   activeFieldKey,
   onSelectField,
   onValueChange,
+  onClearField,
   readOnly,
   emptyMessage,
 }) => {
@@ -49,6 +51,11 @@ export const FieldPanel: FC<FieldPanelProps> = ({
           isActive={activeFieldKey === field.fieldKey}
           onSelect={() => onSelectField?.(field.fieldKey)}
           onValueChange={(value) => onValueChange?.(field.fieldKey, value)}
+          onClear={
+            onClearField
+              ? () => onClearField(field.fieldKey)
+              : undefined
+          }
           readOnly={readOnly}
         />
       ))}
