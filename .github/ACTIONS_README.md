@@ -1,198 +1,113 @@
-# GitHub Actions for PSA Job Store
+# GitHub Actions
 
-This directory contains the CI/CD workflows and custom actions used for automating the build, test, deployment, and maintenance processes of the PSA Job Store application.
+This directory contains the repository workflows and custom actions used for quality checks, image builds, database operations, releases, and security scanning.
 
 ## Overview
 
-The PSA Job Store project uses GitHub Actions for continuous integration and continuous deployment (CI/CD). These workflows automate various aspects of the development lifecycle, including:
+The current workflow set covers:
 
-- Building Docker images
-- Running unit tests
-- Performing database migrations
-- Deploying to OpenShift environments
-- Running end-to-end tests
-- Managing database backups and restores
-- Security scanning with StackRox (Deprecated)
+- Application quality checks for backend, frontend, and temporal services
+- Docker image builds and Artifactory pushes
+- Database migration, backup, and restore tasks
+- Release automation
+- Pull request and branch security scanning
 
-## Workflow Structure
+Workflow files live in `.github/workflows`, and reusable repository actions live in `.github/actions`.
 
-The workflows are organized in the `.github/workflows` directory, while custom actions are in the `.github/actions` directory.
+## Core workflows
 
-### Main Workflows
+### Quality assurance
 
-#### 1. Build Docker Images (`build-apps.yml`)
+- `backend-qa.yml`
+  - Pull request quality gate for `apps/backend-services`
+  - Runs lint, type-check, and test coverage commands
+- `frontend-qa.yml`
+  - Pull request quality gate for `apps/frontend`
+  - Runs lint, type-check, and test commands
+- `temporal-qa.yml`
+  - Pull request quality gate for `apps/temporal`
+  - Runs lint, type-check, and test commands
 
-Triggered on:
+These workflows intentionally avoid top-level `paths` filters so they always publish a check result for protected-branch pull requests.
 
-- Push to main, stage, or develop branches
-- Manual trigger
+### Build and release workflows
 
-Key features:
+- `build-apps.yml`
+  - Runs on pushes to `main` and `develop`
+  - Detects changed applications, including shared Prisma inputs for backend and temporal
+  - Builds and pushes Docker images to Artifactory
+  - Scans built image digests with Grype
+- `build-instance-images.yml`
+  - Manual workflow for building per-branch images
+  - Scans built image digests with Grype
+- `migrate-db.yml`
+  - Applies database migrations and coordinates downstream deployment work
+- `release.yml`
+  - Release automation workflow
 
-- Detects which applications have changed (api, app)
-- Builds Docker images for changed applications
-- Pushes images to Artifactory
-- Triggers the database migration workflow
+### Database operations
 
-#### 2. Database Migration (`migrate-db.yml`)
+- `db-backup-manual.yml`
+  - Manual PostgreSQL backup workflow
+- `db-restore.yml`
+  - Manual PostgreSQL restore workflow
 
-Triggered on:
+## Security workflows
 
-- Completion of the build workflow
-- Manual trigger
+The repository security baseline now includes:
 
-Key features:
+- `codeql.yml`
+  - CodeQL analysis for TypeScript, Python, and GitHub Actions content
+- `dependency-review.yml`
+  - Pull request dependency review for supported dependency changes
+- `python-dependency-audit.yml`
+  - `uv` plus `pip-audit` coverage for `apps/image-service`
+- `hadolint.yml`
+  - Dockerfile lint and security checks
+- `checkov.yml`
+  - Blocking Dockerfile checks and advisory deployment/workflow scans
 
-- Detects if there are new database migrations
-- Applies Prisma migrations to the database
-- Updates version information
-- Triggers deployments for changed applications
-#### 3. Unit Tests (`unit-tests.yml`)
+See `docs-md/security-scanning.md` for the operating model, blocking rules, and GitHub settings that must be enabled outside the repository.
 
-Triggered on:
+## Custom actions
 
-- Push to stage branch
-- Manual trigger
+### `get-environment`
 
-Key features:
+Determines the deployment environment name from the branch context.
 
-- Builds common-kit library
-- Runs Jest tests for React (app), NestJS (api), and common-kit
+### `migrate-db`
 
-#### 5. Database Backup (`db-backup-manual.yml`)
+Runs the repository database migration logic.
 
-Triggered on:
+### `trigger-deploy`
 
-- Manual trigger
+Triggers deployment work in the target OpenShift environment.
 
-Key features:
+## Environment configuration
 
-- Creates a backup of the PostgreSQL database
-- Allows specifying the cluster name, environment, and backup annotation
+The repository currently uses environment-specific secrets and deployment configuration. The reusable `get-environment` action maps:
 
-#### 6. Database Restore (`db-restore.yml`)
+- `main` -> `prod`
+- `stage` -> `test`
+- other branches -> `dev`
 
-Triggered on:
+Even though `build-apps.yml` now targets `main` and `develop`, the environment mapping still exists for workflows that may resolve other refs.
 
-- Manual trigger
+## Required secrets
 
-Key features:
+Common workflow secrets include:
 
-- Restores a PostgreSQL database from a backup
-- Allows specifying the cluster name, environment, and either a restore timestamp or backup ID
+- `OPENSHIFT_SERVER`
+- `OPENSHIFT_API_TOKEN`
+- `ARTIFACTORY_URL`
+- `ARTIFACTORY_SA_USERNAME`
+- `ARTIFACTORY_SA_PASSWORD`
+- Application-specific configuration values such as `VITE_*`, `REACT_APP_URL`, `DATABASE_URL`, and similar runtime/build inputs
 
-#### 7. Security Scanning (`run-acs.yml`) (DEPRECATED)
+## Pipeline relationship
 
-Triggered on:
+At a high level:
 
-- Manual trigger
-
-Key features:
-
-- Runs StackRox security checks on Docker images
-- Scans deployment configurations for security issues
-
-#### 8. Release Management (`release.yml`) (DEPRECATED)
-
-Triggered on:
-
-- Manual trigger
-
-Key features:
-
-- Creates a release pull request using Changesets
-
-## Custom Actions
-
-### 1. Trigger Deploy (`.github/actions/trigger-deploy`)
-
-Purpose: Triggers a deployment in OpenShift.
-
-Inputs:
-
-- OpenShift server
-- API token
-- Project to redeploy
-- Deployment environment
-
-### 2. Migrate DB (`.github/actions/migrate-db`)
-
-Purpose: Executes database migrations.
-
-Inputs:
-
-- Deployment environment
-- OpenShift server
-- API token
-- Database URL
-
-### 3. StackRox Scan (`.github/actions/stackrox-scan`) (DEPRECATED)
-
-Purpose: Scans Docker images for security vulnerabilities.
-
-Inputs:
-
-- Central endpoint
-- API token
-- Image to scan
-- Output format
-
-### 4. StackRox Check (`.github/actions/stackrox-check`) (DEPRECATED)
-
-Purpose: Checks Docker images against security policies.
-
-Inputs:
-
-- Central endpoint
-- API token
-- Image to check
-
-### 5. StackRox DC Check (`.github/actions/stackrox-dc-check`) (DEPRECATED)
-
-Purpose: Checks deployment configurations against security policies.
-
-Inputs:
-
-- Path to deployment configuration
-- Central endpoint
-- API token
-
-## Environment Configuration
-
-The workflows use environment-specific configurations:
-
-- `dev` for the develop branch
-- `test` for the stage branch
-- `prod` for the main branch
-
-Each environment has its own set of secrets configured in GitHub.
-
-## Required Secrets
-
-The following secrets are required for the workflows to function properly:
-
-- `OPENSHIFT_SERVER`: The OpenShift server URL
-- `OPENSHIFT_API_TOKEN`: API token for OpenShift authentication
-- `ARTIFACTORY_URL`: URL of the Artifactory repository
-- `ARTIFACTORY_SA_USERNAME`: Artifactory service account username
-- `ARTIFACTORY_SA_PASSWORD`: Artifactory service account password
-- `ROX_CENTRAL_ENDPOINT`: StackRox Central endpoint (DEPRECATED)
-- `ROX_API_TOKEN`: StackRox API token (DEPRECATED)
-- Various application-specific environment variables (VITE\_\*, SESSION_SECRET, etc.)
-
-## Workflow Dependencies
-
-The workflows are designed to work together in a pipeline:
-
-1. Code changes are pushed to a branch
-2. `build-apps.yml` builds Docker images for changed applications
-3. `migrate-db.yml` applies database migrations and triggers deployments
-
-## Manual Workflows
-
-Some workflows are designed to be triggered manually:
-
-- `db-backup-manual.yml` for creating database backups
-- `db-restore.yml` for restoring from backups
-- `run-acs.yml` for security scanning (DEPRECATED)
-- `release.yml` for creating release pull requests (DEPRECATED)
+1. Pull requests run QA and security workflows.
+2. Protected-branch pushes build and scan images.
+3. Database and deployment workflows consume those build outputs as needed.
