@@ -8,17 +8,14 @@ import {
 import {
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
-import {
-  LabeledDocumentData,
-  LabelingProjectData,
-} from "@/database/database.service";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { ResolvedIdentity } from "@/auth/types";
 import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
 import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { AnalysisResponse, Page } from "@/ocr/azure-types";
-import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto, ExportFormat } from "./dto/export.dto";
@@ -28,38 +25,44 @@ import {
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
+import { LabelingProjectDbService } from "./labeling-project-db.service";
+import type {
+  LabeledDocumentData,
+  LabelingProjectData,
+} from "./labeling-project-db.types";
 import { SuggestionService } from "./suggestion.service";
 
 @Injectable()
 export class LabelingService {
-  private readonly logger = new Logger(LabelingService.name);
-
   constructor(
-    private readonly db: DatabaseService,
+    private readonly labelingProjectDb: LabelingProjectDbService,
     private readonly labelingOcrService: LabelingOcrService,
+    private readonly logger: AppLoggerService,
     private readonly suggestionService: SuggestionService,
+    private readonly labelingDocumentDb: LabelingDocumentDbService,
   ) {}
 
   // ========== PROJECT OPERATIONS ==========
 
   async getProjects(groupIds?: string[]) {
     this.logger.debug("Getting all projects");
-    return this.db.findAllLabelingProjects(groupIds);
+    return this.labelingProjectDb.findAllLabelingProjects(groupIds);
   }
 
-  async createProject(dto: CreateProjectDto, userId: string) {
+  async createProject(dto: CreateProjectDto, actorId: string) {
     this.logger.debug(`Creating project: ${dto.name}`);
-    return this.db.createLabelingProject({
+    return this.labelingProjectDb.createLabelingProject({
       name: dto.name,
       description: dto.description,
-      created_by: userId,
+      created_by: actorId,
       group_id: dto.group_id,
     });
   }
 
   async getProject(id: string) {
     this.logger.debug(`Getting project: ${id}`);
-    const project = await this.db.findLabelingProject(id);
+    const project = await this.labelingProjectDb.findLabelingProject(id);
     if (!project) {
       throw new NotFoundException(`Project with id ${id} not found`);
     }
@@ -68,7 +71,7 @@ export class LabelingService {
 
   async updateProject(id: string, dto: UpdateProjectDto) {
     this.logger.debug(`Updating project: ${id}`);
-    const project = await this.db.updateLabelingProject(id, {
+    const project = await this.labelingProjectDb.updateLabelingProject(id, {
       ...dto,
     });
     if (!project) {
@@ -79,7 +82,7 @@ export class LabelingService {
 
   async deleteProject(id: string) {
     this.logger.debug(`Deleting project: ${id}`);
-    const deleted = await this.db.deleteLabelingProject(id);
+    const deleted = await this.labelingProjectDb.deleteLabelingProject(id);
     if (!deleted) {
       throw new NotFoundException(`Project with id ${id} not found`);
     }
@@ -90,7 +93,7 @@ export class LabelingService {
 
   async getFieldSchema(projectId: string) {
     this.logger.debug(`Getting field schema for project: ${projectId}`);
-    const project = await this.db.findLabelingProject(projectId);
+    const project = await this.labelingProjectDb.findLabelingProject(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
@@ -101,7 +104,7 @@ export class LabelingService {
     this.logger.debug(`Adding field ${dto.field_key} to project: ${projectId}`);
 
     // Check project exists
-    const project = await this.db.findLabelingProject(projectId);
+    const project = await this.labelingProjectDb.findLabelingProject(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
@@ -116,7 +119,7 @@ export class LabelingService {
       );
     }
 
-    return this.db.createFieldDefinition(projectId, {
+    return this.labelingProjectDb.createFieldDefinition(projectId, {
       field_key: dto.field_key,
       field_type: dto.field_type as unknown as FieldType,
       field_format: dto.field_format,
@@ -130,7 +133,7 @@ export class LabelingService {
     dto: UpdateFieldDefinitionDto,
   ) {
     this.logger.debug(`Updating field ${fieldId} in project: ${projectId}`);
-    const field = await this.db.updateFieldDefinition(fieldId, {
+    const field = await this.labelingProjectDb.updateFieldDefinition(fieldId, {
       field_format: dto.field_format,
       display_order: dto.display_order,
     });
@@ -142,7 +145,7 @@ export class LabelingService {
 
   async deleteField(projectId: string, fieldId: string) {
     this.logger.debug(`Deleting field ${fieldId} from project: ${projectId}`);
-    const deleted = await this.db.deleteFieldDefinition(fieldId);
+    const deleted = await this.labelingProjectDb.deleteFieldDefinition(fieldId);
     if (!deleted) {
       throw new NotFoundException(`Field with id ${fieldId} not found`);
     }
@@ -153,11 +156,11 @@ export class LabelingService {
 
   async getProjectDocuments(projectId: string) {
     this.logger.debug(`Getting documents for project: ${projectId}`);
-    const project = await this.db.findLabelingProject(projectId);
+    const project = await this.labelingProjectDb.findLabelingProject(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
-    return this.db.findLabeledDocuments(projectId);
+    return this.labelingProjectDb.findAllLabeledDocuments(projectId);
   }
 
   async addDocumentToProject(projectId: string, dto: AddDocumentDto) {
@@ -166,27 +169,35 @@ export class LabelingService {
     );
 
     // Check project exists
-    const project = await this.db.findLabelingProject(projectId);
+    const project = await this.labelingProjectDb.findLabelingProject(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
     // Check labeling document exists
-    const document = await this.db.findLabelingDocument(dto.labelingDocumentId);
+    const document = await this.labelingDocumentDb.findLabelingDocument(
+      dto.labelingDocumentId,
+    );
     if (!document) {
       throw new NotFoundException(
         `Labeling document with id ${dto.labelingDocumentId} not found`,
       );
     }
 
-    return this.db.addDocumentToProject(projectId, dto.labelingDocumentId);
+    return this.labelingProjectDb.createLabeledDocument(
+      projectId,
+      dto.labelingDocumentId,
+    );
   }
 
   async getProjectDocument(projectId: string, documentId: string) {
     this.logger.debug(
       `Getting document ${documentId} from project: ${projectId}`,
     );
-    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    const labeledDoc = await this.labelingProjectDb.findLabeledDocument(
+      projectId,
+      documentId,
+    );
     if (!labeledDoc) {
       throw new NotFoundException(
         `Document ${documentId} not found in project ${projectId}`,
@@ -199,7 +210,7 @@ export class LabelingService {
     this.logger.debug(
       `Removing document ${documentId} from project: ${projectId}`,
     );
-    const deleted = await this.db.removeDocumentFromProject(
+    const deleted = await this.labelingProjectDb.deleteLabeledDocument(
       projectId,
       documentId,
     );
@@ -217,7 +228,10 @@ export class LabelingService {
     this.logger.debug(
       `Getting labels for document ${documentId} in project: ${projectId}`,
     );
-    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    const labeledDoc = await this.labelingProjectDb.findLabeledDocument(
+      projectId,
+      documentId,
+    );
     if (!labeledDoc) {
       throw new NotFoundException(
         `Document ${documentId} not found in project ${projectId}`,
@@ -235,7 +249,10 @@ export class LabelingService {
       `Saving labels for document ${documentId} in project: ${projectId}`,
     );
 
-    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    const labeledDoc = await this.labelingProjectDb.findLabeledDocument(
+      projectId,
+      documentId,
+    );
     if (!labeledDoc) {
       throw new NotFoundException(
         `Document ${documentId} not found in project ${projectId}`,
@@ -243,7 +260,7 @@ export class LabelingService {
     }
 
     // Save labels
-    await this.db.saveDocumentLabels(
+    await this.labelingProjectDb.upsertDocumentLabels(
       labeledDoc.id,
       dto.labels.map((label) => ({
         field_key: label.field_key,
@@ -259,16 +276,19 @@ export class LabelingService {
       dto.labels.length > 0
         ? LabelingStatus.labeled
         : LabelingStatus.in_progress;
-    await this.db.updateLabeledDocumentStatus(labeledDoc.id, newStatus);
+    await this.labelingProjectDb.updateLabeledDocument(
+      labeledDoc.id,
+      newStatus,
+    );
 
-    return this.db.findLabeledDocument(projectId, documentId);
+    return this.labelingProjectDb.findLabeledDocument(projectId, documentId);
   }
 
   async deleteLabel(projectId: string, documentId: string, labelId: string) {
     this.logger.debug(
       `Deleting label ${labelId} from document ${documentId} in project: ${projectId}`,
     );
-    const deleted = await this.db.deleteDocumentLabel(labelId);
+    const deleted = await this.labelingProjectDb.deleteDocumentLabel(labelId);
     if (!deleted) {
       throw new NotFoundException(`Label with id ${labelId} not found`);
     }
@@ -282,7 +302,10 @@ export class LabelingService {
       `Getting OCR data for document ${documentId} in project: ${projectId}`,
     );
 
-    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    const labeledDoc = await this.labelingProjectDb.findLabeledDocument(
+      projectId,
+      documentId,
+    );
     if (!labeledDoc) {
       throw new NotFoundException(
         `Document ${documentId} not found in project ${projectId}`,
@@ -300,27 +323,34 @@ export class LabelingService {
   async generateDocumentSuggestions(
     projectId: string,
     documentId: string,
+    identity: ResolvedIdentity,
   ): Promise<LabelSuggestionDto[]> {
     this.logger.debug(
       `Generating suggestions for document ${documentId} in project: ${projectId}`,
     );
 
-    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    const labeledDoc = await this.labelingProjectDb.findLabeledDocument(
+      projectId,
+      documentId,
+    );
     if (!labeledDoc) {
       throw new NotFoundException(
         `Document ${documentId} not found in project ${projectId}`,
       );
     }
+
     if (!labeledDoc.labeling_document?.ocr_result) {
       throw new NotFoundException(
         `OCR result not found for labeling document ${documentId}`,
       );
     }
 
-    const project = await this.db.findLabelingProject(projectId);
+    const project = await this.labelingProjectDb.findLabelingProject(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
+
+    identityCanAccessGroup(identity, project.group_id);
 
     const ocrResult = labeledDoc.labeling_document
       .ocr_result as unknown as AnalysisResponse;
@@ -338,12 +368,13 @@ export class LabelingService {
       `Exporting project ${projectId} in format: ${options.format}`,
     );
 
-    const project = await this.db.findLabelingProject(projectId);
+    const project = await this.labelingProjectDb.findLabelingProject(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
-    let documents = await this.db.findLabeledDocuments(projectId);
+    let documents =
+      await this.labelingProjectDb.findAllLabeledDocuments(projectId);
 
     // Filter by document IDs if provided
     if (options.documentIds?.length) {
@@ -526,7 +557,7 @@ export class LabelingService {
   async uploadLabelingDocument(projectId: string, dto: LabelingUploadDto) {
     this.logger.debug(`Uploading labeling document for project: ${projectId}`);
 
-    const project = await this.db.findLabelingProject(projectId);
+    const project = await this.labelingProjectDb.findLabelingProject(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
@@ -534,7 +565,7 @@ export class LabelingService {
     const labelingDocument =
       await this.labelingOcrService.createLabelingDocument(dto);
 
-    const labeledDoc = await this.db.addDocumentToProject(
+    const labeledDoc = await this.labelingProjectDb.createLabeledDocument(
       projectId,
       labelingDocument.id,
     );

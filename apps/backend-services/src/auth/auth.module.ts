@@ -2,8 +2,8 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { PassportModule } from "@nestjs/passport";
-import { ApiKeyModule } from "../api-key/api-key.module";
-import { DatabaseModule } from "../database/database.module";
+import { ActorModule } from "@/actor/actor.module";
+import { UserService } from "@/actor/user.service";
 import { GroupModule } from "../group/group.module";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { AuthController } from "./auth.controller";
@@ -12,14 +12,12 @@ import { CsrfGuard } from "./csrf.guard";
 import { IdentityGuard } from "./identity.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
-import { RolesGuard } from "./roles.guard";
 
 @Module({
   imports: [
     ConfigModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
-    ApiKeyModule,
-    DatabaseModule,
+    ActorModule,
     GroupModule,
   ],
   controllers: [AuthController],
@@ -37,10 +35,6 @@ import { RolesGuard } from "./roles.guard";
     {
       provide: APP_GUARD,
       useClass: IdentityGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
     },
     {
       provide: APP_GUARD,

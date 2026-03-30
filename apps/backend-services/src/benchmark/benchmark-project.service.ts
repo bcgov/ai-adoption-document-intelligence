@@ -13,7 +13,10 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { PrismaService } from "@/database/prisma.service";
+import {
+  BenchmarkProjectDbService,
+  BenchmarkProjectWithDetails,
+} from "./benchmark-project-db.service";
 import {
   CreateProjectDto,
   DefinitionSummary,
@@ -25,59 +28,24 @@ import {
 @Injectable()
 export class BenchmarkProjectService {
   private readonly logger = new Logger(BenchmarkProjectService.name);
-  private readonly prisma;
 
-  constructor(private readonly prismaService: PrismaService) {
-    this.prisma = this.prismaService.prisma;
-  }
+  constructor(private readonly projectDbService: BenchmarkProjectDbService) {}
 
   /**
    * Create a benchmark project
    */
   async createProject(
     dto: CreateProjectDto,
-    userId: string,
+    actorId: string,
   ): Promise<ProjectDetailsDto> {
     this.logger.log(`Creating benchmark project: ${dto.name}`);
 
     try {
-      const project = await this.prisma.benchmarkProject.create({
-        data: {
-          name: dto.name,
-          description: dto.description || null,
-          createdBy: userId,
-          group_id: dto.groupId,
-        },
-        include: {
-          benchmarkDefinitions: {
-            select: {
-              id: true,
-              name: true,
-              datasetVersionId: true,
-              evaluatorType: true,
-              immutable: true,
-              createdAt: true,
-            },
-          },
-          benchmarkRuns: {
-            select: {
-              id: true,
-              status: true,
-              temporalWorkflowId: true,
-              startedAt: true,
-              completedAt: true,
-              definition: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-            orderBy: {
-              startedAt: "desc",
-            },
-            take: 10,
-          },
-        },
+      const project = await this.projectDbService.createBenchmarkProject({
+        name: dto.name,
+        description: dto.description || null,
+        createdBy: actorId,
+        group_id: dto.groupId,
       });
 
       this.logger.log(`Created benchmark project: ${project.id}`);
@@ -101,22 +69,8 @@ export class BenchmarkProjectService {
    * List all benchmark projects
    */
   async listProjects(groupIds: string[]): Promise<ProjectSummaryDto[]> {
-    const projects = await this.prisma.benchmarkProject.findMany({
-      where: {
-        group_id: { in: groupIds },
-      },
-      include: {
-        _count: {
-          select: {
-            benchmarkDefinitions: true,
-            benchmarkRuns: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const projects =
+      await this.projectDbService.findAllBenchmarkProjects(groupIds);
 
     return projects.map((project) => ({
       id: project.id,
@@ -135,42 +89,7 @@ export class BenchmarkProjectService {
    * Get project details by ID
    */
   async getProjectById(id: string): Promise<ProjectDetailsDto> {
-    const project = await this.prisma.benchmarkProject.findUnique({
-      where: { id },
-      include: {
-        benchmarkDefinitions: {
-          select: {
-            id: true,
-            name: true,
-            datasetVersionId: true,
-            evaluatorType: true,
-            immutable: true,
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        benchmarkRuns: {
-          select: {
-            id: true,
-            status: true,
-            temporalWorkflowId: true,
-            startedAt: true,
-            completedAt: true,
-            definition: {
-              select: {
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            startedAt: "desc",
-          },
-          take: 10,
-        },
-      },
-    });
+    const project = await this.projectDbService.findBenchmarkProject(id);
 
     if (!project) {
       throw new NotFoundException(
@@ -188,17 +107,8 @@ export class BenchmarkProjectService {
    * Cascade-deletes all definitions and runs in Postgres.
    */
   async deleteProject(id: string): Promise<void> {
-    const project = await this.prisma.benchmarkProject.findUnique({
-      where: { id },
-      include: {
-        benchmarkRuns: {
-          where: {
-            status: { in: ["pending", "running"] },
-          },
-          select: { id: true, status: true },
-        },
-      },
-    });
+    const project =
+      await this.projectDbService.findBenchmarkProjectForDeletion(id);
 
     if (!project) {
       throw new NotFoundException(
@@ -213,9 +123,7 @@ export class BenchmarkProjectService {
     }
 
     // Cascade-delete project (definitions + runs are cascade-deleted by Prisma)
-    await this.prisma.benchmarkProject.delete({
-      where: { id },
-    });
+    await this.projectDbService.deleteBenchmarkProject(id);
 
     this.logger.log(`Deleted benchmark project: ${id} (${project.name})`);
   }
@@ -223,33 +131,9 @@ export class BenchmarkProjectService {
   /**
    * Map Prisma result to ProjectDetailsDto
    */
-  private mapToProjectDetails(project: {
-    id: string;
-    name: string;
-    description: string | null;
-    createdBy: string;
-    group_id: string;
-    createdAt: Date;
-    updatedAt: Date;
-    benchmarkDefinitions: Array<{
-      id: string;
-      name: string;
-      datasetVersionId: string;
-      evaluatorType: string;
-      immutable: boolean;
-      createdAt: Date;
-    }>;
-    benchmarkRuns: Array<{
-      id: string;
-      status: string;
-      temporalWorkflowId: string | null;
-      startedAt: Date | null;
-      completedAt: Date | null;
-      definition: {
-        name: string;
-      };
-    }>;
-  }): ProjectDetailsDto {
+  private mapToProjectDetails(
+    project: BenchmarkProjectWithDetails,
+  ): ProjectDetailsDto {
     const definitions: DefinitionSummary[] = project.benchmarkDefinitions.map(
       (def) => ({
         id: def.id,

@@ -7,9 +7,14 @@ resources:
   - temporal-server-service.yml
   - temporal-ui-deployment.yml
   - temporal-ui-service.yml
-  - temporal-ui-route.yml
+  # temporal-ui-route.yml is intentionally excluded — Temporal UI should not be
+  # publicly exposed. Use `oc port-forward` for local access (see docs).
   - temporal-worker-configmap.yml
   - temporal-worker-secrets.yml
   - temporal-worker-deployment.yml
+  - pvc-logs.yml
+  - logrotate-configmap.yml
+  - promtail-configmap-worker.yml
+  - promtail-configmap-server.yml
 commonLabels:
   app.kubernetes.io/part-of: temporal

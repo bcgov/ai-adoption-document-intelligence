@@ -3,17 +3,19 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingOcrService } from "./labeling-ocr.service";
 
 describe("LabelingOcrService", () => {
   let service: LabelingOcrService;
-  let mockDbService: jest.Mocked<DatabaseService>;
+  let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
   let mockHttpService: jest.Mocked<HttpService>;
   let mockBlobStorage: jest.Mocked<BlobStorageInterface>;
   let _mockConfigService: jest.Mocked<ConfigService>;
@@ -37,7 +39,7 @@ describe("LabelingOcrService", () => {
   };
 
   beforeEach(async () => {
-    const mockDb = {
+    const mockLabelingDocumentDb = {
       createLabelingDocument: jest.fn(),
       findLabelingDocument: jest.fn(),
       updateLabelingDocument: jest.fn(),
@@ -70,9 +72,10 @@ describe("LabelingOcrService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LabelingOcrService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
-          provide: DatabaseService,
-          useValue: mockDb,
+          provide: LabelingDocumentDbService,
+          useValue: mockLabelingDocumentDb,
         },
         {
           provide: HttpService,
@@ -90,7 +93,7 @@ describe("LabelingOcrService", () => {
     }).compile();
 
     service = module.get<LabelingOcrService>(LabelingOcrService);
-    mockDbService = module.get(DatabaseService);
+    mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockHttpService = module.get(HttpService);
     mockBlobStorage = module.get(BLOB_STORAGE);
     _mockConfigService = module.get(ConfigService);
@@ -107,7 +110,7 @@ describe("LabelingOcrService", () => {
         group_id: "group-1",
       };
 
-      mockDbService.createLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.createLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -117,7 +120,9 @@ describe("LabelingOcrService", () => {
         expect.stringMatching(/^labeling-documents\/[^/]+\/original\.pdf$/),
         expect.any(Buffer),
       );
-      expect(mockDbService.createLabelingDocument).toHaveBeenCalledWith(
+      expect(
+        mockLabelingDocumentDbService.createLabelingDocument,
+      ).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Test Doc",
           file_type: "pdf",
@@ -140,14 +145,16 @@ describe("LabelingOcrService", () => {
         group_id: "group-1",
       };
 
-      mockDbService.createLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.createLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
       await service.createLabelingDocument(dto);
 
       expect(mockBlobStorage.write).toHaveBeenCalled();
-      expect(mockDbService.createLabelingDocument).toHaveBeenCalled();
+      expect(
+        mockLabelingDocumentDbService.createLabelingDocument,
+      ).toHaveBeenCalled();
     });
 
     it("should generate filename when original_filename not provided", async () => {
@@ -158,13 +165,14 @@ describe("LabelingOcrService", () => {
         group_id: "group-1",
       };
 
-      mockDbService.createLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.createLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
       await service.createLabelingDocument(dto);
 
-      const createCall = mockDbService.createLabelingDocument.mock.calls[0][0];
+      const createCall =
+        mockLabelingDocumentDbService.createLabelingDocument.mock.calls[0][0];
       expect(createCall.original_filename).toBe("Test Doc.pdf");
     });
 
@@ -177,14 +185,17 @@ describe("LabelingOcrService", () => {
         group_id: "group-1",
       };
 
-      mockDbService.createLabelingDocument.mockResolvedValueOnce({
-        ...mockLabelingDocument,
-        file_type: "image",
-      } as any);
+      mockLabelingDocumentDbService.createLabelingDocument.mockResolvedValueOnce(
+        {
+          ...mockLabelingDocument,
+          file_type: "image",
+        } as any,
+      );
 
       await service.createLabelingDocument(dto);
 
-      const createCall = mockDbService.createLabelingDocument.mock.calls[0][0];
+      const createCall =
+        mockLabelingDocumentDbService.createLabelingDocument.mock.calls[0][0];
       expect(createCall.file_type).toBe("image");
     });
   });
@@ -202,7 +213,7 @@ describe("LabelingOcrService", () => {
         },
       };
 
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -228,25 +239,27 @@ describe("LabelingOcrService", () => {
 
       await service.processOcrForLabelingDocument("doc-1");
 
-      expect(mockDbService.findLabelingDocument).toHaveBeenCalledWith("doc-1");
-      expect(mockDbService.updateLabelingDocument).toHaveBeenCalledWith(
-        "doc-1",
-        {
-          apim_request_id: "test-request-id",
-          status: DocumentStatus.ongoing_ocr,
-        },
-      );
-      expect(mockDbService.updateLabelingDocument).toHaveBeenCalledWith(
-        "doc-1",
-        {
-          status: DocumentStatus.completed_ocr,
-          ocr_result: analysisResponse,
-        },
-      );
+      expect(
+        mockLabelingDocumentDbService.findLabelingDocument,
+      ).toHaveBeenCalledWith("doc-1");
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith("doc-1", {
+        apim_request_id: "test-request-id",
+        status: DocumentStatus.ongoing_ocr,
+      });
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith("doc-1", {
+        status: DocumentStatus.completed_ocr,
+        ocr_result: analysisResponse,
+      });
     });
 
     it("should return early if document not found", async () => {
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(null);
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await service.processOcrForLabelingDocument("non-existent");
 
@@ -254,7 +267,7 @@ describe("LabelingOcrService", () => {
     });
 
     it("should handle OCR failure", async () => {
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -270,16 +283,15 @@ describe("LabelingOcrService", () => {
 
       await service.processOcrForLabelingDocument("doc-1");
 
-      expect(mockDbService.updateLabelingDocument).toHaveBeenCalledWith(
-        "doc-1",
-        {
-          status: DocumentStatus.failed,
-        },
-      );
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith("doc-1", {
+        status: DocumentStatus.failed,
+      });
     });
 
     it("should mark as failed on exception", async () => {
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -289,18 +301,17 @@ describe("LabelingOcrService", () => {
 
       await service.processOcrForLabelingDocument("doc-1");
 
-      expect(mockDbService.updateLabelingDocument).toHaveBeenCalledWith(
-        "doc-1",
-        {
-          status: DocumentStatus.failed,
-        },
-      );
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith("doc-1", {
+        status: DocumentStatus.failed,
+      });
     });
   });
 
   describe("private methods (tested via public methods)", () => {
     it("should use correct URL with keyValuePairs feature", async () => {
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -342,7 +353,7 @@ describe("LabelingOcrService", () => {
     });
 
     it("should wait for OCR completion with retries", async () => {
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -388,7 +399,7 @@ describe("LabelingOcrService", () => {
     it("should timeout after max attempts", async () => {
       jest.useFakeTimers();
 
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -422,18 +433,17 @@ describe("LabelingOcrService", () => {
 
       await processPromise;
 
-      expect(mockDbService.updateLabelingDocument).toHaveBeenCalledWith(
-        "doc-1",
-        {
-          status: DocumentStatus.failed,
-        },
-      );
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith("doc-1", {
+        status: DocumentStatus.failed,
+      });
 
       jest.useRealTimers();
     });
 
     it("should handle missing analyzeResult", async () => {
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
 
@@ -459,12 +469,11 @@ describe("LabelingOcrService", () => {
 
       await service.processOcrForLabelingDocument("doc-1");
 
-      expect(mockDbService.updateLabelingDocument).toHaveBeenCalledWith(
-        "doc-1",
-        {
-          status: DocumentStatus.failed,
-        },
-      );
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith("doc-1", {
+        status: DocumentStatus.failed,
+      });
     });
   });
 });

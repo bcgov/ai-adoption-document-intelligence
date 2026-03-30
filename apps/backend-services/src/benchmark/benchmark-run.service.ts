@@ -8,7 +8,7 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.6, 4.2, 4.5, 11.2
  */
 
-import { Prisma } from "@generated/client";
+import { AuditAction, Prisma } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
@@ -17,7 +17,9 @@ import {
 } from "@nestjs/common";
 import { execSync } from "child_process";
 import { createHash } from "crypto";
-import { PrismaService } from "@/database/prisma.service";
+import { ResolvedIdentity } from "@/auth/types";
+import { AuditLogDbService } from "./audit-log-db.service";
+import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
 import {
@@ -39,15 +41,13 @@ import {
 @Injectable()
 export class BenchmarkRunService {
   private readonly logger = new Logger(BenchmarkRunService.name);
-  private readonly prisma;
 
   constructor(
-    private readonly prismaService: PrismaService,
+    private readonly runDbService: BenchmarkRunDbService,
+    private readonly auditLogDbService: AuditLogDbService,
     private benchmarkTemporal: BenchmarkTemporalService,
     private datasetService: DatasetService,
-  ) {
-    this.prisma = this.prismaService.prisma;
-  }
+  ) {}
 
   /**
    * Get the current Git SHA of the worker codebase
@@ -82,17 +82,16 @@ export class BenchmarkRunService {
     runId: string,
     action: "run_started" | "run_completed" | "baseline_promoted",
     metadata: Record<string, unknown>,
+    identity: ResolvedIdentity,
   ): Promise<void> {
     try {
-      await this.prisma.benchmarkAuditLog.create({
-        data: {
-          userId: "system", // TODO: Get from auth context when available
-          action,
-          entityType: "BenchmarkRun",
-          entityId: runId,
-          metadata: metadata as Prisma.InputJsonValue,
-          timestamp: new Date(),
-        },
+      await this.auditLogDbService.createAuditLog({
+        actorId: identity.actorId,
+        action: action as AuditAction,
+        entityType: "BenchmarkRun",
+        entityId: runId,
+        metadata: metadata,
+        timestamp: new Date(),
       });
       this.logger.debug(`Audit log created: ${action} for run ${runId}`);
     } catch (error) {
@@ -113,28 +112,17 @@ export class BenchmarkRunService {
     projectId: string,
     definitionId: string,
     dto: CreateRunDto,
+    identity: ResolvedIdentity,
   ): Promise<RunDetailsDto> {
     this.logger.log(
       `Starting benchmark run for project ${projectId}, definition ${definitionId}`,
     );
 
     // Validate that the definition exists and belongs to the project
-    const definition = await this.prisma.benchmarkDefinition.findFirst({
-      where: {
-        id: definitionId,
-        projectId,
-      },
-      include: {
-        project: true,
-        datasetVersion: {
-          include: {
-            dataset: true,
-          },
-        },
-        split: true,
-        workflow: true,
-      },
-    });
+    const definition = await this.runDbService.findBenchmarkDefinitionForRun(
+      definitionId,
+      projectId,
+    );
 
     if (!definition) {
       throw new NotFoundException(
@@ -183,25 +171,20 @@ export class BenchmarkRunService {
     const runTags = dto.tags || {};
 
     // Create BenchmarkRun record with status 'pending'
-    const run = await this.prisma.benchmarkRun.create({
-      data: {
-        definitionId,
-        projectId,
-        status: "pending",
-        temporalWorkflowId: "", // Will be updated after starting workflow
-        workerGitSha,
-        workerImageDigest,
-        params: {
-          runtimeSettings: {
-            ...(definition.runtimeSettings as Record<string, unknown>),
-            ...(dto.runtimeSettingsOverride || {}),
-          },
-        } as Prisma.InputJsonValue,
-        tags: runTags as Prisma.InputJsonValue,
-      },
-      include: {
-        definition: true,
-      },
+    const run = await this.runDbService.createBenchmarkRun({
+      definitionId,
+      projectId,
+      status: "pending",
+      temporalWorkflowId: "", // Will be updated after starting workflow
+      workerGitSha,
+      workerImageDigest,
+      params: {
+        runtimeSettings: {
+          ...(definition.runtimeSettings as Record<string, unknown>),
+          ...(dto.runtimeSettingsOverride || {}),
+        },
+      } as Prisma.InputJsonValue,
+      tags: runTags as Prisma.InputJsonValue,
     });
 
     this.logger.log(`Created benchmark run record: ${run.id}`);
@@ -240,13 +223,10 @@ export class BenchmarkRunService {
         });
 
       // Update run with temporal workflow ID and status
-      await this.prisma.benchmarkRun.update({
-        where: { id: run.id },
-        data: {
-          temporalWorkflowId,
-          status: "running",
-          startedAt: new Date(),
-        },
+      await this.runDbService.updateBenchmarkRun(run.id, {
+        temporalWorkflowId,
+        status: "running",
+        startedAt: new Date(),
       });
 
       this.logger.log(
@@ -254,12 +234,9 @@ export class BenchmarkRunService {
       );
     } catch (error) {
       // If workflow start fails, mark run as failed
-      await this.prisma.benchmarkRun.update({
-        where: { id: run.id },
-        data: {
-          status: "failed",
-          error: `Failed to start Temporal workflow: ${error instanceof Error ? error.message : String(error)}`,
-        },
+      await this.runDbService.updateBenchmarkRun(run.id, {
+        status: "failed",
+        error: `Failed to start Temporal workflow: ${error instanceof Error ? error.message : String(error)}`,
       });
 
       throw new Error(
@@ -268,29 +245,25 @@ export class BenchmarkRunService {
     }
 
     // Mark definition as immutable and freeze the dataset version
-    await this.prisma.benchmarkDefinition.update({
-      where: { id: definitionId },
-      data: { immutable: true },
-    });
+    await this.runDbService.markBenchmarkDefinitionImmutable(definitionId);
 
-    await this.prisma.datasetVersion.update({
-      where: { id: definition.datasetVersionId },
-      data: { frozen: true },
-    });
+    await this.runDbService.freezeDatasetVersion(definition.datasetVersionId);
 
     // Freeze the referenced split if one is set
     if (definition.splitId) {
-      await this.prisma.split.update({
-        where: { id: definition.splitId },
-        data: { frozen: true },
-      });
+      await this.runDbService.freezeSplit(definition.splitId);
     }
 
     // Create audit log
-    await this.createAuditLog(run.id, "run_started", {
-      definitionId,
-      temporalWorkflowId,
-    });
+    await this.createAuditLog(
+      run.id,
+      "run_started",
+      {
+        definitionId,
+        temporalWorkflowId,
+      },
+      identity,
+    );
 
     // Return the updated run
     return this.getRunById(projectId, run.id);
@@ -303,12 +276,7 @@ export class BenchmarkRunService {
     this.logger.log(`Cancelling benchmark run ${runId}`);
 
     // Get the run
-    const run = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        id: runId,
-        projectId,
-      },
-    });
+    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -336,12 +304,9 @@ export class BenchmarkRunService {
     }
 
     // Update run status to cancelled
-    await this.prisma.benchmarkRun.update({
-      where: { id: runId },
-      data: {
-        status: "cancelled",
-        completedAt: new Date(),
-      },
+    await this.runDbService.updateBenchmarkRun(runId, {
+      status: "cancelled",
+      completedAt: new Date(),
     });
 
     this.logger.log(`Benchmark run ${runId} cancelled`);
@@ -360,12 +325,7 @@ export class BenchmarkRunService {
    * @throws BadRequestException if the run is still active
    */
   async deleteRun(projectId: string, runId: string): Promise<void> {
-    const run = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        id: runId,
-        projectId,
-      },
-    });
+    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -379,9 +339,7 @@ export class BenchmarkRunService {
       );
     }
 
-    await this.prisma.benchmarkRun.delete({
-      where: { id: runId },
-    });
+    await this.runDbService.deleteBenchmarkRun(runId);
 
     this.logger.log(`Deleted benchmark run ${runId} from project ${projectId}`);
   }
@@ -390,15 +348,7 @@ export class BenchmarkRunService {
    * Get run details by ID
    */
   async getRunById(projectId: string, runId: string): Promise<RunDetailsDto> {
-    const run = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        id: runId,
-        projectId,
-      },
-      include: {
-        definition: true,
-      },
-    });
+    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -437,8 +387,11 @@ export class BenchmarkRunService {
       tags: run.tags as Record<string, unknown>,
       error: run.error,
       isBaseline: run.isBaseline,
-      baselineThresholds: run.baselineThresholds as MetricThreshold[] | null,
-      baselineComparison: run.baselineComparison as BaselineComparison | null,
+      baselineThresholds: run.baselineThresholds as unknown as
+        | MetricThreshold[]
+        | null,
+      baselineComparison:
+        run.baselineComparison as unknown as BaselineComparison | null,
       createdAt: run.createdAt,
     };
   }
@@ -448,9 +401,7 @@ export class BenchmarkRunService {
    */
   async listRuns(projectId: string): Promise<RunSummaryDto[]> {
     // Verify project exists
-    const project = await this.prisma.benchmarkProject.findUnique({
-      where: { id: projectId },
-    });
+    const project = await this.runDbService.findBenchmarkProject(projectId);
 
     if (!project) {
       throw new NotFoundException(
@@ -458,15 +409,7 @@ export class BenchmarkRunService {
       );
     }
 
-    const runs = await this.prisma.benchmarkRun.findMany({
-      where: { projectId },
-      include: {
-        definition: true,
-      },
-      orderBy: {
-        startedAt: "desc",
-      },
-    });
+    const runs = await this.runDbService.findAllBenchmarkRuns(projectId);
 
     return runs.map((run) => {
       const durationMs =
@@ -490,7 +433,7 @@ export class BenchmarkRunService {
 
       // Check for regression status
       const baselineComparison =
-        run.baselineComparison as BaselineComparison | null;
+        run.baselineComparison as unknown as BaselineComparison | null;
       const hasRegression = baselineComparison
         ? !baselineComparison.overallPassed
         : undefined;
@@ -525,12 +468,7 @@ export class BenchmarkRunService {
     this.logger.log(`Getting drill-down for run ${runId}`);
 
     // Get the run
-    const run = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        id: runId,
-        projectId,
-      },
-    });
+    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -647,16 +585,12 @@ export class BenchmarkRunService {
     projectId: string,
     runId: string,
     dto: PromoteBaselineDto,
+    identity: ResolvedIdentity,
   ): Promise<PromoteBaselineResponseDto> {
     this.logger.log(`Promoting run ${runId} to baseline`);
 
     // Get the run
-    const run = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        id: runId,
-        projectId,
-      },
-    });
+    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -672,18 +606,14 @@ export class BenchmarkRunService {
     }
 
     // Find the previous baseline for this definition
-    const previousBaseline = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        definitionId: run.definitionId,
-        isBaseline: true,
-      },
-    });
+    const previousBaseline = await this.runDbService.findBaselineBenchmarkRun(
+      run.definitionId,
+    );
 
     // Update previous baseline to clear its baseline flag
     if (previousBaseline) {
-      await this.prisma.benchmarkRun.update({
-        where: { id: previousBaseline.id },
-        data: { isBaseline: false },
+      await this.runDbService.updateBenchmarkRun(previousBaseline.id, {
+        isBaseline: false,
       });
       this.logger.log(
         `Cleared baseline flag from previous baseline run ${previousBaseline.id}`,
@@ -691,23 +621,25 @@ export class BenchmarkRunService {
     }
 
     // Promote the run to baseline
-    await this.prisma.benchmarkRun.update({
-      where: { id: runId },
-      data: {
-        isBaseline: true,
-        baselineThresholds: dto.thresholds
-          ? (dto.thresholds as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-      },
+    await this.runDbService.updateBenchmarkRun(runId, {
+      isBaseline: true,
+      baselineThresholds: dto.thresholds
+        ? (dto.thresholds as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
     });
 
     // Create audit log
-    await this.createAuditLog(runId, "baseline_promoted", {
-      definitionId: run.definitionId,
-      projectId: run.projectId,
-      previousBaselineId: previousBaseline?.id || null,
-      thresholds: dto.thresholds || null,
-    });
+    await this.createAuditLog(
+      runId,
+      "baseline_promoted",
+      {
+        definitionId: run.definitionId,
+        projectId: run.projectId,
+        previousBaselineId: previousBaseline?.id || null,
+        thresholds: dto.thresholds || null,
+      },
+      identity,
+    );
 
     this.logger.log(`Run ${runId} promoted to baseline`);
 
@@ -730,21 +662,16 @@ export class BenchmarkRunService {
     this.logger.log(`Comparing run ${runId} against baseline`);
 
     // Get the run
-    const run = await this.prisma.benchmarkRun.findUnique({
-      where: { id: runId },
-    });
+    const run = await this.runDbService.findBenchmarkRunUnique(runId);
 
     if (!run) {
       throw new NotFoundException(`Run with ID "${runId}" not found`);
     }
 
     // Find the baseline run for this definition
-    const baseline = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        definitionId: run.definitionId,
-        isBaseline: true,
-      },
-    });
+    const baseline = await this.runDbService.findBaselineBenchmarkRun(
+      run.definitionId,
+    );
 
     // No baseline exists yet
     if (!baseline) {
@@ -760,7 +687,8 @@ export class BenchmarkRunService {
 
     const currentMetrics = run.metrics as Record<string, unknown>;
     const baselineMetrics = baseline.metrics as Record<string, unknown>;
-    const thresholds = (baseline.baselineThresholds as MetricThreshold[]) || [];
+    const thresholds =
+      (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
 
     const metricComparisons: MetricComparison[] = [];
     const regressedMetrics: string[] = [];
@@ -820,15 +748,12 @@ export class BenchmarkRunService {
     };
 
     // Update the run with comparison results
-    await this.prisma.benchmarkRun.update({
-      where: { id: runId },
-      data: {
-        baselineComparison: comparison as unknown as Prisma.InputJsonValue,
-        tags: {
-          ...(run.tags as Record<string, unknown>),
-          ...(regressedMetrics.length > 0 ? { regression: "true" } : {}),
-        } as Prisma.InputJsonValue,
-      },
+    await this.runDbService.updateBenchmarkRun(runId, {
+      baselineComparison: comparison as unknown as Prisma.InputJsonValue,
+      tags: {
+        ...(run.tags as Record<string, unknown>),
+        ...(regressedMetrics.length > 0 ? { regression: "true" } : {}),
+      } as Prisma.InputJsonValue,
     });
 
     this.logger.log(
@@ -854,12 +779,7 @@ export class BenchmarkRunService {
     this.logger.log(`Getting per-sample results for run ${runId}`);
 
     // Get the run
-    const run = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        id: runId,
-        projectId,
-      },
-    });
+    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(

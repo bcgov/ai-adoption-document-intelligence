@@ -5,6 +5,7 @@
 **So that** [Benefit/Value].
 
 ## Acceptance Criteria
+<!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
 - [ ] **Scenario 1**: [Title]
     - **Given** [Context]
     - **When** [Action]

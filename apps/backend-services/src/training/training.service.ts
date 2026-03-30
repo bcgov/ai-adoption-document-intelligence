@@ -13,7 +13,6 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -22,12 +21,13 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { ExportFormat } from "../labeling/dto/export.dto";
 import { LabelingService } from "../labeling/labeling.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
+import { TrainingDbService } from "./training-db.service";
 
 interface LabelsFile {
   filename: string;
@@ -50,16 +50,16 @@ interface ErrorWithRequest {
 
 @Injectable()
 export class TrainingService {
-  private readonly logger = new Logger(TrainingService.name);
   private adminClient: DocumentIntelligenceClient;
   private readonly minDocuments: number;
   private readonly sasExpiryDays: number;
 
   constructor(
-    private readonly db: DatabaseService,
+    private readonly trainingDb: TrainingDbService,
     private readonly azureStorage: AzureStorageService,
     private readonly labelingService: LabelingService,
     private readonly configService: ConfigService,
+    private readonly logger: AppLoggerService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
   ) {
@@ -98,20 +98,13 @@ export class TrainingService {
     );
   }
 
-  private get prisma() {
-    return this.db.prisma;
-  }
-
   /**
    * Validate that a project is ready for training
    */
   async validateTrainingData(projectId: string): Promise<ValidationResultDto> {
-    const project = await this.db.findLabelingProject(projectId);
-    if (!project) {
-      throw new NotFoundException(`Project with id ${projectId} not found`);
-    }
+    const project = await this.labelingService.getProject(projectId);
 
-    const documents = await this.db.findLabeledDocuments(projectId);
+    const documents = await this.labelingService.getProjectDocuments(projectId);
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );
@@ -178,7 +171,7 @@ export class TrainingService {
     });
 
     // Add document images and their labels/OCR files
-    const documents = await this.db.findLabeledDocuments(projectId);
+    const documents = await this.labelingService.getProjectDocuments(projectId);
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );
@@ -228,7 +221,6 @@ export class TrainingService {
   async startTraining(
     projectId: string,
     dto: StartTrainingDto,
-    userId: string,
   ): Promise<TrainingJobDto> {
     this.logger.log(
       `Starting training for project ${projectId} with model ID: ${dto.modelId}`,
@@ -247,24 +239,20 @@ export class TrainingService {
     await this.deleteModelIfExists(dto.modelId);
 
     // Remove any local record with the same model ID
-    const existingModel = await this.prisma.trainedModel.findUnique({
-      where: { model_id: dto.modelId },
-    });
+    const existingModel = await this.trainingDb.findTrainedModelByModelId(
+      dto.modelId,
+    );
     if (existingModel) {
-      await this.prisma.trainedModel.delete({
-        where: { model_id: dto.modelId },
-      });
+      await this.trainingDb.deleteTrainedModel(dto.modelId);
     }
 
     // Create training job record
     const containerName = `training-${projectId}`;
-    const trainingJob = await this.prisma.trainingJob.create({
-      data: {
-        project_id: projectId,
-        status: TrainingStatus.PENDING,
-        container_name: containerName,
-        model_id: dto.modelId,
-      },
+    const trainingJob = await this.trainingDb.createTrainingJob({
+      project_id: projectId,
+      status: TrainingStatus.PENDING,
+      container_name: containerName,
+      model_id: dto.modelId,
     });
 
     // Start async upload and training process
@@ -289,18 +277,15 @@ export class TrainingService {
   ): Promise<void> {
     try {
       // Update status to UPLOADING
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: { status: TrainingStatus.UPLOADING },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.UPLOADING,
       });
 
       // Prepare training files
       const files = await this.prepareTrainingFiles(projectId);
 
       // Get job to get container name
-      const job = await this.prisma.trainingJob.findUnique({
-        where: { id: jobId },
-      });
+      const job = await this.trainingDb.findTrainingJob(jobId);
 
       // Clear container contents so each training run starts clean
       await this.azureStorage.clearContainerContents(job.container_name);
@@ -324,13 +309,10 @@ export class TrainingService {
       );
 
       // Update status to UPLOADED
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: {
-          status: TrainingStatus.UPLOADED,
-          sas_url: sasUrl,
-          blob_count: uploadResult.uploaded,
-        },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.UPLOADED,
+        sas_url: sasUrl,
+        blob_count: uploadResult.uploaded,
       });
 
       const containerUrl = sasUrl.split("?")[0];
@@ -435,12 +417,9 @@ export class TrainingService {
       }
 
       // Update status to TRAINING
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: {
-          status: TrainingStatus.TRAINING,
-          operation_id: operationId,
-        },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.TRAINING,
+        operation_id: operationId,
       });
 
       this.logger.log(
@@ -467,13 +446,10 @@ export class TrainingService {
       }
 
       // Update job status to FAILED
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: {
-          status: TrainingStatus.FAILED,
-          error_message: typedError.message,
-          completed_at: new Date(),
-        },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.FAILED,
+        error_message: typedError.message,
+        completed_at: new Date(),
       });
 
       throw error;
@@ -484,10 +460,7 @@ export class TrainingService {
    * Get all training jobs for a project
    */
   async getTrainingJobs(projectId: string): Promise<TrainingJobDto[]> {
-    const jobs = await this.prisma.trainingJob.findMany({
-      where: { project_id: projectId },
-      orderBy: { started_at: "desc" },
-    });
+    const jobs = await this.trainingDb.findAllTrainingJobs(projectId);
 
     return jobs.map((job) => this.mapTrainingJobToDto(job));
   }
@@ -496,9 +469,7 @@ export class TrainingService {
    * Get a specific training job
    */
   async getTrainingJob(jobId: string): Promise<TrainingJobDto> {
-    const job = await this.prisma.trainingJob.findUnique({
-      where: { id: jobId },
-    });
+    const job = await this.trainingDb.findTrainingJob(jobId);
 
     if (!job) {
       throw new NotFoundException(`Training job with id ${jobId} not found`);
@@ -511,10 +482,7 @@ export class TrainingService {
    * Get all trained models for a project
    */
   async getTrainedModels(projectId: string): Promise<TrainedModelDto[]> {
-    const models = await this.prisma.trainedModel.findMany({
-      where: { project_id: projectId },
-      orderBy: { created_at: "desc" },
-    });
+    const models = await this.trainingDb.findAllTrainedModels(projectId);
 
     return models.map((model) => this.mapTrainedModelToDto(model));
   }
@@ -523,9 +491,7 @@ export class TrainingService {
    * Cancel a training job (if still in progress)
    */
   async cancelTrainingJob(jobId: string): Promise<void> {
-    const job = await this.prisma.trainingJob.findUnique({
-      where: { id: jobId },
-    });
+    const job = await this.trainingDb.findTrainingJob(jobId);
 
     if (!job) {
       throw new NotFoundException(`Training job with id ${jobId} not found`);
@@ -542,13 +508,10 @@ export class TrainingService {
       );
     }
 
-    await this.prisma.trainingJob.update({
-      where: { id: jobId },
-      data: {
-        status: TrainingStatus.FAILED,
-        error_message: "Cancelled by user",
-        completed_at: new Date(),
-      },
+    await this.trainingDb.updateTrainingJob(jobId, {
+      status: TrainingStatus.FAILED,
+      error_message: "Cancelled by user",
+      completed_at: new Date(),
     });
 
     this.logger.log(`Training job ${jobId} cancelled`);
@@ -608,6 +571,16 @@ export class TrainingService {
     }
 
     this.logger.log(`Deleted Azure model: ${modelId}`);
+  }
+
+  /**
+   * Returns all distinct trained model IDs across all projects.
+   * Used by the OCR module to list available models.
+   *
+   * @returns An array of distinct model ID strings from the database.
+   */
+  async findAllTrainedModelIds(): Promise<string[]> {
+    return this.trainingDb.findAllTrainedModelIds();
   }
 
   /**

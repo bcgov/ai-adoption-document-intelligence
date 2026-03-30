@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { OcrService } from "../ocr/ocr.service";
 
 export interface QueueMessage {
@@ -16,9 +17,10 @@ export interface QueueMessage {
  */
 @Injectable()
 export class QueueService {
-  private readonly logger = new Logger(QueueService.name);
-
-  constructor(private ocrService: OcrService) {}
+  constructor(
+    private ocrService: OcrService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   /**
    * Process OCR for a document using Temporal workflow

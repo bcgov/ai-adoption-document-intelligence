@@ -200,7 +200,7 @@ export const useDefinition = (projectId: string, definitionId: string) => {
 export interface BaselinePromotionHistory {
   promotedAt: string;
   runId: string;
-  userId: string;
+  actorId: string;
   definitionId?: string;
   projectId?: string;
 }

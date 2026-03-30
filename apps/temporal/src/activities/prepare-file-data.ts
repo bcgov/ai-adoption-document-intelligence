@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { createActivityLogger } from "../logger";
 import type { PreparedFileData } from "../types";
 
 export interface PrepareFileDataInput {
@@ -10,6 +11,7 @@ export interface PrepareFileDataInput {
   fileType?: "pdf" | "image";
   contentType?: string;
   modelId?: string;
+  requestId?: string;
 }
 
 async function readBlobData(blobKey: string): Promise<Buffer> {
@@ -40,19 +42,18 @@ export async function prepareFileData(
 ): Promise<{ preparedData: PreparedFileData }> {
   const activityName = "prepareFileData";
   const blobKey = input.blobKey;
+  const log = createActivityLogger(activityName, {
+    documentId: input.documentId,
+    ...(input.requestId && { requestId: input.requestId }),
+  });
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      documentId: input.documentId,
-      fileName: input.fileName || "not provided",
-      fileType: input.fileType || "not provided",
-      contentType: input.contentType || "not provided",
-      blobKey,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Prepare file data start", {
+    event: "start",
+    fileName: input.fileName || "not provided",
+    fileType: input.fileType || "not provided",
+    contentType: input.contentType || "not provided",
+    blobKey,
+  });
 
   if (!blobKey || typeof blobKey !== "string") {
     throw new Error(
@@ -103,17 +104,12 @@ export async function prepareFileData(
   if (fileType === "pdf" || contentType.includes("pdf")) {
     const pdfSignature = fileBuffer.slice(0, 4).toString();
     if (pdfSignature !== "%PDF" && fileBuffer.length > 4) {
-      console.warn(
-        JSON.stringify({
-          activity: activityName,
-          event: "warn",
-          documentId: input.documentId,
-          fileName,
-          warning: "File does not have valid PDF signature",
-          pdfSignature,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.warn("Prepare file data: invalid PDF signature", {
+        event: "warn",
+        fileName,
+        warning: "File does not have valid PDF signature",
+        pdfSignature,
+      });
     }
   }
 
@@ -128,19 +124,14 @@ export async function prepareFileData(
     modelId,
   };
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "complete",
-      documentId: input.documentId,
-      fileName,
-      fileType,
-      contentType,
-      modelId,
-      fileSize,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Prepare file data complete", {
+    event: "complete",
+    fileName,
+    fileType,
+    contentType,
+    modelId,
+    fileSize,
+  });
 
   // Return with port name as key for output binding
   return {

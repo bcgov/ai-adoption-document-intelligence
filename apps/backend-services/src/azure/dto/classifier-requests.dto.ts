@@ -49,10 +49,6 @@ export class UploadClassifierDocumentsDto {
   @IsString()
   label: string;
 
-  @ApiProperty()
-  @IsString()
-  group_id: string;
-
   @ApiProperty({ required: false })
   @IsOptional()
   files?: Express.Multer.File[];
@@ -97,10 +93,6 @@ export class RequestClassificationDto {
   @ApiProperty()
   @IsString()
   name: string;
-
-  @ApiProperty()
-  @IsString()
-  group_id: string;
 }
 
 export class GetClassificationResultQueryDto {
