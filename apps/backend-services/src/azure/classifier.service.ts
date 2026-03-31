@@ -171,7 +171,7 @@ export class ClassifierService {
 
     // List all files from primary blob storage under the classifier prefix
     const allKeys = await this.blobStorage.list(buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [classifierName]));
-    allKeys.forEach(k =>this.logger.info(k));
+
     const uploadResults = await Promise.all(
       allKeys.map(async (key) => {
         // Read file data from primary blob storage
