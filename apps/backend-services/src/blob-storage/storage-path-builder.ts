@@ -1,3 +1,5 @@
+import path from "path";
+
 export enum OperationCategory {
   OCR = "ocr",
   TRAINING = "training",
@@ -10,7 +12,7 @@ export type BlobPrefixPath = string & { readonly brand: 'BlobPrefixPath' };
 
 const buildPrefix = (prefixComponents: string[]): string => {
    // Combine prefix components if they exist
-  let prefix = prefixComponents.join("/");
+  let prefix = path.posix.join(...prefixComponents);
   // Ensure there are no illegal characters (\ or :)
   if (prefix.includes("\\") || prefix.includes(":")){
     throw new Error("Blob storage path includes illegal characters. No : or \\ permitted.")
@@ -27,7 +29,7 @@ export const buildBlobFilePath = (groupId: string, category: OperationCategory, 
 
 export const buildBlobPrefixPath = (groupId: string, category: OperationCategory, prefixComponents: string[]): BlobPrefixPath => {
   const prefix = buildPrefix(prefixComponents);
-  return [groupId, category, prefix].join("/") as BlobPrefixPath;
+  return path.posix.join(groupId, category, prefix) as BlobPrefixPath;
 }
 
 export const validateBlobFilePath = (path: string): BlobFilePath => {

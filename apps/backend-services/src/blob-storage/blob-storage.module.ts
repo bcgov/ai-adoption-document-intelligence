@@ -16,6 +16,8 @@ import { ConfigService } from "@nestjs/config";
 import { AzureBlobProviderService } from "./azure-blob-provider.service";
 import { AzureStorageService } from "./azure-storage.service";
 import { BLOB_STORAGE } from "./blob-storage.interface";
+
+export const BLOB_STORAGE_CONTAINER_NAME = "BLOB_STORAGE_CONTAINER_NAME";
 import { MinioBlobStorageService } from "./minio-blob-storage.service";
 
 @Module({
@@ -34,11 +36,9 @@ import { MinioBlobStorageService } from "./minio-blob-storage.service";
           "BLOB_STORAGE_PROVIDER",
           "minio",
         );
-
         if (provider === "azure") {
           return azureService;
         }
-
         return minioService;
       },
       inject: [
@@ -47,7 +47,29 @@ import { MinioBlobStorageService } from "./minio-blob-storage.service";
         AzureBlobProviderService,
       ],
     },
+    {
+      provide: BLOB_STORAGE_CONTAINER_NAME,
+      useFactory: (
+        configService: ConfigService,
+        minioService: MinioBlobStorageService,
+        azureService: AzureBlobProviderService,
+      ) => {
+        const provider = configService.get<string>(
+          "BLOB_STORAGE_PROVIDER",
+          "minio",
+        );
+        if (provider === "azure") {
+          return azureService["containerName"];
+        }
+        return minioService["bucket"];
+      },
+      inject: [
+        ConfigService,
+        MinioBlobStorageService,
+        AzureBlobProviderService,
+      ],
+    },
   ],
-  exports: [BLOB_STORAGE, AzureStorageService],
+  exports: [BLOB_STORAGE, AzureStorageService, BLOB_STORAGE_CONTAINER_NAME],
 })
 export class BlobStorageModule {}

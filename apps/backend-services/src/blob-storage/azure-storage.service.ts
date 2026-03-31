@@ -506,6 +506,13 @@ export class AzureStorageService {
     return this.blobServiceClient.getContainerClient(containerName);
   }
 
+  async fileExists(containerName, filePath: string): Promise<boolean> {
+    const containerClient =
+      this.blobServiceClient.getContainerClient(containerName);
+      const blobClient = containerClient.getBlobClient(filePath);
+      return await blobClient.exists()
+  }
+
   private async delay(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }

@@ -287,7 +287,6 @@ export class AzureController {
     }
 
     const prefix = buildBlobPrefixPath(group_id, OperationCategory.CLASSIFICATION, [name])
-    console.log(prefix)
     const documents = await this.blobStorage.list(prefix);
     return documents.map((doc) => doc.slice(prefix.length));
   }
@@ -377,11 +376,11 @@ export class AzureController {
             group_id,
             name,
           );
-        console.log("post documents")
+       
         // Create the layout json for them
         const filePaths = uploadResults.map((r) => r.blobPath);
-        await this.classifierService.createLayoutJson(filePaths);
-        console.log("post layout json")
+        await this.classifierService.createLayoutJson(filePaths, group_id, name);
+
         // Start the training process
         await this.classifierService.requestClassifierTraining(
           name,
