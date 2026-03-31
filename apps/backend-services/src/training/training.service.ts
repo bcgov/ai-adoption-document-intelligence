@@ -179,8 +179,13 @@ export class TrainingService {
     for (const doc of labeledDocuments) {
       const filename = doc.labeling_document.original_filename;
 
-      // Add document image
-      const blobKey = doc.labeling_document.file_path;
+      const blobKey = doc.labeling_document.normalized_file_path;
+      if (!blobKey) {
+        this.logger.warn(
+          `Skipping labeling document ${doc.labeling_document.id}: no normalized PDF`,
+        );
+        continue;
+      }
       const fileExists = await this.blobStorage.exists(blobKey);
       if (fileExists) {
         files.push({

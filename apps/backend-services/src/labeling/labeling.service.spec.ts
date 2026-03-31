@@ -59,6 +59,7 @@ describe("LabelingService", () => {
     title: "Test Invoice",
     original_filename: "invoice.pdf",
     file_path: "labeling-documents/labeling-doc-1/original.pdf",
+    normalized_file_path: "labeling-documents/labeling-doc-1/normalized.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -1109,9 +1110,10 @@ describe("LabelingService", () => {
       mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
         mockProject,
       );
-      mockOcrService.createLabelingDocument.mockResolvedValueOnce(
-        mockLabelingDocument as any,
-      );
+      mockOcrService.createLabelingDocument.mockResolvedValueOnce({
+        kind: "success",
+        labelingDocument: mockLabelingDocument as any,
+      });
       mockLabelingProjectDbService.createLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );

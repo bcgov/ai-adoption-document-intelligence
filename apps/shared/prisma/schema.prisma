@@ -21,6 +21,8 @@ model Document {
   title                 String
   original_filename     String
   file_path             String
+  /// Normalized PDF blob key for OCR, in-app view, and workflows (always application/pdf).
+  normalized_file_path  String?
   file_type             String
   file_size             Int
   metadata              Json?
@@ -48,6 +50,8 @@ model LabelingDocument {
   title             String
   original_filename String
   file_path         String
+  /// Normalized PDF blob key for OCR and in-app view (always application/pdf).
+  normalized_file_path String?
   file_type         String
   file_size         Int
   metadata          Json?
@@ -461,6 +465,8 @@ enum DocumentStatus {
   ongoing_ocr
   completed_ocr
   failed
+  /// Original stored but image/PDF could not be normalized to a display/OCR PDF.
+  conversion_failed
 }
 
 // ========== BENCHMARKING MODELS ==========

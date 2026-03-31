@@ -1,7 +1,12 @@
 import { GroupRole } from "@generated/client";
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "../blob-storage/blob-storage.interface";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
@@ -32,6 +37,7 @@ describe("LabelingController", () => {
     title: "Test Invoice",
     original_filename: "invoice.pdf",
     file_path: "labeling-documents/labeling-doc-1/original.pdf",
+    normalized_file_path: "labeling-documents/labeling-doc-1/normalized.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -102,6 +108,10 @@ describe("LabelingController", () => {
         {
           provide: LabelingDocumentDbService,
           useValue: labelingDocumentDbService,
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -328,6 +338,7 @@ describe("LabelingController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.uploadLabelingDocument.mockResolvedValue(
         mockLabelingDocResult as any,
       );
@@ -337,10 +348,39 @@ describe("LabelingController", () => {
         req,
       );
       expect(result).toEqual(mockLabelingDocResult);
+      expect(labelingService.getProject).toHaveBeenCalledWith("project-1");
       expect(labelingService.uploadLabelingDocument).toHaveBeenCalledWith(
         "project-1",
         dto,
       );
+    });
+
+    it("throws BadRequestException when group_id does not match project group", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(
+        controller.uploadLabelingDocument("project-1", { ...dto, group_id: "other-group" }, req),
+      ).rejects.toThrow(BadRequestException);
+      expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when user cannot access project group", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          groupRoles: { "other-group": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(
+        controller.uploadLabelingDocument("project-1", dto, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
     });
   });
 

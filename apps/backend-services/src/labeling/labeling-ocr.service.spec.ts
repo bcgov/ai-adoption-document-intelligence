@@ -10,6 +10,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingOcrService } from "./labeling-ocr.service";
 
@@ -25,6 +26,7 @@ describe("LabelingOcrService", () => {
     title: "Test Document",
     original_filename: "test.pdf",
     file_path: "labeling-documents/doc-1/original.pdf",
+    normalized_file_path: "labeling-documents/doc-1/normalized.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -69,6 +71,13 @@ describe("LabelingOcrService", () => {
       }),
     };
 
+    const mockPdfNormalization = {
+      validateForUpload: jest.fn().mockResolvedValue(undefined),
+      normalizeToPdf: jest
+        .fn()
+        .mockImplementation((buf: Buffer) => Promise.resolve(Buffer.from(buf))),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LabelingOcrService,
@@ -88,6 +97,10 @@ describe("LabelingOcrService", () => {
         {
           provide: BLOB_STORAGE,
           useValue: mockBlob,
+        },
+        {
+          provide: PdfNormalizationService,
+          useValue: mockPdfNormalization,
         },
       ],
     }).compile();
@@ -132,9 +145,13 @@ describe("LabelingOcrService", () => {
           file_path: expect.stringMatching(
             /^labeling-documents\/[^/]+\/original\.pdf$/,
           ),
+          normalized_file_path: expect.stringMatching(
+            /^labeling-documents\/[^/]+\/normalized\.pdf$/,
+          ),
         }),
       );
-      expect(result).toEqual(mockLabelingDocument);
+      expect(result.kind).toBe("success");
+      expect(result.labelingDocument).toEqual(mockLabelingDocument);
     });
 
     it("should handle base64 without data prefix", async () => {

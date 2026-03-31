@@ -133,8 +133,7 @@ export function DocumentViewerModal({
     setError("");
 
     try {
-      // Try to get the document file from the download endpoint
-      const response = await fetch(`/api/documents/${doc.id}/download`, {
+      const response = await fetch(`/api/documents/${doc.id}/view`, {
         credentials: "include",
       });
 
@@ -169,16 +168,33 @@ export function DocumentViewerModal({
   };
 
   const handleDownload = () => {
-    if (!imageUrl) {
+    if (!document?.id) {
       return;
     }
 
-    const link = window.document.createElement("a");
-    link.href = imageUrl;
-    link.download = document?.original_filename || `document-${document?.id}`;
-    window.document.body.appendChild(link);
-    link.click();
-    window.document.body.removeChild(link);
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/documents/${document.id}/download`,
+          { credentials: "include" },
+        );
+        if (!response.ok) {
+          return;
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = window.document.createElement("a");
+        link.href = url;
+        link.download =
+          document.original_filename || `document-${document.id}`;
+        window.document.body.appendChild(link);
+        link.click();
+        window.document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch {
+        // Download failed silently; user can retry
+      }
+    })();
   };
 
   const handleClose = () => {
@@ -289,7 +305,6 @@ export function DocumentViewerModal({
                   pageNumber={1}
                   showOverlays={showOverlays}
                   onToggleOverlays={() => setShowOverlays(!showOverlays)}
-                  fileType={document.file_type}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full">
