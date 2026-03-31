@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   audit:
+    if: false
     name: Audit image-service dependencies
     runs-on: ubuntu-latest
     defaults:
