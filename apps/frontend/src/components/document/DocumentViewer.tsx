@@ -213,10 +213,7 @@ export function DocumentViewer({
       if (img.naturalWidth > 0 && img.naturalHeight > 0) {
         scaleX = imgRect.width / img.naturalWidth;
         scaleY = imgRect.height / img.naturalHeight;
-      } else if (
-        pdfPageDimensions.width > 0 &&
-        pdfPageDimensions.height > 0
-      ) {
+      } else if (pdfPageDimensions.width > 0 && pdfPageDimensions.height > 0) {
         scaleX = imgRect.width / (pdfPageDimensions.width * 2.0);
         scaleY = imgRect.height / (pdfPageDimensions.height * 2.0);
       } else {

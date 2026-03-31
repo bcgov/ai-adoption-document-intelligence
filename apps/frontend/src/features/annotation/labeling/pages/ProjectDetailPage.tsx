@@ -199,7 +199,8 @@ export const ProjectDetailPage: FC = () => {
         typeof response.data === "object" &&
         "code" in response.data &&
         (response.data as { code?: string }).code === "conversion_failed" &&
-        (response.data as { labelingDocument?: { id: string } }).labelingDocument
+        (response.data as { labelingDocument?: { id: string } })
+          .labelingDocument
       ) {
         const data = response.data as {
           labelingDocument: { id: string };

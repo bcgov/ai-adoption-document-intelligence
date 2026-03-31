@@ -21,6 +21,7 @@ import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { CorrectionAction } from "../../core/types/annotation";
 import type { BoundingBox } from "../../core/types/canvas";

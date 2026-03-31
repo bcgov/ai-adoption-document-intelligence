@@ -174,10 +174,9 @@ export function DocumentViewerModal({
 
     void (async () => {
       try {
-        const response = await fetch(
-          `/api/documents/${document.id}/download`,
-          { credentials: "include" },
-        );
+        const response = await fetch(`/api/documents/${document.id}/download`, {
+          credentials: "include",
+        });
         if (!response.ok) {
           return;
         }
@@ -185,8 +184,7 @@ export function DocumentViewerModal({
         const url = URL.createObjectURL(blob);
         const link = window.document.createElement("a");
         link.href = url;
-        link.download =
-          document.original_filename || `document-${document.id}`;
+        link.download = document.original_filename || `document-${document.id}`;
         window.document.body.appendChild(link);
         link.click();
         window.document.body.removeChild(link);
