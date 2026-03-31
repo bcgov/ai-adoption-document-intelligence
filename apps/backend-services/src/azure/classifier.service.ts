@@ -1,15 +1,28 @@
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
-import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import type { ClassifierModel } from "@generated/client";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import "multer";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
+import {
+  type ClassifierConfig,
+  ClassifierDbService,
+  type ClassifierEditableProperties,
+  type ClassifierModelWithGroup,
+} from "@/azure/classifier-db.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+
+export type {
+  ClassifierConfig,
+  ClassifierEditableProperties,
+  ClassifierModelWithGroup,
+};
 
 interface DocType {
   azureBlobSource: {
@@ -20,16 +33,16 @@ interface DocType {
 
 @Injectable()
 export class ClassifierService {
-  private readonly logger = new Logger(ClassifierService.name);
   private readonly client: DocumentIntelligenceClient;
   public readonly classifierContainer: string = "classification";
 
   constructor(
-    private databaseService: DatabaseService,
+    private classifierDb: ClassifierDbService,
     private azureService: AzureService,
     private azureStorage: AzureStorageService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
   ) {
     this.client = azureService.getClient();
   }
@@ -96,7 +109,7 @@ export class ClassifierService {
               );
             },
             (result) => {
-              this.logger.error("Analyze operation failed:", result);
+              this.logger.error("Analyze operation failed", { result });
             },
           );
         } else if (analyzeResponse.status == "404") {
@@ -105,7 +118,7 @@ export class ClassifierService {
           this.logger.warn(
             `404 from analyze API for ${filePath}, falling back to download/upload method.`,
           );
-          this.logger.warn(`Original error:`, analyzeResponse.body);
+          this.logger.warn("Original error", { body: analyzeResponse.body });
           // Download the blob
           const blobResp = await fetch(url);
           if (!blobResp.ok) {
@@ -138,19 +151,19 @@ export class ClassifierService {
               `Uploaded layout JSON to blob (fallback): ${jsonBlobName}`,
             );
           } else {
-            this.logger.error(
-              `Fallback analyze failed for ${filePath}:`,
-              uploadResponse.status,
-              uploadResponse.body,
-            );
+            this.logger.error("Fallback analyze failed", {
+              filePath,
+              status: uploadResponse.status,
+              body: uploadResponse.body,
+            });
           }
         } else {
-          this.logger.error(
-            `Failed to analyze blob ${filePath}:`,
-            `url: ${url}`,
-            analyzeResponse.status,
-            analyzeResponse.body,
-          );
+          this.logger.error("Failed to analyze blob", {
+            filePath,
+            url,
+            status: analyzeResponse.status,
+            body: analyzeResponse.body,
+          });
         }
       }),
     );
@@ -249,16 +262,16 @@ export class ClassifierService {
    * The files must have been uploaded and had their layout json created before this point.
    * @param classifierName Name of the classifier model.
    * @param groupId ID of the group that owns the classifier.
-   * @param userId ID of the user making the request.
+   * @param actorId ID of the user making the request.
    * @returns The updated record of classifier model from the database.
    */
   requestClassifierTraining = async (
     classifierName: string,
     groupId: string,
-    userId: string,
+    actorId: string,
   ) => {
     // Does this classifier record exist?
-    const existingClassifier = await this.databaseService.getClassifierModel(
+    const existingClassifier = await this.classifierDb.findClassifierModel(
       classifierName,
       groupId,
     );
@@ -298,20 +311,21 @@ export class ClassifierService {
       );
 
       // Update classifier record
-      return await this.databaseService.updateClassifierModel(
+      return await this.classifierDb.updateClassifierModel(
         classifierName,
         groupId,
         {
           status: ClassifierStatus.TRAINING,
           operation_location: operationLocation,
         },
-        userId,
+        actorId,
       );
     } else {
       const message = `Request for training classifier ${classifierName} unsuccessful. See logs for details.`;
-      this.logger.error(message);
-      this.logger.error(response.status);
-      this.logger.error(response.body);
+      this.logger.error(message, {
+        status: response.status,
+        body: response.body,
+      });
       throw new Error(message);
     }
   };
@@ -401,4 +415,69 @@ export class ClassifierService {
   getConstructedClassifierName = (groupId: string, classifierName: string) => {
     return `${groupId}__${classifierName}`;
   };
+
+  /**
+   * Finds a classifier model by name and group ID.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @returns The ClassifierModel record or null if not found.
+   */
+  async findClassifierModel(
+    classifierName: string,
+    groupId: string,
+  ): Promise<ClassifierModel | null> {
+    return this.classifierDb.findClassifierModel(classifierName, groupId);
+  }
+
+  /**
+   * Finds all classifier models belonging to the specified groups.
+   * @param groupIds The list of group IDs to filter by.
+   * @returns An array of ClassifierModel records with their associated group.
+   */
+  async findAllClassifierModelsForGroups(
+    groupIds: string[],
+  ): Promise<ClassifierModelWithGroup[]> {
+    return this.classifierDb.findAllClassifierModelsForGroups(groupIds);
+  }
+
+  /**
+   * Creates a new classifier model record.
+   * @param classifierName The name of the classifier.
+   * @param properties The editable properties for the classifier.
+   * @param actorId The ID of the user creating the classifier.
+   * @returns The created ClassifierModel record.
+   */
+  async createClassifierModel(
+    classifierName: string,
+    properties: ClassifierEditableProperties,
+    actorId: string,
+  ): Promise<ClassifierModel> {
+    return this.classifierDb.createClassifierModel(
+      classifierName,
+      properties,
+      actorId,
+    );
+  }
+
+  /**
+   * Updates an existing classifier model record.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @param properties The partial properties to update.
+   * @param actorId The ID of the user making the update.
+   * @returns The updated ClassifierModel record.
+   */
+  async updateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    actorId: string,
+  ): Promise<ClassifierModel> {
+    return this.classifierDb.updateClassifierModel(
+      classifierName,
+      groupId,
+      properties,
+      actorId,
+    );
+  }
 }

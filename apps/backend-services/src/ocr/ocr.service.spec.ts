@@ -1,11 +1,15 @@
 import { DocumentStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService, DocumentData } from "../database/database.service";
+import { DocumentService } from "../document/document.service";
+import type { DocumentData } from "../document/document-db.types";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrService } from "./ocr.service";
 
@@ -23,11 +27,12 @@ const defaultDocument = {
   apim_request_id: "uuidHere",
   model_id: "prebuilt-layout",
   workflow_config_id: "workflow-config-123",
+  group_id: "group-1",
 } as DocumentData;
 
 describe("OcrService", () => {
   let service: OcrService;
-  let databaseService: DatabaseService;
+  let documentService: DocumentService;
   let temporalClientService: TemporalClientService;
   let blobStorage: BlobStorageInterface;
   let moduleRef: TestingModule;
@@ -36,6 +41,7 @@ describe("OcrService", () => {
     moduleRef = await Test.createTestingModule({
       providers: [
         OcrService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: ConfigService,
           useValue: {
@@ -49,7 +55,7 @@ describe("OcrService", () => {
           },
         },
         {
-          provide: DatabaseService,
+          provide: DocumentService,
           useValue: {
             findDocument: jest
               .fn()
@@ -82,11 +88,15 @@ describe("OcrService", () => {
             deleteByPrefix: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
     service = moduleRef.get<OcrService>(OcrService);
-    databaseService = moduleRef.get<DatabaseService>(DatabaseService);
+    documentService = moduleRef.get<DocumentService>(DocumentService);
     temporalClientService = moduleRef.get<TemporalClientService>(
       TemporalClientService,
     );
@@ -108,9 +118,11 @@ describe("OcrService", () => {
         () =>
           new OcrService(
             mockConfigService as any,
-            {} as DatabaseService,
+            {} as DocumentService,
             {} as TemporalClientService,
             mockBlobStorage as any,
+            mockAppLogger,
+            { recordEvent: jest.fn() } as unknown as AuditService,
           ),
       ).not.toThrow();
     });
@@ -125,7 +137,7 @@ describe("OcrService", () => {
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {
-      (databaseService.findDocument as jest.Mock).mockResolvedValue(null);
+      (documentService.findDocument as jest.Mock).mockResolvedValue(null);
       await expect(service.requestOcr("123")).rejects.toThrow(
         "Entry for document with ID 123 not found.",
       );

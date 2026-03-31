@@ -13,7 +13,14 @@
       "Bash(git log *)",
       "Bash(cd apps/*)",
       "Bash(cd scripts/*)",
-      "mcp__playwright__browser_press_key"
+      "mcp__playwright__browser_press_key",
+      "Bash(npm test:*)",
+      "Bash(npx jest:*)",
+      "Bash(npm run:*)",
+      "Bash(helm lint:*)",
+      "Bash(helm template:*)",
+      "Bash(docker compose:*)",
+      "Bash(kustomize build:*)"
     ],
     "defaultMode": "acceptEdits",
     "model": "sonnet"

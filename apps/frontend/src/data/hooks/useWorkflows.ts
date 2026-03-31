@@ -7,7 +7,7 @@ export interface WorkflowInfo {
   id: string;
   name: string;
   description: string | null;
-  userId: string;
+  actorId: string;
   config: GraphWorkflowConfig;
   schemaVersion: string;
   version: number;

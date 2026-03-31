@@ -15,7 +15,7 @@ export class WorkflowInfoDto {
   description: string | null;
 
   @ApiProperty({ description: "ID of the user who owns the workflow" })
-  userId: string;
+  actorId: string;
 
   @ApiProperty({ description: "ID of the group this workflow belongs to" })
   groupId: string;

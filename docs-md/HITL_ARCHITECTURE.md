@@ -120,7 +120,7 @@ HitlController.getQueue()
       ↓
 HitlService.getQueue()
       ↓
-DatabaseService.findReviewQueue()
+ReviewDbService.findReviewQueue()
       ↓
 Returns: Documents with:
   - status = 'completed_ocr'
@@ -147,7 +147,7 @@ HitlController.startSession()
       ↓
 HitlService.startSession(documentId, reviewerId)
       ↓
-DatabaseService.createReviewSession({
+ReviewDbService.createReviewSession({
   document_id: documentId,
   reviewer_id: reviewerId,
   status: 'in_progress',
@@ -195,7 +195,7 @@ HitlController.submitCorrections()
 HitlService.submitCorrections()
       ↓
 For each correction:
-  DatabaseService.createFieldCorrection({
+  ReviewDbService.createFieldCorrection({
     session_id: sessionId,
     field_key: correction.field_key,
     original_value: correction.original_value,

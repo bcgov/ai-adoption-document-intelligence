@@ -5,7 +5,10 @@ import {
 } from "@generated/client";
 import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseService } from "../database/database.service";
+import { AuditService } from "@/audit/audit.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { DocumentService } from "../document/document.service";
 import { AnalyticsService } from "./analytics.service";
 import {
   CorrectionAction,
@@ -19,10 +22,12 @@ import {
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
 import { HitlService } from "./hitl.service";
+import { ReviewDbService } from "./review-db.service";
 
 describe("HitlService", () => {
   let service: HitlService;
-  let mockDbService: jest.Mocked<DatabaseService>;
+  let mockDocumentService: jest.Mocked<DocumentService>;
+  let mockReviewDbService: jest.Mocked<ReviewDbService>;
   let mockAnalyticsService: jest.Mocked<AnalyticsService>;
 
   const mockDocument = {
@@ -73,6 +78,7 @@ describe("HitlService", () => {
     id: "session-1",
     document_id: "doc-1",
     reviewer_id: "reviewer-1",
+    actor_id: "reviewer-1",
     status: ReviewStatus.in_progress,
     started_at: new Date(),
     completed_at: null,
@@ -94,6 +100,9 @@ describe("HitlService", () => {
   beforeEach(async () => {
     const mockDb = {
       findDocument: jest.fn(),
+    };
+
+    const mockReviewDb = {
       findReviewQueue: jest.fn(),
       createReviewSession: jest.fn(),
       findReviewSession: jest.fn(),
@@ -109,19 +118,29 @@ describe("HitlService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         HitlService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
-          provide: DatabaseService,
+          provide: DocumentService,
           useValue: mockDb,
+        },
+        {
+          provide: ReviewDbService,
+          useValue: mockReviewDb,
         },
         {
           provide: AnalyticsService,
           useValue: mockAnalytics,
         },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
     service = module.get<HitlService>(HitlService);
-    mockDbService = module.get(DatabaseService);
+    mockDocumentService = module.get(DocumentService);
+    mockReviewDbService = module.get(ReviewDbService);
     mockAnalyticsService = module.get(AnalyticsService);
   });
 
@@ -133,13 +152,13 @@ describe("HitlService", () => {
         offset: 0,
       };
 
-      mockDbService.findReviewQueue.mockResolvedValueOnce([
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         mockDocumentWithOcr as any,
       ]);
 
       const result = await service.getQueue(filters);
 
-      expect(mockDbService.findReviewQueue).toHaveBeenCalledWith({
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         status: "completed_ocr",
         modelId: undefined,
         maxConfidence: 0.9,
@@ -162,7 +181,7 @@ describe("HitlService", () => {
         ocr_result: null,
       };
 
-      mockDbService.findReviewQueue.mockResolvedValueOnce([
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         docWithoutOcr as any,
       ]);
 
@@ -184,7 +203,7 @@ describe("HitlService", () => {
         },
       };
 
-      mockDbService.findReviewQueue.mockResolvedValueOnce([
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         docWithHighConfidence as any,
       ]);
 
@@ -208,7 +227,7 @@ describe("HitlService", () => {
         ],
       };
 
-      mockDbService.findReviewQueue.mockResolvedValueOnce([
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         docWithSession as any,
       ]);
 
@@ -224,13 +243,13 @@ describe("HitlService", () => {
     });
 
     it("should handle ALL status filter", async () => {
-      mockDbService.findReviewQueue.mockResolvedValueOnce([
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         mockDocumentWithOcr as any,
       ]);
 
       await service.getQueue({ status: DocumentStatusFilter.ALL });
 
-      expect(mockDbService.findReviewQueue).toHaveBeenCalledWith(
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
           status: undefined,
         }),
@@ -238,13 +257,13 @@ describe("HitlService", () => {
     });
 
     it("should handle REVIEWED review status filter", async () => {
-      mockDbService.findReviewQueue.mockResolvedValueOnce([
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         mockDocumentWithOcr as any,
       ]);
 
       await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
 
-      expect(mockDbService.findReviewQueue).toHaveBeenCalledWith(
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
           reviewStatus: "reviewed",
         }),
@@ -252,11 +271,11 @@ describe("HitlService", () => {
     });
 
     it("should use default values for optional filters", async () => {
-      mockDbService.findReviewQueue.mockResolvedValueOnce([]);
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
       await service.getQueue({});
 
-      expect(mockDbService.findReviewQueue).toHaveBeenCalledWith({
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         status: "completed_ocr",
         modelId: undefined,
         maxConfidence: 0.9,
@@ -270,7 +289,7 @@ describe("HitlService", () => {
 
   describe("getQueueStats", () => {
     it("should return queue statistics", async () => {
-      mockDbService.findReviewQueue.mockResolvedValueOnce([
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         mockDocumentWithOcr,
         {
           ...mockDocument,
@@ -309,7 +328,7 @@ describe("HitlService", () => {
         reviewedToday: 5,
       });
 
-      expect(mockDbService.findReviewQueue).toHaveBeenCalledWith({
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         status: "completed_ocr",
         limit: 1000,
         reviewStatus: "pending",
@@ -318,7 +337,7 @@ describe("HitlService", () => {
     });
 
     it("should handle REVIEWED status filter", async () => {
-      mockDbService.findReviewQueue.mockResolvedValueOnce([]);
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
       mockAnalyticsService.getAnalytics.mockResolvedValueOnce({
         totalDocuments: 0,
         reviewedDocuments: 0,
@@ -338,7 +357,7 @@ describe("HitlService", () => {
 
       await service.getQueueStats(ReviewStatusFilter.REVIEWED);
 
-      expect(mockDbService.findReviewQueue).toHaveBeenCalledWith({
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         status: "completed_ocr",
         limit: 1000,
         reviewStatus: "reviewed",
@@ -353,15 +372,15 @@ describe("HitlService", () => {
         documentId: "doc-1",
       };
 
-      mockDbService.findDocument.mockResolvedValueOnce(mockDocument);
-      mockDbService.createReviewSession.mockResolvedValueOnce(
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
 
       const result = await service.startSession(dto, "reviewer-1");
 
-      expect(mockDbService.findDocument).toHaveBeenCalledWith("doc-1");
-      expect(mockDbService.createReviewSession).toHaveBeenCalledWith(
+      expect(mockDocumentService.findDocument).toHaveBeenCalledWith("doc-1");
+      expect(mockReviewDbService.createReviewSession).toHaveBeenCalledWith(
         "doc-1",
         "reviewer-1",
       );
@@ -388,25 +407,27 @@ describe("HitlService", () => {
         documentId: "non-existent",
       };
 
-      mockDbService.findDocument.mockResolvedValueOnce(null);
+      mockDocumentService.findDocument.mockResolvedValueOnce(null);
 
       await expect(service.startSession(dto, "reviewer-1")).rejects.toThrow(
         NotFoundException,
       );
 
-      expect(mockDbService.createReviewSession).not.toHaveBeenCalled();
+      expect(mockReviewDbService.createReviewSession).not.toHaveBeenCalled();
     });
   });
 
   describe("getSession", () => {
     it("should return a review session", async () => {
-      mockDbService.findReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
 
       const result = await service.getSession("session-1");
 
-      expect(mockDbService.findReviewSession).toHaveBeenCalledWith("session-1");
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
 
       expect(result).toEqual({
         id: "session-1",
@@ -429,7 +450,7 @@ describe("HitlService", () => {
     });
 
     it("should throw NotFoundException if session does not exist", async () => {
-      mockDbService.findReviewSession.mockResolvedValueOnce(null);
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(service.getSession("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -458,10 +479,10 @@ describe("HitlService", () => {
         ],
       };
 
-      mockDbService.findReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockDbService.createFieldCorrection
+      mockReviewDbService.createFieldCorrection
         .mockResolvedValueOnce(mockFieldCorrection)
         .mockResolvedValueOnce({
           ...mockFieldCorrection,
@@ -471,8 +492,12 @@ describe("HitlService", () => {
 
       const result = await service.submitCorrections("session-1", dto);
 
-      expect(mockDbService.findReviewSession).toHaveBeenCalledWith("session-1");
-      expect(mockDbService.createFieldCorrection).toHaveBeenCalledTimes(2);
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.createFieldCorrection).toHaveBeenCalledTimes(
+        2,
+      );
 
       expect(result).toEqual({
         sessionId: "session-1",
@@ -493,13 +518,13 @@ describe("HitlService", () => {
         corrections: [],
       };
 
-      mockDbService.findReviewSession.mockResolvedValueOnce(null);
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(
         service.submitCorrections("non-existent", dto),
       ).rejects.toThrow(NotFoundException);
 
-      expect(mockDbService.createFieldCorrection).not.toHaveBeenCalled();
+      expect(mockReviewDbService.createFieldCorrection).not.toHaveBeenCalled();
     });
   });
 
@@ -511,17 +536,19 @@ describe("HitlService", () => {
         completed_at: new Date(),
       };
 
-      mockDbService.findReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockDbService.updateReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         approvedSession as any,
       );
 
       const result = await service.approveSession("session-1");
 
-      expect(mockDbService.findReviewSession).toHaveBeenCalledWith("session-1");
-      expect(mockDbService.updateReviewSession).toHaveBeenCalledWith(
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
         {
           status: ReviewStatus.approved,
@@ -538,13 +565,13 @@ describe("HitlService", () => {
     });
 
     it("should throw NotFoundException if session does not exist", async () => {
-      mockDbService.findReviewSession.mockResolvedValueOnce(null);
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(service.approveSession("non-existent")).rejects.toThrow(
         NotFoundException,
       );
 
-      expect(mockDbService.updateReviewSession).not.toHaveBeenCalled();
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
   });
 
@@ -560,23 +587,25 @@ describe("HitlService", () => {
         completed_at: new Date(),
       };
 
-      mockDbService.findReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockDbService.createFieldCorrection.mockResolvedValueOnce({
+      mockReviewDbService.createFieldCorrection.mockResolvedValueOnce({
         ...mockFieldCorrection,
         field_key: "_escalation",
         original_value: dto.reason,
         action: DbCorrectionAction.flagged,
       });
-      mockDbService.updateReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         escalatedSession as any,
       );
 
       const result = await service.escalateSession("session-1", dto);
 
-      expect(mockDbService.findReviewSession).toHaveBeenCalledWith("session-1");
-      expect(mockDbService.createFieldCorrection).toHaveBeenCalledWith(
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.createFieldCorrection).toHaveBeenCalledWith(
         "session-1",
         {
           field_key: "_escalation",
@@ -584,7 +613,7 @@ describe("HitlService", () => {
           action: DbCorrectionAction.flagged,
         },
       );
-      expect(mockDbService.updateReviewSession).toHaveBeenCalledWith(
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
         {
           status: ReviewStatus.escalated,
@@ -605,14 +634,14 @@ describe("HitlService", () => {
         reason: "Test reason",
       };
 
-      mockDbService.findReviewSession.mockResolvedValueOnce(null);
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(
         service.escalateSession("non-existent", dto),
       ).rejects.toThrow(NotFoundException);
 
-      expect(mockDbService.createFieldCorrection).not.toHaveBeenCalled();
-      expect(mockDbService.updateReviewSession).not.toHaveBeenCalled();
+      expect(mockReviewDbService.createFieldCorrection).not.toHaveBeenCalled();
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
   });
 
@@ -624,17 +653,19 @@ describe("HitlService", () => {
         completed_at: new Date(),
       };
 
-      mockDbService.findReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockDbService.updateReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         skippedSession as any,
       );
 
       const result = await service.skipSession("session-1");
 
-      expect(mockDbService.findReviewSession).toHaveBeenCalledWith("session-1");
-      expect(mockDbService.updateReviewSession).toHaveBeenCalledWith(
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
         {
           status: ReviewStatus.skipped,
@@ -650,13 +681,13 @@ describe("HitlService", () => {
     });
 
     it("should throw NotFoundException if session does not exist", async () => {
-      mockDbService.findReviewSession.mockResolvedValueOnce(null);
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(service.skipSession("non-existent")).rejects.toThrow(
         NotFoundException,
       );
 
-      expect(mockDbService.updateReviewSession).not.toHaveBeenCalled();
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
   });
 
@@ -671,15 +702,19 @@ describe("HitlService", () => {
         },
       ];
 
-      mockDbService.findReviewSession.mockResolvedValueOnce(
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockDbService.findSessionCorrections.mockResolvedValueOnce(corrections);
+      mockReviewDbService.findSessionCorrections.mockResolvedValueOnce(
+        corrections,
+      );
 
       const result = await service.getCorrections("session-1");
 
-      expect(mockDbService.findReviewSession).toHaveBeenCalledWith("session-1");
-      expect(mockDbService.findSessionCorrections).toHaveBeenCalledWith(
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.findSessionCorrections).toHaveBeenCalledWith(
         "session-1",
       );
 
@@ -709,13 +744,13 @@ describe("HitlService", () => {
     });
 
     it("should throw NotFoundException if session does not exist", async () => {
-      mockDbService.findReviewSession.mockResolvedValueOnce(null);
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(service.getCorrections("non-existent")).rejects.toThrow(
         NotFoundException,
       );
 
-      expect(mockDbService.findSessionCorrections).not.toHaveBeenCalled();
+      expect(mockReviewDbService.findSessionCorrections).not.toHaveBeenCalled();
     });
   });
 

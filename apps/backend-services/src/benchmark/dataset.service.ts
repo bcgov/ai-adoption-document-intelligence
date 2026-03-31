@@ -23,7 +23,8 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { PrismaService } from "@/database/prisma.service";
+import { AuditLogDbService } from "./audit-log-db.service";
+import { DatasetDbService } from "./dataset-db.service";
 import {
   CreateDatasetDto,
   CreateVersionDto,
@@ -45,23 +46,21 @@ import {
 @Injectable()
 export class DatasetService {
   private readonly logger = new Logger(DatasetService.name);
-  private readonly prisma;
 
   constructor(
-    private readonly prismaService: PrismaService,
+    private readonly datasetDbService: DatasetDbService,
+    private readonly auditLogDbService: AuditLogDbService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
-  ) {
-    this.prisma = this.prismaService.prisma;
-  }
+  ) {}
 
   /**
    * Create a new dataset
    */
   async createDataset(
     createDto: CreateDatasetDto,
-    userId: string,
+    actorId: string,
   ): Promise<DatasetResponseDto> {
-    this.logger.log(`Creating dataset: ${createDto.name} for user ${userId}`);
+    this.logger.log(`Creating dataset: ${createDto.name} for user ${actorId}`);
 
     if (!createDto.name) {
       throw new BadRequestException("Dataset name is required");
@@ -69,35 +68,28 @@ export class DatasetService {
 
     try {
       // Create dataset record in database
-      const dataset = await this.prisma.dataset.create({
-        data: {
-          name: createDto.name,
-          description: createDto.description || null,
-          metadata: (createDto.metadata || {}) as Prisma.JsonValue,
-          storagePath: "", // Will be set after we have the ID
-          createdBy: userId,
-          group_id: createDto.groupId,
-        },
+      const dataset = await this.datasetDbService.createDataset({
+        name: createDto.name,
+        description: createDto.description || null,
+        metadata: (createDto.metadata || {}) as Prisma.JsonValue,
+        storagePath: "", // Will be set after we have the ID
+        createdBy: actorId,
+        group_id: createDto.groupId,
       });
 
       // Set storage path based on dataset ID
       const storagePath = `datasets/${dataset.id}`;
-      await this.prisma.dataset.update({
-        where: { id: dataset.id },
-        data: { storagePath },
-      });
+      await this.datasetDbService.updateDataset(dataset.id, { storagePath });
 
       // Create audit log entry
-      await this.prisma.benchmarkAuditLog.create({
-        data: {
-          userId: userId,
-          action: AuditAction.dataset_created,
-          entityType: "Dataset",
-          entityId: dataset.id,
-          metadata: {
-            name: dataset.name,
-            storagePath,
-          },
+      await this.auditLogDbService.createAuditLog({
+        actorId: actorId,
+        action: AuditAction.dataset_created,
+        entityType: "Dataset",
+        entityId: dataset.id,
+        metadata: {
+          name: dataset.name,
+          storagePath,
         },
       });
 
@@ -148,19 +140,13 @@ export class DatasetService {
 
     const where = { group_id: { in: groupIds } };
 
-    const total = await this.prisma.dataset.count({ where });
+    const total = await this.datasetDbService.countDatasets(where);
 
-    const datasets = await this.prisma.dataset.findMany({
+    const datasets = await this.datasetDbService.findAllDatasets(
       where,
       skip,
-      take: validLimit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        versions: {
-          select: { id: true },
-        },
-      },
-    });
+      validLimit,
+    );
 
     const data = datasets.map((dataset) =>
       this.mapToResponseDto(dataset, dataset.versions.length),
@@ -181,21 +167,7 @@ export class DatasetService {
   async getDatasetById(id: string): Promise<DatasetResponseDto> {
     this.logger.debug(`Getting dataset by ID: ${id}`);
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id },
-      include: {
-        versions: {
-          select: {
-            id: true,
-            version: true,
-            documentCount: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        },
-      },
-    });
+    const dataset = await this.datasetDbService.findDatasetWithVersions(id);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${id} not found`);
@@ -214,17 +186,7 @@ export class DatasetService {
   async deleteDataset(id: string): Promise<void> {
     this.logger.debug(`Deleting dataset with ID: ${id}`);
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id },
-      include: {
-        versions: {
-          include: {
-            benchmarkDefinitions: true,
-            splits: true,
-          },
-        },
-      },
-    });
+    const dataset = await this.datasetDbService.findDatasetForDeletion(id);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${id} not found`);
@@ -233,25 +195,21 @@ export class DatasetService {
     // Manually cascade delete to handle foreign key constraints
     for (const version of dataset.versions) {
       for (const definition of version.benchmarkDefinitions) {
-        await this.prisma.benchmarkRun.deleteMany({
-          where: { definitionId: definition.id },
+        await this.datasetDbService.deleteManyBenchmarkRuns({
+          definitionId: definition.id,
         });
       }
-      await this.prisma.benchmarkDefinition.deleteMany({
-        where: { datasetVersionId: version.id },
+      await this.datasetDbService.deleteManyBenchmarkDefinitions({
+        datasetVersionId: version.id,
       });
-      await this.prisma.split.deleteMany({
-        where: { datasetVersionId: version.id },
+      await this.datasetDbService.deleteManySplits({
+        datasetVersionId: version.id,
       });
     }
 
-    await this.prisma.datasetVersion.deleteMany({
-      where: { datasetId: id },
-    });
+    await this.datasetDbService.deleteManyDatasetVersions({ datasetId: id });
 
-    await this.prisma.dataset.delete({
-      where: { id },
-    });
+    await this.datasetDbService.deleteDataset(id);
 
     // Delete all files from object storage
     if (dataset.storagePath) {
@@ -273,19 +231,16 @@ export class DatasetService {
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
-    userId: string,
+    actorId: string, // TODO: Why isn't this used?
   ): Promise<VersionResponseDto> {
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const existingVersionCount = await this.prisma.datasetVersion.count({
-      where: { datasetId },
-    });
+    const existingVersionCount =
+      await this.datasetDbService.countDatasetVersions({ datasetId });
     const versionLabel = createDto.version || `v${existingVersionCount + 1}`;
 
     this.logger.log(
@@ -294,17 +249,15 @@ export class DatasetService {
 
     const manifestPath = createDto.manifestPath || "dataset-manifest.json";
 
-    const version = await this.prisma.datasetVersion.create({
-      data: {
-        datasetId: datasetId,
-        version: versionLabel,
-        name: createDto.name || null,
-        storagePrefix: null,
-        manifestPath: manifestPath,
-        documentCount: 0,
-        groundTruthSchema: (createDto.groundTruthSchema ||
-          null) as Prisma.JsonValue,
-      },
+    const version = await this.datasetDbService.createDatasetVersion({
+      datasetId: datasetId,
+      version: versionLabel,
+      name: createDto.name || null,
+      storagePrefix: null,
+      manifestPath: manifestPath,
+      documentCount: 0,
+      groundTruthSchema: (createDto.groundTruthSchema ||
+        null) as Prisma.JsonValue,
     });
 
     this.logger.log(
@@ -320,28 +273,14 @@ export class DatasetService {
   async listVersions(datasetId: string): Promise<VersionListResponseDto> {
     this.logger.debug(`Listing versions for dataset ${datasetId}`);
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const versions = await this.prisma.datasetVersion.findMany({
-      where: { datasetId: datasetId },
-      include: {
-        splits: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            sampleIds: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const versions =
+      await this.datasetDbService.findAllDatasetVersionsWithSplits(datasetId);
 
     const versionList: VersionListItemDto[] = versions.map((v) => ({
       id: v.id,
@@ -371,22 +310,10 @@ export class DatasetService {
   ): Promise<VersionResponseDto> {
     this.logger.debug(`Getting version ${versionId} for dataset ${datasetId}`);
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-      include: {
-        splits: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            sampleIds: true,
-          },
-        },
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersionWithSplits(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -405,12 +332,10 @@ export class DatasetService {
     versionId: string,
     name: string,
   ): Promise<VersionResponseDto> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -422,22 +347,16 @@ export class DatasetService {
       throw new BadRequestException("Cannot update a frozen dataset version");
     }
 
-    const updated = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: { name: name || null },
-      include: {
-        splits: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            sampleIds: true,
-          },
-        },
-      },
+    await this.datasetDbService.updateDatasetVersion(versionId, {
+      name: name || null,
     });
 
-    return this.mapToVersionResponseDto(updated, updated.splits);
+    const updated = await this.datasetDbService.findDatasetVersionWithSplits(
+      versionId,
+      datasetId,
+    );
+
+    return this.mapToVersionResponseDto(updated!, updated!.splits);
   }
 
   /**
@@ -455,23 +374,22 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
-    userId: string,
+    actorId: string, // TODO: Why isn't this used?
   ): Promise<UploadResponseDto> {
     this.logger.log(
       `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
     );
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -610,13 +528,13 @@ export class DatasetService {
       );
 
       // Update version record
-      const updatedVersion = await this.prisma.datasetVersion.update({
-        where: { id: versionId },
-        data: {
+      const updatedVersion = await this.datasetDbService.updateDatasetVersion(
+        versionId,
+        {
           storagePrefix: storagePrefix,
           documentCount: manifest.samples.length,
         },
-      });
+      );
 
       this.logger.log(
         `Upload complete: ${uploadedFiles.length} files added to version ${version.version} (${versionId})`,
@@ -671,17 +589,16 @@ export class DatasetService {
       `Deleting sample ${sampleId} from dataset ${datasetId}, version ${versionId}`,
     );
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -754,17 +671,13 @@ export class DatasetService {
       );
 
       // Update version record
-      await this.prisma.datasetVersion.update({
-        where: { id: versionId },
-        data: {
-          documentCount: manifest.samples.length,
-        },
+      await this.datasetDbService.updateDatasetVersion(versionId, {
+        documentCount: manifest.samples.length,
       });
 
       // Remove the sample ID from any splits that reference it
-      const splits = await this.prisma.split.findMany({
-        where: { datasetVersionId: versionId },
-      });
+      const splits =
+        await this.datasetDbService.findAllSplitsForVersion(versionId);
 
       for (const split of splits) {
         const currentSampleIds = Array.isArray(split.sampleIds)
@@ -774,9 +687,8 @@ export class DatasetService {
           const updatedSampleIds = currentSampleIds.filter(
             (id) => id !== sampleId,
           );
-          await this.prisma.split.update({
-            where: { id: split.id },
-            data: { sampleIds: updatedSampleIds },
+          await this.datasetDbService.updateSplit(split.id, {
+            sampleIds: updatedSampleIds,
           });
         }
       }
@@ -804,14 +716,10 @@ export class DatasetService {
   async deleteVersion(datasetId: string, versionId: string): Promise<void> {
     this.logger.log(`Deleting version ${versionId} for dataset ${datasetId}`);
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-      include: {
-        benchmarkDefinitions: {
-          select: { id: true, name: true },
-        },
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersionForDeletion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -829,14 +737,12 @@ export class DatasetService {
     }
 
     // Delete splits for the version first
-    await this.prisma.split.deleteMany({
-      where: { datasetVersionId: versionId },
+    await this.datasetDbService.deleteManySplits({
+      datasetVersionId: versionId,
     });
 
     // Delete the version record
-    await this.prisma.datasetVersion.delete({
-      where: { id: versionId },
-    });
+    await this.datasetDbService.deleteDatasetVersion(versionId);
 
     // Delete files from object storage
     if (version.storagePrefix) {
@@ -869,12 +775,10 @@ export class DatasetService {
     const validLimit = Math.min(100, Math.max(1, limit));
     const skip = (validPage - 1) * validLimit;
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -943,12 +847,10 @@ export class DatasetService {
       `Getting ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1030,9 +932,10 @@ export class DatasetService {
       `Downloading file "${filePath}" from dataset ${datasetId}, version ${versionId}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1218,9 +1121,10 @@ export class DatasetService {
     storagePrefix: string,
     documentCount: number,
   ): Promise<VersionResponseDto> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1228,10 +1132,10 @@ export class DatasetService {
       );
     }
 
-    const updated = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: { storagePrefix, documentCount },
-    });
+    const updated = await this.datasetDbService.updateDatasetVersion(
+      versionId,
+      { storagePrefix, documentCount },
+    );
 
     return this.mapToVersionResponseDto(updated);
   }
@@ -1428,12 +1332,10 @@ export class DatasetService {
       `Validating dataset ${datasetId}, version ${versionId} with sampleSize: ${requestDto.sampleSize || "all"}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1753,12 +1655,10 @@ export class DatasetService {
       `Creating split '${createDto.name}' for version ${versionId}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1766,12 +1666,10 @@ export class DatasetService {
       );
     }
 
-    const existingSplit = await this.prisma.split.findFirst({
-      where: {
-        datasetVersionId: versionId,
-        name: createDto.name,
-      },
-    });
+    const existingSplit = await this.datasetDbService.findSplitByName(
+      versionId,
+      createDto.name,
+    );
 
     if (existingSplit) {
       throw new BadRequestException(
@@ -1779,17 +1677,15 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.create({
-      data: {
-        datasetVersionId: versionId,
-        name: createDto.name,
-        type: createDto.type as SplitType,
-        sampleIds: createDto.sampleIds as Prisma.JsonValue,
-        stratificationRules: createDto.stratificationRules
-          ? (createDto.stratificationRules as Prisma.JsonValue)
-          : null,
-        frozen: false,
-      },
+    const split = await this.datasetDbService.createSplit({
+      datasetVersionId: versionId,
+      name: createDto.name,
+      type: createDto.type as SplitType,
+      sampleIds: createDto.sampleIds as Prisma.JsonValue,
+      stratificationRules: createDto.stratificationRules
+        ? (createDto.stratificationRules as Prisma.JsonValue)
+        : null,
+      frozen: false,
     });
 
     return {
@@ -1824,12 +1720,10 @@ export class DatasetService {
       createdAt: Date;
     }>
   > {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1837,14 +1731,8 @@ export class DatasetService {
       );
     }
 
-    const splits = await this.prisma.split.findMany({
-      where: {
-        datasetVersionId: versionId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const splits =
+      await this.datasetDbService.findAllSplitsForVersion(versionId);
 
     return splits.map((split) => ({
       id: split.id,
@@ -1880,12 +1768,10 @@ export class DatasetService {
     stratificationRules?: Record<string, unknown>;
     createdAt: Date;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1893,12 +1779,7 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.findFirst({
-      where: {
-        id: splitId,
-        datasetVersionId: versionId,
-      },
-    });
+    const split = await this.datasetDbService.findSplit(splitId, versionId);
 
     if (!split) {
       throw new NotFoundException(
@@ -1940,12 +1821,10 @@ export class DatasetService {
     frozen: boolean;
     createdAt: Date;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1953,12 +1832,7 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.findFirst({
-      where: {
-        id: splitId,
-        datasetVersionId: versionId,
-      },
-    });
+    const split = await this.datasetDbService.findSplit(splitId, versionId);
 
     if (!split) {
       throw new NotFoundException(
@@ -1972,11 +1846,8 @@ export class DatasetService {
       );
     }
 
-    const updated = await this.prisma.split.update({
-      where: { id: splitId },
-      data: {
-        sampleIds: updateDto.sampleIds as Prisma.JsonValue,
-      },
+    const updated = await this.datasetDbService.updateSplit(splitId, {
+      sampleIds: updateDto.sampleIds as Prisma.JsonValue,
     });
 
     return {
@@ -2003,12 +1874,10 @@ export class DatasetService {
     name: string | null;
     frozen: boolean;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -2016,9 +1885,8 @@ export class DatasetService {
       );
     }
 
-    const frozen = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: { frozen: true },
+    const frozen = await this.datasetDbService.updateDatasetVersion(versionId, {
+      frozen: true,
     });
 
     return {
@@ -2044,12 +1912,10 @@ export class DatasetService {
     type: string;
     frozen: boolean;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -2057,12 +1923,7 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.findFirst({
-      where: {
-        id: splitId,
-        datasetVersionId: versionId,
-      },
-    });
+    const split = await this.datasetDbService.findSplit(splitId, versionId);
 
     if (!split) {
       throw new NotFoundException(
@@ -2070,9 +1931,8 @@ export class DatasetService {
       );
     }
 
-    const frozen = await this.prisma.split.update({
-      where: { id: splitId },
-      data: { frozen: true },
+    const frozen = await this.datasetDbService.updateSplit(splitId, {
+      frozen: true,
     });
 
     return {

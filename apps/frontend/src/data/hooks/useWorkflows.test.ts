@@ -57,7 +57,7 @@ const workflowInfo = {
   id: "workflow-1",
   name: "Test Workflow",
   description: "A test workflow",
-  userId: "user-1",
+  actorId: "user-1",
   config: minimalConfig,
   schemaVersion: "1.0",
   version: 1,

@@ -1,7 +1,8 @@
 import { Module } from "@nestjs/common";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
-import { DatabaseModule } from "@/database/database.module";
+import { DocumentModule } from "@/document/document.module";
 import { TemporalModule } from "@/temporal/temporal.module";
+import { TrainingModule } from "@/training/training.module";
 import { OcrController } from "./ocr.controller";
 import { OcrService } from "./ocr.service";
 
@@ -9,6 +10,6 @@ import { OcrService } from "./ocr.service";
   controllers: [OcrController],
   providers: [OcrService],
   exports: [OcrService],
-  imports: [DatabaseModule, TemporalModule, BlobStorageModule],
+  imports: [DocumentModule, TrainingModule, TemporalModule, BlobStorageModule],
 })
 export class OcrModule {}

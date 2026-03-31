@@ -11,7 +11,6 @@ jest.mock("@/auth/identity.helpers", () => ({
 
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import { DatasetService } from "./dataset.service";
 import { GroundTruthGenerationController } from "./ground-truth-generation.controller";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
@@ -32,12 +31,6 @@ describe("GroundTruthGenerationController", () => {
       .mockResolvedValue({ id: "ds-1", groupId: "test-group" }),
   };
 
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-    isUserInGroup: jest.fn().mockResolvedValue(true),
-  };
-
   const mockReq = {
     user: { sub: "user-1" },
     resolvedIdentity: { userId: "user-1" },
@@ -55,7 +48,6 @@ describe("GroundTruthGenerationController", () => {
           useValue: mockGroundTruthService,
         },
         { provide: DatasetService, useValue: mockDatasetService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
       ],
     }).compile();
 
@@ -89,34 +81,8 @@ describe("GroundTruthGenerationController", () => {
         datasetId,
         versionId,
         "wf-config-1",
-        "user-1",
       );
       expect(result).toEqual(expected);
-    });
-
-    it("uses anonymous when user sub is missing", async () => {
-      const reqNoUser = {
-        user: {},
-        resolvedIdentity: { userId: "user-1" },
-      } as unknown as Request;
-
-      mockGroundTruthService.startGeneration.mockResolvedValue({
-        jobsCreated: 0,
-      });
-
-      await controller.startGeneration(
-        datasetId,
-        versionId,
-        { workflowConfigId: "wf-1" },
-        reqNoUser,
-      );
-
-      expect(mockGroundTruthService.startGeneration).toHaveBeenCalledWith(
-        datasetId,
-        versionId,
-        "wf-1",
-        "anonymous",
-      );
     });
   });
 

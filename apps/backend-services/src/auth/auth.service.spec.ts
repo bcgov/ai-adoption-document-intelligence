@@ -1,6 +1,9 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as client from "openid-client";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { UserService } from "../actor/user.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { AuthService } from "./auth.service";
 import { TokenClaims } from "./dto/token-response.dto";
 
@@ -10,7 +13,7 @@ jest.mock("openid-client");
 describe("AuthService", () => {
   let service: AuthService;
   let configService: ConfigService;
-  let prismaService: { prisma: { user: { upsert: jest.Mock } } };
+  let mockUserService: { upsertUser: jest.Mock };
 
   beforeEach(async () => {
     configService = {
@@ -28,12 +31,8 @@ describe("AuthService", () => {
       }),
     } as unknown as ConfigService;
 
-    prismaService = {
-      prisma: {
-        user: {
-          upsert: jest.fn(),
-        },
-      },
+    mockUserService = {
+      upsertUser: jest.fn(),
     };
 
     // Mock openid-client functions
@@ -80,14 +79,10 @@ describe("AuthService", () => {
       providers: [
         AuthService,
         { provide: ConfigService, useValue: configService },
-        { provide: "PrismaService", useValue: prismaService },
+        { provide: UserService, useValue: mockUserService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
-    })
-      .overrideProvider(AuthService)
-      .useFactory({
-        factory: () => new AuthService(configService, prismaService as any),
-      })
-      .compile();
+    }).compile();
 
     service = module.get<AuthService>(AuthService);
 
@@ -103,7 +98,8 @@ describe("AuthService", () => {
     it("should throw if config missing", () => {
       (configService.get as jest.Mock).mockReturnValueOnce(undefined);
       expect(
-        () => new AuthService(configService, prismaService as any),
+        () =>
+          new AuthService(configService, mockUserService as any, mockAppLogger),
       ).toThrow("SSO_AUTH_SERVER_URL and SSO_REALM must be configured");
     });
 
@@ -118,7 +114,8 @@ describe("AuthService", () => {
         return config[key];
       });
       expect(
-        () => new AuthService(configService, prismaService as any),
+        () =>
+          new AuthService(configService, mockUserService as any, mockAppLogger),
       ).toThrow("SSO_CLIENT_ID and SSO_CLIENT_SECRET must be configured");
     });
   });
@@ -133,7 +130,11 @@ describe("AuthService", () => {
     });
 
     it("should throw if discovery fails", async () => {
-      const newService = new AuthService(configService, prismaService as any);
+      const newService = new AuthService(
+        configService,
+        mockUserService as any,
+        mockAppLogger,
+      );
       (client.discovery as jest.Mock).mockRejectedValueOnce(
         new Error("Discovery failed"),
       );
@@ -359,19 +360,9 @@ describe("AuthService", () => {
         email: "user@example.com",
       } as unknown as TokenClaims);
 
-      expect(prismaService.prisma.user.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "user-sub-123" },
-          update: expect.objectContaining({
-            email: "user@example.com",
-            last_login_at: expect.any(Date),
-          }),
-          create: expect.objectContaining({
-            id: "user-sub-123",
-            email: "user@example.com",
-            last_login_at: expect.any(Date),
-          }),
-        }),
+      expect(mockUserService.upsertUser).toHaveBeenCalledWith(
+        "user-sub-123",
+        "user@example.com",
       );
     });
 
@@ -381,7 +372,7 @@ describe("AuthService", () => {
           email: "user@example.com",
         } as unknown as TokenClaims),
       ).rejects.toThrow("Token payload missing required fields: sub and email");
-      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
+      expect(mockUserService.upsertUser).not.toHaveBeenCalled();
     });
 
     it("should throw when email is missing", async () => {
@@ -390,14 +381,14 @@ describe("AuthService", () => {
           sub: "user-sub-123",
         } as unknown as TokenClaims),
       ).rejects.toThrow("Token payload missing required fields: sub and email");
-      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
+      expect(mockUserService.upsertUser).not.toHaveBeenCalled();
     });
 
     it("should throw when both sub and email are missing", async () => {
       await expect(
         service.upsertUserFromToken({} as unknown as TokenClaims),
       ).rejects.toThrow("Token payload missing required fields: sub and email");
-      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
+      expect(mockUserService.upsertUser).not.toHaveBeenCalled();
     });
   });
 });

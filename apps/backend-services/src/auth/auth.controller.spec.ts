@@ -1,8 +1,9 @@
 import { GroupRole } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request, Response } from "express";
-import { DatabaseService } from "../database/database.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { GroupService } from "../group/group.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { AuthController } from "./auth.controller";
 import { AuthService, LoginUrlResult } from "./auth.service";
 import { AUTH_COOKIE_NAMES, COOKIE_OPTIONS } from "./cookie-auth.utils";
@@ -14,7 +15,6 @@ describe("AuthController", () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthService>;
   let groupService: jest.Mocked<GroupService>;
-  let databaseService: jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
   let res: jest.Mocked<Response>;
   let req: Partial<Request>;
 
@@ -35,19 +35,6 @@ describe("AuthController", () => {
       getAllGroups: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<GroupService>;
 
-    databaseService = {
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    } as unknown as jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
-
-    groupService = {
-      getUserGroups: jest.fn().mockResolvedValue([]),
-      getAllGroups: jest.fn().mockResolvedValue([]),
-    } as unknown as jest.Mocked<GroupService>;
-
-    databaseService = {
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    } as unknown as jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
-
     res = {
       redirect: jest.fn(),
       status: jest.fn().mockReturnThis(),
@@ -66,7 +53,7 @@ describe("AuthController", () => {
       providers: [
         { provide: AuthService, useValue: authService },
         { provide: GroupService, useValue: groupService },
-        { provide: DatabaseService, useValue: databaseService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
 
@@ -347,7 +334,12 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       const userGroups = [
         { id: "group-1", name: "Group One", role: GroupRole.MEMBER },
       ];
@@ -355,11 +347,8 @@ describe("AuthController", () => {
 
       const result = await controller.getMe(req as Request);
 
-      expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith(
-        "user-123",
-      );
       expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        "user-123",
+        expect.objectContaining({ userId: "user-123", isSystemAdmin: false }),
         "user-123",
       );
       expect(result).toEqual({
@@ -381,7 +370,12 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 100,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       groupService.getUserGroups.mockResolvedValue([]);
 
       const result = await controller.getMe(req as Request);
@@ -401,20 +395,21 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       const adminGroups = [
         { id: "group-1", name: "Group One", role: GroupRole.ADMIN },
       ];
-      (databaseService.isUserSystemAdmin as jest.Mock).mockResolvedValue(true);
       groupService.getUserGroups.mockResolvedValue(adminGroups);
 
       const result = await controller.getMe(req as Request);
 
-      expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith(
-        "admin-user",
-      );
       expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        "admin-user",
+        expect.objectContaining({ userId: "admin-user", isSystemAdmin: true }),
         "admin-user",
       );
       expect(groupService.getAllGroups).not.toHaveBeenCalled();
@@ -428,12 +423,16 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) - 100, // expired
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
 
       const result = await controller.getMe(req as Request);
 
       expect(result.expires_in).toBe(0);
-      expect(result.groups).toEqual([]);
       expect(result.groups).toEqual([]);
     });
   });

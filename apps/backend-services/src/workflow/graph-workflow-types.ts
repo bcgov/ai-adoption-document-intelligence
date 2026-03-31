@@ -255,6 +255,8 @@ export interface GraphWorkflowInput {
   configHash: string;
   runnerVersion: string;
   parentWorkflowId?: string;
+  /** Correlation ID from the API request; included for cross-service tracing. */
+  requestId?: string;
 }
 
 export interface GraphWorkflowResult {

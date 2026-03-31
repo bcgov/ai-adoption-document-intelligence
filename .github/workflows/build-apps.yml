@@ -207,6 +207,58 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
+  deploy-plg:
+    name: Deploy PLG Stack
+    needs: [build-apps, get-environment]
+    if: ${{ always() && (needs.build-apps.result == 'success' || needs.build-apps.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.get-environment.outputs.environment }}
+    env:
+      OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+      OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+      OPENSHIFT_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+      GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
+
+      - name: Install oc CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: "4"
+
+      - name: Login to OpenShift
+        run: |
+          oc login "${{ env.OPENSHIFT_SERVER }}" \
+            --token="${{ env.OPENSHIFT_TOKEN }}" \
+            --insecure-skip-tls-verify=true
+
+      - name: Deploy PLG Helm Chart
+        run: |
+          CHART_DIR="deployments/openshift/helm/plg"
+
+          # Use environment-specific defaults; secrets override via GitHub environment
+          GRAFANA_PWD="${{ env.GRAFANA_ADMIN_PASSWORD }}"
+          if [ -z "${GRAFANA_PWD}" ]; then
+            GRAFANA_PWD="admin"
+          fi
+
+          helm upgrade --install plg "${CHART_DIR}" \
+            --namespace "${{ env.OPENSHIFT_NAMESPACE }}" \
+            -f "${CHART_DIR}/values-openshift.yaml" \
+            --set "grafana.adminPassword=${GRAFANA_PWD}" \
+            --wait --timeout 120s
+
+          echo "PLG stack deployed successfully."
+
   # trigger_migration:
   #   needs: [metadata, build-apps]
   #   if: ${{ always() && needs.build-apps.result == 'success' && needs.metadata.outputs.changed-apps != '[]' && needs.metadata.outputs.changed-apps != '' }}

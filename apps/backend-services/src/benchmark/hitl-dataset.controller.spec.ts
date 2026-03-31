@@ -1,12 +1,11 @@
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
-  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
+  getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
 import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import { DatasetService } from "./dataset.service";
 import { HitlDatasetController } from "./hitl-dataset.controller";
 import { HitlDatasetService } from "./hitl-dataset.service";
@@ -17,19 +16,13 @@ describe("HitlDatasetController", () => {
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
+    resolvedIdentity: {
+      userId: "user-1",
+      actorId: "actor-1",
+      groupRoles: {},
+      isSystemAdmin: false,
+    },
   } as unknown as Request;
-
-  const mockReqNoUser = {
-    user: {},
-    resolvedIdentity: { userId: undefined },
-  } as unknown as Request;
-
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-    isUserInGroup: jest.fn().mockResolvedValue(true),
-  };
 
   const mockDatasetService = {
     getDatasetById: jest
@@ -61,7 +54,6 @@ describe("HitlDatasetController", () => {
       providers: [
         { provide: HitlDatasetService, useValue: mockService },
         { provide: DatasetService, useValue: mockDatasetService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
       ],
     }).compile();
 
@@ -126,19 +118,7 @@ describe("HitlDatasetController", () => {
       expect(result.dataset.id).toBe("dataset-1");
       expect(mockService.createDatasetFromHitl).toHaveBeenCalledWith(
         dto,
-        "user-1",
-      );
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      await controller.createDatasetFromHitl(
-        { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
-        mockReqNoUser,
-      );
-
-      expect(mockService.createDatasetFromHitl).toHaveBeenCalledWith(
-        { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
-        "anonymous",
+        "actor-1",
       );
     });
   });
@@ -157,21 +137,7 @@ describe("HitlDatasetController", () => {
       expect(mockService.addVersionFromHitl).toHaveBeenCalledWith(
         "dataset-1",
         dto,
-        "user-1",
-      );
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      await controller.addVersionFromHitl(
-        "dataset-1",
-        { documentIds: ["doc-1"] },
-        mockReqNoUser,
-      );
-
-      expect(mockService.addVersionFromHitl).toHaveBeenCalledWith(
-        "dataset-1",
-        { documentIds: ["doc-1"] },
-        "anonymous",
+        "actor-1",
       );
     });
   });

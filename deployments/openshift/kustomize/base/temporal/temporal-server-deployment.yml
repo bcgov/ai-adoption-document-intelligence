@@ -18,6 +18,11 @@ spec:
         # Holds config_template.yaml + generated docker.yaml so main container sees both (entrypoint needs config_template.yaml).
         - name: temporal-config
           emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: promtail-config
+          configMap:
+            name: temporal-server-promtail
       initContainers:
         # Populate temporal-config with config_template.yaml and env-filled docker.yaml so entrypoint finds both.
         - name: config-init
@@ -41,16 +46,16 @@ spec:
             - name: VISIBILITY_DBNAME
               value: "temporal_visibility"
             - name: POSTGRES_SEEDS
-              value: "temporal-postgres-cluster-primary"
+              value: "temporal-pg-primary"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: user
             - name: POSTGRES_PWD
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: password
           command:
             - /bin/sh
@@ -74,18 +79,18 @@ spec:
             - name: SQL_TLS_DISABLE_HOST_VERIFICATION
               value: "true"
             - name: POSTGRES_SEEDS
-              value: "temporal-postgres-cluster-primary"
+              value: "temporal-pg-primary"
             - name: DB_PORT
               value: "5432"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: user
             - name: SQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: password
           command:
             - /bin/sh
@@ -132,10 +137,14 @@ spec:
             - containerPort: 7233
               name: grpc
               protocol: TCP
+          command: ["sh", "-c"]
+          args: ["/etc/temporal/entrypoint.sh 2>&1 | tee -a /var/log/app/temporal-server.log"]
           # Full config dir from config-init (config_template.yaml + docker.yaml).
           volumeMounts:
             - name: temporal-config
               mountPath: /etc/temporal/config
+            - name: logs
+              mountPath: /var/log/app
           env:
             # Enable TLS for SQL persistence (Crunchy Postgres pg_hba is hostssl-only).
             - name: SQL_TLS_ENABLED
@@ -153,16 +162,16 @@ spec:
             - name: VISIBILITY_DBNAME
               value: "temporal_visibility"
             - name: POSTGRES_SEEDS
-              value: "temporal-postgres-cluster-primary"
+              value: "temporal-pg-primary"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: user
             - name: POSTGRES_PWD
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: password
           resources:
             requests:
@@ -185,3 +194,21 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
+        - name: promtail
+          image: grafana/promtail:3.4.2
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/app
+              readOnly: true
+            - name: promtail-config
+              mountPath: /etc/promtail
+              readOnly: true
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"

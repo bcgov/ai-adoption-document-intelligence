@@ -1,4 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "../azure/azure.service";
 import { ClassifierStatus } from "../azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
@@ -6,11 +8,11 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { ClassifierService } from "./classifier.service";
+import { ClassifierDbService } from "./classifier-db.service";
 
-const mockDatabaseService = {
-  getClassifierModel: jest.fn(),
+const mockClassifierDbService = {
+  findClassifierModel: jest.fn(),
   updateClassifierModel: jest.fn(),
 };
 const mockAzureService = {
@@ -43,19 +45,20 @@ describe("ClassifierService", () => {
   let service: ClassifierService;
   let module: TestingModule;
   let blobStorage: BlobStorageInterface;
-  let databaseService: DatabaseService;
+  let classifierDbService: ClassifierDbService;
   let azureService: AzureService;
   let azureStorage: AzureStorageService;
 
   beforeEach(async () => {
     blobStorage = mockBlobStorage as any;
-    databaseService = mockDatabaseService as any;
+    classifierDbService = mockClassifierDbService as any;
     azureService = mockAzureService as any;
     azureStorage = mockBlobService as any;
     module = await Test.createTestingModule({
       providers: [
         ClassifierService,
-        { provide: DatabaseService, useValue: databaseService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
+        { provide: ClassifierDbService, useValue: classifierDbService },
         { provide: AzureService, useValue: azureService },
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
@@ -72,7 +75,9 @@ describe("ClassifierService", () => {
 
   describe("requestClassifierTraining", () => {
     it("should throw NotFoundException if classifier not found", async () => {
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue(null);
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue(
+        null,
+      );
       await expect(
         service.requestClassifierTraining("c", "g", "u"),
       ).rejects.toThrow();
@@ -88,18 +93,20 @@ describe("ClassifierService", () => {
           }),
         }),
       };
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: jest.fn().mockReturnValue([]),
       });
-      (databaseService.updateClassifierModel as jest.Mock).mockResolvedValue({
+      (
+        classifierDbService.updateClassifierModel as jest.Mock
+      ).mockResolvedValue({
         status: ClassifierStatus.TRAINING,
       });
 
       const result = await service.requestClassifierTraining("c", "g", "u");
-      expect(mockDatabaseService.updateClassifierModel).toHaveBeenCalled();
+      expect(mockClassifierDbService.updateClassifierModel).toHaveBeenCalled();
       expect(result.status).toBe(ClassifierStatus.TRAINING);
     });
 
@@ -109,7 +116,7 @@ describe("ClassifierService", () => {
           post: jest.fn().mockResolvedValue({ status: "202" }),
         }),
       };
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
@@ -289,11 +296,11 @@ describe("ClassifierService", () => {
       await expect(
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
-      expect(errorLogger).toHaveBeenCalledWith(
-        "Fallback analyze failed for file.jpg:",
-        "500",
-        "fail",
-      );
+      expect(errorLogger).toHaveBeenCalledWith("Fallback analyze failed", {
+        filePath: "file.jpg",
+        status: "500",
+        body: "fail",
+      });
     });
 
     it("should log error for non-202/404 analyze response", async () => {
@@ -321,12 +328,12 @@ describe("ClassifierService", () => {
       await expect(
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
-      expect(errorLogger).toHaveBeenCalledWith(
-        "Failed to analyze blob file.jpg:",
-        "url: https://mockbloburl/file.jpg",
-        "500",
-        "fail",
-      );
+      expect(errorLogger).toHaveBeenCalledWith("Failed to analyze blob", {
+        filePath: "file.jpg",
+        url: "https://mockbloburl/file.jpg",
+        status: "500",
+        body: "fail",
+      });
     });
 
     it("should log error if operation-location header is missing", async () => {

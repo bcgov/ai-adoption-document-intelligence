@@ -1,6 +1,8 @@
+import { ApiProperty } from "@nestjs/swagger";
 import { IsNotEmpty, IsOptional, IsString, Matches } from "class-validator";
 
 export class StartTrainingDto {
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   @Matches(/^[a-zA-Z0-9][a-zA-Z0-9._~-]{1,63}$/, {
@@ -9,6 +11,7 @@ export class StartTrainingDto {
   })
   modelId: string;
 
+  @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
   description?: string;

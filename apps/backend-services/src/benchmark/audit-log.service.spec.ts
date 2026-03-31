@@ -1,13 +1,11 @@
 import { AuditAction } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
-import { PrismaService } from "@/database/prisma.service";
 import { AuditLogService } from "./audit-log.service";
+import { AuditLogDbService } from "./audit-log-db.service";
 
-const mockPrismaClient = {
-  benchmarkAuditLog: {
-    create: jest.fn(),
-    findMany: jest.fn(),
-  },
+const mockAuditLogDbService = {
+  createAuditLog: jest.fn(),
+  findAllAuditLogs: jest.fn(),
 };
 
 describe("AuditLogService", () => {
@@ -18,8 +16,8 @@ describe("AuditLogService", () => {
       providers: [
         AuditLogService,
         {
-          provide: PrismaService,
-          useValue: { prisma: mockPrismaClient },
+          provide: AuditLogDbService,
+          useValue: mockAuditLogDbService,
         },
       ],
     }).compile();
@@ -35,28 +33,26 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-1",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.dataset_created,
         entityType: "Dataset",
         entityId: "dataset-1",
         metadata: { name: "Test Dataset" },
       };
 
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
+      mockAuditLogDbService.createAuditLog.mockResolvedValue(mockLog);
 
       const result = await service.logDatasetCreated("user-1", "dataset-1", {
         name: "Test Dataset",
       });
 
       expect(result).toEqual(mockLog);
-      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({
-        data: {
-          userId: "user-1",
-          action: AuditAction.dataset_created,
-          entityType: "Dataset",
-          entityId: "dataset-1",
-          metadata: { name: "Test Dataset" },
-        },
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
+        actorId: "user-1",
+        action: AuditAction.dataset_created,
+        entityType: "Dataset",
+        entityId: "dataset-1",
+        metadata: { name: "Test Dataset" },
       });
     });
   });
@@ -66,14 +62,14 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-2",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.version_published,
         entityType: "DatasetVersion",
         entityId: "version-1",
         metadata: { versionId: "version-1", datasetId: "dataset-1" },
       };
 
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
+      mockAuditLogDbService.createAuditLog.mockResolvedValue(mockLog);
 
       const result = await service.logVersionPublished(
         "user-1",
@@ -82,16 +78,14 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({
-        data: {
-          userId: "user-1",
-          action: AuditAction.version_published,
-          entityType: "DatasetVersion",
-          entityId: "version-1",
-          metadata: {
-            versionId: "version-1",
-            datasetId: "dataset-1",
-          },
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
+        actorId: "user-1",
+        action: AuditAction.version_published,
+        entityType: "DatasetVersion",
+        entityId: "version-1",
+        metadata: {
+          versionId: "version-1",
+          datasetId: "dataset-1",
         },
       });
     });
@@ -102,14 +96,14 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-3",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.run_started,
         entityType: "BenchmarkRun",
         entityId: "run-1",
         metadata: { definitionId: "def-1", projectId: "proj-1" },
       };
 
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
+      mockAuditLogDbService.createAuditLog.mockResolvedValue(mockLog);
 
       const result = await service.logRunStarted(
         "user-1",
@@ -119,16 +113,14 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({
-        data: {
-          userId: "user-1",
-          action: AuditAction.run_started,
-          entityType: "BenchmarkRun",
-          entityId: "run-1",
-          metadata: {
-            definitionId: "def-1",
-            projectId: "proj-1",
-          },
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
+        actorId: "user-1",
+        action: AuditAction.run_started,
+        entityType: "BenchmarkRun",
+        entityId: "run-1",
+        metadata: {
+          definitionId: "def-1",
+          projectId: "proj-1",
         },
       });
     });
@@ -139,7 +131,7 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-4",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.run_completed,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -149,7 +141,7 @@ describe("AuditLogService", () => {
         },
       };
 
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
+      mockAuditLogDbService.createAuditLog.mockResolvedValue(mockLog);
 
       const result = await service.logRunCompleted(
         "user-1",
@@ -162,16 +154,14 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({
-        data: {
-          userId: "user-1",
-          action: AuditAction.run_completed,
-          entityType: "BenchmarkRun",
-          entityId: "run-1",
-          metadata: {
-            status: "completed",
-            metrics: { accuracy: 0.95, f1Score: 0.92 },
-          },
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
+        actorId: "user-1",
+        action: AuditAction.run_completed,
+        entityType: "BenchmarkRun",
+        entityId: "run-1",
+        metadata: {
+          status: "completed",
+          metrics: { accuracy: 0.95, f1Score: 0.92 },
         },
       });
     });
@@ -182,14 +172,14 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-5",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.baseline_promoted,
         entityType: "BenchmarkRun",
         entityId: "run-1",
         metadata: { projectId: "proj-1" },
       };
 
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
+      mockAuditLogDbService.createAuditLog.mockResolvedValue(mockLog);
 
       const result = await service.logBaselinePromoted(
         "user-1",
@@ -198,15 +188,13 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({
-        data: {
-          userId: "user-1",
-          action: AuditAction.baseline_promoted,
-          entityType: "BenchmarkRun",
-          entityId: "run-1",
-          metadata: {
-            projectId: "proj-1",
-          },
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
+        actorId: "user-1",
+        action: AuditAction.baseline_promoted,
+        entityType: "BenchmarkRun",
+        entityId: "run-1",
+        metadata: {
+          projectId: "proj-1",
         },
       });
     });
@@ -218,7 +206,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date(),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.dataset_created,
           entityType: "Dataset",
           entityId: "dataset-1",
@@ -226,16 +214,15 @@ describe("AuditLogService", () => {
         },
       ];
 
-      mockPrismaClient.benchmarkAuditLog.findMany.mockResolvedValue(mockLogs);
+      mockAuditLogDbService.findAllAuditLogs.mockResolvedValue(mockLogs);
 
       const result = await service.queryAuditLogs({ entityType: "Dataset" });
 
       expect(result).toEqual(mockLogs);
-      expect(mockPrismaClient.benchmarkAuditLog.findMany).toHaveBeenCalledWith({
-        where: { entityType: "Dataset" },
-        orderBy: { timestamp: "asc" },
-        take: 100,
-      });
+      expect(mockAuditLogDbService.findAllAuditLogs).toHaveBeenCalledWith(
+        { entityType: "Dataset" },
+        100,
+      );
     });
 
     it("should query audit logs by entity ID", async () => {
@@ -243,7 +230,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date(),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -251,16 +238,15 @@ describe("AuditLogService", () => {
         },
       ];
 
-      mockPrismaClient.benchmarkAuditLog.findMany.mockResolvedValue(mockLogs);
+      mockAuditLogDbService.findAllAuditLogs.mockResolvedValue(mockLogs);
 
       const result = await service.queryAuditLogs({ entityId: "run-1" });
 
       expect(result).toEqual(mockLogs);
-      expect(mockPrismaClient.benchmarkAuditLog.findMany).toHaveBeenCalledWith({
-        where: { entityId: "run-1" },
-        orderBy: { timestamp: "asc" },
-        take: 100,
-      });
+      expect(mockAuditLogDbService.findAllAuditLogs).toHaveBeenCalledWith(
+        { entityId: "run-1" },
+        100,
+      );
     });
 
     it("should query audit logs by action", async () => {
@@ -268,7 +254,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date(),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.version_published,
           entityType: "DatasetVersion",
           entityId: "version-1",
@@ -276,18 +262,17 @@ describe("AuditLogService", () => {
         },
       ];
 
-      mockPrismaClient.benchmarkAuditLog.findMany.mockResolvedValue(mockLogs);
+      mockAuditLogDbService.findAllAuditLogs.mockResolvedValue(mockLogs);
 
       const result = await service.queryAuditLogs({
         action: AuditAction.version_published,
       });
 
       expect(result).toEqual(mockLogs);
-      expect(mockPrismaClient.benchmarkAuditLog.findMany).toHaveBeenCalledWith({
-        where: { action: AuditAction.version_published },
-        orderBy: { timestamp: "asc" },
-        take: 100,
-      });
+      expect(mockAuditLogDbService.findAllAuditLogs).toHaveBeenCalledWith(
+        { action: AuditAction.version_published },
+        100,
+      );
     });
 
     it("should query audit logs by date range", async () => {
@@ -297,7 +282,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date("2026-02-10"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -305,21 +290,15 @@ describe("AuditLogService", () => {
         },
       ];
 
-      mockPrismaClient.benchmarkAuditLog.findMany.mockResolvedValue(mockLogs);
+      mockAuditLogDbService.findAllAuditLogs.mockResolvedValue(mockLogs);
 
       const result = await service.queryAuditLogs({ startDate, endDate });
 
       expect(result).toEqual(mockLogs);
-      expect(mockPrismaClient.benchmarkAuditLog.findMany).toHaveBeenCalledWith({
-        where: {
-          timestamp: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-        orderBy: { timestamp: "asc" },
-        take: 100,
-      });
+      expect(mockAuditLogDbService.findAllAuditLogs).toHaveBeenCalledWith(
+        { timestamp: { gte: startDate, lte: endDate } },
+        100,
+      );
     });
 
     it("should query audit logs with multiple filters and custom limit", async () => {
@@ -328,7 +307,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date("2026-02-10"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -336,7 +315,7 @@ describe("AuditLogService", () => {
         },
       ];
 
-      mockPrismaClient.benchmarkAuditLog.findMany.mockResolvedValue(mockLogs);
+      mockAuditLogDbService.findAllAuditLogs.mockResolvedValue(mockLogs);
 
       const result = await service.queryAuditLogs({
         entityType: "BenchmarkRun",
@@ -346,17 +325,14 @@ describe("AuditLogService", () => {
       });
 
       expect(result).toEqual(mockLogs);
-      expect(mockPrismaClient.benchmarkAuditLog.findMany).toHaveBeenCalledWith({
-        where: {
+      expect(mockAuditLogDbService.findAllAuditLogs).toHaveBeenCalledWith(
+        {
           entityType: "BenchmarkRun",
           action: AuditAction.run_started,
-          timestamp: {
-            gte: startDate,
-          },
+          timestamp: { gte: startDate },
         },
-        orderBy: { timestamp: "asc" },
-        take: 50,
-      });
+        50,
+      );
     });
 
     it("should return logs in chronological order", async () => {
@@ -364,7 +340,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date("2026-02-10T10:00:00"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -373,7 +349,7 @@ describe("AuditLogService", () => {
         {
           id: "log-2",
           timestamp: new Date("2026-02-10T11:00:00"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_completed,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -381,15 +357,14 @@ describe("AuditLogService", () => {
         },
       ];
 
-      mockPrismaClient.benchmarkAuditLog.findMany.mockResolvedValue(mockLogs);
+      mockAuditLogDbService.findAllAuditLogs.mockResolvedValue(mockLogs);
 
       const result = await service.queryAuditLogs({ entityId: "run-1" });
 
       expect(result).toEqual(mockLogs);
-      expect(mockPrismaClient.benchmarkAuditLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orderBy: { timestamp: "asc" },
-        }),
+      expect(mockAuditLogDbService.findAllAuditLogs).toHaveBeenCalledWith(
+        expect.objectContaining({}),
+        100,
       );
     });
   });

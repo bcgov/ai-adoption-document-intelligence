@@ -9,10 +9,24 @@ data:
   DATABASE_API_URL: "http://database-api:3001/api/documents"
   # Azure Document Intelligence: set endpoint per instance; API key in secret
   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-region.api.cognitive.microsoft.com"
-  AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID: "prebuilt-read"
   # Comma-separated list of model IDs for document intelligence (e.g. prebuilt-layout,sdpr-monthly-report-model)
   AZURE_DOC_INTELLIGENCE_MODELS: "prebuilt-layout,sdpr-monthly-report-model,prebuilt-document"
   # Temporal in-cluster (same namespace)
   TEMPORAL_ADDRESS: "temporal:7233"
   TEMPORAL_NAMESPACE: "default"
   TEMPORAL_TASK_QUEUE: "ocr-processing"
+  # Blob storage
+  BLOB_STORAGE_PROVIDER: "minio"
+  AZURE_STORAGE_CONTAINER_NAME: "document-blobs"
+  # Benchmarking
+  BENCHMARK_TASK_QUEUE: "benchmark-processing"
+  ENABLE_BENCHMARK_QUEUE: "true"
+  # Request body limit
+  BODY_LIMIT: "50mb"
+  # Rate limiting
+  THROTTLE_GLOBAL_TTL_MS: "60000"
+  THROTTLE_GLOBAL_LIMIT: "100"
+  THROTTLE_AUTH_TTL_MS: "60000"
+  THROTTLE_AUTH_LIMIT: "10"
+  THROTTLE_AUTH_REFRESH_TTL_MS: "60000"
+  THROTTLE_AUTH_REFRESH_LIMIT: "5"

@@ -34,12 +34,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
@@ -60,7 +56,6 @@ export class BenchmarkRunController {
   constructor(
     private readonly benchmarkRunService: BenchmarkRunService,
     private readonly benchmarkProjectService: BenchmarkProjectService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   private async assertProjectGroupAccess(
@@ -69,17 +64,12 @@ export class BenchmarkRunController {
   ): Promise<void> {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
   }
 
   @Post("definitions/:definitionId/runs")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Start a benchmark run",
     description:
@@ -111,12 +101,12 @@ export class BenchmarkRunController {
       projectId,
       definitionId,
       createRunDto,
+      req.resolvedIdentity,
     );
   }
 
   @Get("runs")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List all runs for a project" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiOkResponse({
@@ -135,8 +125,7 @@ export class BenchmarkRunController {
   }
 
   @Get("runs/:runId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get run details by ID" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "runId", description: "Benchmark run ID" })
@@ -158,8 +147,7 @@ export class BenchmarkRunController {
 
   @Post("runs/:runId/cancel")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Cancel a running benchmark" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "runId", description: "Benchmark run ID" })
@@ -183,8 +171,7 @@ export class BenchmarkRunController {
   }
 
   @Get("runs/:runId/drill-down")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get drill-down summary with detailed failure analysis",
     description:
@@ -212,8 +199,7 @@ export class BenchmarkRunController {
   }
 
   @Get("runs/:runId/samples")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get per-sample results with filtering and pagination",
     description:
@@ -276,8 +262,7 @@ export class BenchmarkRunController {
 
   @Post("runs/:runId/baseline")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Promote a run to baseline",
     description:
@@ -307,13 +292,13 @@ export class BenchmarkRunController {
       projectId,
       runId,
       promoteBaselineDto,
+      req.resolvedIdentity,
     );
   }
 
   @Delete("runs/:runId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Delete a benchmark run",
     description: "Only completed, failed, or cancelled runs can be deleted.",

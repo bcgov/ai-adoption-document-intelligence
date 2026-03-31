@@ -5,7 +5,6 @@ import {
   ForbiddenException,
   HttpCode,
   HttpStatus,
-  Logger,
   Post,
   Req,
 } from "@nestjs/common";
@@ -16,32 +15,29 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
-import { DatabaseService } from "../database/database.service";
+import { Identity } from "@/auth/identity.decorator";
 import { DocumentService } from "../document/document.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
-// TODO: Use the storage service for saving files
+
 @ApiTags("Upload")
 @Controller("api/upload")
 export class UploadController {
-  private readonly logger = new Logger(UploadController.name);
-
   constructor(
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
-    private readonly databaseService: DatabaseService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({
+    allowApiKey: true,
+    minimumRole: "MEMBER",
+    groupIdFrom: { body: "group_id" },
+  })
   @ApiOperation({ summary: "Upload a new document and start OCR processing" })
   @ApiCreatedResponse({
     description:
@@ -74,12 +70,6 @@ export class UploadController {
       if (!uploadDto.file || uploadDto.file.trim().length === 0) {
         throw new BadRequestException("File data is required");
       }
-
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        uploadDto.group_id,
-        this.databaseService,
-      );
 
       // Use original_filename from DTO or default to title
       const originalFilename =

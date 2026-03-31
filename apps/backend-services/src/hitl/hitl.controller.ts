@@ -20,15 +20,12 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
-import { DatabaseService } from "../database/database.service";
+import { DocumentService } from "../document/document.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import {
   AnalyticsResponseDto,
@@ -49,12 +46,11 @@ import { HitlService } from "./hitl.service";
 export class HitlController {
   constructor(
     private readonly hitlService: HitlService,
-    private readonly databaseService: DatabaseService,
+    private readonly documentService: DocumentService,
   ) {}
 
   @Get("queue")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get review queue with filters" })
   @ApiOkResponse({
     description: "Paginated list of documents requiring human review",
@@ -63,24 +59,16 @@ export class HitlController {
   async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {
     let groupIds: string[];
     if (filters.group_id) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        filters.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
-        req.resolvedIdentity,
-        this.databaseService,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
     return this.hitlService.getQueue(filters, groupIds);
   }
 
   @Get("queue/stats")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get queue statistics" })
   @ApiQuery({
     name: "reviewStatus",
@@ -107,24 +95,16 @@ export class HitlController {
   ) {
     let groupIds: string[];
     if (group_id) {
-      await identityCanAccessGroup(
-        req?.resolvedIdentity,
-        group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req?.resolvedIdentity, group_id);
       groupIds = [group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
-        req?.resolvedIdentity,
-        this.databaseService,
-      );
+      groupIds = getIdentityGroupIds(req?.resolvedIdentity);
     }
     return this.hitlService.getQueueStats(reviewStatus, groupIds);
   }
 
   @Post("sessions")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Start a review session" })
   @ApiCreatedResponse({
     description: "Review session created with document and OCR data",
@@ -133,23 +113,17 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Document not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startSession(@Body() dto: ReviewSessionDto, @Req() req: Request) {
-    const document = await this.databaseService.findDocument(dto.documentId);
+    const document = await this.documentService.findDocument(dto.documentId);
     if (!document) {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      this.databaseService,
-    );
-    const reviewerId =
-      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    const reviewerId = req.resolvedIdentity.actorId;
     return this.hitlService.startSession(dto, reviewerId);
   }
 
   @Get("sessions/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get review session details" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -159,21 +133,16 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getSession(@Param("id") id: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(id);
+    const session = await this.hitlService.findReviewSession(id);
     if (!session) {
       throw new NotFoundException(`Review session ${id} not found`);
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.getSession(id);
   }
 
   @Post("sessions/:id/corrections")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Submit corrections for a session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiCreatedResponse({
@@ -187,21 +156,16 @@ export class HitlController {
     @Body() dto: SubmitCorrectionsDto,
     @Req() req: Request,
   ) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.submitCorrections(sessionId, dto);
   }
 
   @Get("sessions/:id/corrections")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get correction history for a session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -211,21 +175,16 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getCorrections(@Param("id") sessionId: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.getCorrections(sessionId);
   }
 
   @Post("sessions/:id/submit")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Approve and complete a review session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -235,21 +194,16 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async approveSession(@Param("id") sessionId: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.approveSession(sessionId);
   }
 
   @Post("sessions/:id/escalate")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Escalate a document for expert review" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -263,21 +217,16 @@ export class HitlController {
     @Body() dto: EscalateDto,
     @Req() req: Request,
   ) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.escalateSession(sessionId, dto);
   }
 
   @Post("sessions/:id/skip")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Skip a review session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -287,21 +236,16 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async skipSession(@Param("id") sessionId: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.skipSession(sessionId);
   }
 
   @Get("analytics")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get HITL analytics" })
   @ApiOkResponse({
     description:
@@ -314,17 +258,10 @@ export class HitlController {
   ) {
     let groupIds: string[];
     if (filters.group_id) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        filters.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
-        req.resolvedIdentity,
-        this.databaseService,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
     return this.hitlService.getAnalytics(filters, groupIds);
   }
