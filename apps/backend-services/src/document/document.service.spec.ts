@@ -6,9 +6,9 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { PdfNormalizationService } from "./pdf-normalization.service";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
+import { PdfNormalizationService } from "./pdf-normalization.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;

@@ -1,15 +1,15 @@
 import { DocumentStatus, Prisma } from "@generated/client";
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
-import { AppLoggerService } from "@/logging/app-logger.service";
 import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
 import {
   PdfNormalizationError,
   PdfNormalizationService,
 } from "@/document/pdf-normalization.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,

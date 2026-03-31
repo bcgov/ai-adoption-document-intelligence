@@ -56,7 +56,8 @@ export class UploadController {
   @ApiBadRequestResponse({ description: "Invalid input or upload failed" })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({
-    description: "Access denied: not a member of the requested group or insufficient role",
+    description:
+      "Access denied: not a member of the requested group or insufficient role",
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,

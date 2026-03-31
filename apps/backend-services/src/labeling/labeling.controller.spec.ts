@@ -364,7 +364,11 @@ describe("LabelingController", () => {
       } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       await expect(
-        controller.uploadLabelingDocument("project-1", { ...dto, group_id: "other-group" }, req),
+        controller.uploadLabelingDocument(
+          "project-1",
+          { ...dto, group_id: "other-group" },
+          req,
+        ),
       ).rejects.toThrow(BadRequestException);
       expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
     });

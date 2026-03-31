@@ -46,10 +46,10 @@ import {
 import { AppLoggerService } from "../logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { type DocumentData, DocumentService } from "./document.service";
-import { getContentTypeFromFilename } from "./mime-from-filename";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
+import { getContentTypeFromFilename } from "./mime-from-filename";
 
 @ApiTags("Documents")
 @Controller("api/documents")
@@ -440,7 +440,9 @@ export class DocumentController {
       payload: { action: "view" },
     });
 
-    const fileBuffer = await this.blobStorage.read(document.normalized_file_path);
+    const fileBuffer = await this.blobStorage.read(
+      document.normalized_file_path,
+    );
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');

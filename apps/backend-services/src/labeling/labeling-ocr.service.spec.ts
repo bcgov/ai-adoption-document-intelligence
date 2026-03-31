@@ -3,6 +3,7 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
+import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
@@ -10,7 +11,6 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
-import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingOcrService } from "./labeling-ocr.service";
 

@@ -49,8 +49,8 @@ import {
   CreateFieldDefinitionDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
-import { LabelingConversionFailedResponseDto } from "./dto/labeling-conversion-failed-response.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
+import { LabelingConversionFailedResponseDto } from "./dto/labeling-conversion-failed-response.dto";
 import {
   DeleteDocumentResponseDto,
   DeleteResponseDto,

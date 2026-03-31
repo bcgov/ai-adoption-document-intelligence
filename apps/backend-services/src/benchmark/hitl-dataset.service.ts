@@ -452,19 +452,6 @@ export class HitlDatasetService {
 
     return groundTruth;
   }
-
-  private getMimeType(ext: string): string {
-    const mimeTypes: Record<string, string> = {
-      ".pdf": "application/pdf",
-      ".png": "image/png",
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".tif": "image/tiff",
-      ".tiff": "image/tiff",
-      ".bmp": "image/bmp",
-    };
-    return mimeTypes[ext.toLowerCase()] ?? "application/octet-stream";
-  }
 }
 
 /**

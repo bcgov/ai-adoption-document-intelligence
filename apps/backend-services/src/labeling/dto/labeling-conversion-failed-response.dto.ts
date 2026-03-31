@@ -1,7 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
-  LabelingDocumentResponseDto,
   LabeledDocumentResponseDto,
+  LabelingDocumentResponseDto,
 } from "./labeling-responses.dto";
 
 /** Response body for HTTP 422 when the original blob was stored but normalization to PDF failed. */
