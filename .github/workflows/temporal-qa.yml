@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '25'
+          node-version: '24'
       - name: Install dependencies (root)
         run: npm ci
       - name: Install dependencies (temporal)
