@@ -1,0 +1,91 @@
+name: Checkov
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dockerfile-checks:
+    name: Blocking Dockerfile checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run blocking Checkov Dockerfile checks
+        run: |
+          set -euo pipefail
+          dockerfile_glob='**/Dockerfile*'
+          echo "Checking files matching ${dockerfile_glob}"
+
+          mapfile -t dockerfiles < <(
+            find . -type f \( -name 'Dockerfile' -o -name 'Dockerfile.*' \) \
+              -not -path './.git/*' \
+              -not -path './node_modules/*' \
+              | sort
+          )
+
+          if [ "${#dockerfiles[@]}" -eq 0 ]; then
+            echo "No Dockerfiles found."
+            exit 0
+          fi
+
+          checks="CKV_DOCKER_3,CKV_DOCKER_8,CKV_DOCKER_7,CKV2_DOCKER_2,CKV2_DOCKER_3,CKV2_DOCKER_7,CKV2_DOCKER_8"
+
+          for file in "${dockerfiles[@]}"; do
+            echo "Checking $file"
+            docker run --rm -v "$PWD:/repo" bridgecrew/checkov:latest \
+              --framework dockerfile \
+              --file "/repo/${file#./}" \
+              --check "$checks" \
+              --quiet
+          done
+
+  advisory-config-checks:
+    name: Advisory config checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run advisory deployment scan
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          mkdir -p checkov-advisory
+
+          docker run --rm -v "$PWD:/repo" bridgecrew/checkov:latest \
+            --framework kubernetes \
+            --directory /repo/deployments/openshift/kustomize \
+            --quiet \
+            --output json \
+            --output-file-path /repo/checkov-advisory/deployments.json
+
+      - name: Run advisory GitHub workflow scan
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          # Advisory workflow scope: .github/workflows/*.yml
+          docker run --rm -v "$PWD:/repo" bridgecrew/checkov:latest \
+            --framework github_actions \
+            --directory /repo/.github/workflows \
+            --quiet \
+            --output json \
+            --output-file-path /repo/checkov-advisory/workflows.json
+
+      - name: Upload advisory scan artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: checkov-advisory-results
+          path: checkov-advisory/
+          if-no-files-found: error

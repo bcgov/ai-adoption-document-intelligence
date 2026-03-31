@@ -1,0 +1,38 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": ["**", "!!**/dist", "!!**/node_modules", "!!package.json"]
+  },
+  "linter": {
+    "rules": {
+      "style": {
+        "noCommonJs": "error",
+        "noNamespace": "error",
+        "useAsConstAssertion": "error",
+        "useConst": "error"
+      },
+      "suspicious": {
+        "noConsole": "warn",
+        "noExplicitAny": "error",
+        "noVar": "error"
+      },
+      "security": {
+        "noSecrets": {
+          "level": "error",
+          "options": {
+            "entropyThreshold": 60
+          }
+        }
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

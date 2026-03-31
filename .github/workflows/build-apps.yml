@@ -13,7 +13,7 @@ jobs:
       short-sha: ${{ steps.get-short-sha.outputs.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
@@ -51,11 +51,27 @@ jobs:
             exit 0
           fi
           
+          app_has_changes() {
+            local app="$1"
+
+            case "$app" in
+              backend-services|temporal)
+                git diff --quiet "$base_ref" HEAD -- \
+                  "apps/$app/" \
+                  "apps/shared/prisma/" \
+                  "apps/shared/prisma.config.ts" \
+                  "apps/shared/scripts/generate-prisma.js"
+                ;;
+              *)
+                git diff --quiet "$base_ref" HEAD -- "apps/$app/"
+                ;;
+            esac
+          }
+
           # Check which apps have changes
           changed_apps_json="[]"
           for app in $apps; do
-            # Check if any files in this app directory have changed
-            if git diff --quiet "$base_ref" HEAD -- "apps/$app/" 2>/dev/null; then
+            if app_has_changes "$app"; then
               echo "App '$app' has no changes"
             else
               echo "App '$app' has changes"
@@ -80,7 +96,7 @@ jobs:
       environment: ${{ steps.env.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Get Environment
         id: env
         uses: ./.github/actions/get-environment
@@ -101,20 +117,20 @@ jobs:
       ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Cache Docker layers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ matrix.app }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-${{ matrix.app }}-
       - name: Cache npm dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             node_modules
@@ -123,7 +139,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-${{ matrix.app }}-
       - name: Login to Artifactory
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.ARTIFACTORY_URL }}
           username: ${{ env.ARTIFACTORY_SA_USERNAME }}
@@ -136,7 +152,7 @@ jobs:
           prop_path: version
       - name: Prepare Container Metadata
         id: docker-metadata
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ env.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.app }}
@@ -145,7 +161,8 @@ jobs:
             type=raw,value=${{ steps.app-version.outputs.prop }},enable=${{ github.ref_name == github.event.repository.default_branch }}
             type=raw,value=${{ github.ref_name }}-latest
       - name: Build and Push
-        uses: docker/build-push-action@v5
+        id: build-image
+        uses: docker/build-push-action@v7
         with:
           # temporal and backend-services need repo root context to COPY apps/shared; other apps use apps/<name>
           context: ${{ (matrix.app == 'temporal' || matrix.app == 'backend-services') && '.' || 'apps/' }}${{ (matrix.app != 'temporal' && matrix.app != 'backend-services') && matrix.app || '' }}
@@ -157,7 +174,35 @@ jobs:
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
             GITHUB_SHA=${{ github.sha }}
+            # Note: Sensitive secrets should be provided at runtime via environment variables
+            # Only non-sensitive build-time configuration is passed here
+            VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }}
+            VITE_SUPPORT_EMAIL=${{ secrets.VITE_SUPPORT_EMAIL }}
+            VITE_ENV=${{ secrets.VITE_ENV }}
+            REACT_APP_URL=${{ secrets.REACT_APP_URL }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+      - name: Install Grype
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Scan image with Grype
+        run: |
+          set -euo pipefail
+          image_ref="${{ env.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.app }}@${{ steps.build-image.outputs.digest }}"
+          grype "$image_ref" --fail-on high -o json > "grype-${{ matrix.app }}.json"
+
+      - name: Upload Grype results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: grype-build-apps-${{ matrix.app }}
+          path: grype-${{ matrix.app }}.json
+          if-no-files-found: error
+
       - name: Move cache
+        if: always()
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
@@ -234,4 +279,3 @@ jobs:
   #               changed_apps: '${{ needs.metadata.outputs.changed-apps }}'
   #             }
   #           });
-
