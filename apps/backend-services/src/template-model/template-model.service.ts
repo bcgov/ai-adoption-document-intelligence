@@ -3,7 +3,6 @@ import {
   FieldDefinition,
   FieldType,
   LabelingStatus,
-  Prisma,
 } from "@generated/client";
 import {
   ConflictException,
