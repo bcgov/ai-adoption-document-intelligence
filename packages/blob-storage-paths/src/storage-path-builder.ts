@@ -29,7 +29,7 @@ const buildPrefix = (prefixComponents: string[]): string => {
  * @param groupId - The group identifier (must be a valid CUID).
  * @param category - The operation category (e.g. ocr, training).
  * @param prefixComponents - Additional path segments between the category and the file name.
- * @param fileName - The file name.
+ * @param fileName - The file name. Include the extension here if relevant.
  * @returns A branded `BlobFilePath` string.
  */
 export const buildBlobFilePath = (groupId: string, category: OperationCategory, prefixComponents: string[], fileName: string): BlobFilePath => {
