@@ -234,7 +234,11 @@ export class WorkflowController {
 
     identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
 
-    const workflow = await this.workflowService.updateWorkflow(id, actorId, dto);
+    const workflow = await this.workflowService.updateWorkflow(
+      id,
+      actorId,
+      dto,
+    );
     return { workflow };
   }
 
