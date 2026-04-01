@@ -29,8 +29,8 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
   const client = getBlobStorageClient();
   try {
     return await client.read(validateBlobFilePath(blobKey));
-  } catch (_error) {
-    throw new Error(`Blob not found: "${blobKey}"`);
+  } catch (error) {
+    throw new Error(`Blob not found: "${blobKey}" — ${error}`);
   }
 }
 
