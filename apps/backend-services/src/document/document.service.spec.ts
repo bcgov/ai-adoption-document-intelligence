@@ -82,7 +82,7 @@ describe("DocumentService", () => {
       expect(result.title).toBe("Test");
       expect(documentDbService.createDocument).toHaveBeenCalled();
       expect(blobStorage.write).toHaveBeenCalledWith(
-        expect.stringMatching(/^documents\/.+\/original\.pdf$/),
+        expect.stringMatching(/^group-1\/ocr\/.+\/original\.pdf$/),
         expect.any(Buffer),
       );
     });

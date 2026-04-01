@@ -1,4 +1,4 @@
-import path from "path";
+import * as path from "path";
 
 export enum OperationCategory {
   OCR = "ocr",
@@ -24,7 +24,7 @@ const buildPrefix = (prefixComponents: string[]): string => {
 
 export const buildBlobFilePath = (groupId: string, category: OperationCategory, prefixComponents: string[], fileName: string): BlobFilePath => {
   // Combine elements for final storage path
-  return [buildBlobPrefixPath(groupId, category, prefixComponents), fileName].join("/") as BlobFilePath;
+  return path.posix.join(...[buildBlobPrefixPath(groupId, category, prefixComponents), fileName]) as BlobFilePath;
 }
 
 export const buildBlobPrefixPath = (groupId: string, category: OperationCategory, prefixComponents: string[]): BlobPrefixPath => {
@@ -33,23 +33,13 @@ export const buildBlobPrefixPath = (groupId: string, category: OperationCategory
 }
 
 export const validateBlobFilePath = (path: string): BlobFilePath => {
-  // Break into values: groupId/category/prefix/.../fileName
-  const [groupId, category, ...remainder] = path.split("/");
-  // Check that groupId is a valid cuid
-  if (!isCuid(groupId)){
-    throw new Error(`Group ID ${groupId} in blob file path not a valid cuid`);
-  }
-  // Category must be from existing enum
-  if (!(Object.values(OperationCategory).includes(category as OperationCategory))){
-    throw new Error(`Category ${category} in blob file path not a valid category`)
-  }
-  // TODO: ??? Check that the final part fo the remainder is a file name, not just a folder name.
-  return path as BlobFilePath;
+  // NOTE: There's no way to validate that this is actually a file path. This function is purely for typing purposes.
+  return validateBlobPrefixPath(path) as string as BlobFilePath;
 }
 
 export const validateBlobPrefixPath = (path: string): BlobPrefixPath => {
   // Break into values: groupId/category/prefix/.../fileName
-  const [groupId, category, ...remainder] = path.split("/");
+  const [groupId, category, ..._remainder] = path.split("/");
   // Check that groupId is a valid cuid
   if (!isCuid(groupId)){
     throw new Error(`Group ID ${groupId} in blob file path not a valid cuid`);

@@ -117,7 +117,7 @@ describe("LabelingOcrService", () => {
       const result = await service.createLabelingDocument(dto);
 
       expect(mockBlobStorage.write).toHaveBeenCalledWith(
-        expect.stringMatching(/^labeling-documents\/[^/]+\/original\.pdf$/),
+        expect.stringMatching(/labeling-documents\/[^/]+\/original\.pdf$/),
         expect.any(Buffer),
       );
       expect(
@@ -130,7 +130,7 @@ describe("LabelingOcrService", () => {
           status: DocumentStatus.ongoing_ocr,
           model_id: "prebuilt-layout",
           file_path: expect.stringMatching(
-            /^labeling-documents\/[^/]+\/original\.pdf$/,
+            /labeling-documents\/[^/]+\/original\.pdf$/,
           ),
         }),
       );

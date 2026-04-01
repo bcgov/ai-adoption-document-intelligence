@@ -506,7 +506,7 @@ export class AzureStorageService {
     return this.blobServiceClient.getContainerClient(containerName);
   }
 
-  async fileExists(containerName, filePath: string): Promise<boolean> {
+  async fileExists(containerName: string, filePath: string): Promise<boolean> {
     const containerClient =
       this.blobServiceClient.getContainerClient(containerName);
       const blobClient = containerClient.getBlobClient(filePath);

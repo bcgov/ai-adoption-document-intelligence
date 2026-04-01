@@ -18,7 +18,7 @@ const defaultDocument = {
   title: "hi",
   file_path: "path/goes/here",
   file_size: 1223,
-  file_type: "image/png",
+  file_type: "cuid/ocr/test-file.png",
   original_filename: "test-file.png",
   source: "test",
   status: DocumentStatus.pre_ocr,

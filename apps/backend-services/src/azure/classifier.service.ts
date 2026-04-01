@@ -42,7 +42,6 @@ export class ClassifierService {
     private classifierDb: ClassifierDbService,
     private azureService: AzureService,
     private azureStorage: AzureStorageService,
-    private configService: ConfigService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,

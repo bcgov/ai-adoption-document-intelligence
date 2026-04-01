@@ -56,6 +56,7 @@ import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 @ApiTags("labeling")
 @Controller("api/labeling")
@@ -365,7 +366,7 @@ export class LabelingController {
       labeledDoc.labeling_document.group_id,
     );
     const labelingDocument = labeledDoc.labeling_document;
-    const fileBuffer = await this.blobStorage.read(labelingDocument.file_path);
+    const fileBuffer = await this.blobStorage.read(validateBlobFilePath(labelingDocument.file_path));
 
     const fileName =
       labelingDocument.original_filename || `document-${documentId}`;

@@ -353,6 +353,7 @@ describe("GroundTruthGenerationService", () => {
               },
             },
             review_sessions: [],
+            group_id: "cuid"
           },
         },
       ];
@@ -418,6 +419,7 @@ describe("GroundTruthGenerationService", () => {
               Date: { content: "2026-01-01", confidence: 0.8, type: "date" },
             },
           },
+          group_id: "cuid"
         },
       };
 

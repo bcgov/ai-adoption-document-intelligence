@@ -6,6 +6,7 @@ import { ClassifierService } from "./classifier.service";
 import { ClassifierDbService } from "./classifier-db.service";
 import { ClassifierPollerService } from "./classifier-poller.service";
 import { ClassifierStatus } from "./dto/classifier-constants.dto";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 
 const mockClassifierDbService = {
   findAllTrainingClassifiers: jest.fn(),
@@ -40,6 +41,7 @@ describe("ClassifierPollerService", () => {
         { provide: AzureService, useValue: mockAzureService },
         { provide: AzureStorageService, useValue: mockBlobService },
         { provide: ClassifierService, useValue: mockClassifierService },
+        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs"}
       ],
     }).compile();
 
@@ -100,8 +102,8 @@ describe("ClassifierPollerService", () => {
         mockClassifierDbService.systemUpdateClassifierModel,
       ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
       expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalledWith(
-        "gid/clf",
-        "classification",
+        "gid/classification/clf",
+        "document-blobs",
       );
     });
 

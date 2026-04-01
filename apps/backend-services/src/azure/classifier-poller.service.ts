@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierDbService } from "@/azure/classifier-db.service";
@@ -6,6 +6,8 @@ import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { ClassifierService } from "./classifier.service";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
+import { buildBlobPrefixPath, OperationCategory } from "@/blob-storage/storage-path-builder";
 
 @Injectable()
 export class ClassifierPollerService {
@@ -15,6 +17,8 @@ export class ClassifierPollerService {
     private readonly azureStorage: AzureStorageService,
     private readonly classifierService: ClassifierService,
     private readonly logger: AppLoggerService,
+    @Inject(BLOB_STORAGE_CONTAINER_NAME)
+    private readonly containerName: string,
   ) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
@@ -61,8 +65,8 @@ export class ClassifierPollerService {
         );
         // Need to remove the files from blob storage to avoid costs
         await this.azureStorage.deleteFilesWithPrefix(
-          `${groupId}/${classifierName}`,
-          this.classifierService.classifierContainer,
+          buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [classifierName]),
+          this.containerName,
         );
       } else if (status === "failed") {
         await this.classifierDb.systemUpdateClassifierModel(
