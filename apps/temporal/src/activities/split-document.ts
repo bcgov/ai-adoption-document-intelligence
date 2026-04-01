@@ -3,12 +3,14 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { promisify } from "util";
+import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 
 const execFileAsync = promisify(execFile);
 
 export interface SplitDocumentInput {
   blobKey: string;
+  groupId: string;
   strategy: "per-page" | "fixed-range" | "boundary-detection" | "custom-ranges";
   fixedRangeSize?: number;
   customRanges?: Array<{ start: number; end: number }>;
@@ -36,7 +38,7 @@ export async function splitDocument(
   const sourcePath = path.join(tempDir, path.basename(input.blobKey));
 
   try {
-    const sourceData = await blobStorage.read(input.blobKey);
+    const sourceData = await blobStorage.read(validateBlobFilePath(input.blobKey));
     await fs.writeFile(sourcePath, sourceData);
 
     const totalPages = await getTotalPages(sourcePath);
@@ -53,9 +55,12 @@ export async function splitDocument(
     for (let i = 0; i < ranges.length; i += 1) {
       const range = ranges[i];
       const segmentIndex = i + 1;
-      const segmentKey = `documents/${documentId}/segments/segment-${padIndex(
-        segmentIndex,
-      )}-pages-${range.start}-${range.end}.pdf`;
+      const segmentKey = buildBlobFilePath(
+        input.groupId,
+        OperationCategory.OCR,
+        [documentId, "segments"],
+        `segment-${padIndex(segmentIndex)}-pages-${range.start}-${range.end}.pdf`,
+      );
 
       // Write split segment to temp file, then upload to blob storage
       const segmentPath = path.join(

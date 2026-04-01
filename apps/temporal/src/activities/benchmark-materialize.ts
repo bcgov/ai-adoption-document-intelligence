@@ -1,5 +1,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
+import { validateBlobFilePath, validateBlobPrefixPath } from "@ai-di/blob-storage-paths";
 import type { DatasetManifest } from "../benchmark-types";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
@@ -102,7 +103,7 @@ export async function materializeDataset(
     });
 
     try {
-      const keys = await blobStorage.list(storagePrefix);
+      const keys = await blobStorage.list(validateBlobPrefixPath(storagePrefix));
 
       log.info("Files listed", {
         event: "files_listed",
@@ -123,7 +124,7 @@ export async function materializeDataset(
 
         await fs.mkdir(localDir, { recursive: true });
 
-        const data = await blobStorage.read(key);
+        const data = await blobStorage.read(validateBlobFilePath(key));
         await fs.writeFile(localPath, data);
       }
 

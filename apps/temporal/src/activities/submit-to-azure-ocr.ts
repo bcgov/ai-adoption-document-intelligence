@@ -4,6 +4,7 @@ import DocumentIntelligence, {
 } from "@azure-rest/ai-document-intelligence";
 import * as fs from "fs";
 import * as path from "path";
+import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData, SubmissionResult } from "../types";
@@ -29,7 +30,7 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
 
   const client = getBlobStorageClient();
   try {
-    return await client.read(blobKey);
+    return await client.read(validateBlobFilePath(blobKey));
   } catch (_error) {
     throw new Error(`Blob not found: "${blobKey}"`);
   }

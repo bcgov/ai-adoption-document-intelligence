@@ -8,6 +8,7 @@ export interface KeywordPattern {
 
 export interface SplitAndClassifyInput {
   blobKey: string;
+  groupId: string;
   ocrResult: OCRResult;
   documentId?: string;
   keywordPatterns?: KeywordPattern[];
@@ -45,7 +46,7 @@ interface KeywordMarker {
 export async function splitAndClassifyDocument(
   input: SplitAndClassifyInput,
 ): Promise<SplitAndClassifyOutput> {
-  const { blobKey, ocrResult, documentId, keywordPatterns = [] } = input;
+  const { blobKey, groupId, ocrResult, documentId, keywordPatterns = [] } = input;
 
   // Validate input
   if (!ocrResult.extractedText) {
@@ -74,6 +75,7 @@ export async function splitAndClassifyDocument(
   // Step 3: Split PDF using existing logic
   const segments = await splitDocument({
     blobKey,
+    groupId,
     strategy: "custom-ranges",
     customRanges: pageRanges.map((r) => ({ start: r.start, end: r.end })),
     documentId,
