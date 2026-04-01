@@ -506,6 +506,12 @@ export class AzureStorageService {
     return this.blobServiceClient.getContainerClient(containerName);
   }
 
+  /**
+   * Checks if a blob object already exists in the Azure Blob Storage.
+   * @param containerName The name of the storage container
+   * @param filePath The file path of the blob
+   * @returns A boolean indicating it exists or not.
+   */
   async fileExists(containerName: string, filePath: string): Promise<boolean> {
     const containerClient =
       this.blobServiceClient.getContainerClient(containerName);
