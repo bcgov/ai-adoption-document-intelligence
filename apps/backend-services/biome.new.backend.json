@@ -1,0 +1,86 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": ["**", "!!**/dist", "!!**/node_modules", "!!package.json"]
+  },
+  "linter": {
+    "rules": {
+      "style": {
+        "noCommonJs": "error",
+        "noNamespace": "error",
+        "useAsConstAssertion": "error",
+        "useConst": "error"
+      },
+      "suspicious": {
+        "noConsole": "warn",
+        "noExplicitAny": "error",
+        "noVar": "error"
+      },
+      "security": {
+        "noSecrets": {
+          "level": "error",
+          "options": {
+            "entropyThreshold": 60
+          }
+        }
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.controller.ts", "**/*.service.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.spec.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off"
+          },
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noEmptyBlockStatements": "off"
+          },
+          "security": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/testUtils/*.*", "**/integration-tests/**/*"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off"
+          },
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noEmptyBlockStatements": "off"
+          }
+        }
+      }
+    }
+  ],
+  "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  }
+}
