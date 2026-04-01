@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "../azure/azure.service";
@@ -10,7 +11,6 @@ import {
 } from "../blob-storage/blob-storage.interface";
 import { ClassifierService } from "./classifier.service";
 import { ClassifierDbService } from "./classifier-db.service";
-import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 
 const mockClassifierDbService = {
   findClassifierModel: jest.fn(),
@@ -64,7 +64,7 @@ describe("ClassifierService", () => {
         { provide: AzureService, useValue: azureService },
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
-        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" }
+        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
@@ -432,7 +432,11 @@ describe("ClassifierService", () => {
         }),
       };
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
-      const result = await service.requestClassification("cuid/classification/file", "cid", "gid");
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
       expect(result.status).toBe("202");
       expect(result.content).toBe("loc");
     });
@@ -446,7 +450,11 @@ describe("ClassifierService", () => {
         }),
       };
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
-      const result = await service.requestClassification("cuid/classification/file", "cid", "gid");
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
       expect(result.status).toBe("400");
       expect(result.error).toBe("fail");
     });

@@ -517,7 +517,7 @@ describe("HitlDatasetService", () => {
           documentIds: ["doc-1"],
         },
         "user-1",
-        "group"
+        "group",
       );
 
       expect(result.version.id).toBe("version-1");
@@ -539,7 +539,7 @@ describe("HitlDatasetService", () => {
           documentIds: ["doc-1"],
         },
         "user-1",
-        "group"
+        "group",
       );
 
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(

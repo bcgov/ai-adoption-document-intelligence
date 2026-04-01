@@ -23,6 +23,12 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import {
+  buildBlobFilePath,
+  buildBlobPrefixPath,
+  OperationCategory,
+  validateBlobPrefixPath,
+} from "@/blob-storage/storage-path-builder";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { DatasetDbService } from "./dataset-db.service";
 import {
@@ -42,7 +48,6 @@ import {
   VersionListResponseDto,
   VersionResponseDto,
 } from "./dto";
-import { buildBlobFilePath, buildBlobPrefixPath, OperationCategory, validateBlobPrefixPath } from "@/blob-storage/storage-path-builder";
 
 @Injectable()
 export class DatasetService {
@@ -52,7 +57,7 @@ export class DatasetService {
     private readonly datasetDbService: DatasetDbService,
     private readonly auditLogDbService: AuditLogDbService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
-  ) { }
+  ) {}
 
   /**
    * Create a new dataset
@@ -441,7 +446,12 @@ export class DatasetService {
         usedFilenames[dirKey].add(finalFilename);
 
         const relativePath = `${dirKey}/${finalFilename}`;
-        const blobKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [storagePrefix, dirKey], finalFilename);
+        const blobKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [storagePrefix, dirKey],
+          finalFilename,
+        );
 
         // Upload to object storage
         await this.blobStorage.write(blobKey, file.buffer);
@@ -457,7 +467,12 @@ export class DatasetService {
       }
 
       // Load or create manifest
-      const manifestKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [storagePrefix], "dataset-manifest.json");
+      const manifestKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        [storagePrefix],
+        "dataset-manifest.json",
+      );
 
       let manifest: {
         schemaVersion: string;
@@ -625,7 +640,12 @@ export class DatasetService {
 
     try {
       // Load the manifest from object storage
-      const manifestKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix], "dataset-manifest.json");
+      const manifestKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        [version.storagePrefix],
+        "dataset-manifest.json",
+      );
       const manifestBuffer = await this.blobStorage.read(manifestKey);
       const manifest = JSON.parse(manifestBuffer.toString("utf-8")) as {
         schemaVersion: string;
@@ -650,7 +670,12 @@ export class DatasetService {
 
       // Delete the sample's files from object storage
       for (const input of sample.inputs) {
-        const blobKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix], input.path);
+        const blobKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [version.storagePrefix],
+          input.path,
+        );
         try {
           await this.blobStorage.delete(blobKey);
         } catch {
@@ -659,7 +684,12 @@ export class DatasetService {
       }
       for (const gt of sample.groundTruth) {
         try {
-          const blobKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix], gt.path);
+          const blobKey = buildBlobFilePath(
+            groupId,
+            OperationCategory.BENCHMARK,
+            [version.storagePrefix],
+            gt.path,
+          );
           await this.blobStorage.delete(blobKey);
         } catch {
           this.logger.warn(`Could not delete file: ${gt.path}`);
@@ -752,8 +782,14 @@ export class DatasetService {
     // Delete files from object storage
     if (version.storagePrefix) {
       try {
-        const groupId = (await this.datasetDbService.findDataset(version.datasetId))?.group_id;
-        const prefix = buildBlobPrefixPath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix])
+        const groupId = (
+          await this.datasetDbService.findDataset(version.datasetId)
+        )?.group_id;
+        const prefix = buildBlobPrefixPath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [version.storagePrefix],
+        );
         await this.blobStorage.deleteByPrefix(prefix);
       } catch (error) {
         this.logger.warn(
@@ -806,9 +842,13 @@ export class DatasetService {
 
     try {
       // Load manifest from object storage
-      const groupId = (await this.datasetDbService.findDataset(version.datasetId))?.group_id;
-      const manifest =
-        await this.loadAndValidateManifestFromStorage(groupId, version.storagePrefix);
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      const manifest = await this.loadAndValidateManifestFromStorage(
+        groupId,
+        version.storagePrefix,
+      );
 
       const total = manifest.samples.length;
       const paginatedSamples = manifest.samples.slice(skip, skip + validLimit);
@@ -871,9 +911,13 @@ export class DatasetService {
 
     try {
       // Load manifest from object storage
-      const groupId = (await this.datasetDbService.findDataset(version.datasetId))?.group_id;
-      const manifest =
-        await this.loadAndValidateManifestFromStorage(groupId, version.storagePrefix);
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      const manifest = await this.loadAndValidateManifestFromStorage(
+        groupId,
+        version.storagePrefix,
+      );
 
       const sample = manifest.samples.find((s) => s.id === sampleId);
       if (!sample) {
@@ -892,8 +936,15 @@ export class DatasetService {
 
       let content: Record<string, unknown>;
       try {
-        const groupId = (await this.datasetDbService.findDataset(version.datasetId))?.group_id;
-        const key = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix], groundTruthFile.path)
+        const groupId = (
+          await this.datasetDbService.findDataset(version.datasetId)
+        )?.group_id;
+        const key = buildBlobFilePath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [version.storagePrefix],
+          groundTruthFile.path,
+        );
         const buffer = await this.blobStorage.read(key);
         content = JSON.parse(buffer.toString("utf-8"));
       } catch (error) {
@@ -966,8 +1017,15 @@ export class DatasetService {
     }
 
     try {
-      const groupId = (await this.datasetDbService.findDataset(version.datasetId))?.group_id;
-      const key = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix], normalizedPath)
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      const key = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        [version.storagePrefix],
+        normalizedPath,
+      );
       const exists = await this.blobStorage.exists(key);
       if (!exists) {
         throw new NotFoundException(`File not found: ${filePath}`);
@@ -1021,7 +1079,12 @@ export class DatasetService {
     }>;
   }> {
     try {
-      const manifestKey = buildBlobFilePath(groupdId, OperationCategory.BENCHMARK, [versionStoragePrefix], "dataset-manifest.json")
+      const manifestKey = buildBlobFilePath(
+        groupdId,
+        OperationCategory.BENCHMARK,
+        [versionStoragePrefix],
+        "dataset-manifest.json",
+      );
       const exists = await this.blobStorage.exists(manifestKey);
       if (!exists) {
         throw new NotFoundException("Manifest file not found in storage");
@@ -1360,9 +1423,13 @@ export class DatasetService {
     }
 
     try {
-      const groupId = (await this.datasetDbService.findDataset(version.datasetId))?.group_id;
-      const manifest =
-        await this.loadAndValidateManifestFromStorage(groupId, version.storagePrefix);
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      const manifest = await this.loadAndValidateManifestFromStorage(
+        groupId,
+        version.storagePrefix,
+      );
 
       const allSamples = manifest.samples;
       const totalSamples = allSamples.length;
@@ -1403,7 +1470,12 @@ export class DatasetService {
         }
 
         for (const gt of sample.groundTruth) {
-          const blobKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix], gt.path);
+          const blobKey = buildBlobFilePath(
+            groupId,
+            OperationCategory.BENCHMARK,
+            [version.storagePrefix],
+            gt.path,
+          );
           const fileExists = await this.blobStorage.exists(blobKey);
           if (!fileExists) {
             issues.push({
@@ -1479,7 +1551,12 @@ export class DatasetService {
         }
 
         for (const input of sample.inputs) {
-          const blobKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [version.storagePrefix], input.path);
+          const blobKey = buildBlobFilePath(
+            groupId,
+            OperationCategory.BENCHMARK,
+            [version.storagePrefix],
+            input.path,
+          );
           const fileExists = await this.blobStorage.exists(blobKey);
           if (!fileExists) {
             issues.push({

@@ -36,6 +36,11 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
@@ -47,7 +52,6 @@ import { type DocumentData, DocumentService } from "./document.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
-import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 @ApiTags("Documents")
 @Controller("api/documents")

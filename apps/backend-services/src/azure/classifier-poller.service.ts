@@ -4,10 +4,12 @@ import { AzureService } from "@/azure/azure.service";
 import { ClassifierDbService } from "@/azure/classifier-db.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
-import { AppLoggerService } from "@/logging/app-logger.service";
-import { ClassifierService } from "./classifier.service";
 import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
-import { buildBlobPrefixPath, OperationCategory } from "@/blob-storage/storage-path-builder";
+import {
+  buildBlobPrefixPath,
+  OperationCategory,
+} from "@/blob-storage/storage-path-builder";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 @Injectable()
 export class ClassifierPollerService {
@@ -15,7 +17,6 @@ export class ClassifierPollerService {
     private readonly classifierDb: ClassifierDbService,
     private readonly azureService: AzureService,
     private readonly azureStorage: AzureStorageService,
-    private readonly classifierService: ClassifierService,
     private readonly logger: AppLoggerService,
     @Inject(BLOB_STORAGE_CONTAINER_NAME)
     private readonly containerName: string,
@@ -65,7 +66,9 @@ export class ClassifierPollerService {
         );
         // Need to remove the files from blob storage to avoid costs
         await this.azureStorage.deleteFilesWithPrefix(
-          buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [classifierName]),
+          buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
+            classifierName,
+          ]),
           this.containerName,
         );
       } else if (status === "failed") {

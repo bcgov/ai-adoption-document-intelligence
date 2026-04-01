@@ -4,6 +4,11 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   BLOB_STORAGE,
@@ -12,7 +17,6 @@ import {
 import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 type JsonValue = Prisma.JsonValue;
 
@@ -56,7 +60,12 @@ export class LabelingOcrService {
 
     const documentId = uuidv4();
     const extension = this.getFileExtension(dto.file_type);
-    const blobKey = buildBlobFilePath(dto.group_id, OperationCategory.TRAINING, ["labeling-documents", documentId], `original.${extension}`);
+    const blobKey = buildBlobFilePath(
+      dto.group_id,
+      OperationCategory.TRAINING,
+      ["labeling-documents", documentId],
+      `original.${extension}`,
+    );
 
     await this.blobStorage.write(blobKey, fileBuffer);
 
@@ -113,7 +122,9 @@ export class LabelingOcrService {
   }
 
   private async requestOcr(blobKey: string): Promise<string> {
-    const fileBuffer = await this.blobStorage.read(validateBlobFilePath(blobKey));
+    const fileBuffer = await this.blobStorage.read(
+      validateBlobFilePath(blobKey),
+    );
 
     const url = `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
 

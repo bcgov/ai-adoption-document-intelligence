@@ -2,13 +2,17 @@ import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
 import { Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
+import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { DocumentDbService } from "./document-db.service";
 import type { DocumentData } from "./document-db.types";
-import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 export type { DocumentData };
 
@@ -96,7 +100,12 @@ export class DocumentService {
 
       const documentId = uuidv4();
       const extension = this.getFileExtension(fileType);
-      const blobKey = buildBlobFilePath(groupId, OperationCategory.OCR, [documentId], `original.${extension}`);
+      const blobKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.OCR,
+        [documentId],
+        `original.${extension}`,
+      );
 
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);

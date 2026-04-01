@@ -9,6 +9,7 @@
  * (MinIO) or `AZURE_STORAGE_CONTAINER_NAME` (Azure).
  */
 
+import type { BlobFilePath, BlobPrefixPath } from "@ai-di/blob-storage-paths";
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -19,7 +20,6 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
-import type { BlobFilePath, BlobPrefixPath } from "@ai-di/blob-storage-paths";
 
 /** Minimal blob-storage interface used by Temporal activities. */
 export interface BlobStorageClient {

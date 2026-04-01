@@ -16,6 +16,10 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+} from "@/blob-storage/storage-path-builder";
 import { DocumentService } from "@/document/document.service";
 import { ExtractedFields } from "@/ocr/azure-types";
 import { OcrService } from "@/ocr/ocr.service";
@@ -30,7 +34,6 @@ import {
 } from "./dto";
 import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
-import { buildBlobFilePath, OperationCategory } from "@/blob-storage/storage-path-builder";
 
 interface ManifestSample {
   id: string;
@@ -102,7 +105,10 @@ export class GroundTruthGenerationService {
     }
 
     // Load manifest
-    const manifest = await this.loadManifest(version.storagePrefix, workflow.group_id);
+    const manifest = await this.loadManifest(
+      version.storagePrefix,
+      workflow.group_id,
+    );
 
     // Find samples without ground truth
     const samplesWithoutGt = manifest.samples.filter(
@@ -224,7 +230,12 @@ export class GroundTruthGenerationService {
       }
 
       const inputFile = sample.inputs[0];
-      const inputBlobKey =  buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [storagePrefix], inputFile.path);
+      const inputBlobKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        [storagePrefix],
+        inputFile.path,
+      );
 
       // Read the input file
       const fileBuffer = await this.blobStorage.read(inputBlobKey);
@@ -249,7 +260,12 @@ export class GroundTruthGenerationService {
 
       // Create document record
       const documentId = crypto.randomUUID();
-      const docBlobKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, ['documents', documentId], `original${ext}`);
+      const docBlobKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        ["documents", documentId],
+        `original${ext}`,
+      );
 
       // Write file to document storage
       await this.blobStorage.write(docBlobKey, fileBuffer);
@@ -504,7 +520,12 @@ export class GroundTruthGenerationService {
       job.datasetVersion.storagePrefix ||
       `datasets/${job.datasetVersion.datasetId}/${job.datasetVersionId}`;
 
-    const gtBlobKey = buildBlobFilePath(job.document.group_id, OperationCategory.BENCHMARK, [storagePrefix, "ground-truth"], `${job.sampleId}.json`)
+    const gtBlobKey = buildBlobFilePath(
+      job.document.group_id,
+      OperationCategory.BENCHMARK,
+      [storagePrefix, "ground-truth"],
+      `${job.sampleId}.json`,
+    );
 
     await this.blobStorage.write(
       gtBlobKey,
@@ -550,8 +571,16 @@ export class GroundTruthGenerationService {
   /**
    * Load and parse manifest from blob storage.
    */
-  private async loadManifest(storagePrefix: string, groupId: string): Promise<Manifest> {
-    const manifestKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [storagePrefix], "dataset-manifest.json");
+  private async loadManifest(
+    storagePrefix: string,
+    groupId: string,
+  ): Promise<Manifest> {
+    const manifestKey = buildBlobFilePath(
+      groupId,
+      OperationCategory.BENCHMARK,
+      [storagePrefix],
+      "dataset-manifest.json",
+    );
     try {
       const buffer = await this.blobStorage.read(manifestKey);
       return JSON.parse(buffer.toString("utf-8"));
@@ -569,7 +598,12 @@ export class GroundTruthGenerationService {
     gtRelativePath: string,
     groupId: string,
   ): Promise<void> {
-    const manifestKey = buildBlobFilePath(groupId, OperationCategory.BENCHMARK, [storagePrefix], "dataset-manifest.json");
+    const manifestKey = buildBlobFilePath(
+      groupId,
+      OperationCategory.BENCHMARK,
+      [storagePrefix],
+      "dataset-manifest.json",
+    );
     const buffer = await this.blobStorage.read(manifestKey);
     const manifest: Manifest = JSON.parse(buffer.toString("utf-8"));
 

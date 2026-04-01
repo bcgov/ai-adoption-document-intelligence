@@ -46,7 +46,13 @@ interface KeywordMarker {
 export async function splitAndClassifyDocument(
   input: SplitAndClassifyInput,
 ): Promise<SplitAndClassifyOutput> {
-  const { blobKey, groupId, ocrResult, documentId, keywordPatterns = [] } = input;
+  const {
+    blobKey,
+    groupId,
+    ocrResult,
+    documentId,
+    keywordPatterns = [],
+  } = input;
 
   // Validate input
   if (!ocrResult.extractedText) {

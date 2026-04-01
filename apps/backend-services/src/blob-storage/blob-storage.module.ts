@@ -18,6 +18,7 @@ import { AzureStorageService } from "./azure-storage.service";
 import { BLOB_STORAGE } from "./blob-storage.interface";
 
 export const BLOB_STORAGE_CONTAINER_NAME = "BLOB_STORAGE_CONTAINER_NAME";
+
 import { MinioBlobStorageService } from "./minio-blob-storage.service";
 
 @Module({

@@ -1,9 +1,13 @@
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@ai-di/blob-storage-paths";
 import { execFile } from "child_process";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { promisify } from "util";
-import { buildBlobFilePath, OperationCategory, validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 
 const execFileAsync = promisify(execFile);
@@ -38,7 +42,9 @@ export async function splitDocument(
   const sourcePath = path.join(tempDir, path.basename(input.blobKey));
 
   try {
-    const sourceData = await blobStorage.read(validateBlobFilePath(input.blobKey));
+    const sourceData = await blobStorage.read(
+      validateBlobFilePath(input.blobKey),
+    );
     await fs.writeFile(sourcePath, sourceData);
 
     const totalPages = await getTotalPages(sourcePath);

@@ -1,6 +1,9 @@
+import {
+  validateBlobFilePath,
+  validateBlobPrefixPath,
+} from "@ai-di/blob-storage-paths";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { validateBlobFilePath, validateBlobPrefixPath } from "@ai-di/blob-storage-paths";
 import type { DatasetManifest } from "../benchmark-types";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
@@ -103,7 +106,9 @@ export async function materializeDataset(
     });
 
     try {
-      const keys = await blobStorage.list(validateBlobPrefixPath(storagePrefix));
+      const keys = await blobStorage.list(
+        validateBlobPrefixPath(storagePrefix),
+      );
 
       log.info("Files listed", {
         event: "files_listed",

@@ -16,6 +16,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -28,7 +29,6 @@ import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
 import { TrainingDbService } from "./training-db.service";
-import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 interface LabelsFile {
   filename: string;

@@ -68,7 +68,7 @@ export interface CreateSplitData {
 
 @Injectable()
 export class DatasetDbService {
-  constructor(private readonly prismaService: PrismaService) { }
+  constructor(private readonly prismaService: PrismaService) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;

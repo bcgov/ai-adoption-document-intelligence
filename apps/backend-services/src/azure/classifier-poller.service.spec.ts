@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import { AzureService } from "./azure.service";
@@ -6,7 +7,6 @@ import { ClassifierService } from "./classifier.service";
 import { ClassifierDbService } from "./classifier-db.service";
 import { ClassifierPollerService } from "./classifier-poller.service";
 import { ClassifierStatus } from "./dto/classifier-constants.dto";
-import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 
 const mockClassifierDbService = {
   findAllTrainingClassifiers: jest.fn(),
@@ -41,7 +41,7 @@ describe("ClassifierPollerService", () => {
         { provide: AzureService, useValue: mockAzureService },
         { provide: AzureStorageService, useValue: mockBlobService },
         { provide: ClassifierService, useValue: mockClassifierService },
-        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs"}
+        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
       ],
     }).compile();
 

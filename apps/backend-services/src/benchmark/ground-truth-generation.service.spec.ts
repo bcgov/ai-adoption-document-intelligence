@@ -355,7 +355,7 @@ describe("GroundTruthGenerationService", () => {
               },
             },
             review_sessions: [],
-            group_id: "cuid"
+            group_id: "cuid",
           },
         },
       ];
@@ -421,7 +421,7 @@ describe("GroundTruthGenerationService", () => {
               Date: { content: "2026-01-01", confidence: 0.8, type: "date" },
             },
           },
-          group_id: "cuid"
+          group_id: "cuid",
         },
       };
 
@@ -490,7 +490,8 @@ describe("GroundTruthGenerationService", () => {
         "job-1",
         {
           status: GroundTruthJobStatus.completed,
-          groundTruthPath: "cuid/benchmark/datasets/dataset-1/v-1/ground-truth/doc-001.json",
+          groundTruthPath:
+            "cuid/benchmark/datasets/dataset-1/v-1/ground-truth/doc-001.json",
         },
       );
     });

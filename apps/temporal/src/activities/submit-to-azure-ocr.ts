@@ -1,10 +1,10 @@
+import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
 import * as fs from "fs";
 import * as path from "path";
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData, SubmissionResult } from "../types";

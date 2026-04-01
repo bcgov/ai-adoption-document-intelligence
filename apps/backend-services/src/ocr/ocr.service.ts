@@ -11,10 +11,10 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { DocumentService } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
-import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -55,7 +55,9 @@ export class OcrService {
     }
     try {
       // Read file from blob storage using the blob key stored in file_path
-      const fileBuffer = await this.blobStorage.read(validateBlobFilePath(document.file_path));
+      const fileBuffer = await this.blobStorage.read(
+        validateBlobFilePath(document.file_path),
+      );
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 

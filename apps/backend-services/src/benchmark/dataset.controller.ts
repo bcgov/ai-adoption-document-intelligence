@@ -262,7 +262,7 @@ export class DatasetController {
       versionId,
       files,
       req.resolvedIdentity.actorId,
-      groupId
+      groupId,
     );
   }
 
