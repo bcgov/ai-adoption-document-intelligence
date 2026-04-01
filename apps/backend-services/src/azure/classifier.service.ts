@@ -103,7 +103,6 @@ export class ClassifierService {
             async (result) => {
               // Save JSON result to blob storage with same base name but .ocr.json extension
               await this.azureStorage.uploadFile(this.containerName, jsonBlobName, Buffer.from(JSON.stringify(result, null, 2)));
-              // await this.blobStorage.write(validateBlobFilePath(jsonBlobName), Buffer.from(JSON.stringify(result, null, 2)));
               this.logger.debug(`Uploaded layout JSON to blob: ${jsonBlobName}`);
             },
             (result) => {
