@@ -82,18 +82,20 @@ describe("HitlDatasetService", () => {
     {
       id: "doc-1",
       original_filename: "invoice-001.pdf",
-      file_path: "documents/doc-1/original.pdf",
+      file_path: "testgroup/ocr/documents/doc-1/original.pdf",
       file_type: "pdf",
       status: "completed_ocr",
+      group_id: "testgroup",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [mockApprovedSession],
     },
     {
       id: "doc-2",
       original_filename: "invoice-002.pdf",
-      file_path: "documents/doc-2/original.pdf",
+      file_path: "testgroup/ocr/documents/doc-2/original.pdf",
       file_type: "pdf",
       status: "completed_ocr",
+      group_id: "testgroup",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [
         {

@@ -24,7 +24,7 @@ describe("LabelingOcrService", () => {
     id: "doc-1",
     title: "Test Document",
     original_filename: "test.pdf",
-    file_path: "labeling-documents/doc-1/original.pdf",
+    file_path: "testgroup1/training/labeling-documents/doc-1/original.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},

@@ -181,7 +181,11 @@ describe("ClassifierService", () => {
         "file.jpg",
       );
       expect(pollCallback).toHaveBeenCalled();
-      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+      expect(mockBlobService.uploadFile).toHaveBeenCalledWith(
+        "document-blobs",
+        "file.jpg.ocr.json",
+        expect.any(Buffer),
+      );
     });
 
     it("should handle 404 and upload fallback layout JSON", async () => {
@@ -227,7 +231,11 @@ describe("ClassifierService", () => {
         service.createLayoutJson(["file.jpg"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(global.fetch).toHaveBeenCalled();
-      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+      expect(mockBlobService.uploadFile).toHaveBeenCalledWith(
+        "document-blobs",
+        "file.jpg.ocr.json",
+        expect.any(Buffer),
+      );
     });
 
     it("should log error if fallback download fails", async () => {

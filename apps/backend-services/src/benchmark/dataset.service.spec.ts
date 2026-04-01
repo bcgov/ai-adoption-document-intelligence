@@ -77,7 +77,7 @@ describe("DatasetService", () => {
     name: "Test Dataset",
     description: "Test description",
     metadata: { domain: "invoices" },
-    storagePath: "datasets/dataset-1",
+    storagePath: "testgroup1/benchmark/datasets/dataset-1",
     createdBy: "user-1",
     group_id: "test-group",
     createdAt: new Date(),
@@ -246,7 +246,7 @@ describe("DatasetService", () => {
         "dataset-1",
       );
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
-        "datasets/dataset-1",
+        "testgroup1/benchmark/datasets/dataset-1",
       );
     });
 

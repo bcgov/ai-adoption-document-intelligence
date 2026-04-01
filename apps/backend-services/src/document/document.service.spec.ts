@@ -260,8 +260,8 @@ describe("DocumentService", () => {
     it("should delete the document and its blob", async () => {
       const mockDoc = {
         id: "1",
-        file_path: "documents/1/original.pdf",
-        group_id: "group-1",
+        file_path: "testgroup1/ocr/documents/1/original.pdf",
+        group_id: "testgroup1",
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
@@ -282,8 +282,8 @@ describe("DocumentService", () => {
     it("should still return true if blob deletion fails", async () => {
       const mockDoc = {
         id: "1",
-        file_path: "documents/1/original.pdf",
-        group_id: "group-1",
+        file_path: "testgroup1/ocr/documents/1/original.pdf",
+        group_id: "testgroup1",
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
