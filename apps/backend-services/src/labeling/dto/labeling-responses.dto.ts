@@ -27,6 +27,8 @@ export class LabelingDocumentResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() original_filename: string;
   @ApiProperty() file_path: string;
+  @ApiPropertyOptional({ nullable: true })
+  normalized_file_path?: string | null;
   @ApiProperty() file_type: string;
   @ApiProperty() file_size: number;
   @ApiProperty() source: string;

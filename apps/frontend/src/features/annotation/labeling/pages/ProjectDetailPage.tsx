@@ -116,13 +116,24 @@ export const ProjectDetailPage: FC = () => {
     removeFromQueue,
     clearQueue,
     uploadFiles,
-  } = useUploadQueue<{ labelingDocumentId: string }>({
-    onUploadSuccess: (item) => {
-      notifications.show({
-        title: "Upload complete",
-        message: `${item.file.name} was uploaded successfully.`,
-        color: "green",
-      });
+  } = useUploadQueue<{
+    labelingDocumentId: string;
+    conversionFailed?: boolean;
+  }>({
+    onUploadSuccess: (item, result) => {
+      if (result.conversionFailed) {
+        notifications.show({
+          title: "Stored but not converted to PDF",
+          message: `${item.file.name} was saved but could not be normalized to PDF; OCR will not run.`,
+          color: "orange",
+        });
+      } else {
+        notifications.show({
+          title: "Upload complete",
+          message: `${item.file.name} was uploaded successfully.`,
+          color: "green",
+        });
+      }
       queryClient.invalidateQueries({
         queryKey: ["labeling-project-documents", projectId],
       });
@@ -158,7 +169,10 @@ export const ProjectDetailPage: FC = () => {
   };
 
   const uploadDocumentsFromFiles = async (
-    itemsToUpload: UploadQueueItem<{ labelingDocumentId: string }>[],
+    itemsToUpload: UploadQueueItem<{
+      labelingDocumentId: string;
+      conversionFailed?: boolean;
+    }>[],
   ) => {
     await uploadFiles(async (file) => {
       const base64 = await fileToBase64(file);
@@ -175,14 +189,44 @@ export const ProjectDetailPage: FC = () => {
       };
 
       const response = await apiService.post<{
-        labelingDocument: { id: string };
+        labelingDocument?: { id: string };
+        code?: string;
       }>(`/labeling/projects/${projectId}/upload`, payload);
+
+      if (
+        !response.success &&
+        response.data &&
+        typeof response.data === "object" &&
+        "code" in response.data &&
+        (response.data as { code?: string }).code === "conversion_failed" &&
+        (response.data as { labelingDocument?: { id: string } })
+          .labelingDocument
+      ) {
+        const data = response.data as {
+          labelingDocument: { id: string };
+          message?: string;
+        };
+        notifications.show({
+          title: "Conversion failed",
+          message:
+            data.message ||
+            "Document could not be converted to PDF. The file was saved but OCR will not run.",
+          color: "orange",
+        });
+        return {
+          labelingDocumentId: data.labelingDocument.id,
+          conversionFailed: true,
+        };
+      }
 
       if (!response.success || !response.data) {
         throw new Error(response.message || "Upload failed");
       }
 
-      return { labelingDocumentId: response.data.labelingDocument.id };
+      const successData = response.data as {
+        labelingDocument: { id: string };
+      };
+      return { labelingDocumentId: successData.labelingDocument.id };
     }, itemsToUpload);
   };
 

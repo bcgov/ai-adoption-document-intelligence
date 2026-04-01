@@ -2,8 +2,8 @@ import {
   BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   HttpCode,
+  HttpException,
   HttpStatus,
   Post,
   Req,
@@ -11,14 +11,18 @@ import {
 import {
   ApiBadRequestResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
+import { UploadConversionFailedResponseDto } from "./dto/upload-conversion-failed-response.dto";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
 
@@ -44,7 +48,17 @@ export class UploadController {
       "Document uploaded successfully. Returns document id, title, file info, status, and created_at.",
     type: UploadDocumentResponseDto,
   })
+  @ApiUnprocessableEntityResponse({
+    description:
+      "Stored original but PDF normalization failed (see message and document status)",
+    type: UploadConversionFailedResponseDto,
+  })
   @ApiBadRequestResponse({ description: "Invalid input or upload failed" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({
+    description:
+      "Access denied: not a member of the requested group or insufficient role",
+  })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
     @Req() req: Request,
@@ -80,7 +94,7 @@ export class UploadController {
       // Use workflow_config_id if provided, fallback to workflow_id for backward compatibility
       const workflowConfigId =
         uploadDto.workflow_config_id || uploadDto.workflow_id;
-      const uploadedDocument = await this.documentService.uploadDocument(
+      const uploadResult = await this.documentService.uploadDocument(
         uploadDto.title,
         uploadDto.file,
         uploadDto.file_type,
@@ -91,16 +105,42 @@ export class UploadController {
         workflowConfigId,
       );
 
+      if (uploadResult.kind === "conversion_failed") {
+        const doc = uploadResult.document;
+        this.logger.warn(
+          `Document ${doc.id} stored but PDF normalization failed`,
+        );
+        throw new HttpException(
+          {
+            success: false,
+            code: "conversion_failed",
+            message: "Document could not be converted to PDF",
+            document: {
+              id: doc.id,
+              title: doc.title,
+              original_filename: doc.original_filename,
+              normalized_file_path: doc.normalized_file_path,
+              file_type: doc.file_type,
+              file_size: doc.file_size,
+              status: doc.status,
+              created_at: doc.created_at,
+            },
+          },
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
+
+      const uploadedDocument = uploadResult.document;
+
       this.logger.debug(
         `Document uploaded successfully: ${uploadedDocument.id}`,
       );
 
-      // Fire-and-forget OCR processing; log errors but don't block the response
       void this.queueService
         .processOcrForDocument({
           documentId: uploadedDocument.id,
-          filePath: uploadedDocument.file_path,
-          fileType: uploadedDocument.file_type,
+          filePath: uploadedDocument.normalized_file_path ?? "",
+          fileType: "pdf",
           metadata: uploadedDocument.metadata,
           timestamp: new Date(),
         })
@@ -119,6 +159,7 @@ export class UploadController {
           id: uploadedDocument.id,
           title: uploadedDocument.title,
           original_filename: uploadedDocument.original_filename,
+          normalized_file_path: uploadedDocument.normalized_file_path,
           file_type: uploadedDocument.file_type,
           file_size: uploadedDocument.file_size,
           status: uploadedDocument.status,
@@ -126,18 +167,15 @@ export class UploadController {
         },
       };
     } catch (error) {
-      this.logger.error(`Error in uploadDocument: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
-
-      if (
-        error instanceof BadRequestException ||
-        error instanceof ForbiddenException
-      ) {
+      if (error instanceof HttpException) {
         throw error;
       }
 
+      this.logger.error(`Error in uploadDocument: ${error.message}`);
+      this.logger.error(`Stack: ${error.stack}`);
+
       throw new BadRequestException(
-        error.message || "Failed to upload document",
+        error instanceof Error ? error.message : "Failed to upload document",
       );
     }
   }

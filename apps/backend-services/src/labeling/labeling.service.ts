@@ -7,6 +7,8 @@ import {
 } from "@generated/client";
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -562,8 +564,26 @@ export class LabelingService {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
-    const labelingDocument =
-      await this.labelingOcrService.createLabelingDocument(dto);
+    const result = await this.labelingOcrService.createLabelingDocument(dto);
+
+    if (result.kind === "conversion_failed") {
+      const labeledDoc = await this.labelingProjectDb.createLabeledDocument(
+        projectId,
+        result.labelingDocument.id,
+      );
+      throw new HttpException(
+        {
+          success: false,
+          code: "conversion_failed",
+          message: "Document could not be converted to PDF",
+          labeledDocument: labeledDoc,
+          labelingDocument: result.labelingDocument,
+        },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    const labelingDocument = result.labelingDocument;
 
     const labeledDoc = await this.labelingProjectDb.createLabeledDocument(
       projectId,

@@ -9,12 +9,13 @@ import {
   IconZoomOut,
 } from "@tabler/icons-react";
 import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
 import type { BoundingRegion, ExtractedFields } from "../../shared/types";
 
-// Configure pdfjs worker - use worker from public folder
-pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
+/** Renders document preview from a URL that must return PDF bytes (e.g. `/view`). */
 interface DocumentViewerProps {
   imageUrl: string;
   extractedFields?: ExtractedFields;
@@ -22,7 +23,6 @@ interface DocumentViewerProps {
   onZoomChange?: (zoom: number) => void;
   showOverlays?: boolean;
   onToggleOverlays?: () => void;
-  fileType?: string;
 }
 
 export function DocumentViewer({
@@ -32,7 +32,6 @@ export function DocumentViewer({
   onZoomChange,
   showOverlays = true,
   onToggleOverlays,
-  fileType,
 }: DocumentViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [imageDimensions, setImageDimensions] = useState({
@@ -50,7 +49,6 @@ export function DocumentViewer({
   const [currentPage, setCurrentPage] = useState(pageNumber || 1);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isPdf = fileType === "pdf";
 
   // Update current page when pageNumber prop changes
   useEffect(() => {
@@ -63,10 +61,10 @@ export function DocumentViewer({
     }
   }, [zoom, onZoomChange]);
 
-  // Load PDF and render page to image
+  // Load PDF and render page to canvas-backed image for overlays
   useEffect(() => {
     const loadPdfPage = async () => {
-      if (!imageUrl || !isPdf) return;
+      if (!imageUrl) return;
 
       setLoadingPdf(true);
       try {
@@ -112,14 +110,14 @@ export function DocumentViewer({
       }
     };
 
-    if (isPdf && imageUrl) {
+    if (imageUrl) {
       void loadPdfPage();
     } else {
       setPdfImageUrl("");
       setPdfPageDimensions({ width: 0, height: 0 });
       setTotalPages(1);
     }
-  }, [isPdf, imageUrl, currentPage]);
+  }, [imageUrl, currentPage]);
 
   const handleImageLoad = () => {
     if (imageRef.current) {
@@ -171,7 +169,7 @@ export function DocumentViewer({
 
     const img = imageRef.current;
     const imgRect = img.getBoundingClientRect();
-    const pageToUse = isPdf ? currentPage : pageNumber;
+    const pageToUse = currentPage;
 
     const fieldsForPage = fieldEntries.filter(([, field]) =>
       field.boundingRegions?.some(
@@ -211,29 +209,14 @@ export function DocumentViewer({
       let scaleX: number;
       let scaleY: number;
 
-      if (isPdf) {
-        // For PDFs, bounding regions are typically in PDF coordinate space (points)
-        // The rendered image natural size is PDF dimensions * render scale (2.0)
-        // But we need to check if coordinates are normalized (0-1) or in points
-        // Try using natural dimensions first (assumes coordinates match rendered size)
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          scaleX = imgRect.width / img.naturalWidth;
-          scaleY = imgRect.height / img.naturalHeight;
-        } else if (
-          pdfPageDimensions.width > 0 &&
-          pdfPageDimensions.height > 0
-        ) {
-          // Fallback: use PDF page dimensions (if coordinates are in PDF points)
-          // Account for 2x render scale
-          scaleX = imgRect.width / (pdfPageDimensions.width * 2.0);
-          scaleY = imgRect.height / (pdfPageDimensions.height * 2.0);
-        } else {
-          // Last resort: use imageDimensions
-          scaleX = imgRect.width / imageDimensions.width;
-          scaleY = imgRect.height / imageDimensions.height;
-        }
+      // Bounding regions are in PDF coordinate space (points); rendered canvas uses 2x scale
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        scaleX = imgRect.width / img.naturalWidth;
+        scaleY = imgRect.height / img.naturalHeight;
+      } else if (pdfPageDimensions.width > 0 && pdfPageDimensions.height > 0) {
+        scaleX = imgRect.width / (pdfPageDimensions.width * 2.0);
+        scaleY = imgRect.height / (pdfPageDimensions.height * 2.0);
       } else {
-        // For regular images, use natural dimensions
         scaleX = imgRect.width / imageDimensions.width;
         scaleY = imgRect.height / imageDimensions.height;
       }
@@ -337,7 +320,7 @@ export function DocumentViewer({
           <span style={{ fontSize: "0.875rem", color: "#4b5563" }}>
             {fieldEntries.length} fields
           </span>
-          {isPdf && totalPages > 1 && (
+          {totalPages > 1 && (
             <div
               style={{
                 display: "flex",
@@ -419,20 +402,20 @@ export function DocumentViewer({
           style={{
             position: "relative",
             display: "inline-block",
-            transform: isPdf ? "none" : `scale(${zoom})`,
-            transformOrigin: "center",
+            transform: `scale(${zoom})`,
+            transformOrigin: "center center",
           }}
         >
-          {loadingPdf || (isPdf && !pdfImageUrl) ? (
+          {loadingPdf || !pdfImageUrl ? (
             <div
               style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}
             >
               Loading PDF page...
             </div>
-          ) : (isPdf ? pdfImageUrl : imageUrl) ? (
+          ) : pdfImageUrl ? (
             <img
               ref={imageRef}
-              src={isPdf ? pdfImageUrl : imageUrl}
+              src={pdfImageUrl}
               alt="Document page"
               style={{
                 display: "block",
@@ -468,9 +451,8 @@ export function DocumentViewer({
           <span>Page {currentPage}</span>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <span>
-              {isPdf
-                ? `PDF: ${pdfPageDimensions.width.toFixed(0)} × ${pdfPageDimensions.height.toFixed(0)}`
-                : `Image: ${imageDimensions.width} × ${imageDimensions.height}`}
+              PDF: {pdfPageDimensions.width.toFixed(0)} ×{" "}
+              {pdfPageDimensions.height.toFixed(0)}
             </span>
             <span>Green: ≥90% | Yellow: 70-89% | Red: &lt;70%</span>
           </div>
