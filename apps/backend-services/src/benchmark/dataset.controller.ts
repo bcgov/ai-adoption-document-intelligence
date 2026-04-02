@@ -40,11 +40,13 @@ import {
 } from "@nestjs/swagger";
 import type { Response } from "express";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
@@ -69,14 +71,18 @@ import {
 @ApiTags("Benchmark - Datasets")
 @Controller("api/benchmark/datasets")
 export class DatasetController {
-  constructor(private readonly datasetService: DatasetService) {}
+  constructor(
+    private readonly datasetService: DatasetService,
+    private readonly auditService: AuditService,
+  ) {}
 
   private async assertDatasetGroupAccess(
     datasetId: string,
     req: Request,
-  ): Promise<void> {
+  ): Promise<string> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
     identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    return dataset.groupId;
   }
 
   @Post()
@@ -508,7 +514,15 @@ export class DatasetController {
     @Param("sampleId") sampleId: string,
     @Req() req: Request,
   ): Promise<GroundTruthResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
+    await this.auditService.recordEvent({
+      event_type: "dataset_accessed",
+      resource_type: "ground_truth",
+      resource_id: id,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: { action: "download" },
+    });
     return this.datasetService.getGroundTruth(id, versionId, sampleId);
   }
 
@@ -530,13 +544,21 @@ export class DatasetController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
 
     if (!filePath) {
       throw new BadRequestException("Query parameter 'path' is required");
     }
     const { buffer, filename, mimeType } =
       await this.datasetService.getSampleFile(id, versionId, filePath);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "dataset_document",
+      resource_id: id,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: { action: "download" },
+    });
     res.set({
       "Content-Type": mimeType,
       "Content-Disposition": `attachment; filename="${filename}"`,
