@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -68,6 +69,7 @@ export class TemplateModelController {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly labelingDocumentDbService: LabelingDocumentDbService,
+    private readonly auditService: AuditService,
   ) {}
 
   // ========== TEMPLATE MODEL ENDPOINTS ==========
@@ -387,6 +389,15 @@ export class TemplateModelController {
         : labelingDocument.file_type === "image"
           ? "image/jpeg"
           : "application/octet-stream";
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: id,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: labeledDoc.labeling_document.group_id,
+      payload: { action: "download" },
+    });
 
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
