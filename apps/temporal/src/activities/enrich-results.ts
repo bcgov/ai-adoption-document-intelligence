@@ -1,6 +1,6 @@
 /**
  * Activity: Enrich OCR results using field schema and optional LLM.
- * Fetches LabelingProject field_schema, applies generic rules, optionally calls Azure OpenAI for low-confidence fields.
+ * Fetches TemplateModel field_schema, applies generic rules, optionally calls Azure OpenAI for low-confidence fields.
  */
 
 import { createActivityLogger } from "../logger";
@@ -50,25 +50,25 @@ export async function enrichResults(
 
   try {
     const prisma = getPrismaClient();
-    const project = await prisma.labelingProject.findUnique({
+    const templateModel = await prisma.templateModel.findUnique({
       where: { id: documentType },
       include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
 
     if (
-      !project ||
-      !project.field_schema ||
-      project.field_schema.length === 0
+      !templateModel ||
+      !templateModel.field_schema ||
+      templateModel.field_schema.length === 0
     ) {
       log.info("Enrich results skip", {
         event: "skip",
-        reason: "project_not_found_or_empty_schema",
+        reason: "template_model_not_found_or_empty_schema",
         documentType,
       });
       return { ocrResult, summary: null };
     }
 
-    const fieldDefs: FieldDef[] = project.field_schema.map(
+    const fieldDefs: FieldDef[] = templateModel.field_schema.map(
       (f: {
         field_key: string;
         field_type: string;

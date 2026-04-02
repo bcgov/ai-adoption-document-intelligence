@@ -7,7 +7,10 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { TrainingDbService } from "./training-db.service";
+import {
+  TrainingDbService,
+  type TrainingJobWithTemplateModel,
+} from "./training-db.service";
 
 interface AzureErrorResponse {
   error?: {
@@ -100,7 +103,11 @@ export class TrainingPollerService {
 
       // Poll each active job
       for (const job of activeJobs) {
-        await this.pollTrainingStatus(job.id, job.model_id, job.operation_id);
+        await this.pollTrainingStatus(
+          job.id,
+          job.template_model.model_id,
+          job.operation_id,
+        );
       }
     } catch (error) {
       this.logger.error("Error polling active jobs", {
@@ -239,9 +246,9 @@ export class TrainingPollerService {
 
         // Create trained model record
         await this.trainingDb.createTrainedModel({
-          project_id: job.project_id,
+          template_model_id: job.template_model_id,
           training_job_id: jobId,
-          model_id: modelId,
+          model_id: job.template_model.model_id,
           description,
           doc_types: docTypes as Prisma.JsonValue,
           field_count: fieldCount,
@@ -282,7 +289,11 @@ export class TrainingPollerService {
       job.status === TrainingStatus.TRAINING ||
       job.status === TrainingStatus.UPLOADED
     ) {
-      await this.pollTrainingStatus(jobId, job.model_id, job.operation_id);
+      await this.pollTrainingStatus(
+        jobId,
+        job.template_model.model_id,
+        job.operation_id,
+      );
     }
   }
 }
