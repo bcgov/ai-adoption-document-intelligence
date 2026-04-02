@@ -635,7 +635,7 @@ export function DefinitionDetailView({
                         <Table.Td
                           data-testid={`baseline-history-user-${index}`}
                         >
-                          {entry.userId}
+                          {entry.actorId}
                         </Table.Td>
                       </Table.Tr>
                     ))}

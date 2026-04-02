@@ -262,7 +262,7 @@ describe("characterConfusionCorrection", () => {
 
   describe("schema-aware (documentType)", () => {
     const prismaMock = {
-      labelingProject: {
+      templateModel: {
         findUnique: jest.fn(),
       },
     };
@@ -276,7 +276,7 @@ describe("characterConfusionCorrection", () => {
     });
 
     it("loads field_schema and applies substitutions for schema number field without id/date key heuristics", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -305,7 +305,7 @@ describe("characterConfusionCorrection", () => {
     });
 
     it("omits slashToOne for schema string fields", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -332,7 +332,7 @@ describe("characterConfusionCorrection", () => {
     });
 
     it("applies no confusion rules for schema selectionMark fields", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {

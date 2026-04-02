@@ -596,10 +596,10 @@ export const useHistoricalRuns = (projectId: string, definitionId: string) => {
 };
 
 export type {
-  MetricThreshold,
   BaselineComparison,
+  HistoricalRunData,
   MetricComparison,
+  MetricThreshold,
   PerSampleResult,
   PerSampleResultsData,
-  HistoricalRunData,
 };

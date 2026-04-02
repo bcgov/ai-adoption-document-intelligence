@@ -464,11 +464,11 @@ describe("normalizeOcrFields", () => {
   });
 
   describe("schema-aware (documentType)", () => {
-    let prismaMock: { labelingProject: { findUnique: jest.Mock } };
+    let prismaMock: { templateModel: { findUnique: jest.Mock } };
 
     beforeEach(() => {
       prismaMock = {
-        labelingProject: { findUnique: jest.fn() },
+        templateModel: { findUnique: jest.fn() },
       };
       getPrismaClientMock.mockReturnValue(prismaMock);
     });
@@ -478,7 +478,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("does not run number rules on string-typed schema fields", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           { field_key: "name", field_type: "string", field_format: null },
@@ -507,7 +507,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("runs number rules on number-typed schema fields", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           { field_key: "amount", field_type: "number", field_format: null },
@@ -534,7 +534,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("canonicalizes date-typed fields by schema even when key is not *_date", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           { field_key: "birth", field_type: "date", field_format: null },

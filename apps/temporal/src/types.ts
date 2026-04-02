@@ -4,7 +4,7 @@
 
 // Enrichment (used by ocr.enrich activity and graph workflows)
 export interface EnrichmentStepParams {
-  documentType: string; // LabelingProject ID -> fetches field_schema
+  documentType: string; // TemplateModel ID -> fetches field_schema
   confidenceThreshold?: number; // Below this, fields are LLM candidates (default 0.85)
   enableLlmEnrichment?: boolean; // Enable Azure OpenAI enrichment (default false)
 }

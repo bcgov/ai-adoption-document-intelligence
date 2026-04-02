@@ -5,7 +5,7 @@ import {
   FieldType,
   GroupRole,
   PrismaClient,
-  ProjectStatus,
+  TemplateModelStatus,
   SplitType,
   BenchmarkRunStatus,
   AuditAction,
@@ -22,11 +22,14 @@ const prisma = new PrismaClient({
 const SEED_GROUP_ID = "seed-default-group";
 const SEED_GROUP_NAME = "Default";
 
-const SDPR_TEMPLATE_PROJECT_ID = "seed-sdpr-monthly-report-template";
-const SDPR_TEMPLATE_PROJECT_NAME = "SDPR monthly report template";
-const SDPR_TEMPLATE_PROJECT_DESCRIPTION =
-  "Seeded labeling project for SDPR monthly report template training.";
-const SDPR_TEMPLATE_PROJECT_CREATED_BY = "seed";
+const SDPR_TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
+const SDPR_TEMPLATE_MODEL_NAME = "SDPR Monthly Report";
+const SDPR_TEMPLATE_MODEL_MODEL_ID = "sdpr-monthly-report";
+const SDPR_TEMPLATE_MODEL_DESCRIPTION =
+  "Seeded template model for SDPR monthly report field extraction.";
+// Resolved after seedUsers() — holds Actor IDs
+let SEED_ACTOR_ID = "";
+let TEST_ACTOR_ID = "";
 
 type SeedFieldDefinition = {
   fieldKey: string;
@@ -579,7 +582,7 @@ async function seedBenchmarkingData() {
       description: "Sample invoice dataset for benchmarking OCR accuracy",
       metadata: { documentType: "invoice", language: "en" },
       storagePath: "datasets/invoice-test-dataset",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -588,7 +591,7 @@ async function seedBenchmarkingData() {
       description: "Sample invoice dataset for benchmarking OCR accuracy",
       metadata: { documentType: "invoice", language: "en" },
       storagePath: "datasets/invoice-test-dataset",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -600,7 +603,7 @@ async function seedBenchmarkingData() {
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
-      createdBy: "seed",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -609,7 +612,7 @@ async function seedBenchmarkingData() {
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
-      createdBy: "seed",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -621,7 +624,7 @@ async function seedBenchmarkingData() {
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
-      createdBy: "seed",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -630,7 +633,7 @@ async function seedBenchmarkingData() {
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
-      createdBy: "seed",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -821,14 +824,14 @@ async function seedBenchmarkingData() {
     update: {
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
       id: SEED_PROJECT_ID,
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -1341,7 +1344,7 @@ async function seedBenchmarkingData() {
     create: {
       id: "audit-baseline-001",
       timestamp: twoDaysAgo,
-      actor_id: "test-user",
+      actor_id: TEST_ACTOR_ID,
       action: AuditAction.baseline_promoted,
       entityType: "BenchmarkRun",
       entityId: SEED_RUN_ID_COMPLETED,
@@ -1369,21 +1372,22 @@ async function seedBenchmarkingData() {
   console.log(`  - Runs: 5 (3 completed [1 baseline, 1 passing, 1 regressed], 1 running, 1 failed)`);
 }
 
-async function seedLabelingData() {
-  const project = await prisma.labelingProject.upsert({
-    where: { id: SDPR_TEMPLATE_PROJECT_ID },
+async function seedTemplateModelData() {
+  const templateModel = await prisma.templateModel.upsert({
+    where: { id: SDPR_TEMPLATE_MODEL_ID },
     update: {
-      name: SDPR_TEMPLATE_PROJECT_NAME,
-      description: SDPR_TEMPLATE_PROJECT_DESCRIPTION,
-      created_by: SDPR_TEMPLATE_PROJECT_CREATED_BY,
-      status: ProjectStatus.active,
+      name: SDPR_TEMPLATE_MODEL_NAME,
+      description: SDPR_TEMPLATE_MODEL_DESCRIPTION,
+      created_by: SEED_ACTOR_ID,
+      status: TemplateModelStatus.draft,
     },
     create: {
-      id: SDPR_TEMPLATE_PROJECT_ID,
-      name: SDPR_TEMPLATE_PROJECT_NAME,
-      description: SDPR_TEMPLATE_PROJECT_DESCRIPTION,
-      created_by: SDPR_TEMPLATE_PROJECT_CREATED_BY,
-      status: ProjectStatus.active,
+      id: SDPR_TEMPLATE_MODEL_ID,
+      name: SDPR_TEMPLATE_MODEL_NAME,
+      model_id: SDPR_TEMPLATE_MODEL_MODEL_ID,
+      description: SDPR_TEMPLATE_MODEL_DESCRIPTION,
+      created_by: SEED_ACTOR_ID,
+      status: TemplateModelStatus.draft,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -1392,7 +1396,7 @@ async function seedLabelingData() {
 
   await prisma.fieldDefinition.deleteMany({
     where: {
-      project_id: project.id,
+      template_model_id: templateModel.id,
       field_key: {
         notIn: fieldKeys,
       },
@@ -1403,8 +1407,8 @@ async function seedLabelingData() {
     SDPR_MONTHLY_REPORT_FIELDS.map((field, index) =>
       prisma.fieldDefinition.upsert({
         where: {
-          project_id_field_key: {
-            project_id: project.id,
+          template_model_id_field_key: {
+            template_model_id: templateModel.id,
             field_key: field.fieldKey,
           },
         },
@@ -1414,7 +1418,7 @@ async function seedLabelingData() {
           display_order: index,
         },
         create: {
-          project_id: project.id,
+          template_model_id: templateModel.id,
           field_key: field.fieldKey,
           field_type: field.fieldType,
           field_format: field.fieldFormat ?? null,
@@ -1424,8 +1428,8 @@ async function seedLabelingData() {
     ),
   );
 
-  console.log("✅ Labeling project seed data created successfully");
-  console.log(`  - Project: ${project.name}`);
+  console.log("✅ Template model seed data created successfully");
+  console.log(`  - Model: ${templateModel.name} (${SDPR_TEMPLATE_MODEL_MODEL_ID})`);
   console.log(`  - Fields: ${SDPR_MONTHLY_REPORT_FIELDS.length}`);
 }
 
@@ -1473,7 +1477,7 @@ async function seedUsers() {
     create: {
       id: "test-user",
       email: "test@example.com",
-      actor: { create: { id: "test-user" } },
+      actor: { create: {} },
     },
   });
 
@@ -1483,9 +1487,21 @@ async function seedUsers() {
     create: {
       id: "seed",
       email: "seed@example.com",
-      actor: { create: { id: "seed" } },
+      actor: { create: {} },
     },
   });
+
+  // Resolve actor IDs for use in subsequent seed functions
+  const seedUser = await prisma.user.findUniqueOrThrow({
+    where: { id: "seed" },
+    select: { actor_id: true },
+  });
+  const testUser = await prisma.user.findUniqueOrThrow({
+    where: { id: "test-user" },
+    select: { actor_id: true },
+  });
+  SEED_ACTOR_ID = seedUser.actor_id;
+  TEST_ACTOR_ID = testUser.actor_id;
 
   console.log("  ✓ Users seeded");
 }
@@ -1500,7 +1516,7 @@ async function seedGroup() {
       id: SEED_GROUP_ID,
       name: SEED_GROUP_NAME,
       description: "Default seeded group",
-      created_by: "seed",
+      created_by: SEED_ACTOR_ID,
     },
   });
 
@@ -1537,12 +1553,7 @@ async function seedGroup() {
     await prisma.user.upsert({
       where: { id: seedUserSub },
       update: { is_system_admin: true },
-      create: {
-        id: seedUserSub,
-        email: seedUserEmail,
-        is_system_admin: true,
-        actor: { create: { id: seedUserSub } },
-      },
+      create: { id: seedUserSub, email: seedUserEmail, is_system_admin: true, actor: { create: {} } },
     });
 
     await prisma.userGroup.upsert({
@@ -1569,7 +1580,7 @@ async function main() {
   await seedUsers();
   await seedGroup();
   await seedTestApiKey();
-  await seedLabelingData();
+  await seedTemplateModelData();
   await seedBenchmarkingData();
 
   console.log("\n✅ All seed data created successfully!");

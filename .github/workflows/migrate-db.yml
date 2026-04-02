@@ -19,7 +19,7 @@ jobs:
       environment: ${{ steps.env.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Get Environment
         id: env
         uses: ./.github/actions/get-environment
@@ -37,12 +37,12 @@ jobs:
           echo "SHA: ${{ inputs.sha }}"
           echo "Full Ref: ${{ github.ref }}"
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
       - name: Get Migrations
         id: get-migrations
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v4
         with:
           base: ${{ github.ref }}
           ref: ${{ github.ref }}
@@ -58,7 +58,7 @@ jobs:
       name: ${{ needs.get-environment.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
       - name: 'migrate db'
@@ -113,7 +113,7 @@ jobs:
       name: ${{ needs.get-environment.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
       - name: Trigger Deployments

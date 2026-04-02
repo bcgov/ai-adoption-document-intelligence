@@ -6,9 +6,9 @@ import "./App.css";
 import { Login } from "./components";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
 import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
-import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
-import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
-import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
+import { LabelingWorkspacePage } from "./features/annotation/template-models/pages/LabelingWorkspacePage";
+import { ModelDetailPage } from "./features/annotation/template-models/pages/ModelDetailPage";
+import { ModelListPage } from "./features/annotation/template-models/pages/ModelListPage";
 import {
   ProjectDetailPage as BenchmarkProjectDetailPage,
   ProjectListPage as BenchmarkProjectListPage,
@@ -64,11 +64,11 @@ const router = createBrowserRouter([
         element: <WorkflowEditorPage mode="edit" />,
       },
 
-      // Labeling with nested routes
-      { path: "labeling", element: <ProjectListPage /> },
-      { path: "labeling/:projectId", element: <ProjectDetailPage /> },
+      // Template Models with nested routes
+      { path: "template-models", element: <ModelListPage /> },
+      { path: "template-models/:modelId", element: <ModelDetailPage /> },
       {
-        path: "labeling/:projectId/document/:documentId",
+        path: "template-models/:modelId/document/:documentId",
         element: <LabelingWorkspacePage />,
       },
 

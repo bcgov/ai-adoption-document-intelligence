@@ -112,7 +112,6 @@ export async function benchmarkExecuteWorkflow(
   const parentWorkflowId = workflowInfo().workflowId;
   const childWorkflowId = `benchmark-${parentWorkflowId}-${sampleId}`;
 
-  // biome-ignore lint/suspicious/noConsole: workflow sandbox; console is the supported way to emit structured logs
   console.log(
     JSON.stringify({
       activity: "benchmarkExecuteWorkflow",
@@ -175,7 +174,6 @@ export async function benchmarkExecuteWorkflow(
 
     const durationMs = Date.now() - startTime;
 
-    // biome-ignore lint/suspicious/noConsole: workflow sandbox; console is the supported way to emit structured logs
     console.log(
       JSON.stringify({
         activity: "benchmarkExecuteWorkflow",
@@ -226,7 +224,6 @@ export async function benchmarkExecuteWorkflow(
         ? { name: errorCauseRaw.name, message: errorCauseRaw.message }
         : errorCauseRaw;
 
-    // biome-ignore lint/suspicious/noConsole: workflow sandbox; console is the supported way to emit structured logs
     console.log(
       JSON.stringify({
         activity: "benchmarkExecuteWorkflow",
