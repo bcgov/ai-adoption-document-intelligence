@@ -46,7 +46,6 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { AppLoggerService } from "@/logging/app-logger.service";
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
