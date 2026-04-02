@@ -511,47 +511,54 @@ async function seedBenchmarkingData() {
     ),
   );
 
-  // Create Standard OCR Workflow
-  const workflow = await prisma.workflow.upsert({
-    where: { id: SEED_WORKFLOW_ID },
-    update: {
-      name: standardOcrConfig.metadata.name,
-      description: standardOcrConfig.metadata.description,
-      actor_id: TEST_ACTOR_ID,
-      config: standardOcrConfig,
-      version: 1,
-    },
-    create: {
-      id: SEED_WORKFLOW_ID,
-      name: standardOcrConfig.metadata.name,
-      description: standardOcrConfig.metadata.description,
-      actor_id: TEST_ACTOR_ID,
-      config: standardOcrConfig,
-      version: 1,
-      group_id: SEED_GROUP_ID,
-    },
-  });
+  const seedLineageVersion = async (
+    lineageId: string,
+    name: string,
+    description: string | undefined,
+    config: object,
+  ): Promise<string> => {
+    const versionId = `wv_${lineageId}`;
+    await prisma.workflowLineage.upsert({
+      where: { id: lineageId },
+      update: { name, description: description ?? null },
+      create: {
+        id: lineageId,
+        name,
+        description: description ?? null,
+        user_id: "test-user",
+        group_id: SEED_GROUP_ID,
+      },
+    });
+    await prisma.workflowVersion.upsert({
+      where: { id: versionId },
+      update: { config },
+      create: {
+        id: versionId,
+        lineage_id: lineageId,
+        version_number: 1,
+        config,
+      },
+    });
+    await prisma.workflowLineage.update({
+      where: { id: lineageId },
+      data: { head_version_id: versionId },
+    });
+    return versionId;
+  };
 
-  // Create Multi-Page Report Workflow
-  await prisma.workflow.upsert({
-    where: { id: SEED_WORKFLOW_ID_MULTI_PAGE },
-    update: {
-      name: multiPageReportConfig.metadata.name,
-      description: multiPageReportConfig.metadata.description,
-      actor_id: TEST_ACTOR_ID,
-      config: multiPageReportConfig,
-      version: 1,
-    },
-    create: {
-      id: SEED_WORKFLOW_ID_MULTI_PAGE,
-      name: multiPageReportConfig.metadata.name,
-      description: multiPageReportConfig.metadata.description,
-      actor_id: TEST_ACTOR_ID,
-      config: multiPageReportConfig,
-      version: 1,
-      group_id: SEED_GROUP_ID,
-    },
-  });
+  const standardWorkflowVersionId = await seedLineageVersion(
+    SEED_WORKFLOW_ID,
+    standardOcrConfig.metadata.name,
+    standardOcrConfig.metadata.description,
+    standardOcrConfig,
+  );
+
+  await seedLineageVersion(
+    SEED_WORKFLOW_ID_MULTI_PAGE,
+    multiPageReportConfig.metadata.name,
+    multiPageReportConfig.metadata.description,
+    multiPageReportConfig,
+  );
 
   // Create test dataset files with sample data
   // This enables e2e tests that require actual samples
@@ -834,6 +841,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DEFINITION_ID },
     update: {
       name: "Baseline OCR Model",
+      workflowVersionId: standardWorkflowVersionId,
       workflowConfigHash: "hash-abc123",
       evaluatorType: "field-accuracy",
       evaluatorConfig: {
@@ -853,7 +861,7 @@ async function seedBenchmarkingData() {
       name: "Baseline OCR Model",
       datasetVersionId: datasetVersion.id,
       splitId: split.id,
-      workflowId: workflow.id,
+      workflowVersionId: standardWorkflowVersionId,
       workflowConfigHash: "hash-abc123",
       evaluatorType: "field-accuracy",
       evaluatorConfig: {
@@ -1314,8 +1322,26 @@ async function seedBenchmarkingData() {
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
-  await prisma.benchmarkAuditLog.create({
-    data: {
+  await prisma.benchmarkAuditLog.upsert({
+    where: { id: "audit-baseline-001" },
+    update: {
+      timestamp: twoDaysAgo,
+      actor_id: "test-user",
+      action: AuditAction.baseline_promoted,
+      entityType: "BenchmarkRun",
+      entityId: SEED_RUN_ID_COMPLETED,
+      metadata: {
+        definitionId: SEED_DEFINITION_ID,
+        projectId: SEED_PROJECT_ID,
+        previousBaselineId: null,
+        thresholds: [
+          { metricName: "field_accuracy", type: "relative", value: 0.95 },
+          { metricName: "character_accuracy", type: "relative", value: 0.95 },
+          { metricName: "word_accuracy", type: "relative", value: 0.95 },
+        ],
+      },
+    },
+    create: {
       id: "audit-baseline-001",
       timestamp: twoDaysAgo,
       actor_id: TEST_ACTOR_ID,
@@ -1414,19 +1440,30 @@ async function seedTestApiKey() {
   const keyPrefix = TEST_API_KEY.substring(0, 8);
   const keyHash = await bcrypt.hash(TEST_API_KEY, 10);
 
-  await prisma.apiKey.upsert({
-    where: { key_hash: keyHash },
-    update: {
-      key_prefix: keyPrefix,
-    },
-    create: {
-      generating_user: { connect: { id: "test-user" } },
-      key_hash: keyHash,
-      key_prefix: keyPrefix,
-      group: { connect: { id: SEED_GROUP_ID } },
-      actor: { create: {} },
-    },
+  const existingByGroup = await prisma.apiKey.findUnique({
+    where: { group_id: SEED_GROUP_ID },
   });
+  if (existingByGroup) {
+    await prisma.apiKey.update({
+      where: { id: existingByGroup.id },
+      data: {
+        key_hash: keyHash,
+        key_prefix: keyPrefix,
+        generating_user_id: "test-user",
+      },
+    });
+  } else {
+    const apiKeyActor = await prisma.actor.create({});
+    await prisma.apiKey.create({
+      data: {
+        generating_user_id: "test-user",
+        key_hash: keyHash,
+        key_prefix: keyPrefix,
+        group_id: SEED_GROUP_ID,
+        actor_id: apiKeyActor.id,
+      },
+    });
+  }
 
   console.log(`  ✓ Test API key created (prefix: ${keyPrefix})`);
 }

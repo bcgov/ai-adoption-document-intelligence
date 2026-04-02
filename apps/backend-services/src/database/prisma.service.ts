@@ -13,16 +13,32 @@ export class PrismaService implements OnModuleInit {
     private configService: ConfigService,
     private readonly logger: AppLoggerService,
   ) {
+    const shouldLogQueries =
+      process.env.PRISMA_LOG_QUERIES === "true" ||
+      process.env.NODE_ENV !== "production";
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
     );
+
+    const prismaLog: Array<{
+      emit: "event";
+      level: "warn" | "error" | "query";
+    }> = [
+      { emit: "event", level: "warn" },
+      { emit: "event", level: "error" },
+    ];
+    if (shouldLogQueries) {
+      prismaLog.push({ emit: "event", level: "query" });
+    }
+
     this.prisma = new PrismaClient({
-      log: [
-        { emit: "event", level: "warn" },
-        { emit: "event", level: "error" },
-      ],
+      log: prismaLog,
       adapter: new PrismaPg(dbOptions),
     });
+
+    if (shouldLogQueries) {
+      this.logger.log("Prisma query logging enabled", { category: "prisma" });
+    }
   }
 
   onModuleInit(): void {
@@ -32,7 +48,42 @@ export class PrismaService implements OnModuleInit {
     this.prisma.$on("error", (e: { message: string; target?: string }) => {
       this.logger.error(e.message, { category: "external", target: e.target });
     });
-    this.logger.log("Prisma client initialized");
+    const url = this.configService.get<string>("DATABASE_URL");
+    const dbInfo = this.getDatabaseInfo(url);
+    this.logger.log(`Prisma client initialized; database: ${dbInfo}`, {
+      category: "database",
+    });
+
+    if (
+      process.env.PRISMA_LOG_QUERIES === "true" ||
+      process.env.NODE_ENV !== "production"
+    ) {
+      this.prisma.$on(
+        "query",
+        (e: { query: string; params: string; duration: number }) => {
+          this.logger.debug(
+            `Prisma query (${e.duration}ms): ${e.query} | params: ${e.params}`,
+            { category: "prisma" },
+          );
+        },
+      );
+    }
+  }
+
+  /**
+   * Returns a short, safe description of the database (host/database name) for logging.
+   * Avoids logging passwords or full connection strings.
+   */
+  private getDatabaseInfo(url: string | undefined): string {
+    if (!url || url === "") return "<not set>";
+    try {
+      const parsed = new URL(url);
+      const dbName = parsed.pathname?.replace(/^\//, "") || "<default>";
+      const host = parsed.hostname || parsed.host || "<unknown>";
+      return `${host}/${dbName}`;
+    } catch {
+      return "<invalid URL>";
+    }
   }
 
   /**

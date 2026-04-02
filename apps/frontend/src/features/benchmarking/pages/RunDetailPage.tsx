@@ -10,9 +10,11 @@ import {
   Drawer,
   Group,
   Loader,
+  Modal,
   ScrollArea,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   Title,
@@ -25,6 +27,7 @@ import {
   IconCheck,
   IconChevronRight,
   IconExternalLink,
+  IconSparkles,
   IconTrophy,
   IconX,
 } from "@tabler/icons-react";
@@ -33,7 +36,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
-import { useDefinition } from "../hooks/useDefinitions";
+import {
+  useDefinition,
+  usePromoteCandidateWorkflow,
+} from "../hooks/useDefinitions";
 import {
   useArtifacts,
   useDrillDown,
@@ -201,6 +207,8 @@ export function RunDetailPage() {
   const [thresholdDialogOpened, setThresholdDialogOpened] = useState(false);
   const [isEditingThresholds, setIsEditingThresholds] = useState(false);
   const [drawerField, setDrawerField] = useState<string | null>(null);
+  const [persistOcrCacheOnRerun, setPersistOcrCacheOnRerun] = useState(true);
+  const [applyCandidateModalOpen, setApplyCandidateModalOpen] = useState(false);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -210,6 +218,10 @@ export function RunDetailPage() {
   );
 
   const { definition } = useDefinition(projectId, run?.definitionId || "");
+  const {
+    mutateAsync: promoteCandidateWorkflow,
+    isPending: isPromotingCandidate,
+  } = usePromoteCandidateWorkflow(projectId, run?.definitionId ?? "");
   const { drillDown } = useDrillDown(projectId, runId || "");
   const { artifacts, total: totalArtifacts } = useArtifacts(
     projectId,
@@ -238,7 +250,7 @@ export function RunDetailPage() {
 
   const handleRerun = async () => {
     if (!run) return;
-    const newRun = await startRun({});
+    const newRun = await startRun({ persistOcrCache: persistOcrCacheOnRerun });
     navigate(`/benchmarking/projects/${projectId}/runs/${newRun.id}`);
   };
 
@@ -310,6 +322,12 @@ export function RunDetailPage() {
     run.baselineThresholds &&
     run.baselineThresholds.length > 0;
   const temporalUrl = `${TEMPORAL_UI_URL}/namespaces/default/workflows/${run.temporalWorkflowId}`;
+
+  const candidateWorkflowRaw = run.params?.candidateWorkflowVersionId;
+  const candidateWorkflowVersionId =
+    typeof candidateWorkflowRaw === "string" ? candidateWorkflowRaw : undefined;
+  const canApplyCandidateWorkflow =
+    run.status === "completed" && Boolean(candidateWorkflowVersionId);
 
   // All possible artifact types (from schema) - should always be available in filter dropdown
   const allArtifactTypes = [
@@ -408,14 +426,94 @@ export function RunDetailPage() {
                 Edit Thresholds
               </Button>
             )}
+            {canApplyCandidateWorkflow && candidateWorkflowVersionId && (
+              <>
+                <Button
+                  variant="light"
+                  color="gray"
+                  leftSection={<IconSparkles size={16} />}
+                  loading={isPromotingCandidate}
+                  disabled={isPromotingCandidate}
+                  onClick={() => setApplyCandidateModalOpen(true)}
+                  data-testid="apply-candidate-btn"
+                >
+                  Apply candidate to base workflow
+                </Button>
+                <Modal
+                  opened={applyCandidateModalOpen}
+                  onClose={() => setApplyCandidateModalOpen(false)}
+                  title="Apply candidate workflow"
+                  data-testid="apply-candidate-confirm-modal"
+                >
+                  <Stack gap="md">
+                    <Text size="sm">
+                      Apply this candidate workflow graph to the base workflow
+                      lineage for this definition?
+                    </Text>
+                    <Group justify="flex-end" gap="xs">
+                      <Button
+                        type="button"
+                        variant="subtle"
+                        onClick={() => setApplyCandidateModalOpen(false)}
+                        data-testid="apply-candidate-cancel-btn"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        loading={isPromotingCandidate}
+                        disabled={isPromotingCandidate}
+                        onClick={async () => {
+                          try {
+                            await promoteCandidateWorkflow({
+                              candidateWorkflowVersionId,
+                            });
+                            setApplyCandidateModalOpen(false);
+                            notifications.show({
+                              title: "Success",
+                              message: "Candidate applied to base workflow",
+                              color: "green",
+                            });
+                          } catch (error) {
+                            notifications.show({
+                              title: "Error",
+                              message:
+                                error instanceof Error
+                                  ? error.message
+                                  : "Failed to apply candidate workflow",
+                              color: "red",
+                            });
+                          }
+                        }}
+                        data-testid="apply-candidate-confirm-btn"
+                      >
+                        Apply
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Modal>
+              </>
+            )}
             {canRerun && (
-              <Button
-                onClick={handleRerun}
-                loading={isStarting}
-                data-testid="rerun-btn"
-              >
-                Re-run
-              </Button>
+              <Group gap="sm" wrap="nowrap" align="flex-end">
+                <Switch
+                  checked={persistOcrCacheOnRerun}
+                  onChange={(e) =>
+                    setPersistOcrCacheOnRerun(e.currentTarget.checked)
+                  }
+                  label="Persist OCR cache"
+                  description="For replay on later runs"
+                  size="sm"
+                  data-testid="rerun-persist-ocr-cache-switch"
+                />
+                <Button
+                  onClick={handleRerun}
+                  loading={isStarting}
+                  data-testid="rerun-btn"
+                >
+                  Re-run
+                </Button>
+              </Group>
             )}
             {run.baselineComparison && (
               <Button

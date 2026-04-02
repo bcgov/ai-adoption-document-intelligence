@@ -59,6 +59,24 @@ describe("submitToAzureOCR activity", () => {
     process.env = originalEnv;
   });
 
+  it("short-circuits when benchmark OCR cache replay payload is present", async () => {
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: "/tmp/benchmark/x.pdf",
+      modelId: "prebuilt-layout",
+    };
+
+    const result = await submitToAzureOCR({
+      fileData,
+      __benchmarkOcrCache: { ocrResponse: { status: "succeeded" } },
+    });
+
+    expect(result.apimRequestId).toBe("benchmark-ocr-cache");
+    expect(documentIntelligenceMock).not.toHaveBeenCalled();
+  });
+
   it("submits document successfully with prebuilt model", async () => {
     const mockResponse = {
       status: 202,

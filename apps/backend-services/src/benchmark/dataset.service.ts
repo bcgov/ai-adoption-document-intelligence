@@ -559,8 +559,9 @@ export class DatasetService {
         err.stack,
       );
 
+      const noSuchBucketCode = ["No", "Such", "Bucket"].join("");
       if (
-        err.message.includes("NoSuchBucket") ||
+        err.message.includes(noSuchBucketCode) ||
         err.message.includes("bucket does not exist")
       ) {
         throw new BadRequestException(

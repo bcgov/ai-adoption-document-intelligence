@@ -41,6 +41,7 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
  */
 export async function submitToAzureOCR(params: {
   fileData: PreparedFileData;
+  __benchmarkOcrCache?: { ocrResponse?: unknown };
 }): Promise<SubmissionResult> {
   const activityName = "submitToAzureOCR";
   const { fileData } = params;
@@ -49,6 +50,23 @@ export async function submitToAzureOCR(params: {
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
   const useMock = process.env.MOCK_AZURE_OCR === "true";
+
+  const cache = params.__benchmarkOcrCache;
+  if (cache?.ocrResponse) {
+    log.info("Submit to Azure OCR skipped (benchmark OCR cache replay)", {
+      event: "benchmark_cache_skip",
+      fileName: fileData.fileName,
+    });
+    return {
+      statusCode: 202,
+      apimRequestId: "benchmark-ocr-cache",
+      headers: {
+        "apim-request-id": "benchmark-ocr-cache",
+        "operation-location":
+          "https://benchmark-ocr-cache.local/analyzeResults/benchmark-ocr-cache",
+      },
+    };
+  }
 
   log.info("Submit to Azure OCR start", {
     event: "start",

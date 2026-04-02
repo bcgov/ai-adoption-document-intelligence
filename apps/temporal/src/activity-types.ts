@@ -30,6 +30,9 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "benchmark.writePrediction",
   "benchmark.materializeDataset",
   "benchmark.loadDatasetManifest",
+  "ocr.spellcheck",
+  "ocr.characterConfusion",
+  "ocr.normalizeFields",
 ] as const;
 
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];

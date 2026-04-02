@@ -20,7 +20,7 @@ export interface DefinitionFormInitialValues {
   name: string;
   datasetVersionId: string;
   splitId?: string;
-  workflowId: string;
+  workflowVersionId: string;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -39,7 +39,7 @@ export interface CreateDefinitionFormData {
   name: string;
   datasetVersionId: string;
   splitId?: string;
-  workflowId: string;
+  workflowVersionId: string;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -65,7 +65,7 @@ export function CreateDefinitionDialog({
   const [datasetVersionError, setDatasetVersionError] = useState("");
   const [splitId, setSplitId] = useState("");
   const [splitError, setSplitError] = useState("");
-  const [workflowId, setWorkflowId] = useState("");
+  const [workflowVersionId, setWorkflowVersionId] = useState("");
   const [workflowError, setWorkflowError] = useState("");
   const [evaluatorType, setEvaluatorType] = useState("schema-aware");
   const [evaluatorConfigJson, setEvaluatorConfigJson] = useState("");
@@ -101,7 +101,7 @@ export function CreateDefinitionDialog({
       setName(initialValues.name);
       setDatasetVersionId(initialValues.datasetVersionId);
       setSplitId(initialValues.splitId || "");
-      setWorkflowId(initialValues.workflowId);
+      setWorkflowVersionId(initialValues.workflowVersionId);
       setEvaluatorType(initialValues.evaluatorType);
       const configStr =
         Object.keys(initialValues.evaluatorConfig).length > 0
@@ -168,7 +168,7 @@ export function CreateDefinitionDialog({
     }
 
     // Validate workflow
-    if (!workflowId) {
+    if (!workflowVersionId) {
       setWorkflowError("Workflow is required");
       hasError = true;
     }
@@ -197,7 +197,7 @@ export function CreateDefinitionDialog({
       name,
       datasetVersionId,
       ...(splitId ? { splitId } : {}),
-      workflowId,
+      workflowVersionId,
       evaluatorType,
       evaluatorConfig,
       runtimeSettings,
@@ -211,7 +211,7 @@ export function CreateDefinitionDialog({
     setDatasetVersionError("");
     setSplitId("");
     setSplitError("");
-    setWorkflowId("");
+    setWorkflowVersionId("");
     setWorkflowError("");
     setEvaluatorType("schema-aware");
     setEvaluatorConfigJson("");
@@ -249,7 +249,7 @@ export function CreateDefinitionDialog({
   }));
 
   const workflowOptions = workflows.map((w) => ({
-    value: w.id,
+    value: w.workflowVersionId,
     label: `${w.name} (v${w.version})`,
   }));
 
@@ -315,9 +315,9 @@ export function CreateDefinitionDialog({
           label="Workflow"
           placeholder="Select workflow"
           data={workflowOptions}
-          value={workflowId}
+          value={workflowVersionId}
           onChange={(value) => {
-            setWorkflowId(value || "");
+            setWorkflowVersionId(value || "");
             setWorkflowError("");
           }}
           disabled={isLoadingWorkflows}
