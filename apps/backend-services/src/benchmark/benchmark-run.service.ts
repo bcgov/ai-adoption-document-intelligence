@@ -18,6 +18,8 @@ import {
 import { execSync } from "child_process";
 import { createHash } from "crypto";
 import { PrismaService } from "@/database/prisma.service";
+import { computeConfigHash } from "@/workflow/config-hash";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
 import {
@@ -75,8 +77,13 @@ export class BenchmarkRunService {
     return digest;
   }
 
+  /**
+   * Same canonical hash as benchmark definitions and Temporal graph runs
+   * ({@link computeConfigHash}): defaults + key order normalization so an
+   * in-memory config matches JSON loaded from `workflow_version.config`.
+   */
   private hashWorkflowConfigJson(config: unknown): string {
-    return createHash("sha256").update(JSON.stringify(config)).digest("hex");
+    return computeConfigHash(config as GraphWorkflowConfig);
   }
 
   /**

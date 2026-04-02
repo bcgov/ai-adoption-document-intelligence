@@ -133,12 +133,9 @@ export class BenchmarkRunController {
       projectId,
       definitionId,
     );
-    let actorId =
-      (req as Request & { user?: { sub?: string } }).user?.sub ||
-      (req as Request & { resolvedIdentity?: { userId?: string } })
-        .resolvedIdentity?.userId ||
-      "anonymous";
-    if (actorId === "anonymous") {
+    // Must be DB Actor.id (see User.actor_id), not JWT sub / User.id — WorkflowService.createCandidateVersion resolves the user via actor_id.
+    let actorId = req.resolvedIdentity?.actorId;
+    if (!actorId) {
       const sourceWorkflow = await this.workflowService.getWorkflowById(
         definition.workflow.workflowVersionId,
       );

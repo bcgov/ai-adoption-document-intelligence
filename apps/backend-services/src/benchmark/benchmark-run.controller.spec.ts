@@ -67,7 +67,12 @@ describe("BenchmarkRunController", () => {
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
+    resolvedIdentity: {
+      userId: "user-1",
+      actorId: "actor-for-user-1",
+      isSystemAdmin: false,
+      groupRoles: {},
+    },
   } as unknown as Request;
 
   const projectId = "project-1";
@@ -179,7 +184,7 @@ describe("BenchmarkRunController", () => {
           workflowVersionId: "wv-workflow-1",
           benchmarkDefinitionId: "def-1",
           benchmarkProjectId: projectId,
-          actorId: "user-1",
+          actorId: "actor-for-user-1",
         }),
       );
       expect(result).toMatchObject({
@@ -226,7 +231,7 @@ describe("BenchmarkRunController", () => {
       );
     });
 
-    it("uses source workflow owner as actorId when request has no SSO user (API key only)", async () => {
+    it("uses source workflow owner as actorId when resolvedIdentity.actorId is absent", async () => {
       const sourceWorkflow: WorkflowInfo = {
         id: "workflow-1",
         workflowVersionId: "wv-workflow-1",

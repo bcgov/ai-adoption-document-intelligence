@@ -600,7 +600,7 @@ async function seedBenchmarkingData() {
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
-      createdBy: "seed-user",
+      createdBy: "seed",
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -609,7 +609,7 @@ async function seedBenchmarkingData() {
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
-      createdBy: "seed-user",
+      createdBy: "seed",
       group_id: SEED_GROUP_ID,
     },
   });
@@ -621,7 +621,7 @@ async function seedBenchmarkingData() {
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
-      createdBy: "seed-user",
+      createdBy: "seed",
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -630,7 +630,7 @@ async function seedBenchmarkingData() {
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
-      createdBy: "seed-user",
+      createdBy: "seed",
       group_id: SEED_GROUP_ID,
     },
   });
@@ -1319,8 +1319,26 @@ async function seedBenchmarkingData() {
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
-  await prisma.benchmarkAuditLog.create({
-    data: {
+  await prisma.benchmarkAuditLog.upsert({
+    where: { id: "audit-baseline-001" },
+    update: {
+      timestamp: twoDaysAgo,
+      actor_id: "test-user",
+      action: AuditAction.baseline_promoted,
+      entityType: "BenchmarkRun",
+      entityId: SEED_RUN_ID_COMPLETED,
+      metadata: {
+        definitionId: SEED_DEFINITION_ID,
+        projectId: SEED_PROJECT_ID,
+        previousBaselineId: null,
+        thresholds: [
+          { metricName: "field_accuracy", type: "relative", value: 0.95 },
+          { metricName: "character_accuracy", type: "relative", value: 0.95 },
+          { metricName: "word_accuracy", type: "relative", value: 0.95 },
+        ],
+      },
+    },
+    create: {
       id: "audit-baseline-001",
       timestamp: twoDaysAgo,
       actor_id: "test-user",
@@ -1418,19 +1436,30 @@ async function seedTestApiKey() {
   const keyPrefix = TEST_API_KEY.substring(0, 8);
   const keyHash = await bcrypt.hash(TEST_API_KEY, 10);
 
-  await prisma.apiKey.upsert({
-    where: { key_hash: keyHash },
-    update: {
-      key_prefix: keyPrefix,
-      generating_user_id: "test-user",
-    },
-    create: {
-      generating_user_id: "test-user",
-      key_hash: keyHash,
-      key_prefix: keyPrefix,
-      group_id: SEED_GROUP_ID,
-    },
+  const existingByGroup = await prisma.apiKey.findUnique({
+    where: { group_id: SEED_GROUP_ID },
   });
+  if (existingByGroup) {
+    await prisma.apiKey.update({
+      where: { id: existingByGroup.id },
+      data: {
+        key_hash: keyHash,
+        key_prefix: keyPrefix,
+        generating_user_id: "test-user",
+      },
+    });
+  } else {
+    const apiKeyActor = await prisma.actor.create({});
+    await prisma.apiKey.create({
+      data: {
+        generating_user_id: "test-user",
+        key_hash: keyHash,
+        key_prefix: keyPrefix,
+        group_id: SEED_GROUP_ID,
+        actor_id: apiKeyActor.id,
+      },
+    });
+  }
 
   console.log(`  ✓ Test API key created (prefix: ${keyPrefix})`);
 }
@@ -1441,13 +1470,21 @@ async function seedUsers() {
   await prisma.user.upsert({
     where: { id: "test-user" },
     update: {},
-    create: { id: "test-user", email: "test@example.com" },
+    create: {
+      id: "test-user",
+      email: "test@example.com",
+      actor: { create: { id: "test-user" } },
+    },
   });
 
   await prisma.user.upsert({
     where: { id: "seed" },
     update: {},
-    create: { id: "seed", email: "seed@example.com" },
+    create: {
+      id: "seed",
+      email: "seed@example.com",
+      actor: { create: { id: "seed" } },
+    },
   });
 
   console.log("  ✓ Users seeded");
@@ -1500,7 +1537,12 @@ async function seedGroup() {
     await prisma.user.upsert({
       where: { id: seedUserSub },
       update: { is_system_admin: true },
-      create: { id: seedUserSub, email: seedUserEmail, is_system_admin: true },
+      create: {
+        id: seedUserSub,
+        email: seedUserEmail,
+        is_system_admin: true,
+        actor: { create: { id: seedUserSub } },
+      },
     });
 
     await prisma.userGroup.upsert({

@@ -90,9 +90,11 @@ export class BootstrapService {
         data: { is_system_admin: true },
       });
 
-      // Create "Default" group
-      const group = await tx.group.create({
-        data: {
+      // Ensure "Default" group exists (seed may have created it already)
+      const group = await tx.group.upsert({
+        where: { name: "Default" },
+        update: {},
+        create: {
           name: "Default",
           description: "Initial group created during system setup",
           created_by: user.actor_id,
@@ -100,8 +102,12 @@ export class BootstrapService {
       });
 
       // Assign user as group admin
-      await tx.userGroup.create({
-        data: {
+      await tx.userGroup.upsert({
+        where: {
+          user_id_group_id: { user_id: userId, group_id: group.id },
+        },
+        update: { role: GroupRole.ADMIN },
+        create: {
           user_id: userId,
           group_id: group.id,
           role: GroupRole.ADMIN,

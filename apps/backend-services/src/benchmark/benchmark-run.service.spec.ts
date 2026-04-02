@@ -435,20 +435,107 @@ describe("BenchmarkRunService", () => {
     });
 
     it("throws when workflowConfigOverride does not match candidateWorkflowVersionId stored config", async () => {
+      const storedGraph = {
+        schemaVersion: "1.0",
+        metadata: { name: "stored" },
+        nodes: {
+          n1: {
+            id: "n1",
+            type: "activity" as const,
+            label: "N",
+            activityType: "document.updateStatus",
+            inputs: [] as { port: string; ctxKey: string }[],
+          },
+        },
+        edges: [] as { source: string; target: string }[],
+        entryNodeId: "n1",
+        ctx: {},
+      };
+      const differentGraph = {
+        ...storedGraph,
+        nodes: {
+          n1: {
+            ...storedGraph.nodes.n1,
+            label: "Changed",
+          },
+        },
+      };
       (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
         mockDefinition,
       );
       (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
         id: "wv-cand-1",
-        config: { a: 1 },
+        config: storedGraph,
       });
 
       await expect(
         service.startRun("project-1", "def-1", {
           candidateWorkflowVersionId: "wv-cand-1",
-          workflowConfigOverride: { b: 2 },
+          workflowConfigOverride: differentGraph as Record<string, unknown>,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it("accepts workflowConfigOverride when it matches stored candidate config after canonical hashing (key order)", async () => {
+      const canonicalOrder = {
+        schemaVersion: "1.0",
+        metadata: { name: "g" },
+        entryNodeId: "n1",
+        ctx: {},
+        nodes: {
+          n1: {
+            id: "n1",
+            type: "activity" as const,
+            label: "N",
+            activityType: "document.updateStatus",
+            inputs: [] as { port: string; ctxKey: string }[],
+          },
+        },
+        edges: [] as { source: string; target: string }[],
+      };
+      const reversedTopLevel = {
+        nodes: canonicalOrder.nodes,
+        edges: canonicalOrder.edges,
+        entryNodeId: canonicalOrder.entryNodeId,
+        ctx: canonicalOrder.ctx,
+        schemaVersion: canonicalOrder.schemaVersion,
+        metadata: canonicalOrder.metadata,
+      };
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
+        id: "wv-cand-1",
+        config: reversedTopLevel,
+      });
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun("project-1", "def-1", {
+        candidateWorkflowVersionId: "wv-cand-1",
+        workflowConfigOverride: canonicalOrder as Record<string, unknown>,
+      });
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalled();
     });
 
     it("should freeze dataset version but not split when definition has no split", async () => {
