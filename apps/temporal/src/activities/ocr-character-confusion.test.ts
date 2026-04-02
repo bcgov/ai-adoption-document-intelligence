@@ -8,7 +8,14 @@ jest.mock("../logger", () => ({
   }),
 }));
 
+jest.mock("./database-client", () => ({
+  getPrismaClient: jest.fn(),
+}));
+
+import { getPrismaClient } from "./database-client";
 import { characterConfusionCorrection } from "./ocr-character-confusion";
+
+const getPrismaClientMock = getPrismaClient as jest.Mock;
 
 function makeOcrResult(
   kvps: Array<{ key: string; value: string; confidence: number }>,
@@ -216,5 +223,139 @@ describe("characterConfusionCorrection", () => {
     });
 
     expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("$");
+  });
+
+  it("confusionMapOverride replaces built-in rules; enabledRules are ignored", async () => {
+    const ocrResult = makeOcrResult([
+      { key: "Code", value: "O-only", confidence: 0.9 },
+    ]);
+
+    const result = await characterConfusionCorrection({
+      ocrResult,
+      confusionMapOverride: { X: "K" },
+      enabledRules: ["oToZero"],
+      applyToAllFields: true,
+    });
+
+    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("O-only");
+    expect(result.metadata?.useOverride).toBe(true);
+  });
+
+  it("disabledRules omits slashToOne so money-like slash value is unchanged", async () => {
+    const ocrResult = makeOcrResult([
+      {
+        key: "applicant_spousal_support_alimony",
+        value: "6/91.12",
+        confidence: 0.9,
+      },
+    ]);
+
+    const result = await characterConfusionCorrection({
+      ocrResult,
+      fieldScope: ["applicant_spousal_support_alimony"],
+      disabledRules: ["slashToOne"],
+    });
+
+    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("6/91.12");
+    expect(result.changes).toHaveLength(0);
+  });
+
+  describe("schema-aware (documentType)", () => {
+    const prismaMock = {
+      labelingProject: {
+        findUnique: jest.fn(),
+      },
+    };
+
+    beforeEach(() => {
+      getPrismaClientMock.mockReturnValue(prismaMock);
+    });
+
+    afterEach(() => {
+      getPrismaClientMock.mockReset();
+    });
+
+    it("loads field_schema and applies substitutions for schema number field without id/date key heuristics", async () => {
+      prismaMock.labelingProject.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "total_amount",
+            field_type: "number",
+            field_format: null,
+            display_order: 0,
+          },
+        ],
+      });
+
+      const ocrResult = makeOcrResult([
+        { key: "total_amount", value: "2O24-01-15", confidence: 0.9 },
+      ]);
+
+      const result = await characterConfusionCorrection({
+        ocrResult,
+        documentType: "proj-1",
+      });
+
+      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
+        "2024-01-15",
+      );
+      expect(result.metadata?.schemaAware).toBe(true);
+      expect(result.metadata?.documentType).toBe("proj-1");
+    });
+
+    it("omits slashToOne for schema string fields", async () => {
+      prismaMock.labelingProject.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "notes",
+            field_type: "string",
+            field_format: null,
+            display_order: 0,
+          },
+        ],
+      });
+
+      const ocrResult = makeOcrResult([
+        { key: "notes", value: "6/91.12", confidence: 0.9 },
+      ]);
+
+      const result = await characterConfusionCorrection({
+        ocrResult,
+        documentType: "proj-1",
+        fieldScope: ["notes"],
+      });
+
+      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("6/91.12");
+      expect(result.changes).toHaveLength(0);
+    });
+
+    it("applies no confusion rules for schema selectionMark fields", async () => {
+      prismaMock.labelingProject.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "agree",
+            field_type: "selectionMark",
+            field_format: null,
+            display_order: 0,
+          },
+        ],
+      });
+
+      const ocrResult = makeOcrResult([
+        { key: "agree", value: "2O24", confidence: 0.9 },
+      ]);
+
+      const result = await characterConfusionCorrection({
+        ocrResult,
+        documentType: "proj-1",
+        fieldScope: ["agree"],
+      });
+
+      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("2O24");
+      expect(result.changes).toHaveLength(0);
+    });
   });
 });

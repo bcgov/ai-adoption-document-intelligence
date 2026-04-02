@@ -5,6 +5,14 @@
  * Extends the existing fixCharacterConfusion logic to work as a standalone
  * activity with optional confusion map override.
  *
+ * Optional **`documentType`** (LabelingProject id) loads `field_schema` so gating
+ * and per-field rule subsets follow **`field_type`**, matching ocr.normalizeFields.
+ *
+ * Built-in rules: use **`enabledRules`** / **`disabledRules`** to toggle rule IDs.
+ * When **`confusionMapOverride`** is set, it replaces the entire built-in rule
+ * pipeline (enabled/disabled are ignored); schema-aware gating and per-field
+ * slash handling for `string` fields still apply.
+ *
  * See feature-docs/008-ocr-correction-agentic-sdlc/step-02-ocr-correction-tools-and-nodes.md
  */
 
@@ -19,21 +27,75 @@ import {
 } from "../form-field-normalization";
 import { createActivityLogger } from "../logger";
 import type { EnrichmentChange } from "../types";
+import type { FieldMap } from "./enrichment-rules";
+import { loadFieldMapFromProject } from "./field-schema-loader";
 
-const DEFAULT_CONFUSION_MAP: Record<string, string> = {
-  O: "0",
-  o: "0",
-  I: "1",
-  l: "1",
-  S: "5",
-  s: "5",
-  B: "8",
-  G: "6",
-  Z: "2",
-  q: "9",
-  /** Slash misread as "1" in numeric context (e.g. 6/91.12 → 6191.12). Dates DD/MM/YYYY are excluded via isSlashSeparatedDate. */
-  "/": "1",
-};
+export interface ConfusionRule {
+  id: string;
+  label: string;
+  map: Record<string, string>;
+}
+
+/** Ordered built-in rules; merged maps in this order (no duplicate keys across rules). */
+export const BUILT_IN_CONFUSION_RULES: ConfusionRule[] = [
+  {
+    id: "oToZero",
+    label: "O/o to digit 0",
+    map: { O: "0", o: "0" },
+  },
+  {
+    id: "ilToOne",
+    label: "I/l to digit 1",
+    map: { I: "1", l: "1" },
+  },
+  {
+    id: "ssToFive",
+    label: "S/s to digit 5",
+    map: { S: "5", s: "5" },
+  },
+  {
+    id: "bToEight",
+    label: "B to digit 8",
+    map: { B: "8" },
+  },
+  {
+    id: "gToSix",
+    label: "G to digit 6",
+    map: { G: "6" },
+  },
+  {
+    id: "zToTwo",
+    label: "Z to digit 2",
+    map: { Z: "2" },
+  },
+  {
+    id: "qToNine",
+    label: "q to digit 9",
+    map: { q: "9" },
+  },
+  {
+    id: "slashToOne",
+    label:
+      "Slash to digit 1 (numeric OCR; suppressed for slash-separated dates)",
+    map: { "/": "1" },
+  },
+];
+
+export const BUILT_IN_CONFUSION_RULE_IDS = BUILT_IN_CONFUSION_RULES.map(
+  (r) => r.id,
+);
+
+interface CharacterConfusionParams extends CorrectionToolParams {
+  /** LabelingProject id — loads field_schema for type-aware gating and rule subsets (same as ocr.normalizeFields `documentType`). */
+  documentType?: string;
+  /** When set, only these built-in rule IDs run. Empty/omitted means all built-in rules (before disabledRules). */
+  enabledRules?: string[];
+  /** Built-in rule IDs to skip (after enabledRules). Ignored when confusionMapOverride is set. */
+  disabledRules?: string[];
+  confusionMapOverride?: Record<string, string>;
+  /** Apply to all text fields, not just date/number context. Default: false */
+  applyToAllFields?: boolean;
+}
 
 const MONTH_NAMES = [
   "September",
@@ -61,10 +123,58 @@ const MONTH_NAMES = [
   "May",
 ].sort((a, b) => b.length - a.length);
 
-interface CharacterConfusionParams extends CorrectionToolParams {
-  confusionMapOverride?: Record<string, string>;
-  /** Apply to all text fields, not just date/number context. Default: false */
-  applyToAllFields?: boolean;
+/** Rule ids allowed per Prisma FieldType (intersected with resolved enabled/disabled). */
+export function confusionRuleIdsForFieldType(fieldType: string): Set<string> {
+  const all = new Set(BUILT_IN_CONFUSION_RULE_IDS);
+  switch (fieldType) {
+    case "number":
+    case "date":
+      return all;
+    case "string": {
+      const s = new Set(all);
+      s.delete("slashToOne");
+      return s;
+    }
+    case "selectionMark":
+    case "signature":
+      return new Set();
+    default:
+      return all;
+  }
+}
+
+function resolveBuiltInConfusionRules(
+  params: CharacterConfusionParams,
+): ConfusionRule[] {
+  const byId = new Map(BUILT_IN_CONFUSION_RULES.map((r) => [r.id, r]));
+  const enabled = params.enabledRules?.length
+    ? params.enabledRules
+        .map((id) => byId.get(id))
+        .filter((r): r is ConfusionRule => Boolean(r))
+    : [...BUILT_IN_CONFUSION_RULES];
+
+  const disabledIds = new Set(params.disabledRules ?? []);
+  return enabled.filter((r) => !disabledIds.has(r.id));
+}
+
+function mergeConfusionRules(rules: ConfusionRule[]): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const rule of rules) {
+    Object.assign(merged, rule.map);
+  }
+  return merged;
+}
+
+function filterRulesForField(
+  baseResolved: ConfusionRule[],
+  schemaFieldType: string | undefined,
+  fieldKnownInSchema: boolean,
+): ConfusionRule[] {
+  if (!fieldKnownInSchema || schemaFieldType === undefined) {
+    return baseResolved;
+  }
+  const allowed = confusionRuleIdsForFieldType(schemaFieldType);
+  return baseResolved.filter((r) => allowed.has(r.id));
 }
 
 function maskMonthNames(value: string): {
@@ -127,6 +237,8 @@ function hasConfusionGlyph(
  * When false, only run the map on values that look like numeric OCR (digits, money,
  * etc.) or on identifier/date field keys. Otherwise "Scott" triggers S→5 and o→0
  * because those letters appear in the confusion map.
+ *
+ * With schema: `selectionMark` / `signature` fields are skipped (handled via empty map).
  */
 function shouldApplyCharacterConfusion(
   fieldKey: string,
@@ -155,6 +267,14 @@ function isFieldInScope(
   return fieldScope.includes(fieldKey);
 }
 
+function stripSlashFromMap(
+  map: Record<string, string>,
+): Record<string, string> {
+  if (!("/" in map)) return map;
+  const { "/": _drop, ...rest } = map;
+  return rest;
+}
+
 /**
  * Character-confusion correction activity.
  * Applies confusion map replacements across the full OCR result.
@@ -163,22 +283,77 @@ export async function characterConfusionCorrection(
   params: CharacterConfusionParams,
 ): Promise<CorrectionResult> {
   const log = createActivityLogger("characterConfusionCorrection");
-  const { ocrResult, fieldScope, applyToAllFields } = params;
-  const confusionMap = params.confusionMapOverride ?? DEFAULT_CONFUSION_MAP;
+  const { ocrResult, fieldScope, applyToAllFields, documentType } = params;
+  const useOverride = Boolean(
+    params.confusionMapOverride &&
+      Object.keys(params.confusionMapOverride).length > 0,
+  );
+  const confusionMapOverride = params.confusionMapOverride;
+
+  const baseResolvedRules = useOverride
+    ? null
+    : resolveBuiltInConfusionRules(params);
+
+  let fieldMap: FieldMap | null = null;
+  if (documentType?.trim()) {
+    try {
+      fieldMap = await loadFieldMapFromProject(documentType.trim());
+    } catch (err) {
+      log.error("Character confusion: failed to load field schema", {
+        event: "schema_load_error",
+        documentType,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      fieldMap = null;
+    }
+  }
+
+  const resolvedRuleIds = baseResolvedRules?.map((r) => r.id) ?? [];
 
   log.info("Character confusion correction start", {
     event: "start",
     fileName: ocrResult.fileName,
-    confusionMapSize: Object.keys(confusionMap).length,
+    confusionMapSize: useOverride
+      ? Object.keys(confusionMapOverride ?? {}).length
+      : resolvedRuleIds.length,
     applyToAllFields,
     fieldScope,
+    documentType: documentType ?? null,
+    schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
+    useOverride,
+    enabledRules: resolvedRuleIds,
   });
 
   const result = deepCopyOcrResult(ocrResult);
   const changes: EnrichmentChange[] = [];
 
+  function effectiveMapForField(fieldKey: string): Record<string, string> {
+    if (useOverride && confusionMapOverride) {
+      let m = { ...confusionMapOverride };
+      const row = fieldMap?.[fieldKey];
+      if (row?.type === "string") {
+        m = stripSlashFromMap(m);
+      }
+      return m;
+    }
+
+    const fieldKnownInSchema = Boolean(fieldMap && fieldKey in fieldMap);
+    const schemaType = fieldMap?.[fieldKey]?.type;
+    const rulesForField = filterRulesForField(
+      baseResolvedRules ?? [],
+      schemaType,
+      fieldKnownInSchema,
+    );
+    return mergeConfusionRules(rulesForField);
+  }
+
   function correctValue(fieldKey: string, value: string): string {
     if (!value || typeof value !== "string") return value;
+
+    const confusionMap = effectiveMapForField(fieldKey);
+    if (Object.keys(confusionMap).length === 0) {
+      return value;
+    }
 
     const shouldApply = shouldApplyCharacterConfusion(
       fieldKey,
@@ -243,8 +418,14 @@ export async function characterConfusionCorrection(
     ocrResult: result,
     changes,
     metadata: {
-      confusionMapEntries: Object.keys(confusionMap).length,
+      confusionMapEntries: useOverride
+        ? Object.keys(confusionMapOverride ?? {}).length
+        : Object.keys(mergeConfusionRules(baseResolvedRules ?? [])).length,
       applyToAllFields: applyToAllFields ?? false,
+      documentType: documentType ?? null,
+      schemaAware: Boolean(fieldMap),
+      enabledRules: resolvedRuleIds,
+      useOverride,
     },
   };
 }

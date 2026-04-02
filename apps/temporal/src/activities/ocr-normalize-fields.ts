@@ -31,8 +31,8 @@ import {
 } from "../form-field-normalization";
 import { createActivityLogger } from "../logger";
 import type { EnrichmentChange, OCRResult } from "../types";
-import { getPrismaClient } from "./database-client";
-import { buildFieldMap, type FieldMap } from "./enrichment-rules";
+import type { FieldMap } from "./enrichment-rules";
+import { loadFieldMapFromProject } from "./field-schema-loader";
 
 interface NormalizerRule {
   id: string;
@@ -58,29 +58,6 @@ interface NormalizeFieldsParams extends CorrectionToolParams {
    * Applies to **all** fields present in the OCR result (not gated by `fieldScope`; use `fieldScope` for rules only).
    */
   emptyValueCoercion?: EmptyValueCoercionMode;
-}
-
-async function loadFieldMapFromProject(
-  documentType: string,
-): Promise<FieldMap | null> {
-  const prisma = getPrismaClient();
-  const project = await prisma.labelingProject.findUnique({
-    where: { id: documentType },
-    include: { field_schema: { orderBy: { display_order: "asc" } } },
-  });
-  if (!project?.field_schema?.length) return null;
-  const defs = project.field_schema.map(
-    (f: {
-      field_key: string;
-      field_type: string;
-      field_format: string | null;
-    }) => ({
-      field_key: f.field_key,
-      field_type: f.field_type,
-      field_format: f.field_format,
-    }),
-  );
-  return buildFieldMap(defs);
 }
 
 /** Rule ids allowed per Prisma FieldType (intersected with activity `enabledRules` / `disabledRules`). */

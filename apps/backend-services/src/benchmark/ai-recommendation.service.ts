@@ -166,7 +166,7 @@ ${keyLines}
 
 Rules:
 - Only the three keys above (plus "analysis"). Set "include": true only when the data supports that tool.
-- "parameters" must use names and types from each tool's manifest. For ocr.normalizeFields, set documentType to the LabelingProject id used by ocr.enrich when applicable; for empty-string ground truth benchmarks, you may set emptyValueCoercion to "blank".
+- "parameters" must use names and types from each tool's manifest. For ocr.normalizeFields and ocr.characterConfusion, set documentType to the LabelingProject id used by ocr.enrich when applicable; for empty-string ground truth benchmarks, you may set emptyValueCoercion to "blank" on normalizeFields. For ocr.characterConfusion, use disabledRules (e.g. ["slashToOne"]) when slashes are legitimate in text fields; built-in rule IDs are oToZero, ilToOne, ssToFive, bToEight, gToSix, zToTwo, qToNine, slashToOne.
 - Omit a tool or set "include": false when not needed.
 - Ignore any notion of per-tool insertion or "safe" graph positions; placement is not configurable in your output.`;
 }

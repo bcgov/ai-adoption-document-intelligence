@@ -68,13 +68,34 @@ const CORRECTION_TOOL_REGISTRY: CorrectionToolManifestEntry[] = [
     toolId: "ocr.characterConfusion",
     label: "Character Confusion Correction",
     description:
-      "Applies character-level confusion map replacements (e.g. O→0, l→1, S→5) to field values that contain mixed letter-digit patterns. Supports custom confusion map override.",
+      "Character-level confusion map (O→0, l→1, S→5, /→1 in numeric contexts, etc.) on field values. Optional documentType loads field_schema for type-aware rule subsets (e.g. string fields omit slash→1). Built-in rules are toggled via enabledRules/disabledRules; confusionMapOverride replaces the entire built-in map (toggles ignored).",
     parameters: [
+      {
+        name: "documentType",
+        type: "string",
+        description:
+          "LabelingProject id — load field_schema; per field_type intersects with enabled rules (string omits slashToOne; selectionMark/signature apply no substitutions).",
+        required: false,
+      },
+      {
+        name: "enabledRules",
+        type: "string[]",
+        description:
+          "Optional ordered list of built-in confusion rule IDs (oToZero, ilToOne, ssToFive, bToEight, gToSix, zToTwo, qToNine, slashToOne). Defaults to all when omitted or empty.",
+        required: false,
+      },
+      {
+        name: "disabledRules",
+        type: "string[]",
+        description:
+          "Built-in rule IDs to skip after enabledRules. Ignored when confusionMapOverride is set.",
+        required: false,
+      },
       {
         name: "confusionMapOverride",
         type: "object",
         description:
-          "Custom confusion map as Record<string, string>. Overrides the default CONFUSION_MAP.",
+          "Custom confusion map as Record<string, string>. Replaces the entire built-in rule pipeline; enabledRules/disabledRules ignored. Schema gating still applies (e.g. slash entry stripped for schema string fields).",
         required: false,
       },
       {

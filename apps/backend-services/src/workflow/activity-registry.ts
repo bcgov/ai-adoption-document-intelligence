@@ -53,7 +53,7 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     },
     "ocr.characterConfusion": {
       description:
-        "Character confusion correction (e.g. O→0, l→1) with optional map override",
+        "Character confusion; optional documentType for schema-aware rules; enabledRules/disabledRules or confusionMapOverride",
     },
     "ocr.normalizeFields": {
       description:

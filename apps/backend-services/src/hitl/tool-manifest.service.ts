@@ -54,12 +54,34 @@ const TOOL_MANIFEST: ToolManifestEntry[] = [
     toolId: "ocr.characterConfusion",
     label: "Character Confusion Correction",
     description:
-      "Applies character-level confusion map (O→0, l→1, S→5) to values with mixed letter-digit patterns. Supports custom map override.",
+      "Character-level confusion map on field values. Optional documentType loads field_schema for type-aware rule subsets. Built-in rule IDs: oToZero, ilToOne, ssToFive, bToEight, gToSix, zToTwo, qToNine, slashToOne — use enabledRules/disabledRules; confusionMapOverride replaces the built-in map.",
     parameters: [
+      {
+        name: "documentType",
+        type: "string",
+        description:
+          "LabelingProject id — load field_schema for per-field_type rule subsets (same as ocr.normalizeFields).",
+        required: false,
+      },
+      {
+        name: "enabledRules",
+        type: "string[]",
+        description:
+          "Optional list of built-in confusion rule IDs. Defaults to all when omitted.",
+        required: false,
+      },
+      {
+        name: "disabledRules",
+        type: "string[]",
+        description:
+          "Built-in rule IDs to skip. Ignored when confusionMapOverride is set.",
+        required: false,
+      },
       {
         name: "confusionMapOverride",
         type: "object",
-        description: "Custom confusion map as Record<string, string>.",
+        description:
+          "Custom confusion map as Record<string, string>. Replaces built-in rules; enabled/disabled toggles ignored.",
         required: false,
       },
       {

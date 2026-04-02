@@ -222,7 +222,7 @@ register({
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 2 },
   description:
-    "Character confusion correction (e.g. O→0, l→1) with optional map override",
+    "Character confusion (O→0, l→1, …); optional documentType for schema-aware rules; enabledRules/disabledRules or confusionMapOverride",
 });
 
 register({
