@@ -763,8 +763,8 @@ describe("BenchmarkRunService", () => {
         workflowConfigOverrides: {
           "ctx.modelId.defaultValue": "prebuilt-read",
         },
-        workflow: {
-          ...mockDefinition.workflow,
+        workflowVersion: {
+          ...mockDefinition.workflowVersion,
           config: {
             schemaVersion: "1.0",
             metadata: { name: "Test", description: "", tags: [] },
@@ -778,67 +778,34 @@ describe("BenchmarkRunService", () => {
         },
       };
 
-      jest
-        .spyOn(mockBenchmarkRunDbService, "findBenchmarkDefinitionForRun")
-        .mockResolvedValue(definitionWithOverrides);
-
-      jest
-        .spyOn(datasetService, "validateDatasetVersion")
-        .mockResolvedValue({ valid: true, sampled: false, totalSamples: 10, issues: [], issueCount: { schemaViolations: 0, missingGroundTruth: 0, duplicates: 0, corruption: 0 } });
-
-      const mockRun = {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        definitionWithOverrides,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
         id: "run-1",
-        definitionId: "def-1",
-        projectId: "project-1",
-        status: "pending",
         temporalWorkflowId: "",
-      };
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("temporal-wf-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        status: "running",
+        temporalWorkflowId: "temporal-wf-1",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        definitionWithOverrides,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        status: "running",
+        temporalWorkflowId: "temporal-wf-1",
+        startedAt: new Date(),
+        definition: { name: "Test Definition" },
+      });
 
-      jest
-        .spyOn(mockBenchmarkRunDbService, "createBenchmarkRun")
-        .mockResolvedValue(mockRun);
-      jest
-        .spyOn(mockBenchmarkRunDbService, "updateBenchmarkRun")
-        .mockResolvedValue({ ...mockRun, status: "running" });
-      jest
-        .spyOn(mockBenchmarkRunDbService, "markBenchmarkDefinitionImmutable")
-        .mockResolvedValue(undefined);
-      jest
-        .spyOn(mockBenchmarkRunDbService, "freezeDatasetVersion")
-        .mockResolvedValue(undefined);
-      jest
-        .spyOn(mockBenchmarkRunDbService, "freezeSplit")
-        .mockResolvedValue(undefined);
-
-      jest
-        .spyOn(benchmarkTemporal, "startBenchmarkRunWorkflow")
-        .mockResolvedValue("temporal-wf-1");
-
-      // Mock getRunById (called at the end of startRun)
-      jest
-        .spyOn(mockBenchmarkRunDbService, "findBenchmarkRun")
-        .mockResolvedValue({
-          ...mockRun,
-          status: "running",
-          temporalWorkflowId: "temporal-wf-1",
-          startedAt: new Date(),
-          completedAt: null,
-          metrics: null,
-          params: {},
-          tags: {},
-          error: null,
-          isBaseline: false,
-          baselineThresholds: null,
-          baselineComparison: null,
-          workerGitSha: "abc123",
-          workerImageDigest: null,
-          createdAt: new Date(),
-          definition: mockDefinition,
-        });
-
-      jest.spyOn(mockAuditLogDbService, "createAuditLog").mockResolvedValue(undefined);
-
-      await service.startRun("project-1", "def-1", {}, mockIdentity);
+      await service.startRun("project-1", "def-1", {});
 
       // Verify the workflow config passed to Temporal has the override applied
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
@@ -855,12 +822,14 @@ describe("BenchmarkRunService", () => {
       );
 
       // Verify overrides are stored in run params
-      expect(mockBenchmarkRunDbService.createBenchmarkRun).toHaveBeenCalledWith(
+      expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          params: expect.objectContaining({
-            workflowConfigOverrides: {
-              "ctx.modelId.defaultValue": "prebuilt-read",
-            },
+          data: expect.objectContaining({
+            params: expect.objectContaining({
+              workflowConfigOverrides: {
+                "ctx.modelId.defaultValue": "prebuilt-read",
+              },
+            }),
           }),
         }),
       );

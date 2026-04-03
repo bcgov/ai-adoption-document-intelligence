@@ -251,10 +251,10 @@ describe("BenchmarkDefinitionService", () => {
     });
 
     it("creates a definition with workflowConfigOverrides", async () => {
-      const workflowWithExposedParams = {
-        ...mockWorkflow,
+      const workflowVersionWithExposedParams = {
+        ...mockWorkflowVersion,
         config: {
-          ...mockWorkflow.config,
+          ...mockWorkflowVersion.config,
           nodeGroups: {
             "ocr-extraction": {
               label: "OCR",
@@ -274,17 +274,15 @@ describe("BenchmarkDefinitionService", () => {
       };
 
       jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findBenchmarkProject")
+        .spyOn(prisma.benchmarkProject, "findUnique")
         .mockResolvedValue(mockProject);
       jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findDatasetVersion")
+        .spyOn(prisma.datasetVersion, "findUnique")
         .mockResolvedValue(mockDatasetVersion);
+      jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
       jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findSplit")
-        .mockResolvedValue(mockSplit);
-      jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findWorkflow")
-        .mockResolvedValue(workflowWithExposedParams);
+        .spyOn(prisma.workflowVersion, "findUnique")
+        .mockResolvedValue(workflowVersionWithExposedParams);
 
       const mockCreatedDefinition = {
         id: "def-1",
@@ -292,7 +290,7 @@ describe("BenchmarkDefinitionService", () => {
         name: "Test with overrides",
         datasetVersionId: "ds-version-1",
         splitId: "split-1",
-        workflowId: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
         workflowConfigHash: expect.any(String),
         workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
         evaluatorType: "schema-aware",
@@ -304,19 +302,19 @@ describe("BenchmarkDefinitionService", () => {
         updatedAt: new Date(),
         datasetVersion: mockDatasetVersion,
         split: mockSplit,
-        workflow: workflowWithExposedParams,
+        workflowVersion: workflowVersionWithExposedParams,
         benchmarkRuns: [],
       };
 
       jest
-        .spyOn(mockBenchmarkDefinitionDbService, "createBenchmarkDefinition")
+        .spyOn(prisma.benchmarkDefinition, "create")
         .mockResolvedValue(mockCreatedDefinition as never);
 
       const dto = {
         name: "Test with overrides",
         datasetVersionId: "ds-version-1",
         splitId: "split-1",
-        workflowId: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
         evaluatorType: "schema-aware",
         evaluatorConfig: {},
         runtimeSettings: { maxParallelDocuments: 10 },
@@ -328,20 +326,20 @@ describe("BenchmarkDefinitionService", () => {
       expect(result.workflowConfigOverrides).toEqual({
         "ctx.modelId.defaultValue": "prebuilt-read",
       });
-      expect(
-        mockBenchmarkDefinitionDbService.createBenchmarkDefinition,
-      ).toHaveBeenCalledWith(
+      expect(prisma.benchmarkDefinition.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+          data: expect.objectContaining({
+            workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+          }),
         }),
       );
     });
 
     it("rejects overrides with invalid paths", async () => {
-      const workflowWithExposedParams = {
-        ...mockWorkflow,
+      const workflowVersionWithExposedParams = {
+        ...mockWorkflowVersion,
         config: {
-          ...mockWorkflow.config,
+          ...mockWorkflowVersion.config,
           nodeGroups: {
             "ocr-extraction": {
               label: "OCR",
@@ -361,23 +359,21 @@ describe("BenchmarkDefinitionService", () => {
       };
 
       jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findBenchmarkProject")
+        .spyOn(prisma.benchmarkProject, "findUnique")
         .mockResolvedValue(mockProject);
       jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findDatasetVersion")
+        .spyOn(prisma.datasetVersion, "findUnique")
         .mockResolvedValue(mockDatasetVersion);
+      jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
       jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findSplit")
-        .mockResolvedValue(mockSplit);
-      jest
-        .spyOn(mockBenchmarkDefinitionDbService, "findWorkflow")
-        .mockResolvedValue(workflowWithExposedParams);
+        .spyOn(prisma.workflowVersion, "findUnique")
+        .mockResolvedValue(workflowVersionWithExposedParams);
 
       const dto = {
         name: "Test invalid",
         datasetVersionId: "ds-version-1",
         splitId: "split-1",
-        workflowId: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
         evaluatorType: "schema-aware",
         evaluatorConfig: {},
         runtimeSettings: { maxParallelDocuments: 10 },

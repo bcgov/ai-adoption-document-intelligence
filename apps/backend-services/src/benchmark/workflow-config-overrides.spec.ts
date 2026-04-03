@@ -258,7 +258,7 @@ describe("applyWorkflowConfigOverrides", () => {
     const result = applyWorkflowConfigOverrides(config, {
       "ctx.language.defaultValue": "fr",
     });
-    expect((result.ctx["language"] as Record<string, unknown>).defaultValue).toBe("fr");
+    expect((result.ctx["language"] as unknown as Record<string, unknown>).defaultValue).toBe("fr");
   });
 
   it("applies multiple overrides", () => {
@@ -267,7 +267,7 @@ describe("applyWorkflowConfigOverrides", () => {
       "ctx.language.defaultValue": "de",
       "nodes.node1.parameters.temperature": 0.2,
     });
-    expect((result.ctx["language"] as Record<string, unknown>).defaultValue).toBe("de");
+    expect((result.ctx["language"] as unknown as Record<string, unknown>).defaultValue).toBe("de");
     const nodes = (result as unknown as Record<string, Record<string, unknown>>)["nodes"];
     expect(
       (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"]["temperature"],
