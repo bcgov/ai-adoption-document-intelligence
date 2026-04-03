@@ -1,9 +1,10 @@
 name: Deploy Feature Branch Instance
 
 on:
-  pull_request:
-    branches: [develop]
-    types: [opened, synchronize, reopened]
+  push:
+    branches-ignore:
+      - main
+      - develop
 
 env:
   DEPLOY_PLG: "true"
@@ -23,7 +24,7 @@ jobs:
       - name: Compute instance name and image tag
         id: meta
         run: |
-          RAW_BRANCH="${{ github.head_ref }}"
+          RAW_BRANCH="${{ github.ref_name }}"
 
           # Image tag: sanitize for OCI tag (128 chars, same as build-instance-images.yml)
           IMAGE_TAG=$(echo "$RAW_BRANCH" \
@@ -66,7 +67,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -119,7 +120,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
 
       - name: Install oc CLI
         uses: redhat-actions/openshift-tools-installer@v1
@@ -224,16 +225,17 @@ jobs:
           # Also copy the base dir the symlink points to
           ls -la "$(dirname "$(dirname "$OVERLAY_DIR")")/base" || true
           # Test YAML validity
-          python3 -c "
-import yaml, glob, sys
-for f in sorted(glob.glob('/tmp/overlay-debug/**/*.yml', recursive=True)):
-    try:
-        list(yaml.safe_load_all(open(f)))
-        print(f'YAML OK: {f}')
-    except Exception as e:
-        print(f'YAML FAIL: {f}: {e}')
-        sys.exit(1)
-"
+          python3 -c "import yaml,glob,sys;[print(f'YAML OK: {f}') if not any(True for _ in []) else None for f in sorted(glob.glob('/tmp/overlay-debug/**/*.yml',recursive=True))]" || true
+          python3 << 'PYEOF'
+          import yaml, glob, sys
+          for f in sorted(glob.glob('/tmp/overlay-debug/**/*.yml', recursive=True)):
+              try:
+                  list(yaml.safe_load_all(open(f)))
+                  print(f'YAML OK: {f}')
+              except Exception as e:
+                  print(f'YAML FAIL: {f}: {e}')
+                  sys.exit(1)
+          PYEOF
           # Test kustomize
           kustomize version
           kustomize build "$OVERLAY_DIR" > /tmp/kustomize-output.yaml 2>&1 && echo "kustomize OK" || {
@@ -383,11 +385,26 @@ for f in sorted(glob.glob('/tmp/overlay-debug/**/*.yml', recursive=True)):
               `To tear down: \`./scripts/oc-teardown.sh --instance ${instance}\``,
             ].join('\n');
 
+            // Find open PR for this branch
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${context.ref.replace('refs/heads/', '')}`,
+              state: 'open',
+            });
+
+            if (prs.length === 0) {
+              console.log('No open PR found for this branch, skipping comment.');
+              return;
+            }
+
+            const prNumber = prs[0].number;
+
             // Find and update existing deploy comment, or create new one
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: prNumber,
             });
 
             const marker = '### Deployment Successful';
@@ -404,7 +421,7 @@ for f in sorted(glob.glob('/tmp/overlay-debug/**/*.yml', recursive=True)):
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 body,
               });
             }
