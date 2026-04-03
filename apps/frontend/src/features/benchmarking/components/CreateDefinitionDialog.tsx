@@ -24,6 +24,7 @@ export interface DefinitionFormInitialValues {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 interface CreateDefinitionDialogProps {
@@ -43,6 +44,7 @@ export interface CreateDefinitionFormData {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 interface Split {
@@ -73,6 +75,10 @@ export function CreateDefinitionDialog({
   const [maxParallelDocuments, setMaxParallelDocuments] = useState(10);
   const [perDocumentTimeout, setPerDocumentTimeout] = useState(300000);
   const [initialized, setInitialized] = useState(false);
+  const [workflowConfigOverridesJson, setWorkflowConfigOverridesJson] =
+    useState("");
+  const [workflowConfigOverridesError, setWorkflowConfigOverridesError] =
+    useState("");
 
   const {
     versions,
@@ -128,11 +134,66 @@ export function CreateDefinitionDialog({
         setSplits(version.splits);
       }
 
+      if (
+        initialValues.workflowConfigOverrides &&
+        Object.keys(initialValues.workflowConfigOverrides).length > 0
+      ) {
+        setWorkflowConfigOverridesJson(
+          JSON.stringify(initialValues.workflowConfigOverrides, null, 2),
+        );
+      } else if (initialValues.workflowId) {
+        const defaults = getExposedParamDefaults(initialValues.workflowId);
+        if (Object.keys(defaults).length > 0) {
+          setWorkflowConfigOverridesJson(JSON.stringify(defaults, null, 2));
+        }
+      }
+
       setInitialized(true);
     }
   }, [opened, mode, initialValues, initialized, versions]);
 
   const [splits, setSplits] = useState<Split[]>([]);
+
+  const getExposedParamDefaults = (
+    wfId: string,
+  ): Record<string, unknown> => {
+    const workflow = workflows.find((w) => w.id === wfId);
+    if (!workflow?.config) return {};
+    const nodeGroups = workflow.config.nodeGroups as
+      | Record<
+          string,
+          {
+            exposedParams?: Array<{
+              path: string;
+            }>;
+          }
+        >
+      | undefined;
+    if (!nodeGroups) return {};
+
+    // Resolve each exposed param's path against the actual config
+    // to get the real runtime default, not a potentially-stale value.
+    const resolvePathValue = (path: string): unknown => {
+      const parts = path.split(".");
+      let current: unknown = workflow.config;
+      for (const part of parts) {
+        if (current === undefined || current === null || typeof current !== "object") {
+          return undefined;
+        }
+        current = (current as Record<string, unknown>)[part];
+      }
+      return current;
+    };
+
+    const defaults: Record<string, unknown> = {};
+    for (const group of Object.values(nodeGroups)) {
+      if (!group.exposedParams) continue;
+      for (const param of group.exposedParams) {
+        defaults[param.path] = resolvePathValue(param.path);
+      }
+    }
+    return defaults;
+  };
 
   const handleVersionChange = (versionId: string | null) => {
     setDatasetVersionId(versionId || "");
@@ -184,6 +245,17 @@ export function CreateDefinitionDialog({
       }
     }
 
+    // Validate workflow config overrides JSON
+    let workflowConfigOverrides: Record<string, unknown> = {};
+    if (workflowConfigOverridesJson.trim()) {
+      try {
+        workflowConfigOverrides = JSON.parse(workflowConfigOverridesJson);
+      } catch {
+        setWorkflowConfigOverridesError("Invalid JSON");
+        hasError = true;
+      }
+    }
+
     if (hasError) {
       return;
     }
@@ -201,6 +273,9 @@ export function CreateDefinitionDialog({
       evaluatorType,
       evaluatorConfig,
       runtimeSettings,
+      ...(Object.keys(workflowConfigOverrides).length > 0
+        ? { workflowConfigOverrides }
+        : {}),
     });
   };
 
@@ -220,6 +295,8 @@ export function CreateDefinitionDialog({
     setPerDocumentTimeout(300000);
     setSplits([]);
     setInitialized(false);
+    setWorkflowConfigOverridesJson("");
+    setWorkflowConfigOverridesError("");
     onClose();
   };
 
@@ -319,6 +396,19 @@ export function CreateDefinitionDialog({
           onChange={(value) => {
             setWorkflowVersionId(value || "");
             setWorkflowError("");
+            if (value) {
+              const defaults = getExposedParamDefaults(value);
+              if (Object.keys(defaults).length > 0) {
+                setWorkflowConfigOverridesJson(
+                  JSON.stringify(defaults, null, 2),
+                );
+              } else {
+                setWorkflowConfigOverridesJson("");
+              }
+            } else {
+              setWorkflowConfigOverridesJson("");
+            }
+            setWorkflowConfigOverridesError("");
           }}
           disabled={isLoadingWorkflows}
           searchable
@@ -326,6 +416,41 @@ export function CreateDefinitionDialog({
           error={workflowError}
           data-testid="workflow-select"
         />
+
+        {workflowConfigOverridesJson && (
+          <Stack gap={4}>
+            <Textarea
+              label={
+                <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
+                  <Text size="sm" fw={500}>
+                    Workflow Config Overrides (JSON)
+                  </Text>
+                  <Tooltip
+                    label="Override workflow parameters like OCR model, confidence threshold, etc. Keys are parameter paths from the workflow's exposed parameters."
+                    multiline
+                    w={300}
+                  >
+                    <IconInfoCircle
+                      size={14}
+                      style={{ opacity: 0.6, cursor: "help" }}
+                    />
+                  </Tooltip>
+                </Group>
+              }
+              placeholder="{}"
+              value={workflowConfigOverridesJson}
+              onChange={(e) => {
+                setWorkflowConfigOverridesJson(e.target.value);
+                setWorkflowConfigOverridesError("");
+              }}
+              error={workflowConfigOverridesError}
+              minRows={4}
+              autosize
+              styles={{ input: { fontFamily: "monospace", fontSize: 13 } }}
+              data-testid="workflow-config-overrides-textarea"
+            />
+          </Stack>
+        )}
 
         <Select
           label={

@@ -249,6 +249,145 @@ describe("BenchmarkDefinitionService", () => {
       expect(typeof result.workflowConfigHash).toBe("string");
       expect(result.workflowConfigHash.length).toBeGreaterThan(0);
     });
+
+    it("creates a definition with workflowConfigOverrides", async () => {
+      const workflowWithExposedParams = {
+        ...mockWorkflow,
+        config: {
+          ...mockWorkflow.config,
+          nodeGroups: {
+            "ocr-extraction": {
+              label: "OCR",
+              nodeIds: ["node1"],
+              exposedParams: [
+                {
+                  label: "OCR Model",
+                  path: "ctx.modelId.defaultValue",
+                  type: "select",
+                  options: ["prebuilt-layout", "prebuilt-read"],
+                  default: "prebuilt-layout",
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findBenchmarkProject")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findDatasetVersion")
+        .mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findSplit")
+        .mockResolvedValue(mockSplit);
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findWorkflow")
+        .mockResolvedValue(workflowWithExposedParams);
+
+      const mockCreatedDefinition = {
+        id: "def-1",
+        projectId: "project-1",
+        name: "Test with overrides",
+        datasetVersionId: "ds-version-1",
+        splitId: "split-1",
+        workflowId: "workflow-1",
+        workflowConfigHash: expect.any(String),
+        workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+        evaluatorType: "schema-aware",
+        evaluatorConfig: {},
+        runtimeSettings: { maxParallelDocuments: 10 },
+        immutable: false,
+        revision: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        datasetVersion: mockDatasetVersion,
+        split: mockSplit,
+        workflow: workflowWithExposedParams,
+        benchmarkRuns: [],
+      };
+
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "createBenchmarkDefinition")
+        .mockResolvedValue(mockCreatedDefinition as never);
+
+      const dto = {
+        name: "Test with overrides",
+        datasetVersionId: "ds-version-1",
+        splitId: "split-1",
+        workflowId: "workflow-1",
+        evaluatorType: "schema-aware",
+        evaluatorConfig: {},
+        runtimeSettings: { maxParallelDocuments: 10 },
+        workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+      };
+
+      const result = await service.createDefinition("project-1", dto);
+
+      expect(result.workflowConfigOverrides).toEqual({
+        "ctx.modelId.defaultValue": "prebuilt-read",
+      });
+      expect(
+        mockBenchmarkDefinitionDbService.createBenchmarkDefinition,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+        }),
+      );
+    });
+
+    it("rejects overrides with invalid paths", async () => {
+      const workflowWithExposedParams = {
+        ...mockWorkflow,
+        config: {
+          ...mockWorkflow.config,
+          nodeGroups: {
+            "ocr-extraction": {
+              label: "OCR",
+              nodeIds: ["node1"],
+              exposedParams: [
+                {
+                  label: "OCR Model",
+                  path: "ctx.modelId.defaultValue",
+                  type: "select",
+                  options: ["prebuilt-layout", "prebuilt-read"],
+                  default: "prebuilt-layout",
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findBenchmarkProject")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findDatasetVersion")
+        .mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findSplit")
+        .mockResolvedValue(mockSplit);
+      jest
+        .spyOn(mockBenchmarkDefinitionDbService, "findWorkflow")
+        .mockResolvedValue(workflowWithExposedParams);
+
+      const dto = {
+        name: "Test invalid",
+        datasetVersionId: "ds-version-1",
+        splitId: "split-1",
+        workflowId: "workflow-1",
+        evaluatorType: "schema-aware",
+        evaluatorConfig: {},
+        runtimeSettings: { maxParallelDocuments: 10 },
+        workflowConfigOverrides: { "nodes.node1.activityType": "evil.type" },
+      };
+
+      await expect(
+        service.createDefinition("project-1", dto),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   // -----------------------------------------------------------------------

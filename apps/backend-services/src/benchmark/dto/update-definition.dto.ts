@@ -42,6 +42,19 @@ export class UpdateDefinitionDto {
   workflowVersionId?: string;
 
   /**
+   * Workflow config overrides
+   */
+  @ApiPropertyOptional({
+    description:
+      "Workflow config overrides — map of exposed param paths to values",
+    type: "object",
+    additionalProperties: true,
+  })
+  @IsOptional()
+  @IsObject()
+  workflowConfigOverrides?: Record<string, unknown>;
+
+  /**
    * Evaluator type (must match a registered evaluator)
    */
   @ApiPropertyOptional({

@@ -22,6 +22,7 @@ import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
+import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 import {
   BaselineComparison,
   CreateRunDto,
@@ -255,6 +256,9 @@ export class BenchmarkRunService {
     let workflowConfigUsed: Record<string, unknown>;
     let workflowConfigHashUsed: string;
 
+    // Apply workflow config overrides from the definition
+    const workflowConfigOverrides = (definition.workflowConfigOverrides ?? {}) as Record<string, unknown>;
+
     if (dto.workflowConfigOverride) {
       workflowConfigUsed = dto.workflowConfigOverride;
       workflowConfigHashUsed = this.hashWorkflowConfigJson(
@@ -292,10 +296,15 @@ export class BenchmarkRunService {
       workflowConfigUsed = candidateRow.config as Record<string, unknown>;
       workflowConfigHashUsed = this.hashWorkflowConfigJson(candidateRow.config);
     } else {
-      workflowConfigUsed = definition.workflowVersion.config as Record<
-        string,
-        unknown
-      >;
+      const baseConfig = definition.workflowVersion.config as Record<string, unknown>;
+      if (Object.keys(workflowConfigOverrides).length > 0) {
+        workflowConfigUsed = applyWorkflowConfigOverrides(
+          baseConfig as unknown as GraphWorkflowConfig,
+          workflowConfigOverrides,
+        ) as unknown as Record<string, unknown>;
+      } else {
+        workflowConfigUsed = baseConfig;
+      }
       workflowConfigHashUsed = definition.workflowConfigHash;
     }
 
@@ -308,6 +317,9 @@ export class BenchmarkRunService {
     if (dto.candidateWorkflowVersionId) {
       runParams.candidateWorkflowVersionId = dto.candidateWorkflowVersionId;
       runParams.workflowConfigHash = workflowConfigHashUsed;
+    }
+    if (Object.keys(workflowConfigOverrides).length > 0) {
+      runParams.workflowConfigOverrides = workflowConfigOverrides;
     }
     if (effectivePersistOcrCache) {
       runParams.persistOcrCache = true;

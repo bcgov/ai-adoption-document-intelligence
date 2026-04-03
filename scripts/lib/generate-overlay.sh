@@ -71,6 +71,8 @@ generate_instance_overlay() {
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
   local enrichment_redact_pii="false"
+  local azure_doc_intelligence_endpoint=""
+  local azure_doc_intelligence_models="prebuilt-layout"
   local pg_backup_storage_size="10Gi"
 
   while [[ $# -gt 0 ]]; do
@@ -179,6 +181,14 @@ generate_instance_overlay() {
         enrichment_redact_pii="$2"
         shift 2
         ;;
+      --azure-doc-intelligence-endpoint)
+        azure_doc_intelligence_endpoint="$2"
+        shift 2
+        ;;
+      --azure-doc-intelligence-models)
+        azure_doc_intelligence_models="$2"
+        shift 2
+        ;;
       --pg-backup-storage-size)
         pg_backup_storage_size="$2"
         shift 2
@@ -260,6 +270,8 @@ generate_instance_overlay() {
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
     -e "s|__ENRICHMENT_REDACT_PII__|$(_sed_escape_replacement "${enrichment_redact_pii}")|g"
+    -e "s|__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__|$(_sed_escape_replacement "${azure_doc_intelligence_endpoint}")|g"
+    -e "s|__AZURE_DOC_INTELLIGENCE_MODELS__|$(_sed_escape_replacement "${azure_doc_intelligence_models}")|g"
     -e "s|__PG_BACKUP_STORAGE_SIZE__|$(_sed_escape_replacement "${pg_backup_storage_size}")|g"
   )
 

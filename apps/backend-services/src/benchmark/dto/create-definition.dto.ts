@@ -45,6 +45,21 @@ export class CreateDefinitionDto {
   workflowVersionId: string;
 
   /**
+   * Workflow config overrides — a map of exposed param paths to override values.
+   * Keys must match `exposedParams[].path` from the workflow's nodeGroups.
+   */
+  @ApiPropertyOptional({
+    description:
+      "Workflow config overrides — map of exposed param paths to values. " +
+      'E.g. {"ctx.modelId.defaultValue": "prebuilt-read"}',
+    type: "object",
+    additionalProperties: true,
+  })
+  @IsOptional()
+  @IsObject()
+  workflowConfigOverrides?: Record<string, unknown>;
+
+  /**
    * Evaluator type (must match a registered evaluator)
    */
   @ApiProperty({

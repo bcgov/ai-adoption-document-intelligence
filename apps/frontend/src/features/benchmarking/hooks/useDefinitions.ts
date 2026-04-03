@@ -61,6 +61,7 @@ interface DefinitionDetails {
   split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
+  workflowConfigOverrides?: Record<string, unknown>;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -83,6 +84,7 @@ interface CreateDefinitionDto {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 interface UpdateDefinitionDto {
@@ -93,6 +95,7 @@ interface UpdateDefinitionDto {
   evaluatorType?: string;
   evaluatorConfig?: Record<string, unknown>;
   runtimeSettings?: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 interface PromoteCandidateWorkflowDto {

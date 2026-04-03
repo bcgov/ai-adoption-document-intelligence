@@ -572,28 +572,29 @@ model BenchmarkProject {
 }
 
 model BenchmarkDefinition {
-  id                  String             @id @default(uuid())
-  projectId           String
-  project             BenchmarkProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name                String
-  datasetVersionId    String
-  datasetVersion      DatasetVersion     @relation(fields: [datasetVersionId], references: [id])
-  splitId             String?
-  split               Split?             @relation(fields: [splitId], references: [id])
-  workflowVersionId   String
-  workflowVersion     WorkflowVersion    @relation(fields: [workflowVersionId], references: [id])
-  workflowConfigHash  String
-  evaluatorType       String
-  evaluatorConfig     Json
-  runtimeSettings     Json
-  immutable           Boolean            @default(false)
-  revision            Int                @default(1)
-  scheduleEnabled     Boolean            @default(false)
-  scheduleCron        String?
-  scheduleId          String?            @unique
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  benchmarkRuns       BenchmarkRun[]
+  id                      String             @id @default(uuid())
+  projectId               String
+  project                 BenchmarkProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                    String
+  datasetVersionId        String
+  datasetVersion          DatasetVersion     @relation(fields: [datasetVersionId], references: [id])
+  splitId                 String?
+  split                   Split?             @relation(fields: [splitId], references: [id])
+  workflowVersionId       String
+  workflowVersion         WorkflowVersion    @relation(fields: [workflowVersionId], references: [id])
+  workflowConfigHash      String
+  workflowConfigOverrides Json?              @default("{}") @map("workflow_config_overrides")
+  evaluatorType           String
+  evaluatorConfig         Json
+  runtimeSettings         Json
+  immutable               Boolean            @default(false)
+  revision                Int                @default(1)
+  scheduleEnabled         Boolean            @default(false)
+  scheduleCron            String?
+  scheduleId              String?            @unique
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  benchmarkRuns           BenchmarkRun[]
 
   @@index([projectId])
   @@index([datasetVersionId])

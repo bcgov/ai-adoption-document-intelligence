@@ -564,6 +564,40 @@ describe("SchemaAwareEvaluator", () => {
       expect(result.metrics.matchedFields).toBe(1);
       expect(result.metrics.precision).toBeCloseTo(1 / 3, 3);
     });
+
+    it("ignores null-like extra fields in prediction", async () => {
+      const groundTruth = {
+        field1: "value1",
+      };
+
+      const prediction = {
+        field1: "value1",
+        field2: null,
+        field3: "",
+        field4: "null",
+      };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-extra-null",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.diagnostics.extraFields).toEqual([]);
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.precision).toBe(1.0);
+      expect(result.metrics.f1).toBe(1.0);
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -636,6 +670,129 @@ describe("SchemaAwareEvaluator", () => {
 
       expect(result.metrics.f1).toBeLessThan(0.9);
       expect(result.pass).toBe(false);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario 11: Null-like value equivalence
+  // -----------------------------------------------------------------------
+  describe("null-like value equivalence", () => {
+    it("matches null expected against undefined predicted (missing field)", async () => {
+      const groundTruth = {
+        field1: "value1",
+        field2: null,
+      };
+
+      const prediction = {
+        field1: "value1",
+        // field2 missing (undefined)
+      };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-null-1",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.metrics.matchedFields).toBe(2);
+      expect(result.metrics.f1).toBe(1.0);
+    });
+
+    it("matches empty string predicted against null expected", async () => {
+      const groundTruth = {
+        field1: null,
+      };
+
+      const prediction = {
+        field1: "",
+      };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-null-2",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.f1).toBe(1.0);
+    });
+
+    it('matches "null" string against actual null', async () => {
+      const groundTruth = {
+        field1: "null",
+      };
+
+      const prediction = {
+        field1: null,
+      };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-null-3",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.f1).toBe(1.0);
+    });
+
+    it("does not match null-like predicted against real expected value", async () => {
+      const groundTruth = {
+        field1: "real value",
+      };
+
+      const prediction = {
+        field1: null,
+      };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-null-4",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.metrics.matchedFields).toBe(0);
+      expect(result.metrics.f1).toBe(0);
     });
   });
 

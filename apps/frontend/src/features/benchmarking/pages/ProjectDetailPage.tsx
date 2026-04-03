@@ -125,6 +125,7 @@ export function ProjectDetailPage() {
       evaluatorType: definition.evaluatorType,
       evaluatorConfig: definition.evaluatorConfig,
       runtimeSettings: definition.runtimeSettings,
+      workflowConfigOverrides: definition.workflowConfigOverrides,
     });
     setDetailDialogOpened(false);
     setEditDialogOpened(true);

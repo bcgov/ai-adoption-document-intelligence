@@ -23,6 +23,14 @@ import {
 } from "../form-field-normalization";
 
 /**
+ * Check if a value represents "no value" — null, undefined, empty string, or the string "null"
+ * are all treated as semantically equivalent.
+ */
+export function isNullLike(v: unknown): boolean {
+  return v === null || v === undefined || v === "" || v === "null";
+}
+
+/**
  * Matching rule configuration for a field
  */
 export interface FieldMatchingRule {
@@ -144,8 +152,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     }
 
     // Identify extra fields in prediction (for precision calculation)
+    // Null-like prediction values are not meaningful extra fields
     const extraFields = Object.keys(prediction).filter(
-      (field) => !(field in groundTruth),
+      (field) => !(field in groundTruth) && !isNullLike(prediction[field]),
     );
     for (const field of extraFields) {
       comparisonResults.push({
@@ -161,13 +170,13 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
 
     // Build diagnostics
     const missingFields = comparisonResults
-      .filter((r) => r.expected !== undefined && r.predicted === undefined)
+      .filter((r) => !isNullLike(r.expected) && isNullLike(r.predicted))
       .map((r) => r.field);
 
     const mismatchedFields = comparisonResults
       .filter(
         (r) =>
-          !r.matched && r.expected !== undefined && r.predicted !== undefined,
+          !r.matched && !isNullLike(r.expected) && !isNullLike(r.predicted),
       )
       .map((r) => ({
         field: r.field,
@@ -221,8 +230,17 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         rule: "exact" as const,
       };
 
-    // Handle missing prediction
-    if (predicted === undefined || predicted === null) {
+    if (isNullLike(predicted) && isNullLike(expected)) {
+      return {
+        field,
+        matched: true,
+        predicted,
+        expected,
+      };
+    }
+
+    // Handle missing prediction (only predicted is null-like, expected has a real value)
+    if (isNullLike(predicted)) {
       return {
         field,
         matched: false,

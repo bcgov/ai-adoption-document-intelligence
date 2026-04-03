@@ -78,6 +78,7 @@ interface DefinitionDetails {
   split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
+  workflowConfigOverrides?: Record<string, unknown>;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -441,6 +442,18 @@ export function DefinitionDetailView({
                 )}
             </Stack>
           )}
+
+          {definition.workflowConfigOverrides &&
+            Object.keys(definition.workflowConfigOverrides).length > 0 && (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Workflow Config Overrides
+                </Text>
+                <Code block style={{ fontSize: 13 }}>
+                  {JSON.stringify(definition.workflowConfigOverrides, null, 2)}
+                </Code>
+              </Stack>
+            )}
         </Stack>
       </Card>
 

@@ -580,14 +580,25 @@ export const LabelingWorkspacePage: FC = () => {
   ]);
 
   useEffect(() => {
-    if (Object.keys(updateLabelsFromAssignments).length === 0) {
-      return;
-    }
-    setLabelState((prev) => ({
-      ...prev,
-      ...updateLabelsFromAssignments,
-    }));
-  }, [updateLabelsFromAssignments]);
+    setLabelState((prev) => {
+      // Find fields that had assignments before but no longer do
+      const assignedFields = new Set(Object.values(wordAssignments));
+      const next: Record<string, LabelState> = {};
+
+      // Keep fields that still have assignments (use updated values)
+      // or fields that were never assignment-based (no word assignments existed)
+      for (const [fieldKey, state] of Object.entries(prev)) {
+        if (assignedFields.has(fieldKey)) {
+          // Field still has assignments - will be updated below
+          next[fieldKey] = state;
+        }
+        // Fields that lost all assignments are dropped
+      }
+
+      // Merge in updated labels from current assignments
+      return { ...next, ...updateLabelsFromAssignments };
+    });
+  }, [updateLabelsFromAssignments, wordAssignments]);
 
   const handleWordSelect = (elementId: string | null) => {
     // If clicking on canvas background (null), deselect active field
@@ -612,6 +623,23 @@ export const LabelingWorkspacePage: FC = () => {
       } else {
         next[elementId] = activeFieldKey;
       }
+      return next;
+    });
+  };
+
+  const handleClearField = (fieldKey: string) => {
+    setWordAssignments((prev) => {
+      const next: Record<string, string> = {};
+      for (const [elementId, assignedField] of Object.entries(prev)) {
+        if (assignedField !== fieldKey) {
+          next[elementId] = assignedField;
+        }
+      }
+      return next;
+    });
+    setLabelState((prev) => {
+      const next = { ...prev };
+      delete next[fieldKey];
       return next;
     });
   };
@@ -1028,6 +1056,7 @@ export const LabelingWorkspacePage: FC = () => {
                 setActiveFieldKey(fieldKey);
               }}
               onValueChange={handleValueChange}
+              onClearField={handleClearField}
               readOnly={true}
               emptyMessage={
                 fieldFilter

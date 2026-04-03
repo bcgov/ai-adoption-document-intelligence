@@ -218,6 +218,11 @@ export class DefinitionDetailsDto {
   workflowConfigHash: string;
 
   /**
+   * Workflow config overrides — map of exposed param paths to values
+   */
+  workflowConfigOverrides?: Record<string, unknown>;
+
+  /**
    * Evaluator type
    */
   evaluatorType: string;
