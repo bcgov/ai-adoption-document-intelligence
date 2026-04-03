@@ -124,7 +124,13 @@ jobs:
       - name: Install oc CLI
         uses: redhat-actions/openshift-tools-installer@v1
         with:
-          oc: "4"
+          oc: "4.13"
+
+      - name: Install Kustomize
+        run: |
+          curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.5.7/kustomize_v4.5.7_linux_amd64.tar.gz" \
+            | tar xz -C /usr/local/bin
+          kustomize version
 
       - name: Install Helm
         if: env.DEPLOY_PLG == 'true'
@@ -213,7 +219,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Apply resources to OpenShift"
-          oc apply -k "$OVERLAY_DIR" -n "$OC_NAMESPACE"
+          kustomize build "$OVERLAY_DIR" | oc apply -f - -n "$OC_NAMESPACE"
           echo "::endgroup::"
 
           # Clean up overlay
