@@ -141,8 +141,8 @@ export function CreateDefinitionDialog({
         setWorkflowConfigOverridesJson(
           JSON.stringify(initialValues.workflowConfigOverrides, null, 2),
         );
-      } else if (initialValues.workflowId) {
-        const defaults = getExposedParamDefaults(initialValues.workflowId);
+      } else if (initialValues.workflowVersionId) {
+        const defaults = getExposedParamDefaults(initialValues.workflowVersionId);
         if (Object.keys(defaults).length > 0) {
           setWorkflowConfigOverridesJson(JSON.stringify(defaults, null, 2));
         }

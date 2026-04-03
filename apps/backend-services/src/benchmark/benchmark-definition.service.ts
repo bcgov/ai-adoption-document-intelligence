@@ -140,7 +140,7 @@ export class BenchmarkDefinitionService {
     const workflowConfigOverrides = dto.workflowConfigOverrides ?? {};
     if (Object.keys(workflowConfigOverrides).length > 0) {
       const overrideErrors = validateWorkflowConfigOverrides(
-        workflow.config as GraphWorkflowConfig,
+        workflowVersion.config as GraphWorkflowConfig,
         workflowConfigOverrides,
       );
       if (overrideErrors.length > 0) {
@@ -414,7 +414,9 @@ export class BenchmarkDefinitionService {
     if (dto.workflowConfigOverrides && Object.keys(dto.workflowConfigOverrides).length > 0) {
       // Get the workflow config to validate against (new or existing)
       if (!resolvedWorkflow) {
-        resolvedWorkflow = await this.definitionDbService.findWorkflow(existing.workflowId);
+        resolvedWorkflow = await this.prisma.workflowVersion.findUnique({
+          where: { id: existing.workflowVersionId },
+        });
       }
       const workflowConfig = resolvedWorkflow!.config as GraphWorkflowConfig;
       const overrideErrors = validateWorkflowConfigOverrides(workflowConfig, dto.workflowConfigOverrides);
