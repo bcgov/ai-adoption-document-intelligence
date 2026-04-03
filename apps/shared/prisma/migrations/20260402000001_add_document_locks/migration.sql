@@ -1,15 +1,3 @@
-/*
-  Warnings:
-
-  - A unique constraint covering the columns `[group_id,user_id,status]` on the table `group_membership_request` will be added. If there are existing duplicate values, this will fail.
-
-*/
--- DropForeignKey
-ALTER TABLE "benchmark_projects" DROP CONSTRAINT "benchmark_projects_group_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "datasets" DROP CONSTRAINT "datasets_group_id_fkey";
-
 -- CreateTable
 CREATE TABLE "document_locks" (
     "id" TEXT NOT NULL,
@@ -32,17 +20,8 @@ CREATE UNIQUE INDEX "document_locks_session_id_key" ON "document_locks"("session
 -- CreateIndex
 CREATE INDEX "document_locks_expires_at_idx" ON "document_locks"("expires_at");
 
--- CreateIndex
-CREATE UNIQUE INDEX "group_membership_request_group_id_user_id_status_key" ON "group_membership_request"("group_id", "user_id", "status");
-
 -- AddForeignKey
 ALTER TABLE "document_locks" ADD CONSTRAINT "document_locks_document_id_fkey" FOREIGN KEY ("document_id") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "document_locks" ADD CONSTRAINT "document_locks_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "review_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "datasets" ADD CONSTRAINT "datasets_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "benchmark_projects" ADD CONSTRAINT "benchmark_projects_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

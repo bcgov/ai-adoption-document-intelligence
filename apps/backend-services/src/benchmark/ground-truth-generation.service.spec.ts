@@ -561,17 +561,17 @@ describe("GroundTruthGenerationService", () => {
 
   describe("reopenJob", () => {
     it("should revert job status to awaiting_review and clear groundTruthPath", async () => {
-      mockGroundTruthJobDbService.updateJob.mockResolvedValue(undefined);
+      mockPrismaClient.datasetGroundTruthJob.update.mockResolvedValue(undefined);
 
       await service.reopenJob("job-1");
 
-      expect(mockGroundTruthJobDbService.updateJob).toHaveBeenCalledWith(
-        "job-1",
-        {
+      expect(mockPrismaClient.datasetGroundTruthJob.update).toHaveBeenCalledWith({
+        where: { id: "job-1" },
+        data: {
           status: GroundTruthJobStatus.awaiting_review,
           groundTruthPath: null,
         },
-      );
+      });
     });
   });
 });

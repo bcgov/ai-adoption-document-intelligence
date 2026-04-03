@@ -557,7 +557,7 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    if (session.reviewer_id !== reviewerId) {
+    if (session.actor_id !== reviewerId) {
       throw new ForbiddenException(
         "Only the original reviewer can reopen this session",
       );

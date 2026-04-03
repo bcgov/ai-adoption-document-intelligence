@@ -608,9 +608,12 @@ export class GroundTruthGenerationService {
    * Revert a completed ground truth job back to awaiting_review when a session is reopened.
    */
   async reopenJob(jobId: string): Promise<void> {
-    await this.groundTruthJobDbService.updateJob(jobId, {
-      status: GroundTruthJobStatus.awaiting_review,
-      groundTruthPath: null,
+    await this.prisma.datasetGroundTruthJob.update({
+      where: { id: jobId },
+      data: {
+        status: GroundTruthJobStatus.awaiting_review,
+        groundTruthPath: null,
+      },
     });
     this.logger.log(`Ground truth job ${jobId} reverted to awaiting_review`);
   }
