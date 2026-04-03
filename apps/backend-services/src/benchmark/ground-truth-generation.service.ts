@@ -605,6 +605,17 @@ export class GroundTruthGenerationService {
   }
 
   /**
+   * Revert a completed ground truth job back to awaiting_review when a session is reopened.
+   */
+  async reopenJob(jobId: string): Promise<void> {
+    await this.groundTruthJobDbService.updateJob(jobId, {
+      status: GroundTruthJobStatus.awaiting_review,
+      groundTruthPath: null,
+    });
+    this.logger.log(`Ground truth job ${jobId} reverted to awaiting_review`);
+  }
+
+  /**
    * Find a ground truth job by its associated document ID.
    */
   async getJobByDocumentId(documentId: string) {

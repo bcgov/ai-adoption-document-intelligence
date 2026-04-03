@@ -40,6 +40,7 @@ model Document {
   model_id              String                 @default("prebuilt-layout")
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
+  lock                  DocumentLock?
   groundTruthJob        DatasetGroundTruthJob?
   group_id              String
   group                 Group                  @relation(fields: [group_id], references: [id])
@@ -411,8 +412,24 @@ model ReviewSession {
   started_at   DateTime          @default(now())
   completed_at DateTime?
   corrections  FieldCorrection[]
+  lock         DocumentLock?
 
   @@map("review_sessions")
+}
+
+model DocumentLock {
+  id             String        @id @default(cuid())
+  document_id    String        @unique
+  document       Document      @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  reviewer_id    String
+  session_id     String        @unique
+  session        ReviewSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  acquired_at    DateTime      @default(now())
+  last_heartbeat DateTime      @default(now())
+  expires_at     DateTime
+
+  @@index([expires_at])
+  @@map("document_locks")
 }
 
 model FieldCorrection {

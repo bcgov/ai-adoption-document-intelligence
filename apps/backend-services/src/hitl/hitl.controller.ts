@@ -1,15 +1,16 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
   Post,
-  Put,
   Query,
   Req,
 } from "@nestjs/common";
 import {
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -32,10 +33,13 @@ import {
   CorrectionsListResponseDto,
   QueueResponseDto,
   QueueStatsResponseDto,
+  ReopenSessionResponseDto,
   ReviewSessionResponseDto,
   SessionActionResponseDto,
   SubmitCorrectionsResponseDto,
 } from "./dto/hitl-responses.dto";
+import { HeartbeatResponseDto } from "./dto/lock.dto";
+import { NextSessionFilterDto } from "./dto/next-session.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { ReviewStatusFilter } from "./dto/status-constants.dto";
@@ -101,6 +105,33 @@ export class HitlController {
       groupIds = getIdentityGroupIds(req?.resolvedIdentity);
     }
     return this.hitlService.getQueueStats(reviewStatus, groupIds);
+  }
+
+  @Post("sessions/next")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Atomically pick the next eligible document and start a session" })
+  @ApiCreatedResponse({
+    description: "New review session created for the next eligible document",
+    type: ReviewSessionResponseDto,
+  })
+  @ApiOkResponse({
+    description: "No eligible documents found (returns null)",
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getNextSession(
+    @Query() filters: NextSessionFilterDto,
+    @Req() req: Request,
+  ) {
+    let groupIds: string[];
+    if (filters.group_id) {
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
+      groupIds = [filters.group_id];
+    } else {
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
+    }
+    const reviewerId =
+      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+    return this.hitlService.getNextSession(filters, reviewerId, groupIds);
   }
 
   @Post("sessions")
@@ -242,6 +273,69 @@ export class HitlController {
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.skipSession(sessionId);
+  }
+
+  @Post("sessions/:id/heartbeat")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Extend the lock TTL for an active review session" })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiOkResponse({
+    description: "Lock TTL extended successfully",
+    type: HeartbeatResponseDto,
+  })
+  @ApiConflictResponse({ description: "Lock expired or session not found" })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async heartbeat(@Param("id") sessionId: string, @Req() req: Request) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
+    return this.hitlService.heartbeat(sessionId);
+  }
+
+  @Delete("sessions/:id/corrections/:correctionId")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Delete a correction from a review session" })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiParam({ name: "correctionId", description: "Correction ID" })
+  @ApiOkResponse({ description: "Correction deleted successfully" })
+  @ApiNotFoundResponse({ description: "Session or correction not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async deleteCorrection(
+    @Param("id") sessionId: string,
+    @Param("correctionId") correctionId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
+    return this.hitlService.deleteCorrection(sessionId, correctionId);
+  }
+
+  @Post("sessions/:id/reopen")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Reopen a completed review session" })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiOkResponse({
+    description: "Session reopened successfully",
+    type: ReopenSessionResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member or not the original reviewer" })
+  @ApiConflictResponse({ description: "Session cannot be reopened (already in progress, window expired, or dataset frozen)" })
+  async reopenSession(@Param("id") sessionId: string, @Req() req: Request) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
+    const reviewerId =
+      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+    return this.hitlService.reopenSession(sessionId, reviewerId);
   }
 
   @Get("analytics")

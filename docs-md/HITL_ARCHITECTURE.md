@@ -71,11 +71,39 @@ enum CorrectionAction {
 }
 ```
 
+### Document Locking
+
+```prisma
+model DocumentLock {
+  id             String        @id @default(cuid())
+  document_id    String        @unique
+  document       Document      @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  reviewer_id    String
+  session_id     String        @unique
+  session        ReviewSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  acquired_at    DateTime      @default(now())
+  last_heartbeat DateTime      @default(now())
+  expires_at     DateTime
+
+  @@index([expires_at])
+  @@map("document_locks")
+}
+```
+
+Document locks prevent concurrent editing:
+- A lock is acquired when a session starts (10-minute TTL)
+- The frontend sends heartbeat requests to extend the lock
+- Locks are released when a session completes (approve/escalate/skip)
+- Expired locks are automatically treated as released
+- If the same reviewer starts a session on an already-locked document, the existing session is returned
+- If a different reviewer tries, a `ConflictException` is thrown
+
 ### Key Relationships
 
 - **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state
 - **FieldCorrection** records are children - one per field interaction
-- **Cascade delete**: Deleting a session automatically deletes all its corrections
+- **DocumentLock** is a one-to-one relation on both Document and ReviewSession, preventing concurrent edits
+- **Cascade delete**: Deleting a session automatically deletes all its corrections and lock
 - Sessions track duration via `started_at` and `completed_at` timestamps
 
 ## Status Transitions
@@ -83,7 +111,7 @@ enum CorrectionAction {
 ### State Machine
 
 ```
-[Create Session]
+[Create Session] ──→ acquires document lock
       ↓
   in_progress (initial state)
       ↓
@@ -91,18 +119,27 @@ enum CorrectionAction {
    ↓                 ↓                 ↓
 approved        escalated         skipped
 (terminal)      (terminal)        (terminal)
+   ↓                                  ↓
+releases lock                    releases lock
+   ↓
+[Reopen] ──→ re-acquires lock
+   ↓
+in_progress
 ```
 
 ### Transition Rules
 
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
-| (none) | `in_progress` | `POST /sessions` | Sets `started_at` |
-| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at` |
-| `in_progress` | `escalated` | `POST /sessions/:id/escalate` | Sets `completed_at`, stores reason |
-| `in_progress` | `skipped` | `POST /sessions/:id/skip` | Sets `completed_at` |
+| (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
+| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, releases lock |
+| `in_progress` | `escalated` | `POST /sessions/:id/escalate` | Sets `completed_at`, stores reason, releases lock |
+| `in_progress` | `skipped` | `POST /sessions/:id/skip` | Sets `completed_at`, releases lock |
+| `approved`/`escalated`/`skipped` | `in_progress` | `POST /sessions/:id/reopen` | Clears `completed_at`, re-acquires lock |
 
-**Important**: Once a session reaches a terminal state (`approved`, `escalated`, or `skipped`), it cannot transition to another state. Terminal states are permanent.
+**Important**: Terminal states can be reopened under specific conditions:
+- Regular workflow: within 5 minutes of completion, by the original reviewer only
+- Dataset labeling workflow: any time, unless the dataset version is frozen
 
 ## System Flow
 
@@ -132,6 +169,8 @@ Returns: Documents with:
 - Shows documents that need review (low confidence scores)
 - Default confidence threshold: 0.9
 - Can filter by OCR model, review status, pagination
+- Excludes documents with active (non-expired) locks held by other reviewers
+- Excludes documents that belong to ground truth generation jobs
 - Includes last session info for previously reviewed documents
 
 ### 2. Start Session Flow
@@ -271,13 +310,17 @@ WHERE id = :id
 
 | Method | Endpoint | Purpose | Auth Required |
 |--------|----------|---------|---------------|
-| `POST` | `/api/hitl/sessions` | Start a new review session | Yes |
+| `POST` | `/api/hitl/sessions/next` | Atomically pick next eligible document and start session | Yes |
+| `POST` | `/api/hitl/sessions` | Start a new review session for a specific document | Yes |
 | `GET` | `/api/hitl/sessions/:id` | Get session details | Yes |
 | `POST` | `/api/hitl/sessions/:id/corrections` | Submit field corrections | Yes |
 | `GET` | `/api/hitl/sessions/:id/corrections` | Get correction history | Yes |
+| `DELETE` | `/api/hitl/sessions/:id/corrections/:correctionId` | Delete a correction | Yes |
 | `POST` | `/api/hitl/sessions/:id/submit` | Approve session | Yes |
 | `POST` | `/api/hitl/sessions/:id/escalate` | Escalate session with reason | Yes |
 | `POST` | `/api/hitl/sessions/:id/skip` | Skip session | Yes |
+| `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
+| `POST` | `/api/hitl/sessions/:id/reopen` | Reopen a completed session | Yes |
 
 ### Queue Management
 
@@ -512,12 +555,115 @@ Corrections are meaningless without their parent session:
 - Prevents orphaned records
 - Corrections always have context
 
+## HITL Enhancement Features
+
+### Document Locking
+
+The system uses pessimistic locking via the `DocumentLock` model to prevent concurrent editing of the same document by multiple reviewers.
+
+**Lock Lifecycle:**
+
+1. **Acquisition**: A lock is created when a session starts, with a 10-minute TTL (`expires_at = now + 10 min`)
+2. **Heartbeat**: The frontend sends `POST /sessions/:id/heartbeat` every 60 seconds to extend the lock TTL by another 10 minutes
+3. **Idle Warning**: At 8 minutes of inactivity (no heartbeat), the frontend displays a warning to the reviewer
+4. **Auto-Release**: If no heartbeat is received and the TTL expires, the lock is automatically treated as released, making the document available to other reviewers
+5. **Explicit Release**: Completing a session (approve/escalate/skip) explicitly deletes the lock
+
+**Conflict Handling:**
+
+- If the same reviewer requests a session on a document they already have locked, the existing session is returned
+- If a different reviewer requests a session on a locked document, a `ConflictException` (409) is thrown
+- Expired locks are transparently ignored, allowing any reviewer to pick up the document
+
+### Multi-User Queue
+
+The review queue is designed for concurrent multi-reviewer usage:
+
+- Documents with active (non-expired) locks held by **other** reviewers are excluded from the queue results
+- A reviewer's own locked documents remain visible in their queue
+- This prevents multiple reviewers from attempting to start sessions on the same document
+- When a lock expires or a session completes, the document reappears in all reviewers' queues
+
+### Auto-Advance
+
+After a reviewer completes a session (approve, skip, or escalate), the frontend automatically fetches the next eligible document:
+
+1. The terminal action (approve/skip/escalate) completes and releases the lock
+2. The frontend calls `POST /sessions/next` which atomically selects the next eligible document and starts a new session
+3. The reviewer is seamlessly transitioned to the next document without returning to the queue page
+4. If no eligible documents remain, the reviewer is returned to the queue view
+
+The `/sessions/next` endpoint applies the same filtering as the queue (confidence threshold, model, group) and respects document locks to avoid conflicts.
+
+### Keyboard Shortcuts
+
+The review workspace supports VS Code-style modifier keyboard shortcuts for efficient reviewing:
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Enter` | Approve session |
+| `Ctrl+Shift+E` | Escalate session |
+| `Ctrl+Shift+S` | Skip session |
+| `Ctrl+Up Arrow` / `Ctrl+Down Arrow` | Navigate between fields |
+| `Ctrl+Z` | Undo last field change |
+| `Ctrl+Shift+Z` | Redo last undone change |
+| `Ctrl+Shift+V` | Toggle between Document view and Snippet view |
+| `Ctrl+Shift+O` | Toggle field sort order |
+| `Ctrl+/` | Show/hide keyboard shortcuts help panel |
+
+All shortcuts use modifier keys to avoid interfering with normal text editing in field inputs.
+
+### View Modes
+
+The review workspace supports two view modes, toggled via `Ctrl+Shift+V`:
+
+**Document View (default):**
+- Displays the full document image on a zoomable, pannable canvas
+- Selecting a field highlights its bounding box on the document
+- Supports zoom-to-field (see below)
+
+**Snippet View:**
+- Displays cropped image regions for each field alongside their editable input fields
+- Each snippet shows the relevant portion of the document image corresponding to the field's bounding box
+- Useful for focused, field-by-field review without needing to navigate the full document
+
+### Undo/Redo
+
+The system provides two levels of undo capability:
+
+**Field-Level Undo Stack:**
+- Each field edit is pushed onto an undo stack
+- `Ctrl+Z` reverts the last field change, restoring the previous value
+- `Ctrl+Shift+Z` re-applies the last undone change
+- The undo/redo stack is maintained for the duration of the active session
+
+**Session-Level Undo (Reopen):**
+- After completing a session, the reviewer can reopen it via `POST /sessions/:id/reopen`
+- **Regular workflow**: Reopen is allowed within 5 minutes of completion, by the original reviewer only
+- **Dataset labeling workflow**: Reopen is allowed at any time, unless the dataset version is frozen
+- Reopening a session re-acquires the document lock and returns the session to `in_progress` status
+
+### Field Sorting
+
+Fields in the review workspace can be sorted in two orders, toggled via `Ctrl+Shift+O`:
+
+- **Confidence order (default)**: Lowest confidence fields appear first, directing reviewer attention to the most uncertain extractions
+- **Document order**: Fields appear in the order they occur in the document, matching the natural reading flow
+
+### Zoom-to-Field
+
+When a field is selected in Document View:
+
+- The canvas animates to center on the field's bounding box
+- A fixed 2x zoom level is applied
+- The transition is animated for smooth visual context switching
+- This allows reviewers to quickly inspect the source region for any field without manual pan/zoom
+
 ## Future Enhancements
 
 Potential areas for expansion:
 - Batch review sessions (multiple documents at once)
 - Collaborative review (multiple reviewers per session)
 - Review assignment/routing rules
-- Session templates for common document types
 - Quality scoring based on correction patterns
 - Machine learning feedback loop from corrections
