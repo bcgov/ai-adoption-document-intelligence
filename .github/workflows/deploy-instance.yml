@@ -124,7 +124,7 @@ jobs:
       - name: Install oc CLI
         uses: redhat-actions/openshift-tools-installer@v1
         with:
-          oc: "4.13"
+          oc: "4"
 
       - name: Install Kustomize
         run: |
