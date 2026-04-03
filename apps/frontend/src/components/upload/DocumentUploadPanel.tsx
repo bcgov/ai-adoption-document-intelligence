@@ -155,7 +155,9 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           },
           model_id: selectedModel!,
           group_id: activeGroup!.id,
-          ...(selectedWorkflow && { workflow_id: selectedWorkflow }),
+          ...(selectedWorkflow && {
+            workflow_config_id: selectedWorkflow,
+          }),
         };
 
         const response = await apiService.post<{ document: Document }>(
@@ -275,7 +277,12 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           label="Workflow (Optional)"
           placeholder="Select a workflow"
           description="Choose a custom workflow configuration for processing"
-          data={workflows?.map((w) => ({ value: w.id, label: w.name })) || []}
+          data={
+            workflows?.map((w) => ({
+              value: w.workflowVersionId,
+              label: `${w.name} (v${w.version})`,
+            })) || []
+          }
           value={selectedWorkflow}
           onChange={(value) => setSelectedWorkflow(value || null)}
           disabled={workflowsLoading}

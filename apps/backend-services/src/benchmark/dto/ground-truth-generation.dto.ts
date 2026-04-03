@@ -4,11 +4,12 @@ import { IsNotEmpty, IsString } from "class-validator";
 
 export class StartGroundTruthGenerationDto {
   @ApiProperty({
-    description: "ID of the workflow configuration to use for OCR processing",
+    description:
+      "ID of the workflow version (WorkflowVersion.id) to use for OCR processing",
   })
   @IsString()
   @IsNotEmpty()
-  workflowConfigId!: string;
+  workflowVersionId!: string;
 }
 
 export class GroundTruthJobResponseDto {
@@ -16,7 +17,7 @@ export class GroundTruthJobResponseDto {
   @ApiProperty() datasetVersionId!: string;
   @ApiProperty() sampleId!: string;
   @ApiPropertyOptional() documentId?: string | null;
-  @ApiProperty() workflowConfigId!: string;
+  @ApiProperty() workflowVersionId!: string;
   @ApiPropertyOptional() temporalWorkflowId?: string | null;
   @ApiProperty({ enum: GroundTruthJobStatus }) status!: GroundTruthJobStatus;
   @ApiPropertyOptional() groundTruthPath?: string | null;

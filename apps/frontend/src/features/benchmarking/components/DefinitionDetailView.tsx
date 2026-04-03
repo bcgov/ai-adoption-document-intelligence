@@ -1,19 +1,33 @@
 import {
+  Alert,
   Badge,
   Button,
   Card,
   Code,
   Group,
   Loader,
+  Select,
   Stack,
+  Switch,
   Table,
   Text,
   Title,
 } from "@mantine/core";
-import { IconEdit, IconHistory, IconPlayerPlay } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
+import {
+  IconEdit,
+  IconHistory,
+  IconPlayerPlay,
+  IconSparkles,
+} from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useBaselineHistory } from "../hooks/useDefinitions";
-import { useStartRun } from "../hooks/useRuns";
+import {
+  useRevertWorkflowHead,
+  useWorkflowVersions,
+} from "@/data/hooks/useWorkflows";
+import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
+import { useRunOcrImprovement, useStartRun } from "../hooks/useRuns";
 import { ScheduleConfig } from "./ScheduleConfig";
 
 interface DatasetVersionInfo {
@@ -24,6 +38,7 @@ interface DatasetVersionInfo {
 
 interface WorkflowInfo {
   id: string;
+  workflowVersionId: string;
   name: string;
   version: number;
 }
@@ -63,6 +78,7 @@ interface DefinitionDetails {
   split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
+  workflowConfigOverrides?: Record<string, unknown>;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -87,17 +103,73 @@ export function DefinitionDetailView({
   onEdit,
 }: DefinitionDetailViewProps) {
   const navigate = useNavigate();
+  const { updateDefinition, isUpdating } = useDefinition(
+    definition.projectId,
+    definition.id,
+  );
+  const { data: workflowVersions = [], isLoading: versionsLoading } =
+    useWorkflowVersions(definition.workflow.id);
+  const revertHead = useRevertWorkflowHead();
+  const [pinVersionId, setPinVersionId] = useState(
+    definition.workflow.workflowVersionId,
+  );
+  useEffect(() => {
+    setPinVersionId(definition.workflow.workflowVersionId);
+  }, [definition.workflow.workflowVersionId]);
+
   const { startRun, isStarting } = useStartRun(
     definition.projectId,
     definition.id,
   );
+  const {
+    runOcrImprovement,
+    isRunning: isOcrImprovementRunning,
+    result: ocrImprovementResult,
+  } = useRunOcrImprovement(definition.projectId, definition.id);
 
   const { history: baselineHistory, isLoading: isLoadingHistory } =
     useBaselineHistory(definition.projectId, definition.id);
 
+  const [persistOcrCache, setPersistOcrCache] = useState(true);
+
   const handleStartRun = async () => {
-    const run = await startRun({});
+    const run = await startRun({ persistOcrCache });
     navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
+  };
+
+  const handleRunOcrImprovement = async () => {
+    try {
+      const result = await runOcrImprovement({});
+      if (result.status === "benchmark_started" && result.benchmarkRunId) {
+        notifications.show({
+          title: "OCR improvement pipeline started",
+          message: `Candidate run ${result.benchmarkRunId.substring(0, 8)}… started. When it completes, open that run and use "Apply candidate to base workflow" there to merge the graph into the base lineage.`,
+          color: "green",
+        });
+      } else if (result.status === "no_recommendations") {
+        notifications.show({
+          title: "No recommendations",
+          message:
+            result.analysis ||
+            "No HITL corrections to analyze, or AI did not recommend new tools.",
+          color: "blue",
+        });
+      } else if (result.status === "error") {
+        notifications.show({
+          title: "Pipeline error",
+          message: result.error || "Unknown error",
+          color: "red",
+        });
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to run pipeline";
+      notifications.show({
+        title: "OCR improvement pipeline failed",
+        message,
+        color: "red",
+      });
+    }
   };
 
   const getStatusBadgeColor = (status: string) => {
@@ -134,6 +206,14 @@ export function DefinitionDetailView({
                   Edit
                 </Button>
               )}
+              <Switch
+                checked={persistOcrCache}
+                onChange={(e) => setPersistOcrCache(e.currentTarget.checked)}
+                label="Persist OCR cache"
+                description="Store Azure OCR per sample for replay (recommended for improvement pipeline)"
+                size="sm"
+                data-testid="persist-ocr-cache-switch"
+              />
               <Button
                 leftSection={<IconPlayerPlay size={16} />}
                 onClick={handleStartRun}
@@ -174,6 +254,10 @@ export function DefinitionDetailView({
                 <Table.Td fw={500}>Workflow</Table.Td>
                 <Table.Td>
                   {definition.workflow.name} v{definition.workflow.version}
+                  <Text size="xs" c="dimmed" mt={4}>
+                    Lineage <Code>{definition.workflow.id}</Code> · Pinned
+                    version <Code>{definition.workflow.workflowVersionId}</Code>
+                  </Text>
                 </Table.Td>
               </Table.Tr>
               <Table.Tr>
@@ -188,6 +272,188 @@ export function DefinitionDetailView({
               </Table.Tr>
             </Table.Tbody>
           </Table>
+
+          {!definition.immutable && (
+            <Stack gap="sm" mt="md">
+              <Select
+                label="Pinned workflow version"
+                description="Which graph revision this definition uses for benchmark runs."
+                placeholder="Select version"
+                data={workflowVersions.map((v) => ({
+                  value: v.id,
+                  label: `v${v.versionNumber} · ${new Date(v.createdAt).toLocaleString()}`,
+                }))}
+                value={pinVersionId}
+                onChange={(v) => setPinVersionId(v || pinVersionId)}
+                disabled={versionsLoading}
+                searchable
+              />
+              <Group>
+                <Button
+                  size="xs"
+                  variant="light"
+                  loading={isUpdating}
+                  disabled={
+                    pinVersionId === definition.workflow.workflowVersionId
+                  }
+                  onClick={() =>
+                    updateDefinition({ workflowVersionId: pinVersionId })
+                  }
+                >
+                  Apply pin
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  loading={revertHead.isPending}
+                  onClick={() =>
+                    revertHead.mutate({
+                      lineageId: definition.workflow.id,
+                      workflowVersionId: pinVersionId,
+                    })
+                  }
+                >
+                  Set as default head (new uploads / editor)
+                </Button>
+              </Group>
+            </Stack>
+          )}
+        </Stack>
+      </Card>
+
+      <Card data-testid="ocr-improvement-card">
+        <Stack gap="md">
+          <Group justify="space-between">
+            <Group gap="xs">
+              <IconSparkles size={20} />
+              <Title order={4} data-testid="ocr-improvement-heading">
+                OCR improvement pipeline
+              </Title>
+            </Group>
+            <Button
+              variant="light"
+              leftSection={<IconSparkles size={16} />}
+              onClick={handleRunOcrImprovement}
+              loading={isOcrImprovementRunning}
+              data-testid="run-ocr-improvement-btn"
+            >
+              Run improvement pipeline
+            </Button>
+          </Group>
+          <Text size="sm" c="dimmed" data-testid="ocr-improvement-description">
+            Aggregate HITL corrections, get AI tool recommendations, create a
+            candidate workflow with suggested correction nodes, and start a
+            benchmark run for comparison. When the run completes, open it and
+            apply the candidate workflow to the base lineage from the run page.
+          </Text>
+          {ocrImprovementResult && (
+            <Stack gap="xs">
+              <Badge
+                color={
+                  ocrImprovementResult.status === "benchmark_started"
+                    ? "green"
+                    : ocrImprovementResult.status === "no_recommendations"
+                      ? "blue"
+                      : "red"
+                }
+                data-testid="ocr-improvement-status-badge"
+              >
+                {ocrImprovementResult.status}
+              </Badge>
+              {ocrImprovementResult.status === "benchmark_started" && (
+                <>
+                  <Group gap="lg">
+                    <Text size="sm">
+                      <Text span fw={500}>
+                        Candidate workflow:
+                      </Text>{" "}
+                      <Code>
+                        {ocrImprovementResult.candidateWorkflowVersionId}
+                      </Code>
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={500}>
+                        Run:
+                      </Text>{" "}
+                      <Code>{ocrImprovementResult.benchmarkRunId}</Code>
+                    </Text>
+                    <Text size="sm">
+                      Applied{" "}
+                      {ocrImprovementResult.recommendationsSummary.applied}{" "}
+                      tools
+                      {ocrImprovementResult.recommendationsSummary.rejected >
+                        0 &&
+                        `, rejected ${ocrImprovementResult.recommendationsSummary.rejected}`}
+                      :{" "}
+                      {ocrImprovementResult.recommendationsSummary.toolIds.join(
+                        ", ",
+                      ) || "—"}
+                    </Text>
+                  </Group>
+                </>
+              )}
+              {ocrImprovementResult.analysis && (
+                <Alert
+                  color="blue"
+                  title="AI analysis"
+                  data-testid="ocr-improvement-analysis"
+                >
+                  {ocrImprovementResult.analysis}
+                </Alert>
+              )}
+              {ocrImprovementResult.status === "no_recommendations" &&
+                ocrImprovementResult.pipelineMessage && (
+                  <Alert
+                    color="yellow"
+                    title="Why no candidate was created"
+                    data-testid="ocr-improvement-pipeline-message"
+                  >
+                    {ocrImprovementResult.pipelineMessage}
+                  </Alert>
+                )}
+              {ocrImprovementResult.status === "no_recommendations" &&
+                ocrImprovementResult.rejectionDetails &&
+                ocrImprovementResult.rejectionDetails.length > 0 && (
+                  <Alert
+                    color="orange"
+                    title="Could not apply recommendations to this workflow graph"
+                    data-testid="ocr-improvement-rejection-details"
+                  >
+                    <Stack gap="xs">
+                      {ocrImprovementResult.rejectionDetails.map(
+                        (line, idx) => (
+                          <Text size="sm" key={idx}>
+                            {line}
+                          </Text>
+                        ),
+                      )}
+                    </Stack>
+                  </Alert>
+                )}
+              {ocrImprovementResult.status === "error" &&
+                ocrImprovementResult.error && (
+                  <Alert
+                    color="red"
+                    title="Error"
+                    data-testid="ocr-improvement-error"
+                  >
+                    {ocrImprovementResult.error}
+                  </Alert>
+                )}
+            </Stack>
+          )}
+
+          {definition.workflowConfigOverrides &&
+            Object.keys(definition.workflowConfigOverrides).length > 0 && (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Workflow Config Overrides
+                </Text>
+                <Code block style={{ fontSize: 13 }}>
+                  {JSON.stringify(definition.workflowConfigOverrides, null, 2)}
+                </Code>
+              </Stack>
+            )}
         </Stack>
       </Card>
 

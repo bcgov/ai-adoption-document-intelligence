@@ -96,6 +96,8 @@ export const useReviewSession = (sessionId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
     },
   });
 
@@ -110,6 +112,8 @@ export const useReviewSession = (sessionId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
     },
   });
 
@@ -124,6 +128,38 @@ export const useReviewSession = (sessionId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
+    },
+  });
+
+  const deleteCorrectionMutation = useMutation({
+    mutationFn: async ({ correctionId }: { correctionId: string }) => {
+      const response = await apiService.delete(
+        `/hitl/sessions/${sessionId}/corrections/${correctionId}`,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["hitl-session-corrections", sessionId],
+      });
+    },
+  });
+
+  const reopenSessionMutation = useMutation({
+    mutationFn: async (targetSessionId: string) => {
+      const response = await apiService.post(
+        `/hitl/sessions/${targetSessionId}/reopen`,
+        {},
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
     },
   });
 
@@ -164,5 +200,9 @@ export const useReviewSession = (sessionId?: string) => {
     isApproving: approveSessionMutation.isPending,
     isEscalating: escalateSessionMutation.isPending,
     isSkipping: skipSessionMutation.isPending,
+    deleteCorrection: deleteCorrectionMutation.mutate,
+    deleteCorrectionAsync: deleteCorrectionMutation.mutateAsync,
+    reopenSession: reopenSessionMutation.mutate,
+    reopenSessionAsync: reopenSessionMutation.mutateAsync,
   };
 };

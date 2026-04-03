@@ -34,12 +34,25 @@ export class UpdateDefinitionDto {
   splitId?: string;
 
   /**
-   * Workflow ID
+   * Pinned workflow version ID (WorkflowVersion.id)
    */
   @ApiPropertyOptional({ description: "Workflow ID" })
   @IsString()
   @IsOptional()
-  workflowId?: string;
+  workflowVersionId?: string;
+
+  /**
+   * Workflow config overrides
+   */
+  @ApiPropertyOptional({
+    description:
+      "Workflow config overrides — map of exposed param paths to values",
+    type: "object",
+    additionalProperties: true,
+  })
+  @IsOptional()
+  @IsObject()
+  workflowConfigOverrides?: Record<string, unknown>;
 
   /**
    * Evaluator type (must match a registered evaluator)

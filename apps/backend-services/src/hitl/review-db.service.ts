@@ -1,6 +1,8 @@
 import {
   Document,
+  DocumentLock,
   DocumentStatus,
+  FieldCorrection,
   Prisma,
   PrismaClient,
   ReviewStatus,
@@ -44,6 +46,11 @@ export class ReviewDbService {
         document: {
           include: {
             ocr_result: true,
+            groundTruthJob: {
+              include: {
+                datasetVersion: { select: { frozen: true } },
+              },
+            },
           },
         },
         corrections: true,
@@ -69,6 +76,11 @@ export class ReviewDbService {
         document: {
           include: {
             ocr_result: true,
+            groundTruthJob: {
+              include: {
+                datasetVersion: { select: { frozen: true } },
+              },
+            },
           },
         },
         corrections: true,
@@ -102,6 +114,12 @@ export class ReviewDbService {
       status: filters.status ?? DocumentStatus.completed_ocr,
       // Exclude documents belonging to ground truth generation jobs
       groundTruthJob: { is: null },
+      // Exclude documents with active (non-expired) locks
+      NOT: {
+        lock: {
+          expires_at: { gt: new Date() },
+        },
+      },
     };
 
     if (filters.groupIds) {
@@ -170,7 +188,7 @@ export class ReviewDbService {
    */
   async updateReviewSession(
     id: string,
-    data: { status?: ReviewStatus; completed_at?: Date },
+    data: { status?: ReviewStatus; completed_at?: Date | null },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
     const client = tx ?? this.prisma;
@@ -240,6 +258,101 @@ export class ReviewDbService {
       where: { session_id: sessionId },
       orderBy: { created_at: "asc" },
     });
+  }
+
+  /**
+   * Acquires a document lock for a reviewer session.
+   * @param data - Lock details including document_id, reviewer_id, session_id, and expires_at.
+   * @returns The created DocumentLock record.
+   */
+  async acquireDocumentLock(
+    data: {
+      document_id: string;
+      reviewer_id: string;
+      session_id: string;
+      expires_at: Date;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentLock> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Acquiring document lock", {
+      document_id: data.document_id,
+    });
+    return client.documentLock.create({ data });
+  }
+
+  /**
+   * Releases a document lock by session ID.
+   * @param sessionId - The session ID whose lock should be released.
+   */
+  async releaseDocumentLock(
+    sessionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Releasing document lock", { sessionId });
+    await client.documentLock.deleteMany({
+      where: { session_id: sessionId },
+    });
+  }
+
+  /**
+   * Refreshes the heartbeat and expiry for a document lock.
+   * @param sessionId - The session ID whose lock heartbeat to refresh.
+   * @param expiresAt - The new expiry time for the lock.
+   * @returns Whether the lock was found and updated.
+   */
+  async refreshLockHeartbeat(
+    sessionId: string,
+    expiresAt: Date,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const result = await client.documentLock.updateMany({
+      where: { session_id: sessionId },
+      data: {
+        last_heartbeat: new Date(),
+        expires_at: expiresAt,
+      },
+    });
+    return result.count > 0;
+  }
+
+  /**
+   * Finds an active (non-expired) lock for a document.
+   * @param documentId - The document ID to check for an active lock.
+   * @returns The active DocumentLock, or null if none exists.
+   */
+  async findActiveLock(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentLock | null> {
+    const client = tx ?? this.prisma;
+    return client.documentLock.findFirst({
+      where: {
+        document_id: documentId,
+        expires_at: { gt: new Date() },
+      },
+    });
+  }
+
+  /**
+   * Deletes a field correction by ID, scoped to a session.
+   * @param correctionId - The correction ID to delete.
+   * @param sessionId - The session ID the correction belongs to.
+   * @returns Whether the correction was found and deleted.
+   */
+  async deleteCorrection(
+    correctionId: string,
+    sessionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Deleting correction", { correctionId, sessionId });
+    const result = await client.fieldCorrection.deleteMany({
+      where: { id: correctionId, session_id: sessionId },
+    });
+    return result.count > 0;
   }
 
   /**

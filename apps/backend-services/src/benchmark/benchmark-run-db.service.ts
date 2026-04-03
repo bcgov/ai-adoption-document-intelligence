@@ -7,7 +7,7 @@ type DefinitionForRun = Prisma.BenchmarkDefinitionGetPayload<{
     project: true;
     datasetVersion: { include: { dataset: true } };
     split: true;
-    workflow: true;
+    workflowVersion: true;
   };
 }>;
 
@@ -43,7 +43,7 @@ export class BenchmarkRunDbService {
         project: true,
         datasetVersion: { include: { dataset: true } },
         split: true,
-        workflow: true,
+        workflowVersion: true,
       },
     });
   }

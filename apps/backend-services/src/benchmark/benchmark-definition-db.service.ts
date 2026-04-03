@@ -13,7 +13,11 @@ const definitionDetailsInclude = {
     include: { dataset: { select: { name: true } } },
   },
   split: true,
-  workflow: true,
+  workflowVersion: {
+    include: {
+      lineage: { select: { id: true, name: true } },
+    },
+  },
   benchmarkRuns: {
     select: {
       id: true,
@@ -29,7 +33,11 @@ const definitionSummaryInclude = {
   datasetVersion: {
     include: { dataset: { select: { name: true } } },
   },
-  workflow: true,
+  workflowVersion: {
+    include: {
+      lineage: { select: { id: true, name: true } },
+    },
+  },
 } as const;
 
 export type BenchmarkDefinitionWithDetails =
@@ -99,18 +107,18 @@ export class BenchmarkDefinitionDbService {
   }
 
   /**
-   * Finds a workflow by ID (used for existence validation).
+   * Finds a workflow version by ID (used for existence validation).
    *
-   * @param id - The workflow ID.
+   * @param id - The workflow version ID.
    * @param tx - Optional transaction client.
-   * @returns The workflow with its config, or `null` if not found.
+   * @returns The workflow version with its config, or `null` if not found.
    */
-  async findWorkflow(
+  async findWorkflowVersion(
     id: string,
     tx?: Prisma.TransactionClient,
   ): Promise<{ id: string; config: unknown } | null> {
     const client = tx ?? this.prisma;
-    return client.workflow.findUnique({ where: { id } });
+    return client.workflowVersion.findUnique({ where: { id } });
   }
 
   /**

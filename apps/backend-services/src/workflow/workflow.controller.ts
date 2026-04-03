@@ -30,13 +30,18 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { GroupRole } from "@/generated/edge";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
+  RevertHeadDto,
   WorkflowListResponseDto,
   WorkflowResponseDto,
+  WorkflowVersionListResponseDto,
 } from "./dto/workflow-info.dto";
-import { WorkflowInfo, WorkflowService } from "./workflow.service";
+import {
+  WorkflowInfo,
+  WorkflowService,
+  WorkflowVersionSummary,
+} from "./workflow.service";
 
 @ApiTags("Workflow")
 @Controller("api/workflows")
@@ -51,6 +56,12 @@ export class WorkflowController {
     required: false,
     description: "Optional group ID to filter workflows by a specific group",
   })
+  @ApiQuery({
+    name: "includeBenchmarkCandidates",
+    required: false,
+    description:
+      "When true, include benchmark candidate workflow lineages in the list",
+  })
   @ApiOkResponse({
     description:
       "Returns the list of workflows belonging to the authenticated user's groups",
@@ -59,22 +70,88 @@ export class WorkflowController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getWorkflows(
     @Query("groupId") groupId: string | undefined,
+    @Query("includeBenchmarkCandidates") includeBenchmarkCandidates:
+      | string
+      | undefined,
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
+    const includeCandidates = includeBenchmarkCandidates === "true";
     if (groupId) {
       identityCanAccessGroup(req.resolvedIdentity, groupId);
-      const workflows = await this.workflowService.getGroupWorkflows([groupId]);
+      const workflows = await this.workflowService.getGroupWorkflows(
+        [groupId],
+        includeCandidates,
+      );
       return { workflows };
     }
 
     const groupIds = getIdentityGroupIds(req.resolvedIdentity);
 
+    if (groupIds === undefined) {
+      const workflows =
+        await this.workflowService.getAllWorkflowLineages(includeCandidates);
+      return { workflows };
+    }
+
     if (groupIds.length === 0) {
       return { workflows: [] };
     }
 
-    const workflows = await this.workflowService.getGroupWorkflows(groupIds);
+    const workflows = await this.workflowService.getGroupWorkflows(
+      groupIds,
+      includeCandidates,
+    );
     return { workflows };
+  }
+
+  @Get(":id/versions")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "List immutable versions for a workflow lineage" })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiOkResponse({
+    description: "Versions newest-first",
+    type: WorkflowVersionListResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async listVersions(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<{ versions: WorkflowVersionSummary[] }> {
+    const actorId = req.resolvedIdentity.actorId;
+    const wf = await this.workflowService.getWorkflow(id, actorId);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId);
+    const versions = await this.workflowService.listVersions(id);
+    return { versions };
+  }
+
+  @Post(":id/revert-head")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Set lineage head to an existing version (defaults for new work; does not change benchmark definition pins)",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiBody({ type: RevertHeadDto })
+  @ApiOkResponse({ type: WorkflowResponseDto })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiBadRequestResponse({ description: "Version not in lineage" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async revertHead(
+    @Param("id") id: string,
+    @Body() body: RevertHeadDto,
+    @Req() req: Request,
+  ): Promise<{ workflow: WorkflowInfo }> {
+    const actorId = req.resolvedIdentity.actorId;
+    const existing = await this.workflowService.getWorkflow(id, actorId);
+    identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
+    const workflow = await this.workflowService.revertHeadToVersion(
+      id,
+      body.workflowVersionId,
+      actorId,
+    );
+    return { workflow };
   }
 
   @Get(":id")
@@ -91,10 +168,9 @@ export class WorkflowController {
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    const workflow = await this.workflowService.getWorkflow(
-      id,
-      req.resolvedIdentity.actorId,
-    );
+    const actorId = req.resolvedIdentity.actorId;
+
+    const workflow = await this.workflowService.getWorkflow(id, actorId);
 
     identityCanAccessGroup(req.resolvedIdentity, workflow.groupId);
 
@@ -103,11 +179,7 @@ export class WorkflowController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({
-    allowApiKey: true,
-    groupIdFrom: { body: "groupId" },
-    minimumRole: GroupRole.MEMBER,
-  })
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a new workflow" })
   @ApiBody({
     type: CreateWorkflowDto,
@@ -125,10 +197,11 @@ export class WorkflowController {
     @Body() dto: CreateWorkflowDto,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    const workflow = await this.workflowService.createWorkflow(
-      req.resolvedIdentity.actorId,
-      dto,
-    );
+    const actorId = req.resolvedIdentity.actorId;
+
+    identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
+
+    const workflow = await this.workflowService.createWorkflow(actorId, dto);
     return { workflow };
   }
 
@@ -156,6 +229,7 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
     const actorId = req.resolvedIdentity.actorId;
+
     const existing = await this.workflowService.getWorkflow(id, actorId);
 
     identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
@@ -181,6 +255,7 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<void> {
     const actorId = req.resolvedIdentity.actorId;
+
     const existing = await this.workflowService.getWorkflow(id, actorId);
 
     identityCanAccessGroup(req.resolvedIdentity, existing.groupId);

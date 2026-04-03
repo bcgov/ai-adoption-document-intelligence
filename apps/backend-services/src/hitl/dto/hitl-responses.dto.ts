@@ -203,3 +203,14 @@ export class AnalyticsResponseDto {
   correctionsByAction: AnalyticsCorrectionsByActionDto;
   @ApiProperty({ type: AnalyticsSummaryDto }) summary: AnalyticsSummaryDto;
 }
+
+export class ReopenSessionResponseDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  status: string;
+
+  @ApiProperty()
+  message: string;
+}

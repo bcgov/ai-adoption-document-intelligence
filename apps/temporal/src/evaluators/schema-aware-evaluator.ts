@@ -14,6 +14,21 @@ import {
   EvaluationInput,
   EvaluationResult,
 } from "../benchmark-types";
+import {
+  digitsOnly,
+  isDateLikeFieldKey,
+  isIdentifierLikeFieldKey,
+  parseToCalendarParts,
+  shouldCoerceDateFieldNoiseToEmpty,
+} from "../form-field-normalization";
+
+/**
+ * Check if a value represents "no value" — null, undefined, empty string, or the string "null"
+ * are all treated as semantically equivalent.
+ */
+export function isNullLike(v: unknown): boolean {
+  return v === null || v === undefined || v === "" || v === "null";
+}
 
 /**
  * Matching rule configuration for a field
@@ -137,8 +152,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     }
 
     // Identify extra fields in prediction (for precision calculation)
+    // Null-like prediction values are not meaningful extra fields
     const extraFields = Object.keys(prediction).filter(
-      (field) => !(field in groundTruth),
+      (field) => !(field in groundTruth) && !isNullLike(prediction[field]),
     );
     for (const field of extraFields) {
       comparisonResults.push({
@@ -154,13 +170,13 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
 
     // Build diagnostics
     const missingFields = comparisonResults
-      .filter((r) => r.expected !== undefined && r.predicted === undefined)
+      .filter((r) => !isNullLike(r.expected) && isNullLike(r.predicted))
       .map((r) => r.field);
 
     const mismatchedFields = comparisonResults
       .filter(
         (r) =>
-          !r.matched && r.expected !== undefined && r.predicted !== undefined,
+          !r.matched && !isNullLike(r.expected) && !isNullLike(r.predicted),
       )
       .map((r) => ({
         field: r.field,
@@ -214,8 +230,17 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         rule: "exact" as const,
       };
 
-    // Handle missing prediction
-    if (predicted === undefined || predicted === null) {
+    if (isNullLike(predicted) && isNullLike(expected)) {
+      return {
+        field,
+        matched: true,
+        predicted,
+        expected,
+      };
+    }
+
+    // Handle missing prediction (only predicted is null-like, expected has a real value)
+    if (isNullLike(predicted)) {
       return {
         field,
         matched: false,
@@ -260,10 +285,60 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     predicted: unknown,
     expected: unknown,
   ): FieldComparisonResult {
-    const matched = String(predicted) === String(expected);
+    const predictedStr = String(predicted);
+    const expectedStr = String(expected);
+
+    if (predictedStr === expectedStr) {
+      return { field, matched: true, predicted, expected };
+    }
+
+    if (expectedStr === "" && predictedStr.trim() === "") {
+      return { field, matched: true, predicted, expected };
+    }
+
+    if (
+      isDateLikeFieldKey(field) &&
+      expectedStr === "" &&
+      shouldCoerceDateFieldNoiseToEmpty(predictedStr)
+    ) {
+      return { field, matched: true, predicted, expected };
+    }
+
+    if (isIdentifierLikeFieldKey(field)) {
+      const pd = digitsOnly(predictedStr);
+      const ed = digitsOnly(expectedStr);
+      if (pd.length > 0 && pd === ed) {
+        return { field, matched: true, predicted, expected };
+      }
+    }
+
+    if (isDateLikeFieldKey(field)) {
+      const pCal = parseToCalendarParts(predictedStr);
+      const eCal = parseToCalendarParts(expectedStr);
+      if (
+        pCal !== null &&
+        eCal !== null &&
+        pCal.y === eCal.y &&
+        pCal.m === eCal.m &&
+        pCal.day === eCal.day
+      ) {
+        return { field, matched: true, predicted, expected };
+      }
+    }
+
+    const predictedNum = this.parseNumeric(predictedStr);
+    const expectedNum = this.parseNumeric(expectedStr);
+    if (
+      predictedNum !== null &&
+      expectedNum !== null &&
+      predictedNum === expectedNum
+    ) {
+      return { field, matched: true, predicted, expected };
+    }
+
     return {
       field,
-      matched,
+      matched: false,
       predicted,
       expected,
     };
@@ -383,11 +458,11 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   }
 
   /**
-   * Parse numeric value (handle commas)
+   * Parse numeric value (handle commas and spaces so "6 191.12" and "6,191.12" parse)
    */
   private parseNumeric(value: string): number | null {
-    // Remove commas and parse
-    const cleaned = value.replace(/,/g, "");
+    const cleaned = value.replace(/,/g, "").replace(/\s/g, "");
+    if (cleaned === "") return null;
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
   }
@@ -401,17 +476,15 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     expected: unknown,
     _formats?: string[],
   ): FieldComparisonResult {
-    const predictedDate = this.parseDate(String(predicted));
-    const expectedDate = this.parseDate(String(expected));
+    const pCal = parseToCalendarParts(String(predicted));
+    const eCal = parseToCalendarParts(String(expected));
 
-    if (predictedDate === null || expectedDate === null) {
-      // Fall back to exact match if not parseable as dates
+    if (pCal === null || eCal === null) {
       return this.exactMatch(field, predicted, expected);
     }
 
-    // Compare normalized dates (YYYY-MM-DD)
     const matched =
-      this.formatDate(predictedDate) === this.formatDate(expectedDate);
+      pCal.y === eCal.y && pCal.m === eCal.m && pCal.day === eCal.day;
 
     return {
       field,
@@ -419,21 +492,6 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       predicted,
       expected,
     };
-  }
-
-  /**
-   * Parse date string to Date object
-   */
-  private parseDate(value: string): Date | null {
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date;
-  }
-
-  /**
-   * Format date to YYYY-MM-DD
-   */
-  private formatDate(date: Date): string {
-    return date.toISOString().split("T")[0];
   }
 
   /**

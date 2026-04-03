@@ -9,6 +9,7 @@ interface DatasetVersionInfo {
 
 interface WorkflowInfo {
   id: string;
+  workflowVersionId: string;
   name: string;
   version: number;
 }
@@ -60,6 +61,7 @@ interface DefinitionDetails {
   split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
+  workflowConfigOverrides?: Record<string, unknown>;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -78,20 +80,26 @@ interface CreateDefinitionDto {
   name: string;
   datasetVersionId: string;
   splitId: string;
-  workflowId: string;
+  workflowVersionId: string;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 interface UpdateDefinitionDto {
   name?: string;
   datasetVersionId?: string;
   splitId?: string;
-  workflowId?: string;
+  workflowVersionId?: string;
   evaluatorType?: string;
   evaluatorConfig?: Record<string, unknown>;
   runtimeSettings?: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
+}
+
+interface PromoteCandidateWorkflowDto {
+  candidateWorkflowVersionId: string;
 }
 
 export const useDefinitions = (projectId: string) => {
@@ -195,6 +203,42 @@ export const useDefinition = (projectId: string, definitionId: string) => {
     updateDefinition: updateDefinitionMutation.mutate,
     isUpdating: updateDefinitionMutation.isPending,
   };
+};
+
+export const usePromoteCandidateWorkflow = (
+  projectId: string,
+  definitionId: string,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (dto: PromoteCandidateWorkflowDto) => {
+      const response = await apiService.post<DefinitionDetails>(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/promote-candidate-workflow`,
+        dto,
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to apply candidate");
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definition", projectId, definitionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definitions", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-run", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-runs", projectId],
+      });
+    },
+  });
 };
 
 export interface BaselinePromotionHistory {

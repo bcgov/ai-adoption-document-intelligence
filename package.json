@@ -38,5 +38,10 @@
 	},
 	"dependencies": {
 		"@playwright/test": "^1.58.2"
+	},
+	"overrides": {
+		"axios": "1.14.0",
+		"fast-xml-parser": "5.5.9",
+		"serialize-javascript": "7.0.5"
 	}
 }
