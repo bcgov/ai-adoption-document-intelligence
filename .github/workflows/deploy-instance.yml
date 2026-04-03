@@ -1,0 +1,367 @@
+name: Deploy Feature Branch Instance
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
+
+env:
+  DEPLOY_PLG: "true"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  metadata:
+    name: Prepare Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      instance-name: ${{ steps.meta.outputs.instance }}
+      image-tag: ${{ steps.meta.outputs.image-tag }}
+    steps:
+      - name: Compute instance name and image tag
+        id: meta
+        run: |
+          RAW_BRANCH="${{ github.head_ref }}"
+
+          # Image tag: sanitize for OCI tag (128 chars, same as build-instance-images.yml)
+          IMAGE_TAG=$(echo "$RAW_BRANCH" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//' \
+            | cut -c1-128)
+
+          # Instance name: sanitize for Kubernetes (20 chars, same as instance-name.sh)
+          INSTANCE=$(echo "$RAW_BRANCH" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' \
+            | cut -c1-20 \
+            | sed 's/-$//')
+
+          echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "instance=$INSTANCE" >> "$GITHUB_OUTPUT"
+          echo "Branch: $RAW_BRANCH"
+          echo "Image tag: $IMAGE_TAG"
+          echo "Instance name: $INSTANCE"
+
+  build:
+    name: Build ${{ matrix.service }}
+    needs: [metadata]
+    runs-on: ubuntu-latest
+    environment: dev
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend-services
+            context: "."
+            dockerfile: apps/backend-services/Dockerfile
+          - service: frontend
+            context: apps/frontend
+            dockerfile: apps/frontend/Dockerfile
+          - service: temporal
+            context: "."
+            dockerfile: apps/temporal/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to Artifactory
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ secrets.ARTIFACTORY_URL }}
+          username: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+
+      - name: Cache Docker layers
+        uses: actions/cache@v5
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-instance-${{ matrix.service }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-instance-${{ matrix.service }}-
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}:${{ needs.metadata.outputs.image-tag }}
+          build-args: |
+            VITE_BACKEND_URL=https://${{ needs.metadata.outputs.instance-name }}-backend-${{ secrets.OPENSHIFT_NAMESPACE }}.${{ secrets.CLUSTER_DOMAIN }}
+            VITE_SSO_AUTH_SERVER_URL=${{ secrets.VITE_SSO_AUTH_SERVER_URL }}
+            VITE_SSO_REALM=${{ secrets.VITE_SSO_REALM }}
+            VITE_SSO_CLIENT_ID=${{ secrets.VITE_SSO_CLIENT_ID }}
+            VITE_APP_NAME=${{ secrets.VITE_APP_NAME }}
+            VITE_ENV=${{ secrets.VITE_ENV }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Rotate cache
+        if: always()
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  deploy:
+    name: Deploy to OpenShift
+    needs: [metadata, build]
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install oc CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: "4"
+
+      - name: Install Helm
+        if: env.DEPLOY_PLG == 'true'
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
+
+      - name: Login to OpenShift
+        run: |
+          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
+            --token="${{ secrets.OPENSHIFT_TOKEN }}" \
+            --insecure-skip-tls-verify=true
+
+      - name: Generate overlay and deploy
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          IMAGE_TAG: ${{ needs.metadata.outputs.image-tag }}
+          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          CLUSTER_DOMAIN: ${{ secrets.CLUSTER_DOMAIN }}
+          SSO_AUTH_SERVER_URL: ${{ secrets.SSO_AUTH_SERVER_URL }}
+          SSO_REALM: ${{ secrets.SSO_REALM }}
+          SSO_CLIENT_ID: ${{ secrets.SSO_CLIENT_ID }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
+          BLOB_STORAGE_PROVIDER: ${{ secrets.BLOB_STORAGE_PROVIDER }}
+          AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
+          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
+          AZURE_DOC_INTELLIGENCE_MODELS: ${{ secrets.AZURE_DOC_INTELLIGENCE_MODELS }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
+          ENRICHMENT_REDACT_PII: ${{ secrets.ENRICHMENT_REDACT_PII }}
+          BENCHMARK_TASK_QUEUE: ${{ secrets.BENCHMARK_TASK_QUEUE }}
+          ENABLE_BENCHMARK_QUEUE: ${{ secrets.ENABLE_BENCHMARK_QUEUE }}
+          BODY_LIMIT: ${{ secrets.BODY_LIMIT }}
+          THROTTLE_GLOBAL_TTL_MS: ${{ secrets.THROTTLE_GLOBAL_TTL_MS }}
+          THROTTLE_GLOBAL_LIMIT: ${{ secrets.THROTTLE_GLOBAL_LIMIT }}
+          THROTTLE_AUTH_TTL_MS: ${{ secrets.THROTTLE_AUTH_TTL_MS }}
+          THROTTLE_AUTH_LIMIT: ${{ secrets.THROTTLE_AUTH_LIMIT }}
+          THROTTLE_AUTH_REFRESH_TTL_MS: ${{ secrets.THROTTLE_AUTH_REFRESH_TTL_MS }}
+          THROTTLE_AUTH_REFRESH_LIMIT: ${{ secrets.THROTTLE_AUTH_REFRESH_LIMIT }}
+          PG_BACKUP_STORAGE_SIZE: ${{ secrets.PG_BACKUP_STORAGE_SIZE }}
+        run: |
+          set -euo pipefail
+
+          source scripts/lib/instance-name.sh
+          source scripts/lib/generate-overlay.sh
+
+          IMAGE_BASE="${ARTIFACTORY_URL}/kfd3-fd34fb-local"
+
+          FRONTEND_URL="https://${INSTANCE_NAME}-frontend-${OC_NAMESPACE}.${CLUSTER_DOMAIN}"
+          BACKEND_URL="https://${INSTANCE_NAME}-backend-${OC_NAMESPACE}.${CLUSTER_DOMAIN}"
+
+          echo "::group::Generate Kustomize overlay"
+          OVERLAY_DIR=$(generate_instance_overlay \
+            --instance "${INSTANCE_NAME}" \
+            --namespace "${OC_NAMESPACE}" \
+            --cluster-domain "${CLUSTER_DOMAIN}" \
+            --backend-image "${IMAGE_BASE}/backend-services" \
+            --frontend-image "${IMAGE_BASE}/frontend" \
+            --worker-image "${IMAGE_BASE}/temporal" \
+            --image-tag "${IMAGE_TAG}" \
+            --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+            --sso-realm "${SSO_REALM}" \
+            --sso-client-id "${SSO_CLIENT_ID}" \
+            --bootstrap-admin-email "${BOOTSTRAP_ADMIN_EMAIL:-}" \
+            --blob-storage-provider "${BLOB_STORAGE_PROVIDER:-azure}" \
+            --azure-storage-container-name "${AZURE_STORAGE_CONTAINER_NAME:-document-blobs}" \
+            --benchmark-task-queue "${BENCHMARK_TASK_QUEUE:-benchmark-processing}" \
+            --enable-benchmark-queue "${ENABLE_BENCHMARK_QUEUE:-true}" \
+            --body-limit "${BODY_LIMIT:-50mb}" \
+            --throttle-global-ttl-ms "${THROTTLE_GLOBAL_TTL_MS:-60000}" \
+            --throttle-global-limit "${THROTTLE_GLOBAL_LIMIT:-100}" \
+            --throttle-auth-ttl-ms "${THROTTLE_AUTH_TTL_MS:-60000}" \
+            --throttle-auth-limit "${THROTTLE_AUTH_LIMIT:-10}" \
+            --throttle-auth-refresh-ttl-ms "${THROTTLE_AUTH_REFRESH_TTL_MS:-60000}" \
+            --throttle-auth-refresh-limit "${THROTTLE_AUTH_REFRESH_LIMIT:-5}" \
+            --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:-}" \
+            --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS:-prebuilt-layout}" \
+            --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT:-}" \
+            --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT:-}" \
+            --azure-openai-api-version "${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}" \
+            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}" \
+            --pg-backup-storage-size "${PG_BACKUP_STORAGE_SIZE:-10Gi}")
+          echo "Overlay generated at: $OVERLAY_DIR"
+          echo "::endgroup::"
+
+          echo "::group::Apply resources to OpenShift"
+          oc apply -k "$OVERLAY_DIR" -n "$OC_NAMESPACE"
+          echo "::endgroup::"
+
+          # Clean up overlay
+          rm -rf "$(echo "$OVERLAY_DIR" | sed 's|/overlays/instance$||')"
+
+          echo "frontend_url=$FRONTEND_URL" >> "$GITHUB_ENV"
+          echo "backend_url=$BACKEND_URL" >> "$GITHUB_ENV"
+
+      - name: Create instance secrets
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          SSO_CLIENT_SECRET: ${{ secrets.SSO_CLIENT_SECRET }}
+          AZURE_DOCUMENT_INTELLIGENCE_API_KEY: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_API_KEY }}
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
+          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          echo "::group::Backend secrets"
+          BACKEND_SECRET="${INSTANCE_NAME}-backend-services-secrets"
+          oc create secret generic "$BACKEND_SECRET" \
+            --from-literal="SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET}" \
+            --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+            --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
+            --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
+            --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
+            --dry-run=client -o yaml | oc apply -f - -n "$OC_NAMESPACE"
+
+          oc label secret "$BACKEND_SECRET" \
+            "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite -n "$OC_NAMESPACE" || true
+          echo "::endgroup::"
+
+          echo "::group::Worker secrets"
+          WORKER_SECRET="${INSTANCE_NAME}-temporal-worker-secrets"
+          oc create secret generic "$WORKER_SECRET" \
+            --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+            --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
+            --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
+            --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
+            --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
+            --dry-run=client -o yaml | oc apply -f - -n "$OC_NAMESPACE"
+
+          oc label secret "$WORKER_SECRET" \
+            "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite -n "$OC_NAMESPACE" || true
+          echo "::endgroup::"
+
+      - name: Deploy PLG monitoring stack
+        if: env.DEPLOY_PLG == 'true'
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          LOKI_RETENTION_DAYS: ${{ secrets.LOKI_RETENTION_DAYS }}
+          LOKI_PVC_SIZE: ${{ secrets.LOKI_PVC_SIZE }}
+          PROMETHEUS_PVC_SIZE: ${{ secrets.PROMETHEUS_PVC_SIZE }}
+          METRICS_SCRAPE_INTERVAL: ${{ secrets.METRICS_SCRAPE_INTERVAL }}
+        run: |
+          set -euo pipefail
+
+          PLG_CHART_DIR="deployments/openshift/helm/plg"
+          PLG_RELEASE="${INSTANCE_NAME}-plg"
+
+          helm upgrade --install "$PLG_RELEASE" "$PLG_CHART_DIR" \
+            --namespace "$OC_NAMESPACE" \
+            -f "$PLG_CHART_DIR/values-openshift.yaml" \
+            --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD:-admin}" \
+            --set "loki.retentionDays=${LOKI_RETENTION_DAYS:-30}" \
+            --set "loki.pvcSize=${LOKI_PVC_SIZE:-10Gi}" \
+            --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE:-10Gi}" \
+            --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL:-15s}" \
+            --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
+            --set "prometheus.scrapeTargets.temporalServer.host=${INSTANCE_NAME}-temporal" \
+            --wait --timeout 120s || echo "::warning::PLG deployment failed (non-blocking)"
+
+      - name: Restart deployments and wait
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+        run: |
+          set -euo pipefail
+
+          SERVICES=("backend-services" "frontend" "temporal" "temporal-ui" "temporal-worker")
+
+          for svc in "${SERVICES[@]}"; do
+            DEPLOY="${INSTANCE_NAME}-${svc}"
+            if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
+              oc rollout restart "deployment/$DEPLOY" -n "$OC_NAMESPACE" || true
+            fi
+          done
+
+          for svc in "${SERVICES[@]}"; do
+            DEPLOY="${INSTANCE_NAME}-${svc}"
+            if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
+              echo "Waiting for $DEPLOY..."
+              oc rollout status "deployment/$DEPLOY" -n "$OC_NAMESPACE" --timeout=180s || \
+                echo "::warning::Rollout timed out for $DEPLOY"
+            fi
+          done
+
+      - name: Comment on PR with deployment URLs
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const instance = '${{ needs.metadata.outputs.instance-name }}';
+            const frontendUrl = process.env.frontend_url;
+            const backendUrl = process.env.backend_url;
+
+            const body = [
+              `### Deployment Successful`,
+              ``,
+              `| Resource | URL |`,
+              `|----------|-----|`,
+              `| Frontend | ${frontendUrl} |`,
+              `| Backend  | ${backendUrl} |`,
+              ``,
+              `**Instance:** \`${instance}\``,
+              `**Namespace:** \`${{ secrets.OPENSHIFT_NAMESPACE }}\``,
+              `**Image tag:** \`${{ needs.metadata.outputs.image-tag }}\``,
+              ``,
+              `To tear down: \`./scripts/oc-teardown.sh --instance ${instance}\``,
+            ].join('\n');
+
+            // Find and update existing deploy comment, or create new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const marker = '### Deployment Successful';
+            const existing = comments.find(c => c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
