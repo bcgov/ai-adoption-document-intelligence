@@ -219,38 +219,8 @@ jobs:
           echo "Overlay generated at: $OVERLAY_DIR"
           echo "::endgroup::"
 
-          echo "::group::Debug overlay"
-          # Copy overlay to a persistent location for artifact upload
-          cp -rL "$OVERLAY_DIR" /tmp/overlay-debug
-          # Also copy the base dir the symlink points to
-          ls -la "$(dirname "$(dirname "$OVERLAY_DIR")")/base" || true
-          # Test YAML validity
-          python3 -c "import yaml,glob,sys;[print(f'YAML OK: {f}') if not any(True for _ in []) else None for f in sorted(glob.glob('/tmp/overlay-debug/**/*.yml',recursive=True))]" || true
-          python3 << 'PYEOF'
-          import yaml, glob, sys
-          for f in sorted(glob.glob('/tmp/overlay-debug/**/*.yml', recursive=True)):
-              try:
-                  list(yaml.safe_load_all(open(f)))
-                  print(f'YAML OK: {f}')
-              except Exception as e:
-                  print(f'YAML FAIL: {f}: {e}')
-                  sys.exit(1)
-          PYEOF
-          # Test kustomize
-          kustomize version
-          kustomize build "$OVERLAY_DIR" > /tmp/kustomize-output.yaml 2>&1 && echo "kustomize OK" || {
-            echo "kustomize FAILED:"
-            head -20 /tmp/kustomize-output.yaml
-          }
-          echo "::endgroup::"
-
           echo "::group::Apply resources to OpenShift"
-          if [ -s /tmp/kustomize-output.yaml ] && ! grep -q "^error:" /tmp/kustomize-output.yaml; then
-            oc apply -f /tmp/kustomize-output.yaml -n "$OC_NAMESPACE"
-          else
-            echo "Falling back to oc apply -k"
-            oc apply -k "$OVERLAY_DIR" -n "$OC_NAMESPACE"
-          fi
+          kustomize build "$OVERLAY_DIR" | oc apply -f - -n "$OC_NAMESPACE"
           echo "::endgroup::"
 
           # Clean up overlay
@@ -258,14 +228,6 @@ jobs:
 
           echo "frontend_url=$FRONTEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_ENV"
-
-      - name: Upload overlay debug artifact
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: overlay-debug
-          path: /tmp/overlay-debug/
-          if-no-files-found: warn
 
       - name: Create instance secrets
         env:
