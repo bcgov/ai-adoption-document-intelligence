@@ -10,9 +10,12 @@ COPY apps/backend-services/nest-cli.json ./
 COPY apps/backend-services/tsconfig*.json ./
 COPY apps/backend-services/.swcrc ./
 
-# Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
+# Copy workspace packages referenced as file: dependencies (file:../../packages/* resolves to /packages/*)
 COPY packages/logging /packages/logging
 RUN cd /packages/logging && npm install && npm run build
+
+COPY packages/graph-insertion-slots /packages/graph-insertion-slots
+RUN cd /packages/graph-insertion-slots && npm install && npm run build
 
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install
@@ -46,8 +49,9 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
-# Copy pre-built logging package from builder (avoids needing tsc in production stage)
+# Copy pre-built workspace packages from builder (avoids needing tsc in production stage)
 COPY --from=builder /packages/logging /packages/logging
+COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
 
 # Copy package files
 COPY apps/backend-services/package.json ./
