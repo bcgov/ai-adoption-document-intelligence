@@ -8,14 +8,13 @@ import { getPrismaPgOptions } from "@/utils/database-url";
 @Injectable()
 export class PrismaService implements OnModuleInit {
   public readonly prisma: PrismaClient;
+  private readonly shouldLogQueries: boolean;
 
   constructor(
     private configService: ConfigService,
     private readonly logger: AppLoggerService,
   ) {
-    const shouldLogQueries =
-      process.env.PRISMA_LOG_QUERIES === "true" ||
-      process.env.NODE_ENV !== "production";
+    this.shouldLogQueries = process.env.PRISMA_LOG_QUERIES === "true";
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
     );
@@ -27,7 +26,7 @@ export class PrismaService implements OnModuleInit {
       { emit: "event", level: "warn" },
       { emit: "event", level: "error" },
     ];
-    if (shouldLogQueries) {
+    if (this.shouldLogQueries) {
       prismaLog.push({ emit: "event", level: "query" });
     }
 
@@ -36,7 +35,7 @@ export class PrismaService implements OnModuleInit {
       adapter: new PrismaPg(dbOptions),
     });
 
-    if (shouldLogQueries) {
+    if (this.shouldLogQueries) {
       this.logger.log("Prisma query logging enabled", { category: "prisma" });
     }
   }
@@ -54,10 +53,7 @@ export class PrismaService implements OnModuleInit {
       category: "database",
     });
 
-    if (
-      process.env.PRISMA_LOG_QUERIES === "true" ||
-      process.env.NODE_ENV !== "production"
-    ) {
+    if (this.shouldLogQueries) {
       this.prisma.$on(
         "query",
         (e: { query: string; params: string; duration: number }) => {
