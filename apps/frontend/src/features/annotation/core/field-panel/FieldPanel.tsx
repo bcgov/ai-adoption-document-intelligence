@@ -52,9 +52,7 @@ export const FieldPanel: FC<FieldPanelProps> = ({
           onSelect={() => onSelectField?.(field.fieldKey)}
           onValueChange={(value) => onValueChange?.(field.fieldKey, value)}
           onClear={
-            onClearField
-              ? () => onClearField(field.fieldKey)
-              : undefined
+            onClearField ? () => onClearField(field.fieldKey) : undefined
           }
           readOnly={readOnly}
         />

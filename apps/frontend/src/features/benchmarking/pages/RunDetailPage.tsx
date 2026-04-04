@@ -69,6 +69,81 @@ interface SampleResult {
   evaluationDetails?: unknown;
 }
 
+/**
+ * Renders a string with invisible characters shown as visible symbols.
+ * Trailing/leading whitespace and control characters are highlighted.
+ */
+function VisibleWhitespace({ value }: { value: string }) {
+  const replacements: Array<{ char: string; label: string }> = [
+    { char: "\n", label: "\\n" },
+    { char: "\r", label: "\\r" },
+    { char: "\t", label: "\\t" },
+    { char: "\u00A0", label: "\\u00A0" },
+    { char: "\u200B", label: "\\u200B" },
+    { char: "\uFEFF", label: "\\uFEFF" },
+  ];
+
+  // Check for trailing/leading spaces
+  const leadingSpaces = value.length - value.trimStart().length;
+  const trailingSpaces = value.length - value.trimEnd().length;
+  const hasSpecialChars = replacements.some((r) => value.includes(r.char));
+
+  if (leadingSpaces === 0 && trailingSpaces === 0 && !hasSpecialChars) {
+    return <>{value}</>;
+  }
+
+  const parts: React.ReactNode[] = [];
+  let key = 0;
+
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    const replacement = replacements.find((r) => r.char === ch);
+    const isLeadingSpace = ch === " " && i < leadingSpaces;
+    const isTrailingSpace = ch === " " && i >= value.length - trailingSpaces;
+
+    if (replacement) {
+      parts.push(
+        <Badge
+          key={key++}
+          size="xs"
+          color="red"
+          variant="filled"
+          style={{ fontFamily: "monospace", verticalAlign: "text-bottom" }}
+        >
+          {replacement.label}
+        </Badge>,
+      );
+    } else if (isLeadingSpace || isTrailingSpace) {
+      parts.push(
+        <Badge
+          key={key++}
+          size="xs"
+          color="orange"
+          variant="light"
+          style={{ fontFamily: "monospace", verticalAlign: "text-bottom" }}
+        >
+          &#x2423;
+        </Badge>,
+      );
+    } else {
+      let end = i + 1;
+      while (end < value.length) {
+        const nextCh = value[end];
+        const nextIsSpecial = replacements.some((r) => r.char === nextCh);
+        const nextIsLeading = nextCh === " " && end < leadingSpaces;
+        const nextIsTrailing =
+          nextCh === " " && end >= value.length - trailingSpaces;
+        if (nextIsSpecial || nextIsLeading || nextIsTrailing) break;
+        end++;
+      }
+      parts.push(<span key={key++}>{value.slice(i, end)}</span>);
+      i = end - 1;
+    }
+  }
+
+  return <>{parts}</>;
+}
+
 function FieldErrorDetails({
   fieldName,
   samples,
@@ -99,7 +174,10 @@ function FieldErrorDetails({
         v === null || v === undefined || v === "" || v === "null";
 
       let errorType = "mismatch";
-      if (!isNullLike(fieldResult.expected) && isNullLike(fieldResult.predicted)) {
+      if (
+        !isNullLike(fieldResult.expected) &&
+        isNullLike(fieldResult.predicted)
+      ) {
         errorType = "missing";
       } else if (
         isNullLike(fieldResult.expected) &&
@@ -163,20 +241,28 @@ function FieldErrorDetails({
               </Table.Td>
               <Table.Td>
                 <Code>
-                  {s.expected !== undefined
-                    ? typeof s.expected === "string"
-                      ? s.expected
-                      : JSON.stringify(s.expected)
-                    : "-"}
+                  {s.expected !== undefined ? (
+                    typeof s.expected === "string" ? (
+                      <VisibleWhitespace value={s.expected} />
+                    ) : (
+                      JSON.stringify(s.expected)
+                    )
+                  ) : (
+                    "-"
+                  )}
                 </Code>
               </Table.Td>
               <Table.Td>
                 <Code>
-                  {s.predicted !== undefined
-                    ? typeof s.predicted === "string"
-                      ? s.predicted
-                      : JSON.stringify(s.predicted)
-                    : "-"}
+                  {s.predicted !== undefined ? (
+                    typeof s.predicted === "string" ? (
+                      <VisibleWhitespace value={s.predicted} />
+                    ) : (
+                      JSON.stringify(s.predicted)
+                    )
+                  ) : (
+                    "-"
+                  )}
                 </Code>
               </Table.Td>
             </Table.Tr>

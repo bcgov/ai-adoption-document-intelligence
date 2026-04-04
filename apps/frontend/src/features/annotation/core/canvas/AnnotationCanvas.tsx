@@ -1,7 +1,15 @@
 import { Box } from "@mantine/core";
 import Konva from "konva";
 import { KonvaEventObject } from "konva/lib/Node";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Image as KonvaImage, Layer, Stage } from "react-konva";
 import { BoundingBox, CanvasTool } from "../types";
 import { BoundingBoxLayer } from "./BoundingBoxLayer";
@@ -29,8 +37,22 @@ interface AnnotationCanvasProps {
   onBoxCreate?: (box: BoundingBox) => void;
 }
 
-export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCanvasProps>(
-  ({ imageUrl, width, height, boxes = [], activeTool = CanvasTool.SELECT, onBoxSelect, onBoxCreate }, ref) => {
+export const AnnotationCanvas = forwardRef<
+  AnnotationCanvasHandle,
+  AnnotationCanvasProps
+>(
+  (
+    {
+      imageUrl,
+      width,
+      height,
+      boxes = [],
+      activeTool = CanvasTool.SELECT,
+      onBoxSelect,
+      onBoxCreate,
+    },
+    ref,
+  ) => {
     const stageRef = useRef<Konva.Stage | null>(null);
     const imageRef = useRef<HTMLImageElement | null>(null);
     const [imageSize, setImageSize] = useState<{
@@ -100,31 +122,35 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
       [clamp, imageSize, width, height],
     );
 
-    useImperativeHandle(ref, () => ({
-      panTo: (centerX: number, centerY: number, targetZoom: number) => {
-        const newScale = fitScale * targetZoom;
-        const newPanX = width / 2 - centerX * newScale;
-        const newPanY = height / 2 - centerY * newScale;
-        const clamped = clampPan({ x: newPanX, y: newPanY }, newScale);
+    useImperativeHandle(
+      ref,
+      () => ({
+        panTo: (centerX: number, centerY: number, targetZoom: number) => {
+          const newScale = fitScale * targetZoom;
+          const newPanX = width / 2 - centerX * newScale;
+          const newPanY = height / 2 - centerY * newScale;
+          const clamped = clampPan({ x: newPanX, y: newPanY }, newScale);
 
-        const stage = stageRef.current;
-        if (stage) {
-          new Konva.Tween({
-            node: stage,
-            duration: 0.2,
-            x: clamped.x,
-            y: clamped.y,
-            scaleX: newScale,
-            scaleY: newScale,
-            easing: Konva.Easings.EaseInOut,
-            onFinish: () => {
-              setPan(clamped);
-              setUserZoom(targetZoom);
-            },
-          }).play();
-        }
-      },
-    }), [fitScale, width, height, clampPan, setPan]);
+          const stage = stageRef.current;
+          if (stage) {
+            new Konva.Tween({
+              node: stage,
+              duration: 0.2,
+              x: clamped.x,
+              y: clamped.y,
+              scaleX: newScale,
+              scaleY: newScale,
+              easing: Konva.Easings.EaseInOut,
+              onFinish: () => {
+                setPan(clamped);
+                setUserZoom(targetZoom);
+              },
+            }).play();
+          }
+        },
+      }),
+      [fitScale, width, height, clampPan, setPan],
+    );
 
     // Load image and get its natural dimensions
     useEffect(() => {
@@ -276,7 +302,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
         </Stage>
       </Box>
     );
-  }
+  },
 );
 
 AnnotationCanvas.displayName = "AnnotationCanvas";

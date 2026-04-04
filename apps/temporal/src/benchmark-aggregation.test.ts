@@ -358,9 +358,19 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
           diagnostics: {
             comparisonResults: [
               // Both null-like: matched, should not count as error
-              { field: "spouse_date", matched: true, predicted: null, expected: null },
+              {
+                field: "spouse_date",
+                matched: true,
+                predicted: null,
+                expected: null,
+              },
               // Real value matched
-              { field: "name", matched: true, predicted: "John", expected: "John" },
+              {
+                field: "name",
+                matched: true,
+                predicted: "John",
+                expected: "John",
+              },
             ],
           },
           pass: true,
@@ -371,9 +381,19 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
           diagnostics: {
             comparisonResults: [
               // Null expected with null predicted: matched, not an error
-              { field: "spouse_date", matched: true, predicted: undefined, expected: null },
+              {
+                field: "spouse_date",
+                matched: true,
+                predicted: undefined,
+                expected: null,
+              },
               // Real field mismatched
-              { field: "name", matched: false, predicted: "Jane", expected: "Jon" },
+              {
+                field: "name",
+                matched: false,
+                predicted: "Jane",
+                expected: "Jon",
+              },
             ],
           },
           pass: false,

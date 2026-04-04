@@ -14,13 +14,7 @@ import {
   EvaluationInput,
   EvaluationResult,
 } from "../benchmark-types";
-import {
-  digitsOnly,
-  isDateLikeFieldKey,
-  isIdentifierLikeFieldKey,
-  parseToCalendarParts,
-  shouldCoerceDateFieldNoiseToEmpty,
-} from "../form-field-normalization";
+import { parseToCalendarParts } from "../form-field-normalization";
 
 /**
  * Check if a value represents "no value" — null, undefined, empty string, or the string "null"
@@ -288,60 +282,8 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     const predictedStr = String(predicted);
     const expectedStr = String(expected);
 
-    if (predictedStr === expectedStr) {
-      return { field, matched: true, predicted, expected };
-    }
-
-    if (expectedStr === "" && predictedStr.trim() === "") {
-      return { field, matched: true, predicted, expected };
-    }
-
-    if (
-      isDateLikeFieldKey(field) &&
-      expectedStr === "" &&
-      shouldCoerceDateFieldNoiseToEmpty(predictedStr)
-    ) {
-      return { field, matched: true, predicted, expected };
-    }
-
-    if (isIdentifierLikeFieldKey(field)) {
-      const pd = digitsOnly(predictedStr);
-      const ed = digitsOnly(expectedStr);
-      if (pd.length > 0 && pd === ed) {
-        return { field, matched: true, predicted, expected };
-      }
-    }
-
-    if (isDateLikeFieldKey(field)) {
-      const pCal = parseToCalendarParts(predictedStr);
-      const eCal = parseToCalendarParts(expectedStr);
-      if (
-        pCal !== null &&
-        eCal !== null &&
-        pCal.y === eCal.y &&
-        pCal.m === eCal.m &&
-        pCal.day === eCal.day
-      ) {
-        return { field, matched: true, predicted, expected };
-      }
-    }
-
-    const predictedNum = this.parseNumeric(predictedStr);
-    const expectedNum = this.parseNumeric(expectedStr);
-    if (
-      predictedNum !== null &&
-      expectedNum !== null &&
-      predictedNum === expectedNum
-    ) {
-      return { field, matched: true, predicted, expected };
-    }
-
-    return {
-      field,
-      matched: false,
-      predicted,
-      expected,
-    };
+    const matched = predictedStr === expectedStr;
+    return { field, matched, predicted, expected };
   }
 
   /**

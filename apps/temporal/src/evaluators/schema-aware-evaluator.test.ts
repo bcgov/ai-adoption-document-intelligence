@@ -140,73 +140,7 @@ describe("SchemaAwareEvaluator", () => {
   // Scenario 3: Exact match comparison
   // -----------------------------------------------------------------------
   describe("exact match", () => {
-    it("treats sin/phone formatting differences as equal under default exact rule", async () => {
-      const groundTruth = {
-        sin: "936688868",
-        phone: "970838608",
-      };
-      const prediction = {
-        sin: "936-688-868",
-        phone: "970.838.608",
-      };
-      const { predictionPath, groundTruthPath } = await createTestFiles(
-        prediction,
-        groundTruth,
-      );
-      const input: EvaluationInput = {
-        sampleId: "sample-exact-id",
-        inputPaths: [],
-        predictionPaths: [predictionPath],
-        groundTruthPaths: [groundTruthPath],
-        metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" } },
-      };
-      const result = await evaluator.evaluate(input);
-      expect(result.metrics.matchedFields).toBe(2);
-      expect(result.metrics.f1).toBe(1.0);
-    });
-
-    it("treats date field calendar equivalence as equal under default exact rule", async () => {
-      const groundTruth = { date: "2016-Mar-30" };
-      const prediction = { date: "30/03/2016" };
-      const { predictionPath, groundTruthPath } = await createTestFiles(
-        prediction,
-        groundTruth,
-      );
-      const input: EvaluationInput = {
-        sampleId: "sample-exact-date",
-        inputPaths: [],
-        predictionPaths: [predictionPath],
-        groundTruthPaths: [groundTruthPath],
-        metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" } },
-      };
-      const result = await evaluator.evaluate(input);
-      expect(result.metrics.matchedFields).toBe(1);
-      expect(result.metrics.f1).toBe(1.0);
-    });
-
-    it("treats empty GT vs date-field symbol noise as equal", async () => {
-      const groundTruth = { spouse_date: "" };
-      const prediction = { spouse_date: "$" };
-      const { predictionPath, groundTruthPath } = await createTestFiles(
-        prediction,
-        groundTruth,
-      );
-      const input: EvaluationInput = {
-        sampleId: "sample-empty-date-noise",
-        inputPaths: [],
-        predictionPaths: [predictionPath],
-        groundTruthPaths: [groundTruthPath],
-        metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" } },
-      };
-      const result = await evaluator.evaluate(input);
-      expect(result.metrics.matchedFields).toBe(1);
-      expect(result.metrics.f1).toBe(1.0);
-    });
-
-    it("treats same numeric value with different format/type as equal under exact rule", async () => {
+    it("treats same numeric value with different format/type as equal under numeric rule", async () => {
       const groundTruth = {
         amount: "4148",
         applicant_spousal_support_alimony: "6191.12",
@@ -225,11 +159,31 @@ describe("SchemaAwareEvaluator", () => {
         predictionPaths: [predictionPath],
         groundTruthPaths: [groundTruthPath],
         metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" } },
+        evaluatorConfig: { defaultRule: { rule: "numeric" } },
       };
       const result = await evaluator.evaluate(input);
       expect(result.metrics.matchedFields).toBe(2);
       expect(result.metrics.f1).toBe(1.0);
+    });
+
+    it("does not match different numeric formats under exact rule", async () => {
+      const groundTruth = { amount: "6191.12" };
+      const prediction = { amount: "6,191.12" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+      const input: EvaluationInput = {
+        sampleId: "sample-exact-numeric-mismatch",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" } },
+      };
+      const result = await evaluator.evaluate(input);
+      expect(result.metrics.matchedFields).toBe(0);
+      expect(result.metrics.f1).toBe(0);
     });
 
     it("matches only when values are exactly equal", async () => {

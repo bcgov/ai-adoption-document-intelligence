@@ -20,8 +20,12 @@ let globalReopenTimer: ReturnType<typeof setTimeout> | undefined;
 export const useUndoRedo = (sessionId: string | undefined) => {
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [redoStack, setRedoStack] = useState<UndoEntry[]>([]);
-  const [pendingReopen, setPendingReopen] = useState<ReopenUndoEntry | null>(globalPendingReopen);
-  const reopenTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [pendingReopen, setPendingReopen] = useState<ReopenUndoEntry | null>(
+    globalPendingReopen,
+  );
+  const reopenTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   // Sync local state with global on mount
   useEffect(() => {
@@ -45,8 +49,12 @@ export const useUndoRedo = (sessionId: string | undefined) => {
       setRedoStack((prev) => [...prev, popped]);
       if (popped.correctionId && sessionId) {
         apiService
-          .delete(`/hitl/sessions/${sessionId}/corrections/${popped.correctionId}`)
-          .catch(() => {});
+          .delete(
+            `/hitl/sessions/${sessionId}/corrections/${popped.correctionId}`,
+          )
+          .catch(() => {
+            /* fire-and-forget */
+          });
       }
     }
     return popped;
@@ -81,7 +89,11 @@ export const useUndoRedo = (sessionId: string | undefined) => {
   );
 
   const setPendingSessionReopen = useCallback(
-    (completedSessionId: string, action: "approved" | "escalated" | "skipped", timeoutMs?: number) => {
+    (
+      completedSessionId: string,
+      action: "approved" | "escalated" | "skipped",
+      timeoutMs?: number,
+    ) => {
       if (globalReopenTimer) clearTimeout(globalReopenTimer);
       if (reopenTimerRef.current) clearTimeout(reopenTimerRef.current);
 
@@ -104,7 +116,10 @@ export const useUndoRedo = (sessionId: string | undefined) => {
   const undoSessionAction = useCallback(async (): Promise<boolean> => {
     if (!pendingReopen) return false;
     try {
-      await apiService.post(`/hitl/sessions/${pendingReopen.sessionId}/reopen`, {});
+      await apiService.post(
+        `/hitl/sessions/${pendingReopen.sessionId}/reopen`,
+        {},
+      );
       globalPendingReopen = null;
       setPendingReopen(null);
       if (globalReopenTimer) clearTimeout(globalReopenTimer);
