@@ -354,9 +354,9 @@ describe("BenchmarkDefinitionDbService", () => {
     it("should update the pipelineDebugLog column", async () => {
       const entries = [
         {
-          step: "hitl_aggregation",
+          step: "baseline_mismatch_extraction",
           timestamp: "2026-04-03T00:00:00Z",
-          data: { correctionCount: 5 },
+          data: { totalMismatches: 5 },
         },
       ];
       mockPrismaClient.benchmarkDefinition.update.mockResolvedValue({

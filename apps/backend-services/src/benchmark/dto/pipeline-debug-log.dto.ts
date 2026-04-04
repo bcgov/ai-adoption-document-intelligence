@@ -9,7 +9,7 @@ import { ApiProperty } from "@nestjs/swagger";
 export class PipelineLogEntryDto {
   @ApiProperty({
     description:
-      "Pipeline step identifier (e.g. hitl_aggregation, llm_request)",
+      "Pipeline step identifier (e.g. baseline_mismatch_extraction, llm_request)",
   })
   step: string;
 

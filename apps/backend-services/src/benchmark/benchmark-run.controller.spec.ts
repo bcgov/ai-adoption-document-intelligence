@@ -54,10 +54,10 @@ describe("BenchmarkRunController", () => {
     getPipelineDebugLog: jest.fn().mockResolvedValue({
       entries: [
         {
-          step: "hitl_aggregation",
+          step: "baseline_mismatch_extraction",
           timestamp: "2026-04-03T00:00:00Z",
           durationMs: 50,
-          data: { correctionCount: 3 },
+          data: { totalMismatches: 3 },
         },
         {
           step: "llm_request",
@@ -285,7 +285,7 @@ describe("BenchmarkRunController", () => {
         "def-1",
       );
       expect(result.entries).toHaveLength(2);
-      expect(result.entries[0].step).toBe("hitl_aggregation");
+      expect(result.entries[0].step).toBe("baseline_mismatch_extraction");
     });
 
     it("returns empty entries when no log exists", async () => {
