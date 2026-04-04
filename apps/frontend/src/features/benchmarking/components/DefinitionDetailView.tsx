@@ -462,16 +462,18 @@ export function DefinitionDetailView({
             </Stack>
           )}
 
-          {/* Pipeline debug log — collapsible accordion, fetched on demand */}
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconBug size={14} />}
-            onClick={() => setShowDebugLog((prev) => !prev)}
-            data-testid="toggle-debug-log-btn"
-          >
-            {showDebugLog ? "Hide debug log" : "View debug log"}
-          </Button>
+          {/* Pipeline debug log — only shown after pipeline has been run, fetched on demand */}
+          {generateResult && (
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconBug size={14} />}
+              onClick={() => setShowDebugLog((prev) => !prev)}
+              data-testid="toggle-debug-log-btn"
+            >
+              {showDebugLog ? "Hide debug log" : "View debug log"}
+            </Button>
+          )}
 
           {showDebugLog && (
             <Stack gap="xs">
