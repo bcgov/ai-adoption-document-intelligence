@@ -1,18 +1,14 @@
 /**
  * OCR Improvement Pipeline Service
  *
- * Orchestrates the end-to-end OCR correction pipeline:
+ * Orchestrates candidate workflow generation from HITL corrections:
  * 1. Aggregate HITL corrections
  * 2. Get tool manifest
  * 3. Run AI recommendation
  * 4. Apply recommendations to create candidate workflow
- * 5. Start benchmark run with candidate workflow
- * 6. Optionally wait for run completion and read baseline comparison (US-013)
- * 7. Return candidate and run IDs (and comparison when waited)
  *
- * Feature 008A will add conditional replacement and looping.
- *
- * See feature-docs/008-ocr-correction-agentic-sdlc/step-04-benchmark-integration-workflow-comparison.md
+ * The caller (controller) is responsible for starting a benchmark run
+ * against the candidate workflow version returned by generate().
  */
 
 import { Injectable, Logger } from "@nestjs/common";
@@ -36,12 +32,6 @@ import { HitlAggregationService } from "../hitl/hitl-aggregation.service";
 import { ToolManifestService } from "../hitl/tool-manifest.service";
 import { WorkflowService } from "../workflow/workflow.service";
 import { AiRecommendationService } from "./ai-recommendation.service";
-import { BenchmarkRunService } from "./benchmark-run.service";
-import type { BaselineComparison } from "./dto/promote-baseline.dto";
-import type { RunDetailsDto } from "./dto/run-response.dto";
-
-const DEFAULT_PIPELINE_POLL_MS = 5000;
-const DEFAULT_PIPELINE_WAIT_TIMEOUT_MS = 60 * 60 * 1000;
 
 export interface GenerateInput {
   workflowVersionId: string;
@@ -65,62 +55,6 @@ export interface GenerateResult {
   error?: string;
 }
 
-export interface PipelineInput {
-  /** Pinned workflow version ID (WorkflowVersion.id) to create a candidate from. */
-  workflowVersionId: string;
-  /** Benchmark definition ID to run the candidate against. */
-  benchmarkDefinitionId: string;
-  /** Benchmark project ID. */
-  benchmarkProjectId: string;
-  /** Filters for HITL correction aggregation. */
-  hitlFilters?: HitlAggregationFilters;
-  /** Actor ID for workflow lineage ownership (resolves to User for persistence). */
-  actorId: string;
-  /** Poll until candidate run completes and return baseline comparison. */
-  waitForPipelineRunCompletion?: boolean;
-  pipelineRunPollIntervalMs?: number;
-  pipelineRunWaitTimeoutMs?: number;
-  /**
-   * When set, every `ocr.normalizeFields` node in the candidate workflow gets this
-   * `emptyValueCoercion` (overrides the definition graph and any AI-suggested value).
-   */
-  normalizeFieldsEmptyValueCoercion?: OcrNormalizeFieldsEmptyValueCoercion;
-}
-
-export interface PipelineResult {
-  /** Head workflow version ID of the candidate lineage (WorkflowVersion.id). */
-  candidateWorkflowVersionId: string;
-  /** ID of the benchmark run started. */
-  benchmarkRunId: string;
-  /** Summary of recommendations applied. */
-  recommendationsSummary: {
-    applied: number;
-    rejected: number;
-    toolIds: string[];
-  };
-  /** AI analysis summary when available. */
-  analysis?: string;
-  /**
-   * When status is no_recommendations: why nothing was applied (distinct from error).
-   */
-  pipelineMessage?: string;
-  /** Per-recommendation rejection reasons when AI returned tools but graph apply failed. */
-  rejectionDetails?: string[];
-  /** Status of the pipeline. */
-  status:
-    | "benchmark_started"
-    | "benchmark_completed"
-    | "benchmark_failed"
-    | "benchmark_cancelled"
-    | "benchmark_wait_timeout"
-    | "no_recommendations"
-    | "error";
-  /** Error message if status is "error". */
-  error?: string;
-  benchmarkRunStatus?: string;
-  baselineComparison?: BaselineComparison | null;
-}
-
 @Injectable()
 export class OcrImprovementPipelineService {
   private readonly logger = new Logger(OcrImprovementPipelineService.name);
@@ -130,45 +64,12 @@ export class OcrImprovementPipelineService {
     private readonly toolManifest: ToolManifestService,
     private readonly aiRecommendation: AiRecommendationService,
     private readonly workflowService: WorkflowService,
-    private readonly benchmarkRunService: BenchmarkRunService,
   ) {}
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Poll until the benchmark run leaves pending/running or timeout.
-   */
-  private async pollUntilTerminalRun(
-    projectId: string,
-    runId: string,
-    pollIntervalMs: number,
-    timeoutMs: number,
-  ): Promise<
-    | { timedOut: false; run: RunDetailsDto }
-    | { timedOut: true; lastRun: RunDetailsDto }
-  > {
-    const deadline = Date.now() + timeoutMs;
-    let lastRun = await this.benchmarkRunService.getRunById(projectId, runId);
-    while (Date.now() < deadline) {
-      if (
-        lastRun.status === "completed" ||
-        lastRun.status === "failed" ||
-        lastRun.status === "cancelled"
-      ) {
-        return { timedOut: false as const, run: lastRun };
-      }
-      await this.sleep(pollIntervalMs);
-      lastRun = await this.benchmarkRunService.getRunById(projectId, runId);
-    }
-    return { timedOut: true as const, lastRun };
-  }
 
   /**
    * Generate a candidate workflow version from HITL corrections and AI recommendations.
    *
-   * Runs steps 1-7 of the pipeline (HITL aggregation → AI recommendation → create candidate).
+   * Runs steps 1-4 of the pipeline (HITL aggregation → AI recommendation → create candidate).
    * Does NOT start a benchmark run.
    */
   async generate(input: GenerateInput): Promise<GenerateResult> {
@@ -407,149 +308,6 @@ export class OcrImprovementPipelineService {
       return {
         candidateWorkflowVersionId: "",
         candidateLineageId: "",
-        recommendationsSummary: {
-          applied: 0,
-          rejected: 0,
-          toolIds: [],
-        },
-        status: "error",
-        error: message,
-      };
-    }
-  }
-
-  /**
-   * Run the OCR improvement pipeline end-to-end.
-   *
-   * This method orchestrates the full pipeline synchronously up to starting
-   * the benchmark run. The benchmark run itself is asynchronous (Temporal workflow).
-   * Poll the benchmark run status separately.
-   */
-  async run(input: PipelineInput): Promise<PipelineResult> {
-    this.logger.log(
-      `Starting OCR improvement pipeline for workflow version ${input.workflowVersionId}`,
-    );
-
-    try {
-      const generateResult = await this.generate({
-        workflowVersionId: input.workflowVersionId,
-        actorId: input.actorId,
-        hitlFilters: input.hitlFilters,
-        normalizeFieldsEmptyValueCoercion:
-          input.normalizeFieldsEmptyValueCoercion,
-      });
-
-      if (generateResult.status !== "candidate_created") {
-        return {
-          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
-          benchmarkRunId: "",
-          recommendationsSummary: generateResult.recommendationsSummary,
-          analysis: generateResult.analysis,
-          pipelineMessage: generateResult.pipelineMessage,
-          rejectionDetails: generateResult.rejectionDetails,
-          status:
-            generateResult.status === "error" ? "error" : "no_recommendations",
-          error: generateResult.error,
-        };
-      }
-
-      // Re-load the candidate config for the benchmark run
-      const currentWorkflow = await this.workflowService.getWorkflowById(
-        generateResult.candidateWorkflowVersionId,
-      );
-      if (!currentWorkflow) {
-        return {
-          candidateWorkflowVersionId: "",
-          benchmarkRunId: "",
-          recommendationsSummary: generateResult.recommendationsSummary,
-          status: "error",
-          error: `Candidate workflow version ${generateResult.candidateWorkflowVersionId} not found after creation`,
-        };
-      }
-
-      const candidateConfig = currentWorkflow.config as GraphWorkflowConfig;
-
-      // Step 8: Start benchmark run with workflow override (replay OCR from baseline cache when available)
-      const baselineForOcrCache =
-        await this.benchmarkRunService.getLatestCompletedBaselineRunId(
-          input.benchmarkProjectId,
-          input.benchmarkDefinitionId,
-        );
-
-      const runDetails = await this.benchmarkRunService.startRun(
-        input.benchmarkProjectId,
-        input.benchmarkDefinitionId,
-        {
-          workflowConfigOverride: candidateConfig as unknown as Record<
-            string,
-            unknown
-          >,
-          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
-          ...(baselineForOcrCache
-            ? { ocrCacheBaselineRunId: baselineForOcrCache }
-            : {}),
-        },
-      );
-
-      const pollInterval =
-        input.pipelineRunPollIntervalMs ?? DEFAULT_PIPELINE_POLL_MS;
-      const waitTimeout =
-        input.pipelineRunWaitTimeoutMs ?? DEFAULT_PIPELINE_WAIT_TIMEOUT_MS;
-
-      if (!input.waitForPipelineRunCompletion) {
-        return {
-          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
-          benchmarkRunId: runDetails.id,
-          recommendationsSummary: generateResult.recommendationsSummary,
-          analysis: generateResult.analysis,
-          status: "benchmark_started",
-          benchmarkRunStatus: runDetails.status,
-        };
-      }
-
-      const waited = await this.pollUntilTerminalRun(
-        input.benchmarkProjectId,
-        runDetails.id,
-        pollInterval,
-        waitTimeout,
-      );
-
-      if (waited.timedOut === true) {
-        return {
-          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
-          benchmarkRunId: runDetails.id,
-          recommendationsSummary: generateResult.recommendationsSummary,
-          analysis: generateResult.analysis,
-          status: "benchmark_wait_timeout",
-          error: `Timed out after ${waitTimeout}ms waiting for benchmark run ${runDetails.id} (last status: ${waited.lastRun.status})`,
-          benchmarkRunStatus: waited.lastRun.status,
-          baselineComparison: waited.lastRun.baselineComparison,
-        };
-      }
-
-      const terminal = waited.run;
-      const terminalStatus =
-        terminal.status === "completed"
-          ? "benchmark_completed"
-          : terminal.status === "failed"
-            ? "benchmark_failed"
-            : "benchmark_cancelled";
-
-      return {
-        candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
-        benchmarkRunId: runDetails.id,
-        recommendationsSummary: generateResult.recommendationsSummary,
-        analysis: generateResult.analysis,
-        status: terminalStatus,
-        benchmarkRunStatus: terminal.status,
-        baselineComparison: terminal.baselineComparison,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`OCR improvement pipeline failed: ${message}`);
-      return {
-        candidateWorkflowVersionId: "",
-        benchmarkRunId: "",
         recommendationsSummary: {
           applied: 0,
           rejected: 0,
