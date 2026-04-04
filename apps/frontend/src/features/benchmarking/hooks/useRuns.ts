@@ -88,6 +88,22 @@ interface GenerateCandidateResult {
   error?: string;
 }
 
+/** Single entry in the pipeline debug log */
+interface PipelineLogEntry {
+  /** Pipeline step identifier */
+  step: string;
+  /** ISO 8601 timestamp when the step started */
+  timestamp: string;
+  /** Step duration in milliseconds */
+  durationMs?: number;
+  /** Step-specific payload */
+  data: Record<string, unknown>;
+}
+
+interface PipelineDebugLogResult {
+  entries: PipelineLogEntry[];
+}
+
 export const useRuns = (projectId: string) => {
   const queryClient = useQueryClient();
 
@@ -302,6 +318,33 @@ export const useGenerateCandidate = (
     isGenerating: mutation.isPending,
     result: mutation.data,
     error: mutation.error,
+  };
+};
+
+/**
+ * Fetch the pipeline debug log for a definition.
+ * Only fetches when `enabled` is true (i.e., user opened the debug log section).
+ */
+export const usePipelineDebugLog = (
+  projectId: string,
+  definitionId: string,
+  enabled: boolean,
+) => {
+  const query = useQuery({
+    queryKey: ["pipeline-debug-log", projectId, definitionId],
+    queryFn: async () => {
+      const response = await apiService.get<PipelineDebugLogResult>(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/debug-log`,
+      );
+      return response.data;
+    },
+    enabled: !!projectId && !!definitionId && enabled,
+  });
+
+  return {
+    entries: query.data?.entries ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
   };
 };
 
@@ -572,4 +615,5 @@ export type {
   MetricThreshold,
   PerSampleResult,
   PerSampleResultsData,
+  PipelineLogEntry,
 };

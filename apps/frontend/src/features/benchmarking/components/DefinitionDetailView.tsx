@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Alert,
   Badge,
   Button,
@@ -15,6 +16,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
+  IconBug,
   IconEdit,
   IconHistory,
   IconPlayerPlay,
@@ -27,7 +29,11 @@ import {
   useWorkflowVersions,
 } from "@/data/hooks/useWorkflows";
 import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
-import { useGenerateCandidate, useStartRun } from "../hooks/useRuns";
+import {
+  useGenerateCandidate,
+  usePipelineDebugLog,
+  useStartRun,
+} from "../hooks/useRuns";
 import { ScheduleConfig } from "./ScheduleConfig";
 
 interface DatasetVersionInfo {
@@ -134,6 +140,11 @@ export function DefinitionDetailView({
 
   const [persistOcrCache, setPersistOcrCache] = useState(true);
 
+  // Pipeline debug log: only fetches when the user expands the section
+  const [showDebugLog, setShowDebugLog] = useState(false);
+  const { entries: debugLogEntries, isLoading: isLoadingDebugLog } =
+    usePipelineDebugLog(definition.projectId, definition.id, showDebugLog);
+
   const handleStartRun = async () => {
     const run = await startRun({ persistOcrCache });
     navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
@@ -188,6 +199,23 @@ export function DefinitionDetailView({
       default:
         return "yellow";
     }
+  };
+
+  /** Map step identifiers to human-readable labels for the accordion headers */
+  const stepLabel = (step: string): string => {
+    const labels: Record<string, string> = {
+      hitl_aggregation: "HITL Correction Aggregation",
+      tool_manifest: "Tool Manifest",
+      workflow_load: "Workflow Load",
+      prompt_build: "LLM Prompt",
+      llm_request: "LLM Request Metadata",
+      llm_response: "LLM Response",
+      recommendation_parse: "Recommendation Parsing",
+      apply_recommendations: "Apply Recommendations",
+      candidate_creation: "Candidate Creation",
+      error: "Error",
+    };
+    return labels[step] ?? step;
   };
 
   return (
@@ -430,6 +458,132 @@ export function DefinitionDetailView({
                 >
                   {generateResult.error}
                 </Alert>
+              )}
+            </Stack>
+          )}
+
+          {/* Pipeline debug log — collapsible accordion, fetched on demand */}
+          <Button
+            variant="subtle"
+            size="xs"
+            leftSection={<IconBug size={14} />}
+            onClick={() => setShowDebugLog((prev) => !prev)}
+            data-testid="toggle-debug-log-btn"
+          >
+            {showDebugLog ? "Hide debug log" : "View debug log"}
+          </Button>
+
+          {showDebugLog && (
+            <Stack gap="xs">
+              {isLoadingDebugLog ? (
+                <Loader size="sm" />
+              ) : debugLogEntries.length === 0 ? (
+                <Text size="sm" c="dimmed" data-testid="no-debug-log-message">
+                  No debug log available. Run the pipeline to generate one.
+                </Text>
+              ) : (
+                <Accordion
+                  variant="separated"
+                  multiple
+                  data-testid="pipeline-debug-log-accordion"
+                >
+                  {debugLogEntries.map((entry, idx) => (
+                    <Accordion.Item
+                      key={`${entry.step}-${idx}`}
+                      value={`${entry.step}-${idx}`}
+                    >
+                      <Accordion.Control>
+                        <Group gap="sm">
+                          <Text size="sm" fw={500}>
+                            {stepLabel(entry.step)}
+                          </Text>
+                          {entry.durationMs != null && (
+                            <Badge size="xs" variant="light" color="gray">
+                              {entry.durationMs < 1000
+                                ? `${entry.durationMs}ms`
+                                : `${(entry.durationMs / 1000).toFixed(1)}s`}
+                            </Badge>
+                          )}
+                          <Text size="xs" c="dimmed">
+                            {new Date(entry.timestamp).toLocaleTimeString()}
+                          </Text>
+                        </Group>
+                      </Accordion.Control>
+                      <Accordion.Panel>
+                        {entry.step === "prompt_build" ? (
+                          <Stack gap="xs">
+                            <Accordion variant="contained" multiple>
+                              <Accordion.Item value="system">
+                                <Accordion.Control>
+                                  <Text size="sm" fw={500}>
+                                    System Message
+                                  </Text>
+                                </Accordion.Control>
+                                <Accordion.Panel>
+                                  <Code
+                                    block
+                                    style={{
+                                      fontSize: 12,
+                                      maxHeight: 400,
+                                      overflow: "auto",
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {typeof entry.data.systemMessage ===
+                                    "string"
+                                      ? entry.data.systemMessage
+                                      : JSON.stringify(
+                                          entry.data.systemMessage,
+                                          null,
+                                          2,
+                                        )}
+                                  </Code>
+                                </Accordion.Panel>
+                              </Accordion.Item>
+                              <Accordion.Item value="user">
+                                <Accordion.Control>
+                                  <Text size="sm" fw={500}>
+                                    User Message
+                                  </Text>
+                                </Accordion.Control>
+                                <Accordion.Panel>
+                                  <Code
+                                    block
+                                    style={{
+                                      fontSize: 12,
+                                      maxHeight: 400,
+                                      overflow: "auto",
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {typeof entry.data.userMessage === "string"
+                                      ? entry.data.userMessage
+                                      : JSON.stringify(
+                                          entry.data.userMessage,
+                                          null,
+                                          2,
+                                        )}
+                                  </Code>
+                                </Accordion.Panel>
+                              </Accordion.Item>
+                            </Accordion>
+                          </Stack>
+                        ) : (
+                          <Code
+                            block
+                            style={{
+                              fontSize: 12,
+                              maxHeight: 400,
+                              overflow: "auto",
+                            }}
+                          >
+                            {JSON.stringify(entry.data, null, 2)}
+                          </Code>
+                        )}
+                      </Accordion.Panel>
+                    </Accordion.Item>
+                  ))}
+                </Accordion>
               )}
             </Stack>
           )}
