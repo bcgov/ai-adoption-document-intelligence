@@ -12,6 +12,8 @@ interface WorkflowInfo {
   workflowVersionId: string;
   name: string;
   version: number;
+  workflowKind?: string;
+  sourceWorkflowId?: string | null;
 }
 
 interface SplitInfo {
@@ -98,8 +100,11 @@ interface UpdateDefinitionDto {
   workflowConfigOverrides?: Record<string, unknown>;
 }
 
-interface PromoteCandidateWorkflowDto {
-  candidateWorkflowVersionId: string;
+interface ApplyToBaseResult {
+  newBaseWorkflowVersionId: string;
+  baseLineageId: string;
+  newVersionNumber: number;
+  cleanedUp: boolean;
 }
 
 export const useDefinitions = (projectId: string) => {
@@ -205,34 +210,30 @@ export const useDefinition = (projectId: string, definitionId: string) => {
   };
 };
 
-export const usePromoteCandidateWorkflow = (
-  projectId: string,
-  definitionId: string,
-) => {
+export const useApplyToBaseWorkflow = (projectId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (dto: PromoteCandidateWorkflowDto) => {
-      const response = await apiService.post<DefinitionDetails>(
-        `/benchmark/projects/${projectId}/definitions/${definitionId}/promote-candidate-workflow`,
+    mutationFn: async (dto: {
+      candidateWorkflowVersionId: string;
+      cleanupCandidateArtifacts?: boolean;
+    }) => {
+      const response = await apiService.post<ApplyToBaseResult>(
+        `/benchmark/projects/${projectId}/apply-candidate-to-base`,
         dto,
       );
 
       if (!response.success || !response.data) {
-        throw new Error(response.message || "Failed to apply candidate");
+        throw new Error(
+          response.message || "Failed to apply candidate to base",
+        );
       }
 
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["benchmark-definition", projectId, definitionId],
-      });
-      queryClient.invalidateQueries({
         queryKey: ["benchmark-definitions", projectId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["benchmark-run", projectId],
       });
       queryClient.invalidateQueries({
         queryKey: ["benchmark-runs", projectId],

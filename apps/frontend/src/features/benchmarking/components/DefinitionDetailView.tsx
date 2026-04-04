@@ -41,6 +41,8 @@ interface WorkflowInfo {
   workflowVersionId: string;
   name: string;
   version: number;
+  workflowKind?: string;
+  sourceWorkflowId?: string | null;
 }
 
 interface SplitInfo {

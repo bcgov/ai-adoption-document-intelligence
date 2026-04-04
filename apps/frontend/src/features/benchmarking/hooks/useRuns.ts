@@ -73,23 +73,9 @@ export interface CreateRunDto {
   ocrCacheBaselineRunId?: string;
 }
 
-export interface OcrImprovementBaselineComparison {
-  baselineRunId: string;
-  overallPassed: boolean;
-  metricComparisons: Array<{
-    metricName: string;
-    currentValue: number;
-    baselineValue: number;
-    delta: number;
-    deltaPercent: number;
-    passed: boolean;
-  }>;
-  regressedMetrics: string[];
-}
-
-export interface OcrImprovementRunResult {
+interface GenerateCandidateResult {
   candidateWorkflowVersionId: string;
-  benchmarkRunId: string;
+  candidateLineageId: string;
   recommendationsSummary: {
     applied: number;
     rejected: number;
@@ -98,17 +84,8 @@ export interface OcrImprovementRunResult {
   analysis?: string;
   pipelineMessage?: string;
   rejectionDetails?: string[];
-  status:
-    | "benchmark_started"
-    | "benchmark_completed"
-    | "benchmark_failed"
-    | "benchmark_cancelled"
-    | "benchmark_wait_timeout"
-    | "no_recommendations"
-    | "error";
+  status: "candidate_created" | "no_recommendations" | "error";
   error?: string;
-  benchmarkRunStatus?: string;
-  baselineComparison?: OcrImprovementBaselineComparison | null;
 }
 
 export const useRuns = (projectId: string) => {
@@ -291,33 +268,26 @@ export const useStartRun = (projectId: string, definitionId: string) => {
   };
 };
 
-export const useRunOcrImprovement = (
+export const useGenerateCandidate = (
   projectId: string,
   definitionId: string,
 ) => {
   const queryClient = useQueryClient();
 
-  const runPipelineMutation = useMutation({
+  const mutation = useMutation({
     mutationFn: async (
       body: {
         hitlFilters?: Record<string, unknown>;
-        waitForPipelineRunCompletion?: boolean;
-        pipelineRunPollIntervalMs?: number;
-        pipelineRunWaitTimeoutMs?: number;
-        /** Forces `emptyValueCoercion` on every `ocr.normalizeFields` node in the candidate workflow. */
         normalizeFieldsEmptyValueCoercion?: "none" | "blank" | "null";
       } = {},
     ) => {
-      const response = await apiService.post<OcrImprovementRunResult>(
-        `/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/run`,
+      const response = await apiService.post<GenerateCandidateResult>(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/generate`,
         body,
       );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["benchmark-runs", projectId],
-      });
       queryClient.invalidateQueries({
         queryKey: ["benchmark-definition", projectId, definitionId],
       });
@@ -328,10 +298,10 @@ export const useRunOcrImprovement = (
   });
 
   return {
-    runOcrImprovement: runPipelineMutation.mutateAsync,
-    isRunning: runPipelineMutation.isPending,
-    result: runPipelineMutation.data,
-    error: runPipelineMutation.error,
+    generateCandidate: mutation.mutateAsync,
+    isGenerating: mutation.isPending,
+    result: mutation.data,
+    error: mutation.error,
   };
 };
 
