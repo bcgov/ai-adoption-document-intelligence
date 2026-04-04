@@ -802,6 +802,38 @@ export class BenchmarkDefinitionService {
     };
   }
 
+  /** Get the pipeline debug log for a definition. Returns empty entries if no log exists. */
+  async getPipelineDebugLog(
+    projectId: string,
+    definitionId: string,
+  ): Promise<{
+    entries: Array<{
+      step: string;
+      timestamp: string;
+      durationMs?: number;
+      data: Record<string, unknown>;
+    }>;
+  }> {
+    const definition = await this.prisma.benchmarkDefinition.findFirst({
+      where: { id: definitionId, projectId },
+      select: { pipelineDebugLog: true },
+    });
+    if (!definition) {
+      throw new NotFoundException(
+        `Definition ${definitionId} not found in project ${projectId}`,
+      );
+    }
+    const entries = Array.isArray(definition.pipelineDebugLog)
+      ? (definition.pipelineDebugLog as Array<{
+          step: string;
+          timestamp: string;
+          durationMs?: number;
+          data: Record<string, unknown>;
+        }>)
+      : [];
+    return { entries };
+  }
+
   async applyToBaseWorkflow(
     projectId: string,
     candidateWorkflowVersionId: string,

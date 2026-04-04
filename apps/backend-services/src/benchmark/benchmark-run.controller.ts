@@ -50,6 +50,7 @@ import {
   OcrImprovementGenerateDto,
   OcrImprovementGenerateResponseDto,
   PerSampleResultsResponseDto,
+  PipelineDebugLogResponseDto,
   PromoteBaselineDto,
   PromoteBaselineResponseDto,
   RunDetailsDto,
@@ -155,6 +156,7 @@ export class BenchmarkRunController {
     const result = await this.ocrImprovementPipeline.generate({
       workflowVersionId: definition.workflow.workflowVersionId,
       actorId,
+      definitionId,
       hitlFilters,
       normalizeFieldsEmptyValueCoercion: dto.normalizeFieldsEmptyValueCoercion,
     });
@@ -168,6 +170,37 @@ export class BenchmarkRunController {
       status: result.status,
       error: result.error,
     };
+  }
+
+  @Get("definitions/:definitionId/ocr-improvement/debug-log")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Get pipeline debug log for a definition",
+    description:
+      "Returns structured debug log entries from the last OCR improvement pipeline run. " +
+      "Includes prompts sent to the LLM, raw responses, timing, and step-by-step details.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiOkResponse({
+    description: "Pipeline debug log entries",
+    type: PipelineDebugLogResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getPipelineDebugLog(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+    @Req() req: Request,
+  ): Promise<PipelineDebugLogResponseDto> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/debug-log`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+    return this.benchmarkDefinitionService.getPipelineDebugLog(
+      projectId,
+      definitionId,
+    );
   }
 
   @Post("definitions/:definitionId/runs")

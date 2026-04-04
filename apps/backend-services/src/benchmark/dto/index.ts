@@ -18,6 +18,7 @@ export * from "./manifest-sample.dto";
 export * from "./ocr-improvement-run.dto";
 export * from "./paginated-dataset-response.dto";
 export * from "./per-sample-result.dto";
+export * from "./pipeline-debug-log.dto";
 export * from "./project-response.dto";
 export * from "./promote-baseline.dto";
 

@@ -51,6 +51,22 @@ describe("BenchmarkRunController", () => {
       workflow: { id: "workflow-1", workflowVersionId: "wv-workflow-1" },
     }),
     applyToBaseWorkflow: jest.fn(),
+    getPipelineDebugLog: jest.fn().mockResolvedValue({
+      entries: [
+        {
+          step: "hitl_aggregation",
+          timestamp: "2026-04-03T00:00:00Z",
+          durationMs: 50,
+          data: { correctionCount: 3 },
+        },
+        {
+          step: "llm_request",
+          timestamp: "2026-04-03T00:00:01Z",
+          durationMs: 2000,
+          data: { deployment: "gpt-4o" },
+        },
+      ],
+    }),
   };
 
   const mockOcrImprovementPipeline = {
@@ -188,6 +204,7 @@ describe("BenchmarkRunController", () => {
         expect.objectContaining({
           workflowVersionId: "wv-workflow-1",
           actorId: "actor-for-user-1",
+          definitionId: "def-1",
         }),
       );
       expect(result).toMatchObject({
@@ -252,6 +269,37 @@ describe("BenchmarkRunController", () => {
           actorId: "owner-from-source-workflow",
         }),
       );
+    });
+  });
+
+  describe("GET /definitions/:definitionId/ocr-improvement/debug-log", () => {
+    it("returns the pipeline debug log entries", async () => {
+      const result = await controller.getPipelineDebugLog(
+        projectId,
+        "def-1",
+        mockReq,
+      );
+
+      expect(mockDefinitionService.getPipelineDebugLog).toHaveBeenCalledWith(
+        projectId,
+        "def-1",
+      );
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].step).toBe("hitl_aggregation");
+    });
+
+    it("returns empty entries when no log exists", async () => {
+      mockDefinitionService.getPipelineDebugLog.mockResolvedValueOnce({
+        entries: [],
+      });
+
+      const result = await controller.getPipelineDebugLog(
+        projectId,
+        "def-1",
+        mockReq,
+      );
+
+      expect(result.entries).toEqual([]);
     });
   });
 
