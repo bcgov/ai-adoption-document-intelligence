@@ -372,11 +372,12 @@ export function DefinitionDetailView({
             </Button>
           </Group>
           <Text size="sm" c="dimmed" data-testid="ocr-improvement-description">
-            Aggregate HITL corrections and get AI tool recommendations to
-            generate a candidate workflow. Review the candidate in the workflow
-            editor, then create a definition and benchmark it. When the
-            benchmark run completes, apply the candidate workflow to the base
-            lineage from the run page.
+            Extract field mismatches from the baseline run and get AI tool
+            recommendations to generate a candidate workflow. Requires a
+            promoted baseline run. Review the candidate in the workflow editor,
+            then create a definition and benchmark it. When the benchmark run
+            completes, apply the candidate workflow to the base lineage from the
+            run page.
           </Text>
           {generateResult && (
             <Stack gap="xs">
