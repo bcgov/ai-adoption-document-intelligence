@@ -13,8 +13,12 @@ export const useSessionHeartbeat = (
   const navigate = useNavigate();
   const [idleWarning, setIdleWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
-  const idleCheckRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | undefined>(
+    undefined,
+  );
+  const idleCheckRef = useRef<ReturnType<typeof setInterval> | undefined>(
+    undefined,
+  );
 
   const resetActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -43,7 +47,8 @@ export const useSessionHeartbeat = (
       } catch {
         notifications.show({
           title: "Session expired",
-          message: "Your session was released due to inactivity. Corrections have been saved.",
+          message:
+            "Your session was released due to inactivity. Corrections have been saved.",
           color: "red",
           autoClose: 5000,
         });

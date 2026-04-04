@@ -131,7 +131,8 @@ export const ReviewWorkspacePage: FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const readOnly = new URLSearchParams(location.search).get("readOnly") === "true";
+  const readOnly =
+    new URLSearchParams(location.search).get("readOnly") === "true";
 
   const navigateToQueue = () => {
     const benchmarkMatch = location.pathname.match(
@@ -187,7 +188,9 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
-  const [documentImage, setDocumentImage] = useState<HTMLImageElement | null>(null);
+  const [documentImage, setDocumentImage] = useState<HTMLImageElement | null>(
+    null,
+  );
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
   const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
@@ -312,9 +315,7 @@ export const ReviewWorkspacePage: FC = () => {
         (a, b) => (a.confidence ?? 1) - (b.confidence ?? 1),
       );
     }
-    return [...fields].sort((a, b) =>
-      a.fieldKey.localeCompare(b.fieldKey),
-    );
+    return [...fields].sort((a, b) => a.fieldKey.localeCompare(b.fieldKey));
   }, [fields, sortMode]);
 
   const filteredSortedFields = useMemo(() => {
@@ -346,7 +347,11 @@ export const ReviewWorkspacePage: FC = () => {
 
   // Zoom to first field once the document image is loaded into the canvas
   useEffect(() => {
-    if (documentImage && viewMode === "document" && filteredSortedFields.length > 0) {
+    if (
+      documentImage &&
+      viewMode === "document" &&
+      filteredSortedFields.length > 0
+    ) {
       const firstField = filteredSortedFields[0];
       setActiveFieldKey(firstField.fieldKey);
       // Wait for the canvas to render with the new image
@@ -409,15 +414,13 @@ export const ReviewWorkspacePage: FC = () => {
       const params = new URLSearchParams(location.search);
       params.delete("readOnly");
       const newSearch = params.toString();
-      navigate(
-        `${location.pathname}${newSearch ? `?${newSearch}` : ""}`,
-        { replace: true },
-      );
+      navigate(`${location.pathname}${newSearch ? `?${newSearch}` : ""}`, {
+        replace: true,
+      });
     } catch {
       notifications.show({
         title: "Cannot reopen",
-        message:
-          "The reopen window may have expired or the dataset is frozen",
+        message: "The reopen window may have expired or the dataset is frozen",
         color: "red",
         autoClose: 5000,
       });
@@ -488,14 +491,10 @@ export const ReviewWorkspacePage: FC = () => {
       let nextIndex: number;
       if (direction === "next") {
         nextIndex =
-          currentIndex < filteredSortedFields.length - 1
-            ? currentIndex + 1
-            : 0;
+          currentIndex < filteredSortedFields.length - 1 ? currentIndex + 1 : 0;
       } else {
         nextIndex =
-          currentIndex > 0
-            ? currentIndex - 1
-            : filteredSortedFields.length - 1;
+          currentIndex > 0 ? currentIndex - 1 : filteredSortedFields.length - 1;
       }
       const nextField = filteredSortedFields[nextIndex];
       if (nextField) {
@@ -532,9 +531,7 @@ export const ReviewWorkspacePage: FC = () => {
           focusField(entry.fieldKey);
         }
 
-        const originalField = fields.find(
-          (f) => f.fieldKey === entry.fieldKey,
-        );
+        const originalField = fields.find((f) => f.fieldKey === entry.fieldKey);
         const originalValue =
           enrichmentCorrectedValues.get(entry.fieldKey) ?? originalField?.value;
         setCorrectionMap((prev) => {
@@ -554,21 +551,12 @@ export const ReviewWorkspacePage: FC = () => {
         });
       }
     }
-  }, [
-    canUndo,
-    undo,
-    fields,
-    enrichmentCorrectedValues,
-    viewMode,
-    focusField,
-  ]);
+  }, [canUndo, undo, fields, enrichmentCorrectedValues, viewMode, focusField]);
 
   const handleRedo = useCallback(() => {
     const entry = redo();
     if (entry) {
-      const originalField = fields.find(
-        (f) => f.fieldKey === entry.fieldKey,
-      );
+      const originalField = fields.find((f) => f.fieldKey === entry.fieldKey);
       setCorrectionMap((prev) => ({
         ...prev,
         [entry.fieldKey]: {
@@ -1046,10 +1034,7 @@ export const ReviewWorkspacePage: FC = () => {
               }
             />
             <Group justify="flex-end">
-              <Button
-                variant="subtle"
-                onClick={() => setEscalationOpen(false)}
-              >
+              <Button variant="subtle" onClick={() => setEscalationOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={handleEscalate}>Escalate</Button>

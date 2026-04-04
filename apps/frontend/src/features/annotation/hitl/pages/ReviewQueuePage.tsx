@@ -13,6 +13,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconCheck,
@@ -20,7 +21,6 @@ import {
   IconEye,
   IconRotate,
 } from "@tabler/icons-react";
-import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -88,7 +88,9 @@ export const ReviewQueuePage: FC = () => {
     }
   };
 
-  const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(null);
+  const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
+    null,
+  );
 
   const handleReopenSession = async (sessionId: string) => {
     setReopeningSessionId(sessionId);

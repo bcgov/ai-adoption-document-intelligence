@@ -68,7 +68,11 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
             }
           >
             <ActionIcon variant="subtle" onClick={onViewModeToggle} size="lg">
-              {viewMode === "document" ? <IconLayoutGrid size={18} /> : <IconPhoto size={18} />}
+              {viewMode === "document" ? (
+                <IconLayoutGrid size={18} />
+              ) : (
+                <IconPhoto size={18} />
+              )}
             </ActionIcon>
           </Tooltip>
         )}

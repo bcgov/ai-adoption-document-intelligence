@@ -1,4 +1,12 @@
-import { Checkbox, Group, Paper, ScrollArea, Stack, Text, Textarea } from "@mantine/core";
+import {
+  Checkbox,
+  Group,
+  Paper,
+  ScrollArea,
+  Stack,
+  Text,
+  Textarea,
+} from "@mantine/core";
 import { FC, useEffect, useRef, useState } from "react";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
@@ -75,7 +83,9 @@ export const SnippetView: FC<SnippetViewProps> = ({
   correctionMap,
   readOnly,
 }) => {
-  const [snippets, setSnippets] = useState<Record<string, CropResult | null>>({});
+  const [snippets, setSnippets] = useState<Record<string, CropResult | null>>(
+    {},
+  );
   const activeRowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,11 +103,18 @@ export const SnippetView: FC<SnippetViewProps> = ({
   }, [fields, documentImage]);
 
   useEffect(() => {
-    activeRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    activeRowRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   }, [activeFieldKey]);
 
   return (
-    <ScrollArea type="auto" style={{ flex: 1, minHeight: 0 }} offsetScrollbars="present">
+    <ScrollArea
+      type="auto"
+      style={{ flex: 1, minHeight: 0 }}
+      offsetScrollbars="present"
+    >
       <Stack gap="md" p="sm">
         {fields.map((field) => {
           const isActive = field.fieldKey === activeFieldKey;
@@ -121,7 +138,9 @@ export const SnippetView: FC<SnippetViewProps> = ({
             >
               <Stack gap="xs" p="sm">
                 <Group justify="space-between">
-                  <Text fw={600} size="sm">{field.fieldKey}</Text>
+                  <Text fw={600} size="sm">
+                    {field.fieldKey}
+                  </Text>
                   <ConfidenceIndicator confidence={field.confidence} />
                 </Group>
                 {(() => {
@@ -156,7 +175,9 @@ export const SnippetView: FC<SnippetViewProps> = ({
                     <Textarea
                       data-field-key={field.fieldKey}
                       value={displayValue}
-                      onChange={(e) => onFieldChange(field.fieldKey, e.currentTarget.value)}
+                      onChange={(e) =>
+                        onFieldChange(field.fieldKey, e.currentTarget.value)
+                      }
                       disabled={readOnly}
                       size="sm"
                       autosize
@@ -175,7 +196,11 @@ export const SnippetView: FC<SnippetViewProps> = ({
                     <img
                       src={cropResult.dataUrl}
                       alt={`Source region for ${field.fieldKey}`}
-                      style={{ maxWidth: "100%", maxHeight: 200, objectFit: "contain" }}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: 200,
+                        objectFit: "contain",
+                      }}
                     />
                   ) : (
                     <Text size="xs" c="dimmed" ta="center" p="xs">

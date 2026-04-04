@@ -259,7 +259,9 @@ export const DatasetReviewQueuePage: FC = () => {
                             leftSection={<IconEye size={14} />}
                             onClick={() => handleStartSession(doc.id, false)}
                             loading={startingDocId === doc.id}
-                            disabled={startingDocId !== null && startingDocId !== doc.id}
+                            disabled={
+                              startingDocId !== null && startingDocId !== doc.id
+                            }
                           >
                             Review
                           </Button>

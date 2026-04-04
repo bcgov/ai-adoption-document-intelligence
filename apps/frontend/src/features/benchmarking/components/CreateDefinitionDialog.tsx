@@ -142,7 +142,9 @@ export function CreateDefinitionDialog({
           JSON.stringify(initialValues.workflowConfigOverrides, null, 2),
         );
       } else if (initialValues.workflowVersionId) {
-        const defaults = getExposedParamDefaults(initialValues.workflowVersionId);
+        const defaults = getExposedParamDefaults(
+          initialValues.workflowVersionId,
+        );
         if (Object.keys(defaults).length > 0) {
           setWorkflowConfigOverridesJson(JSON.stringify(defaults, null, 2));
         }
@@ -154,9 +156,7 @@ export function CreateDefinitionDialog({
 
   const [splits, setSplits] = useState<Split[]>([]);
 
-  const getExposedParamDefaults = (
-    wfId: string,
-  ): Record<string, unknown> => {
+  const getExposedParamDefaults = (wfId: string): Record<string, unknown> => {
     const workflow = workflows.find((w) => w.id === wfId);
     if (!workflow?.config) return {};
     const nodeGroups = workflow.config.nodeGroups as
@@ -177,7 +177,11 @@ export function CreateDefinitionDialog({
       const parts = path.split(".");
       let current: unknown = workflow.config;
       for (const part of parts) {
-        if (current === undefined || current === null || typeof current !== "object") {
+        if (
+          current === undefined ||
+          current === null ||
+          typeof current !== "object"
+        ) {
           return undefined;
         }
         current = (current as Record<string, unknown>)[part];
