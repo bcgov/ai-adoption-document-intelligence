@@ -1,6 +1,6 @@
 # OCR Improvement Pipeline (Feature 008)
 
-The OCR improvement pipeline aggregates HITL corrections, runs AI tool recommendations, and creates a candidate workflow with suggested correction nodes. The candidate is then reviewed in the workflow editor, used to start a benchmark run for comparison, and optionally applied back to the base workflow. It is used to evaluate workflow changes before promoting a new baseline.
+The OCR improvement pipeline extracts field mismatches from the baseline benchmark run, runs AI tool recommendations, and creates a candidate workflow with suggested correction nodes. The candidate is then reviewed in the workflow editor, used to start a benchmark run for comparison, and optionally applied back to the base workflow. It is used to evaluate workflow changes before promoting a new baseline.
 
 ## Benchmark OCR cache (Azure replay)
 
@@ -21,26 +21,26 @@ To avoid repeat **Azure Document Intelligence** submit/poll when only **downstre
 
 - **Orchestration:** `OcrImprovementPipelineService` in `apps/backend-services/src/benchmark/ocr-improvement-pipeline.service.ts`
 - **Generate candidate:** `POST /api/benchmark/projects/:projectId/definitions/:definitionId/ocr-improvement/generate`
-  - **Body (optional):** `{ "hitlFilters": { ... }, "normalizeFieldsEmptyValueCoercion"?: "none" | "blank" | "null" }` — when **`normalizeFieldsEmptyValueCoercion`** is set, the candidate workflow forces that value on **every** **`ocr.normalizeFields`** node (overrides the definition graph and any AI-suggested `emptyValueCoercion`). Omit it to leave coercion as configured in the graph / AI output.
+  - **Body (optional):** `{ "normalizeFieldsEmptyValueCoercion"?: "none" | "blank" | "null" }` — when **`normalizeFieldsEmptyValueCoercion`** is set, the candidate workflow forces that value on **every** **`ocr.normalizeFields`** node (overrides the definition graph and any AI-suggested `emptyValueCoercion`). Omit it to leave coercion as configured in the graph / AI output.
+  - **Data source:** The pipeline automatically looks up the **baseline run** for the definition and extracts field-level mismatches from `perSampleResults[].evaluationDetails`. A promoted baseline run is required.
   - **Response (`OcrImprovementGenerateResponseDto`):** `{ candidateLineageId, candidateWorkflowVersionId?, recommendationsSummary, analysis?, pipelineMessage?, rejectionDetails?, status, error? }`
   - **Status values:**
     - **`candidate_created`** — a candidate workflow version was created; response includes `candidateWorkflowVersionId` and `candidateLineageId`.
-    - **`no_recommendations`** — HITL corrections produced no applicable tool recommendations; `pipelineMessage` explains why. No candidate workflow was created.
-    - **`error`** — an unexpected error occurred; `error` contains the message.
+    - **`no_recommendations`** — baseline run had no field mismatches or no applicable tool recommendations; `pipelineMessage` explains why. No candidate workflow was created.
+    - **`error`** — an unexpected error occurred (including "No completed baseline run found"); `error` contains the message.
 - **Apply candidate to base:** `POST /api/benchmark/projects/:projectId/apply-candidate-to-base`
   - **Body:** `{ "candidateWorkflowVersionId": "<uuid>", "cleanupCandidateArtifacts"?: boolean }`
   - The backend creates a new `WorkflowVersion` on the base `WorkflowLineage` and updates the lineage head. When `cleanupCandidateArtifacts` is `true`, the candidate lineage, its versions, and any definitions/runs pointing to them are deleted.
 - **Confusion matrix (HITL-derived):** `POST /api/benchmark/projects/:projectId/confusion-matrix/derive` — JSON body with optional `startDate`, `endDate`, `groupIds`, `fieldKeys` (defaults `groupIds` to the project's group). Returns the `ConfusionMatrixService` result. See [OCR_CONFUSION_MATRICES.md](./OCR_CONFUSION_MATRICES.md).
 - **Candidate runs:** `POST /api/benchmark/projects/:projectId/definitions/:definitionId/runs` accepts optional `candidateWorkflowVersionId` (same definition; workflow must belong to the project's group). Run `params` store `candidateWorkflowVersionId` and `workflowConfigHash` when set.
-- **Dependencies:** Azure OpenAI (`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`) for the AI recommendation step. HITL corrections must exist for the pipeline to produce recommendations.
-- **HITL scope:** If the request body does not include `hitlFilters.groupIds`, the backend defaults to the benchmark project's group so corrections are scoped to that project's documents.
+- **Dependencies:** Azure OpenAI (`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`) for the AI recommendation step. A completed baseline run with field mismatches must exist for the pipeline to produce recommendations.
 - **Auth and candidate workflow ownership:** The pipeline creates a new workflow lineage for the candidate; `actor_id` is taken directly from the caller's **`Actor.id`** (`request.resolvedIdentity.actorId` from `IdentityGuard`). This works for both user-based and API-key-based actors. Requests with no resolved actor (e.g. some API-key-only shapes in tests) fall back to the **definition's source workflow owner** as the acting actor.
 - **Override vs stored candidate config:** `BenchmarkRunService.startRun` compares `workflowConfigOverride` to the row in `workflow_version` using **`computeConfigHash`** (`apps/backend-services/src/workflow/config-hash.ts`) — the same canonical normalization (defaults, sorted keys) used for definition `workflowConfigHash`. Raw `JSON.stringify` would often disagree after a DB round-trip even when the graph is unchanged.
 
 ## Troubleshooting "no recommendations"
 
-- **Which database the backend uses:** On startup, the backend logs `Prisma client initialized; database: <host>/<database name>` (from `DATABASE_URL`). Ensure the app is started from `apps/backend-services` so `ConfigModule` loads `.env` from that directory; the database name in the log should match the one you query (e.g. `localhost/ai_doc_intelligence`).
-- **Why aggregation returned 0:** When HITL aggregation finds no corrections, the backend logs `HITL aggregation returned 0 corrections; filters used: <JSON>`. Check that `groupIds` in the filters include the project's group (e.g. `seed-default-group`) and that the database actually contains `field_corrections` for that group (and actions `confirmed` or `corrected`).
+- **No completed baseline run:** The pipeline requires a promoted baseline run on the definition. If no baseline exists or it hasn't completed, the pipeline returns `status: "error"` with `"No completed baseline run found for this definition. Promote a run to baseline first."` Promote a completed run to baseline via `POST .../runs/:runId/baseline`.
+- **Baseline has no mismatches:** If the baseline run's `evaluationDetails` show all fields matched, there are no corrections to recommend. Check the run drill-down to verify field errors exist.
 - **Analysis text but `no_recommendations`:** The AI returns **`characterConfusion`**, **`normalizeFields`**, and **`spellcheck`** blocks with **`include`** and **`parameters`** (see `AiRecommendationService` / Temporal `ai-toolRecommendation`). The service turns enabled tools into recommendations in fixed order and assigns insertion to the **first edge after `azureOcr.extract`** (from `insertionSlots`). If that edge is missing (no extract node in the graph summary), recommendations are empty. If every recommendation fails graph insertion, the API returns `rejectionDetails` with per-tool reasons.
 
 ## Troubleshooting "candidate run results identical to baseline"
@@ -48,7 +48,7 @@ To avoid repeat **Azure Document Intelligence** submit/poll when only **downstre
 If the improvement pipeline created a candidate workflow and started a run, but the run's metrics (e.g. F1, pass rate) are the same as the baseline:
 
 1. **Confirm the run used the candidate config:** Query the run's `params` in the database. When a run was started with a workflow override, `params` includes `candidateWorkflowVersionId` and `workflowConfigHash`. If present, the Temporal workflow was started with the candidate config; the worker executed the graph (including any inserted correction nodes) with that config.
-2. **Identical metrics are expected when corrections don't affect evaluated output:** The improvement pipeline inserts **`ocr.characterConfusion`**, **`ocr.normalizeFields`**, and **`ocr.spellcheck`** (in that order) on the first edge after `azureOcr.extract`. If the base graph already had **`ocr.enrich`**, it still runs unchanged. If the benchmark dataset has no errors in the fields those tools target, or the evaluator compares fields that were not modified, aggregate metrics will match the baseline. The correction activities still run; they just do not change the values that feed into the evaluator. To see metric changes, use a dataset/split where HITL corrections indicated real errors in those fields, or run with an evaluator that compares the same fields the correction tools are scoped to.
+2. **Identical metrics are expected when corrections don't affect evaluated output:** The improvement pipeline inserts **`ocr.characterConfusion`**, **`ocr.normalizeFields`**, and **`ocr.spellcheck`** (in that order) on the first edge after `azureOcr.extract`. If the base graph already had **`ocr.enrich`**, it still runs unchanged. If the benchmark dataset has no errors in the fields those tools target, or the evaluator compares fields that were not modified, aggregate metrics will match the baseline. The correction activities still run; they just do not change the values that feed into the evaluator. To see metric changes, use a dataset/split where the baseline run shows real field mismatches in the fields the correction tools target, or run with an evaluator that compares the same fields the correction tools are scoped to.
 
 ### Checking whether any values should have changed
 
@@ -77,7 +77,7 @@ Each run of the "Generate candidate workflow" button captures a structured debug
 
 In the OCR improvement card on the definition detail view, click **"View debug log"** to expand the debug log accordion. Each step is shown as a collapsible section with:
 
-- **Step name** — human-readable label (e.g., "LLM Prompt", "HITL Correction Aggregation")
+- **Step name** — human-readable label (e.g., "LLM Prompt", "Baseline Mismatch Extraction")
 - **Duration** — how long the step took
 - **Timestamp** — when the step started
 - **Data** — step-specific payload shown as formatted JSON
@@ -96,7 +96,7 @@ Returns `{ entries: PipelineLogEntry[] }` where each entry has `step`, `timestam
 
 | Step | What it captures |
 |------|-----------------|
-| `hitl_aggregation` | Filters used, correction count, sample corrections |
+| `baseline_mismatch_extraction` | Baseline run ID, total mismatches, sample corrections |
 | `tool_manifest` | Available tool IDs and their parameter names |
 | `workflow_load` | Graph node IDs, edges, insertion slots |
 | `prompt_build` | Full system and user messages sent to the LLM |
