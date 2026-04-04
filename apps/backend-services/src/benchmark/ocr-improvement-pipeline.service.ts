@@ -43,6 +43,28 @@ import type { RunDetailsDto } from "./dto/run-response.dto";
 const DEFAULT_PIPELINE_POLL_MS = 5000;
 const DEFAULT_PIPELINE_WAIT_TIMEOUT_MS = 60 * 60 * 1000;
 
+export interface GenerateInput {
+  workflowVersionId: string;
+  actorId: string;
+  hitlFilters?: HitlAggregationFilters;
+  normalizeFieldsEmptyValueCoercion?: OcrNormalizeFieldsEmptyValueCoercion;
+}
+
+export interface GenerateResult {
+  candidateWorkflowVersionId: string;
+  candidateLineageId: string;
+  recommendationsSummary: {
+    applied: number;
+    rejected: number;
+    toolIds: string[];
+  };
+  analysis?: string;
+  pipelineMessage?: string;
+  rejectionDetails?: string[];
+  status: "candidate_created" | "no_recommendations" | "error";
+  error?: string;
+}
+
 export interface PipelineInput {
   /** Pinned workflow version ID (WorkflowVersion.id) to create a candidate from. */
   workflowVersionId: string;
@@ -144,15 +166,14 @@ export class OcrImprovementPipelineService {
   }
 
   /**
-   * Run the OCR improvement pipeline end-to-end.
+   * Generate a candidate workflow version from HITL corrections and AI recommendations.
    *
-   * This method orchestrates the full pipeline synchronously up to starting
-   * the benchmark run. The benchmark run itself is asynchronous (Temporal workflow).
-   * Poll the benchmark run status separately.
+   * Runs steps 1-7 of the pipeline (HITL aggregation → AI recommendation → create candidate).
+   * Does NOT start a benchmark run.
    */
-  async run(input: PipelineInput): Promise<PipelineResult> {
+  async generate(input: GenerateInput): Promise<GenerateResult> {
     this.logger.log(
-      `Starting OCR improvement pipeline for workflow version ${input.workflowVersionId}`,
+      `Generating candidate workflow for workflow version ${input.workflowVersionId}`,
     );
 
     try {
@@ -165,7 +186,7 @@ export class OcrImprovementPipelineService {
       if (corrections.length === 0) {
         return {
           candidateWorkflowVersionId: "",
-          benchmarkRunId: "",
+          candidateLineageId: "",
           recommendationsSummary: {
             applied: 0,
             rejected: 0,
@@ -208,7 +229,7 @@ export class OcrImprovementPipelineService {
       if (!currentWorkflow) {
         return {
           candidateWorkflowVersionId: "",
-          benchmarkRunId: "",
+          candidateLineageId: "",
           recommendationsSummary: {
             applied: 0,
             rejected: 0,
@@ -261,7 +282,7 @@ export class OcrImprovementPipelineService {
       if (aiOutput.recommendations.length === 0) {
         return {
           candidateWorkflowVersionId: "",
-          benchmarkRunId: "",
+          candidateLineageId: "",
           recommendationsSummary: {
             applied: 0,
             rejected: 0,
@@ -279,7 +300,7 @@ export class OcrImprovementPipelineService {
       if (!pipelineSlot) {
         return {
           candidateWorkflowVersionId: "",
-          benchmarkRunId: "",
+          candidateLineageId: "",
           recommendationsSummary: {
             applied: 0,
             rejected: 0,
@@ -337,7 +358,7 @@ export class OcrImprovementPipelineService {
         );
         return {
           candidateWorkflowVersionId: "",
-          benchmarkRunId: "",
+          candidateLineageId: "",
           recommendationsSummary: {
             applied: 0,
             rejected: modification.rejectedRecommendations.length,
@@ -369,6 +390,85 @@ export class OcrImprovementPipelineService {
         input.actorId,
       );
 
+      return {
+        status: "candidate_created",
+        candidateWorkflowVersionId: candidate.workflowVersionId,
+        candidateLineageId: candidate.id,
+        recommendationsSummary: {
+          applied: modification.appliedRecommendations.length,
+          rejected: modification.rejectedRecommendations.length,
+          toolIds: modification.appliedRecommendations.map((r) => r.toolId),
+        },
+        analysis: aiOutput.analysis,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`OCR improvement pipeline generate failed: ${message}`);
+      return {
+        candidateWorkflowVersionId: "",
+        candidateLineageId: "",
+        recommendationsSummary: {
+          applied: 0,
+          rejected: 0,
+          toolIds: [],
+        },
+        status: "error",
+        error: message,
+      };
+    }
+  }
+
+  /**
+   * Run the OCR improvement pipeline end-to-end.
+   *
+   * This method orchestrates the full pipeline synchronously up to starting
+   * the benchmark run. The benchmark run itself is asynchronous (Temporal workflow).
+   * Poll the benchmark run status separately.
+   */
+  async run(input: PipelineInput): Promise<PipelineResult> {
+    this.logger.log(
+      `Starting OCR improvement pipeline for workflow version ${input.workflowVersionId}`,
+    );
+
+    try {
+      const generateResult = await this.generate({
+        workflowVersionId: input.workflowVersionId,
+        actorId: input.actorId,
+        hitlFilters: input.hitlFilters,
+        normalizeFieldsEmptyValueCoercion:
+          input.normalizeFieldsEmptyValueCoercion,
+      });
+
+      if (generateResult.status !== "candidate_created") {
+        return {
+          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
+          benchmarkRunId: "",
+          recommendationsSummary: generateResult.recommendationsSummary,
+          analysis: generateResult.analysis,
+          pipelineMessage: generateResult.pipelineMessage,
+          rejectionDetails: generateResult.rejectionDetails,
+          status:
+            generateResult.status === "error" ? "error" : "no_recommendations",
+          error: generateResult.error,
+        };
+      }
+
+      // Re-load the candidate config for the benchmark run
+      const currentWorkflow = await this.workflowService.getWorkflowById(
+        generateResult.candidateWorkflowVersionId,
+      );
+      if (!currentWorkflow) {
+        return {
+          candidateWorkflowVersionId: "",
+          benchmarkRunId: "",
+          recommendationsSummary: generateResult.recommendationsSummary,
+          status: "error",
+          error: `Candidate workflow version ${generateResult.candidateWorkflowVersionId} not found after creation`,
+        };
+      }
+
+      const candidateConfig = currentWorkflow.config as GraphWorkflowConfig;
+
       // Step 8: Start benchmark run with workflow override (replay OCR from baseline cache when available)
       const baselineForOcrCache =
         await this.benchmarkRunService.getLatestCompletedBaselineRunId(
@@ -384,7 +484,7 @@ export class OcrImprovementPipelineService {
             string,
             unknown
           >,
-          candidateWorkflowVersionId: candidate.workflowVersionId,
+          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
           ...(baselineForOcrCache
             ? { ocrCacheBaselineRunId: baselineForOcrCache }
             : {}),
@@ -398,14 +498,10 @@ export class OcrImprovementPipelineService {
 
       if (!input.waitForPipelineRunCompletion) {
         return {
-          candidateWorkflowVersionId: candidate.workflowVersionId,
+          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
           benchmarkRunId: runDetails.id,
-          recommendationsSummary: {
-            applied: modification.appliedRecommendations.length,
-            rejected: modification.rejectedRecommendations.length,
-            toolIds: modification.appliedRecommendations.map((r) => r.toolId),
-          },
-          analysis: aiOutput.analysis,
+          recommendationsSummary: generateResult.recommendationsSummary,
+          analysis: generateResult.analysis,
           status: "benchmark_started",
           benchmarkRunStatus: runDetails.status,
         };
@@ -420,14 +516,10 @@ export class OcrImprovementPipelineService {
 
       if (waited.timedOut === true) {
         return {
-          candidateWorkflowVersionId: candidate.workflowVersionId,
+          candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
           benchmarkRunId: runDetails.id,
-          recommendationsSummary: {
-            applied: modification.appliedRecommendations.length,
-            rejected: modification.rejectedRecommendations.length,
-            toolIds: modification.appliedRecommendations.map((r) => r.toolId),
-          },
-          analysis: aiOutput.analysis,
+          recommendationsSummary: generateResult.recommendationsSummary,
+          analysis: generateResult.analysis,
           status: "benchmark_wait_timeout",
           error: `Timed out after ${waitTimeout}ms waiting for benchmark run ${runDetails.id} (last status: ${waited.lastRun.status})`,
           benchmarkRunStatus: waited.lastRun.status,
@@ -444,14 +536,10 @@ export class OcrImprovementPipelineService {
             : "benchmark_cancelled";
 
       return {
-        candidateWorkflowVersionId: candidate.workflowVersionId,
+        candidateWorkflowVersionId: generateResult.candidateWorkflowVersionId,
         benchmarkRunId: runDetails.id,
-        recommendationsSummary: {
-          applied: modification.appliedRecommendations.length,
-          rejected: modification.rejectedRecommendations.length,
-          toolIds: modification.appliedRecommendations.map((r) => r.toolId),
-        },
-        analysis: aiOutput.analysis,
+        recommendationsSummary: generateResult.recommendationsSummary,
+        analysis: generateResult.analysis,
         status: terminalStatus,
         benchmarkRunStatus: terminal.status,
         baselineComparison: terminal.baselineComparison,

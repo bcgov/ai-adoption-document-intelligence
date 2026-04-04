@@ -10,6 +10,44 @@ import { AiRecommendationService } from "./ai-recommendation.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
+const baseWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: {},
+  nodes: {
+    extract: {
+      id: "extract",
+      type: "activity",
+      label: "Extract",
+      activityType: "azureOcr.extract",
+    },
+    cleanup: {
+      id: "cleanup",
+      type: "activity",
+      label: "Cleanup",
+      activityType: "ocr.cleanup",
+    },
+    enrich: {
+      id: "enrich",
+      type: "activity",
+      label: "Enrich",
+      activityType: "ocr.enrich",
+    },
+    store: {
+      id: "store",
+      type: "activity",
+      label: "Store",
+      activityType: "document.upsertOcrResult",
+    },
+  },
+  edges: [
+    { id: "e0", source: "extract", target: "cleanup", type: "normal" },
+    { id: "e1", source: "cleanup", target: "enrich", type: "normal" },
+    { id: "e2", source: "enrich", target: "store", type: "normal" },
+  ],
+  entryNodeId: "extract",
+  ctx: {},
+};
+
 describe("OcrImprovementPipelineService", () => {
   let service: OcrImprovementPipelineService;
 
@@ -223,6 +261,7 @@ describe("OcrImprovementPipelineService", () => {
   });
 
   it("applies normalizeFieldsEmptyValueCoercion to every ocr.normalizeFields node in the candidate", async () => {
+    // Use baseWorkflowConfig reference (defined at module scope)
     mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
       corrections: [
         {
@@ -343,5 +382,122 @@ describe("OcrImprovementPipelineService", () => {
     for (const n of normalizeNodes) {
       expect(n.parameters?.emptyValueCoercion).toBe("null");
     }
+  });
+});
+
+describe("OcrImprovementPipelineService - generate()", () => {
+  let service: OcrImprovementPipelineService;
+
+  const mockHitlAggregation = {
+    getAggregatedCorrections: jest.fn(),
+  };
+
+  const mockToolManifest = {
+    getManifest: jest.fn().mockReturnValue([
+      {
+        toolId: "ocr.spellcheck",
+        label: "Spellcheck",
+        description: "Spellcheck",
+        parameters: [],
+      },
+    ]),
+  };
+
+  const mockAiRecommendation = {
+    getRecommendations: jest.fn(),
+  };
+
+  const mockWorkflowService = {
+    getWorkflowById: jest.fn(),
+    createCandidateVersion: jest.fn(),
+  };
+
+  const mockBenchmarkRunService = {
+    startRun: jest.fn(),
+    getRunById: jest.fn(),
+    getLatestCompletedBaselineRunId: jest.fn().mockResolvedValue(null),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        OcrImprovementPipelineService,
+        { provide: HitlAggregationService, useValue: mockHitlAggregation },
+        { provide: ToolManifestService, useValue: mockToolManifest },
+        { provide: AiRecommendationService, useValue: mockAiRecommendation },
+        { provide: WorkflowService, useValue: mockWorkflowService },
+        { provide: BenchmarkRunService, useValue: mockBenchmarkRunService },
+      ],
+    }).compile();
+
+    service = module.get<OcrImprovementPipelineService>(
+      OcrImprovementPipelineService,
+    );
+  });
+
+  it("should create candidate workflow without starting a benchmark run", async () => {
+    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
+      corrections: [
+        {
+          fieldKey: "f1",
+          originalValue: "O",
+          correctedValue: "0",
+          action: "corrected",
+        },
+      ],
+      total: 1,
+      filters: {},
+    });
+
+    mockWorkflowService.getWorkflowById.mockResolvedValue({
+      id: "wf-1",
+      config: baseWorkflowConfig,
+    });
+
+    mockAiRecommendation.getRecommendations.mockResolvedValue({
+      recommendations: [
+        {
+          toolId: "ocr.spellcheck",
+          parameters: { language: "en" },
+          rationale: "test",
+          priority: 1,
+        },
+      ],
+      analysis: "ok",
+    });
+
+    mockWorkflowService.createCandidateVersion.mockResolvedValue({
+      id: "lineage-abc",
+      workflowVersionId: "version-xyz",
+    });
+
+    const result = await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+    });
+
+    expect(result.status).toBe("candidate_created");
+    expect(result.candidateWorkflowVersionId).toBe("version-xyz");
+    expect(result.candidateLineageId).toBe("lineage-abc");
+    expect(result.recommendationsSummary.applied).toBeGreaterThan(0);
+    expect(mockBenchmarkRunService.startRun).not.toHaveBeenCalled();
+  });
+
+  it("should return no_recommendations when there are no corrections", async () => {
+    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
+      corrections: [],
+      total: 0,
+      filters: {},
+    });
+
+    const result = await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+    });
+
+    expect(result.status).toBe("no_recommendations");
+    expect(result.candidateWorkflowVersionId).toBe("");
   });
 });
