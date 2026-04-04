@@ -578,9 +578,26 @@ export function DefinitionDetailView({
                               fontSize: 12,
                               maxHeight: 400,
                               overflow: "auto",
+                              whiteSpace: "pre-wrap",
                             }}
                           >
-                            {JSON.stringify(entry.data, null, 2)}
+                            {JSON.stringify(
+                              entry.data,
+                              (_key, value) => {
+                                if (
+                                  typeof value === "string" &&
+                                  value.startsWith("{")
+                                ) {
+                                  try {
+                                    return JSON.parse(value);
+                                  } catch {
+                                    return value;
+                                  }
+                                }
+                                return value;
+                              },
+                              2,
+                            )}
                           </Code>
                         )}
                       </Accordion.Panel>

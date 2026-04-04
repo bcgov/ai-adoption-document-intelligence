@@ -806,79 +806,90 @@ export function RunDetailPage() {
       </Card>
 
       {run.status === "completed" && run.baselineComparison && (
-        <Card>
-          <Stack gap="md">
-            <Title order={3} data-testid="baseline-comparison-heading">
-              Baseline Comparison
-            </Title>
-            <Text c="dimmed" size="sm">
-              Comparing against baseline run:{" "}
-              <Code>{run.baselineComparison.baselineRunId}</Code>
-            </Text>
-            <Table
-              striped
-              highlightOnHover
-              data-testid="baseline-comparison-table"
-            >
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Metric</Table.Th>
-                  <Table.Th>Current</Table.Th>
-                  <Table.Th>Baseline</Table.Th>
-                  <Table.Th>Delta</Table.Th>
-                  <Table.Th>Delta %</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {run.baselineComparison.metricComparisons.map((comparison) => (
-                  <Table.Tr key={comparison.metricName}>
-                    <Table.Td fw={500}>{comparison.metricName}</Table.Td>
-                    <Table.Td>
-                      <Code>{comparison.currentValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Code
-                        c={
-                          comparison.delta > 0
-                            ? "green"
-                            : comparison.delta < 0
-                              ? "red"
-                              : undefined
-                        }
-                      >
-                        {comparison.delta > 0 ? "+" : ""}
-                        {comparison.delta.toFixed(4)}
-                      </Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Code
-                        c={
-                          comparison.deltaPercent > 0
-                            ? "green"
-                            : comparison.deltaPercent < 0
-                              ? "red"
-                              : undefined
-                        }
-                      >
-                        {comparison.deltaPercent > 0 ? "+" : ""}
-                        {comparison.deltaPercent.toFixed(2)}%
-                      </Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={comparison.passed ? "green" : "red"}>
-                        {comparison.passed ? "PASS" : "FAIL"}
-                      </Badge>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Stack>
-        </Card>
+        <Accordion
+          variant="contained"
+          data-testid="baseline-comparison-accordion"
+        >
+          <Accordion.Item value="baseline-comparison">
+            <Accordion.Control>
+              <Title order={3} data-testid="baseline-comparison-heading">
+                Baseline Comparison
+              </Title>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <Stack gap="md">
+                <Text c="dimmed" size="sm">
+                  Comparing against baseline run:{" "}
+                  <Code>{run.baselineComparison.baselineRunId}</Code>
+                </Text>
+                <Table
+                  striped
+                  highlightOnHover
+                  data-testid="baseline-comparison-table"
+                >
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Metric</Table.Th>
+                      <Table.Th>Current</Table.Th>
+                      <Table.Th>Baseline</Table.Th>
+                      <Table.Th>Delta</Table.Th>
+                      <Table.Th>Delta %</Table.Th>
+                      <Table.Th>Status</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {run.baselineComparison.metricComparisons.map(
+                      (comparison) => (
+                        <Table.Tr key={comparison.metricName}>
+                          <Table.Td fw={500}>{comparison.metricName}</Table.Td>
+                          <Table.Td>
+                            <Code>{comparison.currentValue.toFixed(4)}</Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Code>{comparison.baselineValue.toFixed(4)}</Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Code
+                              c={
+                                comparison.delta > 0
+                                  ? "green"
+                                  : comparison.delta < 0
+                                    ? "red"
+                                    : undefined
+                              }
+                            >
+                              {comparison.delta > 0 ? "+" : ""}
+                              {comparison.delta.toFixed(4)}
+                            </Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Code
+                              c={
+                                comparison.deltaPercent > 0
+                                  ? "green"
+                                  : comparison.deltaPercent < 0
+                                    ? "red"
+                                    : undefined
+                              }
+                            >
+                              {comparison.deltaPercent > 0 ? "+" : ""}
+                              {comparison.deltaPercent.toFixed(2)}%
+                            </Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge color={comparison.passed ? "green" : "red"}>
+                              {comparison.passed ? "PASS" : "FAIL"}
+                            </Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                      ),
+                    )}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       )}
 
       {run.status === "completed" && run.metrics && (
