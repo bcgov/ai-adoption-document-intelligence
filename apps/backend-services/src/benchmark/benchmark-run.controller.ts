@@ -37,7 +37,6 @@ import {
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import type { HitlAggregationFilters } from "@/hitl/hitl-aggregation.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
@@ -57,29 +56,6 @@ import {
   RunSummaryDto,
 } from "./dto";
 import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
-
-function mapHitlFilters(
-  raw?: Record<string, unknown>,
-): HitlAggregationFilters | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const filters: HitlAggregationFilters = {};
-  if (raw.startDate != null) {
-    filters.startDate =
-      raw.startDate instanceof Date
-        ? raw.startDate
-        : new Date(String(raw.startDate));
-  }
-  if (raw.endDate != null) {
-    filters.endDate =
-      raw.endDate instanceof Date ? raw.endDate : new Date(String(raw.endDate));
-  }
-  if (Array.isArray(raw.groupIds)) filters.groupIds = raw.groupIds as string[];
-  if (Array.isArray(raw.fieldKeys))
-    filters.fieldKeys = raw.fieldKeys as string[];
-  if (Array.isArray(raw.actions)) filters.actions = raw.actions as string[];
-  if (typeof raw.limit === "number") filters.limit = raw.limit;
-  return Object.keys(filters).length > 0 ? filters : undefined;
-}
 
 @ApiTags("Benchmark - Runs")
 @Controller("api/benchmark/projects/:projectId")
@@ -107,10 +83,11 @@ export class BenchmarkRunController {
   @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
   @ApiOperation({
-    summary: "Generate candidate workflow from HITL corrections",
+    summary: "Generate candidate workflow from baseline run errors",
     description:
-      "Aggregates HITL corrections, runs AI recommendation, and creates a candidate workflow. " +
-      "Does not start a benchmark run. Use the workflow editor to review, then create a definition and run normally.",
+      "Extracts field mismatches from the baseline run, runs AI recommendation, and creates a candidate workflow. " +
+      "Requires a promoted baseline run on the definition. Does not start a benchmark run. " +
+      "Use the workflow editor to review, then create a definition and run normally.",
   })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
@@ -131,8 +108,6 @@ export class BenchmarkRunController {
       `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/generate`,
     );
     await this.assertProjectGroupAccess(projectId, req);
-    const project =
-      await this.benchmarkProjectService.getProjectById(projectId);
     const definition = await this.benchmarkDefinitionService.getDefinitionById(
       projectId,
       definitionId,
@@ -149,15 +124,10 @@ export class BenchmarkRunController {
       }
       actorId = sourceWorkflow.actorId;
     }
-    let hitlFilters = mapHitlFilters(dto.hitlFilters);
-    if (!hitlFilters?.groupIds?.length) {
-      hitlFilters = { ...hitlFilters, groupIds: [project.groupId] };
-    }
     const result = await this.ocrImprovementPipeline.generate({
       workflowVersionId: definition.workflow.workflowVersionId,
       actorId,
       definitionId,
-      hitlFilters,
       normalizeFieldsEmptyValueCoercion: dto.normalizeFieldsEmptyValueCoercion,
     });
     return {
