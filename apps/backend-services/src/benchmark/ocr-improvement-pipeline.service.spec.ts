@@ -7,6 +7,7 @@ import { HitlAggregationService } from "@/hitl/hitl-aggregation.service";
 import { ToolManifestService } from "@/hitl/tool-manifest.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { AiRecommendationService } from "./ai-recommendation.service";
+import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
 import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
 const baseWorkflowConfig = {
@@ -74,6 +75,10 @@ describe("OcrImprovementPipelineService - generate()", () => {
     createCandidateVersion: jest.fn(),
   };
 
+  const mockDefinitionDbService = {
+    updatePipelineDebugLog: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -84,6 +89,10 @@ describe("OcrImprovementPipelineService - generate()", () => {
         { provide: ToolManifestService, useValue: mockToolManifest },
         { provide: AiRecommendationService, useValue: mockAiRecommendation },
         { provide: WorkflowService, useValue: mockWorkflowService },
+        {
+          provide: BenchmarkDefinitionDbService,
+          useValue: mockDefinitionDbService,
+        },
       ],
     }).compile();
 
@@ -299,5 +308,91 @@ describe("OcrImprovementPipelineService - generate()", () => {
     for (const n of normalizeNodes) {
       expect(n.parameters?.emptyValueCoercion).toBe("null");
     }
+  });
+
+  it("should persist debug log entries on successful generation", async () => {
+    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
+      corrections: [
+        {
+          fieldKey: "f1",
+          originalValue: "O",
+          correctedValue: "0",
+          action: "corrected",
+        },
+      ],
+      total: 1,
+      filters: {},
+    });
+    mockWorkflowService.getWorkflowById.mockResolvedValue({
+      id: "wf-1",
+      config: baseWorkflowConfig,
+    });
+    mockAiRecommendation.getRecommendations.mockResolvedValue({
+      recommendations: [
+        {
+          toolId: "ocr.spellcheck",
+          parameters: { language: "en" },
+          rationale: "test",
+          priority: 1,
+        },
+      ],
+      analysis: "ok",
+    });
+    mockWorkflowService.createCandidateVersion.mockResolvedValue({
+      id: "lineage-abc",
+      workflowVersionId: "version-xyz",
+    });
+
+    await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+      definitionId: "def-1",
+    });
+
+    expect(mockDefinitionDbService.updatePipelineDebugLog).toHaveBeenCalledWith(
+      "def-1",
+      expect.arrayContaining([
+        expect.objectContaining({ step: "hitl_aggregation" }),
+        expect.objectContaining({ step: "tool_manifest" }),
+        expect.objectContaining({ step: "workflow_load" }),
+        expect.objectContaining({ step: "recommendation_parse" }),
+        expect.objectContaining({ step: "apply_recommendations" }),
+        expect.objectContaining({ step: "candidate_creation" }),
+      ]),
+    );
+  });
+
+  it("should persist debug log with error entry on failure", async () => {
+    mockHitlAggregation.getAggregatedCorrections.mockRejectedValue(
+      new Error("DB connection failed"),
+    );
+
+    await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+      definitionId: "def-1",
+    });
+
+    expect(mockDefinitionDbService.updatePipelineDebugLog).toHaveBeenCalledWith(
+      "def-1",
+      expect.arrayContaining([
+        expect.objectContaining({
+          step: "error",
+          data: expect.objectContaining({ message: "DB connection failed" }),
+        }),
+      ]),
+    );
+  });
+
+  it("should not attempt to persist debug log when definitionId is not provided", async () => {
+    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
+      corrections: [],
+      total: 0,
+      filters: {},
+    });
+    await service.generate({ workflowVersionId: "wf-1", actorId: "user-1" });
+    expect(
+      mockDefinitionDbService.updatePipelineDebugLog,
+    ).not.toHaveBeenCalled();
   });
 });

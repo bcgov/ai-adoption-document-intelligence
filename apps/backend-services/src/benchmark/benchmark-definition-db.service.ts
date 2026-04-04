@@ -262,6 +262,23 @@ export class BenchmarkDefinitionDbService {
     });
   }
 
+  /** Persist pipeline debug log entries to a definition (overwrites previous log). */
+  async updatePipelineDebugLog(
+    definitionId: string,
+    entries: Array<{
+      step: string;
+      timestamp: string;
+      durationMs?: number;
+      data: Record<string, unknown>;
+    }>,
+  ): Promise<void> {
+    await this.prisma.benchmarkDefinition.update({
+      where: { id: definitionId },
+      data: { pipelineDebugLog: entries as unknown as Prisma.InputJsonValue },
+      select: { id: true },
+    });
+  }
+
   /**
    * Deletes a benchmark definition by ID.
    *

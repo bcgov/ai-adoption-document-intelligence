@@ -93,9 +93,23 @@ export interface ToolRecommendationOutput {
   priority: number;
 }
 
+/** Single entry in the pipeline debug log. */
+export interface PipelineLogEntry {
+  /** Pipeline step identifier */
+  step: string;
+  /** ISO 8601 timestamp when the step started */
+  timestamp: string;
+  /** How long the step took in milliseconds */
+  durationMs?: number;
+  /** Step-specific payload */
+  data: Record<string, unknown>;
+}
+
 export interface AiRecommendationOutput {
   recommendations: ToolRecommendationOutput[];
   analysis: string;
+  /** Debug log entries for the LLM call: prompt_build, llm_request, llm_response */
+  debugInfo?: PipelineLogEntry[];
 }
 
 function buildSystemMessage(): string {
@@ -284,6 +298,18 @@ export class AiRecommendationService {
     const systemMessage = buildSystemMessage();
     const userMessage = buildUserMessage(input);
 
+    const debugInfo: PipelineLogEntry[] = [];
+    debugInfo.push({
+      step: "prompt_build",
+      timestamp: new Date().toISOString(),
+      data: { systemMessage, userMessage },
+    });
+    debugInfo.push({
+      step: "llm_request",
+      timestamp: new Date().toISOString(),
+      data: { deployment, apiVersion, maxCompletionTokens: 4096 },
+    });
+
     const payload = {
       messages: [
         {
@@ -300,6 +326,7 @@ export class AiRecommendationService {
     };
 
     let responseContent: string;
+    let tokenUsage: Record<string, unknown> | undefined;
     try {
       const response = await firstValueFrom(
         this.httpService.post(url, payload, {
@@ -311,6 +338,7 @@ export class AiRecommendationService {
         }),
       );
       responseContent = response.data?.choices?.[0]?.message?.content;
+      tokenUsage = response.data?.usage as Record<string, unknown> | undefined;
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status: number; data?: unknown } };
       if (axiosErr?.response) {
@@ -331,6 +359,12 @@ export class AiRecommendationService {
       );
     }
 
+    debugInfo.push({
+      step: "llm_response",
+      timestamp: new Date().toISOString(),
+      data: { rawContent: responseContent, tokenUsage: tokenUsage ?? {} },
+    });
+
     this.logger.debug(`AI recommendation raw response: ${responseContent}`);
 
     const parsed = parseRecommendationResponse(responseContent);
@@ -348,7 +382,7 @@ export class AiRecommendationService {
       this.logger.log(
         "AI recommendation: no edge after azureOcr.extract in insertionSlots; returning empty recommendations",
       );
-      return { recommendations: [], analysis: parsed.analysis };
+      return { recommendations: [], analysis: parsed.analysis, debugInfo };
     }
 
     const allowedIdsList =
@@ -361,6 +395,6 @@ export class AiRecommendationService {
       `AI recommendation complete: ${recommendations.length} recommendations`,
     );
 
-    return { recommendations, analysis: parsed.analysis };
+    return { recommendations, analysis: parsed.analysis, debugInfo };
   }
 }

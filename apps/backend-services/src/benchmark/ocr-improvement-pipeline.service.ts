@@ -31,11 +31,17 @@ import type { HitlAggregationFilters } from "../hitl/hitl-aggregation.service";
 import { HitlAggregationService } from "../hitl/hitl-aggregation.service";
 import { ToolManifestService } from "../hitl/tool-manifest.service";
 import { WorkflowService } from "../workflow/workflow.service";
+import type { PipelineLogEntry } from "./ai-recommendation.service";
 import { AiRecommendationService } from "./ai-recommendation.service";
+import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
+
+export type { PipelineLogEntry };
 
 export interface GenerateInput {
   workflowVersionId: string;
   actorId: string;
+  /** When provided, debug log entries are persisted to this definition's pipelineDebugLog column */
+  definitionId?: string;
   hitlFilters?: HitlAggregationFilters;
   normalizeFieldsEmptyValueCoercion?: OcrNormalizeFieldsEmptyValueCoercion;
 }
@@ -64,6 +70,7 @@ export class OcrImprovementPipelineService {
     private readonly toolManifest: ToolManifestService,
     private readonly aiRecommendation: AiRecommendationService,
     private readonly workflowService: WorkflowService,
+    private readonly definitionDb: BenchmarkDefinitionDbService,
   ) {}
 
   /**
@@ -77,14 +84,50 @@ export class OcrImprovementPipelineService {
       `Generating candidate workflow for workflow version ${input.workflowVersionId}`,
     );
 
+    const logEntries: PipelineLogEntry[] = [];
+
+    const logStep = (
+      step: string,
+      startMs: number,
+      data: Record<string, unknown>,
+    ): void => {
+      logEntries.push({
+        step,
+        timestamp: new Date(startMs).toISOString(),
+        durationMs: Date.now() - startMs,
+        data,
+      });
+    };
+
+    const persistLog = async (): Promise<void> => {
+      if (!input.definitionId) return;
+      try {
+        await this.definitionDb.updatePipelineDebugLog(
+          input.definitionId,
+          logEntries,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to persist pipeline debug log for definition ${input.definitionId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    };
+
     try {
       // Step 1: Aggregate HITL corrections
+      let stepStart = Date.now();
       const { corrections } =
         await this.hitlAggregation.getAggregatedCorrections(
           input.hitlFilters ?? {},
         );
+      logStep("hitl_aggregation", stepStart, {
+        filters: input.hitlFilters ?? {},
+        correctionCount: corrections.length,
+        sampleCorrections: corrections.slice(0, 5),
+      });
 
       if (corrections.length === 0) {
+        await persistLog();
         return {
           candidateWorkflowVersionId: "",
           candidateLineageId: "",
@@ -100,7 +143,14 @@ export class OcrImprovementPipelineService {
       }
 
       // Step 2: Get tool manifest
+      stepStart = Date.now();
       const manifest = this.toolManifest.getManifest();
+      logStep("tool_manifest", stepStart, {
+        tools: manifest.map((t) => ({
+          toolId: t.toolId,
+          parameterNames: t.parameters.map((p) => p.name),
+        })),
+      });
 
       // Step 3: Build AI input for AiRecommendationService
       const correctionInput = corrections.map((c) => ({
@@ -124,10 +174,12 @@ export class OcrImprovementPipelineService {
       }));
 
       // Step 4: Load current workflow and build summary
+      stepStart = Date.now();
       const currentWorkflow = await this.workflowService.getWorkflowById(
         input.workflowVersionId,
       );
       if (!currentWorkflow) {
+        await persistLog();
         return {
           candidateWorkflowVersionId: "",
           candidateLineageId: "",
@@ -165,12 +217,18 @@ export class OcrImprovementPipelineService {
           beforeActivityType: s.beforeActivityType,
         })),
       };
+      logStep("workflow_load", stepStart, {
+        nodeIds: workflowSummary.nodeIds,
+        edgeSummary: workflowSummary.edgeSummary,
+        insertionSlots: workflowSummary.insertionSlots,
+      });
 
       this.logger.log(
         `Pipeline prepared: ${correctionInput.length} corrections, ${toolInput.length} tools, ${workflowSummary.nodeIds.length} nodes, ${insertionSlots.length} insertion slots`,
       );
 
       // Step 5: Run AI recommendation
+      stepStart = Date.now();
       const aiOutput = await this.aiRecommendation.getRecommendations(
         {
           corrections: correctionInput,
@@ -180,7 +238,16 @@ export class OcrImprovementPipelineService {
         manifest.map((t) => t.toolId),
       );
 
+      if (aiOutput.debugInfo) {
+        logEntries.push(...aiOutput.debugInfo);
+      }
+      logStep("recommendation_parse", stepStart, {
+        recommendations: aiOutput.recommendations,
+        analysis: aiOutput.analysis,
+      });
+
       if (aiOutput.recommendations.length === 0) {
+        await persistLog();
         return {
           candidateWorkflowVersionId: "",
           candidateLineageId: "",
@@ -199,6 +266,7 @@ export class OcrImprovementPipelineService {
       const pipelineSlot =
         findSlotImmediatelyAfterAzureOcrExtract(insertionSlots);
       if (!pipelineSlot) {
+        await persistLog();
         return {
           candidateWorkflowVersionId: "",
           candidateLineageId: "",
@@ -241,6 +309,7 @@ export class OcrImprovementPipelineService {
         }));
 
       // Step 6: Apply recommendations to get candidate config
+      stepStart = Date.now();
       const modification = applyRecommendations(
         config,
         recommendationsForApply,
@@ -257,6 +326,16 @@ export class OcrImprovementPipelineService {
         this.logger.debug(
           `Workflow node IDs: ${Object.keys(config.nodes).join(", ")}`,
         );
+        logStep("apply_recommendations", stepStart, {
+          applied: [],
+          rejected: modification.rejectedRecommendations.map(
+            ({ recommendation, reason }) => ({
+              toolId: recommendation.toolId,
+              reason,
+            }),
+          ),
+        });
+        await persistLog();
         return {
           candidateWorkflowVersionId: "",
           candidateLineageId: "",
@@ -276,6 +355,16 @@ export class OcrImprovementPipelineService {
         };
       }
 
+      logStep("apply_recommendations", stepStart, {
+        applied: modification.appliedRecommendations.map((r) => r.toolId),
+        rejected: modification.rejectedRecommendations.map(
+          ({ recommendation, reason }) => ({
+            toolId: recommendation.toolId,
+            reason,
+          }),
+        ),
+      });
+
       const candidateConfig =
         input.normalizeFieldsEmptyValueCoercion != null
           ? applyOcrNormalizeFieldsEmptyValueCoercion(
@@ -285,12 +374,18 @@ export class OcrImprovementPipelineService {
           : modification.newConfig;
 
       // Step 7: Create candidate workflow
+      stepStart = Date.now();
       const candidate = await this.workflowService.createCandidateVersion(
         input.workflowVersionId,
         candidateConfig,
         input.actorId,
       );
+      logStep("candidate_creation", stepStart, {
+        candidateLineageId: candidate.id,
+        candidateVersionId: candidate.workflowVersionId,
+      });
 
+      await persistLog();
       return {
         status: "candidate_created",
         candidateWorkflowVersionId: candidate.workflowVersionId,
@@ -304,7 +399,14 @@ export class OcrImprovementPipelineService {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(`OCR improvement pipeline generate failed: ${message}`);
+      logEntries.push({
+        step: "error",
+        timestamp: new Date().toISOString(),
+        data: { message, stack },
+      });
+      await persistLog();
       return {
         candidateWorkflowVersionId: "",
         candidateLineageId: "",

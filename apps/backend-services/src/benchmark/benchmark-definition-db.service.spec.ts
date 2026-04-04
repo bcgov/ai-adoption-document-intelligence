@@ -350,6 +350,28 @@ describe("BenchmarkDefinitionDbService", () => {
     });
   });
 
+  describe("updatePipelineDebugLog", () => {
+    it("should update the pipelineDebugLog column", async () => {
+      const entries = [
+        {
+          step: "hitl_aggregation",
+          timestamp: "2026-04-03T00:00:00Z",
+          data: { correctionCount: 5 },
+        },
+      ];
+      mockPrismaClient.benchmarkDefinition.update.mockResolvedValue({
+        id: "def-1",
+        pipelineDebugLog: entries,
+      });
+      await service.updatePipelineDebugLog("def-1", entries);
+      expect(mockPrismaClient.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: { pipelineDebugLog: entries },
+        select: { id: true },
+      });
+    });
+  });
+
   describe("findAllBenchmarkDefinitions tx support", () => {
     it("uses provided tx client", async () => {
       const txDef = { findMany: jest.fn().mockResolvedValue([]) };
