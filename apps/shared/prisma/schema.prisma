@@ -605,6 +605,8 @@ model BenchmarkDefinition {
   runtimeSettings         Json
   immutable               Boolean            @default(false)
   revision                Int                @default(1)
+  /// Structured debug log from the last OCR improvement pipeline run (overwritten each run)
+  pipelineDebugLog        Json?              @map("pipeline_debug_log")
   scheduleEnabled         Boolean            @default(false)
   scheduleCron            String?
   scheduleId              String?            @unique
