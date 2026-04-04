@@ -26,10 +26,12 @@ const mockPrismaClient = {
   workflowLineage: {
     findUnique: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
   workflowVersion: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
   },
   benchmarkDefinition: {
@@ -39,9 +41,11 @@ const mockPrismaClient = {
     update: jest.fn(),
     updateMany: jest.fn(),
     delete: jest.fn(),
+    deleteMany: jest.fn(),
   },
   benchmarkRun: {
     findFirst: jest.fn().mockResolvedValue(null),
+    deleteMany: jest.fn(),
   },
 };
 
@@ -1004,99 +1008,72 @@ describe("BenchmarkDefinitionService", () => {
   });
 
   // -----------------------------------------------------------------------
-  // promoteCandidateWorkflow
+  // applyToBaseWorkflow
   // -----------------------------------------------------------------------
-  describe("promoteCandidateWorkflow", () => {
-    it("appends a new base workflow version and repins pinned definitions", async () => {
+  describe("applyToBaseWorkflow", () => {
+    const candidateConfig = {
+      schemaVersion: "1.0",
+      metadata: { description: "Test graph" },
+      entryNodeId: "start",
+      ctx: { documentId: { type: "string" } },
+      nodes: {
+        start: {
+          id: "start",
+          type: "activity",
+          label: "Start",
+          activityType: "document.updateStatus",
+          inputs: [{ port: "documentId", ctxKey: "documentId" }],
+        },
+      },
+      edges: [],
+    };
+
+    it("copies candidate config as new version on base lineage", async () => {
       const projectId = "project-1";
-      const definitionId = "def-1";
-      const candidateWorkflowVersionId = "wv-cand-1";
-
-      const baseLineageId = "lin-base";
-      const baseLineageGroupId = "group-1";
-      const oldBaseHeadVersionId = "wv-old-head";
+      const candidateWorkflowVersionId = "candidate-v1";
+      const baseLineageId = "base-lineage";
       const newBaseVersionId = "wv-new-base";
-
-      const candidateConfig = {
-        schemaVersion: "1.0",
-        metadata: { description: "Test graph" },
-        entryNodeId: "start",
-        ctx: { documentId: { type: "string" } },
-        nodes: {
-          start: {
-            id: "start",
-            type: "activity",
-            label: "Start",
-            activityType: "document.updateStatus",
-            inputs: [{ port: "documentId", ctxKey: "documentId" }],
-          },
-        },
-        edges: [],
-      };
-
-      const expectedDefinitionDetails = {
-        id: definitionId,
-      };
-
-      jest
-        .spyOn(service, "getDefinitionById")
-        .mockResolvedValue(expectedDefinitionDetails as never);
-
-      jest.spyOn(prisma.benchmarkDefinition, "findFirst").mockResolvedValue({
-        id: definitionId,
-        projectId,
-        workflowVersion: {
-          lineage: {
-            id: baseLineageId,
-            group_id: baseLineageGroupId,
-          },
-        },
-      } as never);
-
-      jest.spyOn(prisma.workflowLineage, "findUnique").mockResolvedValue({
-        id: baseLineageId,
-        group_id: baseLineageGroupId,
-        head_version_id: oldBaseHeadVersionId,
-      } as never);
 
       jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
         id: candidateWorkflowVersionId,
         config: candidateConfig,
         lineage: {
-          id: "lin-cand",
-          group_id: baseLineageGroupId,
+          id: "cand-lineage",
           workflow_kind: "benchmark_candidate",
           source_workflow_id: baseLineageId,
         },
       } as never);
 
       jest.spyOn(prisma.workflowVersion, "findFirst").mockResolvedValue({
-        version_number: 1,
+        version_number: 2,
       } as never);
 
       jest.spyOn(prisma.workflowVersion, "create").mockResolvedValue({
         id: newBaseVersionId,
+        version_number: 3,
       } as never);
 
       jest
         .spyOn(prisma.workflowLineage, "update")
         .mockResolvedValue({} as never);
-      jest
-        .spyOn(prisma.benchmarkDefinition, "updateMany")
-        .mockResolvedValue({} as never);
 
-      const result = await service.promoteCandidateWorkflow(
+      const result = await service.applyToBaseWorkflow(
         projectId,
-        definitionId,
         candidateWorkflowVersionId,
+        false,
       );
 
-      expect(result).toEqual(expectedDefinitionDetails);
+      expect(result).toMatchObject({
+        newBaseWorkflowVersionId: newBaseVersionId,
+        baseLineageId,
+        newVersionNumber: 3,
+        cleanedUp: false,
+      });
 
       expect(prisma.workflowVersion.create).toHaveBeenCalledWith({
         data: {
           lineage_id: baseLineageId,
-          version_number: 2,
+          version_number: 3,
           config: candidateConfig,
         },
       });
@@ -1105,20 +1082,22 @@ describe("BenchmarkDefinitionService", () => {
         where: { id: baseLineageId },
         data: { head_version_id: newBaseVersionId },
       });
+    });
 
-      const expectedHash = computeConfigHash(candidateConfig as never);
-      expect(prisma.benchmarkDefinition.updateMany).toHaveBeenCalledWith({
-        where: { projectId, workflowVersionId: oldBaseHeadVersionId },
-        data: {
-          workflowVersionId: newBaseVersionId,
-          workflowConfigHash: expectedHash,
+    it("rejects non-candidate workflows", async () => {
+      jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
+        id: "wv-primary",
+        config: candidateConfig,
+        lineage: {
+          id: "primary-lineage",
+          workflow_kind: "primary",
+          source_workflow_id: null,
         },
-      });
+      } as never);
 
-      expect(service.getDefinitionById).toHaveBeenCalledWith(
-        projectId,
-        definitionId,
-      );
+      await expect(
+        service.applyToBaseWorkflow("project-1", "wv-primary", false),
+      ).rejects.toThrow(/not a benchmark candidate/i);
     });
   });
 

@@ -43,6 +43,8 @@ import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
+  ApplyCandidateToBaseDto,
+  ApplyCandidateToBaseResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
   OcrImprovementGenerateDto,
@@ -418,5 +420,39 @@ export class BenchmarkRunController {
     );
     await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.deleteRun(projectId, runId);
+  }
+
+  @Post("apply-candidate-to-base")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Apply candidate workflow config to its base lineage",
+    description:
+      "Copies the candidate workflow config as a new version on the base lineage. " +
+      "Optionally cleans up the candidate lineage and any definitions/runs pointing to it.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiBody({ type: ApplyCandidateToBaseDto })
+  @ApiOkResponse({
+    description: "Candidate applied to base lineage",
+    type: ApplyCandidateToBaseResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Candidate workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async applyCandidateToBase(
+    @Param("projectId") projectId: string,
+    @Body() dto: ApplyCandidateToBaseDto,
+    @Req() req: Request,
+  ): Promise<ApplyCandidateToBaseResponseDto> {
+    this.logger.log(
+      `POST /api/benchmark/projects/${projectId}/apply-candidate-to-base`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+
+    return this.benchmarkDefinitionService.applyToBaseWorkflow(
+      projectId,
+      dto.candidateWorkflowVersionId,
+      dto.cleanupCandidateArtifacts ?? true,
+    );
   }
 }

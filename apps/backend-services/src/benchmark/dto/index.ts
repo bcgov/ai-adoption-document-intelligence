@@ -1,3 +1,4 @@
+export * from "./apply-candidate-to-base.dto";
 export * from "./audit-log-response.dto";
 export * from "./confusion-matrix-derive.dto";
 export * from "./create-dataset.dto";
@@ -19,7 +20,7 @@ export * from "./paginated-dataset-response.dto";
 export * from "./per-sample-result.dto";
 export * from "./project-response.dto";
 export * from "./promote-baseline.dto";
-export * from "./promote-candidate-workflow.dto";
+
 export * from "./run-response.dto";
 export * from "./schedule-config.dto";
 export * from "./schedule-info.dto";

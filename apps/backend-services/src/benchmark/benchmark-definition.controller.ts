@@ -44,7 +44,6 @@ import {
   CreateDefinitionDto,
   DefinitionDetailsDto,
   DefinitionSummaryDto,
-  PromoteCandidateWorkflowDto,
   ScheduleConfigDto,
   ScheduleInfoDto,
   UpdateDefinitionDto,
@@ -238,39 +237,6 @@ export class BenchmarkDefinitionController {
     return this.benchmarkDefinitionService.getScheduleInfo(
       projectId,
       definitionId,
-    );
-  }
-
-  @Post(":definitionId/promote-candidate-workflow")
-  @HttpCode(HttpStatus.OK)
-  @Identity({ allowApiKey: true })
-  @ApiOperation({
-    summary: "Apply a benchmark candidate workflow graph to the base workflow",
-  })
-  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
-  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
-  @ApiBody({ type: PromoteCandidateWorkflowDto })
-  @ApiOkResponse({
-    description: "Definition updated and pinned workflow hash resynced",
-    type: DefinitionDetailsDto,
-  })
-  @ApiBadRequestResponse({ description: "Invalid candidate workflow" })
-  @ApiNotFoundResponse({ description: "Definition not found" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async promoteCandidateWorkflow(
-    @Param("projectId") projectId: string,
-    @Param("definitionId") definitionId: string,
-    @Body() body: PromoteCandidateWorkflowDto,
-    @Req() req: Request,
-  ): Promise<DefinitionDetailsDto> {
-    this.logger.log(
-      `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/promote-candidate-workflow`,
-    );
-    await this.assertProjectGroupAccess(projectId, req);
-    return this.benchmarkDefinitionService.promoteCandidateWorkflow(
-      projectId,
-      definitionId,
-      body.candidateWorkflowVersionId,
     );
   }
 

@@ -802,43 +802,19 @@ export class BenchmarkDefinitionService {
     };
   }
 
-  async promoteCandidateWorkflow(
+  async applyToBaseWorkflow(
     projectId: string,
-    definitionId: string,
     candidateWorkflowVersionId: string,
-  ): Promise<DefinitionDetailsDto> {
+    cleanupCandidateArtifacts: boolean,
+  ): Promise<{
+    newBaseWorkflowVersionId: string;
+    baseLineageId: string;
+    newVersionNumber: number;
+    cleanedUp: boolean;
+  }> {
     this.logger.log(
-      `Promoting candidate workflow ${candidateWorkflowVersionId} into definition ${definitionId} (project ${projectId})`,
+      `Applying candidate workflow ${candidateWorkflowVersionId} to base lineage (project ${projectId})`,
     );
-
-    const definition = await this.prisma.benchmarkDefinition.findFirst({
-      where: { id: definitionId, projectId },
-      include: {
-        workflowVersion: { include: { lineage: true } },
-      },
-    });
-
-    if (!definition?.workflowVersion?.lineage) {
-      throw new NotFoundException(
-        `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
-      );
-    }
-
-    const baseLineageId = definition.workflowVersion.lineage.id;
-    const baseLineageGroupId = definition.workflowVersion.lineage.group_id;
-
-    const baseLineage = await this.prisma.workflowLineage.findUnique({
-      where: { id: baseLineageId },
-      select: { id: true, group_id: true, head_version_id: true },
-    });
-
-    if (!baseLineage?.head_version_id) {
-      throw new BadRequestException(
-        `Base workflow lineage ${baseLineageId} has no head version to promote into`,
-      );
-    }
-
-    const oldBaseHeadVersionId = baseLineage.head_version_id;
 
     const candidateVersion = await this.prisma.workflowVersion.findUnique({
       where: { id: candidateWorkflowVersionId },
@@ -855,21 +831,17 @@ export class BenchmarkDefinitionService {
 
     if (candidateLineage.workflow_kind !== "benchmark_candidate") {
       throw new BadRequestException(
-        `Candidate lineage ${candidateLineage.id} is not a benchmark candidate`,
+        `Workflow version ${candidateWorkflowVersionId} is not a benchmark candidate`,
       );
     }
 
-    if (candidateLineage.source_workflow_id !== baseLineageId) {
+    if (!candidateLineage.source_workflow_id) {
       throw new BadRequestException(
-        `Candidate is not derived from the definition's base workflow lineage`,
+        `Candidate lineage ${candidateLineage.id} has no source workflow`,
       );
     }
 
-    if (candidateLineage.group_id !== baseLineageGroupId) {
-      throw new BadRequestException(
-        `Candidate lineage group does not match the definition's base lineage`,
-      );
-    }
+    const baseLineageId = candidateLineage.source_workflow_id;
 
     const candidateConfig = candidateVersion.config as GraphWorkflowConfig;
     const validation = validateGraphConfig(candidateConfig);
@@ -901,21 +873,46 @@ export class BenchmarkDefinitionService {
       data: { head_version_id: newVersion.id },
     });
 
-    const newHash = computeConfigHash(candidateConfig);
+    if (cleanupCandidateArtifacts) {
+      const candidateVersions = await this.prisma.workflowVersion.findMany({
+        where: { lineage_id: candidateLineage.id },
+        select: { id: true },
+      });
+      const candidateVersionIds = candidateVersions.map(
+        (v: { id: string }) => v.id,
+      );
 
-    // Repin only definitions that were pinned to the old base head
-    await this.prisma.benchmarkDefinition.updateMany({
-      where: {
-        projectId,
-        workflowVersionId: oldBaseHeadVersionId,
-      },
-      data: {
-        workflowVersionId: newVersion.id,
-        workflowConfigHash: newHash,
-      },
-    });
+      const candidateDefinitions =
+        await this.prisma.benchmarkDefinition.findMany({
+          where: {
+            projectId,
+            workflowVersionId: { in: candidateVersionIds },
+          },
+          select: { id: true },
+        });
+      const candidateDefinitionIds = candidateDefinitions.map(
+        (d: { id: string }) => d.id,
+      );
 
-    return this.getDefinitionById(projectId, definitionId);
+      await this.prisma.benchmarkRun.deleteMany({
+        where: { definitionId: { in: candidateDefinitionIds } },
+      });
+
+      await this.prisma.benchmarkDefinition.deleteMany({
+        where: { id: { in: candidateDefinitionIds } },
+      });
+
+      await this.prisma.workflowLineage.delete({
+        where: { id: candidateLineage.id },
+      });
+    }
+
+    return {
+      newBaseWorkflowVersionId: newVersion.id,
+      baseLineageId,
+      newVersionNumber: newVersion.version_number,
+      cleanedUp: cleanupCandidateArtifacts,
+    };
   }
 
   /**
