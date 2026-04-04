@@ -1,86 +1,69 @@
 /**
- * DTOs for OCR improvement pipeline run.
- * See feature-docs/008-ocr-correction-agentic-sdlc/step-05-ui.md
+ * DTOs for OCR improvement pipeline generate endpoint.
  */
 
-import {
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsObject,
-  IsOptional,
-  Max,
-  Min,
-} from "class-validator";
-import type { BaselineComparison } from "./promote-baseline.dto";
+import { ApiProperty } from "@nestjs/swagger";
+import { IsIn, IsObject, IsOptional } from "class-validator";
 
-export class OcrImprovementRunDto {
-  /**
-   * Optional filters for HITL correction aggregation (e.g. startDate, endDate, groupIds, fieldKeys).
-   */
+export class OcrImprovementGenerateDto {
+  @ApiProperty({
+    description:
+      "Optional filters for HITL correction aggregation (e.g. startDate, endDate, groupIds, fieldKeys)",
+    required: false,
+  })
   @IsOptional()
   @IsObject()
   hitlFilters?: Record<string, unknown>;
 
-  /**
-   * When true, the server polls until the candidate benchmark run reaches a terminal
-   * status and returns baseline comparison (US-013). Default false (fire-and-forget).
-   */
-  @IsOptional()
-  @IsBoolean()
-  waitForPipelineRunCompletion?: boolean;
-
-  /**
-   * Poll interval when waiting for the candidate run (ms). Default 5000.
-   */
-  @IsOptional()
-  @IsInt()
-  @Min(500)
-  @Max(120_000)
-  pipelineRunPollIntervalMs?: number;
-
-  /**
-   * Max time to wait for the candidate run (ms). Default 3600000 (1 hour).
-   */
-  @IsOptional()
-  @IsInt()
-  @Min(5000)
-  @Max(7_200_000)
-  pipelineRunWaitTimeoutMs?: number;
-
-  /**
-   * When set, the candidate workflow forces this `emptyValueCoercion` on every
-   * `ocr.normalizeFields` node (`none` | `blank` | `null`). Omit to keep graph / AI values.
-   */
+  @ApiProperty({
+    description:
+      'Force emptyValueCoercion on every ocr.normalizeFields node ("none" | "blank" | "null")',
+    required: false,
+    enum: ["none", "blank", "null"],
+  })
   @IsOptional()
   @IsIn(["none", "blank", "null"])
   normalizeFieldsEmptyValueCoercion?: "none" | "blank" | "null";
 }
 
-export interface OcrImprovementRunResponseDto {
+export class OcrImprovementGenerateResponseDto {
+  @ApiProperty({ description: "Candidate workflow version ID" })
   candidateWorkflowVersionId: string;
-  benchmarkRunId: string;
+
+  @ApiProperty({ description: "Candidate workflow lineage ID" })
+  candidateLineageId: string;
+
+  @ApiProperty({ description: "Summary of applied/rejected recommendations" })
   recommendationsSummary: {
     applied: number;
     rejected: number;
     toolIds: string[];
   };
+
+  @ApiProperty({ description: "AI analysis text", required: false })
   analysis?: string;
-  /** Human-readable reason when status is no_recommendations. */
+
+  @ApiProperty({
+    description: "Human-readable message when status is no_recommendations",
+    required: false,
+  })
   pipelineMessage?: string;
-  /** One line per failed recommendation when graph apply rejected all. */
+
+  @ApiProperty({
+    description: "Per-recommendation rejection reasons",
+    required: false,
+  })
   rejectionDetails?: string[];
-  status:
-    | "benchmark_started"
-    | "benchmark_completed"
-    | "benchmark_failed"
-    | "benchmark_cancelled"
-    | "benchmark_wait_timeout"
-    | "no_recommendations"
-    | "error";
+
+  @ApiProperty({
+    description: "Pipeline status",
+    enum: ["candidate_created", "no_recommendations", "error"],
+  })
+  status: "candidate_created" | "no_recommendations" | "error";
+
+  @ApiProperty({
+    description: "Error message if status is error",
+    required: false,
+  })
   error?: string;
-  /** Terminal status of the candidate run when known (including after wait). */
-  benchmarkRunStatus?: string;
-  /** Populated when the run finished and baseline comparison was computed. */
-  baselineComparison?: BaselineComparison | null;
 }

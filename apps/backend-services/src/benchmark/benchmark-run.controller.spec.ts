@@ -49,15 +49,15 @@ describe("BenchmarkRunController", () => {
   };
 
   const mockOcrImprovementPipeline = {
-    run: jest.fn().mockResolvedValue({
+    generate: jest.fn().mockResolvedValue({
       candidateWorkflowVersionId: "wv-candidate-1",
-      benchmarkRunId: "run-1",
+      candidateLineageId: "lineage-1",
       recommendationsSummary: {
         applied: 1,
         rejected: 0,
         toolIds: ["ocr.spellcheck"],
       },
-      status: "benchmark_started",
+      status: "candidate_created",
     }),
   };
 
@@ -164,10 +164,10 @@ describe("BenchmarkRunController", () => {
     });
   });
 
-  describe("POST /definitions/:definitionId/ocr-improvement/run", () => {
-    it("runs OCR improvement pipeline and returns result", async () => {
+  describe("POST /definitions/:definitionId/ocr-improvement/generate", () => {
+    it("generates candidate workflow and returns result", async () => {
       const dto = {};
-      const result = await controller.runOcrImprovement(
+      const result = await controller.generateCandidate(
         projectId,
         "def-1",
         dto,
@@ -179,52 +179,33 @@ describe("BenchmarkRunController", () => {
         "def-1",
       );
       expect(mockWorkflowService.getWorkflowById).not.toHaveBeenCalled();
-      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
+      expect(mockOcrImprovementPipeline.generate).toHaveBeenCalledWith(
         expect.objectContaining({
           workflowVersionId: "wv-workflow-1",
-          benchmarkDefinitionId: "def-1",
-          benchmarkProjectId: projectId,
           actorId: "actor-for-user-1",
         }),
       );
       expect(result).toMatchObject({
         candidateWorkflowVersionId: "wv-candidate-1",
-        benchmarkRunId: "run-1",
+        candidateLineageId: "lineage-1",
         recommendationsSummary: {
           applied: 1,
           rejected: 0,
           toolIds: ["ocr.spellcheck"],
         },
-        status: "benchmark_started",
+        status: "candidate_created",
       });
     });
 
-    it("passes wait options to the pipeline when set", async () => {
-      const dto = {
-        waitForPipelineRunCompletion: true,
-        pipelineRunPollIntervalMs: 2000,
-        pipelineRunWaitTimeoutMs: 120000,
-      };
-      await controller.runOcrImprovement(projectId, "def-1", dto, mockReq);
-
-      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
-        expect.objectContaining({
-          waitForPipelineRunCompletion: true,
-          pipelineRunPollIntervalMs: 2000,
-          pipelineRunWaitTimeoutMs: 120000,
-        }),
-      );
-    });
-
     it("passes normalizeFieldsEmptyValueCoercion to the pipeline when set", async () => {
-      await controller.runOcrImprovement(
+      await controller.generateCandidate(
         projectId,
         "def-1",
         { normalizeFieldsEmptyValueCoercion: "null" },
         mockReq,
       );
 
-      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
+      expect(mockOcrImprovementPipeline.generate).toHaveBeenCalledWith(
         expect.objectContaining({
           normalizeFieldsEmptyValueCoercion: "null",
         }),
@@ -256,12 +237,12 @@ describe("BenchmarkRunController", () => {
 
       const apiKeyOnlyReq = {} as Request;
 
-      await controller.runOcrImprovement(projectId, "def-1", {}, apiKeyOnlyReq);
+      await controller.generateCandidate(projectId, "def-1", {}, apiKeyOnlyReq);
 
       expect(mockWorkflowService.getWorkflowById).toHaveBeenCalledWith(
         "wv-workflow-1",
       );
-      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
+      expect(mockOcrImprovementPipeline.generate).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: "owner-from-source-workflow",
         }),

@@ -37,6 +37,8 @@ export class CreateRunDto {
    * When provided, the run uses this config instead of the definition's workflow config.
    * Used by the AI recommendation pipeline to run candidate workflows for comparison.
    */
+  // TODO: workflowConfigOverride is no longer used by the improvement pipeline.
+  // Consider removing if no other consumers exist.
   @IsOptional()
   @IsObject()
   workflowConfigOverride?: Record<string, unknown>;

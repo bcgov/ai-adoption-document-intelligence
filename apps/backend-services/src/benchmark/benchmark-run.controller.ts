@@ -45,8 +45,8 @@ import { BenchmarkRunService } from "./benchmark-run.service";
 import {
   CreateRunDto,
   DrillDownResponseDto,
-  OcrImprovementRunDto,
-  type OcrImprovementRunResponseDto,
+  OcrImprovementGenerateDto,
+  OcrImprovementGenerateResponseDto,
   PerSampleResultsResponseDto,
   PromoteBaselineDto,
   PromoteBaselineResponseDto,
@@ -100,31 +100,32 @@ export class BenchmarkRunController {
     identityCanAccessGroup(req.resolvedIdentity, project.groupId);
   }
 
-  @Post("definitions/:definitionId/ocr-improvement/run")
+  @Post("definitions/:definitionId/ocr-improvement/generate")
   @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
   @ApiOperation({
-    summary: "Run OCR improvement pipeline",
+    summary: "Generate candidate workflow from HITL corrections",
     description:
-      "Aggregates HITL corrections, runs AI recommendation, creates candidate workflow, and starts a benchmark run with the candidate. " +
-      "Set waitForPipelineRunCompletion to poll until the run finishes and return baseline comparison (optional).",
+      "Aggregates HITL corrections, runs AI recommendation, and creates a candidate workflow. " +
+      "Does not start a benchmark run. Use the workflow editor to review, then create a definition and run normally.",
   })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
-  @ApiBody({ type: OcrImprovementRunDto })
+  @ApiBody({ type: OcrImprovementGenerateDto })
   @ApiOkResponse({
-    description: "Pipeline result with candidate and run IDs",
+    description: "Candidate workflow created or no recommendations",
+    type: OcrImprovementGenerateResponseDto,
   })
   @ApiNotFoundResponse({ description: "Definition not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async runOcrImprovement(
+  async generateCandidate(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
-    @Body() dto: OcrImprovementRunDto,
+    @Body() dto: OcrImprovementGenerateDto,
     @Req() req: Request,
-  ): Promise<OcrImprovementRunResponseDto> {
+  ): Promise<OcrImprovementGenerateResponseDto> {
     this.logger.log(
-      `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/run`,
+      `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/generate`,
     );
     await this.assertProjectGroupAccess(projectId, req);
     const project =
@@ -133,7 +134,6 @@ export class BenchmarkRunController {
       projectId,
       definitionId,
     );
-    // Must be DB Actor.id (see User.actor_id), not JWT sub / User.id — WorkflowService.createCandidateVersion resolves the user via actor_id.
     let actorId = req.resolvedIdentity?.actorId;
     if (!actorId) {
       const sourceWorkflow = await this.workflowService.getWorkflowById(
@@ -150,28 +150,21 @@ export class BenchmarkRunController {
     if (!hitlFilters?.groupIds?.length) {
       hitlFilters = { ...hitlFilters, groupIds: [project.groupId] };
     }
-    const result = await this.ocrImprovementPipeline.run({
+    const result = await this.ocrImprovementPipeline.generate({
       workflowVersionId: definition.workflow.workflowVersionId,
-      benchmarkDefinitionId: definitionId,
-      benchmarkProjectId: projectId,
       actorId,
       hitlFilters,
-      waitForPipelineRunCompletion: dto.waitForPipelineRunCompletion === true,
-      pipelineRunPollIntervalMs: dto.pipelineRunPollIntervalMs,
-      pipelineRunWaitTimeoutMs: dto.pipelineRunWaitTimeoutMs,
       normalizeFieldsEmptyValueCoercion: dto.normalizeFieldsEmptyValueCoercion,
     });
     return {
       candidateWorkflowVersionId: result.candidateWorkflowVersionId,
-      benchmarkRunId: result.benchmarkRunId,
+      candidateLineageId: result.candidateLineageId,
       recommendationsSummary: result.recommendationsSummary,
       analysis: result.analysis,
       pipelineMessage: result.pipelineMessage,
       rejectionDetails: result.rejectionDetails,
       status: result.status,
       error: result.error,
-      benchmarkRunStatus: result.benchmarkRunStatus,
-      baselineComparison: result.baselineComparison,
     };
   }
 
