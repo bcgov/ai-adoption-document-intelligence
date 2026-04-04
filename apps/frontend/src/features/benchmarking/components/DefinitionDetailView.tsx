@@ -27,7 +27,7 @@ import {
   useWorkflowVersions,
 } from "@/data/hooks/useWorkflows";
 import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
-import { useRunOcrImprovement, useStartRun } from "../hooks/useRuns";
+import { useGenerateCandidate, useStartRun } from "../hooks/useRuns";
 import { ScheduleConfig } from "./ScheduleConfig";
 
 interface DatasetVersionInfo {
@@ -124,10 +124,10 @@ export function DefinitionDetailView({
     definition.id,
   );
   const {
-    runOcrImprovement,
-    isRunning: isOcrImprovementRunning,
-    result: ocrImprovementResult,
-  } = useRunOcrImprovement(definition.projectId, definition.id);
+    generateCandidate,
+    isGenerating: isOcrImprovementRunning,
+    result: generateResult,
+  } = useGenerateCandidate(definition.projectId, definition.id);
 
   const { history: baselineHistory, isLoading: isLoadingHistory } =
     useBaselineHistory(definition.projectId, definition.id);
@@ -139,36 +139,37 @@ export function DefinitionDetailView({
     navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
   };
 
-  const handleRunOcrImprovement = async () => {
+  const handleGenerateCandidate = async () => {
     try {
-      const result = await runOcrImprovement({});
-      if (result.status === "benchmark_started" && result.benchmarkRunId) {
+      const result = await generateCandidate({});
+      if (result?.status === "candidate_created") {
         notifications.show({
-          title: "OCR improvement pipeline started",
-          message: `Candidate run ${result.benchmarkRunId.substring(0, 8)}… started. When it completes, open that run and use "Apply candidate to base workflow" there to merge the graph into the base lineage.`,
+          title: "Candidate workflow created",
+          message:
+            "Candidate created. Review it in the workflow editor, then create a definition and benchmark it.",
           color: "green",
+          autoClose: 8000,
         });
-      } else if (result.status === "no_recommendations") {
+      } else if (result?.status === "no_recommendations") {
         notifications.show({
           title: "No recommendations",
-          message:
-            result.analysis ||
-            "No HITL corrections to analyze, or AI did not recommend new tools.",
-          color: "blue",
+          message: result.pipelineMessage || "No tools recommended",
+          color: "yellow",
         });
-      } else if (result.status === "error") {
+      } else {
         notifications.show({
-          title: "Pipeline error",
-          message: result.error || "Unknown error",
+          title: "Error",
+          message: result?.error || "Pipeline failed",
           color: "red",
         });
       }
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to run pipeline";
+    } catch (error) {
       notifications.show({
-        title: "OCR improvement pipeline failed",
-        message,
+        title: "Error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate candidate",
         color: "red",
       });
     }
@@ -335,113 +336,101 @@ export function DefinitionDetailView({
             <Button
               variant="light"
               leftSection={<IconSparkles size={16} />}
-              onClick={handleRunOcrImprovement}
+              onClick={handleGenerateCandidate}
               loading={isOcrImprovementRunning}
               data-testid="run-ocr-improvement-btn"
             >
-              Run improvement pipeline
+              Generate candidate workflow
             </Button>
           </Group>
           <Text size="sm" c="dimmed" data-testid="ocr-improvement-description">
-            Aggregate HITL corrections, get AI tool recommendations, create a
-            candidate workflow with suggested correction nodes, and start a
-            benchmark run for comparison. When the run completes, open it and
-            apply the candidate workflow to the base lineage from the run page.
+            Aggregate HITL corrections and get AI tool recommendations to
+            generate a candidate workflow. Review the candidate in the workflow
+            editor, then create a definition and benchmark it. When the
+            benchmark run completes, apply the candidate workflow to the base
+            lineage from the run page.
           </Text>
-          {ocrImprovementResult && (
+          {generateResult && (
             <Stack gap="xs">
               <Badge
                 color={
-                  ocrImprovementResult.status === "benchmark_started"
+                  generateResult.status === "candidate_created"
                     ? "green"
-                    : ocrImprovementResult.status === "no_recommendations"
+                    : generateResult.status === "no_recommendations"
                       ? "blue"
                       : "red"
                 }
                 data-testid="ocr-improvement-status-badge"
               >
-                {ocrImprovementResult.status}
+                {generateResult.status}
               </Badge>
-              {ocrImprovementResult.status === "benchmark_started" && (
+              {generateResult.status === "candidate_created" && (
                 <>
                   <Group gap="lg">
                     <Text size="sm">
                       <Text span fw={500}>
                         Candidate workflow:
                       </Text>{" "}
-                      <Code>
-                        {ocrImprovementResult.candidateWorkflowVersionId}
-                      </Code>
+                      <Code>{generateResult.candidateWorkflowVersionId}</Code>
                     </Text>
                     <Text size="sm">
-                      <Text span fw={500}>
-                        Run:
-                      </Text>{" "}
-                      <Code>{ocrImprovementResult.benchmarkRunId}</Code>
-                    </Text>
-                    <Text size="sm">
-                      Applied{" "}
-                      {ocrImprovementResult.recommendationsSummary.applied}{" "}
+                      Applied {generateResult.recommendationsSummary.applied}{" "}
                       tools
-                      {ocrImprovementResult.recommendationsSummary.rejected >
-                        0 &&
-                        `, rejected ${ocrImprovementResult.recommendationsSummary.rejected}`}
+                      {generateResult.recommendationsSummary.rejected > 0 &&
+                        `, rejected ${generateResult.recommendationsSummary.rejected}`}
                       :{" "}
-                      {ocrImprovementResult.recommendationsSummary.toolIds.join(
+                      {generateResult.recommendationsSummary.toolIds.join(
                         ", ",
                       ) || "—"}
                     </Text>
                   </Group>
                 </>
               )}
-              {ocrImprovementResult.analysis && (
+              {generateResult.analysis && (
                 <Alert
                   color="blue"
                   title="AI analysis"
                   data-testid="ocr-improvement-analysis"
                 >
-                  {ocrImprovementResult.analysis}
+                  {generateResult.analysis}
                 </Alert>
               )}
-              {ocrImprovementResult.status === "no_recommendations" &&
-                ocrImprovementResult.pipelineMessage && (
+              {generateResult.status === "no_recommendations" &&
+                generateResult.pipelineMessage && (
                   <Alert
                     color="yellow"
                     title="Why no candidate was created"
                     data-testid="ocr-improvement-pipeline-message"
                   >
-                    {ocrImprovementResult.pipelineMessage}
+                    {generateResult.pipelineMessage}
                   </Alert>
                 )}
-              {ocrImprovementResult.status === "no_recommendations" &&
-                ocrImprovementResult.rejectionDetails &&
-                ocrImprovementResult.rejectionDetails.length > 0 && (
+              {generateResult.status === "no_recommendations" &&
+                generateResult.rejectionDetails &&
+                generateResult.rejectionDetails.length > 0 && (
                   <Alert
                     color="orange"
                     title="Could not apply recommendations to this workflow graph"
                     data-testid="ocr-improvement-rejection-details"
                   >
                     <Stack gap="xs">
-                      {ocrImprovementResult.rejectionDetails.map(
-                        (line, idx) => (
-                          <Text size="sm" key={idx}>
-                            {line}
-                          </Text>
-                        ),
-                      )}
+                      {generateResult.rejectionDetails.map((line, idx) => (
+                        <Text size="sm" key={idx}>
+                          {line}
+                        </Text>
+                      ))}
                     </Stack>
                   </Alert>
                 )}
-              {ocrImprovementResult.status === "error" &&
-                ocrImprovementResult.error && (
-                  <Alert
-                    color="red"
-                    title="Error"
-                    data-testid="ocr-improvement-error"
-                  >
-                    {ocrImprovementResult.error}
-                  </Alert>
-                )}
+              {generateResult.status === "error" && generateResult.error && (
+                <Alert
+                  color="red"
+                  title="Error"
+                  data-testid="ocr-improvement-error"
+                >
+                  {generateResult.error}
+                </Alert>
+              )}
             </Stack>
           )}
 
