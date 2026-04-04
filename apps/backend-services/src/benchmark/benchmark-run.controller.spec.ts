@@ -19,7 +19,11 @@ import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunController } from "./benchmark-run.controller";
 import { BenchmarkRunService } from "./benchmark-run.service";
-import { CreateRunDto, PromoteBaselineDto } from "./dto";
+import {
+  ApplyCandidateToBaseDto,
+  CreateRunDto,
+  PromoteBaselineDto,
+} from "./dto";
 import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
 describe("BenchmarkRunController", () => {
@@ -46,6 +50,7 @@ describe("BenchmarkRunController", () => {
     getDefinitionById: jest.fn().mockResolvedValue({
       workflow: { id: "workflow-1", workflowVersionId: "wv-workflow-1" },
     }),
+    applyToBaseWorkflow: jest.fn(),
   };
 
   const mockOcrImprovementPipeline = {
@@ -502,6 +507,58 @@ describe("BenchmarkRunController", () => {
       await expect(
         controller.promoteToBaseline(projectId, "run-x", promoteDto, mockReq),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("POST /apply-candidate-to-base", () => {
+    it("delegates to applyToBaseWorkflow with correct args", async () => {
+      const expected = {
+        newBaseWorkflowVersionId: "wv-new-base",
+        baseLineageId: "base-lineage",
+        newVersionNumber: 3,
+        cleanedUp: true,
+      };
+      mockDefinitionService.applyToBaseWorkflow.mockResolvedValue(expected);
+
+      const dto: ApplyCandidateToBaseDto = {
+        candidateWorkflowVersionId: "candidate-v1",
+        cleanupCandidateArtifacts: true,
+      };
+
+      const result = await controller.applyCandidateToBase(
+        projectId,
+        dto,
+        mockReq,
+      );
+
+      expect(mockDefinitionService.applyToBaseWorkflow).toHaveBeenCalledWith(
+        projectId,
+        "candidate-v1",
+        true,
+      );
+      expect(result).toEqual(expected);
+    });
+
+    it("defaults cleanupCandidateArtifacts to true when omitted", async () => {
+      const expected = {
+        newBaseWorkflowVersionId: "wv-new-base",
+        baseLineageId: "base-lineage",
+        newVersionNumber: 3,
+        cleanedUp: true,
+      };
+      mockDefinitionService.applyToBaseWorkflow.mockResolvedValue(expected);
+
+      const dto: ApplyCandidateToBaseDto = {
+        candidateWorkflowVersionId: "candidate-v1",
+      };
+
+      await controller.applyCandidateToBase(projectId, dto, mockReq);
+
+      expect(mockDefinitionService.applyToBaseWorkflow).toHaveBeenCalledWith(
+        projectId,
+        "candidate-v1",
+        true,
+      );
     });
   });
 

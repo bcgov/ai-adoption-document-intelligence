@@ -1084,6 +1084,99 @@ describe("BenchmarkDefinitionService", () => {
       });
     });
 
+    it("cleans up candidate artifacts when cleanupCandidateArtifacts is true", async () => {
+      const projectId = "project-1";
+      const candidateWorkflowVersionId = "candidate-v1";
+      const baseLineageId = "base-lineage";
+      const candidateLineageId = "cand-lineage";
+
+      jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
+        id: candidateWorkflowVersionId,
+        config: candidateConfig,
+        lineage: {
+          id: candidateLineageId,
+          workflow_kind: "benchmark_candidate",
+          source_workflow_id: baseLineageId,
+        },
+      } as never);
+
+      jest.spyOn(prisma.workflowVersion, "findFirst").mockResolvedValue({
+        version_number: 2,
+      } as never);
+
+      jest.spyOn(prisma.workflowVersion, "create").mockResolvedValue({
+        id: "wv-new-base",
+        version_number: 3,
+      } as never);
+
+      jest
+        .spyOn(prisma.workflowLineage, "update")
+        .mockResolvedValue({} as never);
+
+      // Candidate lineage has two versions
+      jest
+        .spyOn(prisma.workflowVersion, "findMany")
+        .mockResolvedValue([{ id: "cand-v1" }, { id: "cand-v2" }] as never);
+
+      // Two definitions point to candidate versions
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findMany")
+        .mockResolvedValue([
+          { id: "def-cand-1" },
+          { id: "def-cand-2" },
+        ] as never);
+
+      jest
+        .spyOn(prisma.benchmarkRun, "deleteMany")
+        .mockResolvedValue({ count: 3 } as never);
+
+      jest
+        .spyOn(prisma.benchmarkDefinition, "deleteMany")
+        .mockResolvedValue({ count: 2 } as never);
+
+      jest
+        .spyOn(prisma.workflowLineage, "delete")
+        .mockResolvedValue({} as never);
+
+      const result = await service.applyToBaseWorkflow(
+        projectId,
+        candidateWorkflowVersionId,
+        true,
+      );
+
+      expect(result.cleanedUp).toBe(true);
+
+      // Fetched candidate versions for the lineage
+      expect(prisma.workflowVersion.findMany).toHaveBeenCalledWith({
+        where: { lineage_id: candidateLineageId },
+        select: { id: true },
+      });
+
+      // Found definitions pointing to candidate versions
+      expect(prisma.benchmarkDefinition.findMany).toHaveBeenCalledWith({
+        where: {
+          projectId,
+          workflowVersionId: { in: ["cand-v1", "cand-v2"] },
+        },
+        select: { id: true },
+      });
+
+      // Deleted runs for those definitions
+      expect(prisma.benchmarkRun.deleteMany).toHaveBeenCalledWith({
+        where: { definitionId: { in: ["def-cand-1", "def-cand-2"] } },
+      });
+
+      // Deleted the definitions themselves
+      expect(prisma.benchmarkDefinition.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["def-cand-1", "def-cand-2"] } },
+      });
+
+      // Deleted the candidate lineage (cascades versions)
+      expect(prisma.workflowLineage.delete).toHaveBeenCalledWith({
+        where: { id: candidateLineageId },
+      });
+    });
+
     it("rejects non-candidate workflows", async () => {
       jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
         id: "wv-primary",
