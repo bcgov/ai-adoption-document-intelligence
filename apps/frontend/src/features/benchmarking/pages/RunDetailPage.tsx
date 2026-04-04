@@ -36,10 +36,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
-import {
-  useDefinition,
-  usePromoteCandidateWorkflow,
-} from "../hooks/useDefinitions";
+import { useApplyToBaseWorkflow, useDefinition } from "../hooks/useDefinitions";
 import {
   useArtifacts,
   useDrillDown,
@@ -296,6 +293,7 @@ export function RunDetailPage() {
   const [drawerField, setDrawerField] = useState<string | null>(null);
   const [persistOcrCacheOnRerun, setPersistOcrCacheOnRerun] = useState(true);
   const [applyCandidateModalOpen, setApplyCandidateModalOpen] = useState(false);
+  const [cleanupArtifacts, setCleanupArtifacts] = useState(true);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -305,10 +303,8 @@ export function RunDetailPage() {
   );
 
   const { definition } = useDefinition(projectId, run?.definitionId || "");
-  const {
-    mutateAsync: promoteCandidateWorkflow,
-    isPending: isPromotingCandidate,
-  } = usePromoteCandidateWorkflow(projectId, run?.definitionId ?? "");
+  const applyToBaseMutation = useApplyToBaseWorkflow(projectId ?? "");
+  const isApplyingToBase = applyToBaseMutation.isPending;
   const { drillDown } = useDrillDown(projectId, runId || "");
   const { artifacts, total: totalArtifacts } = useArtifacts(
     projectId,
@@ -410,11 +406,12 @@ export function RunDetailPage() {
     run.baselineThresholds.length > 0;
   const temporalUrl = `${TEMPORAL_UI_URL}/namespaces/default/workflows/${run.temporalWorkflowId}`;
 
-  const candidateWorkflowRaw = run.params?.candidateWorkflowVersionId;
-  const candidateWorkflowVersionId =
-    typeof candidateWorkflowRaw === "string" ? candidateWorkflowRaw : undefined;
   const canApplyCandidateWorkflow =
-    run.status === "completed" && Boolean(candidateWorkflowVersionId);
+    run.status === "completed" &&
+    definition?.workflow?.workflowKind === "benchmark_candidate" &&
+    !!definition?.workflow?.sourceWorkflowId;
+
+  const candidateWorkflowVersionId = definition?.workflow?.workflowVersionId;
 
   // All possible artifact types (from schema) - should always be available in filter dropdown
   const allArtifactTypes = [
@@ -519,41 +516,47 @@ export function RunDetailPage() {
                   variant="light"
                   color="gray"
                   leftSection={<IconSparkles size={16} />}
-                  loading={isPromotingCandidate}
-                  disabled={isPromotingCandidate}
+                  loading={isApplyingToBase}
+                  disabled={isApplyingToBase}
                   onClick={() => setApplyCandidateModalOpen(true)}
                   data-testid="apply-candidate-btn"
                 >
-                  Apply candidate to base workflow
+                  Apply to base workflow
                 </Button>
                 <Modal
                   opened={applyCandidateModalOpen}
                   onClose={() => setApplyCandidateModalOpen(false)}
-                  title="Apply candidate workflow"
+                  title="Apply candidate to base workflow"
                   data-testid="apply-candidate-confirm-modal"
                 >
                   <Stack gap="md">
                     <Text size="sm">
-                      Apply this candidate workflow graph to the base workflow
-                      lineage for this definition?
+                      Copy this candidate workflow config as a new version on
+                      the base workflow lineage.
                     </Text>
+                    <Switch
+                      checked={cleanupArtifacts}
+                      onChange={(e) =>
+                        setCleanupArtifacts(e.currentTarget.checked)
+                      }
+                      label="Clean up candidate artifacts"
+                      description="Delete the candidate lineage, test definitions, and their runs"
+                      size="sm"
+                      data-testid="cleanup-artifacts-switch"
+                    />
                     <Group justify="flex-end" gap="xs">
                       <Button
-                        type="button"
                         variant="subtle"
                         onClick={() => setApplyCandidateModalOpen(false)}
-                        data-testid="apply-candidate-cancel-btn"
                       >
                         Cancel
                       </Button>
                       <Button
-                        type="button"
-                        loading={isPromotingCandidate}
-                        disabled={isPromotingCandidate}
                         onClick={async () => {
                           try {
-                            await promoteCandidateWorkflow({
+                            await applyToBaseMutation.mutateAsync({
                               candidateWorkflowVersionId,
+                              cleanupCandidateArtifacts: cleanupArtifacts,
                             });
                             setApplyCandidateModalOpen(false);
                             notifications.show({
@@ -567,7 +570,7 @@ export function RunDetailPage() {
                               message:
                                 error instanceof Error
                                   ? error.message
-                                  : "Failed to apply candidate workflow",
+                                  : "Failed to apply candidate",
                               color: "red",
                             });
                           }
