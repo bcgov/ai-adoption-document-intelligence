@@ -3,18 +3,9 @@
  */
 
 import { ApiProperty } from "@nestjs/swagger";
-import { IsIn, IsObject, IsOptional } from "class-validator";
+import { IsIn, IsOptional } from "class-validator";
 
 export class OcrImprovementGenerateDto {
-  @ApiProperty({
-    description:
-      "Optional filters for HITL correction aggregation (e.g. startDate, endDate, groupIds, fieldKeys)",
-    required: false,
-  })
-  @IsOptional()
-  @IsObject()
-  hitlFilters?: Record<string, unknown>;
-
   @ApiProperty({
     description:
       'Force emptyValueCoercion on every ocr.normalizeFields node ("none" | "blank" | "null")',
