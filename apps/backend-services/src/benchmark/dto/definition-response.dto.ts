@@ -5,6 +5,8 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-011-benchmark-definition-service-controller.md
  */
 
+import { ApiProperty } from "@nestjs/swagger";
+
 /**
  * Dataset version info embedded in definition response
  */
@@ -48,6 +50,24 @@ export class WorkflowInfo {
    * Immutable config revision number
    */
   version: number;
+
+  /**
+   * Workflow lineage kind ("primary" or "benchmark_candidate")
+   */
+  @ApiProperty({
+    description: 'Workflow lineage kind ("primary" or "benchmark_candidate")',
+    required: false,
+  })
+  workflowKind?: string;
+
+  /**
+   * Source workflow lineage ID (set when workflowKind is "benchmark_candidate")
+   */
+  @ApiProperty({
+    description: "Source workflow lineage ID for candidate workflows",
+    required: false,
+  })
+  sourceWorkflowId?: string | null;
 }
 
 /**

@@ -633,7 +633,12 @@ export class BenchmarkDefinitionService {
     workflowVersion: {
       id: string;
       version_number: number;
-      lineage: { id: string; name: string };
+      lineage: {
+        id: string;
+        name: string;
+        workflow_kind: string | null;
+        source_workflow_id: string | null;
+      };
     };
   }): DefinitionSummaryDto {
     return {
@@ -649,6 +654,10 @@ export class BenchmarkDefinitionService {
         workflowVersionId: definition.workflowVersion.id,
         name: definition.workflowVersion.lineage.name,
         version: definition.workflowVersion.version_number,
+        workflowKind:
+          definition.workflowVersion.lineage.workflow_kind ?? undefined,
+        sourceWorkflowId:
+          definition.workflowVersion.lineage.source_workflow_id ?? null,
       },
       evaluatorType: definition.evaluatorType,
       immutable: definition.immutable,
@@ -693,7 +702,12 @@ export class BenchmarkDefinitionService {
       workflowVersion: {
         id: string;
         version_number: number;
-        lineage: { id: string; name: string };
+        lineage: {
+          id: string;
+          name: string;
+          workflow_kind: string | null;
+          source_workflow_id: string | null;
+        };
       };
       benchmarkRuns: Array<{
         id: string;
@@ -721,6 +735,10 @@ export class BenchmarkDefinitionService {
       workflowVersionId: definition.workflowVersion.id,
       name: definition.workflowVersion.lineage.name,
       version: definition.workflowVersion.version_number,
+      workflowKind:
+        definition.workflowVersion.lineage.workflow_kind ?? undefined,
+      sourceWorkflowId:
+        definition.workflowVersion.lineage.source_workflow_id ?? null,
     };
 
     const split: SplitInfo | undefined = definition.split
