@@ -27,22 +27,20 @@ import {
   type OcrNormalizeFieldsEmptyValueCoercion,
   type ToolRecommendation,
 } from "@/workflow/workflow-modification.util";
-import type { HitlAggregationFilters } from "../hitl/hitl-aggregation.service";
-import { HitlAggregationService } from "../hitl/hitl-aggregation.service";
 import { ToolManifestService } from "../hitl/tool-manifest.service";
 import { WorkflowService } from "../workflow/workflow.service";
 import type { PipelineLogEntry } from "./ai-recommendation.service";
 import { AiRecommendationService } from "./ai-recommendation.service";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
+import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 
 export type { PipelineLogEntry };
 
 export interface GenerateInput {
   workflowVersionId: string;
   actorId: string;
-  /** When provided, debug log entries are persisted to this definition's pipelineDebugLog column */
-  definitionId?: string;
-  hitlFilters?: HitlAggregationFilters;
+  /** Definition ID — used to find baseline run and persist debug log */
+  definitionId: string;
   normalizeFieldsEmptyValueCoercion?: OcrNormalizeFieldsEmptyValueCoercion;
 }
 
@@ -66,7 +64,7 @@ export class OcrImprovementPipelineService {
   private readonly logger = new Logger(OcrImprovementPipelineService.name);
 
   constructor(
-    private readonly hitlAggregation: HitlAggregationService,
+    private readonly benchmarkRunDb: BenchmarkRunDbService,
     private readonly toolManifest: ToolManifestService,
     private readonly aiRecommendation: AiRecommendationService,
     private readonly workflowService: WorkflowService,
@@ -114,15 +112,66 @@ export class OcrImprovementPipelineService {
     };
 
     try {
-      // Step 1: Aggregate HITL corrections
+      // Step 1: Extract mismatches from baseline run
       let stepStart = Date.now();
-      const { corrections } =
-        await this.hitlAggregation.getAggregatedCorrections(
-          input.hitlFilters ?? {},
-        );
-      logStep("hitl_aggregation", stepStart, {
-        filters: input.hitlFilters ?? {},
-        correctionCount: corrections.length,
+      const baselineRun = await this.benchmarkRunDb.findBaselineBenchmarkRun(
+        input.definitionId,
+      );
+      if (!baselineRun || baselineRun.status !== "completed") {
+        logStep("baseline_mismatch_extraction", stepStart, {
+          error: "No completed baseline run found",
+        });
+        await persistLog();
+        return {
+          candidateWorkflowVersionId: "",
+          candidateLineageId: "",
+          recommendationsSummary: {
+            applied: 0,
+            rejected: 0,
+            toolIds: [],
+          },
+          status: "error",
+          error:
+            "No completed baseline run found for this definition. Promote a run to baseline first.",
+        };
+      }
+
+      const metrics = baselineRun.metrics as Record<string, unknown> | null;
+      const perSampleResults = (
+        Array.isArray(metrics?.perSampleResults) ? metrics.perSampleResults : []
+      ) as Array<{
+        sampleId: string;
+        evaluationDetails?: Array<{
+          field: string;
+          matched: boolean;
+          expected?: unknown;
+          predicted?: unknown;
+        }>;
+      }>;
+
+      const corrections: Array<{
+        fieldKey: string;
+        originalValue: string;
+        correctedValue: string;
+        action: string;
+      }> = [];
+
+      for (const sample of perSampleResults) {
+        if (!Array.isArray(sample.evaluationDetails)) continue;
+        for (const detail of sample.evaluationDetails) {
+          if (detail.matched) continue;
+          corrections.push({
+            fieldKey: detail.field,
+            originalValue: String(detail.predicted ?? ""),
+            correctedValue: String(detail.expected ?? ""),
+            action: "mismatch",
+          });
+        }
+      }
+
+      logStep("baseline_mismatch_extraction", stepStart, {
+        baselineRunId: baselineRun.id,
+        totalMismatches: corrections.length,
         sampleCorrections: corrections.slice(0, 5),
       });
 
@@ -137,7 +186,7 @@ export class OcrImprovementPipelineService {
             toolIds: [],
           },
           pipelineMessage:
-            "No HITL corrections matched the aggregation filters; nothing to recommend.",
+            "Baseline run has no field mismatches; nothing to recommend.",
           status: "no_recommendations",
         };
       }
@@ -153,12 +202,7 @@ export class OcrImprovementPipelineService {
       });
 
       // Step 3: Build AI input for AiRecommendationService
-      const correctionInput = corrections.map((c) => ({
-        fieldKey: c.fieldKey,
-        originalValue: c.originalValue,
-        correctedValue: c.correctedValue,
-        action: c.action,
-      }));
+      const correctionInput = corrections;
 
       const toolInput = manifest.map((t) => ({
         toolId: t.toolId,

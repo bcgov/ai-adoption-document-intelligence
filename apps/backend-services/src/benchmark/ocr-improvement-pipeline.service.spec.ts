@@ -3,11 +3,11 @@
  */
 
 import { Test, TestingModule } from "@nestjs/testing";
-import { HitlAggregationService } from "@/hitl/hitl-aggregation.service";
 import { ToolManifestService } from "@/hitl/tool-manifest.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { AiRecommendationService } from "./ai-recommendation.service";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
+import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
 const baseWorkflowConfig = {
@@ -48,11 +48,64 @@ const baseWorkflowConfig = {
   ctx: {},
 };
 
+function makeBaselineRun(
+  overrides: {
+    status?: string;
+    perSampleResults?: Array<{
+      sampleId: string;
+      evaluationDetails?: Array<{
+        field: string;
+        matched: boolean;
+        expected?: unknown;
+        predicted?: unknown;
+      }>;
+    }>;
+  } = {},
+) {
+  return {
+    id: "baseline-run-1",
+    status: overrides.status ?? "completed",
+    completedAt: new Date("2026-04-01"),
+    metrics: {
+      perSampleResults: overrides.perSampleResults ?? [
+        {
+          sampleId: "form_1",
+          evaluationDetails: [
+            {
+              field: "date",
+              matched: false,
+              expected: "2009-06-16",
+              predicted: "16-06-2009",
+            },
+            {
+              field: "name",
+              matched: true,
+              expected: "John",
+              predicted: "John",
+            },
+          ],
+        },
+        {
+          sampleId: "form_2",
+          evaluationDetails: [
+            {
+              field: "phone",
+              matched: false,
+              expected: "085-437-870",
+              predicted: "085-437- 870",
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
 describe("OcrImprovementPipelineService - generate()", () => {
   let service: OcrImprovementPipelineService;
 
-  const mockHitlAggregation = {
-    getAggregatedCorrections: jest.fn(),
+  const mockBenchmarkRunDb = {
+    findBaselineBenchmarkRun: jest.fn(),
   };
 
   const mockToolManifest = {
@@ -85,7 +138,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OcrImprovementPipelineService,
-        { provide: HitlAggregationService, useValue: mockHitlAggregation },
+        { provide: BenchmarkRunDbService, useValue: mockBenchmarkRunDb },
         { provide: ToolManifestService, useValue: mockToolManifest },
         { provide: AiRecommendationService, useValue: mockAiRecommendation },
         { provide: WorkflowService, useValue: mockWorkflowService },
@@ -105,19 +158,67 @@ describe("OcrImprovementPipelineService - generate()", () => {
     expect(service).toBeDefined();
   });
 
-  it("should create candidate workflow without starting a benchmark run", async () => {
-    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
-      corrections: [
-        {
-          fieldKey: "f1",
-          originalValue: "O",
-          correctedValue: "0",
-          action: "corrected",
-        },
-      ],
-      total: 1,
-      filters: {},
+  it("should return error when no baseline run exists", async () => {
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(null);
+
+    const result = await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+      definitionId: "def-1",
     });
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("No completed baseline run found");
+  });
+
+  it("should return error when baseline run is not completed", async () => {
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
+      makeBaselineRun({ status: "running" }),
+    );
+
+    const result = await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+      definitionId: "def-1",
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("No completed baseline run found");
+  });
+
+  it("should return no_recommendations when baseline has no mismatches", async () => {
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
+      makeBaselineRun({
+        perSampleResults: [
+          {
+            sampleId: "form_1",
+            evaluationDetails: [
+              {
+                field: "date",
+                matched: true,
+                expected: "2009-06-16",
+                predicted: "2009-06-16",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const result = await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+      definitionId: "def-1",
+    });
+
+    expect(result.status).toBe("no_recommendations");
+    expect(result.pipelineMessage).toContain("no field mismatches");
+  });
+
+  it("should extract mismatches and create candidate workflow", async () => {
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
+      makeBaselineRun(),
+    );
 
     mockWorkflowService.getWorkflowById.mockResolvedValue({
       id: "wf-1",
@@ -144,68 +245,52 @@ describe("OcrImprovementPipelineService - generate()", () => {
     const result = await service.generate({
       workflowVersionId: "wf-1",
       actorId: "user-1",
+      definitionId: "def-1",
     });
 
     expect(result.status).toBe("candidate_created");
     expect(result.candidateWorkflowVersionId).toBe("version-xyz");
     expect(result.candidateLineageId).toBe("lineage-abc");
     expect(result.recommendationsSummary.applied).toBeGreaterThan(0);
-  });
 
-  it("should return no_recommendations when there are no corrections", async () => {
-    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
-      corrections: [],
-      total: 0,
-      filters: {},
-    });
-
-    const result = await service.generate({
-      workflowVersionId: "wf-1",
-      actorId: "user-1",
-    });
-
-    expect(result.status).toBe("no_recommendations");
-    expect(result.candidateWorkflowVersionId).toBe("");
+    // Verify corrections passed to AI have the right shape
+    const aiCall = mockAiRecommendation.getRecommendations.mock.calls[0][0];
+    expect(aiCall.corrections).toEqual([
+      {
+        fieldKey: "date",
+        originalValue: "16-06-2009",
+        correctedValue: "2009-06-16",
+        action: "mismatch",
+      },
+      {
+        fieldKey: "phone",
+        originalValue: "085-437- 870",
+        correctedValue: "085-437-870",
+        action: "mismatch",
+      },
+    ]);
   });
 
   it("should return error when workflow not found", async () => {
-    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
-      corrections: [
-        {
-          fieldKey: "f1",
-          originalValue: "a",
-          correctedValue: "b",
-          action: "corrected",
-        },
-      ],
-      total: 1,
-      filters: {},
-    });
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
+      makeBaselineRun(),
+    );
     mockWorkflowService.getWorkflowById.mockResolvedValue(null);
 
     const result = await service.generate({
       workflowVersionId: "wf-missing",
       actorId: "user-1",
+      definitionId: "def-1",
     });
 
     expect(result.status).toBe("error");
     expect(result.error).toContain("not found");
-    expect(result.candidateWorkflowVersionId).toBe("");
   });
 
   it("applies normalizeFieldsEmptyValueCoercion to every ocr.normalizeFields node in the candidate", async () => {
-    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
-      corrections: [
-        {
-          fieldKey: "f1",
-          originalValue: "a",
-          correctedValue: "b",
-          action: "corrected",
-        },
-      ],
-      total: 1,
-      filters: {},
-    });
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
+      makeBaselineRun(),
+    );
 
     mockWorkflowService.getWorkflowById.mockResolvedValue({
       id: "wf-1",
@@ -291,6 +376,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
     await service.generate({
       workflowVersionId: "wf-1",
       actorId: "user-1",
+      definitionId: "def-1",
       normalizeFieldsEmptyValueCoercion: "null",
     });
 
@@ -310,19 +396,10 @@ describe("OcrImprovementPipelineService - generate()", () => {
     }
   });
 
-  it("should persist debug log entries on successful generation", async () => {
-    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
-      corrections: [
-        {
-          fieldKey: "f1",
-          originalValue: "O",
-          correctedValue: "0",
-          action: "corrected",
-        },
-      ],
-      total: 1,
-      filters: {},
-    });
+  it("should persist debug log entries with baseline_mismatch_extraction step", async () => {
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
+      makeBaselineRun(),
+    );
     mockWorkflowService.getWorkflowById.mockResolvedValue({
       id: "wf-1",
       config: baseWorkflowConfig,
@@ -352,7 +429,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
     expect(mockDefinitionDbService.updatePipelineDebugLog).toHaveBeenCalledWith(
       "def-1",
       expect.arrayContaining([
-        expect.objectContaining({ step: "hitl_aggregation" }),
+        expect.objectContaining({ step: "baseline_mismatch_extraction" }),
         expect.objectContaining({ step: "tool_manifest" }),
         expect.objectContaining({ step: "workflow_load" }),
         expect.objectContaining({ step: "recommendation_parse" }),
@@ -363,7 +440,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
   });
 
   it("should persist debug log with error entry on failure", async () => {
-    mockHitlAggregation.getAggregatedCorrections.mockRejectedValue(
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockRejectedValue(
       new Error("DB connection failed"),
     );
 
@@ -382,17 +459,5 @@ describe("OcrImprovementPipelineService - generate()", () => {
         }),
       ]),
     );
-  });
-
-  it("should not attempt to persist debug log when definitionId is not provided", async () => {
-    mockHitlAggregation.getAggregatedCorrections.mockResolvedValue({
-      corrections: [],
-      total: 0,
-      filters: {},
-    });
-    await service.generate({ workflowVersionId: "wf-1", actorId: "user-1" });
-    expect(
-      mockDefinitionDbService.updatePipelineDebugLog,
-    ).not.toHaveBeenCalled();
   });
 });
