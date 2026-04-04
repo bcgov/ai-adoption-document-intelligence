@@ -117,8 +117,6 @@ model User {
   apiKeys            ApiKey[]
   userGroups         UserGroup[]
   membershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
-  workflowLineages   WorkflowLineage[]
-
   @@map("user")
 }
 
@@ -139,6 +137,7 @@ model Actor {
   benchmarkAuditLogs        BenchmarkAuditLog[]
   createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
   updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
+  workflowLineages          WorkflowLineage[]
 
   @@map("actor")
 }
@@ -148,8 +147,8 @@ model WorkflowLineage {
   id                   String            @id @default(cuid())
   name                 String
   description          String?
-  user_id              String
-  user                 User              @relation(fields: [user_id], references: [id])
+  actor_id             String
+  actor                Actor             @relation(fields: [actor_id], references: [id])
   group_id             String
   group                Group             @relation(fields: [group_id], references: [id])
   workflow_kind        WorkflowKind      @default(primary)

@@ -292,7 +292,9 @@ describe("BenchmarkDefinitionService", () => {
         splitId: "split-1",
         workflowVersionId: "wv-workflow-1",
         workflowConfigHash: expect.any(String),
-        workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+        workflowConfigOverrides: {
+          "ctx.modelId.defaultValue": "prebuilt-read",
+        },
         evaluatorType: "schema-aware",
         evaluatorConfig: {},
         runtimeSettings: { maxParallelDocuments: 10 },
@@ -318,7 +320,9 @@ describe("BenchmarkDefinitionService", () => {
         evaluatorType: "schema-aware",
         evaluatorConfig: {},
         runtimeSettings: { maxParallelDocuments: 10 },
-        workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+        workflowConfigOverrides: {
+          "ctx.modelId.defaultValue": "prebuilt-read",
+        },
       };
 
       const result = await service.createDefinition("project-1", dto);
@@ -329,7 +333,9 @@ describe("BenchmarkDefinitionService", () => {
       expect(prisma.benchmarkDefinition.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+            workflowConfigOverrides: {
+              "ctx.modelId.defaultValue": "prebuilt-read",
+            },
           }),
         }),
       );
@@ -380,9 +386,9 @@ describe("BenchmarkDefinitionService", () => {
         workflowConfigOverrides: { "nodes.node1.activityType": "evil.type" },
       };
 
-      await expect(
-        service.createDefinition("project-1", dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.createDefinition("project-1", dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

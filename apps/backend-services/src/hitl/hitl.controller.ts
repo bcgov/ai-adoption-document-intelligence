@@ -109,7 +109,9 @@ export class HitlController {
 
   @Post("sessions/next")
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Atomically pick the next eligible document and start a session" })
+  @ApiOperation({
+    summary: "Atomically pick the next eligible document and start a session",
+  })
   @ApiCreatedResponse({
     description: "New review session created for the next eligible document",
     type: ReviewSessionResponseDto,
@@ -325,8 +327,14 @@ export class HitlController {
     type: ReopenSessionResponseDto,
   })
   @ApiNotFoundResponse({ description: "Session not found" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member or not the original reviewer" })
-  @ApiConflictResponse({ description: "Session cannot be reopened (already in progress, window expired, or dataset frozen)" })
+  @ApiForbiddenResponse({
+    description:
+      "Access denied: not a group member or not the original reviewer",
+  })
+  @ApiConflictResponse({
+    description:
+      "Session cannot be reopened (already in progress, window expired, or dataset frozen)",
+  })
   async reopenSession(@Param("id") sessionId: string, @Req() req: Request) {
     const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {

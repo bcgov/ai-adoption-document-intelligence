@@ -22,7 +22,7 @@ CREATE TABLE "workflow_lineages" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "user_id" TEXT NOT NULL,
+    "actor_id" TEXT NOT NULL,
     "group_id" TEXT NOT NULL,
     "workflow_kind" "WorkflowKind" NOT NULL DEFAULT 'primary',
     "source_workflow_id" TEXT,
@@ -60,7 +60,7 @@ CREATE TABLE "benchmark_ocr_cache" (
 -- ============================================================
 
 -- 1. Create a lineage for each existing workflow
-INSERT INTO "workflow_lineages" ("id", "name", "description", "user_id", "group_id", "workflow_kind", "created_at", "updated_at")
+INSERT INTO "workflow_lineages" ("id", "name", "description", "actor_id", "group_id", "workflow_kind", "created_at", "updated_at")
 SELECT "id", "name", "description", "actor_id", "group_id", 'primary'::"WorkflowKind", "created_at", "updated_at"
 FROM "workflows";
 
@@ -147,7 +147,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "group_membership_request_group_id_user_id_sta
 -- ============================================================
 
 -- workflow_lineages FKs
-ALTER TABLE "workflow_lineages" ADD CONSTRAINT "workflow_lineages_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "workflow_lineages" ADD CONSTRAINT "workflow_lineages_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "workflow_lineages" ADD CONSTRAINT "workflow_lineages_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "workflow_lineages" ADD CONSTRAINT "workflow_lineages_source_workflow_id_fkey" FOREIGN KEY ("source_workflow_id") REFERENCES "workflow_lineages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "workflow_lineages" ADD CONSTRAINT "workflow_lineages_head_version_id_fkey" FOREIGN KEY ("head_version_id") REFERENCES "workflow_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -169,6 +169,18 @@ END $$;
 
 -- benchmark_definitions FK
 ALTER TABLE "benchmark_definitions" ADD CONSTRAINT "benchmark_definitions_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "workflow_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Remap documents.workflow_config_id from lineage IDs to version IDs
+UPDATE "documents" d
+SET "workflow_config_id" = wv."id"
+FROM "workflow_versions" wv
+WHERE wv."lineage_id" = d."workflow_config_id" AND wv."version_number" = 1;
+
+-- Null out any remaining references that don't match a version (orphaned)
+UPDATE "documents"
+SET "workflow_config_id" = NULL
+WHERE "workflow_config_id" IS NOT NULL
+  AND "workflow_config_id" NOT IN (SELECT "id" FROM "workflow_versions");
 
 -- documents FK (workflow_config_id now points to workflow_versions)
 ALTER TABLE "documents" ADD CONSTRAINT "documents_workflow_config_id_fkey" FOREIGN KEY ("workflow_config_id") REFERENCES "workflow_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;

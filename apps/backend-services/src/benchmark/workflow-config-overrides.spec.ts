@@ -1,8 +1,8 @@
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import {
+  applyWorkflowConfigOverrides,
   extractExposedParamDefaults,
   validateWorkflowConfigOverrides,
-  applyWorkflowConfigOverrides,
 } from "./workflow-config-overrides";
 
 function makeWorkflowConfig(
@@ -246,9 +246,13 @@ describe("applyWorkflowConfigOverrides", () => {
     expect(
       (result as unknown as Record<string, unknown>)["nodes"],
     ).toBeDefined();
-    const nodes = (result as unknown as Record<string, Record<string, unknown>>)["nodes"];
+    const nodes = (
+      result as unknown as Record<string, Record<string, unknown>>
+    )["nodes"];
     expect(
-      (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"]["model"],
+      (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"][
+        "model"
+      ],
     ).toBe("gpt-4o");
   });
 
@@ -257,7 +261,10 @@ describe("applyWorkflowConfigOverrides", () => {
     const result = applyWorkflowConfigOverrides(config, {
       "ctx.language.defaultValue": "fr",
     });
-    expect((result.ctx["language"] as unknown as Record<string, unknown>).defaultValue).toBe("fr");
+    expect(
+      (result.ctx["language"] as unknown as Record<string, unknown>)
+        .defaultValue,
+    ).toBe("fr");
   });
 
   it("applies multiple overrides", () => {
@@ -266,10 +273,17 @@ describe("applyWorkflowConfigOverrides", () => {
       "ctx.language.defaultValue": "de",
       "nodes.node1.parameters.temperature": 0.2,
     });
-    expect((result.ctx["language"] as unknown as Record<string, unknown>).defaultValue).toBe("de");
-    const nodes = (result as unknown as Record<string, Record<string, unknown>>)["nodes"];
     expect(
-      (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"]["temperature"],
+      (result.ctx["language"] as unknown as Record<string, unknown>)
+        .defaultValue,
+    ).toBe("de");
+    const nodes = (
+      result as unknown as Record<string, Record<string, unknown>>
+    )["nodes"];
+    expect(
+      (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"][
+        "temperature"
+      ],
     ).toBe(0.2);
   });
 
@@ -295,9 +309,15 @@ describe("applyWorkflowConfigOverrides", () => {
     const result = applyWorkflowConfigOverrides(config, {
       "nodes.node1.parameters.deeply.nested.value": 42,
     });
-    const nodes = (result as unknown as Record<string, Record<string, unknown>>)["nodes"];
-    const params = (nodes["node1"] as Record<string, unknown>)["parameters"] as Record<string, unknown>;
-    expect((params["deeply"] as Record<string, unknown>)["nested"]).toEqual({ value: 42 });
+    const nodes = (
+      result as unknown as Record<string, Record<string, unknown>>
+    )["nodes"];
+    const params = (nodes["node1"] as Record<string, unknown>)[
+      "parameters"
+    ] as Record<string, unknown>;
+    expect((params["deeply"] as Record<string, unknown>)["nested"]).toEqual({
+      value: 42,
+    });
   });
 
   it("overwrites existing intermediate objects", () => {
@@ -306,8 +326,12 @@ describe("applyWorkflowConfigOverrides", () => {
       "nodes.node1.parameters.model": "gpt-4o",
       "nodes.node1.parameters.temperature": 0.1,
     });
-    const nodes = (result as unknown as Record<string, Record<string, unknown>>)["nodes"];
-    const params = (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"];
+    const nodes = (
+      result as unknown as Record<string, Record<string, unknown>>
+    )["nodes"];
+    const params = (nodes["node1"] as Record<string, Record<string, unknown>>)[
+      "parameters"
+    ];
     expect(params["model"]).toBe("gpt-4o");
     expect(params["temperature"]).toBe(0.1);
   });

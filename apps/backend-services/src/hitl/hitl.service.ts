@@ -572,9 +572,7 @@ export class HitlService {
     if (groundTruthJob) {
       // Dataset labeling workflow: block if dataset version is frozen
       if (groundTruthJob.datasetVersion.frozen) {
-        throw new ConflictException(
-          "Cannot reopen: dataset version is frozen",
-        );
+        throw new ConflictException("Cannot reopen: dataset version is frozen");
       }
     } else {
       // Regular workflow: allow within 5 minutes of completion
@@ -583,9 +581,7 @@ export class HitlService {
         !session.completed_at ||
         Date.now() - session.completed_at.getTime() > fiveMinutesMs
       ) {
-        throw new ConflictException(
-          "Cannot reopen: reopen window has expired",
-        );
+        throw new ConflictException("Cannot reopen: reopen window has expired");
       }
     }
 

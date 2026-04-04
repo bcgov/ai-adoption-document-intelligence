@@ -396,7 +396,9 @@ describe("HitlService", () => {
       mockReviewDbService.createReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
 
       const result = await service.startSession(dto, "reviewer-1");
 
@@ -954,7 +956,9 @@ describe("HitlService", () => {
         status: ReviewStatus.in_progress,
         completed_at: null,
       } as any);
-      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
 
       const result = await service.reopenSession("session-1", "reviewer-1");
 
@@ -1040,7 +1044,9 @@ describe("HitlService", () => {
         status: ReviewStatus.in_progress,
         completed_at: null,
       } as any);
-      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
 
       const result = await service.reopenSession("session-1", "reviewer-1");
 
@@ -1089,13 +1095,13 @@ describe("HitlService", () => {
       mockReviewDbService.createReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
-
-      const result = await service.getNextSession(
-        {},
-        "reviewer-1",
-        ["group-1"],
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
       );
+
+      const result = await service.getNextSession({}, "reviewer-1", [
+        "group-1",
+      ]);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         status: DocumentStatus.completed_ocr,
@@ -1112,11 +1118,9 @@ describe("HitlService", () => {
     it("should return null when no eligible documents", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
-      const result = await service.getNextSession(
-        {},
-        "reviewer-1",
-        ["group-1"],
-      );
+      const result = await service.getNextSession({}, "reviewer-1", [
+        "group-1",
+      ]);
 
       expect(result).toBeNull();
     });
@@ -1135,11 +1139,9 @@ describe("HitlService", () => {
         highConfDoc,
       ] as any);
 
-      const result = await service.getNextSession(
-        {},
-        "reviewer-1",
-        ["group-1"],
-      );
+      const result = await service.getNextSession({}, "reviewer-1", [
+        "group-1",
+      ]);
 
       expect(result).toBeNull();
     });

@@ -801,9 +801,9 @@ describe("HitlController", () => {
           groupRoles: {},
         },
       } as unknown as Request;
-      await expect(
-        controller.reopenSession("session-1", req),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.reopenSession("session-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(hitlService.reopenSession).not.toHaveBeenCalled();
     });
 
@@ -817,9 +817,9 @@ describe("HitlController", () => {
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
-      await expect(
-        controller.reopenSession("session-1", req),
-      ).rejects.toThrow(NotFoundException);
+      await expect(controller.reopenSession("session-1", req)).rejects.toThrow(
+        NotFoundException,
+      );
       expect(hitlService.reopenSession).not.toHaveBeenCalled();
     });
   });
@@ -838,11 +838,9 @@ describe("HitlController", () => {
       hitlService.getNextSession.mockResolvedValue(mockResult as any);
       const result = await controller.getNextSession({} as any, req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.getNextSession).toHaveBeenCalledWith(
-        {},
-        "user-1",
-        ["group-1"],
-      );
+      expect(hitlService.getNextSession).toHaveBeenCalledWith({}, "user-1", [
+        "group-1",
+      ]);
     });
 
     it("scopes to a single group when group_id is provided", async () => {

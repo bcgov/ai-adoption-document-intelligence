@@ -1228,30 +1228,35 @@ export const ACTIVITY_REGISTRY: Record<string, { description: string }> = {
 
 ## 10. Database Changes
 
-### 10.1 Workflow Table
+### 10.1 Workflow Tables
 
-The `Workflow` model schema stays the same. The `config` JSONB column now stores `GraphWorkflowConfig` instead of `WorkflowStepsConfig`:
+The old `Workflow` model has been replaced by `WorkflowLineage` + `WorkflowVersion`. The `config` JSONB column (storing `GraphWorkflowConfig`) now lives on `WorkflowVersion`:
 
 ```prisma
-model Workflow {
+model WorkflowLineage {
   id          String   @id @default(cuid())
   name        String
   description String?
-  user_id     String
-  config      Json     // GraphWorkflowConfig stored as JSONB (was WorkflowStepsConfig)
-  version     Int      @default(1)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  actor_id    String
+  actor       Actor    @relation(fields: [actor_id], references: [id])
+  group_id    String
+  // ... head_version_id, workflow_kind, etc.
+  @@map("workflow_lineages")
+}
 
-  @@map("workflows")
+model WorkflowVersion {
+  id             String   @id @default(cuid())
+  lineage_id     String
+  version_number Int
+  config         Json     // GraphWorkflowConfig stored as JSONB
+  created_at     DateTime @default(now())
+  @@map("workflow_versions")
 }
 ```
 
-No Prisma migration needed for the table structure -- the `Json` column accepts any valid JSON. However, existing data in the `config` column uses the old format and will not be compatible (clean break, per requirements).
-
 ### 10.2 Document Table
 
-No changes to the `Document` model. The `workflow_config_id` still references a `Workflow.id` and `workflow_execution_id` still stores the Temporal execution ID.
+The `Document` model's `workflow_config_id` now references a `WorkflowVersion.id` (previously it referenced the old `Workflow.id`). The `workflow_execution_id` still stores the Temporal execution ID.
 
 ### 10.3 Data Cleanup
 

@@ -33,19 +33,26 @@ export function validateWorkflowConfigOverrides(
     for (const group of Object.values(config.nodeGroups)) {
       if (!group.exposedParams) continue;
       for (const param of group.exposedParams) {
-        exposedByPath.set(param.path, { type: param.type, options: param.options });
+        exposedByPath.set(param.path, {
+          type: param.type,
+          options: param.options,
+        });
       }
     }
   }
   for (const [path, value] of Object.entries(overrides)) {
     const param = exposedByPath.get(path);
     if (!param) {
-      errors.push(`Override path "${path}" is not an exposed configurable parameter`);
+      errors.push(
+        `Override path "${path}" is not an exposed configurable parameter`,
+      );
       continue;
     }
     if (param.type === "select" && param.options) {
       if (!param.options.includes(String(value))) {
-        errors.push(`Value "${value}" for "${path}" is not in allowed options: ${param.options.join(", ")}`);
+        errors.push(
+          `Value "${value}" for "${path}" is not in allowed options: ${param.options.join(", ")}`,
+        );
       }
     }
   }
@@ -71,7 +78,11 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   const parts = path.split(".");
   let current: unknown = obj;
   for (const part of parts) {
-    if (current === undefined || current === null || typeof current !== "object") {
+    if (
+      current === undefined ||
+      current === null ||
+      typeof current !== "object"
+    ) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[part];
@@ -79,12 +90,20 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
-function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
+function setNestedValue(
+  obj: Record<string, unknown>,
+  path: string,
+  value: unknown,
+): void {
   const parts = path.split(".");
   let current: Record<string, unknown> = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
-    if (current[part] === undefined || current[part] === null || typeof current[part] !== "object") {
+    if (
+      current[part] === undefined ||
+      current[part] === null ||
+      typeof current[part] !== "object"
+    ) {
       current[part] = {};
     }
     current = current[part] as Record<string, unknown>;

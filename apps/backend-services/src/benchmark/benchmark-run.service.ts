@@ -22,7 +22,6 @@ import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
-import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 import {
   BaselineComparison,
   CreateRunDto,
@@ -38,6 +37,7 @@ import {
   RunSummaryDto,
   SampleFailureDto,
 } from "./dto";
+import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 
 @Injectable()
 export class BenchmarkRunService {
@@ -257,7 +257,8 @@ export class BenchmarkRunService {
     let workflowConfigHashUsed: string;
 
     // Apply workflow config overrides from the definition
-    const workflowConfigOverrides = (definition.workflowConfigOverrides ?? {}) as Record<string, unknown>;
+    const workflowConfigOverrides = (definition.workflowConfigOverrides ??
+      {}) as Record<string, unknown>;
 
     if (dto.workflowConfigOverride) {
       workflowConfigUsed = dto.workflowConfigOverride;
@@ -296,7 +297,10 @@ export class BenchmarkRunService {
       workflowConfigUsed = candidateRow.config as Record<string, unknown>;
       workflowConfigHashUsed = this.hashWorkflowConfigJson(candidateRow.config);
     } else {
-      const baseConfig = definition.workflowVersion.config as Record<string, unknown>;
+      const baseConfig = definition.workflowVersion.config as Record<
+        string,
+        unknown
+      >;
       if (Object.keys(workflowConfigOverrides).length > 0) {
         workflowConfigUsed = applyWorkflowConfigOverrides(
           baseConfig as unknown as GraphWorkflowConfig,
