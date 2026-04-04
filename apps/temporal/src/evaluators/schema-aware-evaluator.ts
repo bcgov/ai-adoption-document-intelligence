@@ -150,17 +150,13 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     const extraFields = Object.keys(prediction).filter(
       (field) => !(field in groundTruth) && !isNullLike(prediction[field]),
     );
-    for (const field of extraFields) {
-      comparisonResults.push({
-        field,
-        matched: false,
-        predicted: prediction[field],
-        expected: undefined,
-      });
-    }
 
-    // Calculate metrics
-    const metrics = this.calculateMetrics(comparisonResults, groundTruth);
+    // Calculate metrics (extra fields count as false positives for precision)
+    const metrics = this.calculateMetrics(
+      comparisonResults,
+      groundTruth,
+      extraFields.length,
+    );
 
     // Build diagnostics
     const missingFields = comparisonResults
@@ -475,17 +471,12 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   private calculateMetrics(
     results: FieldComparisonResult[],
     groundTruth: Record<string, unknown>,
+    extraFieldCount: number,
   ): Record<string, number> {
     const groundTruthFields = Object.keys(groundTruth);
-    const truePositives = results.filter(
-      (r) => r.matched && r.expected !== undefined,
-    ).length;
-    const falsePositives = results.filter(
-      (r) => !r.matched && r.expected === undefined,
-    ).length;
-    const falseNegatives = results.filter(
-      (r) => !r.matched && r.expected !== undefined,
-    ).length;
+    const truePositives = results.filter((r) => r.matched).length;
+    const falsePositives = extraFieldCount;
+    const falseNegatives = results.filter((r) => !r.matched).length;
 
     const precision =
       truePositives + falsePositives > 0
