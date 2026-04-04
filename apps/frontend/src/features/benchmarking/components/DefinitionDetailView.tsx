@@ -204,7 +204,7 @@ export function DefinitionDetailView({
   /** Map step identifiers to human-readable labels for the accordion headers */
   const stepLabel = (step: string): string => {
     const labels: Record<string, string> = {
-      hitl_aggregation: "HITL Correction Aggregation",
+      baseline_mismatch_extraction: "Baseline Mismatch Extraction",
       tool_manifest: "Tool Manifest",
       workflow_load: "Workflow Load",
       prompt_build: "LLM Prompt",
