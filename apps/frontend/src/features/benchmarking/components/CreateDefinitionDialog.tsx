@@ -157,7 +157,7 @@ export function CreateDefinitionDialog({
   const [splits, setSplits] = useState<Split[]>([]);
 
   const getExposedParamDefaults = (wfId: string): Record<string, unknown> => {
-    const workflow = workflows.find((w) => w.id === wfId);
+    const workflow = workflows.find((w) => w.workflowVersionId === wfId);
     if (!workflow?.config) return {};
     const nodeGroups = workflow.config.nodeGroups as
       | Record<
