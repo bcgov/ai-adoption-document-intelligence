@@ -131,6 +131,7 @@ apps/backend-services/src/training/
 | GET | `/api/template-models/:id/documents/:docId/ocr` | Get OCR data |
 | POST | `/api/template-models/:id/documents/:docId/suggestions` | Generate suggestions |
 | POST | `/api/template-models/:id/export` | Export for training |
+| POST | `/api/template-models/:id/suggest-formats` | AI-suggested format specs |
 
 #### Training
 

@@ -107,6 +107,23 @@ The gathered data is sent to Azure OpenAI (same configuration as the OCR improve
 - Skips free-text fields with no consistent format
 - Returns an empty array when no suggestions can be made
 
+### Frontend Review UI
+
+The **Template Model detail page** (`ModelDetailPage.tsx`) exposes a "Suggest Formats" button (with an `IconSparkles` icon) in the Field Schema tab's button group. Clicking it:
+
+1. Calls `POST /api/template-models/:id/suggest-formats` (empty body).
+2. Opens a "Format Suggestions" modal displaying each suggestion as a card with:
+   - Field key (bold)
+   - Suggested spec: `canonicalize`, `pattern` (if any), `displayTemplate` (if any)
+   - Rationale text from the AI
+   - "Based on N corrections" sample count
+   - Accept / Reject action buttons
+3. Accepting a suggestion calls `updateField` to persist `format_spec` on the matching field definition.
+4. Rejecting removes the suggestion from the review list without making any API call.
+5. A remaining-count indicator ("X of Y suggestions remaining") updates as items are handled.
+6. When all suggestions are handled, the modal displays "All suggestions reviewed" with a Close button.
+7. If the API returns an empty array, the modal shows a message prompting the user to ensure enough HITL correction data exists.
+
 ### Limitations
 
 - Currently only uses HITL correction data. Benchmark run mismatch data is not yet integrated (TODO).
