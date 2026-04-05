@@ -872,7 +872,140 @@ git commit -m "feat: register new confusion profile params in activity registry"
 
 ---
 
-### Task 8: Full Test Suite + Verification
+### Task 8: Frontend — Confusion Profiles List + Derive UI
+
+**Files:**
+- Create: `apps/frontend/src/features/benchmarking/hooks/useConfusionProfiles.ts`
+- Create: `apps/frontend/src/features/benchmarking/components/ConfusionProfilesPanel.tsx`
+- Modify: `apps/frontend/src/features/benchmarking/pages/ProjectDetailPage.tsx` (add tab or section)
+
+- [ ] **Step 1: Create React Query hook for confusion profiles API**
+
+```typescript
+// apps/frontend/src/features/benchmarking/hooks/useConfusionProfiles.ts
+// Hook that wraps the confusion profiles REST API:
+// - useConfusionProfiles(projectId) — GET list
+// - deriveProfile mutation — POST derive
+// - deleteProfile mutation — DELETE
+// - updateProfile mutation — PATCH
+// Uses apiService and @tanstack/react-query, following the pattern in useDefinitions.ts or useRuns.ts
+```
+
+- [ ] **Step 2: Create ConfusionProfilesPanel component**
+
+```typescript
+// apps/frontend/src/features/benchmarking/components/ConfusionProfilesPanel.tsx
+// This component shows:
+// 1. A list of confusion profiles as a Mantine Table:
+//    | Name | Scope | Confusions | Created | Actions |
+//    Confusions = total count from matrix (sum all counts)
+//    Actions = View, Delete buttons
+//
+// 2. A "Derive new profile" button that opens a Modal with:
+//    - Name (TextInput, required)
+//    - Description (TextInput, optional)
+//    - Scope (TextInput, optional, placeholder "numeric, text, general")
+//    - Submit calls the derive endpoint
+//
+// 3. When "View" is clicked, expands/opens a detail view (see Task 9)
+```
+
+- [ ] **Step 3: Add ConfusionProfilesPanel to ProjectDetailPage**
+
+The ProjectDetailPage already has tabs or sections for definitions and runs. Add a "Confusion Profiles" section (could be a tab or a collapsible section below the runs table). Pass `projectId` as a prop.
+
+- [ ] **Step 4: Verify in browser**
+
+Run frontend dev server, navigate to a benchmark project, verify the confusion profiles section appears with the list and derive button.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/frontend/src/features/benchmarking/
+git commit -m "feat: add confusion profiles list and derive UI
+
+Shows profiles for the project with name, scope, and total confusions.
+Derive button creates a new profile from HITL correction data."
+```
+
+---
+
+### Task 9: Frontend — Confusion Profile Curation (Matrix Editor)
+
+**Files:**
+- Create: `apps/frontend/src/features/benchmarking/components/ConfusionMatrixEditor.tsx`
+- Modify: `apps/frontend/src/features/benchmarking/components/ConfusionProfilesPanel.tsx` (wire in)
+
+- [ ] **Step 1: Create ConfusionMatrixEditor component**
+
+This component receives a confusion profile and renders the matrix as an editable table.
+
+The matrix JSON `{ "O": { "0": 42 }, "l": { "1": 18 }, ":": { "1": 5 } }` is flattened into rows:
+
+| True char | OCR read as | Count | Actions |
+|-----------|-------------|-------|---------|
+| O         | 0           | 42    |  Delete |
+| l         | 1           | 18    |  Delete |
+| :         | 1           | 5     |  Delete |
+
+Implementation:
+
+```typescript
+// apps/frontend/src/features/benchmarking/components/ConfusionMatrixEditor.tsx
+// Props:
+//   profile: { id, name, description, scope, matrix, metadata }
+//   onSave: (updatedMatrix) => void
+//   onClose: () => void
+//
+// State:
+//   rows: Array<{ trueChar: string; recognizedChar: string; count: number }>
+//   Derived from matrix on mount
+//   sortField: "trueChar" | "recognizedChar" | "count"
+//   sortDir: "asc" | "desc"
+//
+// Features:
+//   - Mantine Table with sortable column headers (click header to sort)
+//   - Each row has a Delete (ActionIcon with IconTrash) to remove the pair
+//   - Count is displayed as text (not editable — counts come from data)
+//   - "Add entry" row at the bottom: two TextInputs (true char, recognized char)
+//     + NumberInput (count) + Add button
+//   - "Save" button at bottom — converts rows back to matrix JSON, calls onSave
+//     which triggers PATCH /confusion-profiles/:id with the updated matrix
+//   - "Cancel" button to discard changes
+//
+// Display:
+//   - Show in a Modal opened from the "View" button in ConfusionProfilesPanel
+//   - Modal title: profile name
+//   - Below the table: metadata info (derived from, sample count, date)
+```
+
+- [ ] **Step 2: Wire into ConfusionProfilesPanel**
+
+When "View" is clicked in the profiles list, open the ConfusionMatrixEditor in a Modal with the selected profile. The onSave callback calls `updateProfile` mutation with the new matrix.
+
+- [ ] **Step 3: Verify in browser**
+
+1. Derive a profile (or create one via API)
+2. Click "View" — verify the matrix table renders with sortable columns
+3. Delete a row — verify it disappears
+4. Add a new entry — verify it appears
+5. Click Save — verify the PATCH call updates the profile
+6. Reload — verify changes persisted
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/frontend/src/features/benchmarking/components/
+git commit -m "feat: add confusion matrix curation editor
+
+Sortable table view of confusion profile matrix entries.
+Operators can delete noisy pairs, add new entries, and save
+changes back to the profile."
+```
+
+---
+
+### Task 10: Full Test Suite + Verification
 
 - [ ] **Step 1: Run backend tests**
 
@@ -884,14 +1017,21 @@ Expected: ALL PASS
 Run: `cd apps/temporal && npx jest --no-coverage`
 Expected: ALL PASS
 
-- [ ] **Step 3: End-to-end verification**
+- [ ] **Step 3: Run frontend tests**
 
-1. Start backend dev server
-2. Create a confusion profile via API (derive from existing HITL data)
-3. Verify the profile is listed and can be fetched
-4. Verify the character confusion tool can reference the profile in a workflow node config
+Run: `cd apps/frontend && npx vitest run`
+Expected: ALL PASS
 
-- [ ] **Step 4: Commit any adjustments**
+- [ ] **Step 4: End-to-end verification**
+
+1. Start backend + frontend dev servers
+2. Navigate to a benchmark project
+3. Derive a confusion profile from HITL data
+4. View the profile — verify the matrix table renders
+5. Delete a row, add a new entry, save — verify persistence
+6. Verify the character confusion tool can reference the profile in a workflow node config
+
+- [ ] **Step 5: Commit any adjustments**
 
 ```bash
 git add -A
