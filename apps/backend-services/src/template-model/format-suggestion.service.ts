@@ -14,6 +14,18 @@ import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
 import { PrismaService } from "@/database/prisma.service";
 
+interface BenchmarkRunMetrics {
+  perSampleResults?: Array<{
+    sampleId: string;
+    evaluationDetails?: Array<{
+      field: string;
+      matched: boolean;
+      expected?: unknown;
+      predicted?: unknown;
+    }>;
+  }>;
+}
+
 const DEFAULT_API_VERSION = "2024-12-01-preview";
 const MAX_CORRECTIONS = 200;
 
@@ -61,7 +73,10 @@ function buildSystemMessage(): string {
 You must respond with valid JSON only. Do not use markdown code fences or any text outside the JSON.`;
 }
 
-function buildUserMessage(errorData: ErrorData): string {
+function buildUserMessage(
+  errorData: ErrorData,
+  hasBenchmarkData: boolean,
+): string {
   const fieldsJson = JSON.stringify(
     errorData.fields.map((f) => ({
       fieldKey: f.field_key,
@@ -74,10 +89,14 @@ function buildUserMessage(errorData: ErrorData): string {
 
   const correctionsJson = JSON.stringify(errorData.corrections, null, 2);
 
+  const dataLabel = hasBenchmarkData
+    ? "corrections and benchmark mismatches"
+    : "HITL corrections";
+
   return `Fields in this template model:
 ${fieldsJson}
 
-HITL corrections grouped by field (${errorData.totalCorrectionCount} total):
+${dataLabel} grouped by field (${errorData.totalCorrectionCount} total):
 ${correctionsJson}
 
 Available canonicalize operations (chainable with "|"):
@@ -124,6 +143,49 @@ interface AiSuggestionRaw {
   rationale: string;
 }
 
+/**
+ * Normalize the AI response into an array of suggestion objects.
+ * Handles three response shapes:
+ * - Array: `[{ fieldKey, formatSpec, rationale }]`
+ * - Object with suggestions key: `{ suggestions: [...] }`
+ * - Object keyed by field name: `{ "sin": { formatSpec, rationale }, ... }`
+ */
+function normalizeToArray(parsed: unknown): AiSuggestionRaw[] {
+  if (Array.isArray(parsed)) return parsed as AiSuggestionRaw[];
+
+  if (typeof parsed === "object" && parsed !== null) {
+    const obj = parsed as Record<string, unknown>;
+
+    // Shape: { suggestions: [...] }
+    if (Array.isArray(obj.suggestions)) {
+      return obj.suggestions as AiSuggestionRaw[];
+    }
+
+    // Shape: { "fieldKey": { formatSpec, rationale }, ... }
+    const entries = Object.entries(obj);
+    if (
+      entries.length > 0 &&
+      entries.every(
+        ([, v]) =>
+          typeof v === "object" &&
+          v !== null &&
+          "formatSpec" in (v as Record<string, unknown>),
+      )
+    ) {
+      return entries.map(([key, value]) => {
+        const v = value as Record<string, unknown>;
+        return {
+          fieldKey: key,
+          formatSpec: v.formatSpec as AiSuggestionRaw["formatSpec"],
+          rationale: (v.rationale as string) ?? "",
+        };
+      });
+    }
+  }
+
+  return [];
+}
+
 function parseResponse(
   content: string,
   corrections: GroupedCorrections,
@@ -140,9 +202,10 @@ function parseResponse(
     return [];
   }
 
-  if (!Array.isArray(parsed)) return [];
+  const items = normalizeToArray(parsed);
+  if (items.length === 0) return [];
 
-  return (parsed as AiSuggestionRaw[])
+  return items
     .filter(
       (item): item is AiSuggestionRaw =>
         typeof item === "object" &&
@@ -184,11 +247,16 @@ export class FormatSuggestionService {
   }
 
   /**
-   * Gather HITL correction data for a given template model.
+   * Gather HITL correction data (and optionally benchmark mismatch data)
+   * for a given template model.
    * Loads the template model's fields and queries FieldCorrection records
    * filtered by group_id and field keys present in the template model.
+   * When benchmarkRunIds are provided, also merges mismatch pairs from those runs.
    */
-  async gatherErrorData(templateModelId: string): Promise<ErrorData> {
+  async gatherErrorData(
+    templateModelId: string,
+    benchmarkRunIds?: string[],
+  ): Promise<ErrorData> {
     const templateModel = await this.prisma.templateModel.findUniqueOrThrow({
       where: { id: templateModelId },
       include: { field_schema: true },
@@ -227,7 +295,7 @@ export class FormatSuggestionService {
       orderBy: { created_at: "desc" },
     });
 
-    // Group corrections by field key
+    // Group HITL corrections by field key
     const grouped: GroupedCorrections = {};
     for (const correction of corrections) {
       if (!grouped[correction.field_key]) {
@@ -239,19 +307,95 @@ export class FormatSuggestionService {
       });
     }
 
+    // Merge benchmark run mismatch pairs when IDs are provided
+    if (benchmarkRunIds && benchmarkRunIds.length > 0) {
+      const mismatchPairs = await this.fetchBenchmarkMismatchPairs(
+        benchmarkRunIds,
+        fieldKeys,
+      );
+      for (const pair of mismatchPairs) {
+        if (!grouped[pair.fieldKey]) {
+          grouped[pair.fieldKey] = [];
+        }
+        grouped[pair.fieldKey].push({
+          original: pair.original,
+          corrected: pair.corrected,
+        });
+      }
+    }
+
+    const totalCorrectionCount = Object.values(grouped).reduce(
+      (sum, arr) => sum + arr.length,
+      0,
+    );
+
     return {
       fields,
       corrections: grouped,
-      totalCorrectionCount: corrections.length,
+      totalCorrectionCount,
     };
   }
 
   /**
-   * Analyze correction data and suggest field format specs via Azure OpenAI.
+   * Extract mismatch pairs from benchmark run perSampleResults.evaluationDetails.
+   * Filters by field keys that belong to the template model.
+   */
+  private async fetchBenchmarkMismatchPairs(
+    benchmarkRunIds: string[],
+    fieldKeys: string[],
+  ): Promise<Array<{ fieldKey: string; original: string; corrected: string }>> {
+    const runs = await this.prisma.benchmarkRun.findMany({
+      where: { id: { in: benchmarkRunIds }, status: "completed" },
+      select: { id: true, metrics: true },
+    });
+
+    const pairs: Array<{
+      fieldKey: string;
+      original: string;
+      corrected: string;
+    }> = [];
+
+    for (const run of runs) {
+      const metrics = run.metrics as BenchmarkRunMetrics | null;
+      const perSampleResults = Array.isArray(metrics?.perSampleResults)
+        ? metrics.perSampleResults
+        : [];
+
+      for (const sample of perSampleResults) {
+        if (!Array.isArray(sample.evaluationDetails)) continue;
+        for (const detail of sample.evaluationDetails) {
+          if (detail.matched) continue;
+          if (!fieldKeys.includes(detail.field)) continue;
+
+          const predicted = String(detail.predicted ?? "");
+          const expected = String(detail.expected ?? "");
+          if (!predicted || !expected || predicted === expected) continue;
+
+          pairs.push({
+            fieldKey: detail.field,
+            original: predicted,
+            corrected: expected,
+          });
+        }
+      }
+    }
+
+    return pairs;
+  }
+
+  /**
+   * Analyze correction data (and optionally benchmark mismatches) and suggest
+   * field format specs via Azure OpenAI.
    * Returns an empty array if there are no corrections or if the AI has no suggestions.
    */
-  async suggestFormats(templateModelId: string): Promise<FormatSuggestion[]> {
-    const errorData = await this.gatherErrorData(templateModelId);
+  async suggestFormats(
+    templateModelId: string,
+    benchmarkRunIds?: string[],
+  ): Promise<FormatSuggestion[]> {
+    const errorData = await this.gatherErrorData(
+      templateModelId,
+      benchmarkRunIds,
+    );
 
     if (errorData.totalCorrectionCount === 0) {
       this.logger.log(
@@ -283,7 +427,8 @@ export class FormatSuggestionService {
     );
 
     const systemMessage = buildSystemMessage();
-    const userMessage = buildUserMessage(errorData);
+    const hasBenchmarkData = !!(benchmarkRunIds && benchmarkRunIds.length > 0);
+    const userMessage = buildUserMessage(errorData, hasBenchmarkData);
 
     const payload = {
       messages: [

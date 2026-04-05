@@ -57,9 +57,48 @@ describe("FormatSuggestionService", () => {
     },
   ];
 
+  const mockBenchmarkRuns = [
+    {
+      id: "run-1",
+      metrics: {
+        perSampleResults: [
+          {
+            sampleId: "sample-1",
+            evaluationDetails: [
+              {
+                field: "sin",
+                matched: false,
+                predicted: "123 456 789",
+                expected: "123456789",
+              },
+              {
+                field: "phone",
+                matched: true,
+                predicted: "(604) 555-1234",
+                expected: "(604) 555-1234",
+              },
+            ],
+          },
+          {
+            sampleId: "sample-2",
+            evaluationDetails: [
+              {
+                field: "sin",
+                matched: false,
+                predicted: "987-654-321",
+                expected: "987654321",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ];
+
   let mockPrisma: {
     templateModel: { findUniqueOrThrow: jest.Mock };
     fieldCorrection: { findMany: jest.Mock };
+    benchmarkRun: { findMany: jest.Mock };
   };
 
   const mockAiResponse = JSON.stringify([
@@ -85,6 +124,9 @@ describe("FormatSuggestionService", () => {
       },
       fieldCorrection: {
         findMany: jest.fn().mockResolvedValue(mockCorrections),
+      },
+      benchmarkRun: {
+        findMany: jest.fn().mockResolvedValue(mockBenchmarkRuns),
       },
     };
 
@@ -198,6 +240,85 @@ describe("FormatSuggestionService", () => {
       expect(result.totalCorrectionCount).toBe(0);
       expect(mockPrisma.fieldCorrection.findMany).not.toHaveBeenCalled();
     });
+
+    it("merges benchmark run mismatches with HITL corrections when benchmarkRunIds provided", async () => {
+      // No HITL corrections for this test
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.gatherErrorData("tm-1", ["run-1"]);
+
+      expect(mockPrisma.benchmarkRun.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ["run-1"] }, status: "completed" },
+        select: { id: true, metrics: true },
+      });
+
+      // Two mismatches for "sin" field (matched=false entries), phone is matched=true so skipped
+      expect(result.corrections["sin"]).toHaveLength(2);
+      expect(result.corrections["sin"][0]).toEqual({
+        original: "123 456 789",
+        corrected: "123456789",
+      });
+      expect(result.corrections["sin"][1]).toEqual({
+        original: "987-654-321",
+        corrected: "987654321",
+      });
+      expect(result.corrections["phone"]).toBeUndefined();
+      expect(result.totalCorrectionCount).toBe(2);
+    });
+
+    it("merges benchmark mismatches on top of HITL corrections when both provided", async () => {
+      // HITL has one phone correction
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce([
+        {
+          field_key: "phone",
+          original_value: "6045551234",
+          corrected_value: "(604) 555-1234",
+        },
+      ]);
+
+      const result = await service.gatherErrorData("tm-1", ["run-1"]);
+
+      // phone from HITL + sin mismatches from benchmark
+      expect(result.corrections["phone"]).toHaveLength(1);
+      expect(result.corrections["sin"]).toHaveLength(2);
+      expect(result.totalCorrectionCount).toBe(3);
+    });
+
+    it("filters benchmark mismatches to only include template model field keys", async () => {
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce([]);
+      mockPrisma.benchmarkRun.findMany.mockResolvedValueOnce([
+        {
+          id: "run-2",
+          metrics: {
+            perSampleResults: [
+              {
+                sampleId: "s1",
+                evaluationDetails: [
+                  {
+                    field: "unknown_field",
+                    matched: false,
+                    predicted: "foo",
+                    expected: "bar",
+                  },
+                  {
+                    field: "sin",
+                    matched: false,
+                    predicted: "123 456 789",
+                    expected: "123456789",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]);
+
+      const result = await service.gatherErrorData("tm-1", ["run-2"]);
+
+      // unknown_field is not in template model's field schema, should be filtered out
+      expect(result.corrections["unknown_field"]).toBeUndefined();
+      expect(result.corrections["sin"]).toHaveLength(1);
+    });
   });
 
   describe("suggestFormats", () => {
@@ -248,11 +369,38 @@ describe("FormatSuggestionService", () => {
       expect(payload.messages[1].content).toContain("sin");
       expect(payload.messages[1].content).toContain("phone");
       expect(payload.messages[1].content).toContain("canonicalize");
-      expect(payload.messages[1].content).toContain("HITL corrections");
+      expect(payload.messages[1].content).toContain("corrections");
       expect(payload.response_format).toEqual({ type: "json_object" });
 
       expect(config.headers["api-key"]).toBe("test-key");
       expect(config.timeout).toBe(120000);
+    });
+
+    it("includes benchmark mismatches in prompt when benchmarkRunIds provided", async () => {
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce([]);
+      const post = httpService.post as jest.Mock;
+      await service.suggestFormats("tm-1", ["run-1"]);
+
+      expect(post).toHaveBeenCalledTimes(1);
+      const [, payload] = post.mock.calls[0] as [
+        string,
+        { messages: Array<{ role: string; content: string }> },
+      ];
+      expect(payload.messages[1].content).toContain(
+        "corrections and benchmark mismatches",
+      );
+    });
+
+    it("uses HITL corrections label in prompt when no benchmarkRunIds provided", async () => {
+      const post = httpService.post as jest.Mock;
+      await service.suggestFormats("tm-1");
+
+      expect(post).toHaveBeenCalledTimes(1);
+      const [, payload] = post.mock.calls[0] as [
+        string,
+        { messages: Array<{ role: string; content: string }> },
+      ];
+      expect(payload.messages[1].content).toContain("HITL corrections");
     });
 
     it("returns empty array when no corrections exist", async () => {
@@ -277,7 +425,7 @@ describe("FormatSuggestionService", () => {
       expect(result).toEqual([]);
     });
 
-    it("returns empty array when AI returns non-array JSON", async () => {
+    it("returns empty array when AI returns non-array JSON without formatSpec entries", async () => {
       (httpService.post as jest.Mock).mockReturnValueOnce(
         of({
           data: {
@@ -290,6 +438,54 @@ describe("FormatSuggestionService", () => {
 
       const result = await service.suggestFormats("tm-1");
       expect(result).toEqual([]);
+    });
+
+    it("parses AI response wrapped in suggestions key", async () => {
+      const wrapped = JSON.stringify({
+        suggestions: [
+          {
+            fieldKey: "sin",
+            formatSpec: { canonicalize: "digits", pattern: "^\\d{9}$" },
+            rationale: "Strip separators",
+          },
+        ],
+      });
+      (httpService.post as jest.Mock).mockReturnValueOnce(
+        of({
+          data: { choices: [{ message: { content: wrapped } }] },
+        }),
+      );
+
+      const result = await service.suggestFormats("tm-1");
+      expect(result).toHaveLength(1);
+      expect(result[0].fieldKey).toBe("sin");
+      expect(result[0].formatSpec.canonicalize).toBe("digits");
+    });
+
+    it("parses AI response keyed by field name", async () => {
+      const keyed = JSON.stringify({
+        sin: {
+          formatSpec: { canonicalize: "digits", pattern: "^\\d{9}$" },
+          rationale: "Strip separators",
+        },
+        phone: {
+          formatSpec: {
+            canonicalize: "digits",
+            displayTemplate: "(###) ###-###",
+          },
+          rationale: "Reformat phone",
+        },
+      });
+      (httpService.post as jest.Mock).mockReturnValueOnce(
+        of({
+          data: { choices: [{ message: { content: keyed } }] },
+        }),
+      );
+
+      const result = await service.suggestFormats("tm-1");
+      expect(result).toHaveLength(2);
+      expect(result.find((s) => s.fieldKey === "sin")).toBeDefined();
+      expect(result.find((s) => s.fieldKey === "phone")).toBeDefined();
     });
 
     it("handles markdown code fences in AI response", async () => {
