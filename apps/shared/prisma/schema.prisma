@@ -338,8 +338,25 @@ model Group {
   api_keys            ApiKey[]
   datasets            Dataset[]
   benchmark_projects  BenchmarkProject[]
+  confusionProfiles   ConfusionProfile[]
 
   @@map("group")
+}
+
+model ConfusionProfile {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  scope       String?
+  matrix      Json
+  metadata    Json?
+  group_id    String
+  group       Group    @relation(fields: [group_id], references: [id])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@index([group_id])
+  @@map("confusion_profiles")
 }
 
 model UserGroup {
