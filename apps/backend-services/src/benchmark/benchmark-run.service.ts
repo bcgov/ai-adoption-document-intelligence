@@ -531,6 +531,21 @@ export class BenchmarkRunService {
       where: { id: runId },
     });
 
+    // If no runs remain for this definition, reset immutability
+    const remainingRuns = await this.prisma.benchmarkRun.count({
+      where: { definitionId: run.definitionId },
+    });
+
+    if (remainingRuns === 0) {
+      await this.prisma.benchmarkDefinition.update({
+        where: { id: run.definitionId },
+        data: { immutable: false },
+      });
+      this.logger.log(
+        `Reset immutability for definition ${run.definitionId} (no remaining runs)`,
+      );
+    }
+
     this.logger.log(`Deleted benchmark run ${runId} from project ${projectId}`);
   }
 

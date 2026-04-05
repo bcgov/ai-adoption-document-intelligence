@@ -34,6 +34,7 @@ const mockPrismaClient = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     delete: jest.fn(),
+    count: jest.fn(),
   },
   datasetVersion: {
     update: jest.fn(),
@@ -1492,10 +1493,11 @@ describe("BenchmarkRunService", () => {
   // deleteRun
   // -----------------------------------------------------------------------
   describe("deleteRun", () => {
-    it("deletes a completed run", async () => {
+    it("deletes a completed run and keeps immutability when other runs exist", async () => {
       const mockRun = {
         id: "run-1",
         projectId: "project-1",
+        definitionId: "def-1",
         status: "completed",
       };
 
@@ -1505,18 +1507,25 @@ describe("BenchmarkRunService", () => {
       jest
         .spyOn(prisma.benchmarkRun, "delete")
         .mockResolvedValue(mockRun as never);
+      jest.spyOn(prisma.benchmarkRun, "count").mockResolvedValue(2 as never);
+      const updateSpy = jest.spyOn(prisma.benchmarkDefinition, "update");
 
       await service.deleteRun("project-1", "run-1");
 
       expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
         where: { id: "run-1" },
       });
+      expect(prisma.benchmarkRun.count).toHaveBeenCalledWith({
+        where: { definitionId: "def-1" },
+      });
+      expect(updateSpy).not.toHaveBeenCalled();
     });
 
-    it("deletes a failed run", async () => {
+    it("deletes a failed run and resets immutability when no runs remain", async () => {
       const mockRun = {
         id: "run-2",
         projectId: "project-1",
+        definitionId: "def-1",
         status: "failed",
       };
 
@@ -1526,11 +1535,19 @@ describe("BenchmarkRunService", () => {
       jest
         .spyOn(prisma.benchmarkRun, "delete")
         .mockResolvedValue(mockRun as never);
+      jest.spyOn(prisma.benchmarkRun, "count").mockResolvedValue(0 as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "update")
+        .mockResolvedValue({} as never);
 
       await service.deleteRun("project-1", "run-2");
 
       expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
         where: { id: "run-2" },
+      });
+      expect(prisma.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: { immutable: false },
       });
     });
 
@@ -1546,6 +1563,7 @@ describe("BenchmarkRunService", () => {
       const mockRun = {
         id: "run-3",
         projectId: "project-1",
+        definitionId: "def-1",
         status: "running",
       };
 
@@ -1562,6 +1580,7 @@ describe("BenchmarkRunService", () => {
       const mockRun = {
         id: "run-4",
         projectId: "project-1",
+        definitionId: "def-1",
         status: "pending",
       };
 
