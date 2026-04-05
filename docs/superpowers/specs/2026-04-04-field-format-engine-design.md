@@ -140,11 +140,17 @@ The `matrix` field uses the same structure the existing `ConfusionMatrixService`
 
 ### Lifecycle
 
-**Derivation**: The existing `ConfusionMatrixService.derive()` computes character-level error frequencies from HITL corrections. Extend it to also accept benchmark run mismatches as input (sourced from `metrics.perSampleResults[].evaluationDetails` — the same data the OCR improvement pipeline already reads). The output gets saved as a `ConfusionProfile` entity instead of being a transient API response.
+**Derivation**: The existing `ConfusionMatrixService.derive()` computes character-level error frequencies from HITL corrections. The derive endpoint accepts multiple source types:
 
-**Accumulation**: A profile can be re-derived from multiple data sources — multiple benchmark runs, multiple HITL sessions, across projects within the same group. Each derivation merges frequency counts, so the profile improves over time.
+- **Template model IDs** — pulls HITL corrections for documents using those models
+- **Benchmark run IDs** — pulls mismatches from `metrics.perSampleResults[].evaluationDetails`
+- **Both combined** — merges pairs from all sources before computing the matrix
 
-**Curation**: Operator can view the profile, remove noisy pairs, adjust entries, or manually add known patterns. The UI shows the matrix as a sortable table of `true → recognized → count` rows.
+If no sources are specified, derives from all HITL corrections in the group. Optional filters: `fieldKeys`, `startDate`, `endDate`.
+
+**Accumulation**: A profile can be re-derived from multiple data sources — multiple benchmark runs, multiple template models, across projects within the same group. Each derivation merges frequency counts, so the profile improves over time.
+
+**Curation**: Operator can view the profile, remove noisy pairs, and manually add known patterns. The UI shows the matrix as a sortable table of `true char → OCR read as → count` rows with delete and add actions.
 
 **Sharing**: Profiles are scoped to a group. Any workflow in that group can reference any profile.
 

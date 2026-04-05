@@ -352,7 +352,6 @@ describe("deriveAndSave", () => {
     const result = await service.deriveAndSave({
       name: "Derived Profile",
       groupId: "group-1",
-      filters: { groupIds: ["group-1"] },
     });
 
     expect(confusionMatrixService.deriveFromHitlCorrections).toHaveBeenCalled();
@@ -385,24 +384,58 @@ async deriveAndSave(input: {
   description?: string;
   scope?: string;
   groupId: string;
-  filters: { startDate?: string; endDate?: string; groupIds?: string[]; fieldKeys?: string[] };
+  sources?: {
+    templateModelIds?: string[];
+    benchmarkRunIds?: string[];
+    fieldKeys?: string[];
+    startDate?: string;
+    endDate?: string;
+  };
 }) {
-  const result = await this.confusionMatrixService.deriveFromHitlCorrections(
-    input.filters,
-  );
+  // Gather correction pairs from all requested sources
+  const pairs: Array<{ original: string; corrected: string }> = [];
+
+  // Source 1: HITL corrections (via template models or all in group)
+  const hitlFilters = {
+    groupIds: [input.groupId],
+    fieldKeys: input.sources?.fieldKeys,
+    startDate: input.sources?.startDate,
+    endDate: input.sources?.endDate,
+    // If templateModelIds specified, resolve their field keys to scope corrections
+    templateModelIds: input.sources?.templateModelIds,
+  };
+  const hitlResult = await this.confusionMatrixService.deriveFromHitlCorrections(hitlFilters);
+
+  // Source 2: Benchmark run mismatches
+  if (input.sources?.benchmarkRunIds?.length) {
+    // Load perSampleResults from each run, extract mismatched predicted/expected pairs
+    // Feed them into the same character alignment algorithm
+    for (const runId of input.sources.benchmarkRunIds) {
+      const runPairs = await this.extractMismatchPairsFromRun(runId);
+      pairs.push(...runPairs);
+    }
+  }
+
+  // Merge: combine HITL-derived matrix with benchmark-derived pairs
+  const combinedResult = pairs.length > 0
+    ? this.confusionMatrixService.computeFromPairs(
+        [...(hitlResult.pairs ?? []), ...pairs],
+      )
+    : hitlResult;
 
   return this.create({
     name: input.name,
     description: input.description,
     scope: input.scope,
-    matrix: result.matrix,
+    matrix: combinedResult.matrix,
     metadata: {
       derivedAt: new Date().toISOString(),
-      source: "hitl_corrections",
-      filters: input.filters,
-      totalConfusions: result.totals.totalConfusions,
-      uniquePairs: result.totals.uniquePairs,
-      sampleCount: result.metadata.sampleCount,
+      sources: {
+        hitlCorrections: { groupId: input.groupId, templateModelIds: input.sources?.templateModelIds },
+        benchmarkRuns: input.sources?.benchmarkRunIds ?? [],
+      },
+      totalConfusions: combinedResult.totals.totalConfusions,
+      uniquePairs: combinedResult.totals.uniquePairs,
     },
     groupId: input.groupId,
   });
@@ -464,14 +497,29 @@ export class UpdateConfusionProfileDto {
 // dto/derive-confusion-profile.dto.ts
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
+class DeriveSourcesDto {
+  @ApiPropertyOptional({ type: [String], description: "Template model IDs — pulls HITL corrections for documents using these models" })
+  templateModelIds?: string[];
+
+  @ApiPropertyOptional({ type: [String], description: "Benchmark run IDs — pulls mismatches from these runs' perSampleResults" })
+  benchmarkRunIds?: string[];
+
+  @ApiPropertyOptional({ type: [String], description: "Restrict to specific field keys" })
+  fieldKeys?: string[];
+
+  @ApiPropertyOptional({ description: "Only corrections after this date" })
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: "Only corrections before this date" })
+  endDate?: string;
+}
+
 export class DeriveConfusionProfileDto {
   @ApiProperty() name: string;
   @ApiPropertyOptional() description?: string;
   @ApiPropertyOptional() scope?: string;
-  @ApiPropertyOptional() startDate?: string;
-  @ApiPropertyOptional() endDate?: string;
-  @ApiPropertyOptional({ type: [String] }) groupIds?: string[];
-  @ApiPropertyOptional({ type: [String] }) fieldKeys?: string[];
+  @ApiPropertyOptional({ type: DeriveSourcesDto, description: "Data sources to derive from. If omitted, uses all HITL corrections in the group." })
+  sources?: DeriveSourcesDto;
 }
 ```
 
@@ -506,12 +554,7 @@ export class ConfusionProfileController {
       description: dto.description,
       scope: dto.scope,
       groupId,
-      filters: {
-        startDate: dto.startDate,
-        endDate: dto.endDate,
-        groupIds: dto.groupIds,
-        fieldKeys: dto.fieldKeys,
-      },
+      sources: dto.sources,
     });
   }
 
@@ -894,6 +937,8 @@ Confusion profiles are group-level resources (like template models). The UI live
 
 ```typescript
 // apps/frontend/src/features/benchmarking/components/ConfusionProfilesPanel.tsx
+// Props: groupId: string
+//
 // This component shows:
 // 1. A list of confusion profiles as a Mantine Table:
 //    | Name | Scope | Confusions | Created | Actions |
@@ -904,6 +949,10 @@ Confusion profiles are group-level resources (like template models). The UI live
 //    - Name (TextInput, required)
 //    - Description (TextInput, optional)
 //    - Scope (TextInput, optional, placeholder "numeric, text, general")
+//    - Source selection (optional):
+//      - MultiSelect for template models in the group
+//      - MultiSelect for benchmark runs (optional, for when user wants run-specific data)
+//    - If no sources selected, derives from all HITL corrections in the group
 //    - Submit calls the derive endpoint
 //
 // 3. When "View" is clicked, expands/opens a detail view (see Task 9)
