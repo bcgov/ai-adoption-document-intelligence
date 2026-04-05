@@ -176,13 +176,13 @@ Workflow node configuration becomes:
 
 ### API Surface
 
-All routes are nested under the project (which provides group scoping), matching the existing API patterns:
+All routes are scoped to the group directly, since confusion profiles are group-level resources (like template models):
 
-- `POST /api/benchmark/projects/:projectId/confusion-profiles/derive` — derive a new profile from specified data sources (benchmark runs, HITL sessions, date ranges)
-- `GET /api/benchmark/projects/:projectId/confusion-profiles` — list profiles in project's group
-- `GET /api/benchmark/projects/:projectId/confusion-profiles/:id` — get profile with matrix
-- `PATCH /api/benchmark/projects/:projectId/confusion-profiles/:id` — update name, description, curate matrix entries
-- `DELETE /api/benchmark/projects/:projectId/confusion-profiles/:id`
+- `POST /api/groups/:groupId/confusion-profiles/derive` — derive a new profile from HITL correction data in the group
+- `GET /api/groups/:groupId/confusion-profiles` — list profiles in group
+- `GET /api/groups/:groupId/confusion-profiles/:id` — get profile with matrix
+- `PATCH /api/groups/:groupId/confusion-profiles/:id` — update name, description, curate matrix entries
+- `DELETE /api/groups/:groupId/confusion-profiles/:id`
 
 ## 3. AI Format Suggestion
 

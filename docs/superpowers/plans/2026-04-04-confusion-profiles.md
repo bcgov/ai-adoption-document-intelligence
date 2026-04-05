@@ -487,28 +487,25 @@ import { ConfusionProfileService } from "./confusion-profile.service";
 import { CreateConfusionProfileDto } from "./dto/create-confusion-profile.dto";
 import { UpdateConfusionProfileDto } from "./dto/update-confusion-profile.dto";
 import { DeriveConfusionProfileDto } from "./dto/derive-confusion-profile.dto";
-import { BenchmarkProjectService } from "../benchmark/benchmark-project.service";
 
 @ApiTags("Confusion Profiles")
-@Controller("api/benchmark/projects/:projectId/confusion-profiles")
+@Controller("api/groups/:groupId/confusion-profiles")
 export class ConfusionProfileController {
   constructor(
     private readonly service: ConfusionProfileService,
-    private readonly projectService: BenchmarkProjectService,
   ) {}
 
   @Post("derive")
   @ApiOkResponse({ description: "Derived confusion profile" })
   async derive(
-    @Param("projectId") projectId: string,
+    @Param("groupId") groupId: string,
     @Body() dto: DeriveConfusionProfileDto,
   ) {
-    const project = await this.projectService.getProjectOrThrow(projectId);
     return this.service.deriveAndSave({
       name: dto.name,
       description: dto.description,
       scope: dto.scope,
-      groupId: project.groupId,
+      groupId,
       filters: {
         startDate: dto.startDate,
         endDate: dto.endDate,
@@ -521,8 +518,7 @@ export class ConfusionProfileController {
   @Get()
   @ApiOkResponse({ description: "List confusion profiles" })
   async list(@Param("projectId") projectId: string) {
-    const project = await this.projectService.getProjectOrThrow(projectId);
-    return this.service.findByGroup(project.groupId);
+    return this.service.findByGroup(groupId);
   }
 
   @Get(":id")
@@ -553,13 +549,13 @@ export class ConfusionProfileController {
 
 ```typescript
 // confusion-profile.module.ts
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { ConfusionProfileController } from "./confusion-profile.controller";
 import { ConfusionProfileService } from "./confusion-profile.service";
 import { BenchmarkModule } from "../benchmark/benchmark.module";
 
 @Module({
-  imports: [BenchmarkModule],
+  imports: [forwardRef(() => BenchmarkModule)], // For ConfusionMatrixService used by deriveAndSave
   controllers: [ConfusionProfileController],
   providers: [ConfusionProfileService],
   exports: [ConfusionProfileService],
@@ -585,13 +581,13 @@ Expected: ALL PASS
 ```bash
 # List (should return empty array)
 curl -s -H "x-api-key: RxKhcS6E3gLhDnL3SlwC0AemiEYiUr7SlwH1s_H1VSA" \
-  http://localhost:3002/api/benchmark/projects/6f076fae-c392-4ba1-b59a-559b8b42434e/confusion-profiles
+  http://localhost:3002/api/groups/GROUP_ID/confusion-profiles
 
 # Derive
 curl -s -X POST -H "x-api-key: RxKhcS6E3gLhDnL3SlwC0AemiEYiUr7SlwH1s_H1VSA" \
   -H "Content-Type: application/json" \
   -d '{"name": "Test Profile"}' \
-  http://localhost:3002/api/benchmark/projects/6f076fae-c392-4ba1-b59a-559b8b42434e/confusion-profiles/derive
+  http://localhost:3002/api/groups/GROUP_ID/confusion-profiles/derive
 ```
 
 - [ ] **Step 6: Commit**
@@ -874,21 +870,24 @@ git commit -m "feat: register new confusion profile params in activity registry"
 
 ### Task 8: Frontend — Confusion Profiles List + Derive UI
 
+Confusion profiles are group-level resources (like template models). The UI lives on the GroupDetailPage as a new tab.
+
 **Files:**
 - Create: `apps/frontend/src/features/benchmarking/hooks/useConfusionProfiles.ts`
 - Create: `apps/frontend/src/features/benchmarking/components/ConfusionProfilesPanel.tsx`
-- Modify: `apps/frontend/src/features/benchmarking/pages/ProjectDetailPage.tsx` (add tab or section)
+- Modify: `apps/frontend/src/pages/GroupDetailPage.tsx` (add "Confusion Profiles" tab)
 
 - [ ] **Step 1: Create React Query hook for confusion profiles API**
 
 ```typescript
 // apps/frontend/src/features/benchmarking/hooks/useConfusionProfiles.ts
-// Hook that wraps the confusion profiles REST API:
-// - useConfusionProfiles(projectId) — GET list
+// Hook that wraps the confusion profiles REST API (group-scoped):
+// - useConfusionProfiles(groupId) — GET list
 // - deriveProfile mutation — POST derive
 // - deleteProfile mutation — DELETE
 // - updateProfile mutation — PATCH
 // Uses apiService and @tanstack/react-query, following the pattern in useDefinitions.ts or useRuns.ts
+// API routes: /api/groups/:groupId/confusion-profiles/*
 ```
 
 - [ ] **Step 2: Create ConfusionProfilesPanel component**
@@ -912,11 +911,11 @@ git commit -m "feat: register new confusion profile params in activity registry"
 
 - [ ] **Step 3: Add ConfusionProfilesPanel to ProjectDetailPage**
 
-The ProjectDetailPage already has tabs or sections for definitions and runs. Add a "Confusion Profiles" section (could be a tab or a collapsible section below the runs table). Pass `projectId` as a prop.
+The GroupDetailPage already has tabs (Members, Membership Requests). Add a "Confusion Profiles" tab. Pass `groupId` as a prop to ConfusionProfilesPanel.
 
 - [ ] **Step 4: Verify in browser**
 
-Run frontend dev server, navigate to a benchmark project, verify the confusion profiles section appears with the list and derive button.
+Run frontend dev server, navigate to a group detail page, verify the "Confusion Profiles" tab appears with the list and derive button.
 
 - [ ] **Step 5: Commit**
 
