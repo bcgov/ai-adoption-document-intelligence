@@ -57,6 +57,14 @@ vi.mock("../auth/GroupContext", () => ({
   useGroup: () => mockUseGroup(),
 }));
 
+vi.mock("../features/benchmarking/components/ConfusionProfilesPanel", () => ({
+  ConfusionProfilesPanel: ({ groupId }: { groupId: string }) => (
+    <div data-testid="confusion-profiles-panel">
+      Confusion Profiles for {groupId}
+    </div>
+  ),
+}));
+
 vi.mock("../data/hooks/useGroups", () => ({
   useMyGroups: () => mockUseMyGroups(),
   useAllGroups: () => mockUseAllGroups(),
