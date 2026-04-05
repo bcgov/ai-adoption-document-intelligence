@@ -2,6 +2,7 @@ import { HttpModule } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
 import { BlobStorageModule } from "../blob-storage/blob-storage.module";
 import { DatabaseModule } from "../database/database.module";
+import { FormatSuggestionService } from "./format-suggestion.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { SuggestionService } from "./suggestion.service";
 import { TemplateModelController } from "./template-model.controller";
@@ -18,6 +19,7 @@ import { TemplateModelOcrService } from "./template-model-ocr.service";
     LabelingDocumentDbService,
     TemplateModelOcrService,
     SuggestionService,
+    FormatSuggestionService,
   ],
   exports: [TemplateModelService],
 })

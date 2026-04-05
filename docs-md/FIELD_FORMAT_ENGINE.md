@@ -68,3 +68,46 @@ if (spec) {
   const display = format("123-456-789", spec);           // "123-456-789"
 }
 ```
+
+## AI Format Suggestion
+
+The `FormatSuggestionService` (`apps/backend-services/src/template-model/format-suggestion.service.ts`) analyzes HITL correction patterns and recommends format specs via Azure OpenAI.
+
+### Endpoint
+
+```
+POST /api/template-models/:id/suggest-formats
+```
+
+Returns an array of `FormatSuggestion` objects:
+
+```ts
+interface FormatSuggestion {
+  fieldKey: string;
+  formatSpec: { canonicalize: string; pattern?: string; displayTemplate?: string };
+  rationale: string;
+  sampleCount: number;
+}
+```
+
+### Data Gathering
+
+The service gathers error data from HITL corrections:
+
+1. Loads the template model's field definitions (field keys, types, existing format specs)
+2. Queries `FieldCorrection` records where `action = corrected`, joined through `ReviewSession -> Document`, filtered by the template model's `group_id` and field keys
+3. Samples up to 200 most recent corrections, grouped by field key
+
+### AI Analysis
+
+The gathered data is sent to Azure OpenAI (same configuration as the OCR improvement pipeline: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`). The AI:
+
+- Skips fields that already have a `format_spec`
+- Skips fields with too few corrections to identify a pattern
+- Skips free-text fields with no consistent format
+- Returns an empty array when no suggestions can be made
+
+### Limitations
+
+- Currently only uses HITL correction data. Benchmark run mismatch data is not yet integrated (TODO).
+- Suggestions are recommendations; they are not automatically applied to field definitions.
