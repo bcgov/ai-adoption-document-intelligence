@@ -152,6 +152,8 @@ If no sources are specified, derives from all HITL corrections in the group. Opt
 
 **Curation**: Operator can view the profile, remove noisy pairs, and manually add known patterns. The UI shows the matrix as a sortable table of `true char → OCR read as → count` rows with delete and add actions.
 
+Each matrix entry stores up to 5 source examples (field key + predicted + expected) collected during derivation. These are shown in the curation UI as expandable rows or tooltips so the operator can see the actual corrections that produced each character pair. Entries also show a confidence indicator: the number of distinct fields the pair appeared in. Multi-field pairs are more likely real OCR confusions; single-field pairs may be word-level noise.
+
 **Sharing**: Profiles are scoped to a group. Any workflow in that group can reference any profile.
 
 **Default profile**: The current 8 hardcoded `BUILT_IN_CONFUSION_RULES` become a pre-seeded profile named "OCR Common Defaults" that ships with the system. This is the fallback when no profile is specified.
@@ -161,8 +163,8 @@ If no sources are specified, derives from all HITL corrections in the group. Opt
 The `ocr.characterConfusion` activity changes:
 
 - New parameter: `confusionProfileId` — loads the profile's matrix at runtime
-- At runtime, matrix entries above a configurable `frequencyThreshold` parameter become substitution rules
-- Gating logic simplified: if the field has a `field_format` with numeric-context canonicalization (`digits`, `number`) → apply; if field type is `selectionMark`/`signature` → skip; otherwise → apply only if `applyToAllFields` is set. The old "value contains a digit" heuristic is dropped — the format spec and field type drive gating instead of content inspection
+- At runtime, all matrix entries become substitution rules (no frequency threshold — the profile is curated, so everything in it should apply)
+- Gating logic simplified: if the field has a `format_spec` with numeric-context canonicalization (`digits`, `number`) → apply; if field type is `selectionMark`/`signature` → skip; otherwise → apply only if `applyToAllFields` is set. The old "value contains a digit" heuristic is dropped — the format spec and field type drive gating instead of content inspection
 - `BUILT_IN_CONFUSION_RULES` array is replaced by the default "OCR Common Defaults" profile
 - `confusionMapOverride` stays as an escape hatch for one-off overrides
 - `enabledRules` / `disabledRules` parameters are deprecated (no longer meaningful with profile-driven rules)
@@ -174,8 +176,7 @@ Workflow node configuration becomes:
   "activityType": "ocr.characterConfusion",
   "params": {
     "confusionProfileId": "clx9abc...",
-    "documentType": "clx7def...",
-    "frequencyThreshold": 3
+    "documentType": "clx7def..."
   }
 }
 ```
@@ -259,13 +260,13 @@ The existing OCR improvement pipeline (`OcrImprovementPipelineService`) continue
 
 **Input is cleaner**: When the workflow includes a `normalizeFields` node with `documentType` set (which is the standard configuration), format specs are applied during the benchmark workflow run. The baseline mismatches the AI sees are only residual content errors — no format noise. Instead of 70 errors dominated by SIN/phone/date formatting, the AI sees ~5 genuine misreads.
 
-**Character confusion uses profiles**: The AI no longer picks from `enabledRules: ["oToZero", "ilToOne", ...]`. Instead it recommends which confusion profile to use and what frequency threshold to set.
+**Character confusion uses profiles**: The AI no longer picks from `enabledRules: ["oToZero", "ilToOne", ...]`. Instead it recommends which confusion profile to use.
 
 **`normalizeFields` is removed from the AI recommendation manifest**: It becomes a built-in pipeline step configured by field_format specs, not an optional AI-recommended tool. The AI only chooses between `ocr.characterConfusion` and `ocr.spellcheck`.
 
 **The prompt simplifies**: No more rules about `disabledRules`, `slashToOne`, etc. The AI decides:
 
-- Character confusion: include yes/no, which confusion profile, frequency threshold
+- Character confusion: include yes/no, which confusion profile
 - Spellcheck: include yes/no, language, field scope
 
 ### Revised Pipeline Flow

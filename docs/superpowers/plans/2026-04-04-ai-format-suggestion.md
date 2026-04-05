@@ -537,7 +537,7 @@ const MODEL_JSON_KEYS = [
 
 Update the prompt rules section:
 - Remove all references to `normalizeFields`, `emptyValueCoercion`, `disabledRules`, `slashToOne`
-- Add: "For ocr.characterConfusion, recommend a confusionProfileId from available profiles and set frequencyThreshold"
+- Add: "For ocr.characterConfusion, recommend a confusionProfileId from available profiles"
 - Add available confusion profiles to the prompt context
 
 4. Update the pipeline service to pass available confusion profiles to the AI input.

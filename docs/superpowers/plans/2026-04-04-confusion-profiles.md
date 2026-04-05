@@ -423,6 +423,11 @@ async deriveAndSave(input: {
       )
     : hitlResult;
 
+  // combinedResult should also include examples and fieldCounts per pair
+  // (up to 5 source examples per char pair, plus count of distinct fields)
+  // Examples shape: Record<"trueChar→recognizedChar", Array<{ field, predicted, expected }>>
+  // Field counts shape: Record<"trueChar→recognizedChar", number>
+
   return this.create({
     name: input.name,
     description: input.description,
@@ -436,6 +441,8 @@ async deriveAndSave(input: {
       },
       totalConfusions: combinedResult.totals.totalConfusions,
       uniquePairs: combinedResult.totals.uniquePairs,
+      examples: combinedResult.examples,       // up to 5 source examples per char pair
+      fieldCounts: combinedResult.fieldCounts,  // distinct field count per char pair
     },
     groupId: input.groupId,
   });
@@ -681,7 +688,7 @@ describe("profile-driven confusion rules", () => {
     jest.restoreAllMocks();
   });
 
-  it("loads profile and applies matrix entries above frequency threshold", async () => {
+  it("loads profile and applies all matrix entries as substitution rules", async () => {
     const result = await characterConfusionCorrection({
       ocrResult: {
         ...baseOcrResult,
@@ -694,39 +701,14 @@ describe("profile-driven confusion rules", () => {
         ],
       },
       confusionProfileId: "profile-1",
-      frequencyThreshold: 3,
       applyToAllFields: true,
     });
 
     const field = result.ocrResult.documents![0].fields.amount as {
       content: string;
     };
-    // O->0 (count 42, above threshold 3), :->1 (count 5, above threshold 3), l->1 (count 18, above threshold 3)
+    // All entries apply: O->0 (count 42), :->1 (count 5), l->1 (count 18)
     expect(field.content).toBe("7120.00");
-  });
-
-  it("skips matrix entries below frequency threshold", async () => {
-    const result = await characterConfusionCorrection({
-      ocrResult: {
-        ...baseOcrResult,
-        documents: [
-          {
-            fields: {
-              amount: { content: "7:2O.OO" },
-            },
-          },
-        ],
-      },
-      confusionProfileId: "profile-1",
-      frequencyThreshold: 10,
-      applyToAllFields: true,
-    });
-
-    const field = result.ocrResult.documents![0].fields.amount as {
-      content: string;
-    };
-    // O->0 (42 >= 10), l->1 (18 >= 10), but :->1 (5 < 10) — colon stays
-    expect(field.content).toBe("7:20.00");
   });
 
   it("falls back to built-in rules when no profile specified", async () => {
@@ -766,13 +748,10 @@ Modify `apps/temporal/src/activities/ocr-character-confusion.ts`:
 // Add to CharacterConfusionParams interface:
 /** ConfusionProfile ID — loads matrix from database, replaces built-in rules. */
 confusionProfileId?: string;
-/** Minimum count in confusion matrix for a pair to become a substitution rule. Default: 1 */
-frequencyThreshold?: number;
 
 // Add function to load profile and convert to rules:
 async function loadConfusionProfileRules(
   profileId: string,
-  threshold: number,
 ): Promise<Record<string, string> | null> {
   const prisma = getPrismaClient();
   const profile = await prisma.confusionProfile.findUnique({
@@ -783,8 +762,8 @@ async function loadConfusionProfileRules(
   const matrix = profile.matrix as Record<string, Record<string, number>>;
   const map: Record<string, string> = {};
   for (const [trueChar, recognized] of Object.entries(matrix)) {
-    for (const [recognizedChar, count] of Object.entries(recognized)) {
-      if (count >= threshold && trueChar !== recognizedChar) {
+    for (const [recognizedChar] of Object.entries(recognized)) {
+      if (trueChar !== recognizedChar) {
         // The confusion is: OCR reads trueChar as recognizedChar
         // So the correction is: recognizedChar → trueChar
         map[recognizedChar] = trueChar;
@@ -798,11 +777,7 @@ async function loadConfusionProfileRules(
 // At the start of the function, before resolving built-in rules:
 let profileMap: Record<string, string> | null = null;
 if (params.confusionProfileId) {
-  const threshold = params.frequencyThreshold ?? 1;
-  profileMap = await loadConfusionProfileRules(
-    params.confusionProfileId,
-    threshold,
-  );
+  profileMap = await loadConfusionProfileRules(params.confusionProfileId);
 }
 
 // Use profileMap instead of built-in rules when available:
@@ -833,8 +808,8 @@ git add apps/temporal/src/activities/ocr-character-confusion.ts apps/temporal/sr
 git commit -m "feat: support confusion profile in character confusion activity
 
 Loads confusion matrix from ConfusionProfile entity by ID, converts
-entries above frequencyThreshold into substitution rules. Falls back
-to built-in rules when no profile specified."
+all entries into substitution rules. Falls back to built-in rules
+when no profile specified."
 ```
 
 ---
@@ -851,22 +826,15 @@ Read `apps/backend-services/src/hitl/tool-manifest.service.ts` to see the curren
 
 - [ ] **Step 2: Update manifest with new parameters**
 
-Add `confusionProfileId` and `frequencyThreshold` parameters to the `ocr.characterConfusion` manifest entry. Mark `enabledRules` and `disabledRules` as deprecated in their descriptions.
+Add `confusionProfileId` parameter to the `ocr.characterConfusion` manifest entry. Mark `enabledRules` and `disabledRules` as deprecated in their descriptions.
 
 ```typescript
 // In the ocr.characterConfusion tool manifest entry, add:
 {
   name: "confusionProfileId",
   type: "string",
-  description: "ConfusionProfile entity ID — loads matrix from database. When set, replaces built-in rules.",
+  description: "ConfusionProfile entity ID — loads matrix from database. When set, replaces built-in rules. All entries in the profile are applied (profile should be curated).",
   required: false,
-},
-{
-  name: "frequencyThreshold",
-  type: "number",
-  description: "Minimum count in confusion matrix for a pair to become a substitution rule. Default: 1",
-  required: false,
-  default: 1,
 },
 ```
 
@@ -879,9 +847,9 @@ Expected: ALL PASS
 
 ```bash
 git add apps/backend-services/src/hitl/tool-manifest.service.ts
-git commit -m "feat: add confusionProfileId and frequencyThreshold to character confusion manifest
+git commit -m "feat: add confusionProfileId to character confusion manifest
 
-New parameters for profile-driven confusion rules. enabledRules and
+New parameter for profile-driven confusion rules. enabledRules and
 disabledRules are deprecated but still functional for backward compat."
 ```
 
@@ -895,7 +863,7 @@ disabledRules are deprecated but still functional for backward compat."
 
 - [ ] **Step 1: Verify activity registration**
 
-Read `apps/temporal/src/activity-registry.ts` and check that `ocr.characterConfusion` passes all params through to the activity function. The new `confusionProfileId` and `frequencyThreshold` should flow through `params` automatically if the registry uses a generic params pattern.
+Read `apps/temporal/src/activity-registry.ts` and check that `ocr.characterConfusion` passes all params through to the activity function. The new `confusionProfileId` should flow through `params` automatically if the registry uses a generic params pattern.
 
 - [ ] **Step 2: If changes needed, update and test**
 
@@ -1013,10 +981,17 @@ Implementation:
 //
 // Features:
 //   - Mantine Table with sortable column headers (click header to sort)
+//   - Columns: True char | OCR read as | Count | Fields | Examples | Actions
+//     - "Fields" shows the distinct field count (from metadata.fieldCounts)
+//       e.g. "3 fields" — higher = more confidence this is a real pattern
+//     - "Examples" shows an expandable/tooltip with up to 5 source examples
+//       from metadata.examples, each showing: field key, predicted value, expected value
+//     - Rows with count=1 or fields=1 are visually dimmed (lower opacity)
+//       to flag likely noise for the operator
 //   - Each row has a Delete (ActionIcon with IconTrash) to remove the pair
 //   - Count is displayed as text (not editable — counts come from data)
 //   - "Add entry" row at the bottom: two TextInputs (true char, recognized char)
-//     + NumberInput (count) + Add button
+//     + Add button (count defaults to 1, no examples for manually added entries)
 //   - "Save" button at bottom — converts rows back to matrix JSON, calls onSave
 //     which triggers PATCH /confusion-profiles/:id with the updated matrix
 //   - "Cancel" button to discard changes
