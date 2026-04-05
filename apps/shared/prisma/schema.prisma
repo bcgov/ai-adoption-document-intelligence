@@ -347,7 +347,6 @@ model ConfusionProfile {
   id          String   @id @default(cuid())
   name        String
   description String?
-  scope       String?
   matrix      Json
   metadata    Json?
   group_id    String
