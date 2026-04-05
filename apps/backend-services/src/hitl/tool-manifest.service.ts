@@ -64,17 +64,24 @@ const TOOL_MANIFEST: ToolManifestEntry[] = [
         required: false,
       },
       {
+        name: "confusionProfileId",
+        type: "string",
+        description:
+          "ConfusionProfile entity ID — loads matrix from database. When set, replaces built-in rules. All entries in the profile are applied (profile should be curated).",
+        required: false,
+      },
+      {
         name: "enabledRules",
         type: "string[]",
         description:
-          "Optional list of built-in confusion rule IDs. Defaults to all when omitted.",
+          "Optional list of built-in confusion rule IDs. Defaults to all when omitted. (deprecated)",
         required: false,
       },
       {
         name: "disabledRules",
         type: "string[]",
         description:
-          "Built-in rule IDs to skip. Ignored when confusionMapOverride is set.",
+          "Built-in rule IDs to skip. Ignored when confusionMapOverride is set. (deprecated)",
         required: false,
       },
       {

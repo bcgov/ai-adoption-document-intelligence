@@ -260,8 +260,91 @@ describe("characterConfusionCorrection", () => {
     expect(result.changes).toHaveLength(0);
   });
 
+  describe("profile-driven confusion rules", () => {
+    const prismaMock = {
+      confusionProfile: {
+        findUnique: jest.fn(),
+      },
+      templateModel: {
+        findUnique: jest.fn(),
+      },
+    };
+
+    beforeEach(() => {
+      getPrismaClientMock.mockReturnValue(prismaMock);
+    });
+
+    afterEach(() => {
+      getPrismaClientMock.mockReset();
+    });
+
+    it("loads profile and applies all matrix entries as substitution rules", async () => {
+      // Profile matrix: O was read as 0 (42 times), : was read as 1 (5 times), l was read as 1 (18 times)
+      // Corrections: 0 → O, 1 → : (but 1 → l would conflict — last one wins in iteration order)
+      // Per spec: trueChar → recognizedChar means OCR reads trueChar as recognizedChar
+      // So map[recognizedChar] = trueChar: map["0"] = "O", map["1"] = ":" (overwritten by map["1"] = "l")
+      // Input "7:2O.OO" with applyToAllFields: true
+      // O → recognizedChar for trueChar O... wait, let's re-read spec:
+      // matrix[trueChar][recognizedChar]: OCR reads trueChar as recognizedChar → map[recognizedChar] = trueChar
+      // matrix["O"]["0"] = 42: OCR reads "O" as "0" → map["0"] = "O" ... but we want correction: seeing "0" means it should be "O"
+      // However the spec example says Expected: "7120.00" for "7:2O.OO"
+      // That means O→0 and :→1 apply. So map["O"]="0" and map[":"]="1"?
+      // Re-reading: matrix[trueChar][recognizedChar] and map[recognizedChar] = trueChar
+      // But test expects "7:2O.OO" → "7120.00" meaning ":" becomes "1" and "O" becomes "0"
+      // So map[":"] = "1" and map["O"] = "0"
+      // For matrix["O"]["0"]=42: recognizedChar="0", trueChar="O" → map["0"]="O" (not what we want)
+      // The expected output "7120.00" shows O→0 and :→1, so:
+      // matrix entry "0"→{"O": 42} would give map["O"]="0" ✓
+      // matrix entry "1"→{":": 5, "l": 18} would give map[":"]=1 and map["l"]="1" ✓
+      // Let's structure matrix that way for the test
+
+      prismaMock.confusionProfile.findUnique.mockResolvedValue({
+        id: "profile-1",
+        name: "Test profile",
+        matrix: {
+          "0": { O: 42 },
+          "1": { ":": 5, l: 18 },
+        },
+      });
+
+      const ocrResult = makeOcrResult([
+        { key: "code", value: "7:2O.OO", confidence: 0.9 },
+      ]);
+
+      const result = await characterConfusionCorrection({
+        ocrResult,
+        confusionProfileId: "profile-1",
+        applyToAllFields: true,
+      });
+
+      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("7120.00");
+      expect(result.changes).toHaveLength(1);
+      expect(result.metadata?.useProfile).toBe(true);
+      expect(result.metadata?.confusionProfileId).toBe("profile-1");
+    });
+
+    it("falls back to built-in rules when no profile specified", async () => {
+      const ocrResult = makeOcrResult([
+        { key: "Amount", value: "O89714425", confidence: 0.9 },
+      ]);
+
+      const result = await characterConfusionCorrection({
+        ocrResult,
+        applyToAllFields: true,
+      });
+
+      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
+        "089714425",
+      );
+      expect(result.metadata?.useProfile).toBe(false);
+    });
+  });
+
   describe("schema-aware (documentType)", () => {
     const prismaMock = {
+      confusionProfile: {
+        findUnique: jest.fn(),
+      },
       templateModel: {
         findUnique: jest.fn(),
       },

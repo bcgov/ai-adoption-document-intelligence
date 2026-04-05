@@ -27,6 +27,7 @@ import {
 } from "../form-field-normalization";
 import { createActivityLogger } from "../logger";
 import type { EnrichmentChange } from "../types";
+import { getPrismaClient } from "./database-client";
 import type { FieldMap } from "./enrichment-rules";
 import { loadFieldMapFromProject } from "./field-schema-loader";
 
@@ -95,6 +96,8 @@ interface CharacterConfusionParams extends CorrectionToolParams {
   confusionMapOverride?: Record<string, string>;
   /** Apply to all text fields, not just date/number context. Default: false */
   applyToAllFields?: boolean;
+  /** ConfusionProfile entity ID — loads matrix from database. When set, replaces built-in rules. All entries in the profile are applied. */
+  confusionProfileId?: string;
 }
 
 const MONTH_NAMES = [
@@ -275,6 +278,28 @@ function stripSlashFromMap(
   return rest;
 }
 
+async function loadConfusionProfileRules(
+  profileId: string,
+): Promise<Record<string, string> | null> {
+  const prisma = getPrismaClient();
+  const profile = await prisma.confusionProfile.findUnique({
+    where: { id: profileId },
+  });
+  if (!profile) return null;
+
+  const matrix = profile.matrix as Record<string, Record<string, number>>;
+  const map: Record<string, string> = {};
+  for (const [trueChar, recognized] of Object.entries(matrix)) {
+    for (const [recognizedChar] of Object.entries(recognized)) {
+      if (trueChar !== recognizedChar) {
+        // OCR reads trueChar as recognizedChar → correction: recognizedChar → trueChar
+        map[recognizedChar] = trueChar;
+      }
+    }
+  }
+  return Object.keys(map).length > 0 ? map : null;
+}
+
 /**
  * Character-confusion correction activity.
  * Applies confusion map replacements across the full OCR result.
@@ -284,15 +309,23 @@ export async function characterConfusionCorrection(
 ): Promise<CorrectionResult> {
   const log = createActivityLogger("characterConfusionCorrection");
   const { ocrResult, fieldScope, applyToAllFields, documentType } = params;
-  const useOverride = Boolean(
-    params.confusionMapOverride &&
-      Object.keys(params.confusionMapOverride).length > 0,
-  );
+
+  let profileMap: Record<string, string> | null = null;
+  if (params.confusionProfileId) {
+    profileMap = await loadConfusionProfileRules(params.confusionProfileId);
+  }
+
+  const useProfile = profileMap !== null;
+  const useOverride =
+    !useProfile &&
+    Boolean(
+      params.confusionMapOverride &&
+        Object.keys(params.confusionMapOverride).length > 0,
+    );
   const confusionMapOverride = params.confusionMapOverride;
 
-  const baseResolvedRules = useOverride
-    ? null
-    : resolveBuiltInConfusionRules(params);
+  const baseResolvedRules =
+    useProfile || useOverride ? null : resolveBuiltInConfusionRules(params);
 
   let fieldMap: FieldMap | null = null;
   if (documentType?.trim()) {
@@ -313,14 +346,18 @@ export async function characterConfusionCorrection(
   log.info("Character confusion correction start", {
     event: "start",
     fileName: ocrResult.fileName,
-    confusionMapSize: useOverride
-      ? Object.keys(confusionMapOverride ?? {}).length
-      : resolvedRuleIds.length,
+    confusionMapSize: useProfile
+      ? Object.keys(profileMap ?? {}).length
+      : useOverride
+        ? Object.keys(confusionMapOverride ?? {}).length
+        : resolvedRuleIds.length,
     applyToAllFields,
     fieldScope,
     documentType: documentType ?? null,
     schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
+    useProfile,
     useOverride,
+    confusionProfileId: params.confusionProfileId ?? null,
     enabledRules: resolvedRuleIds,
   });
 
@@ -328,6 +365,15 @@ export async function characterConfusionCorrection(
   const changes: EnrichmentChange[] = [];
 
   function effectiveMapForField(fieldKey: string): Record<string, string> {
+    if (useProfile && profileMap) {
+      let m = { ...profileMap };
+      const row = fieldMap?.[fieldKey];
+      if (row?.type === "string") {
+        m = stripSlashFromMap(m);
+      }
+      return m;
+    }
+
     if (useOverride && confusionMapOverride) {
       let m = { ...confusionMapOverride };
       const row = fieldMap?.[fieldKey];
@@ -418,14 +464,18 @@ export async function characterConfusionCorrection(
     ocrResult: result,
     changes,
     metadata: {
-      confusionMapEntries: useOverride
-        ? Object.keys(confusionMapOverride ?? {}).length
-        : Object.keys(mergeConfusionRules(baseResolvedRules ?? [])).length,
+      confusionMapEntries: useProfile
+        ? Object.keys(profileMap ?? {}).length
+        : useOverride
+          ? Object.keys(confusionMapOverride ?? {}).length
+          : Object.keys(mergeConfusionRules(baseResolvedRules ?? [])).length,
       applyToAllFields: applyToAllFields ?? false,
       documentType: documentType ?? null,
       schemaAware: Boolean(fieldMap),
       enabledRules: resolvedRuleIds,
+      useProfile,
       useOverride,
+      confusionProfileId: params.confusionProfileId ?? null,
     },
   };
 }
