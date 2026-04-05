@@ -27,9 +27,13 @@ import {
   type OcrNormalizeFieldsEmptyValueCoercion,
   type ToolRecommendation,
 } from "@/workflow/workflow-modification.util";
+import { PrismaService } from "../database/prisma.service";
 import { ToolManifestService } from "../hitl/tool-manifest.service";
 import { WorkflowService } from "../workflow/workflow.service";
-import type { PipelineLogEntry } from "./ai-recommendation.service";
+import type {
+  ConfusionProfileSummary,
+  PipelineLogEntry,
+} from "./ai-recommendation.service";
 import { AiRecommendationService } from "./ai-recommendation.service";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
@@ -41,6 +45,8 @@ export interface GenerateInput {
   actorId: string;
   /** Definition ID — used to find baseline run and persist debug log */
   definitionId: string;
+  /** Group ID — used to load available confusion profiles */
+  groupId: string;
   normalizeFieldsEmptyValueCoercion?: OcrNormalizeFieldsEmptyValueCoercion;
 }
 
@@ -69,6 +75,7 @@ export class OcrImprovementPipelineService {
     private readonly aiRecommendation: AiRecommendationService,
     private readonly workflowService: WorkflowService,
     private readonly definitionDb: BenchmarkDefinitionDbService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -191,20 +198,55 @@ export class OcrImprovementPipelineService {
         };
       }
 
-      // Step 2: Get tool manifest
+      // Step 2: Get AI-recommendable tool manifest and confusion profiles
       stepStart = Date.now();
-      const manifest = this.toolManifest.getManifest();
+      const aiTools = this.toolManifest.getAiRecommendableTools();
+
+      const rawProfiles = await this.prisma.prisma.confusionProfile.findMany({
+        where: { group_id: input.groupId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          matrix: true,
+        },
+        orderBy: { updated_at: "desc" },
+      });
+
+      const availableConfusionProfiles: ConfusionProfileSummary[] =
+        rawProfiles.map((p) => {
+          const matrix = p.matrix as Record<string, Record<string, number>>;
+          const topConfusions: Array<{
+            trueChar: string;
+            recognizedChar: string;
+            count: number;
+          }> = [];
+          for (const [trueChar, recognized] of Object.entries(matrix)) {
+            for (const [recognizedChar, count] of Object.entries(recognized)) {
+              topConfusions.push({ trueChar, recognizedChar, count });
+            }
+          }
+          topConfusions.sort((a, b) => b.count - a.count);
+          return {
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            topConfusions: topConfusions.slice(0, 10),
+          };
+        });
+
       logStep("tool_manifest", stepStart, {
-        tools: manifest.map((t) => ({
+        tools: aiTools.map((t) => ({
           toolId: t.toolId,
           parameterNames: t.parameters.map((p) => p.name),
         })),
+        confusionProfileCount: availableConfusionProfiles.length,
       });
 
       // Step 3: Build AI input for AiRecommendationService
       const correctionInput = corrections;
 
-      const toolInput = manifest.map((t) => ({
+      const toolInput = aiTools.map((t) => ({
         toolId: t.toolId,
         label: t.label,
         description: t.description,
@@ -278,8 +320,9 @@ export class OcrImprovementPipelineService {
           corrections: correctionInput,
           availableTools: toolInput,
           currentWorkflowSummary: workflowSummary,
+          availableConfusionProfiles,
         },
-        manifest.map((t) => t.toolId),
+        aiTools.map((t) => t.toolId),
       );
 
       if (aiOutput.debugInfo) {

@@ -34,12 +34,6 @@ describe("AiRecommendationService", () => {
         description: "Confusion",
         parameters: [],
       },
-      {
-        toolId: "ocr.normalizeFields",
-        label: "Normalize",
-        description: "Normalize",
-        parameters: [],
-      },
     ],
     currentWorkflowSummary: {
       nodeIds: ["extract", "cleanup"],
@@ -73,7 +67,6 @@ describe("AiRecommendationService", () => {
                         content: JSON.stringify({
                           analysis: "Spell errors",
                           characterConfusion: { include: false },
-                          normalizeFields: { include: false },
                           spellcheck: {
                             include: true,
                             parameters: { language: "en" },
@@ -164,7 +157,53 @@ describe("AiRecommendationService", () => {
     )?.content;
     expect(userContent).toBeDefined();
     expect(userContent).not.toContain("safeInsertionPoints");
+    expect(userContent).not.toContain("normalizeFields");
     expect(userContent).toContain("Insertion: the server places");
+    expect(userContent).toContain("confusionProfileId");
+  });
+
+  it("includes confusion profiles in user message when provided", async () => {
+    const post = httpService.post as jest.Mock;
+    const inputWithProfiles = {
+      ...mockInput,
+      availableConfusionProfiles: [
+        {
+          id: "profile-1",
+          name: "Invoice Confusion",
+          description: "Common confusions in invoices",
+          topConfusions: [{ trueChar: "0", recognizedChar: "O", count: 42 }],
+        },
+      ],
+    };
+    await service.getRecommendations(inputWithProfiles);
+
+    const payload = post.mock.calls[0][1] as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const userContent = payload.messages.find(
+      (m) => m.role === "user",
+    )?.content;
+    expect(userContent).toBeDefined();
+    expect(userContent).toContain("profile-1");
+    expect(userContent).toContain("Invoice Confusion");
+  });
+
+  it("notes no confusion profiles available when list is empty", async () => {
+    const post = httpService.post as jest.Mock;
+    const inputNoProfiles = {
+      ...mockInput,
+      availableConfusionProfiles: [],
+    };
+    await service.getRecommendations(inputNoProfiles);
+
+    const payload = post.mock.calls[0][1] as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const userContent = payload.messages.find(
+      (m) => m.role === "user",
+    )?.content;
+    expect(userContent).toBeDefined();
+    expect(userContent).toContain("No confusion profiles available");
   });
 
   it("returns empty recommendations when no post-extract insertion slot exists", async () => {
@@ -177,7 +216,6 @@ describe("AiRecommendationService", () => {
                 content: JSON.stringify({
                   analysis: "Would include tools",
                   characterConfusion: { include: true, parameters: {} },
-                  normalizeFields: { include: false },
                   spellcheck: { include: false },
                 }),
               },

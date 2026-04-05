@@ -3,6 +3,7 @@
  */
 
 import { Test, TestingModule } from "@nestjs/testing";
+import { PrismaService } from "@/database/prisma.service";
 import { ToolManifestService } from "@/hitl/tool-manifest.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { AiRecommendationService } from "./ai-recommendation.service";
@@ -109,7 +110,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
   };
 
   const mockToolManifest = {
-    getManifest: jest.fn().mockReturnValue([
+    getAiRecommendableTools: jest.fn().mockReturnValue([
       {
         toolId: "ocr.spellcheck",
         label: "Spellcheck",
@@ -117,6 +118,14 @@ describe("OcrImprovementPipelineService - generate()", () => {
         parameters: [],
       },
     ]),
+  };
+
+  const mockPrismaService = {
+    prisma: {
+      confusionProfile: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    },
   };
 
   const mockAiRecommendation = {
@@ -146,6 +155,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
           provide: BenchmarkDefinitionDbService,
           useValue: mockDefinitionDbService,
         },
+        { provide: PrismaService, useValue: mockPrismaService },
       ],
     }).compile();
 
@@ -165,6 +175,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-1",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
     });
 
     expect(result.status).toBe("error");
@@ -180,6 +191,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-1",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
     });
 
     expect(result.status).toBe("error");
@@ -209,6 +221,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-1",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
     });
 
     expect(result.status).toBe("no_recommendations");
@@ -246,6 +259,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-1",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
     });
 
     expect(result.status).toBe("candidate_created");
@@ -269,6 +283,59 @@ describe("OcrImprovementPipelineService - generate()", () => {
         action: "mismatch",
       },
     ]);
+    // normalizeFields should not be in AI tool input
+    expect(
+      aiCall.availableTools.some(
+        (t: { toolId: string }) => t.toolId === "ocr.normalizeFields",
+      ),
+    ).toBe(false);
+  });
+
+  it("passes confusion profiles to AI recommendation when available", async () => {
+    mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
+      makeBaselineRun(),
+    );
+    mockWorkflowService.getWorkflowById.mockResolvedValue({
+      id: "wf-1",
+      config: baseWorkflowConfig,
+    });
+    mockAiRecommendation.getRecommendations.mockResolvedValue({
+      recommendations: [
+        {
+          toolId: "ocr.spellcheck",
+          parameters: { language: "en" },
+          rationale: "test",
+          priority: 1,
+        },
+      ],
+      analysis: "ok",
+    });
+    mockWorkflowService.createCandidateVersion.mockResolvedValue({
+      id: "lineage-abc",
+      workflowVersionId: "version-xyz",
+    });
+
+    mockPrismaService.prisma.confusionProfile.findMany.mockResolvedValue([
+      {
+        id: "cp-1",
+        name: "Invoice Profile",
+        description: "Invoice confusions",
+        matrix: { "0": { O: 5 }, A: { "4": 2 } },
+      },
+    ]);
+
+    await service.generate({
+      workflowVersionId: "wf-1",
+      actorId: "user-1",
+      definitionId: "def-1",
+      groupId: "group-1",
+    });
+
+    const aiCall = mockAiRecommendation.getRecommendations.mock.calls[0][0];
+    expect(aiCall.availableConfusionProfiles).toHaveLength(1);
+    expect(aiCall.availableConfusionProfiles[0].id).toBe("cp-1");
+    expect(aiCall.availableConfusionProfiles[0].name).toBe("Invoice Profile");
+    expect(aiCall.availableConfusionProfiles[0].topConfusions).toBeDefined();
   });
 
   it("should return error when workflow not found", async () => {
@@ -281,6 +348,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-missing",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
     });
 
     expect(result.status).toBe("error");
@@ -377,6 +445,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-1",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
       normalizeFieldsEmptyValueCoercion: "null",
     });
 
@@ -424,6 +493,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-1",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
     });
 
     expect(mockDefinitionDbService.updatePipelineDebugLog).toHaveBeenCalledWith(
@@ -448,6 +518,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       workflowVersionId: "wf-1",
       actorId: "user-1",
       definitionId: "def-1",
+      groupId: "group-1",
     });
 
     expect(mockDefinitionDbService.updatePipelineDebugLog).toHaveBeenCalledWith(

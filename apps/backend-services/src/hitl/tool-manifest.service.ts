@@ -168,6 +168,11 @@ export class ToolManifestService {
     return TOOL_MANIFEST;
   }
 
+  /** Returns only tools that may be recommended by the AI (excludes ocr.normalizeFields). */
+  getAiRecommendableTools(): ToolManifestEntry[] {
+    return TOOL_MANIFEST.filter((t) => t.toolId !== "ocr.normalizeFields");
+  }
+
   getToolById(toolId: string): ToolManifestEntry | undefined {
     return TOOL_MANIFEST.find((t) => t.toolId === toolId);
   }

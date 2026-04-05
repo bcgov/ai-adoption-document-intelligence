@@ -107,7 +107,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/generate`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    const project =
+      await this.benchmarkProjectService.getProjectById(projectId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
     const definition = await this.benchmarkDefinitionService.getDefinitionById(
       projectId,
       definitionId,
@@ -128,6 +130,7 @@ export class BenchmarkRunController {
       workflowVersionId: definition.workflow.workflowVersionId,
       actorId,
       definitionId,
+      groupId: project.groupId,
       normalizeFieldsEmptyValueCoercion: dto.normalizeFieldsEmptyValueCoercion,
     });
     return {

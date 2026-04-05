@@ -19,22 +19,16 @@ const DEFAULT_API_VERSION = "2024-12-01-preview";
 
 const OCR_AI_CORRECTION_TOOL_ORDER = [
   "ocr.characterConfusion",
-  "ocr.normalizeFields",
   "ocr.spellcheck",
 ] as const;
 
-const MODEL_JSON_KEYS = [
-  "characterConfusion",
-  "normalizeFields",
-  "spellcheck",
-] as const;
+const MODEL_JSON_KEYS = ["characterConfusion", "spellcheck"] as const;
 
 const KEY_TO_TOOL_ID: Record<
   (typeof MODEL_JSON_KEYS)[number],
   (typeof OCR_AI_CORRECTION_TOOL_ORDER)[number]
 > = {
   characterConfusion: "ocr.characterConfusion",
-  normalizeFields: "ocr.normalizeFields",
   spellcheck: "ocr.spellcheck",
 };
 
@@ -79,10 +73,22 @@ export interface WorkflowSummaryInput {
   insertionSlots?: InsertionSlotSummary[];
 }
 
+export interface ConfusionProfileSummary {
+  id: string;
+  name: string;
+  description?: string | null;
+  topConfusions: Array<{
+    trueChar: string;
+    recognizedChar: string;
+    count: number;
+  }>;
+}
+
 export interface AiRecommendationInput {
   corrections: HitlCorrectionInput[];
   availableTools: ToolManifestInput[];
   currentWorkflowSummary: WorkflowSummaryInput;
+  availableConfusionProfiles?: ConfusionProfileSummary[];
 }
 
 /** Tool choices and parameters only; insertion is applied in the improvement pipeline (first edge after `azureOcr.extract`). */
@@ -156,6 +162,16 @@ function buildUserMessage(input: AiRecommendationInput): string {
     2,
   );
 
+  const profilesSection =
+    input.availableConfusionProfiles &&
+    input.availableConfusionProfiles.length > 0
+      ? `\nAvailable confusion profiles (use confusionProfileId from this list for ocr.characterConfusion):\n${JSON.stringify(
+          input.availableConfusionProfiles,
+          null,
+          2,
+        )}\n`
+      : "\nNo confusion profiles available; omit confusionProfileId or leave ocr.characterConfusion disabled.\n";
+
   const keyLines = MODEL_JSON_KEYS.map(
     (k) =>
       `    "${k}": { "include": <true|false>, "parameters": { }, "rationale": "<optional short reason>" }`,
@@ -164,10 +180,10 @@ function buildUserMessage(input: AiRecommendationInput): string {
   return `HITL corrections (${input.corrections.length} total, up to 200 shown):
 ${correctionsJson}
 
-OCR correction tools (only these may be enabled; pipeline order is fixed: character confusion, then normalize fields, then spellcheck — you only choose include/parameters):
+OCR correction tools (only these may be enabled; pipeline order is fixed: character confusion, then spellcheck — you only choose include/parameters):
 ${toolsJson}
-
-Workflow context (for parameters such as documentType on ocr.normalizeFields — match ocr.enrich when present):
+${profilesSection}
+Workflow context (match documentType to the LabelingProject id used by ocr.enrich when present):
 ${workflowJson}
 
 Insertion: the server places enabled tools on the first normal edge after azureOcr.extract in a fixed order; you do not choose graph position.
@@ -179,8 +195,10 @@ ${keyLines}
 }
 
 Rules:
-- Only the three keys above (plus "analysis"). Set "include": true only when the data supports that tool.
-- "parameters" must use names and types from each tool's manifest. For ocr.normalizeFields and ocr.characterConfusion, set documentType to the LabelingProject id used by ocr.enrich when applicable; for empty-string ground truth benchmarks, you may set emptyValueCoercion to "blank" on normalizeFields. For ocr.characterConfusion, use disabledRules (e.g. ["slashToOne"]) when slashes are legitimate in text fields; built-in rule IDs are oToZero, ilToOne, ssToFive, bToEight, gToSix, zToTwo, qToNine, slashToOne.
+- Only the two keys above (plus "analysis"). Set "include": true only when the data supports that tool.
+- "parameters" must use names and types from each tool's manifest.
+- For ocr.characterConfusion: set confusionProfileId to the id of a matching profile from the available list; set documentType to the LabelingProject id used by ocr.enrich when applicable. Do not reference built-in rule IDs.
+- For ocr.spellcheck: set language and fieldScope as needed.
 - Omit a tool or set "include": false when not needed.
 - Ignore any notion of per-tool insertion or "safe" graph positions; placement is not configurable in your output.`;
 }
