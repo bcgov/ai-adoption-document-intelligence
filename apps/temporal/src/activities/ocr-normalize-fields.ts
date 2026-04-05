@@ -23,6 +23,10 @@ import type {
 } from "../correction-types";
 import { deepCopyOcrResult } from "../correction-types";
 import {
+  format as formatFieldValue,
+  parseFormatSpec,
+} from "../field-format-engine";
+import {
   digitsOnly,
   isDateLikeFieldKey,
   isIdentifierLikeFieldKey,
@@ -488,6 +492,25 @@ export async function normalizeOcrFields(
     if (!value || typeof value !== "string") return value;
     const inScope = isFieldInScope(fieldKey, fieldScope);
     const schemaRow = fieldMap?.[fieldKey];
+
+    if (schemaRow?.format) {
+      const spec = parseFormatSpec(schemaRow.format);
+      if (spec) {
+        const cleaned = normalizeWhitespace(normalizeUnicode(value));
+        const formatted = formatFieldValue(cleaned, spec);
+        if (formatted !== value) {
+          changes.push({
+            fieldKey,
+            originalValue: value,
+            correctedValue: formatted,
+            reason: `Format spec canonicalization (${spec.canonicalize})`,
+            source: "rule",
+          });
+        }
+        return formatted;
+      }
+    }
+
     const rulesThisField =
       fieldMap && schemaRow
         ? rulesForSchemaField(rules, schemaRow.type)

@@ -463,6 +463,220 @@ describe("normalizeOcrFields", () => {
     ).toBe(true);
   });
 
+  describe("field format engine integration", () => {
+    let prismaMock: { templateModel: { findUnique: jest.Mock } };
+
+    beforeEach(() => {
+      prismaMock = {
+        templateModel: { findUnique: jest.fn() },
+      };
+      getPrismaClientMock.mockReturnValue(prismaMock);
+    });
+
+    afterEach(() => {
+      getPrismaClientMock.mockReset();
+    });
+
+    it("normalizes SIN field using format spec digits canonicalization", async () => {
+      prismaMock.templateModel.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "sin_number",
+            field_type: "string",
+            field_format: JSON.stringify({
+              canonicalize: "digits",
+              pattern: "^\\d{9}$",
+            }),
+          },
+        ],
+      });
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            sin_number: { content: "872 318 748", valueString: "872 318 748" },
+          },
+        },
+      ];
+
+      const result = await normalizeOcrFields({
+        ocrResult,
+        documentType: "proj-1",
+      });
+
+      expect(result.ocrResult.documents![0].fields.sin_number.content).toBe(
+        "872318748",
+      );
+      expect(
+        result.changes.some((c) =>
+          c.reason.includes("Format spec canonicalization"),
+        ),
+      ).toBe(true);
+    });
+
+    it("normalizes phone field using format spec with displayTemplate", async () => {
+      prismaMock.templateModel.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "phone_number",
+            field_type: "string",
+            field_format: JSON.stringify({
+              canonicalize: "digits",
+              displayTemplate: "(###) ###-###",
+            }),
+          },
+        ],
+      });
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            phone_number: {
+              content: "442-836-849",
+              valueString: "442-836-849",
+            },
+          },
+        },
+      ];
+
+      const result = await normalizeOcrFields({
+        ocrResult,
+        documentType: "proj-1",
+      });
+
+      expect(result.ocrResult.documents![0].fields.phone_number.content).toBe(
+        "(442) 836-849",
+      );
+      expect(
+        result.changes.some((c) =>
+          c.reason.includes("Format spec canonicalization"),
+        ),
+      ).toBe(true);
+    });
+
+    it("normalizes date field using format spec date canonicalization", async () => {
+      prismaMock.templateModel.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "birth_date",
+            field_type: "date",
+            field_format: JSON.stringify({ canonicalize: "date:YYYY-MM-DD" }),
+          },
+        ],
+      });
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            birth_date: {
+              content: "2009-Apr-22",
+              valueString: "2009-Apr-22",
+            },
+          },
+        },
+      ];
+
+      const result = await normalizeOcrFields({
+        ocrResult,
+        documentType: "proj-1",
+      });
+
+      expect(result.ocrResult.documents![0].fields.birth_date.content).toBe(
+        "2009-04-22",
+      );
+      expect(
+        result.changes.some((c) =>
+          c.reason.includes("Format spec canonicalization"),
+        ),
+      ).toBe(true);
+    });
+
+    it("normalizes text field using format spec text canonicalization", async () => {
+      prismaMock.templateModel.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "description",
+            field_type: "string",
+            field_format: JSON.stringify({ canonicalize: "text" }),
+          },
+        ],
+      });
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            description: {
+              content: "avoid various .",
+              valueString: "avoid various .",
+            },
+          },
+        },
+      ];
+
+      const result = await normalizeOcrFields({
+        ocrResult,
+        documentType: "proj-1",
+      });
+
+      expect(result.ocrResult.documents![0].fields.description.content).toBe(
+        "avoid various.",
+      );
+      expect(
+        result.changes.some((c) =>
+          c.reason.includes("Format spec canonicalization"),
+        ),
+      ).toBe(true);
+    });
+
+    it("falls back to heuristic normalization for fields without format spec", async () => {
+      prismaMock.templateModel.findUnique.mockResolvedValue({
+        id: "proj-1",
+        field_schema: [
+          {
+            field_key: "applicant_sin",
+            field_type: "string",
+            field_format: null,
+          },
+        ],
+      });
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_sin: {
+              content: "936-688-868",
+              valueString: "936-688-868",
+            },
+          },
+        },
+      ];
+
+      const result = await normalizeOcrFields({
+        ocrResult,
+        documentType: "proj-1",
+      });
+
+      // Should use heuristic identifier canonicalization (digits-only)
+      expect(result.ocrResult.documents![0].fields.applicant_sin.content).toBe(
+        "936688868",
+      );
+      expect(
+        result.changes.some(
+          (c) => c.reason === "Canonicalized identifier digits",
+        ),
+      ).toBe(true);
+    });
+  });
+
   describe("schema-aware (documentType)", () => {
     let prismaMock: { templateModel: { findUnique: jest.Mock } };
 
