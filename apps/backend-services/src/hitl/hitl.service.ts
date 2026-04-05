@@ -287,6 +287,14 @@ export class HitlService {
     }
 
     const doc = session.document as ReviewSessionWithDocument["document"];
+
+    // Fetch field definitions for format-aware HITL validation
+    const fieldDefinitions = session.document.group_id
+      ? await this.reviewDb.findFieldDefinitionsByGroupId(
+          session.document.group_id,
+        )
+      : [];
+
     return {
       id: session.id,
       documentId: session.document_id,
@@ -304,6 +312,7 @@ export class HitlService {
         },
       },
       corrections: session.corrections,
+      fieldDefinitions,
     };
   }
 

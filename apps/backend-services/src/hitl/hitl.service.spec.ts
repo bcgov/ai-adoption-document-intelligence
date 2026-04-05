@@ -128,6 +128,7 @@ describe("HitlService", () => {
       releaseDocumentLock: jest.fn(),
       refreshLockHeartbeat: jest.fn(),
       deleteCorrection: jest.fn(),
+      findFieldDefinitionsByGroupId: jest.fn().mockResolvedValue([]),
     };
 
     const mockAnalytics = {
@@ -487,9 +488,19 @@ describe("HitlService", () => {
   });
 
   describe("getSession", () => {
-    it("should return a review session", async () => {
+    it("should return a review session with field definitions", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
+      );
+      const mockFieldDefs = [
+        { field_key: "invoice_number", field_format: null },
+        {
+          field_key: "total_amount",
+          field_format: '{"canonicalize": "digits", "pattern": "^\\\\d+$"}',
+        },
+      ];
+      mockReviewDbService.findFieldDefinitionsByGroupId.mockResolvedValueOnce(
+        mockFieldDefs,
       );
 
       const result = await service.getSession("session-1");
@@ -497,6 +508,9 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
+      expect(
+        mockReviewDbService.findFieldDefinitionsByGroupId,
+      ).toHaveBeenCalledWith("group-1");
 
       expect(result).toEqual({
         id: "session-1",
@@ -515,7 +529,28 @@ describe("HitlService", () => {
           },
         },
         corrections: [],
+        fieldDefinitions: mockFieldDefs,
       });
+    });
+
+    it("should return empty fieldDefinitions when document has no group_id", async () => {
+      const sessionNoGroup = {
+        ...mockReviewSession,
+        document: {
+          ...mockReviewSession.document,
+          group_id: null,
+        },
+      };
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionNoGroup as any,
+      );
+
+      const result = await service.getSession("session-1");
+
+      expect(
+        mockReviewDbService.findFieldDefinitionsByGroupId,
+      ).not.toHaveBeenCalled();
+      expect(result.fieldDefinitions).toEqual([]);
     });
 
     it("should throw NotFoundException if session does not exist", async () => {

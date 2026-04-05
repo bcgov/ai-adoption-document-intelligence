@@ -116,6 +116,13 @@ export class ReviewSessionResponseDto {
     type: "array",
   })
   corrections?: unknown[];
+
+  @ApiPropertyOptional({
+    description:
+      "Field format definitions from the template model for client-side validation",
+    type: "array",
+  })
+  fieldDefinitions?: Array<{ field_key: string; field_format?: string | null }>;
 }
 
 export class CorrectionRecordDto {

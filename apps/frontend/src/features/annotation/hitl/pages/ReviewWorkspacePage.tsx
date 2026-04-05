@@ -37,6 +37,7 @@ import { useFieldFocus } from "../hooks/useFieldFocus";
 import { useReviewSession } from "../hooks/useReviewSession";
 import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 import { useUndoRedo } from "../hooks/useUndoRedo";
+import { buildFieldValidators } from "../utils/format-validation";
 
 interface OcrField {
   valueString?: string;
@@ -306,6 +307,11 @@ export const ReviewWorkspacePage: FC = () => {
     }
     return map;
   }, [session?.document?.ocr_result?.enrichment_summary]);
+
+  const fieldValidators = useMemo(() => {
+    if (!session?.fieldDefinitions?.length) return {};
+    return buildFieldValidators(session.fieldDefinitions);
+  }, [session?.fieldDefinitions]);
 
   const { canvasRef: fieldFocusCanvasRef, focusField } = useFieldFocus(fields);
 
@@ -1001,6 +1007,13 @@ export const ReviewWorkspacePage: FC = () => {
                                 disabled={readOnly}
                                 autosize
                                 minRows={1}
+                                error={
+                                  fieldValidators[field.fieldKey]
+                                    ? fieldValidators[field.fieldKey]!(
+                                        displayValue,
+                                      )
+                                    : undefined
+                                }
                               />
                             );
                           })()}

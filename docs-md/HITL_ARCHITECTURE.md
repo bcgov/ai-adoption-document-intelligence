@@ -659,6 +659,34 @@ When a field is selected in Document View:
 - The transition is animated for smooth visual context switching
 - This allows reviewers to quickly inspect the source region for any field without manual pan/zoom
 
+## Format-Aware Validation
+
+The HITL correction UI provides advisory validation on field inputs based on `field_format` specs from the document's template model.
+
+### How it works
+
+1. **Backend**: `HitlService.getSession()` returns a `fieldDefinitions` array alongside the session data. Field definitions are fetched from the first TemplateModel belonging to the document's group, containing `field_key` and `field_format` pairs.
+
+2. **Frontend**: `ReviewWorkspacePage` builds a validators map from `fieldDefinitions` using `buildFieldValidators()`. Each Textarea correction input receives an `error` prop that runs the validator on the current display value.
+
+3. **Validation logic** (`format-validation.ts`):
+   - Parses `field_format` JSON specs containing `canonicalize`, `pattern`, and optional `displayTemplate`
+   - Applies canonicalization operations (digits, uppercase, lowercase, strip-spaces, text, number, date formats)
+   - Tests canonicalized value against the pattern regex
+   - Returns error messages for unparseable values or pattern mismatches
+   - Empty values always pass validation
+
+### Advisory only
+
+Validation is non-blocking. Reviewers see Mantine error indicators on fields with format mismatches but can still submit corrections with non-conforming values.
+
+### Files
+
+- `apps/backend-services/src/hitl/hitl.service.ts` - getSession returns fieldDefinitions
+- `apps/backend-services/src/hitl/review-db.service.ts` - findFieldDefinitionsByGroupId query
+- `apps/frontend/src/features/annotation/hitl/utils/format-validation.ts` - validation utility
+- `apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx` - wired into Textarea error prop
+
 ## Future Enhancements
 
 Potential areas for expansion:

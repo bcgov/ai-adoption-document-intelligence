@@ -30,6 +30,11 @@ interface Correction {
   createdAt: string;
 }
 
+interface FieldDefinition {
+  field_key: string;
+  field_format?: string | null;
+}
+
 interface ReviewSession {
   id: string;
   documentId: string;
@@ -45,6 +50,7 @@ interface ReviewSession {
     file_type?: string;
   };
   corrections?: Correction[];
+  fieldDefinitions?: FieldDefinition[];
 }
 
 interface CorrectionDto {

@@ -337,6 +337,34 @@ export class ReviewDbService {
   }
 
   /**
+   * Finds field definitions (field_key + field_format) for the first template model
+   * belonging to the given group. Returns an empty array if no template model exists.
+   * @param groupId - The group ID to look up.
+   * @returns Array of { field_key, field_format } objects.
+   */
+  async findFieldDefinitionsByGroupId(
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Array<{ field_key: string; field_format: string | null }>> {
+    const client = tx ?? this.prisma;
+    const templateModel = await client.templateModel.findFirst({
+      where: { group_id: groupId },
+      include: {
+        field_schema: {
+          orderBy: { display_order: "asc" },
+          select: { field_key: true, field_format: true },
+        },
+      },
+    });
+    return (
+      templateModel?.field_schema?.map((f) => ({
+        field_key: f.field_key,
+        field_format: f.field_format,
+      })) ?? []
+    );
+  }
+
+  /**
    * Deletes a field correction by ID, scoped to a session.
    * @param correctionId - The correction ID to delete.
    * @param sessionId - The session ID the correction belongs to.
