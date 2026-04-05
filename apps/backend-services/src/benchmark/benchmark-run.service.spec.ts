@@ -1498,6 +1498,10 @@ describe("BenchmarkRunService", () => {
         id: "run-1",
         projectId: "project-1",
         definitionId: "def-1",
+        definition: {
+          datasetVersionId: "dv-1",
+          splitId: "split-1",
+        },
         status: "completed",
       };
 
@@ -1508,7 +1512,9 @@ describe("BenchmarkRunService", () => {
         .spyOn(prisma.benchmarkRun, "delete")
         .mockResolvedValue(mockRun as never);
       jest.spyOn(prisma.benchmarkRun, "count").mockResolvedValue(2 as never);
-      const updateSpy = jest.spyOn(prisma.benchmarkDefinition, "update");
+      const defUpdateSpy = jest.spyOn(prisma.benchmarkDefinition, "update");
+      const dvUpdateSpy = jest.spyOn(prisma.datasetVersion, "update");
+      const splitUpdateSpy = jest.spyOn(prisma.split, "update");
 
       await service.deleteRun("project-1", "run-1");
 
@@ -1518,14 +1524,20 @@ describe("BenchmarkRunService", () => {
       expect(prisma.benchmarkRun.count).toHaveBeenCalledWith({
         where: { definitionId: "def-1" },
       });
-      expect(updateSpy).not.toHaveBeenCalled();
+      expect(defUpdateSpy).not.toHaveBeenCalled();
+      expect(dvUpdateSpy).not.toHaveBeenCalled();
+      expect(splitUpdateSpy).not.toHaveBeenCalled();
     });
 
-    it("deletes a failed run and resets immutability when no runs remain", async () => {
+    it("deletes a failed run and resets immutability and unfreezes dataset when no runs remain", async () => {
       const mockRun = {
         id: "run-2",
         projectId: "project-1",
         definitionId: "def-1",
+        definition: {
+          datasetVersionId: "dv-1",
+          splitId: "split-1",
+        },
         status: "failed",
       };
 
@@ -1535,20 +1547,76 @@ describe("BenchmarkRunService", () => {
       jest
         .spyOn(prisma.benchmarkRun, "delete")
         .mockResolvedValue(mockRun as never);
-      jest.spyOn(prisma.benchmarkRun, "count").mockResolvedValue(0 as never);
+      // First call: remainingRuns for definition = 0
+      // Second call: other defs using dataset version = 0
+      // Third call: other defs using split = 0
+      jest
+        .spyOn(prisma.benchmarkRun, "count")
+        .mockResolvedValueOnce(0 as never)
+        .mockResolvedValueOnce(0 as never)
+        .mockResolvedValueOnce(0 as never);
       jest
         .spyOn(prisma.benchmarkDefinition, "update")
         .mockResolvedValue({} as never);
+      jest
+        .spyOn(prisma.datasetVersion, "update")
+        .mockResolvedValue({} as never);
+      jest.spyOn(prisma.split, "update").mockResolvedValue({} as never);
 
       await service.deleteRun("project-1", "run-2");
 
-      expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
-        where: { id: "run-2" },
-      });
       expect(prisma.benchmarkDefinition.update).toHaveBeenCalledWith({
         where: { id: "def-1" },
         data: { immutable: false },
       });
+      expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "dv-1" },
+        data: { frozen: false },
+      });
+      expect(prisma.split.update).toHaveBeenCalledWith({
+        where: { id: "split-1" },
+        data: { frozen: false },
+      });
+    });
+
+    it("does not unfreeze dataset version when other definitions still reference it", async () => {
+      const mockRun = {
+        id: "run-3",
+        projectId: "project-1",
+        definitionId: "def-1",
+        definition: {
+          datasetVersionId: "dv-1",
+          splitId: null,
+        },
+        status: "completed",
+      };
+
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
+      jest
+        .spyOn(prisma.benchmarkRun, "delete")
+        .mockResolvedValue(mockRun as never);
+      // First call: remainingRuns for definition = 0
+      // Second call: other defs using dataset version = 3 (still referenced)
+      jest
+        .spyOn(prisma.benchmarkRun, "count")
+        .mockResolvedValueOnce(0 as never)
+        .mockResolvedValueOnce(3 as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "update")
+        .mockResolvedValue({} as never);
+      const dvUpdateSpy = jest.spyOn(prisma.datasetVersion, "update");
+
+      await service.deleteRun("project-1", "run-3");
+
+      expect(prisma.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: { immutable: false },
+      });
+      expect(dvUpdateSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { frozen: false } }),
+      );
     });
 
     it("throws NotFoundException when run does not exist", async () => {
@@ -1561,7 +1629,7 @@ describe("BenchmarkRunService", () => {
 
     it("throws BadRequestException when run is still running", async () => {
       const mockRun = {
-        id: "run-3",
+        id: "run-running",
         projectId: "project-1",
         definitionId: "def-1",
         status: "running",
@@ -1571,14 +1639,14 @@ describe("BenchmarkRunService", () => {
         .spyOn(prisma.benchmarkRun, "findFirst")
         .mockResolvedValue(mockRun as never);
 
-      await expect(service.deleteRun("project-1", "run-3")).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.deleteRun("project-1", "run-running"),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("throws BadRequestException when run is pending", async () => {
       const mockRun = {
-        id: "run-4",
+        id: "run-pending",
         projectId: "project-1",
         definitionId: "def-1",
         status: "pending",
@@ -1588,9 +1656,9 @@ describe("BenchmarkRunService", () => {
         .spyOn(prisma.benchmarkRun, "findFirst")
         .mockResolvedValue(mockRun as never);
 
-      await expect(service.deleteRun("project-1", "run-4")).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.deleteRun("project-1", "run-pending"),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

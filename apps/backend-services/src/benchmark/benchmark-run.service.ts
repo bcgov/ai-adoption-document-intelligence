@@ -513,6 +513,9 @@ export class BenchmarkRunService {
         id: runId,
         projectId,
       },
+      include: {
+        definition: true,
+      },
     });
 
     if (!run) {
@@ -544,6 +547,43 @@ export class BenchmarkRunService {
       this.logger.log(
         `Reset immutability for definition ${run.definitionId} (no remaining runs)`,
       );
+
+      // Unfreeze dataset version if no other definitions with runs reference it
+      const { datasetVersionId, splitId } = run.definition;
+      const otherDefsUsingVersion = await this.prisma.benchmarkRun.count({
+        where: {
+          definition: { datasetVersionId },
+        },
+      });
+
+      if (otherDefsUsingVersion === 0) {
+        await this.prisma.datasetVersion.update({
+          where: { id: datasetVersionId },
+          data: { frozen: false },
+        });
+        this.logger.log(
+          `Unfroze dataset version ${datasetVersionId} (no remaining runs reference it)`,
+        );
+      }
+
+      // Unfreeze split if no other definitions with runs reference it
+      if (splitId) {
+        const otherDefsUsingSplit = await this.prisma.benchmarkRun.count({
+          where: {
+            definition: { splitId },
+          },
+        });
+
+        if (otherDefsUsingSplit === 0) {
+          await this.prisma.split.update({
+            where: { id: splitId },
+            data: { frozen: false },
+          });
+          this.logger.log(
+            `Unfroze split ${splitId} (no remaining runs reference it)`,
+          );
+        }
+      }
     }
 
     this.logger.log(`Deleted benchmark run ${runId} from project ${projectId}`);
