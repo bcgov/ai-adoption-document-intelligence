@@ -493,10 +493,10 @@ describe("HitlService", () => {
         mockReviewSession as any,
       );
       const mockFieldDefs = [
-        { field_key: "invoice_number", field_format: null },
+        { field_key: "invoice_number", format_spec: null },
         {
           field_key: "total_amount",
-          field_format: '{"canonicalize": "digits", "pattern": "^\\\\d+$"}',
+          format_spec: '{"canonicalize": "digits", "pattern": "^\\\\d+$"}',
         },
       ];
       mockReviewDbService.findFieldDefinitionsByGroupId.mockResolvedValueOnce(

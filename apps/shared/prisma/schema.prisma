@@ -213,6 +213,7 @@ model FieldDefinition {
   field_key         String
   field_type        FieldType     @default(string)
   field_format      String?
+  format_spec       String?       // JSON format spec for normalization/validation
   display_order     Int           @default(0)
 
   @@unique([template_model_id, field_key])

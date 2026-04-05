@@ -222,19 +222,19 @@ export function validateFieldValue(
 
 /**
  * Build a map of field_key -> validator function from field definitions.
- * Fields with a parseable field_format get validators. Validation catches:
+ * Fields with a parseable format_spec get validators. Validation catches:
  * - Canonicalization failures (e.g., unparseable dates)
  * - Pattern mismatches (when pattern is defined)
  */
 export function buildFieldValidators(
-  fieldDefs: Array<{ field_key: string; field_format?: string | null }>,
+  fieldDefs: Array<{ field_key: string; format_spec?: string | null }>,
 ): Record<string, ((value: string) => string | null) | undefined> {
   const validators: Record<
     string,
     ((value: string) => string | null) | undefined
   > = {};
   for (const fd of fieldDefs) {
-    const spec = parseFormatSpec(fd.field_format ?? null);
+    const spec = parseFormatSpec(fd.format_spec ?? null);
     if (spec) {
       validators[fd.field_key] = (value: string) =>
         validateFieldValue(value, spec);

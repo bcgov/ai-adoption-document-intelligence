@@ -661,16 +661,16 @@ When a field is selected in Document View:
 
 ## Format-Aware Validation
 
-The HITL correction UI provides advisory validation on field inputs based on `field_format` specs from the document's template model.
+The HITL correction UI provides advisory validation on field inputs based on `format_spec` from the document's template model. Note: `field_format` is a separate column used for Azure Document Intelligence training hints (e.g., "ymd", "dmy", "currency") and is not used for validation.
 
 ### How it works
 
-1. **Backend**: `HitlService.getSession()` returns a `fieldDefinitions` array alongside the session data. Field definitions are fetched from the first TemplateModel belonging to the document's group, containing `field_key` and `field_format` pairs.
+1. **Backend**: `HitlService.getSession()` returns a `fieldDefinitions` array alongside the session data. Field definitions are fetched from the first TemplateModel belonging to the document's group, containing `field_key` and `format_spec` pairs.
 
 2. **Frontend**: `ReviewWorkspacePage` builds a validators map from `fieldDefinitions` using `buildFieldValidators()`. Each Textarea correction input receives an `error` prop that runs the validator on the current display value.
 
 3. **Validation logic** (`format-validation.ts`):
-   - Parses `field_format` JSON specs containing `canonicalize`, `pattern`, and optional `displayTemplate`
+   - Parses `format_spec` JSON specs containing `canonicalize`, `pattern`, and optional `displayTemplate`
    - Applies canonicalization operations (digits, uppercase, lowercase, strip-spaces, text, number, date formats)
    - Tests canonicalized value against the pattern regex
    - Returns error messages for unparseable values or pattern mismatches

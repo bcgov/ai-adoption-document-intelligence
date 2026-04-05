@@ -337,29 +337,29 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds field definitions (field_key + field_format) for the first template model
+   * Finds field definitions (field_key + format_spec) for the first template model
    * belonging to the given group. Returns an empty array if no template model exists.
    * @param groupId - The group ID to look up.
-   * @returns Array of { field_key, field_format } objects.
+   * @returns Array of { field_key, format_spec } objects.
    */
   async findFieldDefinitionsByGroupId(
     groupId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<Array<{ field_key: string; field_format: string | null }>> {
+  ): Promise<Array<{ field_key: string; format_spec: string | null }>> {
     const client = tx ?? this.prisma;
     const templateModel = await client.templateModel.findFirst({
       where: { group_id: groupId },
       include: {
         field_schema: {
           orderBy: { display_order: "asc" },
-          select: { field_key: true, field_format: true },
+          select: { field_key: true, format_spec: true },
         },
       },
     });
     return (
       templateModel?.field_schema?.map((f) => ({
         field_key: f.field_key,
-        field_format: f.field_format,
+        format_spec: f.format_spec,
       })) ?? []
     );
   }

@@ -32,7 +32,7 @@ interface Correction {
 
 interface FieldDefinition {
   field_key: string;
-  field_format?: string | null;
+  format_spec?: string | null;
 }
 
 interface ReviewSession {

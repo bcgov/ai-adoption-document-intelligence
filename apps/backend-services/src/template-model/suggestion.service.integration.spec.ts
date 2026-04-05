@@ -45,6 +45,7 @@ describe("SuggestionService Integration Test", () => {
       field_key: field.fieldKey,
       field_type: FieldType[field.fieldType as keyof typeof FieldType],
       field_format: field.fieldFormat || null,
+      format_spec: null,
       display_order: index,
     }));
 

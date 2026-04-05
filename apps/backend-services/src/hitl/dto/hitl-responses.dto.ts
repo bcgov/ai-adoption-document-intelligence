@@ -122,7 +122,7 @@ export class ReviewSessionResponseDto {
       "Field format definitions from the template model for client-side validation",
     type: "array",
   })
-  fieldDefinitions?: Array<{ field_key: string; field_format?: string | null }>;
+  fieldDefinitions?: Array<{ field_key: string; format_spec?: string | null }>;
 }
 
 export class CorrectionRecordDto {

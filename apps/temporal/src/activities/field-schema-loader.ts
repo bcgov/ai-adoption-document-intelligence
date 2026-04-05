@@ -22,10 +22,12 @@ export async function loadFieldMapFromProject(
       field_key: string;
       field_type: unknown;
       field_format: string | null;
+      format_spec: string | null;
     }) => ({
       field_key: f.field_key,
       field_type: String(f.field_type),
       field_format: f.field_format,
+      format_spec: f.format_spec,
     }),
   );
   return buildFieldMap(defs);

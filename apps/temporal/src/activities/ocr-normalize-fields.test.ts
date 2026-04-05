@@ -484,7 +484,8 @@ describe("normalizeOcrFields", () => {
           {
             field_key: "sin_number",
             field_type: "string",
-            field_format: JSON.stringify({
+            field_format: null,
+            format_spec: JSON.stringify({
               canonicalize: "digits",
               pattern: "^\\d{9}$",
             }),
@@ -523,7 +524,8 @@ describe("normalizeOcrFields", () => {
           {
             field_key: "phone_number",
             field_type: "string",
-            field_format: JSON.stringify({
+            field_format: null,
+            format_spec: JSON.stringify({
               canonicalize: "digits",
               displayTemplate: "(###) ###-###",
             }),
@@ -565,7 +567,8 @@ describe("normalizeOcrFields", () => {
           {
             field_key: "birth_date",
             field_type: "date",
-            field_format: JSON.stringify({ canonicalize: "date:YYYY-MM-DD" }),
+            field_format: null,
+            format_spec: JSON.stringify({ canonicalize: "date:YYYY-MM-DD" }),
           },
         ],
       });
@@ -604,7 +607,8 @@ describe("normalizeOcrFields", () => {
           {
             field_key: "description",
             field_type: "string",
-            field_format: JSON.stringify({ canonicalize: "text" }),
+            field_format: null,
+            format_spec: JSON.stringify({ canonicalize: "text" }),
           },
         ],
       });
@@ -644,6 +648,7 @@ describe("normalizeOcrFields", () => {
             field_key: "applicant_sin",
             field_type: "string",
             field_format: null,
+            format_spec: null,
           },
         ],
       });
@@ -695,7 +700,12 @@ describe("normalizeOcrFields", () => {
       prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
-          { field_key: "name", field_type: "string", field_format: null },
+          {
+            field_key: "name",
+            field_type: "string",
+            field_format: null,
+            format_spec: null,
+          },
         ],
       });
       const ocrResult = makeOcrResult([]);
@@ -724,7 +734,12 @@ describe("normalizeOcrFields", () => {
       prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
-          { field_key: "amount", field_type: "number", field_format: null },
+          {
+            field_key: "amount",
+            field_type: "number",
+            field_format: null,
+            format_spec: null,
+          },
         ],
       });
       const ocrResult = makeOcrResult([]);
@@ -751,7 +766,12 @@ describe("normalizeOcrFields", () => {
       prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
-          { field_key: "birth", field_type: "date", field_format: null },
+          {
+            field_key: "birth",
+            field_type: "date",
+            field_format: null,
+            format_spec: null,
+          },
         ],
       });
       const ocrResult = makeOcrResult([]);

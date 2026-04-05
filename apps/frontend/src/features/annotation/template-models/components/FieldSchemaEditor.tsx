@@ -18,6 +18,7 @@ interface FieldSchemaEditorProps {
     field_key: string;
     field_type: FieldType;
     field_format?: string;
+    format_spec?: string;
     display_order?: number;
   }) => void;
   initialValue?: FieldDefinition | null;
@@ -89,6 +90,7 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
 }) => {
   const [fieldKey, setFieldKey] = useState("");
   const [fieldType, setFieldType] = useState<FieldType>(FieldType.STRING);
+  const [fieldFormat, setFieldFormat] = useState("");
   const [canonicalizePreset, setCanonicalizePreset] = useState("");
   const [customCanonicalize, setCustomCanonicalize] = useState("");
   const [formatPattern, setFormatPattern] = useState("");
@@ -98,8 +100,9 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
     if (opened) {
       setFieldKey(initialValue?.fieldKey || "");
       setFieldType(initialValue?.fieldType || FieldType.STRING);
+      setFieldFormat(initialValue?.fieldFormat || "");
 
-      const parsed = parseFormatSpec(initialValue?.fieldFormat);
+      const parsed = parseFormatSpec(initialValue?.formatSpec);
       setCanonicalizePreset(parsed.canonicalizePreset);
       setCustomCanonicalize(parsed.customCanonicalize);
       setFormatPattern(parsed.formatPattern);
@@ -122,7 +125,7 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
         ? customCanonicalize.trim()
         : canonicalizePreset;
 
-    let fieldFormat: string | undefined;
+    let formatSpec: string | undefined;
     if (canonicalize) {
       const spec: FormatSpec = { canonicalize };
       if (formatPattern.trim()) {
@@ -131,13 +134,14 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
       if (displayTemplate.trim()) {
         spec.displayTemplate = displayTemplate.trim();
       }
-      fieldFormat = JSON.stringify(spec);
+      formatSpec = JSON.stringify(spec);
     }
 
     onSubmit({
       field_key: fieldKey.trim(),
       field_type: fieldType,
-      field_format: fieldFormat,
+      field_format: fieldFormat.trim() || undefined,
+      format_spec: formatSpec,
     });
   };
 
@@ -157,6 +161,12 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
           data={fieldTypeOptions}
           value={fieldType}
           onChange={(value) => setFieldType(value as FieldType)}
+        />
+        <TextInput
+          label="Field format"
+          placeholder="Azure DI hint (e.g., ymd, dmy, currency)"
+          value={fieldFormat}
+          onChange={(event) => setFieldFormat(event.currentTarget.value)}
         />
         <Divider />
         <Text size="sm" fw={500}>

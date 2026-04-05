@@ -70,6 +70,7 @@ interface FieldFormData {
   field_key?: string;
   field_type?: string;
   field_format?: string;
+  format_spec?: string;
   display_order?: number;
 }
 
@@ -232,6 +233,7 @@ export const ModelDetailPage: FC = () => {
         fieldId: editingField.id,
         data: {
           field_format: data.field_format,
+          format_spec: data.format_spec,
           display_order: data.display_order,
         },
       });
@@ -240,6 +242,7 @@ export const ModelDetailPage: FC = () => {
         field_key: data.field_key!,
         field_type: data.field_type!,
         field_format: data.field_format,
+        format_spec: data.format_spec,
         display_order: schema.length + 1,
       });
     }

@@ -101,9 +101,9 @@ describe("buildFieldValidators", () => {
     const fieldDefs = [
       {
         field_key: "sin",
-        field_format: '{"canonicalize": "digits", "pattern": "^\\\\d{9}$"}',
+        format_spec: '{"canonicalize": "digits", "pattern": "^\\\\d{9}$"}',
       },
-      { field_key: "name", field_format: null },
+      { field_key: "name", format_spec: null },
     ];
     const validators = buildFieldValidators(fieldDefs);
     expect(validators.sin).toBeDefined();
@@ -118,7 +118,7 @@ describe("buildFieldValidators", () => {
     const fieldDefs = [
       {
         field_key: "date",
-        field_format: '{"canonicalize": "date:YYYY-MM-DD"}',
+        format_spec: '{"canonicalize": "date:YYYY-MM-DD"}',
       },
     ];
     const validators = buildFieldValidators(fieldDefs);
