@@ -541,6 +541,8 @@ export const ModelDetailPage: FC = () => {
                   <Table.Tr>
                     <Table.Th>Key</Table.Th>
                     <Table.Th>Type</Table.Th>
+                    <Table.Th>Format</Table.Th>
+                    <Table.Th>Format Spec</Table.Th>
                     <Table.Th>Order</Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
@@ -550,6 +552,18 @@ export const ModelDetailPage: FC = () => {
                     <Table.Tr key={field.id}>
                       <Table.Td>{field.fieldKey}</Table.Td>
                       <Table.Td>{field.fieldType}</Table.Td>
+                      <Table.Td>{field.fieldFormat || "—"}</Table.Td>
+                      <Table.Td>
+                        {(() => {
+                          if (!field.formatSpec) return "—";
+                          try {
+                            const spec = JSON.parse(field.formatSpec);
+                            return spec.canonicalize || "—";
+                          } catch {
+                            return field.formatSpec;
+                          }
+                        })()}
+                      </Table.Td>
                       <Table.Td>{field.displayOrder}</Table.Td>
                       <Table.Td>
                         <Group gap="xs">
