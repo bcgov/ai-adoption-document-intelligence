@@ -894,10 +894,35 @@ describe("validateFieldValue", () => {
     const spec = { canonicalize: "text" };
     expect(validateFieldValue("anything", spec)).toBeNull();
   });
+
+  it("validates date fields — valid date in any parseable format", () => {
+    const spec = { canonicalize: "date:YYYY-MM-DD" };
+    expect(validateFieldValue("2009-Apr-22", spec)).toBeNull();
+    expect(validateFieldValue("04/22/2009", spec)).toBeNull();
+    expect(validateFieldValue("2009-04-22", spec)).toBeNull();
+  });
+
+  it("returns error for unparseable date", () => {
+    const spec = { canonicalize: "date:YYYY-MM-DD" };
+    expect(validateFieldValue("not a date", spec)).toBe(
+      "Value could not be parsed in the expected format",
+    );
+  });
+
+  it("validates date with pattern", () => {
+    const spec = {
+      canonicalize: "date:YYYY-MM-DD",
+      pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+    };
+    expect(validateFieldValue("2009-Apr-22", spec)).toBeNull();
+    expect(validateFieldValue("not a date", spec)).toBe(
+      "Value could not be parsed in the expected format",
+    );
+  });
 });
 
 describe("buildFieldValidators", () => {
-  it("builds validators map from field definitions", () => {
+  it("builds validators map from field definitions with patterns", () => {
     const fieldDefs = [
       {
         field_key: "sin",
@@ -911,6 +936,21 @@ describe("buildFieldValidators", () => {
     expect(validators.sin!("872 318 748")).toBeNull();
     expect(validators.sin!("12345")).toBe(
       "Value does not match expected pattern",
+    );
+  });
+
+  it("builds validators for date fields even without pattern", () => {
+    const fieldDefs = [
+      {
+        field_key: "date",
+        field_format: '{"canonicalize": "date:YYYY-MM-DD"}',
+      },
+    ];
+    const validators = buildFieldValidators(fieldDefs);
+    expect(validators.date).toBeDefined();
+    expect(validators.date!("2009-Apr-22")).toBeNull();
+    expect(validators.date!("not a date")).toBe(
+      "Value could not be parsed in the expected format",
     );
   });
 });
@@ -932,6 +972,9 @@ Expected: FAIL — module not found
  * Pure functions — no Node dependencies. Mirrors the canonicalize logic
  * from apps/temporal/src/field-format-engine.ts but kept as a lightweight
  * frontend copy to avoid cross-package import complexity.
+ *
+ * Includes date parsing (ported from form-field-normalization.ts parseToCalendarParts)
+ * so that all format specs are fully validated client-side.
  */
 
 export interface FormatSpec {
@@ -960,10 +1003,81 @@ export function parseFormatSpec(raw: string | null): FormatSpec | null {
   return spec;
 }
 
-function applyCanonicalize(value: string, canonicalize: string): string {
+// --- Date parsing (ported from form-field-normalization.ts) ---
+
+const MONTH_NAME_TO_NUM: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+  apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+  aug: 8, august: 8, sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
+};
+
+interface CalendarParts { y: number; m: number; day: number; }
+
+function isValidYmd(y: number, m: number, day: number): CalendarParts | null {
+  if (m < 1 || m > 12 || day < 1 || day > 31) return null;
+  const dt = new Date(Date.UTC(y, m - 1, day));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== day)
+    return null;
+  return { y, m, day };
+}
+
+function tryDayMonthYear(d: number, mon: number, y: number): CalendarParts | null {
+  return isValidYmd(y, mon, d);
+}
+
+function parseNumericTripletDate(aStr: string, bStr: string, yStr: string): CalendarParts | null {
+  const a = parseInt(aStr, 10);
+  const b = parseInt(bStr, 10);
+  let y = parseInt(yStr, 10);
+  if (Number.isNaN(a) || Number.isNaN(b) || Number.isNaN(y)) return null;
+  if (yStr.length === 2) y += y >= 70 ? 1900 : 2000;
+  if (a > 12) return tryDayMonthYear(a, b, y);
+  if (b > 12) return tryDayMonthYear(b, a, y);
+  const dmy = tryDayMonthYear(a, b, y);
+  if (dmy) return dmy;
+  return tryDayMonthYear(b, a, y);
+}
+
+function parseToCalendarParts(value: string): CalendarParts | null {
+  const s = value.trim();
+  if (!s) return null;
+  const named = s.match(/^(\d{4})-([A-Za-z]{3,9})-(\d{1,2})$/);
+  if (named) {
+    const y = parseInt(named[1], 10);
+    const mon = MONTH_NAME_TO_NUM[named[2].toLowerCase()];
+    const day = parseInt(named[3], 10);
+    if (!mon || Number.isNaN(y) || Number.isNaN(day)) return null;
+    return isValidYmd(y, mon, day);
+  }
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return isValidYmd(parseInt(iso[1], 10), parseInt(iso[2], 10), parseInt(iso[3], 10));
+  const triplet = s.match(/^(\d{1,2})([/.-])(\d{1,2})\2(\d{2,4})$/);
+  if (triplet) return parseNumericTripletDate(triplet[1], triplet[3], triplet[4]);
+  return null;
+}
+
+function applyDate(value: string, outputFormat: string): string | null {
+  const cleaned = value.replace(/\s*-\s*/g, "-").replace(/\s*\/\s*/g, "/").trim();
+  const parts = parseToCalendarParts(cleaned);
+  if (!parts) return null; // unparseable — validation failure
+  const mm = String(parts.m).padStart(2, "0");
+  const dd = String(parts.day).padStart(2, "0");
+  switch (outputFormat) {
+    case "YYYY-MM-DD": return `${parts.y}-${mm}-${dd}`;
+    case "DD/MM/YYYY": return `${dd}/${mm}/${parts.y}`;
+    case "MM/DD/YYYY": return `${mm}/${dd}/${parts.y}`;
+    default: return `${parts.y}-${mm}-${dd}`;
+  }
+}
+
+// --- Canonicalize ---
+
+function applyCanonicalize(value: string, canonicalize: string): string | null {
   const ops = canonicalize.split("|").map((op) => op.trim());
-  let result = value;
+  let result: string | null = value;
   for (const op of ops) {
+    if (result === null) return null;
     switch (op) {
       case "digits":
         result = result.replace(/\D/g, "");
@@ -990,9 +1104,8 @@ function applyCanonicalize(value: string, canonicalize: string): string {
         break;
       default:
         if (op.startsWith("date:")) {
-          // Date parsing is complex — skip validation for date fields
-          // (the backend format engine handles normalization)
-          break;
+          const outputFormat = op.slice(5);
+          result = applyDate(result, outputFormat);
         }
     }
   }
@@ -1003,14 +1116,21 @@ function applyCanonicalize(value: string, canonicalize: string): string {
  * Validate a field value against a format spec.
  * Returns null if valid, or an error message string if invalid.
  * Compatible with @mantine/form validator signature.
+ *
+ * Validation fails if:
+ * - Canonicalization fails (e.g., unparseable date returns null)
+ * - Canonicalized value doesn't match the pattern regex (when pattern is set)
  */
 export function validateFieldValue(
   value: string,
   spec: FormatSpec,
 ): string | null {
   if (!value) return null;
-  if (!spec.pattern) return null;
   const canonicalized = applyCanonicalize(value, spec.canonicalize);
+  if (canonicalized === null) {
+    return "Value could not be parsed in the expected format";
+  }
+  if (!spec.pattern) return null;
   const regex = new RegExp(spec.pattern);
   if (regex.test(canonicalized)) return null;
   return "Value does not match expected pattern";
@@ -1018,7 +1138,9 @@ export function validateFieldValue(
 
 /**
  * Build a map of field_key → validator function from field definitions.
- * Only fields with a parseable field_format that includes a pattern get validators.
+ * Fields with a parseable field_format get validators. Validation catches:
+ * - Canonicalization failures (e.g., unparseable dates)
+ * - Pattern mismatches (when pattern is defined)
  */
 export function buildFieldValidators(
   fieldDefs: Array<{ field_key: string; field_format?: string | null }>,
@@ -1029,7 +1151,7 @@ export function buildFieldValidators(
   > = {};
   for (const fd of fieldDefs) {
     const spec = parseFormatSpec(fd.field_format ?? null);
-    if (spec?.pattern) {
+    if (spec) {
       validators[fd.field_key] = (value: string) =>
         validateFieldValue(value, spec);
     }
