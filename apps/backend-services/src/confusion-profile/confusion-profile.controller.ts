@@ -75,7 +75,6 @@ export class ConfusionProfileController {
     return this.confusionProfileService.deriveAndSave({
       name: dto.name,
       description: dto.description,
-      scope: dto.scope,
       groupId,
       sources: dto.sources,
     });
@@ -105,7 +104,6 @@ export class ConfusionProfileController {
     return this.confusionProfileService.create({
       name: dto.name,
       description: dto.description,
-      scope: dto.scope,
       matrix: dto.matrix,
       groupId,
     });

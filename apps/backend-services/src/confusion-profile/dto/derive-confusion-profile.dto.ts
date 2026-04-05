@@ -64,13 +64,6 @@ export class DeriveConfusionProfileDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: "Scope label (e.g. field key or category)",
-  })
-  @IsOptional()
-  @IsString()
-  scope?: string;
-
-  @ApiPropertyOptional({
     description: "Data sources to derive the matrix from",
     type: DeriveSourcesDto,
   })

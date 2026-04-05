@@ -14,9 +14,6 @@ export class ConfusionProfileResponseDto {
   @ApiPropertyOptional({ description: "Profile description" })
   description: string | null;
 
-  @ApiPropertyOptional({ description: "Scope label" })
-  scope: string | null;
-
   @ApiProperty({
     description: "Confusion matrix: { trueChar: { recognizedChar: count } }",
     type: "object",

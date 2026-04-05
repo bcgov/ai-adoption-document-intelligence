@@ -49,7 +49,6 @@ export function ConfusionProfilesPanel({
   const [deriveOpen, setDeriveOpen] = useState(false);
   const [deriveName, setDeriveName] = useState("");
   const [deriveDescription, setDeriveDescription] = useState("");
-  const [deriveScope, setDeriveScope] = useState("");
   const [selectedTemplateModelIds, setSelectedTemplateModelIds] = useState<
     string[]
   >([]);
@@ -63,7 +62,6 @@ export function ConfusionProfilesPanel({
   const handleDeriveOpen = () => {
     setDeriveName("");
     setDeriveDescription("");
-    setDeriveScope("");
     setSelectedTemplateModelIds([]);
     setBenchmarkRunIdsText("");
     setDeriveError(null);
@@ -93,7 +91,6 @@ export function ConfusionProfilesPanel({
       {
         name: deriveName.trim(),
         description: deriveDescription.trim() || undefined,
-        scope: deriveScope.trim() || undefined,
         sources: Object.keys(sources).length > 0 ? sources : undefined,
       },
       {
@@ -179,7 +176,6 @@ export function ConfusionProfilesPanel({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Name</Table.Th>
-              <Table.Th>Scope</Table.Th>
               <Table.Th>Confusions</Table.Th>
               <Table.Th>Created</Table.Th>
               <Table.Th>Actions</Table.Th>
@@ -189,7 +185,6 @@ export function ConfusionProfilesPanel({
             {profiles.map((p) => (
               <Table.Tr key={p.id}>
                 <Table.Td>{p.name}</Table.Td>
-                <Table.Td>{p.scope ?? "-"}</Table.Td>
                 <Table.Td>{sumMatrix(p.matrix)}</Table.Td>
                 <Table.Td>
                   {new Date(p.createdAt).toLocaleDateString()}
@@ -237,14 +232,8 @@ export function ConfusionProfilesPanel({
             value={deriveDescription}
             onChange={(e) => setDeriveDescription(e.currentTarget.value)}
           />
-          <TextInput
-            label="Scope"
-            placeholder="e.g. numeric, general"
-            value={deriveScope}
-            onChange={(e) => setDeriveScope(e.currentTarget.value)}
-          />
           <Text size="sm" c="dimmed">
-            Optionally scope the data sources. If none selected, all HITL
+            Optionally filter the data sources. If none selected, all HITL
             corrections in the group are used.
           </Text>
           <MultiSelect

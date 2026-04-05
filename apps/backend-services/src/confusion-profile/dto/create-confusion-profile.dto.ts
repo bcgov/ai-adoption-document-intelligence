@@ -16,13 +16,6 @@ export class CreateConfusionProfileDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({
-    description: "Scope label (e.g. field key or category)",
-  })
-  @IsOptional()
-  @IsString()
-  scope?: string;
-
   @ApiProperty({
     description: "Confusion matrix: { trueChar: { recognizedChar: count } }",
     type: "object",

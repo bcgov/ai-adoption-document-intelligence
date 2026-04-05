@@ -17,7 +17,6 @@ function buildProfile(overrides: Record<string, unknown> = {}) {
     id: "profile-1",
     name: "Test Profile",
     description: null,
-    scope: null,
     matrix: { "0": { O: 3 } },
     metadata: null,
     group_id: "group-1",
@@ -41,6 +40,9 @@ function makePrismaMock() {
         findMany: jest.fn(),
       },
       benchmarkRun: {
+        findMany: jest.fn(),
+      },
+      templateModel: {
         findMany: jest.fn(),
       },
     },
@@ -88,7 +90,6 @@ describe("ConfusionProfileService", () => {
         id: "profile-1",
         name: "Test Profile",
         description: null,
-        scope: null,
         matrix: { "0": { O: 3 } },
         metadata: null,
         groupId: "group-1",
@@ -373,6 +374,97 @@ describe("ConfusionProfileService", () => {
       // alignAndDiff should only be called once (for "amount", not "date")
       expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledTimes(1);
       expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith("1O0", "100");
+    });
+
+    it("resolves templateModelIds to field keys and filters HITL + benchmark", async () => {
+      // Mock template models with field_schema
+      (prismaMock.prisma.templateModel.findMany as jest.Mock).mockResolvedValue(
+        [
+          {
+            id: "tm-1",
+            field_schema: [{ field_key: "amount" }, { field_key: "date" }],
+          },
+        ],
+      );
+
+      // Mock HITL corrections (includes "amount" and "name" fields)
+      (
+        prismaMock.prisma.fieldCorrection.findMany as jest.Mock
+      ).mockResolvedValue([
+        {
+          field_key: "amount",
+          original_value: "1O0",
+          corrected_value: "100",
+        },
+      ]);
+
+      // Mock benchmark runs with mismatches on "date" and "name"
+      (prismaMock.prisma.benchmarkRun.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: "run-1",
+          metrics: {
+            perSampleResults: [
+              {
+                sampleId: "s1",
+                evaluationDetails: [
+                  {
+                    field: "date",
+                    matched: false,
+                    predicted: "2O24",
+                    expected: "2024",
+                  },
+                  {
+                    field: "name",
+                    matched: false,
+                    predicted: "Jahn",
+                    expected: "John",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]);
+
+      (matrixServiceMock.alignAndDiff as jest.Mock).mockReturnValue([
+        { trueChar: "0", recognizedChar: "O" },
+      ]);
+
+      const createdProfile = buildProfile();
+      (
+        prismaMock.prisma.confusionProfile.create as jest.Mock
+      ).mockResolvedValue(createdProfile);
+
+      await service.deriveAndSave({
+        name: "TM Scoped",
+        groupId: "group-1",
+        sources: {
+          templateModelIds: ["tm-1"],
+          benchmarkRunIds: ["run-1"],
+        },
+      });
+
+      // Template models should be queried
+      expect(prismaMock.prisma.templateModel.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ["tm-1"] } },
+        include: { field_schema: { select: { field_key: true } } },
+      });
+
+      // HITL query should filter by resolved field keys (amount, date)
+      const hitlCall = (prismaMock.prisma.fieldCorrection.findMany as jest.Mock)
+        .mock.calls[0][0];
+      expect(hitlCall.where.field_key).toEqual({
+        in: ["amount", "date"],
+      });
+
+      // Benchmark mismatches: "date" included (in template model), "name" excluded
+      // alignAndDiff called for HITL "amount" pair + benchmark "date" pair = 2 calls
+      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledTimes(2);
+      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith("1O0", "100");
+      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith(
+        "2O24",
+        "2024",
+      );
     });
 
     it("collects up to 5 examples per character pair", async () => {

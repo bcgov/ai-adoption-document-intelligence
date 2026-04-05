@@ -5,7 +5,6 @@ export interface ConfusionProfile {
   id: string;
   name: string;
   description: string | null;
-  scope: string | null;
   matrix: Record<string, Record<string, number>>;
   metadata: Record<string, unknown> | null;
   groupId: string;
@@ -16,7 +15,6 @@ export interface ConfusionProfile {
 interface DeriveProfileDto {
   name: string;
   description?: string;
-  scope?: string;
   sources?: {
     templateModelIds?: string[];
     benchmarkRunIds?: string[];
@@ -29,7 +27,6 @@ interface DeriveProfileDto {
 interface UpdateProfileDto {
   name?: string;
   description?: string;
-  scope?: string;
   matrix?: Record<string, Record<string, number>>;
   metadata?: Record<string, unknown>;
 }

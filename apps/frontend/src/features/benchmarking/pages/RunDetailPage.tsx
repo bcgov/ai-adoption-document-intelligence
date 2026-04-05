@@ -17,6 +17,7 @@ import {
   Switch,
   Table,
   Text,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -36,7 +37,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
+import { useDeriveProfile } from "../hooks/useConfusionProfiles";
 import { useApplyToBaseWorkflow, useDefinition } from "../hooks/useDefinitions";
+import { useProject } from "../hooks/useProjects";
 import {
   useArtifacts,
   useDrillDown,
@@ -294,6 +297,10 @@ export function RunDetailPage() {
   const [persistOcrCacheOnRerun, setPersistOcrCacheOnRerun] = useState(true);
   const [applyCandidateModalOpen, setApplyCandidateModalOpen] = useState(false);
   const [cleanupArtifacts, setCleanupArtifacts] = useState(true);
+  const [confusionModalOpen, setConfusionModalOpen] = useState(false);
+  const [confusionName, setConfusionName] = useState("");
+  const [confusionDescription, setConfusionDescription] = useState("");
+  const [confusionError, setConfusionError] = useState<string | null>(null);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -303,6 +310,8 @@ export function RunDetailPage() {
   );
 
   const { definition } = useDefinition(projectId, run?.definitionId || "");
+  const { project } = useProject(projectId);
+  const deriveMutation = useDeriveProfile(project?.groupId ?? "");
   const applyToBaseMutation = useApplyToBaseWorkflow(projectId ?? "");
   const isApplyingToBase = applyToBaseMutation.isPending;
   const { drillDown } = useDrillDown(projectId, runId || "");
@@ -330,6 +339,46 @@ export function RunDetailPage() {
     projectId,
     runId || "",
   );
+
+  const handleConfusionOpen = () => {
+    setConfusionName("");
+    setConfusionDescription("");
+    setConfusionError(null);
+    setConfusionModalOpen(true);
+  };
+
+  const handleConfusionSubmit = () => {
+    if (!confusionName.trim()) {
+      setConfusionError("Name is required.");
+      return;
+    }
+    setConfusionError(null);
+    deriveMutation.mutate(
+      {
+        name: confusionName.trim(),
+        description: confusionDescription.trim() || undefined,
+        sources: { benchmarkRunIds: [runId || ""] },
+      },
+      {
+        onSuccess: () => {
+          setConfusionModalOpen(false);
+          notifications.show({
+            title: "Confusion Profile Created",
+            message:
+              "Confusion profile has been derived from this benchmark run.",
+            color: "green",
+          });
+        },
+        onError: (err) => {
+          setConfusionError(
+            err instanceof Error
+              ? err.message
+              : "Failed to derive confusion profile.",
+          );
+        },
+      },
+    );
+  };
 
   const handleRerun = async () => {
     if (!run) return;
@@ -629,6 +678,15 @@ export function RunDetailPage() {
                 data-testid="view-all-samples-btn"
               >
                 View All Samples
+              </Button>
+            )}
+            {run.status === "completed" && project?.groupId && (
+              <Button
+                variant="light"
+                onClick={handleConfusionOpen}
+                data-testid="create-confusion-profile-btn"
+              >
+                Create Confusion Profile
               </Button>
             )}
           </Group>
@@ -1152,6 +1210,54 @@ export function RunDetailPage() {
           isEditing={isEditingThresholds}
         />
       )}
+
+      {/* Create Confusion Profile Modal */}
+      <Modal
+        opened={confusionModalOpen}
+        onClose={() => setConfusionModalOpen(false)}
+        title="Create Confusion Profile"
+        data-testid="create-confusion-profile-modal"
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="Name"
+            required
+            value={confusionName}
+            onChange={(e) => setConfusionName(e.currentTarget.value)}
+            data-testid="confusion-profile-name-input"
+          />
+          <TextInput
+            label="Description"
+            value={confusionDescription}
+            onChange={(e) => setConfusionDescription(e.currentTarget.value)}
+            data-testid="confusion-profile-description-input"
+          />
+          <Text size="sm" c="dimmed">
+            Derives a character-level confusion matrix from mismatches in this
+            benchmark run.
+          </Text>
+          {confusionError && (
+            <Text c="red" size="sm">
+              {confusionError}
+            </Text>
+          )}
+          <Group justify="flex-end" mt="xs">
+            <Button
+              variant="default"
+              onClick={() => setConfusionModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              loading={deriveMutation.isPending}
+              onClick={handleConfusionSubmit}
+              data-testid="confusion-profile-submit-btn"
+            >
+              Create
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* Field Error Detail Drawer */}
       <Drawer

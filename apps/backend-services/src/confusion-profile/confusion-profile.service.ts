@@ -18,7 +18,6 @@ import type { ConfusionProfileResponseDto } from "./dto";
 interface CreateProfileInput {
   name: string;
   description?: string;
-  scope?: string;
   matrix: Record<string, Record<string, number>>;
   metadata?: Record<string, unknown>;
   groupId: string;
@@ -27,7 +26,6 @@ interface CreateProfileInput {
 interface UpdateProfileInput {
   name?: string;
   description?: string;
-  scope?: string;
   matrix?: Record<string, Record<string, number>>;
   metadata?: Record<string, unknown>;
 }
@@ -43,7 +41,6 @@ interface DeriveSources {
 interface DeriveAndSaveInput {
   name: string;
   description?: string;
-  scope?: string;
   groupId: string;
   sources?: DeriveSources;
 }
@@ -75,7 +72,6 @@ export class ConfusionProfileService {
       data: {
         name: input.name,
         description: input.description ?? null,
-        scope: input.scope ?? null,
         matrix: input.matrix as Prisma.InputJsonValue,
         metadata: (input.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
         group_id: input.groupId,
@@ -112,7 +108,6 @@ export class ConfusionProfileService {
     const data: Prisma.ConfusionProfileUpdateInput = {};
     if (input.name !== undefined) data.name = input.name;
     if (input.description !== undefined) data.description = input.description;
-    if (input.scope !== undefined) data.scope = input.scope;
     if (input.matrix !== undefined)
       data.matrix = input.matrix as Prisma.InputJsonValue;
     if (input.metadata !== undefined)
@@ -159,7 +154,6 @@ export class ConfusionProfileService {
     return this.create({
       name: input.name,
       description: input.description,
-      scope: input.scope,
       matrix,
       metadata,
       groupId: input.groupId,
@@ -175,17 +169,24 @@ export class ConfusionProfileService {
     groupId: string,
     sources?: DeriveSources,
   ): Promise<CorrectionPair[]> {
+    // Resolve template model IDs to field keys
+    const resolvedFieldKeys = await this.resolveFieldKeys(sources);
+
     const pairs: CorrectionPair[] = [];
 
     // 1. HITL corrections
-    const hitlPairs = await this.fetchHitlCorrectionPairs(groupId, sources);
+    const hitlPairs = await this.fetchHitlCorrectionPairs(
+      groupId,
+      sources,
+      resolvedFieldKeys,
+    );
     pairs.push(...hitlPairs);
 
     // 2. Benchmark run mismatches
     if (sources?.benchmarkRunIds && sources.benchmarkRunIds.length > 0) {
       const mismatchPairs = await this.fetchBenchmarkMismatchPairs(
         sources.benchmarkRunIds,
-        sources.fieldKeys,
+        resolvedFieldKeys.length > 0 ? resolvedFieldKeys : sources?.fieldKeys,
       );
       pairs.push(...mismatchPairs);
     }
@@ -199,11 +200,37 @@ export class ConfusionProfileService {
   }
 
   /**
-   * Fetch HITL correction pairs, optionally filtered by template model, field keys, and date.
+   * Resolve template model IDs to field keys by loading field_schema.
+   * If both templateModelIds and fieldKeys are provided, intersects them.
+   */
+  private async resolveFieldKeys(sources?: DeriveSources): Promise<string[]> {
+    const explicitFieldKeys = sources?.fieldKeys ?? [];
+
+    if (!sources?.templateModelIds?.length) {
+      return explicitFieldKeys;
+    }
+
+    const templateModels = await this.prisma.prisma.templateModel.findMany({
+      where: { id: { in: sources.templateModelIds } },
+      include: { field_schema: { select: { field_key: true } } },
+    });
+    const tmFieldKeys = templateModels.flatMap((tm) =>
+      tm.field_schema.map((f) => f.field_key),
+    );
+
+    if (explicitFieldKeys.length > 0) {
+      return explicitFieldKeys.filter((k) => tmFieldKeys.includes(k));
+    }
+    return tmFieldKeys;
+  }
+
+  /**
+   * Fetch HITL correction pairs, optionally filtered by resolved field keys and date.
    */
   private async fetchHitlCorrectionPairs(
     groupId: string,
     sources?: DeriveSources,
+    resolvedFieldKeys?: string[],
   ): Promise<CorrectionPair[]> {
     const where: Prisma.FieldCorrectionWhereInput = {
       action: CorrectionAction.corrected,
@@ -212,9 +239,6 @@ export class ConfusionProfileService {
       session: {
         document: {
           group_id: groupId,
-          ...(sources?.templateModelIds?.length
-            ? { model_id: { in: sources.templateModelIds } }
-            : {}),
         },
       },
     };
@@ -226,8 +250,8 @@ export class ConfusionProfileService {
       if (sources?.endDate) where.created_at.lte = new Date(sources.endDate);
     }
 
-    if (sources?.fieldKeys?.length) {
-      where.field_key = { in: sources.fieldKeys };
+    if (resolvedFieldKeys && resolvedFieldKeys.length > 0) {
+      where.field_key = { in: resolvedFieldKeys };
     }
 
     const corrections = await this.prisma.prisma.fieldCorrection.findMany({
@@ -362,7 +386,6 @@ export class ConfusionProfileService {
     id: string;
     name: string;
     description: string | null;
-    scope: string | null;
     matrix: Prisma.JsonValue;
     metadata: Prisma.JsonValue;
     group_id: string;
@@ -373,7 +396,6 @@ export class ConfusionProfileService {
       id: profile.id,
       name: profile.name,
       description: profile.description,
-      scope: profile.scope,
       matrix: profile.matrix as Record<string, Record<string, number>>,
       metadata: profile.metadata as Record<string, unknown> | null,
       groupId: profile.group_id,
