@@ -608,11 +608,42 @@ export const useHistoricalRuns = (projectId: string, definitionId: string) => {
   };
 };
 
+interface OcrCacheSource {
+  id: string;
+  definitionId: string;
+  definitionName: string;
+  completedAt: string;
+  sampleCount: number;
+}
+
+export const useOcrCacheSources = (
+  projectId: string,
+  datasetVersionId: string,
+) => {
+  const query = useQuery({
+    queryKey: ["ocr-cache-sources", projectId, datasetVersionId],
+    queryFn: async () => {
+      const response = await apiService.get<OcrCacheSource[]>(
+        `/benchmark/projects/${projectId}/ocr-cache-sources?datasetVersionId=${datasetVersionId}`,
+      );
+      return response.data || [];
+    },
+    enabled: !!projectId && !!datasetVersionId,
+  });
+
+  return {
+    cacheSources: query.data || [],
+    isLoading: query.isLoading,
+    error: query.error,
+  };
+};
+
 export type {
   BaselineComparison,
   HistoricalRunData,
   MetricComparison,
   MetricThreshold,
+  OcrCacheSource,
   PerSampleResult,
   PerSampleResultsData,
   PipelineLogEntry,
