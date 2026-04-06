@@ -61,7 +61,7 @@ export class CreateRunDto {
   persistOcrCache?: boolean;
 
   /**
-   * When set, load OCR poll JSON from cache rows for this completed benchmark run (same definition).
+   * When set, load OCR poll JSON from cache rows for this completed benchmark run (same dataset version).
    * Mutually exclusive with persistOcrCache in practice (one populates cache, one consumes it).
    */
   @IsOptional()

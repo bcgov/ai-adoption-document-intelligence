@@ -118,20 +118,20 @@ export class BenchmarkRunService {
 
   private async assertOcrCacheBaselineRun(
     projectId: string,
-    definitionId: string,
+    datasetVersionId: string,
     baselineRunId: string,
   ): Promise<void> {
     const run = await this.prisma.benchmarkRun.findFirst({
       where: {
         id: baselineRunId,
         projectId,
-        definitionId,
         status: "completed",
+        definition: { datasetVersionId },
       },
     });
     if (!run) {
       throw new BadRequestException(
-        `ocrCacheBaselineRunId "${baselineRunId}" not found, not completed, or does not match this benchmark definition`,
+        `ocrCacheBaselineRunId "${baselineRunId}" not found, not completed, or does not share the same dataset version`,
       );
     }
   }
@@ -209,7 +209,7 @@ export class BenchmarkRunService {
     if (dto.ocrCacheBaselineRunId) {
       await this.assertOcrCacheBaselineRun(
         projectId,
-        definitionId,
+        definition.datasetVersionId,
         dto.ocrCacheBaselineRunId,
       );
     }

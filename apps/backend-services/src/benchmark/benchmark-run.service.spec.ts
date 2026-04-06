@@ -327,7 +327,7 @@ describe("BenchmarkRunService", () => {
           const w = args?.where;
           if (
             w?.status === "completed" &&
-            w?.definitionId &&
+            w?.definition &&
             w?.id === baselineId
           ) {
             return Promise.resolve({ id: baselineId, status: "completed" });
@@ -363,6 +363,53 @@ describe("BenchmarkRunService", () => {
         expect.any(String),
         expect.objectContaining({
           persistOcrCache: false,
+          ocrCacheBaselineRunId: baselineId,
+        }),
+      );
+    });
+
+    it("allows ocrCacheBaselineRunId from a different definition with same datasetVersionId", async () => {
+      const baselineId = "c3eb6015-f17f-49c5-80e7-5fdc97a3cbca";
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockImplementation(
+        (args: { where?: Record<string, unknown> }) => {
+          const w = args?.where;
+          if (w?.status === "completed" && w?.id === baselineId) {
+            // Different definition, same dataset version — should pass
+            return Promise.resolve({ id: baselineId, status: "completed" });
+          }
+          return Promise.resolve({
+            ...mockRun,
+            definition: { name: "Test Definition" },
+          });
+        },
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+
+      await service.startRun("project-1", "def-1", {
+        ocrCacheBaselineRunId: baselineId,
+      });
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
           ocrCacheBaselineRunId: baselineId,
         }),
       );
