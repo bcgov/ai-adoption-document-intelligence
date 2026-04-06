@@ -29,6 +29,7 @@ import {
   FieldErrorBreakdownDto,
   MetricComparison,
   MetricThreshold,
+  OcrCacheSourceDto,
   PerSampleResultDto,
   PerSampleResultsResponseDto,
   PromoteBaselineDto,
@@ -1161,5 +1162,38 @@ export class BenchmarkRunService {
       availableDimensions,
       dimensionValues,
     };
+  }
+
+  /**
+   * List completed runs that have cached OCR rows for a given dataset version.
+   * Returns runs across all definitions in the project that share the dataset version.
+   */
+  async listOcrCacheSources(
+    projectId: string,
+    datasetVersionId: string,
+  ): Promise<OcrCacheSourceDto[]> {
+    const query = {
+      where: {
+        projectId,
+        status: "completed",
+        definition: { datasetVersionId },
+        ocrCacheRows: { some: {} },
+      },
+      include: {
+        definition: { select: { id: true, name: true } },
+        _count: { select: { ocrCacheRows: true } },
+      },
+      orderBy: { completedAt: "desc" },
+    } as const;
+
+    const runs = await this.prisma.benchmarkRun.findMany(query);
+
+    return runs.map((run) => ({
+      id: run.id,
+      definitionId: run.definition.id,
+      definitionName: run.definition.name,
+      completedAt: run.completedAt!.toISOString(),
+      sampleCount: run._count.ocrCacheRows,
+    }));
   }
 }

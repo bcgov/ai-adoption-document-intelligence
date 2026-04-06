@@ -1661,4 +1661,70 @@ describe("BenchmarkRunService", () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe("listOcrCacheSources", () => {
+    it("returns completed runs with cache rows matching the dataset version", async () => {
+      (prisma.benchmarkRun.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: "run-1",
+          completedAt: new Date("2026-04-01T00:00:00Z"),
+          definition: { id: "def-1", name: "Def A" },
+          _count: { ocrCacheRows: 5 },
+        },
+        {
+          id: "run-2",
+          completedAt: new Date("2026-03-30T00:00:00Z"),
+          definition: { id: "def-2", name: "Def B" },
+          _count: { ocrCacheRows: 3 },
+        },
+      ]);
+
+      const result = await service.listOcrCacheSources(
+        "project-1",
+        "ds-version-1",
+      );
+
+      expect(prisma.benchmarkRun.findMany).toHaveBeenCalledWith({
+        where: {
+          projectId: "project-1",
+          status: "completed",
+          definition: { datasetVersionId: "ds-version-1" },
+          ocrCacheRows: { some: {} },
+        },
+        include: {
+          definition: { select: { id: true, name: true } },
+          _count: { select: { ocrCacheRows: true } },
+        },
+        orderBy: { completedAt: "desc" },
+      });
+
+      expect(result).toEqual([
+        {
+          id: "run-1",
+          definitionId: "def-1",
+          definitionName: "Def A",
+          completedAt: "2026-04-01T00:00:00.000Z",
+          sampleCount: 5,
+        },
+        {
+          id: "run-2",
+          definitionId: "def-2",
+          definitionName: "Def B",
+          completedAt: "2026-03-30T00:00:00.000Z",
+          sampleCount: 3,
+        },
+      ]);
+    });
+
+    it("returns empty array when no cache sources exist", async () => {
+      (prisma.benchmarkRun.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.listOcrCacheSources(
+        "project-1",
+        "ds-version-1",
+      );
+
+      expect(result).toEqual([]);
+    });
+  });
 });
