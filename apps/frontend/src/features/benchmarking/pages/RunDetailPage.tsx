@@ -542,6 +542,22 @@ export function RunDetailPage() {
             <Text c="dimmed" size="sm" data-testid="run-id-text">
               Run ID: {run.id}
             </Text>
+            {Boolean(
+              (run.params as Record<string, unknown>)?.ocrCacheBaselineRunId,
+            ) && (
+              <Badge
+                color="cyan"
+                variant="light"
+                size="lg"
+                data-testid="ocr-cache-source-badge"
+              >
+                OCR cached from run{" "}
+                {String(
+                  (run.params as Record<string, unknown>).ocrCacheBaselineRunId,
+                ).slice(0, 8)}
+                ...
+              </Badge>
+            )}
           </div>
           <Group>
             {canCancel && (
@@ -1062,9 +1078,26 @@ export function RunDetailPage() {
                   <Table.Tbody>
                     {Object.entries(run.params).map(([key, value]) => (
                       <Table.Tr key={key}>
-                        <Table.Td fw={500}>{key}</Table.Td>
+                        <Table.Td fw={500}>
+                          {key === "ocrCacheBaselineRunId"
+                            ? "OCR Cache Source Run"
+                            : key}
+                        </Table.Td>
                         <Table.Td>
-                          <Code>{JSON.stringify(value)}</Code>
+                          {key === "ocrCacheBaselineRunId" ? (
+                            <Anchor
+                              component="button"
+                              onClick={() =>
+                                navigate(
+                                  `/benchmarking/projects/${projectId}/runs/${String(value)}`,
+                                )
+                              }
+                            >
+                              {String(value)}
+                            </Anchor>
+                          ) : (
+                            <Code>{JSON.stringify(value)}</Code>
+                          )}
                         </Table.Td>
                       </Table.Tr>
                     ))}
