@@ -15,6 +15,7 @@ export * from "./ground-truth-generation.dto";
 export * from "./ground-truth-response.dto";
 export * from "./hitl-dataset-response.dto";
 export * from "./manifest-sample.dto";
+export * from "./ocr-cache-source.dto";
 export * from "./ocr-improvement-run.dto";
 export * from "./paginated-dataset-response.dto";
 export * from "./per-sample-result.dto";
