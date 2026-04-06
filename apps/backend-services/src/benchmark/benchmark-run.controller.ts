@@ -46,6 +46,7 @@ import {
   ApplyCandidateToBaseResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
+  OcrCacheSourceDto,
   OcrImprovementGenerateDto,
   OcrImprovementGenerateResponseDto,
   PerSampleResultsResponseDto,
@@ -230,6 +231,41 @@ export class BenchmarkRunController {
     this.logger.log(`GET /api/benchmark/projects/${projectId}/runs`);
     await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.listRuns(projectId);
+  }
+
+  @Get("ocr-cache-sources")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "List runs with cached OCR for a dataset version",
+    description:
+      "Returns completed runs across all definitions in the project that have cached Azure OCR responses " +
+      "and share the specified dataset version. Used to populate the cache source picker when starting a run.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiQuery({
+    name: "datasetVersionId",
+    required: true,
+    type: String,
+    description: "Dataset version ID to match",
+  })
+  @ApiOkResponse({
+    description: "List of runs with cached OCR",
+    type: [OcrCacheSourceDto],
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async listOcrCacheSources(
+    @Param("projectId") projectId: string,
+    @Query("datasetVersionId") datasetVersionId: string,
+    @Req() req: Request,
+  ): Promise<OcrCacheSourceDto[]> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/ocr-cache-sources?datasetVersionId=${datasetVersionId}`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+    return this.benchmarkRunService.listOcrCacheSources(
+      projectId,
+      datasetVersionId,
+    );
   }
 
   @Get("runs/:runId")
