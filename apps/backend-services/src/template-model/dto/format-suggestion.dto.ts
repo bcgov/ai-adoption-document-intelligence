@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsArray, IsOptional, IsString } from "class-validator";
 
 export class FormatSpecDto {
   @ApiProperty({
@@ -19,6 +20,17 @@ export class FormatSpecDto {
     example: "(###) ###-####",
   })
   displayTemplate?: string;
+}
+
+export class SuggestFormatsDto {
+  @ApiPropertyOptional({
+    type: [String],
+    description: "Benchmark run IDs to include mismatch data from",
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  benchmarkRunIds?: string[];
 }
 
 export class FormatSuggestionResponseDto {

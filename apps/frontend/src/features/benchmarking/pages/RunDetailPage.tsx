@@ -34,6 +34,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTemplateModels } from "@/features/annotation/template-models/hooks/useTemplateModels";
 import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
@@ -301,6 +302,10 @@ export function RunDetailPage() {
   const [confusionName, setConfusionName] = useState("");
   const [confusionDescription, setConfusionDescription] = useState("");
   const [confusionError, setConfusionError] = useState<string | null>(null);
+  const [suggestFormatsModalOpen, setSuggestFormatsModalOpen] = useState(false);
+  const [selectedTemplateModelId, setSelectedTemplateModelId] = useState<
+    string | null
+  >(null);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -312,6 +317,7 @@ export function RunDetailPage() {
   const { definition } = useDefinition(projectId, run?.definitionId || "");
   const { project } = useProject(projectId);
   const deriveMutation = useDeriveProfile(project?.groupId ?? "");
+  const { templateModels } = useTemplateModels();
   const applyToBaseMutation = useApplyToBaseWorkflow(projectId ?? "");
   const isApplyingToBase = applyToBaseMutation.isPending;
   const { drillDown } = useDrillDown(projectId, runId || "");
@@ -377,6 +383,19 @@ export function RunDetailPage() {
           );
         },
       },
+    );
+  };
+
+  const handleSuggestFormatsOpen = () => {
+    setSelectedTemplateModelId(null);
+    setSuggestFormatsModalOpen(true);
+  };
+
+  const handleSuggestFormatsNavigate = () => {
+    if (!selectedTemplateModelId || !runId) return;
+    setSuggestFormatsModalOpen(false);
+    navigate(
+      `/template-models/${selectedTemplateModelId}?suggestFromRun=${runId}`,
     );
   };
 
@@ -687,6 +706,16 @@ export function RunDetailPage() {
                 data-testid="create-confusion-profile-btn"
               >
                 Create Confusion Profile
+              </Button>
+            )}
+            {run.status === "completed" && project?.groupId && (
+              <Button
+                variant="light"
+                leftSection={<IconSparkles size={16} />}
+                onClick={handleSuggestFormatsOpen}
+                data-testid="suggest-formats-btn"
+              >
+                Suggest Formats
               </Button>
             )}
           </Group>
@@ -1254,6 +1283,49 @@ export function RunDetailPage() {
               data-testid="confusion-profile-submit-btn"
             >
               Create
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Suggest Formats Modal */}
+      <Modal
+        opened={suggestFormatsModalOpen}
+        onClose={() => setSuggestFormatsModalOpen(false)}
+        title="Suggest Formats"
+        data-testid="suggest-formats-modal"
+      >
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            Select a template model to open its field schema page and
+            automatically suggest format specifications using data from this
+            benchmark run.
+          </Text>
+          <Select
+            label="Template Model"
+            placeholder="Select a template model"
+            data={templateModels.map((tm) => ({
+              value: tm.id,
+              label: tm.name,
+            }))}
+            value={selectedTemplateModelId}
+            onChange={setSelectedTemplateModelId}
+            data-testid="suggest-formats-template-model-select"
+          />
+          <Group justify="flex-end" mt="xs">
+            <Button
+              variant="default"
+              onClick={() => setSuggestFormatsModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!selectedTemplateModelId}
+              leftSection={<IconSparkles size={16} />}
+              onClick={handleSuggestFormatsNavigate}
+              data-testid="suggest-formats-navigate-btn"
+            >
+              Open Template Model
             </Button>
           </Group>
         </Stack>

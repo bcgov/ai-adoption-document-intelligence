@@ -45,7 +45,10 @@ import {
   CreateFieldDefinitionDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
-import { FormatSuggestionResponseDto } from "./dto/format-suggestion.dto";
+import {
+  FormatSuggestionResponseDto,
+  SuggestFormatsDto,
+} from "./dto/format-suggestion.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
@@ -574,7 +577,7 @@ export class TemplateModelController {
   @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
-      "Analyze HITL corrections and suggest field format specifications via AI",
+      "Analyze HITL corrections and benchmark mismatches, then suggest field format specifications via AI",
   })
   @ApiParam({ name: "id", description: "Template Model ID" })
   @ApiOkResponse({
@@ -585,11 +588,12 @@ export class TemplateModelController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async suggestFormats(
     @Param("id") id: string,
+    @Body() dto: SuggestFormatsDto,
     @Req() req: Request,
   ): Promise<FormatSuggestionResponseDto[]> {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.formatSuggestionService.suggestFormats(id);
+    return this.formatSuggestionService.suggestFormats(id, dto.benchmarkRunIds);
   }
 
   // ========== EXPORT ENDPOINTS ==========

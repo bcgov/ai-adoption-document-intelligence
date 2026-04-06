@@ -131,7 +131,7 @@ apps/backend-services/src/training/
 | GET | `/api/template-models/:id/documents/:docId/ocr` | Get OCR data |
 | POST | `/api/template-models/:id/documents/:docId/suggestions` | Generate suggestions |
 | POST | `/api/template-models/:id/export` | Export for training |
-| POST | `/api/template-models/:id/suggest-formats` | AI-suggested format specs |
+| POST | `/api/template-models/:id/suggest-formats` | AI-suggested format specs (accepts optional `benchmarkRunIds` body) |
 
 #### Training
 
@@ -181,6 +181,13 @@ apps/frontend/src/features/annotation/template-models/
 - **Training panel**: No model_id input — just click "Train" with optional description
 - **Model card**: Shows both friendly name and copyable `model_id`
 - **Status badges**: draft (blue), training (yellow), trained (green), failed (red)
+- **Suggest Formats**: On the Field Schema tab, clicking "Suggest Formats" calls the AI endpoint with HITL corrections. Accepts an optional `suggestFromRun` query param to also include benchmark run mismatch data — when present, the suggestion runs automatically on page load.
+
+### Format Suggestions with Benchmark Data
+
+The `POST /api/template-models/:id/suggest-formats` endpoint accepts an optional `benchmarkRunIds` array in the request body. When provided, mismatch pairs from those runs (where `matched === false` in `evaluationDetails`) are merged with HITL corrections before being sent to the AI. The prompt will say "corrections and benchmark mismatches" instead of "HITL corrections".
+
+From the RunDetailPage, the "Suggest Formats" button opens a modal to select a template model, then navigates to `/template-models/:tmId?suggestFromRun=<runId>`. On ModelDetailPage, if the `suggestFromRun` query param is present, the format suggestion call is automatically triggered on mount with that run ID included.
 
 ## Training Flow
 

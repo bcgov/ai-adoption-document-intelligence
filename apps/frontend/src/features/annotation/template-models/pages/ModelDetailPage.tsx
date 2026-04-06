@@ -38,7 +38,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   type UploadQueueItem,
   useUploadQueue,
@@ -120,6 +120,7 @@ const getStatusBadgeColor = (status: string): string => {
 export const ModelDetailPage: FC = () => {
   const navigate = useNavigate();
   const { modelId: routeModelId } = useParams<{ modelId: string }>();
+  const [searchParams] = useSearchParams();
 
   if (!routeModelId) {
     return (
@@ -187,6 +188,15 @@ export const ModelDetailPage: FC = () => {
     },
     [queue],
   );
+
+  const suggestFromRun = searchParams.get("suggestFromRun");
+  useEffect(() => {
+    if (suggestFromRun && routeModelId) {
+      void handleSuggestFormats([suggestFromRun]);
+    }
+    // Only run once on mount when the param is present
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestFromRun, routeModelId]);
 
   const handleDrop = (acceptedFiles: File[]) => {
     addFiles(acceptedFiles);
@@ -340,12 +350,16 @@ export const ModelDetailPage: FC = () => {
     }
   };
 
-  const handleSuggestFormats = async () => {
+  const handleSuggestFormats = async (benchmarkRunIds?: string[]) => {
     setIsSuggesting(true);
     try {
+      const body: { benchmarkRunIds?: string[] } = {};
+      if (benchmarkRunIds && benchmarkRunIds.length > 0) {
+        body.benchmarkRunIds = benchmarkRunIds;
+      }
       const response = await apiService.post<FormatSuggestion[]>(
         `/template-models/${routeModelId}/suggest-formats`,
-        {},
+        body,
       );
       if (!response.success) {
         throw new Error(response.message || "Failed to fetch suggestions");
@@ -590,7 +604,7 @@ export const ModelDetailPage: FC = () => {
                 <Button
                   variant="light"
                   leftSection={<IconSparkles size={16} />}
-                  onClick={handleSuggestFormats}
+                  onClick={() => handleSuggestFormats()}
                   loading={isSuggesting}
                 >
                   Suggest Formats
