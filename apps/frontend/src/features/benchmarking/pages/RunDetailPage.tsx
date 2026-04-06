@@ -44,6 +44,7 @@ import { useProject } from "../hooks/useProjects";
 import {
   useArtifacts,
   useDrillDown,
+  useOcrCacheSources,
   usePerSampleResults,
   usePromoteBaseline,
   useRun,
@@ -296,6 +297,9 @@ export function RunDetailPage() {
   const [isEditingThresholds, setIsEditingThresholds] = useState(false);
   const [drawerField, setDrawerField] = useState<string | null>(null);
   const [persistOcrCacheOnRerun, setPersistOcrCacheOnRerun] = useState(true);
+  const [ocrCacheBaselineRunId, setOcrCacheBaselineRunId] = useState<
+    string | null
+  >(null);
   const [applyCandidateModalOpen, setApplyCandidateModalOpen] = useState(false);
   const [cleanupArtifacts, setCleanupArtifacts] = useState(true);
   const [confusionModalOpen, setConfusionModalOpen] = useState(false);
@@ -315,6 +319,10 @@ export function RunDetailPage() {
   );
 
   const { definition } = useDefinition(projectId, run?.definitionId || "");
+  const { cacheSources } = useOcrCacheSources(
+    projectId,
+    definition?.datasetVersion?.id ?? "",
+  );
   const { project } = useProject(projectId);
   const deriveMutation = useDeriveProfile(project?.groupId ?? "");
   const { templateModels } = useTemplateModels();
@@ -401,7 +409,10 @@ export function RunDetailPage() {
 
   const handleRerun = async () => {
     if (!run) return;
-    const newRun = await startRun({ persistOcrCache: persistOcrCacheOnRerun });
+    const newRun = await startRun({
+      persistOcrCache: persistOcrCacheOnRerun,
+      ...(ocrCacheBaselineRunId ? { ocrCacheBaselineRunId } : {}),
+    });
     navigate(`/benchmarking/projects/${projectId}/runs/${newRun.id}`);
   };
 
@@ -664,6 +675,22 @@ export function RunDetailPage() {
                   size="sm"
                   data-testid="rerun-persist-ocr-cache-switch"
                 />
+                {cacheSources.length > 0 && (
+                  <Select
+                    label="Use cached OCR from"
+                    placeholder="None (fresh OCR)"
+                    clearable
+                    data={cacheSources.map((s) => ({
+                      value: s.id,
+                      label: `${s.definitionName} — ${new Date(s.completedAt).toLocaleDateString()} (${s.sampleCount} samples)`,
+                    }))}
+                    value={ocrCacheBaselineRunId}
+                    onChange={setOcrCacheBaselineRunId}
+                    size="sm"
+                    styles={{ root: { minWidth: 300 } }}
+                    data-testid="rerun-ocr-cache-source-select"
+                  />
+                )}
                 <Button
                   onClick={handleRerun}
                   loading={isStarting}
