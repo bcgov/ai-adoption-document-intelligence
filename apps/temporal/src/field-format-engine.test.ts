@@ -114,6 +114,18 @@ describe("field-format-engine", () => {
       );
     });
 
+    it("date:YYYY-MM-DD — handles spaces around separators", () => {
+      expect(canonicalize("2020- Apr - 06", spec("date:YYYY-MM-DD"))).toBe(
+        "2020-04-06",
+      );
+      expect(canonicalize("2012 -Aug-21", spec("date:YYYY-MM-DD"))).toBe(
+        "2012-08-21",
+      );
+      expect(canonicalize("13- 05- 2006", spec("date:YYYY-MM-DD"))).toBe(
+        "2006-05-13",
+      );
+    });
+
     it("date:DD/MM/YYYY — outputs day-first date", () => {
       expect(canonicalize("2016-03-30", spec("date:DD/MM/YYYY"))).toBe(
         "30/03/2016",

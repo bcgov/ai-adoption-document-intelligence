@@ -46,7 +46,11 @@ export function parseFormatSpec(raw: string | null): FormatSpec | null {
 type DateOutputFormat = "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
 
 function applyDateOp(value: string, outputFormat: DateOutputFormat): string {
-  const parts = parseToCalendarParts(value);
+  const cleaned = value
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s*\/\s*/g, "/")
+    .trim();
+  const parts = parseToCalendarParts(cleaned);
   if (!parts) return value;
   const yyyy = String(parts.y).padStart(4, "0");
   const mm = String(parts.m).padStart(2, "0");
