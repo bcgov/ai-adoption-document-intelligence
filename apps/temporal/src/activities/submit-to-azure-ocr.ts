@@ -41,10 +41,12 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
  */
 export async function submitToAzureOCR(params: {
   fileData: PreparedFileData;
+  locale?: string;
   __benchmarkOcrCache?: { ocrResponse?: unknown };
 }): Promise<SubmissionResult> {
   const activityName = "submitToAzureOCR";
   const { fileData } = params;
+  const locale = params.locale ?? "en-US";
   const log = createActivityLogger(activityName);
   const startTime = Date.now();
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
@@ -135,12 +137,15 @@ export async function submitToAzureOCR(params: {
     const features = isPrebuiltModel ? ["keyValuePairs"] : undefined;
 
     // Submit document for analysis using base64 encoding (APIM compatible)
+    // locale forces the OCR engine to use a specific language model, preventing
+    // auto-detection from drifting (e.g. Cyrillic output on ambiguous Latin text)
     const initialResponse = await client
       .path("/documentModels/{modelId}:analyze", modelId)
       .post({
         contentType: "application/json",
         queryParameters: {
           features: features as string[] | undefined,
+          locale,
         },
         body: {
           base64Source: fileBuffer.toString("base64"),

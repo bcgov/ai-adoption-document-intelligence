@@ -21,10 +21,6 @@ import type {
   CorrectionToolParams,
 } from "../correction-types";
 import { deepCopyOcrResult } from "../correction-types";
-import {
-  isDateLikeFieldKey,
-  isIdentifierLikeFieldKey,
-} from "../form-field-normalization";
 import { createActivityLogger } from "../logger";
 import type { EnrichmentChange } from "../types";
 import { getPrismaClient } from "./database-client";
@@ -237,23 +233,21 @@ function hasConfusionGlyph(
 }
 
 /**
- * When false, only run the map on values that look like numeric OCR (digits, money,
- * etc.) or on identifier/date field keys. Otherwise "Scott" triggers S→5 and o→0
- * because those letters appear in the confusion map.
- *
- * With schema: `selectionMark` / `signature` fields are skipped (handled via empty map).
+ * Gating is now explicit: corrections apply only to fields listed in `fieldScope`,
+ * or to all fields when `applyToAllFields` is true. No implicit heuristics.
  */
 function shouldApplyCharacterConfusion(
   fieldKey: string,
   value: string,
   confusionMap: Record<string, string>,
   applyToAllFields: boolean | undefined,
+  fieldScope: string[] | undefined,
 ): boolean {
   if (applyToAllFields) return true;
-  if (!hasConfusionGlyph(value, confusionMap)) return false;
-  if (/\d/.test(value)) return true;
-  if (isIdentifierLikeFieldKey(fieldKey) || isDateLikeFieldKey(fieldKey)) {
-    return true;
+  if (fieldScope && fieldScope.length > 0) {
+    return (
+      fieldScope.includes(fieldKey) && hasConfusionGlyph(value, confusionMap)
+    );
   }
   return false;
 }
@@ -406,6 +400,7 @@ export async function characterConfusionCorrection(
       value,
       confusionMap,
       applyToAllFields,
+      fieldScope,
     );
     if (!shouldApply) return value;
 

@@ -68,24 +68,30 @@ describe("characterConfusionCorrection", () => {
     expect(result.changes).toHaveLength(0);
   });
 
-  it("corrects O→0 in date/number-like values", async () => {
+  it("corrects O→0 when field is in fieldScope", async () => {
     const ocrResult = makeOcrResult([
       { key: "Date", value: "2O24-01-15", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({ ocrResult });
+    const result = await characterConfusionCorrection({
+      ocrResult,
+      fieldScope: ["Date"],
+    });
 
     expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("2024-01-15");
     expect(result.changes.length).toBe(1);
     expect(result.changes[0].reason).toContain("Character confusion");
   });
 
-  it("corrects l→1 in numeric context", async () => {
+  it("corrects l→1 when field is in fieldScope", async () => {
     const ocrResult = makeOcrResult([
       { key: "Amount", value: "l,234.56", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({ ocrResult });
+    const result = await characterConfusionCorrection({
+      ocrResult,
+      fieldScope: ["Amount"],
+    });
 
     expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("1,234.56");
   });
@@ -206,6 +212,7 @@ describe("characterConfusionCorrection", () => {
     const result = await characterConfusionCorrection({
       ocrResult,
       confusionMapOverride: { "/": "1" },
+      fieldScope: ["AccountCode"],
     });
 
     expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("12134");
@@ -358,7 +365,7 @@ describe("characterConfusionCorrection", () => {
       getPrismaClientMock.mockReset();
     });
 
-    it("loads field_schema and applies substitutions for schema number field without id/date key heuristics", async () => {
+    it("loads field_schema and applies substitutions when field is in fieldScope", async () => {
       prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "proj-1",
         field_schema: [
@@ -378,6 +385,7 @@ describe("characterConfusionCorrection", () => {
       const result = await characterConfusionCorrection({
         ocrResult,
         documentType: "proj-1",
+        fieldScope: ["total_amount"],
       });
 
       expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
