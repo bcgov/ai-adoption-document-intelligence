@@ -31,6 +31,7 @@ import {
 import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
 import {
   useGenerateCandidate,
+  useOcrCacheSources,
   usePipelineDebugLog,
   useStartRun,
 } from "../hooks/useRuns";
@@ -139,6 +140,13 @@ export function DefinitionDetailView({
     useBaselineHistory(definition.projectId, definition.id);
 
   const [persistOcrCache, setPersistOcrCache] = useState(true);
+  const [ocrCacheBaselineRunId, setOcrCacheBaselineRunId] = useState<
+    string | null
+  >(null);
+  const { cacheSources } = useOcrCacheSources(
+    definition.projectId,
+    definition.datasetVersion.id,
+  );
 
   // Pipeline debug log: only fetches when the user expands the section
   const [showDebugLog, setShowDebugLog] = useState(false);
@@ -146,7 +154,10 @@ export function DefinitionDetailView({
     usePipelineDebugLog(definition.projectId, definition.id, showDebugLog);
 
   const handleStartRun = async () => {
-    const run = await startRun({ persistOcrCache });
+    const run = await startRun({
+      persistOcrCache,
+      ...(ocrCacheBaselineRunId ? { ocrCacheBaselineRunId } : {}),
+    });
     navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
   };
 
@@ -245,6 +256,22 @@ export function DefinitionDetailView({
                 size="sm"
                 data-testid="persist-ocr-cache-switch"
               />
+              {cacheSources.length > 0 && (
+                <Select
+                  label="Use cached OCR from"
+                  placeholder="None (fresh OCR)"
+                  clearable
+                  data={cacheSources.map((s) => ({
+                    value: s.id,
+                    label: `${s.definitionName} — ${new Date(s.completedAt).toLocaleDateString()} (${s.sampleCount} samples)`,
+                  }))}
+                  value={ocrCacheBaselineRunId}
+                  onChange={setOcrCacheBaselineRunId}
+                  size="sm"
+                  styles={{ root: { minWidth: 300 } }}
+                  data-testid="ocr-cache-source-select"
+                />
+              )}
               <Button
                 leftSection={<IconPlayerPlay size={16} />}
                 onClick={handleStartRun}
