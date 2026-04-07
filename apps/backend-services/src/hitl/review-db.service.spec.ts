@@ -194,6 +194,21 @@ describe("ReviewDbService", () => {
       );
     });
 
+    it("should restrict the queue to api-sourced documents and exclude ground truth jobs", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({});
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            source: "api",
+            groundTruthJob: { is: null },
+          }),
+        }),
+      );
+    });
+
     it("should apply pending review status filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 

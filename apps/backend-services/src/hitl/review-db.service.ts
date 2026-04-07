@@ -112,7 +112,13 @@ export class ReviewDbService {
 
     const where: Prisma.DocumentWhereInput = {
       status: filters.status ?? DocumentStatus.completed_ocr,
-      // Exclude documents belonging to ground truth generation jobs
+      // Only documents ingested through the regular API/upload pipeline are
+      // eligible for human review. Documents created by ground-truth dataset
+      // generation (source = "ground-truth-generation") must never appear in
+      // the HITL queue.
+      source: "api",
+      // Belt-and-braces: even if a future source value is introduced, never
+      // surface a document that is currently linked to a ground truth job.
       groundTruthJob: { is: null },
       // Exclude documents with active (non-expired) locks
       NOT: {

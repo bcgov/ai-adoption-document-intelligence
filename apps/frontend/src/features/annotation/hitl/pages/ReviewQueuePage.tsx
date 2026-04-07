@@ -48,6 +48,10 @@ export const ReviewQueuePage: FC = () => {
 
   const activeQueue = activeTab === "reviewed" ? reviewedQueue : pendingQueue;
 
+  const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
+    null,
+  );
+
   if (activeQueue.isLoading) {
     return (
       <Center h="70vh">
@@ -87,10 +91,6 @@ export const ReviewQueuePage: FC = () => {
       // Session start failed; leave state unchanged
     }
   };
-
-  const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
-    null,
-  );
 
   const handleReopenSession = async (sessionId: string) => {
     setReopeningSessionId(sessionId);
