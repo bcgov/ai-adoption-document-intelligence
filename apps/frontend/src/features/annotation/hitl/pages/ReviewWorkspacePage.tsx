@@ -387,6 +387,20 @@ export const ReviewWorkspacePage: FC = () => {
     return result;
   }, [sortedFields, activeFieldKey]);
 
+  // Scroll the active field row into view in the field panel when selection
+  // changes (e.g. via clicking a bounding box on the canvas).
+  useEffect(() => {
+    if (!activeFieldKey) return;
+    const panel = fieldPanelRef.current;
+    if (!panel) return;
+    const row = panel.querySelector<HTMLElement>(
+      `[data-field-key="${CSS.escape(activeFieldKey)}"]`,
+    );
+    if (row) {
+      row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [activeFieldKey]);
+
   const handleFieldChange = (field: ReviewField, value: string) => {
     const previousValue =
       correctionMap[field.fieldKey]?.corrected_value ??
@@ -931,6 +945,7 @@ export const ReviewWorkspacePage: FC = () => {
                     return (
                       <Paper
                         key={field.fieldKey}
+                        data-field-key={field.fieldKey}
                         withBorder
                         p="sm"
                         style={{
