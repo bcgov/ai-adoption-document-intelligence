@@ -31,13 +31,14 @@ import {
   IconFileImport,
   IconPhoto,
   IconPlus,
+  IconSparkles,
   IconTrash,
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   type UploadQueueItem,
   useUploadQueue,
@@ -70,7 +71,25 @@ interface FieldFormData {
   field_key?: string;
   field_type?: string;
   field_format?: string;
+  format_spec?: string;
   display_order?: number;
+}
+
+interface FormatSuggestion {
+  fieldKey: string;
+  formatSpec: {
+    canonicalize: string;
+    pattern?: string;
+    displayTemplate?: string;
+  };
+  rationale: string;
+  sampleCount: number;
+}
+
+type SuggestionState = "pending" | "accepted" | "rejected";
+
+interface SuggestionWithState extends FormatSuggestion {
+  state: SuggestionState;
 }
 
 const formatStatusBadge = (status: UploadQueueItem["status"]) => {
@@ -101,6 +120,7 @@ const getStatusBadgeColor = (status: string): string => {
 export const ModelDetailPage: FC = () => {
   const navigate = useNavigate();
   const { modelId: routeModelId } = useParams<{ modelId: string }>();
+  const [searchParams] = useSearchParams();
 
   if (!routeModelId) {
     return (
@@ -132,6 +152,9 @@ export const ModelDetailPage: FC = () => {
   );
   const fieldsFileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestionWithState[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const {
     queue,
     isUploading,
@@ -165,6 +188,15 @@ export const ModelDetailPage: FC = () => {
     },
     [queue],
   );
+
+  const suggestFromRun = searchParams.get("suggestFromRun");
+  useEffect(() => {
+    if (suggestFromRun && routeModelId) {
+      void handleSuggestFormats([suggestFromRun]);
+    }
+    // Only run once on mount when the param is present
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestFromRun, routeModelId]);
 
   const handleDrop = (acceptedFiles: File[]) => {
     addFiles(acceptedFiles);
@@ -232,6 +264,7 @@ export const ModelDetailPage: FC = () => {
         fieldId: editingField.id,
         data: {
           field_format: data.field_format,
+          format_spec: data.format_spec,
           display_order: data.display_order,
         },
       });
@@ -240,6 +273,7 @@ export const ModelDetailPage: FC = () => {
         field_key: data.field_key!,
         field_type: data.field_type!,
         field_format: data.field_format,
+        format_spec: data.format_spec,
         display_order: schema.length + 1,
       });
     }
@@ -314,6 +348,69 @@ export const ModelDetailPage: FC = () => {
         fieldsFileInputRef.current.value = "";
       }
     }
+  };
+
+  const handleSuggestFormats = async (benchmarkRunIds?: string[]) => {
+    setIsSuggesting(true);
+    try {
+      const body: { benchmarkRunIds?: string[] } = {};
+      if (benchmarkRunIds && benchmarkRunIds.length > 0) {
+        body.benchmarkRunIds = benchmarkRunIds;
+      }
+      const response = await apiService.post<FormatSuggestion[]>(
+        `/template-models/${routeModelId}/suggest-formats`,
+        body,
+      );
+      if (!response.success) {
+        throw new Error(response.message || "Failed to fetch suggestions");
+      }
+      const results = response.data ?? [];
+      setSuggestions(results.map((s) => ({ ...s, state: "pending" as const })));
+      setSuggestionsOpen(true);
+    } catch (err) {
+      notifications.show({
+        title: "Suggest Formats failed",
+        message:
+          err instanceof Error ? err.message : "An unexpected error occurred.",
+        color: "red",
+      });
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const handleSuggestionAccept = (fieldKey: string) => {
+    const suggestion = suggestions.find((s) => s.fieldKey === fieldKey);
+    if (!suggestion) return;
+
+    const field = schema.find((f) => f.fieldKey === fieldKey);
+    if (!field) {
+      notifications.show({
+        title: "Field not found",
+        message: `Could not find field "${fieldKey}" in the schema.`,
+        color: "red",
+      });
+      return;
+    }
+
+    updateField({
+      fieldId: field.id,
+      data: { format_spec: JSON.stringify(suggestion.formatSpec) },
+    });
+
+    setSuggestions((prev) =>
+      prev.map((s) =>
+        s.fieldKey === fieldKey ? { ...s, state: "accepted" as const } : s,
+      ),
+    );
+  };
+
+  const handleSuggestionReject = (fieldKey: string) => {
+    setSuggestions((prev) =>
+      prev.map((s) =>
+        s.fieldKey === fieldKey ? { ...s, state: "rejected" as const } : s,
+      ),
+    );
   };
 
   if (isModelLoading) {
@@ -506,6 +603,14 @@ export const ModelDetailPage: FC = () => {
                 />
                 <Button
                   variant="light"
+                  leftSection={<IconSparkles size={16} />}
+                  onClick={() => handleSuggestFormats()}
+                  loading={isSuggesting}
+                >
+                  Suggest Formats
+                </Button>
+                <Button
+                  variant="light"
                   leftSection={<IconFileImport size={16} />}
                   onClick={() => fieldsFileInputRef.current?.click()}
                   loading={isImporting}
@@ -538,6 +643,8 @@ export const ModelDetailPage: FC = () => {
                   <Table.Tr>
                     <Table.Th>Key</Table.Th>
                     <Table.Th>Type</Table.Th>
+                    <Table.Th>Format</Table.Th>
+                    <Table.Th>Format Spec</Table.Th>
                     <Table.Th>Order</Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
@@ -547,6 +654,18 @@ export const ModelDetailPage: FC = () => {
                     <Table.Tr key={field.id}>
                       <Table.Td>{field.fieldKey}</Table.Td>
                       <Table.Td>{field.fieldType}</Table.Td>
+                      <Table.Td>{field.fieldFormat || "—"}</Table.Td>
+                      <Table.Td>
+                        {(() => {
+                          if (!field.formatSpec) return "—";
+                          try {
+                            const spec = JSON.parse(field.formatSpec);
+                            return spec.canonicalize || "—";
+                          } catch {
+                            return field.formatSpec;
+                          }
+                        })()}
+                      </Table.Td>
                       <Table.Td>{field.displayOrder}</Table.Td>
                       <Table.Td>
                         <Group gap="xs">
@@ -749,6 +868,164 @@ export const ModelDetailPage: FC = () => {
             </Paper>
           )}
         </Stack>
+      </Modal>
+
+      <Modal
+        opened={suggestionsOpen}
+        onClose={() => setSuggestionsOpen(false)}
+        title="Format Suggestions"
+        size="lg"
+      >
+        {(() => {
+          const pendingCount = suggestions.filter(
+            (s) => s.state === "pending",
+          ).length;
+          const totalCount = suggestions.length;
+          const allHandled = totalCount > 0 && pendingCount === 0;
+
+          if (totalCount === 0) {
+            return (
+              <Stack gap="md">
+                <Text size="sm" c="dimmed">
+                  No format suggestions could be generated. Ensure there is
+                  enough HITL correction data.
+                </Text>
+                <Group justify="flex-end">
+                  <Button onClick={() => setSuggestionsOpen(false)}>
+                    Close
+                  </Button>
+                </Group>
+              </Stack>
+            );
+          }
+
+          if (allHandled) {
+            return (
+              <Stack gap="md">
+                <Text fw={600} c="green">
+                  All suggestions reviewed.
+                </Text>
+                <Group justify="flex-end">
+                  <Button onClick={() => setSuggestionsOpen(false)}>
+                    Close
+                  </Button>
+                </Group>
+              </Stack>
+            );
+          }
+
+          return (
+            <Stack gap="md">
+              <Text size="sm" c="dimmed">
+                {pendingCount} of {totalCount} suggestion
+                {totalCount !== 1 ? "s" : ""} remaining
+              </Text>
+              <Stack gap="sm">
+                {suggestions.map((suggestion) => {
+                  const isAccepted = suggestion.state === "accepted";
+                  const isRejected = suggestion.state === "rejected";
+                  const isDone = isAccepted || isRejected;
+
+                  return (
+                    <Paper
+                      key={suggestion.fieldKey}
+                      withBorder
+                      p="md"
+                      style={{
+                        opacity: isDone ? 0.6 : 1,
+                      }}
+                    >
+                      <Stack gap="xs">
+                        <Group justify="space-between">
+                          <Text fw={700}>{suggestion.fieldKey}</Text>
+                          {isAccepted && (
+                            <Badge
+                              color="green"
+                              variant="light"
+                              leftSection={<IconCheck size={12} />}
+                            >
+                              Accepted
+                            </Badge>
+                          )}
+                          {isRejected && (
+                            <Badge
+                              color="gray"
+                              variant="light"
+                              leftSection={<IconX size={12} />}
+                            >
+                              Rejected
+                            </Badge>
+                          )}
+                        </Group>
+                        <Group gap="xs" align="flex-start">
+                          <Text size="sm" fw={600}>
+                            Suggested spec:
+                          </Text>
+                          <Stack gap={2}>
+                            <Text size="sm">
+                              Canonicalize:{" "}
+                              <Code>{suggestion.formatSpec.canonicalize}</Code>
+                            </Text>
+                            {suggestion.formatSpec.pattern && (
+                              <Text size="sm">
+                                Pattern:{" "}
+                                <Code>{suggestion.formatSpec.pattern}</Code>
+                              </Text>
+                            )}
+                            {suggestion.formatSpec.displayTemplate && (
+                              <Text size="sm">
+                                Display template:{" "}
+                                <Code>
+                                  {suggestion.formatSpec.displayTemplate}
+                                </Code>
+                              </Text>
+                            )}
+                          </Stack>
+                        </Group>
+                        <Text size="sm">
+                          <Text span fw={600}>
+                            Rationale:{" "}
+                          </Text>
+                          {suggestion.rationale}
+                        </Text>
+                        <Text size="sm" c="dimmed">
+                          Based on {suggestion.sampleCount} correction
+                          {suggestion.sampleCount !== 1 ? "s" : ""}
+                        </Text>
+                        {!isDone && (
+                          <Group gap="xs">
+                            <Button
+                              size="xs"
+                              color="green"
+                              variant="light"
+                              leftSection={<IconCheck size={14} />}
+                              onClick={() =>
+                                handleSuggestionAccept(suggestion.fieldKey)
+                              }
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              size="xs"
+                              color="gray"
+                              variant="subtle"
+                              leftSection={<IconX size={14} />}
+                              onClick={() =>
+                                handleSuggestionReject(suggestion.fieldKey)
+                              }
+                            >
+                              Reject
+                            </Button>
+                          </Group>
+                        )}
+                      </Stack>
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            </Stack>
+          );
+        })()}
       </Modal>
 
       <FieldSchemaEditor

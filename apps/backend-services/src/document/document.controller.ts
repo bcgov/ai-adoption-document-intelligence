@@ -20,6 +20,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -149,6 +150,9 @@ export class DocumentController {
   @ApiNoContentResponse({ description: "Document deleted successfully" })
   @ApiNotFoundResponse({ description: "Document not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiConflictResponse({
+    description: "Document is currently being processed and cannot be deleted",
+  })
   async deleteDocument(
     @Param("documentId") documentId: string,
     @Req() req: Request,
@@ -164,6 +168,19 @@ export class DocumentController {
     identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
     await this.documentService.deleteDocument(documentId);
+
+    await this.auditService.recordEvent({
+      event_type: "document_deleted",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: {
+        original_filename: document.original_filename,
+        status: document.status,
+      },
+    });
 
     this.logger.debug("=== DocumentController.deleteDocument completed ===");
   }

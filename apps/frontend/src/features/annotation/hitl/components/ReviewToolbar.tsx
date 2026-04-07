@@ -1,10 +1,16 @@
-import { Button, Group } from "@mantine/core";
+import { ActionIcon, Button, Group, Tooltip } from "@mantine/core";
 import {
   IconAlertTriangle,
+  IconArrowsSort,
   IconCheck,
+  IconLayoutGrid,
+  IconPhoto,
   IconPlayerSkipForward,
 } from "@tabler/icons-react";
 import { FC } from "react";
+
+type ViewMode = "document" | "snippet";
+type SortMode = "confidence" | "alphabetical";
 
 interface ReviewToolbarProps {
   onApprove: () => void;
@@ -13,6 +19,10 @@ interface ReviewToolbarProps {
   isApproving?: boolean;
   isEscalating?: boolean;
   isSkipping?: boolean;
+  viewMode?: ViewMode;
+  onViewModeToggle?: () => void;
+  sortMode?: SortMode;
+  onSortModeToggle?: () => void;
 }
 
 export const ReviewToolbar: FC<ReviewToolbarProps> = ({
@@ -22,6 +32,10 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   isApproving,
   isEscalating,
   isSkipping,
+  viewMode,
+  onViewModeToggle,
+  sortMode,
+  onSortModeToggle,
 }) => {
   return (
     <Group justify="space-between">
@@ -43,6 +57,44 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
           Escalate
         </Button>
       </Group>
+
+      <Group>
+        {onViewModeToggle && (
+          <Tooltip
+            label={
+              viewMode === "document"
+                ? "Switch to snippet view (Ctrl+Shift+V)"
+                : "Switch to document view (Ctrl+Shift+V)"
+            }
+          >
+            <ActionIcon variant="subtle" onClick={onViewModeToggle} size="lg">
+              {viewMode === "document" ? (
+                <IconLayoutGrid size={18} />
+              ) : (
+                <IconPhoto size={18} />
+              )}
+            </ActionIcon>
+          </Tooltip>
+        )}
+        {onSortModeToggle && (
+          <Tooltip
+            label={
+              sortMode === "confidence"
+                ? "Sorting by confidence (Ctrl+Shift+O)"
+                : "Sort by confidence (Ctrl+Shift+O)"
+            }
+          >
+            <ActionIcon
+              variant={sortMode === "confidence" ? "filled" : "subtle"}
+              onClick={onSortModeToggle}
+              size="lg"
+            >
+              <IconArrowsSort size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+      </Group>
+
       <Button
         variant="subtle"
         color="gray"

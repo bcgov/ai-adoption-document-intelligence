@@ -13,6 +13,7 @@ export interface FieldDefinition {
   fieldKey: string;
   fieldType: FieldType;
   fieldFormat?: string;
+  formatSpec?: string;
   displayOrder: number;
 }
 

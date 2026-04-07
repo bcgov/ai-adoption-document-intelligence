@@ -41,14 +41,34 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
  */
 export async function submitToAzureOCR(params: {
   fileData: PreparedFileData;
+  locale?: string;
+  __benchmarkOcrCache?: { ocrResponse?: unknown };
 }): Promise<SubmissionResult> {
   const activityName = "submitToAzureOCR";
   const { fileData } = params;
+  const locale = params.locale ?? "en-US";
   const log = createActivityLogger(activityName);
   const startTime = Date.now();
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
   const useMock = process.env.MOCK_AZURE_OCR === "true";
+
+  const cache = params.__benchmarkOcrCache;
+  if (cache?.ocrResponse) {
+    log.info("Submit to Azure OCR skipped (benchmark OCR cache replay)", {
+      event: "benchmark_cache_skip",
+      fileName: fileData.fileName,
+    });
+    return {
+      statusCode: 202,
+      apimRequestId: "benchmark-ocr-cache",
+      headers: {
+        "apim-request-id": "benchmark-ocr-cache",
+        "operation-location":
+          "https://benchmark-ocr-cache.local/analyzeResults/benchmark-ocr-cache",
+      },
+    };
+  }
 
   log.info("Submit to Azure OCR start", {
     event: "start",
@@ -117,12 +137,15 @@ export async function submitToAzureOCR(params: {
     const features = isPrebuiltModel ? ["keyValuePairs"] : undefined;
 
     // Submit document for analysis using base64 encoding (APIM compatible)
+    // locale forces the OCR engine to use a specific language model, preventing
+    // auto-detection from drifting (e.g. Cyrillic output on ambiguous Latin text)
     const initialResponse = await client
       .path("/documentModels/{modelId}:analyze", modelId)
       .post({
         contentType: "application/json",
         queryParameters: {
           features: features as string[] | undefined,
+          locale,
         },
         body: {
           base64Source: fileBuffer.toString("base64"),

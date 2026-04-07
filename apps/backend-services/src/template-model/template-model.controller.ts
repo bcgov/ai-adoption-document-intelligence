@@ -45,6 +45,10 @@ import {
   CreateFieldDefinitionDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
+import {
+  FormatSuggestionResponseDto,
+  SuggestFormatsDto,
+} from "./dto/format-suggestion.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
@@ -57,6 +61,7 @@ import {
   TemplateModelResponseDto,
   UploadLabelingResponseDto,
 } from "./dto/template-model-responses.dto";
+import { FormatSuggestionService } from "./format-suggestion.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelService } from "./template-model.service";
 
@@ -68,6 +73,7 @@ export class TemplateModelController {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly labelingDocumentDbService: LabelingDocumentDbService,
+    private readonly formatSuggestionService: FormatSuggestionService,
   ) {}
 
   // ========== TEMPLATE MODEL ENDPOINTS ==========
@@ -562,6 +568,32 @@ export class TemplateModelController {
       documentId,
       req.resolvedIdentity,
     );
+  }
+
+  // ========== FORMAT SUGGESTION ENDPOINTS ==========
+
+  @Post(":id/suggest-formats")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Analyze HITL corrections and benchmark mismatches, then suggest field format specifications via AI",
+  })
+  @ApiParam({ name: "id", description: "Template Model ID" })
+  @ApiOkResponse({
+    description: "Array of format suggestions for fields without format specs",
+    type: [FormatSuggestionResponseDto],
+  })
+  @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async suggestFormats(
+    @Param("id") id: string,
+    @Body() dto: SuggestFormatsDto,
+    @Req() req: Request,
+  ): Promise<FormatSuggestionResponseDto[]> {
+    const templateModel = await this.templateModelService.getTemplateModel(id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    return this.formatSuggestionService.suggestFormats(id, dto.benchmarkRunIds);
   }
 
   // ========== EXPORT ENDPOINTS ==========

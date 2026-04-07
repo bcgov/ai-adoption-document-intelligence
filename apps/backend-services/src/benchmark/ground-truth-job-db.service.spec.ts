@@ -15,7 +15,7 @@ const mockPrismaClient = {
   datasetVersion: {
     findFirst: jest.fn(),
   },
-  workflow: {
+  workflowVersion: {
     findUnique: jest.fn(),
   },
   $transaction: jest.fn(),
@@ -67,13 +67,13 @@ describe("GroundTruthJobDbService", () => {
         {
           datasetVersionId: "v-1",
           sampleId: "s-1",
-          workflowConfigId: "w-1",
+          workflowVersionId: "w-1",
           status: GroundTruthJobStatus.pending,
         },
         {
           datasetVersionId: "v-1",
           sampleId: "s-2",
-          workflowConfigId: "w-1",
+          workflowVersionId: "w-1",
           status: GroundTruthJobStatus.pending,
         },
       ]);
@@ -331,7 +331,7 @@ describe("GroundTruthJobDbService", () => {
   describe("findWorkflowConfig", () => {
     it("returns the workflow config (no tx)", async () => {
       const wf = { config: { workflowId: "wf-1" } };
-      mockPrismaClient.workflow.findUnique.mockResolvedValue(wf);
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue(wf);
       const result = await service.findWorkflowConfig("w-1");
       expect(result).toEqual(wf);
     });
@@ -339,11 +339,13 @@ describe("GroundTruthJobDbService", () => {
     it("uses provided tx client", async () => {
       const txWf = { findUnique: jest.fn().mockResolvedValue(null) };
       const tx = {
-        workflow: txWf,
+        workflowVersion: txWf,
       } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.findWorkflowConfig("w-1", tx);
       expect(txWf.findUnique).toHaveBeenCalled();
-      expect(mockPrismaClient.workflow.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.workflowVersion.findUnique,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -474,7 +476,9 @@ describe("GroundTruthJobDbService", () => {
 
   describe("findWorkflow", () => {
     it("finds a workflow (no tx)", async () => {
-      mockPrismaClient.workflow.findUnique.mockResolvedValue({ id: "w-1" });
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+        id: "w-1",
+      });
       const result = await service.findWorkflow("w-1");
       expect(result).toEqual({ id: "w-1" });
     });
@@ -482,11 +486,13 @@ describe("GroundTruthJobDbService", () => {
     it("uses provided tx client", async () => {
       const txWf = { findUnique: jest.fn().mockResolvedValue(null) };
       const tx = {
-        workflow: txWf,
+        workflowVersion: txWf,
       } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.findWorkflow("w-1", tx);
       expect(txWf.findUnique).toHaveBeenCalled();
-      expect(mockPrismaClient.workflow.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.workflowVersion.findUnique,
+      ).not.toHaveBeenCalled();
     });
   });
 });

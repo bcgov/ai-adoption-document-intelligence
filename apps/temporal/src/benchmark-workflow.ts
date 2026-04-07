@@ -28,6 +28,10 @@ import {
   type BenchmarkExecuteOutput,
   benchmarkExecuteWorkflow,
 } from "./activities/benchmark-execute";
+import {
+  buildFlatConfidenceMapFromCtx,
+  buildFlatPredictionMapFromCtx,
+} from "./azure-ocr-field-display-value";
 import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -49,6 +53,7 @@ type BenchmarkActivities = {
     sampleId: string;
     inputPaths: string[];
     predictionPaths: string[];
+    predictionConfidences?: Record<string, number | null>;
     groundTruthPaths: string[];
     metadata: Record<string, unknown>;
     evaluatorType: string;
@@ -117,6 +122,17 @@ type BenchmarkActivities = {
   "benchmark.compareAgainstBaseline": (params: {
     runId: string;
   }) => Promise<unknown>;
+
+  "benchmark.loadOcrCache": (params: {
+    sourceRunId: string;
+    sampleId: string;
+  }) => Promise<{ ocrResponse: unknown | null }>;
+
+  "benchmark.persistOcrCache": (params: {
+    sourceRunId: string;
+    sampleId: string;
+    ocrResponse: unknown;
+  }) => Promise<void>;
 };
 
 // Default activity options for benchmark activities
@@ -146,8 +162,8 @@ export interface BenchmarkRunWorkflowInput {
   /** Sample IDs from the DB split record (used for filtering) */
   sampleIds?: string[];
 
-  /** Workflow ID to execute per document */
-  workflowId: string;
+  /** Pinned workflow version (WorkflowVersion.id) for this run */
+  workflowVersionId: string;
 
   /** Workflow configuration */
   workflowConfig: GraphWorkflowConfig;
@@ -174,6 +190,12 @@ export interface BenchmarkRunWorkflowInput {
       maximumAttempts?: number;
     };
   };
+
+  /** Persist Azure OCR poll JSON per sample (for later replay). */
+  persistOcrCache?: boolean;
+
+  /** Replay OCR from a prior completed run's cache rows (skips Azure submit/poll). */
+  ocrCacheBaselineRunId?: string;
 }
 
 export interface BenchmarkRunWorkflowResult {
@@ -287,95 +309,6 @@ function flattenMetrics(overall: {
   return flat;
 }
 
-/**
- * Extract the display value from an Azure Document Intelligence field object.
- *
- * Azure DI returns typed values (valueNumber, valueDate, etc.) alongside the
- * raw `content` string.  This mirrors the logic used by the production UI
- * (DocumentViewer.getFieldDisplayValue) so benchmark predictions match what
- * users see in the Processing Queue.
- */
-function extractFieldValue(field: Record<string, unknown>): unknown {
-  if (field.valueSelectionMark !== undefined) {
-    return field.valueSelectionMark === "selected" ? "selected" : "unselected";
-  }
-  if (field.valueNumber !== undefined) {
-    return field.valueNumber;
-  }
-  if (field.valueInteger !== undefined) {
-    return field.valueInteger;
-  }
-  if (field.valueCurrency !== undefined) {
-    const currency = field.valueCurrency as Record<string, unknown>;
-    return currency.amount ?? field.content ?? null;
-  }
-  if (field.valueDate !== undefined) {
-    return field.valueDate;
-  }
-  if (field.valueTime !== undefined) {
-    return field.valueTime;
-  }
-  if (field.valueString !== undefined) {
-    return field.valueString;
-  }
-  return field.content ?? null;
-}
-
-/**
- * Extract a flat prediction object from the graph workflow ctx.
- *
- * The graph workflow stores OCR results in ctx keys like `cleanedResult` or
- * `ocrResult`. This helper converts those into a flat `{ fieldName: value }`
- * object that the evaluator can compare against ground truth.
- */
-function extractPredictionFromCtx(
-  ctx: Record<string, unknown>,
-): Record<string, unknown> {
-  // Prefer the cleaned result (post-normalization) over the raw OCR result
-  const ocrResult = (ctx.cleanedResult || ctx.ocrResult) as
-    | {
-        documents?: Array<{
-          fields?: Record<string, Record<string, unknown>>;
-        }>;
-        keyValuePairs?: Array<{
-          key?: { content?: string };
-          value?: { content?: string };
-        }>;
-      }
-    | undefined;
-
-  if (!ocrResult) return {};
-
-  const fields: Record<string, unknown> = {};
-
-  // Custom model: extract typed values from documents[0].fields
-  if (
-    ocrResult.documents &&
-    ocrResult.documents.length > 0 &&
-    ocrResult.documents[0].fields
-  ) {
-    for (const [key, value] of Object.entries(ocrResult.documents[0].fields)) {
-      if (value && typeof value === "object") {
-        fields[key] = extractFieldValue(value);
-      } else {
-        fields[key] = value ?? null;
-      }
-    }
-    return fields;
-  }
-
-  // Prebuilt model: extract from keyValuePairs
-  if (ocrResult.keyValuePairs && ocrResult.keyValuePairs.length > 0) {
-    for (const pair of ocrResult.keyValuePairs) {
-      const key = pair.key?.content || "unknown";
-      fields[key] = pair.value?.content ?? null;
-    }
-    return fields;
-  }
-
-  return {};
-}
-
 // ---------------------------------------------------------------------------
 // Workflow Function
 // ---------------------------------------------------------------------------
@@ -426,6 +359,8 @@ export async function benchmarkRunWorkflow(
     evaluatorType,
     evaluatorConfig,
     runtimeSettings,
+    persistOcrCache = false,
+    ocrCacheBaselineRunId,
   } = input;
 
   // Create activity proxy with configurable timeouts and retries (US-023 Scenario 4 & 5)
@@ -542,6 +477,28 @@ export async function benchmarkRunWorkflow(
                 sample.id,
               );
 
+              let ocrCachePayload: { ocrResponse: unknown } | undefined;
+              if (ocrCacheBaselineRunId) {
+                const loaded = await customActivities["benchmark.loadOcrCache"](
+                  {
+                    sourceRunId: ocrCacheBaselineRunId,
+                    sampleId: sample.id,
+                  },
+                );
+                if (
+                  loaded.ocrResponse === null ||
+                  loaded.ocrResponse === undefined
+                ) {
+                  throw ApplicationFailure.create({
+                    message:
+                      `OCR cache miss for sample ${sample.id} (baseline run ${ocrCacheBaselineRunId}). ` +
+                      `Run a completed benchmark on this definition with persistOcrCache: true first.`,
+                    nonRetryable: true,
+                  });
+                }
+                ocrCachePayload = { ocrResponse: loaded.ocrResponse };
+              }
+
               // Execute workflow for this sample
               const executeInput: BenchmarkExecuteInput = {
                 sampleId: sample.id,
@@ -549,13 +506,30 @@ export async function benchmarkRunWorkflow(
                 configHash: workflowConfigHash,
                 inputPaths,
                 outputBaseDir,
-                sampleMetadata: sample.metadata,
+                sampleMetadata: {
+                  ...sample.metadata,
+                  ...(ocrCachePayload
+                    ? { __benchmarkOcrCache: ocrCachePayload }
+                    : {}),
+                },
                 timeoutMs,
                 taskQueue: childTaskQueue,
               };
 
               const executeOutput =
                 await benchmarkExecuteWorkflow(executeInput);
+
+              if (
+                executeOutput.success &&
+                persistOcrCache &&
+                executeOutput.workflowResult?.ctx?.ocrResponse != null
+              ) {
+                await customActivities["benchmark.persistOcrCache"]({
+                  sourceRunId: runId,
+                  sampleId: sample.id,
+                  ocrResponse: executeOutput.workflowResult.ctx.ocrResponse,
+                });
+              }
 
               return {
                 sample,
@@ -601,9 +575,9 @@ export async function benchmarkRunWorkflow(
           try {
             // Extract prediction fields from the workflow ctx and write to disk
             // so the evaluator can compare against ground truth files.
-            const predictionData = extractPredictionFromCtx(
-              executeOutput.workflowResult?.ctx ?? {},
-            );
+            const ctx = executeOutput.workflowResult?.ctx ?? {};
+            const predictionData = buildFlatPredictionMapFromCtx(ctx);
+            const confidenceData = buildFlatConfidenceMapFromCtx(ctx);
 
             const { predictionPath } = await customActivities[
               "benchmark.writePrediction"
@@ -623,6 +597,7 @@ export async function benchmarkRunWorkflow(
               sampleId: sample.id,
               inputPaths,
               predictionPaths: [predictionPath],
+              predictionConfidences: confidenceData,
               groundTruthPaths,
               metadata: sample.metadata,
               evaluatorType,

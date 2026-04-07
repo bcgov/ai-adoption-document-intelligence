@@ -15,6 +15,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -36,17 +37,28 @@ import {
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { WorkflowService } from "@/workflow/workflow.service";
+import { BenchmarkDefinitionService } from "./benchmark-definition.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
+  ApplyCandidateToBaseDto,
+  ApplyCandidateToBaseResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
+  ErrorDetectionAnalysisResponseDto,
+  OcrCacheSourceDto,
+  OcrImprovementGenerateDto,
+  OcrImprovementGenerateResponseDto,
   PerSampleResultsResponseDto,
+  PipelineDebugLogResponseDto,
   PromoteBaselineDto,
   PromoteBaselineResponseDto,
   RunDetailsDto,
   RunSummaryDto,
 } from "./dto";
+import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
 @ApiTags("Benchmark - Runs")
 @Controller("api/benchmark/projects/:projectId")
@@ -56,6 +68,10 @@ export class BenchmarkRunController {
   constructor(
     private readonly benchmarkRunService: BenchmarkRunService,
     private readonly benchmarkProjectService: BenchmarkProjectService,
+    private readonly benchmarkDefinitionService: BenchmarkDefinitionService,
+    private readonly ocrImprovementPipeline: OcrImprovementPipelineService,
+    private readonly workflowService: WorkflowService,
+    private readonly errorDetectionService: BenchmarkErrorDetectionService,
   ) {}
 
   private async assertProjectGroupAccess(
@@ -65,6 +81,103 @@ export class BenchmarkRunController {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
     identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+  }
+
+  @Post("definitions/:definitionId/ocr-improvement/generate")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Generate candidate workflow from baseline run errors",
+    description:
+      "Extracts field mismatches from the baseline run, runs AI recommendation, and creates a candidate workflow. " +
+      "Requires a promoted baseline run on the definition. Does not start a benchmark run. " +
+      "Use the workflow editor to review, then create a definition and run normally.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiBody({ type: OcrImprovementGenerateDto })
+  @ApiOkResponse({
+    description: "Candidate workflow created or no recommendations",
+    type: OcrImprovementGenerateResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async generateCandidate(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+    @Body() dto: OcrImprovementGenerateDto,
+    @Req() req: Request,
+  ): Promise<OcrImprovementGenerateResponseDto> {
+    this.logger.log(
+      `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/generate`,
+    );
+    const project =
+      await this.benchmarkProjectService.getProjectById(projectId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    const definition = await this.benchmarkDefinitionService.getDefinitionById(
+      projectId,
+      definitionId,
+    );
+    let actorId = req.resolvedIdentity?.actorId;
+    if (!actorId) {
+      const sourceWorkflow = await this.workflowService.getWorkflowById(
+        definition.workflow.workflowVersionId,
+      );
+      if (!sourceWorkflow) {
+        throw new NotFoundException(
+          `Workflow not found: ${definition.workflow.workflowVersionId}`,
+        );
+      }
+      actorId = sourceWorkflow.actorId;
+    }
+    const result = await this.ocrImprovementPipeline.generate({
+      workflowVersionId: definition.workflow.workflowVersionId,
+      actorId,
+      definitionId,
+      groupId: project.groupId,
+      normalizeFieldsEmptyValueCoercion: dto.normalizeFieldsEmptyValueCoercion,
+    });
+    return {
+      candidateWorkflowVersionId: result.candidateWorkflowVersionId,
+      candidateLineageId: result.candidateLineageId,
+      recommendationsSummary: result.recommendationsSummary,
+      analysis: result.analysis,
+      pipelineMessage: result.pipelineMessage,
+      rejectionDetails: result.rejectionDetails,
+      status: result.status,
+      error: result.error,
+    };
+  }
+
+  @Get("definitions/:definitionId/ocr-improvement/debug-log")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Get pipeline debug log for a definition",
+    description:
+      "Returns structured debug log entries from the last OCR improvement pipeline run. " +
+      "Includes prompts sent to the LLM, raw responses, timing, and step-by-step details.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiOkResponse({
+    description: "Pipeline debug log entries",
+    type: PipelineDebugLogResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getPipelineDebugLog(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+    @Req() req: Request,
+  ): Promise<PipelineDebugLogResponseDto> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/debug-log`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+    return this.benchmarkDefinitionService.getPipelineDebugLog(
+      projectId,
+      definitionId,
+    );
   }
 
   @Post("definitions/:definitionId/runs")
@@ -101,7 +214,6 @@ export class BenchmarkRunController {
       projectId,
       definitionId,
       createRunDto,
-      req.resolvedIdentity,
     );
   }
 
@@ -122,6 +234,41 @@ export class BenchmarkRunController {
     this.logger.log(`GET /api/benchmark/projects/${projectId}/runs`);
     await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.listRuns(projectId);
+  }
+
+  @Get("ocr-cache-sources")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "List runs with cached OCR for a dataset version",
+    description:
+      "Returns completed runs across all definitions in the project that have cached Azure OCR responses " +
+      "and share the specified dataset version. Used to populate the cache source picker when starting a run.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiQuery({
+    name: "datasetVersionId",
+    required: true,
+    type: String,
+    description: "Dataset version ID to match",
+  })
+  @ApiOkResponse({
+    description: "List of runs with cached OCR",
+    type: [OcrCacheSourceDto],
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async listOcrCacheSources(
+    @Param("projectId") projectId: string,
+    @Query("datasetVersionId") datasetVersionId: string,
+    @Req() req: Request,
+  ): Promise<OcrCacheSourceDto[]> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/ocr-cache-sources?datasetVersionId=${datasetVersionId}`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+    return this.benchmarkRunService.listOcrCacheSources(
+      projectId,
+      datasetVersionId,
+    );
   }
 
   @Get("runs/:runId")
@@ -196,6 +343,34 @@ export class BenchmarkRunController {
     );
     await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.getDrillDown(projectId, runId);
+  }
+
+  @Get("runs/:runId/error-detection-analysis")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Get error detection analysis for a benchmark run",
+    description:
+      "Returns precomputed per-field threshold curves and suggested thresholds " +
+      "for picking confidence cut-offs that flag low-confidence predictions for review.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiOkResponse({
+    description: "Per-field error detection analysis",
+    type: ErrorDetectionAnalysisResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getErrorDetectionAnalysis(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+    @Req() req: Request,
+  ): Promise<ErrorDetectionAnalysisResponseDto> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/runs/${runId}/error-detection-analysis`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+    return this.errorDetectionService.getAnalysis(projectId, runId);
   }
 
   @Get("runs/:runId/samples")
@@ -292,7 +467,6 @@ export class BenchmarkRunController {
       projectId,
       runId,
       promoteBaselineDto,
-      req.resolvedIdentity,
     );
   }
 
@@ -319,5 +493,39 @@ export class BenchmarkRunController {
     );
     await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.deleteRun(projectId, runId);
+  }
+
+  @Post("apply-candidate-to-base")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Apply candidate workflow config to its base lineage",
+    description:
+      "Copies the candidate workflow config as a new version on the base lineage. " +
+      "Optionally cleans up the candidate lineage and any definitions/runs pointing to it.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiBody({ type: ApplyCandidateToBaseDto })
+  @ApiOkResponse({
+    description: "Candidate applied to base lineage",
+    type: ApplyCandidateToBaseResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Candidate workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async applyCandidateToBase(
+    @Param("projectId") projectId: string,
+    @Body() dto: ApplyCandidateToBaseDto,
+    @Req() req: Request,
+  ): Promise<ApplyCandidateToBaseResponseDto> {
+    this.logger.log(
+      `POST /api/benchmark/projects/${projectId}/apply-candidate-to-base`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+
+    return this.benchmarkDefinitionService.applyToBaseWorkflow(
+      projectId,
+      dto.candidateWorkflowVersionId,
+      dto.cleanupCandidateArtifacts ?? true,
+    );
   }
 }

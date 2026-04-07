@@ -262,6 +262,7 @@ describe("DocumentService", () => {
         id: "1",
         file_path: "documents/1/original.pdf",
         group_id: "group-1",
+        status: DocumentStatus.completed_ocr,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
@@ -279,11 +280,30 @@ describe("DocumentService", () => {
       expect(documentDbService.deleteDocument).not.toHaveBeenCalled();
     });
 
+    it.each([
+      DocumentStatus.pre_ocr,
+      DocumentStatus.ongoing_ocr,
+    ])("should refuse to delete a document with status %s", async (status) => {
+      const mockDoc = {
+        id: "1",
+        file_path: "documents/1/original.pdf",
+        group_id: "group-1",
+        status,
+      };
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
+      await expect(service.deleteDocument("1")).rejects.toThrow(
+        /currently being processed/,
+      );
+      expect(documentDbService.deleteDocument).not.toHaveBeenCalled();
+      expect(blobStorage.delete).not.toHaveBeenCalled();
+    });
+
     it("should still return true if blob deletion fails", async () => {
       const mockDoc = {
         id: "1",
         file_path: "documents/1/original.pdf",
         group_id: "group-1",
+        status: DocumentStatus.completed_ocr,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);

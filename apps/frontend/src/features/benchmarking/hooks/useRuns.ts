@@ -61,8 +61,47 @@ interface RunDetails {
   createdAt: string;
 }
 
-interface CreateRunDto {
+export interface CreateRunDto {
   tags?: Record<string, string>;
+  /** When provided, the run uses this config instead of the definition's workflow (candidate run). */
+  workflowConfigOverride?: Record<string, unknown>;
+  /** When provided with workflowConfigOverride, references the candidate workflow record. */
+  candidateWorkflowVersionId?: string;
+  /** Persist Azure OCR poll JSON per sample for replay (benchmark OCR cache). Backend defaults to true when omitted. */
+  persistOcrCache?: boolean;
+  /** Replay OCR from a completed benchmark run's cache (same definition). */
+  ocrCacheBaselineRunId?: string;
+}
+
+interface GenerateCandidateResult {
+  candidateWorkflowVersionId: string;
+  candidateLineageId: string;
+  recommendationsSummary: {
+    applied: number;
+    rejected: number;
+    toolIds: string[];
+  };
+  analysis?: string;
+  pipelineMessage?: string;
+  rejectionDetails?: string[];
+  status: "candidate_created" | "no_recommendations" | "error";
+  error?: string;
+}
+
+/** Single entry in the pipeline debug log */
+interface PipelineLogEntry {
+  /** Pipeline step identifier */
+  step: string;
+  /** ISO 8601 timestamp when the step started */
+  timestamp: string;
+  /** Step duration in milliseconds */
+  durationMs?: number;
+  /** Step-specific payload */
+  data: Record<string, unknown>;
+}
+
+interface PipelineDebugLogResult {
+  entries: PipelineLogEntry[];
 }
 
 export const useRuns = (projectId: string) => {
@@ -242,6 +281,70 @@ export const useStartRun = (projectId: string, definitionId: string) => {
     startRun: startRunMutation.mutateAsync,
     isStarting: startRunMutation.isPending,
     startedRun: startRunMutation.data,
+  };
+};
+
+export const useGenerateCandidate = (
+  projectId: string,
+  definitionId: string,
+) => {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (
+      body: {
+        hitlFilters?: Record<string, unknown>;
+        normalizeFieldsEmptyValueCoercion?: "none" | "blank" | "null";
+      } = {},
+    ) => {
+      const response = await apiService.post<GenerateCandidateResult>(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/generate`,
+        body,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definition", projectId, definitionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definitions", projectId],
+      });
+    },
+  });
+
+  return {
+    generateCandidate: mutation.mutateAsync,
+    isGenerating: mutation.isPending,
+    result: mutation.data,
+    error: mutation.error,
+  };
+};
+
+/**
+ * Fetch the pipeline debug log for a definition.
+ * Only fetches when `enabled` is true (i.e., user opened the debug log section).
+ */
+export const usePipelineDebugLog = (
+  projectId: string,
+  definitionId: string,
+  enabled: boolean,
+) => {
+  const query = useQuery({
+    queryKey: ["pipeline-debug-log", projectId, definitionId],
+    queryFn: async () => {
+      const response = await apiService.get<PipelineDebugLogResult>(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/debug-log`,
+      );
+      return response.data;
+    },
+    enabled: !!projectId && !!definitionId && enabled,
+  });
+
+  return {
+    entries: query.data?.entries ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
   };
 };
 
@@ -505,11 +608,43 @@ export const useHistoricalRuns = (projectId: string, definitionId: string) => {
   };
 };
 
+interface OcrCacheSource {
+  id: string;
+  definitionId: string;
+  definitionName: string;
+  completedAt: string;
+  sampleCount: number;
+}
+
+export const useOcrCacheSources = (
+  projectId: string,
+  datasetVersionId: string,
+) => {
+  const query = useQuery({
+    queryKey: ["ocr-cache-sources", projectId, datasetVersionId],
+    queryFn: async () => {
+      const response = await apiService.get<OcrCacheSource[]>(
+        `/benchmark/projects/${projectId}/ocr-cache-sources?datasetVersionId=${datasetVersionId}`,
+      );
+      return response.data || [];
+    },
+    enabled: !!projectId && !!datasetVersionId,
+  });
+
+  return {
+    cacheSources: query.data || [],
+    isLoading: query.isLoading,
+    error: query.error,
+  };
+};
+
 export type {
   BaselineComparison,
   HistoricalRunData,
   MetricComparison,
   MetricThreshold,
+  OcrCacheSource,
   PerSampleResult,
   PerSampleResultsData,
+  PipelineLogEntry,
 };

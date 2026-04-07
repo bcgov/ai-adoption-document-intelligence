@@ -187,7 +187,10 @@ fi
 # ---------- save token to file ----------
 
 mkdir -p "${TOKEN_DIR}"
-cat > "${TOKEN_FILE}" <<TOKENEOF
+
+# Save namespace-specific token file
+NS_TOKEN_FILE="${TOKEN_DIR}/token-${NAMESPACE}"
+cat > "${NS_TOKEN_FILE}" <<TOKENEOF
 # OpenShift deploy service account token
 # Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # Namespace: ${NAMESPACE}
@@ -198,8 +201,14 @@ SERVER=$(oc whoami --show-server)
 TOKEN=${TOKEN}
 TOKENEOF
 
-chmod 700 "${TOKEN_DIR}"
-chmod 600 "${TOKEN_FILE}"
+# Also write the default token file (backward compatibility)
+cp "${NS_TOKEN_FILE}" "${TOKEN_FILE}"
 
-log_info "Token saved to ${TOKEN_FILE}"
-log_info "Service account setup complete. All deployment scripts will use this token."
+chmod 700 "${TOKEN_DIR}"
+chmod 600 "${NS_TOKEN_FILE}" "${TOKEN_FILE}"
+
+log_info "Token saved to ${NS_TOKEN_FILE}"
+log_info "Also set as default token at ${TOKEN_FILE}"
+log_info "Service account setup complete."
+log_info "  Login to this namespace: ./scripts/oc-login-sa.sh --namespace ${NAMESPACE}"
+log_info "  Login to default:        ./scripts/oc-login-sa.sh"

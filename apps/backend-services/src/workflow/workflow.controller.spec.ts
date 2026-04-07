@@ -29,6 +29,7 @@ const mockGraphConfig: GraphWorkflowConfig = {
 
 const mockWorkflowInfo: WorkflowInfo = {
   id: "wf-1",
+  workflowVersionId: "wv-wf-1",
   name: "Test Workflow",
   description: "Description",
   actorId: "user-1",
@@ -40,18 +41,30 @@ const mockWorkflowInfo: WorkflowInfo = {
   updatedAt: new Date(),
 };
 
+function identityWithGroups(
+  groups: Record<string, GroupRole>,
+): Request["resolvedIdentity"] {
+  return {
+    isSystemAdmin: false,
+    groupRoles: groups,
+    actorId: "user-1",
+  };
+}
+
 describe("WorkflowController", () => {
   let controller: WorkflowController;
   let workflowService: jest.Mocked<WorkflowService>;
 
   beforeEach(async () => {
     workflowService = {
-      getUserWorkflows: jest.fn(),
       getGroupWorkflows: jest.fn(),
+      getAllWorkflowLineages: jest.fn(),
       getWorkflow: jest.fn(),
+      listVersions: jest.fn(),
       createWorkflow: jest.fn(),
       updateWorkflow: jest.fn(),
       deleteWorkflow: jest.fn(),
+      revertHeadToVersion: jest.fn(),
     } as unknown as jest.Mocked<WorkflowService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -68,70 +81,94 @@ describe("WorkflowController", () => {
   });
 
   describe("getWorkflows", () => {
-    it("returns empty array when user belongs to no groups", async () => {
+    it("returns empty array when no identity is set", async () => {
+      const req = { resolvedIdentity: undefined } as Request;
+      const result = await controller.getWorkflows(undefined, undefined, req);
+      expect(result).toEqual({ workflows: [] });
+      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
+    });
+
+    it("returns empty array when identity has no group access", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1", groupRoles: {} },
+        resolvedIdentity: identityWithGroups({}),
       } as Request;
-      const result = await controller.getWorkflows(undefined, req);
+      const result = await controller.getWorkflows(undefined, undefined, req);
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
 
     it("returns workflows for the user's groups", async () => {
       const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(undefined, req);
+      const result = await controller.getWorkflows(undefined, undefined, req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
-        "group-1",
-      ]);
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
+        ["group-1"],
+        false,
+      );
     });
 
-    it("returns workflows for an API key's group", async () => {
+    it("lists all lineages for system admin", async () => {
       const req = {
-        resolvedIdentity: { groupRoles: { "group-1": GroupRole.MEMBER } },
-      } as unknown as Request;
-      workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(undefined, req);
-      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
-        "group-1",
+        resolvedIdentity: {
+          isSystemAdmin: true,
+          groupRoles: {},
+          actorId: "admin-1",
+        },
+      } as Request;
+      workflowService.getAllWorkflowLineages.mockResolvedValue([
+        mockWorkflowInfo,
       ]);
+      const result = await controller.getWorkflows(undefined, undefined, req);
+      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
+      expect(workflowService.getAllWorkflowLineages).toHaveBeenCalledWith(
+        false,
+      );
+    });
+
+    it("includes benchmark candidates when flag is true", async () => {
+      const req = {
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
+      const result = await controller.getWorkflows(undefined, "true", req);
+      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
+        ["group-1"],
+        true,
+      );
     });
 
     it("filters by groupId when groupId query param is provided", async () => {
       const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows("group-1", req);
+      const result = await controller.getWorkflows("group-1", undefined, req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
-        "group-1",
-      ]);
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
+        ["group-1"],
+        false,
+      );
     });
 
-    it("throws ForbiddenException when groupId is provided but identity is not a member", async () => {
+    it("throws ForbiddenException when groupId is provided but identity cannot access it", async () => {
       const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      } as unknown as Request;
-      await expect(controller.getWorkflows("group-1", req)).rejects.toThrow(
-        ForbiddenException,
-      );
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as Request;
+      await expect(
+        controller.getWorkflows("group-1", undefined, req),
+      ).rejects.toThrow(ForbiddenException);
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
   });
@@ -140,30 +177,26 @@ describe("WorkflowController", () => {
     it("returns workflow by id for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       const result = await controller.getWorkflow("wf-1", req);
       expect(result).toEqual({ workflow: mockWorkflowInfo });
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        undefined,
+        "user-1",
       );
     });
 
-    it("throws ForbiddenException when user is not a group member", async () => {
+    it("throws ForbiddenException when user cannot access workflow group", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       await expect(controller.getWorkflow("wf-1", req)).rejects.toThrow(
         ForbiddenException,
@@ -173,15 +206,12 @@ describe("WorkflowController", () => {
 
   describe("createWorkflow", () => {
     it("creates workflow and returns it", async () => {
-      const identity = {
-        userId: "user-1",
-        isSystemAdmin: false,
-        groupRoles: { "group-1": GroupRole.MEMBER },
-      };
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: identity,
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
       const dto: CreateWorkflowDto = {
         name: "New",
         groupId: "group-1",
@@ -191,9 +221,27 @@ describe("WorkflowController", () => {
       const result = await controller.createWorkflow(dto, req);
       expect(result).toEqual({ workflow: mockWorkflowInfo });
       expect(workflowService.createWorkflow).toHaveBeenCalledWith(
-        undefined,
+        "user-1",
         dto,
       );
+    });
+
+    it("propagates ForbiddenException when user cannot access target group", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as Request;
+      const dto: CreateWorkflowDto = {
+        name: "New",
+        groupId: "group-1",
+        config: mockGraphConfig,
+      };
+      await expect(controller.createWorkflow(dto, req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(workflowService.createWorkflow).not.toHaveBeenCalled();
     });
   });
 
@@ -201,12 +249,10 @@ describe("WorkflowController", () => {
     it("updates workflow and returns it for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
       const dto = { name: "Updated" };
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       workflowService.updateWorkflow.mockResolvedValue({
@@ -217,24 +263,22 @@ describe("WorkflowController", () => {
       expect(result.workflow.name).toBe("Updated");
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        undefined,
+        "user-1",
       );
       expect(workflowService.updateWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        undefined,
+        "user-1",
         dto,
       );
     });
 
-    it("throws ForbiddenException when user is not a group member", async () => {
+    it("throws ForbiddenException when user cannot access workflow group", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as Request;
       const dto = { name: "Updated" };
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       await expect(controller.updateWorkflow("wf-1", dto, req)).rejects.toThrow(
@@ -248,34 +292,30 @@ describe("WorkflowController", () => {
     it("deletes workflow for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       workflowService.deleteWorkflow.mockResolvedValue(undefined);
       await controller.deleteWorkflow("wf-1", req);
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        undefined,
+        "user-1",
       );
       expect(workflowService.deleteWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        undefined,
+        "user-1",
       );
     });
 
-    it("throws ForbiddenException when user is not a group member", async () => {
+    it("throws ForbiddenException when user cannot access workflow group", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      } as unknown as Request;
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       await expect(controller.deleteWorkflow("wf-1", req)).rejects.toThrow(
         ForbiddenException,

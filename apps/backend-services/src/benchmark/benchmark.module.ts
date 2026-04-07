@@ -1,15 +1,20 @@
-import { Module, OnModuleInit } from "@nestjs/common";
+import { HttpModule } from "@nestjs/axios";
+import { forwardRef, Module, OnModuleInit } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { DatabaseModule } from "@/database/database.module";
 import { DocumentModule } from "@/document/document.module";
+import { HitlModule } from "@/hitl/hitl.module";
 import { OcrModule } from "@/ocr/ocr.module";
-import { HitlModule } from "../hitl/hitl.module";
+import { TemporalModule } from "@/temporal/temporal.module";
+import { WorkflowModule } from "@/workflow/workflow.module";
+import { AiRecommendationService } from "./ai-recommendation.service";
 import { AuditLogService } from "./audit-log.service";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { BenchmarkDefinitionController } from "./benchmark-definition.controller";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkProjectController } from "./benchmark-project.controller";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkProjectDbService } from "./benchmark-project-db.service";
@@ -17,6 +22,8 @@ import { BenchmarkRunController } from "./benchmark-run.controller";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
+import { ConfusionMatrixController } from "./confusion-matrix.controller";
+import { ConfusionMatrixService } from "./confusion-matrix.service";
 import { DatasetController } from "./dataset.controller";
 import { DatasetService } from "./dataset.service";
 import { DatasetDbService } from "./dataset-db.service";
@@ -26,15 +33,19 @@ import { GroundTruthGenerationService } from "./ground-truth-generation.service"
 import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 import { HitlDatasetController } from "./hitl-dataset.controller";
 import { HitlDatasetService } from "./hitl-dataset.service";
+import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
 @Module({
   imports: [
     ConfigModule,
+    HttpModule,
     BlobStorageModule,
     DatabaseModule,
     DocumentModule,
     OcrModule,
-    HitlModule,
+    TemporalModule,
+    forwardRef(() => HitlModule),
+    forwardRef(() => WorkflowModule),
   ],
   controllers: [
     DatasetController,
@@ -43,23 +54,28 @@ import { HitlDatasetService } from "./hitl-dataset.service";
     BenchmarkProjectController,
     BenchmarkDefinitionController,
     BenchmarkRunController,
+    ConfusionMatrixController,
   ],
   providers: [
-    AuditLogDbService,
-    BenchmarkProjectDbService,
-    BenchmarkDefinitionDbService,
-    BenchmarkRunDbService,
     DatasetDbService,
-    GroundTruthJobDbService,
     DatasetService,
     HitlDatasetService,
+    GroundTruthJobDbService,
     GroundTruthGenerationService,
+    BenchmarkProjectDbService,
     BenchmarkProjectService,
+    BenchmarkDefinitionDbService,
     BenchmarkDefinitionService,
+    BenchmarkRunDbService,
     BenchmarkRunService,
     BenchmarkTemporalService,
     EvaluatorRegistryService,
+    AuditLogDbService,
     AuditLogService,
+    ConfusionMatrixService,
+    AiRecommendationService,
+    OcrImprovementPipelineService,
+    BenchmarkErrorDetectionService,
   ],
   exports: [
     DatasetService,
@@ -71,6 +87,9 @@ import { HitlDatasetService } from "./hitl-dataset.service";
     BenchmarkTemporalService,
     EvaluatorRegistryService,
     AuditLogService,
+    ConfusionMatrixService,
+    AiRecommendationService,
+    OcrImprovementPipelineService,
   ],
 })
 export class BenchmarkModule implements OnModuleInit {
@@ -79,5 +98,6 @@ export class BenchmarkModule implements OnModuleInit {
   onModuleInit() {
     this.evaluatorRegistry.registerType("schema-aware");
     this.evaluatorRegistry.registerType("black-box");
+    this.evaluatorRegistry.registerType("ocr-correction");
   }
 }

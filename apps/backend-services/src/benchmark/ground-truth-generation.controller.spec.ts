@@ -5,8 +5,8 @@
  */
 
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
-  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
+  getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
 import { Test, TestingModule } from "@nestjs/testing";
@@ -62,7 +62,7 @@ describe("GroundTruthGenerationController", () => {
 
   describe("POST /ground-truth-generation", () => {
     it("starts generation successfully", async () => {
-      const dto = { workflowConfigId: "wf-config-1" };
+      const dto = { workflowVersionId: "wf-config-1" };
       const expected = {
         jobsCreated: 5,
         samplesWithoutGroundTruth: 5,
@@ -81,8 +81,36 @@ describe("GroundTruthGenerationController", () => {
         datasetId,
         versionId,
         "wf-config-1",
+        "user-1",
+        undefined,
       );
       expect(result).toEqual(expected);
+    });
+
+    it("uses anonymous when user sub is missing", async () => {
+      const reqNoUser = {
+        user: {},
+        resolvedIdentity: { userId: "user-1" },
+      } as unknown as Request;
+
+      mockGroundTruthService.startGeneration.mockResolvedValue({
+        jobsCreated: 0,
+      });
+
+      await controller.startGeneration(
+        datasetId,
+        versionId,
+        { workflowVersionId: "wf-1" },
+        reqNoUser,
+      );
+
+      expect(mockGroundTruthService.startGeneration).toHaveBeenCalledWith(
+        datasetId,
+        versionId,
+        "wf-1",
+        "anonymous",
+        undefined,
+      );
     });
   });
 

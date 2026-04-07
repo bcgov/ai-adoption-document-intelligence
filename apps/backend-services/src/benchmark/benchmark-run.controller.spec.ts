@@ -6,17 +6,26 @@
  */
 
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
-  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
+  getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import type { WorkflowInfo } from "@/workflow/workflow.service";
+import { WorkflowService } from "@/workflow/workflow.service";
+import { BenchmarkDefinitionService } from "./benchmark-definition.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunController } from "./benchmark-run.controller";
 import { BenchmarkRunService } from "./benchmark-run.service";
-import { CreateRunDto, PromoteBaselineDto } from "./dto";
+import {
+  ApplyCandidateToBaseDto,
+  CreateRunDto,
+  PromoteBaselineDto,
+} from "./dto";
+import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
 describe("BenchmarkRunController", () => {
   let controller: BenchmarkRunController;
@@ -38,13 +47,57 @@ describe("BenchmarkRunController", () => {
       .mockResolvedValue({ id: "project-1", groupId: "test-group" }),
   };
 
+  const mockDefinitionService = {
+    getDefinitionById: jest.fn().mockResolvedValue({
+      workflow: { id: "workflow-1", workflowVersionId: "wv-workflow-1" },
+    }),
+    applyToBaseWorkflow: jest.fn(),
+    getPipelineDebugLog: jest.fn().mockResolvedValue({
+      entries: [
+        {
+          step: "baseline_mismatch_extraction",
+          timestamp: "2026-04-03T00:00:00Z",
+          durationMs: 50,
+          data: { totalMismatches: 3 },
+        },
+        {
+          step: "llm_request",
+          timestamp: "2026-04-03T00:00:01Z",
+          durationMs: 2000,
+          data: { deployment: "gpt-4o" },
+        },
+      ],
+    }),
+  };
+
+  const mockOcrImprovementPipeline = {
+    generate: jest.fn().mockResolvedValue({
+      candidateWorkflowVersionId: "wv-candidate-1",
+      candidateLineageId: "lineage-1",
+      recommendationsSummary: {
+        applied: 1,
+        rejected: 0,
+        toolIds: ["ocr.spellcheck"],
+      },
+      status: "candidate_created",
+    }),
+  };
+
+  const mockWorkflowService = {
+    getWorkflowById: jest.fn(),
+  };
+
+  const mockErrorDetectionService = {
+    getAnalysis: jest.fn(),
+  };
+
   const mockReq = {
     user: { sub: "user-1" },
     resolvedIdentity: {
       userId: "user-1",
+      actorId: "actor-for-user-1",
       isSystemAdmin: false,
       groupRoles: {},
-      actorId: "user-1",
     },
   } as unknown as Request;
 
@@ -56,6 +109,19 @@ describe("BenchmarkRunController", () => {
       providers: [
         { provide: BenchmarkRunService, useValue: mockRunService },
         { provide: BenchmarkProjectService, useValue: mockProjectService },
+        {
+          provide: BenchmarkDefinitionService,
+          useValue: mockDefinitionService,
+        },
+        {
+          provide: OcrImprovementPipelineService,
+          useValue: mockOcrImprovementPipeline,
+        },
+        { provide: WorkflowService, useValue: mockWorkflowService },
+        {
+          provide: BenchmarkErrorDetectionService,
+          useValue: mockErrorDetectionService,
+        },
       ],
     }).compile();
 
@@ -92,7 +158,6 @@ describe("BenchmarkRunController", () => {
         projectId,
         "def-1",
         createRunDto,
-        mockReq.resolvedIdentity,
       );
       expect(result).toEqual(expected);
     });
@@ -126,6 +191,124 @@ describe("BenchmarkRunController", () => {
       await expect(
         controller.startRun(projectId, "def-bad", dto, mockReq),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("POST /definitions/:definitionId/ocr-improvement/generate", () => {
+    it("generates candidate workflow and returns result", async () => {
+      const dto = {};
+      const result = await controller.generateCandidate(
+        projectId,
+        "def-1",
+        dto,
+        mockReq,
+      );
+
+      expect(mockDefinitionService.getDefinitionById).toHaveBeenCalledWith(
+        projectId,
+        "def-1",
+      );
+      expect(mockWorkflowService.getWorkflowById).not.toHaveBeenCalled();
+      expect(mockOcrImprovementPipeline.generate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowVersionId: "wv-workflow-1",
+          actorId: "actor-for-user-1",
+          definitionId: "def-1",
+        }),
+      );
+      expect(result).toMatchObject({
+        candidateWorkflowVersionId: "wv-candidate-1",
+        candidateLineageId: "lineage-1",
+        recommendationsSummary: {
+          applied: 1,
+          rejected: 0,
+          toolIds: ["ocr.spellcheck"],
+        },
+        status: "candidate_created",
+      });
+    });
+
+    it("passes normalizeFieldsEmptyValueCoercion to the pipeline when set", async () => {
+      await controller.generateCandidate(
+        projectId,
+        "def-1",
+        { normalizeFieldsEmptyValueCoercion: "null" },
+        mockReq,
+      );
+
+      expect(mockOcrImprovementPipeline.generate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          normalizeFieldsEmptyValueCoercion: "null",
+        }),
+      );
+    });
+
+    it("uses source workflow owner as actorId when resolvedIdentity.actorId is absent", async () => {
+      const sourceWorkflow: WorkflowInfo = {
+        id: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
+        name: "wf",
+        description: null,
+        actorId: "owner-from-source-workflow",
+        groupId: "test-group",
+        config: {
+          schemaVersion: "1.0",
+          metadata: {},
+          nodes: {},
+          edges: [],
+          entryNodeId: "n1",
+          ctx: {},
+        },
+        schemaVersion: "1.0",
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockWorkflowService.getWorkflowById.mockResolvedValue(sourceWorkflow);
+
+      const apiKeyOnlyReq = {} as Request;
+
+      await controller.generateCandidate(projectId, "def-1", {}, apiKeyOnlyReq);
+
+      expect(mockWorkflowService.getWorkflowById).toHaveBeenCalledWith(
+        "wv-workflow-1",
+      );
+      expect(mockOcrImprovementPipeline.generate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: "owner-from-source-workflow",
+        }),
+      );
+    });
+  });
+
+  describe("GET /definitions/:definitionId/ocr-improvement/debug-log", () => {
+    it("returns the pipeline debug log entries", async () => {
+      const result = await controller.getPipelineDebugLog(
+        projectId,
+        "def-1",
+        mockReq,
+      );
+
+      expect(mockDefinitionService.getPipelineDebugLog).toHaveBeenCalledWith(
+        projectId,
+        "def-1",
+      );
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].step).toBe("baseline_mismatch_extraction");
+    });
+
+    it("returns empty entries when no log exists", async () => {
+      mockDefinitionService.getPipelineDebugLog.mockResolvedValueOnce({
+        entries: [],
+      });
+
+      const result = await controller.getPipelineDebugLog(
+        projectId,
+        "def-1",
+        mockReq,
+      );
+
+      expect(result.entries).toEqual([]);
     });
   });
 
@@ -347,7 +530,6 @@ describe("BenchmarkRunController", () => {
         projectId,
         "run-1",
         promoteDto,
-        mockReq.resolvedIdentity,
       );
       expect(result).toEqual(expected);
     });
@@ -382,6 +564,82 @@ describe("BenchmarkRunController", () => {
       await expect(
         controller.promoteToBaseline(projectId, "run-x", promoteDto, mockReq),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("POST /apply-candidate-to-base", () => {
+    it("delegates to applyToBaseWorkflow with correct args", async () => {
+      const expected = {
+        newBaseWorkflowVersionId: "wv-new-base",
+        baseLineageId: "base-lineage",
+        newVersionNumber: 3,
+        cleanedUp: true,
+      };
+      mockDefinitionService.applyToBaseWorkflow.mockResolvedValue(expected);
+
+      const dto: ApplyCandidateToBaseDto = {
+        candidateWorkflowVersionId: "candidate-v1",
+        cleanupCandidateArtifacts: true,
+      };
+
+      const result = await controller.applyCandidateToBase(
+        projectId,
+        dto,
+        mockReq,
+      );
+
+      expect(mockDefinitionService.applyToBaseWorkflow).toHaveBeenCalledWith(
+        projectId,
+        "candidate-v1",
+        true,
+      );
+      expect(result).toEqual(expected);
+    });
+
+    it("defaults cleanupCandidateArtifacts to true when omitted", async () => {
+      const expected = {
+        newBaseWorkflowVersionId: "wv-new-base",
+        baseLineageId: "base-lineage",
+        newVersionNumber: 3,
+        cleanedUp: true,
+      };
+      mockDefinitionService.applyToBaseWorkflow.mockResolvedValue(expected);
+
+      const dto: ApplyCandidateToBaseDto = {
+        candidateWorkflowVersionId: "candidate-v1",
+      };
+
+      await controller.applyCandidateToBase(projectId, dto, mockReq);
+
+      expect(mockDefinitionService.applyToBaseWorkflow).toHaveBeenCalledWith(
+        projectId,
+        "candidate-v1",
+        true,
+      );
+    });
+  });
+
+  describe("GET /runs/:runId/error-detection-analysis", () => {
+    it("returns error detection analysis for a run", async () => {
+      const expected = {
+        runId: "r1",
+        notReady: false,
+        fields: [],
+        excludedFields: [],
+      };
+      mockErrorDetectionService.getAnalysis.mockResolvedValue(expected);
+
+      const result = await controller.getErrorDetectionAnalysis(
+        "p1",
+        "r1",
+        mockReq,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockErrorDetectionService.getAnalysis).toHaveBeenCalledWith(
+        "p1",
+        "r1",
+      );
     });
   });
 

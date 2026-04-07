@@ -1,4 +1,6 @@
+export * from "./apply-candidate-to-base.dto";
 export * from "./audit-log-response.dto";
+export * from "./confusion-matrix-derive.dto";
 export * from "./create-dataset.dto";
 export * from "./create-dataset-from-hitl.dto";
 export * from "./create-definition.dto";
@@ -9,14 +11,19 @@ export * from "./create-version.dto";
 export * from "./dataset-response.dto";
 export * from "./definition-response.dto";
 export * from "./eligible-documents.dto";
+export * from "./error-detection-analysis.dto";
 export * from "./ground-truth-generation.dto";
 export * from "./ground-truth-response.dto";
 export * from "./hitl-dataset-response.dto";
 export * from "./manifest-sample.dto";
+export * from "./ocr-cache-source.dto";
+export * from "./ocr-improvement-run.dto";
 export * from "./paginated-dataset-response.dto";
 export * from "./per-sample-result.dto";
+export * from "./pipeline-debug-log.dto";
 export * from "./project-response.dto";
 export * from "./promote-baseline.dto";
+
 export * from "./run-response.dto";
 export * from "./schedule-config.dto";
 export * from "./schedule-info.dto";

@@ -27,6 +27,7 @@ import {
   useRequestMembership,
   useUpdateGroup,
 } from "../data/hooks/useGroups";
+import { ConfusionProfilesPanel } from "../features/benchmarking/components/ConfusionProfilesPanel";
 
 /**
  * Page shown at `/groups/:groupId`. Displays group details and the Members tab
@@ -259,6 +260,7 @@ export function GroupDetailPage(): JSX.Element {
             {isAdmin && (
               <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
             )}
+            <Tabs.Tab value="confusion-profiles">Confusion Profiles</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="members" pt="md">
@@ -269,6 +271,9 @@ export function GroupDetailPage(): JSX.Element {
               <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
             </Tabs.Panel>
           )}
+          <Tabs.Panel value="confusion-profiles" pt="md">
+            <ConfusionProfilesPanel groupId={groupId} />
+          </Tabs.Panel>
         </Tabs>
       )}
 

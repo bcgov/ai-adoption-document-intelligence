@@ -23,6 +23,13 @@ export class CreateFieldDefinitionDto {
   @IsString()
   field_format?: string;
 
+  @ApiPropertyOptional({
+    description: "JSON format spec for normalization/validation",
+  })
+  @IsOptional()
+  @IsString()
+  format_spec?: string;
+
   @ApiPropertyOptional({ description: "Display order" })
   @IsOptional()
   @IsInt()
@@ -35,6 +42,13 @@ export class UpdateFieldDefinitionDto {
   @IsOptional()
   @IsString()
   field_format?: string;
+
+  @ApiPropertyOptional({
+    description: "JSON format spec for normalization/validation",
+  })
+  @IsOptional()
+  @IsString()
+  format_spec?: string;
 
   @ApiPropertyOptional({ description: "Display order" })
   @IsOptional()

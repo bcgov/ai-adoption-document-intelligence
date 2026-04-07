@@ -111,7 +111,7 @@ Each ground truth JSON file contains flat key-value pairs — the same format as
 }
 ```
 
-Field values are resolved using the same `extractFieldValue` logic as the benchmark workflow prediction extractor (`apps/temporal/src/benchmark-workflow.ts`): `valueSelectionMark` → "selected"/"unselected", `valueNumber` → number, `valueDate` → date string, `valueString` → string, fallback to `content`.
+Field values are resolved using the same logic as `extractAzureFieldDisplayValue` (`apps/temporal/src/azure-ocr-field-display-value.ts`), which the benchmark workflow uses when flattening predictions (`buildFlatPredictionMapFromCtx`): `valueSelectionMark` → "selected"/"unselected", `valueNumber` → number, `valueDate` → date string, `valueString` → string, fallback to `content`.
 
 Provenance information (source document ID, review session, reviewer) is stored in each manifest sample's `metadata`, not in the ground truth file itself.
 

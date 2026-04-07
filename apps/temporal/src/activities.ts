@@ -26,6 +26,14 @@ export {
   loadDatasetManifest,
   materializeDataset,
 } from "./activities/benchmark-materialize";
+export type {
+  BenchmarkLoadOcrCacheInput,
+  BenchmarkPersistOcrCacheInput,
+} from "./activities/benchmark-ocr-cache";
+export {
+  benchmarkLoadOcrCache,
+  benchmarkPersistOcrCache,
+} from "./activities/benchmark-ocr-cache";
 export type { BenchmarkUpdateRunStatusInput } from "./activities/benchmark-update-run";
 export { benchmarkUpdateRunStatus } from "./activities/benchmark-update-run";
 export type {
@@ -41,6 +49,10 @@ export type { EnrichResultsParams } from "./activities/enrich-results";
 export { enrichResults } from "./activities/enrich-results";
 export { extractOCRResults } from "./activities/extract-ocr-results";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
+export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
+export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
+// OCR correction tools (Feature 008)
+export { spellcheckOcrResult } from "./activities/ocr-spellcheck";
 export { pollOCRResults } from "./activities/poll-ocr-results";
 export { postOcrCleanup } from "./activities/post-ocr-cleanup";
 export type { PrepareFileDataInput } from "./activities/prepare-file-data";
@@ -53,3 +65,13 @@ export { storeDocumentRejection } from "./activities/store-document-rejection";
 export { submitToAzureOCR } from "./activities/submit-to-azure-ocr";
 export { updateDocumentStatus } from "./activities/update-document-status";
 export { upsertOcrResult } from "./activities/upsert-ocr-result";
+// AI recommendation types (used by workflow-modification + benchmarks; LLM call lives in Nest AiRecommendationService)
+export type {
+  AiRecommendationInput,
+  AiRecommendationOutput,
+  ToolRecommendation,
+} from "./ai-recommendation-types";
+export type {
+  CorrectionResult,
+  CorrectionToolParams,
+} from "./correction-types";
