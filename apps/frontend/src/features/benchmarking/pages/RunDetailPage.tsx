@@ -38,6 +38,7 @@ import { useTemplateModels } from "@/features/annotation/template-models/hooks/u
 import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
+import { ErrorDetectionAnalysis } from "../components/ErrorDetectionAnalysis";
 import { useDeriveProfile } from "../hooks/useConfusionProfiles";
 import { useApplyToBaseWorkflow, useDefinition } from "../hooks/useDefinitions";
 import { useProject } from "../hooks/useProjects";
@@ -1263,6 +1264,10 @@ export function RunDetailPage() {
               )}
           </Stack>
         </Card>
+      )}
+
+      {run.status === "completed" && (
+        <ErrorDetectionAnalysis projectId={projectId} runId={runId || ""} />
       )}
 
       {/* Artifact Viewer */}
