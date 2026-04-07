@@ -28,7 +28,10 @@ import {
   type BenchmarkExecuteOutput,
   benchmarkExecuteWorkflow,
 } from "./activities/benchmark-execute";
-import { buildFlatPredictionMapFromCtx } from "./azure-ocr-field-display-value";
+import {
+  buildFlatConfidenceMapFromCtx,
+  buildFlatPredictionMapFromCtx,
+} from "./azure-ocr-field-display-value";
 import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -50,6 +53,7 @@ type BenchmarkActivities = {
     sampleId: string;
     inputPaths: string[];
     predictionPaths: string[];
+    predictionConfidences?: Record<string, number | null>;
     groundTruthPaths: string[];
     metadata: Record<string, unknown>;
     evaluatorType: string;
@@ -571,9 +575,9 @@ export async function benchmarkRunWorkflow(
           try {
             // Extract prediction fields from the workflow ctx and write to disk
             // so the evaluator can compare against ground truth files.
-            const predictionData = buildFlatPredictionMapFromCtx(
-              executeOutput.workflowResult?.ctx ?? {},
-            );
+            const ctx = executeOutput.workflowResult?.ctx ?? {};
+            const predictionData = buildFlatPredictionMapFromCtx(ctx);
+            const confidenceData = buildFlatConfidenceMapFromCtx(ctx);
 
             const { predictionPath } = await customActivities[
               "benchmark.writePrediction"
@@ -593,6 +597,7 @@ export async function benchmarkRunWorkflow(
               sampleId: sample.id,
               inputPaths,
               predictionPaths: [predictionPath],
+              predictionConfidences: confidenceData,
               groundTruthPaths,
               metadata: sample.metadata,
               evaluatorType,
