@@ -39,6 +39,7 @@ import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
@@ -46,6 +47,7 @@ import {
   ApplyCandidateToBaseResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
+  ErrorDetectionAnalysisResponseDto,
   OcrCacheSourceDto,
   OcrImprovementGenerateDto,
   OcrImprovementGenerateResponseDto,
@@ -69,6 +71,7 @@ export class BenchmarkRunController {
     private readonly benchmarkDefinitionService: BenchmarkDefinitionService,
     private readonly ocrImprovementPipeline: OcrImprovementPipelineService,
     private readonly workflowService: WorkflowService,
+    private readonly errorDetectionService: BenchmarkErrorDetectionService,
   ) {}
 
   private async assertProjectGroupAccess(
@@ -340,6 +343,34 @@ export class BenchmarkRunController {
     );
     await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.getDrillDown(projectId, runId);
+  }
+
+  @Get("runs/:runId/error-detection-analysis")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Get error detection analysis for a benchmark run",
+    description:
+      "Returns precomputed per-field threshold curves and suggested thresholds " +
+      "for picking confidence cut-offs that flag low-confidence predictions for review.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiOkResponse({
+    description: "Per-field error detection analysis",
+    type: ErrorDetectionAnalysisResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getErrorDetectionAnalysis(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+    @Req() req: Request,
+  ): Promise<ErrorDetectionAnalysisResponseDto> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/runs/${runId}/error-detection-analysis`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+    return this.errorDetectionService.getAnalysis(projectId, runId);
   }
 
   @Get("runs/:runId/samples")

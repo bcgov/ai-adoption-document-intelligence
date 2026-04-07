@@ -13,6 +13,7 @@ import { AuditLogDbService } from "./audit-log-db.service";
 import { BenchmarkDefinitionController } from "./benchmark-definition.controller";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkProjectController } from "./benchmark-project.controller";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkProjectDbService } from "./benchmark-project-db.service";
@@ -72,6 +73,7 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     ConfusionMatrixService,
     AiRecommendationService,
     OcrImprovementPipelineService,
+    BenchmarkErrorDetectionService,
   ],
   exports: [
     DatasetService,

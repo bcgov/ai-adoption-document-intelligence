@@ -16,6 +16,7 @@ import { Request } from "express";
 import type { WorkflowInfo } from "@/workflow/workflow.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunController } from "./benchmark-run.controller";
 import { BenchmarkRunService } from "./benchmark-run.service";
@@ -86,6 +87,10 @@ describe("BenchmarkRunController", () => {
     getWorkflowById: jest.fn(),
   };
 
+  const mockErrorDetectionService = {
+    getAnalysis: jest.fn(),
+  };
+
   const mockReq = {
     user: { sub: "user-1" },
     resolvedIdentity: {
@@ -113,6 +118,10 @@ describe("BenchmarkRunController", () => {
           useValue: mockOcrImprovementPipeline,
         },
         { provide: WorkflowService, useValue: mockWorkflowService },
+        {
+          provide: BenchmarkErrorDetectionService,
+          useValue: mockErrorDetectionService,
+        },
       ],
     }).compile();
 
@@ -606,6 +615,30 @@ describe("BenchmarkRunController", () => {
         projectId,
         "candidate-v1",
         true,
+      );
+    });
+  });
+
+  describe("GET /runs/:runId/error-detection-analysis", () => {
+    it("returns error detection analysis for a run", async () => {
+      const expected = {
+        runId: "r1",
+        notReady: false,
+        fields: [],
+        excludedFields: [],
+      };
+      mockErrorDetectionService.getAnalysis.mockResolvedValue(expected);
+
+      const result = await controller.getErrorDetectionAnalysis(
+        "p1",
+        "r1",
+        mockReq,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockErrorDetectionService.getAnalysis).toHaveBeenCalledWith(
+        "p1",
+        "r1",
       );
     });
   });
