@@ -278,7 +278,21 @@ export class ReviewDbService {
     this.logger.debug("Acquiring document lock", {
       document_id: data.document_id,
     });
-    return client.documentLock.create({ data });
+    // Use upsert to reclaim any stale (expired) lock row for this document.
+    // The unique constraint on document_id means a leftover expired row would
+    // otherwise cause a P2002 violation. Callers must ensure no *active* lock
+    // exists (see findActiveLock) before invoking this method.
+    return client.documentLock.upsert({
+      where: { document_id: data.document_id },
+      update: {
+        reviewer_id: data.reviewer_id,
+        session_id: data.session_id,
+        expires_at: data.expires_at,
+        acquired_at: new Date(),
+        last_heartbeat: new Date(),
+      },
+      create: data,
+    });
   }
 
   /**

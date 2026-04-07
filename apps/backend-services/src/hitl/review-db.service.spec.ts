@@ -27,6 +27,7 @@ const mockDocument = {
 
 const mockDocumentLock = {
   create: jest.fn(),
+  upsert: jest.fn(),
   deleteMany: jest.fn(),
   updateMany: jest.fn(),
   findFirst: jest.fn(),
@@ -446,24 +447,32 @@ describe("ReviewDbService", () => {
   });
 
   describe("acquireDocumentLock", () => {
-    it("should create and return a document lock", async () => {
+    it("should upsert and return a document lock, reclaiming stale rows", async () => {
       const lockData = {
         document_id: "doc-1",
         reviewer_id: "reviewer-1",
         session_id: "session-1",
         expires_at: new Date("2024-01-01T01:00:00Z"),
       };
-      const createdLock = { id: "lock-1", ...lockData };
-      mockDocumentLock.create.mockResolvedValue(createdLock);
+      const upsertedLock = { id: "lock-1", ...lockData };
+      mockDocumentLock.upsert.mockResolvedValue(upsertedLock);
 
       const result = await service.acquireDocumentLock(lockData);
 
-      expect(result).toEqual(createdLock);
-      expect(mockDocumentLock.create).toHaveBeenCalledWith({ data: lockData });
+      expect(result).toEqual(upsertedLock);
+      expect(mockDocumentLock.upsert).toHaveBeenCalledWith({
+        where: { document_id: "doc-1" },
+        update: expect.objectContaining({
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: lockData.expires_at,
+        }),
+        create: lockData,
+      });
     });
 
-    it("should throw if prisma create fails", async () => {
-      mockDocumentLock.create.mockRejectedValue(new Error("DB error"));
+    it("should throw if prisma upsert fails", async () => {
+      mockDocumentLock.upsert.mockRejectedValue(new Error("DB error"));
 
       await expect(
         service.acquireDocumentLock({
@@ -652,7 +661,7 @@ describe("ReviewDbService", () => {
     it("should use provided tx client instead of this.prisma for acquireDocumentLock", async () => {
       const lock = { id: "lock-1", document_id: "doc-1" };
       const mockTxDocumentLock = {
-        create: jest.fn().mockResolvedValue(lock),
+        upsert: jest.fn().mockResolvedValue(lock),
       };
       const mockTx = { documentLock: mockTxDocumentLock } as never;
 
@@ -667,8 +676,8 @@ describe("ReviewDbService", () => {
       );
 
       expect(result).toEqual(lock);
-      expect(mockTxDocumentLock.create).toHaveBeenCalled();
-      expect(mockDocumentLock.create).not.toHaveBeenCalled();
+      expect(mockTxDocumentLock.upsert).toHaveBeenCalled();
+      expect(mockDocumentLock.upsert).not.toHaveBeenCalled();
     });
 
     it("should use provided tx client instead of this.prisma for releaseDocumentLock", async () => {
