@@ -86,6 +86,7 @@ interface FieldComparisonResult {
   similarity?: number;
   absoluteError?: number;
   relativeError?: number;
+  confidence?: number | null;
 }
 
 /**
@@ -131,6 +132,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     const prediction = await this.loadJson(predictionPath);
     const groundTruth = await this.loadJson(groundTruthPath);
 
+    const confidenceMap: Record<string, number | null> =
+      input.predictionConfidences ?? {};
+
     // Compare all fields
     const comparisonResults: FieldComparisonResult[] = [];
 
@@ -142,6 +146,7 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         groundTruth[field],
         config,
       );
+      result.confidence = field in confidenceMap ? confidenceMap[field] : null;
       comparisonResults.push(result);
     }
 

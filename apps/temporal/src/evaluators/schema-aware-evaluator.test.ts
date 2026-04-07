@@ -751,6 +751,65 @@ describe("SchemaAwareEvaluator", () => {
   });
 
   // -----------------------------------------------------------------------
+  // Scenario: per-field confidence threading
+  // -----------------------------------------------------------------------
+  describe("confidence threading", () => {
+    it("attaches per-field confidence from predictionConfidences to evaluationDetails", async () => {
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { name: "Acme", total: 100 },
+        { name: "Acme", total: 99 },
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "s1",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        predictionConfidences: { name: 0.91, total: 0.42 },
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      const details = result.evaluationDetails as Array<{
+        field: string;
+        matched: boolean;
+        confidence: number | null;
+      }>;
+      const byField = Object.fromEntries(details.map((d) => [d.field, d]));
+      expect(byField.name.confidence).toBe(0.91);
+      expect(byField.name.matched).toBe(true);
+      expect(byField.total.confidence).toBe(0.42);
+      expect(byField.total.matched).toBe(false);
+    });
+
+    it("sets confidence to null when predictionConfidences is omitted", async () => {
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { name: "Acme" },
+        { name: "Acme" },
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "s2",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      const details = result.evaluationDetails as Array<{
+        field: string;
+        confidence: number | null;
+      }>;
+      expect(details[0].confidence).toBeNull();
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Integration test: Complex scenario
   // -----------------------------------------------------------------------
   describe("complex integration", () => {
