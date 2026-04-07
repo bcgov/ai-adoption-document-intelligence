@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 import {
   ErrorDetectionAnalysisResponseDto,
@@ -73,6 +73,91 @@ export class BenchmarkErrorDetectionService {
       suggestedBestBalance: this.findBestF1Threshold(curve),
       suggestedMinimizeReview: this.findLargestThresholdForFprCap(curve, 0.1),
     };
+  }
+
+  /**
+   * Build the error-detection analysis for a run. Cached by runId.
+   */
+  async getAnalysis(
+    projectId: string,
+    runId: string,
+  ): Promise<ErrorDetectionAnalysisResponseDto> {
+    const cached = this.cache.get(runId);
+    if (cached) return cached;
+
+    const run = await this.prismaService.prisma.benchmarkRun.findFirst({
+      where: { id: runId, projectId },
+    });
+    if (!run) {
+      throw new NotFoundException(
+        `Benchmark run with ID "${runId}" not found for project "${projectId}"`,
+      );
+    }
+
+    const metrics = (run.metrics ?? {}) as Record<string, unknown>;
+    const perSampleResults = (metrics.perSampleResults ?? []) as Array<{
+      sampleId: string;
+      evaluationDetails?: unknown;
+    }>;
+
+    if (!perSampleResults.length) {
+      const empty: ErrorDetectionAnalysisResponseDto = {
+        runId: run.id,
+        notReady: true,
+        fields: [],
+        excludedFields: [],
+      };
+      this.cache.set(runId, empty);
+      return empty;
+    }
+
+    // Group instances by field name.
+    const byField = new Map<string, FieldInstance[]>();
+    for (const sample of perSampleResults) {
+      const details = Array.isArray(sample.evaluationDetails)
+        ? (sample.evaluationDetails as Array<{
+            field: string;
+            matched: boolean;
+            confidence?: number | null;
+          }>)
+        : [];
+      for (const d of details) {
+        if (!d || typeof d.field !== "string") continue;
+        if (!byField.has(d.field)) byField.set(d.field, []);
+        byField.get(d.field)!.push({
+          confidence: typeof d.confidence === "number" ? d.confidence : null,
+          correct: d.matched === true,
+        });
+      }
+    }
+
+    const fields: ErrorDetectionFieldDto[] = [];
+    const excludedFields: string[] = [];
+    for (const [name, instances] of byField.entries()) {
+      const { evaluable, excludedReason } = this.partitionInstances(instances);
+      if (excludedReason) {
+        excludedFields.push(name);
+        continue;
+      }
+      fields.push(this.computeField(name, evaluable));
+    }
+
+    fields.sort((a, b) => b.errorRate - a.errorRate);
+    excludedFields.sort();
+
+    const result: ErrorDetectionAnalysisResponseDto = {
+      runId: run.id,
+      notReady: false,
+      fields,
+      excludedFields,
+    };
+    this.cache.set(runId, result);
+    return result;
+  }
+
+  /** Public cache invalidation hook. */
+  invalidate(runId: string): void {
+    this.cache.delete(runId);
   }
 
   private findSmallestThresholdForRecall(

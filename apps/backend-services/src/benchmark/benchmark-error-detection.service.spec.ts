@@ -1,3 +1,4 @@
+import { NotFoundException } from "@nestjs/common";
 import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 
 describe("BenchmarkErrorDetectionService.computeField (pure)", () => {
@@ -93,5 +94,123 @@ describe("BenchmarkErrorDetectionService.partitionInstances", () => {
     ]);
     expect(evaluable).toHaveLength(0);
     expect(excludedReason).toBe(true);
+  });
+});
+
+describe("BenchmarkErrorDetectionService.getAnalysis", () => {
+  function makeService(run: unknown) {
+    const prismaService = {
+      prisma: {
+        benchmarkRun: {
+          findFirst: jest.fn().mockResolvedValue(run),
+        },
+      },
+    };
+    const svc = new BenchmarkErrorDetectionService(prismaService as never);
+    return { svc, findFirst: prismaService.prisma.benchmarkRun.findFirst };
+  }
+
+  it("returns notReady when run has no perSampleResults", async () => {
+    const { svc } = makeService({
+      id: "r1",
+      projectId: "p1",
+      status: "completed",
+      metrics: {},
+    });
+    const out = await svc.getAnalysis("p1", "r1");
+    expect(out.notReady).toBe(true);
+    expect(out.fields).toEqual([]);
+    expect(out.excludedFields).toEqual([]);
+    expect(out.runId).toBe("r1");
+  });
+
+  it("groups evaluationDetails by field and excludes fields with no confidence", async () => {
+    const { svc } = makeService({
+      id: "r1",
+      projectId: "p1",
+      status: "completed",
+      metrics: {
+        perSampleResults: [
+          {
+            sampleId: "s1",
+            evaluationDetails: [
+              { field: "name", matched: true, confidence: 0.9 },
+              { field: "total", matched: false, confidence: 0.3 },
+              { field: "notes", matched: true, confidence: null },
+            ],
+          },
+          {
+            sampleId: "s2",
+            evaluationDetails: [
+              { field: "name", matched: false, confidence: 0.4 },
+              { field: "total", matched: true, confidence: 0.8 },
+              { field: "notes", matched: false, confidence: null },
+            ],
+          },
+        ],
+      },
+    });
+    const out = await svc.getAnalysis("p1", "r1");
+    expect(out.notReady).toBe(false);
+    expect(out.fields.map((f) => f.name).sort()).toEqual(["name", "total"]);
+    expect(out.excludedFields).toContain("notes");
+    const name = out.fields.find((f) => f.name === "name")!;
+    expect(name.evaluatedCount).toBe(2);
+    expect(name.errorCount).toBe(1);
+  });
+
+  it("sorts fields by errorRate descending", async () => {
+    const { svc } = makeService({
+      id: "r1",
+      projectId: "p1",
+      status: "completed",
+      metrics: {
+        perSampleResults: [
+          {
+            sampleId: "s1",
+            evaluationDetails: [
+              { field: "low", matched: true, confidence: 0.9 },
+              { field: "high", matched: false, confidence: 0.9 },
+              { field: "high", matched: false, confidence: 0.9 },
+              { field: "low", matched: true, confidence: 0.9 },
+            ],
+          },
+        ],
+      },
+    });
+    const out = await svc.getAnalysis("p1", "r1");
+    expect(out.fields.map((f) => f.name)).toEqual(["high", "low"]);
+  });
+
+  it("throws NotFoundException when run does not exist", async () => {
+    const { svc } = makeService(null);
+    await expect(svc.getAnalysis("p1", "missing")).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it("caches results by runId across calls", async () => {
+    const { svc, findFirst } = makeService({
+      id: "r1",
+      projectId: "p1",
+      status: "completed",
+      metrics: { perSampleResults: [] },
+    });
+    await svc.getAnalysis("p1", "r1");
+    await svc.getAnalysis("p1", "r1");
+    expect(findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidate(runId) drops the cache entry", async () => {
+    const { svc, findFirst } = makeService({
+      id: "r1",
+      projectId: "p1",
+      status: "completed",
+      metrics: { perSampleResults: [] },
+    });
+    await svc.getAnalysis("p1", "r1");
+    svc.invalidate("r1");
+    await svc.getAnalysis("p1", "r1");
+    expect(findFirst).toHaveBeenCalledTimes(2);
   });
 });
