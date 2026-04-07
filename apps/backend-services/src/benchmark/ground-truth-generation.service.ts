@@ -21,6 +21,8 @@ import { DocumentService } from "@/document/document.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
 import { ExtractedFields } from "@/ocr/azure-types";
 import { OcrService } from "@/ocr/ocr.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import {
   GroundTruthJobResponseDto,
   GroundTruthJobsListResponseDto,
@@ -31,6 +33,10 @@ import {
   StartGroundTruthGenerationResponseDto,
 } from "./dto";
 import { HitlDatasetService } from "./hitl-dataset.service";
+import {
+  applyWorkflowConfigOverrides,
+  validateWorkflowConfigOverrides,
+} from "./workflow-config-overrides";
 
 interface ManifestSample {
   id: string;
@@ -56,6 +62,7 @@ export class GroundTruthGenerationService {
     private readonly reviewDb: ReviewDbService,
     private readonly ocrService: OcrService,
     private readonly hitlDatasetService: HitlDatasetService,
+    private readonly temporalClient: TemporalClientService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
   ) {}
 
@@ -72,6 +79,7 @@ export class GroundTruthGenerationService {
     versionId: string,
     workflowVersionId: string,
     userId: string,
+    workflowConfigOverrides?: Record<string, unknown>,
   ): Promise<StartGroundTruthGenerationResponseDto> {
     // Validate version exists and is not frozen
     const version = await this.prisma.datasetVersion.findFirst({
@@ -107,6 +115,23 @@ export class GroundTruthGenerationService {
       );
     }
 
+    // Validate workflow config overrides against exposed params, if provided
+    const normalizedOverrides =
+      workflowConfigOverrides && Object.keys(workflowConfigOverrides).length > 0
+        ? workflowConfigOverrides
+        : undefined;
+    if (normalizedOverrides) {
+      const errors = validateWorkflowConfigOverrides(
+        workflowVersion.config as unknown as GraphWorkflowConfig,
+        normalizedOverrides,
+      );
+      if (errors.length > 0) {
+        throw new BadRequestException(
+          `Invalid workflow config overrides: ${errors.join("; ")}`,
+        );
+      }
+    }
+
     // Load manifest
     const manifest = await this.loadManifest(version.storagePrefix);
 
@@ -121,24 +146,63 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Check for existing jobs that haven't failed
-    const existingJobs = await this.prisma.datasetGroundTruthJob.findMany({
+    // Cleanup any non-completed jobs for this version so the user can restart
+    // even when previous jobs are stuck. Completed jobs are preserved because
+    // their ground truth is already part of the dataset.
+    const staleJobs = await this.prisma.datasetGroundTruthJob.findMany({
       where: {
         datasetVersionId: versionId,
-        status: { not: GroundTruthJobStatus.failed },
+        status: { not: GroundTruthJobStatus.completed },
+      },
+      select: { id: true, temporalWorkflowId: true },
+    });
+
+    if (staleJobs.length > 0) {
+      // Best-effort: cancel any temporal workflows still in flight.
+      await Promise.all(
+        staleJobs
+          .filter((j) => j.temporalWorkflowId)
+          .map(async (j) => {
+            try {
+              await this.temporalClient.cancelWorkflow(
+                j.temporalWorkflowId!,
+                "immediate",
+              );
+            } catch (err) {
+              this.logger.warn(
+                `Failed to cancel stale temporal workflow ${j.temporalWorkflowId}: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              );
+            }
+          }),
+      );
+
+      await this.prisma.datasetGroundTruthJob.deleteMany({
+        where: { id: { in: staleJobs.map((j) => j.id) } },
+      });
+
+      this.logger.log(
+        `Cleaned up ${staleJobs.length} stale ground truth jobs for version ${versionId}`,
+      );
+    }
+
+    // Skip samples that already have completed jobs (their GT is in the dataset)
+    const completedJobs = await this.prisma.datasetGroundTruthJob.findMany({
+      where: {
+        datasetVersionId: versionId,
+        status: GroundTruthJobStatus.completed,
       },
       select: { sampleId: true },
     });
-    const existingJobSampleIds = new Set(existingJobs.map((j) => j.sampleId));
-
-    // Only create jobs for samples that don't already have a non-failed job
+    const completedSampleIds = new Set(completedJobs.map((j) => j.sampleId));
     const samplesToProcess = samplesWithoutGt.filter(
-      (s) => !existingJobSampleIds.has(s.id),
+      (s) => !completedSampleIds.has(s.id),
     );
 
     if (samplesToProcess.length === 0) {
       throw new BadRequestException(
-        "All samples without ground truth already have pending or in-progress jobs",
+        "All samples without ground truth already have completed ground truth jobs",
       );
     }
 
@@ -151,6 +215,9 @@ export class GroundTruthGenerationService {
             sampleId: sample.id,
             workflowVersionId,
             status: GroundTruthJobStatus.pending,
+            workflowConfigOverrides: normalizedOverrides
+              ? (normalizedOverrides as Prisma.InputJsonValue)
+              : Prisma.DbNull,
           },
         }),
       ),
@@ -258,16 +325,28 @@ export class GroundTruthGenerationService {
       const originalFilename = path.basename(inputFile.path);
       const ext = path.extname(originalFilename);
 
-      // Read modelId from workflow config ctx defaults
+      // Read workflow config and apply per-job overrides (if any)
       const workflowVersion = await this.prisma.workflowVersion.findUnique({
         where: { id: job.workflowVersionId },
         select: { config: true },
       });
-      const workflowConfig = workflowVersion?.config as {
-        ctx?: Record<string, { defaultValue?: unknown }>;
-      } | null;
+      const baseConfig =
+        (workflowVersion?.config as unknown as GraphWorkflowConfig) || null;
+      const jobOverrides = (job.workflowConfigOverrides ?? null) as Record<
+        string,
+        unknown
+      > | null;
+      const effectiveConfig: GraphWorkflowConfig | null =
+        baseConfig && jobOverrides && Object.keys(jobOverrides).length > 0
+          ? applyWorkflowConfigOverrides(baseConfig, jobOverrides)
+          : baseConfig;
+      const effectiveConfigCtx = (
+        effectiveConfig as unknown as {
+          ctx?: Record<string, { defaultValue?: unknown }>;
+        } | null
+      )?.ctx;
       const modelId =
-        (workflowConfig?.ctx?.modelId?.defaultValue as string) ||
+        (effectiveConfigCtx?.modelId?.defaultValue as string) ||
         "prebuilt-layout";
 
       // Create document record
@@ -312,10 +391,15 @@ export class GroundTruthGenerationService {
         },
       });
 
-      // Start OCR workflow with confidenceThreshold=0 to skip humanGate
-      const ocrResult = await this.ocrService.requestOcr(documentId, {
-        confidenceThreshold: 0,
-      });
+      // Start OCR workflow with confidenceThreshold=0 to skip humanGate.
+      // Pass the override-applied graph so exposed-param overrides take effect.
+      const ocrResult = await this.ocrService.requestOcr(
+        documentId,
+        { confidenceThreshold: 0 },
+        effectiveConfig && jobOverrides && Object.keys(jobOverrides).length > 0
+          ? effectiveConfig
+          : undefined,
+      );
 
       // Update job with temporal workflow ID
       if (ocrResult.workflowId) {
@@ -667,6 +751,39 @@ export class GroundTruthGenerationService {
           error: "OCR processing failed",
         },
       });
+    }
+
+    // Detect dead temporal workflows whose document never reached a terminal
+    // state (e.g. azure model 404 → workflow exits FAILED but the document
+    // row stays in ongoing_ocr, leaving the job stuck in "processing").
+    const stillProcessing = processingJobs.filter(
+      (j) =>
+        j.temporalWorkflowId &&
+        !jobsToUpdate.includes(j) &&
+        !jobsToFail.includes(j),
+    );
+    for (const job of stillProcessing) {
+      try {
+        const wfStatus = await this.temporalClient.getWorkflowStatus(
+          job.temporalWorkflowId!,
+        );
+        const terminal = ["FAILED", "TERMINATED", "CANCELLED", "TIMED_OUT"];
+        if (terminal.includes(wfStatus.status)) {
+          await this.prisma.datasetGroundTruthJob.update({
+            where: { id: job.id },
+            data: {
+              status: GroundTruthJobStatus.failed,
+              error: `Temporal workflow ended in state ${wfStatus.status}`,
+            },
+          });
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Failed to check temporal workflow status for job ${job.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
     }
   }
 

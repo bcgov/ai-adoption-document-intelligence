@@ -741,6 +741,7 @@ model DatasetGroundTruthJob {
   workflowVersion    WorkflowVersion      @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
   temporalWorkflowId String?
   status             GroundTruthJobStatus @default(pending)
+  workflowConfigOverrides Json?
   groundTruthPath    String?
   error              String?
   createdAt          DateTime             @default(now())

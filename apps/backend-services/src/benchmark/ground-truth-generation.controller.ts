@@ -65,6 +65,7 @@ export class GroundTruthGenerationController {
       versionId,
       dto.workflowVersionId,
       userId,
+      dto.workflowConfigOverrides,
     );
   }
 

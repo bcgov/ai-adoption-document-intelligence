@@ -15,6 +15,7 @@ const mockPrismaClient = {
     create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
     count: jest.fn(),
   },
   workflowVersion: {
@@ -77,6 +78,7 @@ import { PrismaService } from "@/database/prisma.service";
 import { DocumentService } from "@/document/document.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
 import { OcrService } from "@/ocr/ocr.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
@@ -103,6 +105,11 @@ const mockOcrService = {
 
 const mockHitlDatasetService = {
   buildGroundTruth: jest.fn(),
+};
+
+const mockTemporalClient = {
+  getWorkflowStatus: jest.fn(),
+  cancelWorkflow: jest.fn(),
 };
 
 const sampleManifest = {
@@ -154,6 +161,10 @@ describe("GroundTruthGenerationService", () => {
         {
           provide: HitlDatasetService,
           useValue: mockHitlDatasetService,
+        },
+        {
+          provide: TemporalClientService,
+          useValue: mockTemporalClient,
         },
         {
           provide: BLOB_STORAGE,

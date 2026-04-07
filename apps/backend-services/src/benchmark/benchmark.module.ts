@@ -6,6 +6,7 @@ import { DatabaseModule } from "@/database/database.module";
 import { DocumentModule } from "@/document/document.module";
 import { HitlModule } from "@/hitl/hitl.module";
 import { OcrModule } from "@/ocr/ocr.module";
+import { TemporalModule } from "@/temporal/temporal.module";
 import { WorkflowModule } from "@/workflow/workflow.module";
 import { AiRecommendationService } from "./ai-recommendation.service";
 import { AuditLogService } from "./audit-log.service";
@@ -42,6 +43,7 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     DatabaseModule,
     DocumentModule,
     OcrModule,
+    TemporalModule,
     forwardRef(() => HitlModule),
     forwardRef(() => WorkflowModule),
   ],

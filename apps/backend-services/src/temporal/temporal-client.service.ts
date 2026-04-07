@@ -191,6 +191,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     documentId: string,
     workflowConfigId: string,
     initialCtx: Record<string, unknown>,
+    graphOverride?: GraphWorkflowConfig,
   ): Promise<string> {
     this.ensureClientInitialized();
 
@@ -208,7 +209,8 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      const graph = workflowConfig.config as GraphWorkflowConfig;
+      const graph = (graphOverride ??
+        workflowConfig.config) as GraphWorkflowConfig;
       const configHash = computeConfigHash(graph);
       const runnerVersion = "1.0.0";
 

@@ -60,10 +60,22 @@ export const useGroundTruthGeneration = (
   });
 
   const startGenerationMutation = useMutation({
-    mutationFn: async (workflowVersionId: string) => {
+    mutationFn: async (args: {
+      workflowVersionId: string;
+      workflowConfigOverrides?: Record<string, unknown>;
+    }) => {
+      const body: Record<string, unknown> = {
+        workflowVersionId: args.workflowVersionId,
+      };
+      if (
+        args.workflowConfigOverrides &&
+        Object.keys(args.workflowConfigOverrides).length > 0
+      ) {
+        body.workflowConfigOverrides = args.workflowConfigOverrides;
+      }
       const response = await apiService.post<StartGenerationResponse>(
         basePath,
-        { workflowVersionId },
+        body,
       );
       return response.data;
     },

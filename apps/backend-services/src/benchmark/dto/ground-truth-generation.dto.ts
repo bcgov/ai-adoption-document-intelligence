@@ -1,6 +1,6 @@
 import { GroundTruthJobStatus } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
 
 export class StartGroundTruthGenerationDto {
   @ApiProperty({
@@ -10,6 +10,16 @@ export class StartGroundTruthGenerationDto {
   @IsString()
   @IsNotEmpty()
   workflowVersionId!: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Optional workflow config overrides keyed by exposed-parameter path (e.g. { 'ctx.modelId': 'prebuilt-layout' }).",
+    type: "object",
+    additionalProperties: true,
+  })
+  @IsOptional()
+  @IsObject()
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 export class GroundTruthJobResponseDto {
