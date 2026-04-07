@@ -55,8 +55,8 @@ describe("BenchmarkErrorDetectionService.computeField (pure)", () => {
       { confidence: 0.7, correct: true },
       { confidence: 0.95, correct: true },
     ]);
-    // F1 = 1.0 over the entire range [0.41, 0.70]; ties to larger (last update wins) → 0.70.
-    expect(field.suggestedBestBalance).toBeCloseTo(0.7, 2);
+    // F1 = 1.0 over the entire range [0.41, 0.70]; ties to smaller → 0.41.
+    expect(field.suggestedBestBalance).toBeCloseTo(0.41, 2);
     // Recall ≥ 0.9 needs both errors caught → threshold ≥ 0.41 → smallest is 0.41
     expect(field.suggestedCatch90).toBeCloseTo(0.41, 2);
     // FPR ≤ 0.10: with 2 correct, FPR = 0 at t ≤ 0.70, 0.5 at t in (0.70, 0.95], 1.0 at t > 0.95.

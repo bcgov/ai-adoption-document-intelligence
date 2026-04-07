@@ -97,7 +97,7 @@ export class BenchmarkErrorDetectionService {
         precision + recall === 0
           ? 0
           : (2 * precision * recall) / (precision + recall);
-      if (f1 >= bestF1) {
+      if (f1 > bestF1) {
         bestF1 = f1;
         best = p.threshold;
       }
