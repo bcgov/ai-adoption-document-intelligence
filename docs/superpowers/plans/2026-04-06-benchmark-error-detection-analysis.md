@@ -4,7 +4,7 @@
 
 **Goal:** Add an interactive Error Detection Analysis section to the benchmark run detail page that lets users pick a per-field confidence threshold and see, in plain language, how many real errors that threshold would catch and how many correct fields it would unnecessarily flag for review.
 
-**Architecture:** Per-field confidence scores from Azure Document Intelligence are currently dropped when predictions are flattened for the evaluator. We thread them through via a sidecar `*-prediction-confidence.json` file, attach them to each `FieldComparisonResult`, and expose them through the existing per-sample evaluation details. A new backend service computes a precomputed `(threshold → tp/fp/fn/tn)` curve per field per run (cached, lazy), and a new frontend component renders an inline-slider table over the curve.
+**Architecture:** Per-field confidence scores from Azure Document Intelligence are currently dropped when predictions are flattened for the evaluator. We carry them in-memory through the workflow → `benchmark.evaluate` activity input as a new `predictionConfidences` field on `EvaluationInput` (same channel `metadata` and `evaluatorConfig` already use), attach them to each `FieldComparisonResult`, and expose them through the existing per-sample evaluation details. No new files written to disk. A new backend service computes a precomputed `(threshold → tp/fp/fn/tn)` curve per field per run (cached, lazy), and a new frontend component renders an inline-slider table over the curve.
 
 **Tech Stack:** NestJS + Prisma + Vitest (backend), Temporal activities + workflow (worker), React + TypeScript + Vitest (frontend), Azure Document Intelligence (data source).
 
@@ -17,12 +17,12 @@
 **Worker (apps/temporal):**
 - Modify: `src/azure-ocr-field-display-value.ts` — add `buildFlatConfidenceMapFromCtx`
 - Modify: `src/azure-ocr-field-display-value.test.ts` — tests for new helper
-- Modify: `src/activities/benchmark-write-prediction.ts` — accept optional `confidenceData`, write sidecar file
-- Modify: `src/activities/benchmark-write-prediction.test.ts` — sidecar tests
-- Modify: `src/activities/benchmark-evaluate.ts` — accept `predictionConfidencePaths`, pass to evaluator
-- Modify: `src/evaluators/schema-aware-evaluator.ts` — load confidence sidecar, attach `confidence` to `FieldComparisonResult`
-- Modify: `src/benchmark-types.ts` — extend `EvaluationInput` with `predictionConfidencePaths?: string[]`
-- Modify: `src/benchmark-workflow.ts` — call new helper, pass sidecar path through
+- Modify: `src/benchmark-types.ts` — extend `EvaluationInput` with `predictionConfidences?: Record<string, number | null>`
+- Modify: `src/activities/benchmark-evaluate.ts` — forward `predictionConfidences` to evaluator
+- Modify: `src/evaluators/schema-aware-evaluator.ts` — read `input.predictionConfidences`, attach `confidence` to `FieldComparisonResult`
+- Modify: `src/benchmark-workflow.ts` — call new helper, pass `predictionConfidences` directly on the evaluate activity input
+
+`benchmark-write-prediction.ts` is intentionally **not** modified — confidence travels in memory across the activity boundary, not through disk.
 
 **Backend (apps/backend-services):**
 - Create: `src/benchmark/benchmark-error-detection.service.ts` — curve computation + caching
@@ -178,169 +178,28 @@ git commit -m "feat(benchmark): extract per-field confidence from Azure DI ctx"
 
 ---
 
-### Task 2: `benchmark.writePrediction` writes confidence sidecar
-
-**Files:**
-- Modify: `apps/temporal/src/activities/benchmark-write-prediction.ts`
-- Modify: `apps/temporal/src/activities/benchmark-write-prediction.test.ts`
-
-- [ ] **Step 1: Add failing test for sidecar file**
-
-Add to `apps/temporal/src/activities/benchmark-write-prediction.test.ts`:
-
-```ts
-it("writes a confidence sidecar file when confidenceData is provided", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "bench-pred-"));
-  const result = await benchmarkWritePrediction({
-    predictionData: { invoiceNumber: "INV-1", total: 100 },
-    confidenceData: { invoiceNumber: 0.92, total: null },
-    outputDir: tmp,
-    sampleId: "s1",
-  });
-
-  expect(result.predictionPath).toBe(path.join(tmp, "s1-prediction.json"));
-  expect(result.predictionConfidencePath).toBe(
-    path.join(tmp, "s1-prediction-confidence.json"),
-  );
-  const confJson = JSON.parse(
-    await fs.readFile(result.predictionConfidencePath!, "utf-8"),
-  );
-  expect(confJson).toEqual({ invoiceNumber: 0.92, total: null });
-});
-
-it("does not write a sidecar when confidenceData is omitted", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "bench-pred-"));
-  const result = await benchmarkWritePrediction({
-    predictionData: { foo: "bar" },
-    outputDir: tmp,
-    sampleId: "s2",
-  });
-  expect(result.predictionConfidencePath).toBeUndefined();
-  await expect(
-    fs.access(path.join(tmp, "s2-prediction-confidence.json")),
-  ).rejects.toThrow();
-});
-```
-
-(Add `import * as os from "os"` and ensure `fs`, `path` imports are present.)
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run apps/temporal/src/activities/benchmark-write-prediction.test.ts`
-Expected: FAIL — `confidenceData` not in input type / sidecar not written.
-
-- [ ] **Step 3: Update activity to write sidecar**
-
-Replace contents of `apps/temporal/src/activities/benchmark-write-prediction.ts` with:
-
-```ts
-/**
- * Benchmark Write Prediction Activity
- *
- * Writes the workflow result context (extracted fields) to a JSON file
- * so the evaluator can compare predictions against ground truth.
- *
- * Optionally writes a sibling confidence sidecar file mapping each field
- * to its Azure DI confidence score (or null when none was reported).
- */
-
-import * as fs from "fs/promises";
-import * as path from "path";
-
-export interface BenchmarkWritePredictionInput {
-  /** Extracted prediction fields to write (flat key-value object) */
-  predictionData: Record<string, unknown>;
-
-  /** Optional per-field confidence map. When provided, written as a sidecar JSON file. */
-  confidenceData?: Record<string, number | null>;
-
-  /** Directory to write the prediction file into */
-  outputDir: string;
-
-  /** Sample ID (used in filename) */
-  sampleId: string;
-}
-
-export interface BenchmarkWritePredictionOutput {
-  /** Absolute path to the written prediction JSON file */
-  predictionPath: string;
-  /** Absolute path to the confidence sidecar JSON file, if written */
-  predictionConfidencePath?: string;
-}
-
-/**
- * Write prediction data extracted from the workflow ctx to a JSON file,
- * plus an optional per-field confidence sidecar file.
- *
- * Activity type: benchmark.writePrediction
- */
-export async function benchmarkWritePrediction(
-  input: BenchmarkWritePredictionInput,
-): Promise<BenchmarkWritePredictionOutput> {
-  const { predictionData, confidenceData, outputDir, sampleId } = input;
-
-  await fs.mkdir(outputDir, { recursive: true });
-
-  const predictionPath = path.join(outputDir, `${sampleId}-prediction.json`);
-  await fs.writeFile(predictionPath, JSON.stringify(predictionData, null, 2));
-
-  let predictionConfidencePath: string | undefined;
-  if (confidenceData) {
-    predictionConfidencePath = path.join(
-      outputDir,
-      `${sampleId}-prediction-confidence.json`,
-    );
-    await fs.writeFile(
-      predictionConfidencePath,
-      JSON.stringify(confidenceData, null, 2),
-    );
-  }
-
-  return { predictionPath, predictionConfidencePath };
-}
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `npx vitest run apps/temporal/src/activities/benchmark-write-prediction.test.ts`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add apps/temporal/src/activities/benchmark-write-prediction.ts apps/temporal/src/activities/benchmark-write-prediction.test.ts
-git commit -m "feat(benchmark): write per-field confidence sidecar from writePrediction"
-```
-
----
-
-### Task 3: Thread `predictionConfidencePaths` into `EvaluationInput`
+### Task 2: Add `predictionConfidences` to `EvaluationInput` and forward through `benchmark.evaluate`
 
 **Files:**
 - Modify: `apps/temporal/src/benchmark-types.ts`
 - Modify: `apps/temporal/src/activities/benchmark-evaluate.ts`
 
-- [ ] **Step 1: Add field to EvaluationInput**
+- [ ] **Step 1: Add field to `EvaluationInput`**
 
-In `apps/temporal/src/benchmark-types.ts`, find the `EvaluationInput` interface (around line ~80–110) and add:
+In `apps/temporal/src/benchmark-types.ts`, find the `EvaluationInput` interface and add:
 
 ```ts
   /**
-   * Optional sibling confidence sidecar files (one per prediction file),
-   * each containing { [fieldName]: number | null }.
+   * Optional per-field confidence map keyed by field name.
+   * Carried in-memory from the workflow alongside the prediction; not loaded from disk.
+   * `null` indicates Azure DI did not return a confidence score for that field.
    */
-  predictionConfidencePaths?: string[];
+  predictionConfidences?: Record<string, number | null>;
 ```
 
-- [ ] **Step 2: Forward through benchmarkEvaluate activity**
+- [ ] **Step 2: Forward through `benchmarkEvaluate` activity**
 
-In `apps/temporal/src/activities/benchmark-evaluate.ts`, locate where the activity passes the input to the evaluator and ensure `predictionConfidencePaths` is forwarded unchanged. If the activity already spreads the input (`evaluator.evaluate(input)`), no change is needed; otherwise add:
-
-```ts
-predictionConfidencePaths: input.predictionConfidencePaths,
-```
-
-to the object passed to `evaluator.evaluate`.
+Open `apps/temporal/src/activities/benchmark-evaluate.ts` and find where the activity passes the input to the evaluator. If the activity already spreads the input (e.g. `evaluator.evaluate(input)`), no change is needed. Otherwise, add `predictionConfidences: input.predictionConfidences,` to the object passed to `evaluator.evaluate`.
 
 - [ ] **Step 3: Type check**
 
@@ -351,12 +210,12 @@ Expected: clean.
 
 ```bash
 git add apps/temporal/src/benchmark-types.ts apps/temporal/src/activities/benchmark-evaluate.ts
-git commit -m "feat(benchmark): plumb predictionConfidencePaths through evaluation input"
+git commit -m "feat(benchmark): add predictionConfidences to EvaluationInput"
 ```
 
 ---
 
-### Task 4: `SchemaAwareEvaluator` reads sidecar and attaches confidence
+### Task 3: `SchemaAwareEvaluator` reads `predictionConfidences` and attaches per-field confidence
 
 **Files:**
 - Modify: `apps/temporal/src/evaluators/schema-aware-evaluator.ts`
@@ -370,26 +229,22 @@ In `apps/temporal/src/evaluators/schema-aware-evaluator.test.ts` (create if miss
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
+import { describe, it, expect } from "vitest";
 import { SchemaAwareEvaluator } from "./schema-aware-evaluator";
 
 describe("SchemaAwareEvaluator confidence threading", () => {
-  it("attaches per-field confidence from sidecar to evaluationDetails", async () => {
+  it("attaches per-field confidence from predictionConfidences to evaluationDetails", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "schema-eval-"));
     const predPath = path.join(tmp, "p.json");
-    const confPath = path.join(tmp, "p-conf.json");
     const gtPath = path.join(tmp, "gt.json");
-    await fs.writeFile(
-      predPath,
-      JSON.stringify({ name: "Acme", total: 100 }),
-    );
-    await fs.writeFile(confPath, JSON.stringify({ name: 0.91, total: 0.42 }));
+    await fs.writeFile(predPath, JSON.stringify({ name: "Acme", total: 100 }));
     await fs.writeFile(gtPath, JSON.stringify({ name: "Acme", total: 99 }));
 
     const evaluator = new SchemaAwareEvaluator();
     const result = await evaluator.evaluate({
       sampleId: "s1",
       predictionPaths: [predPath],
-      predictionConfidencePaths: [confPath],
+      predictionConfidences: { name: 0.91, total: 0.42 },
       groundTruthPaths: [gtPath],
       evaluatorConfig: {},
     });
@@ -406,7 +261,7 @@ describe("SchemaAwareEvaluator confidence threading", () => {
     expect(byField.total.matched).toBe(false);
   });
 
-  it("sets confidence to null when no sidecar is provided", async () => {
+  it("sets confidence to null when predictionConfidences is omitted", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "schema-eval-"));
     const predPath = path.join(tmp, "p.json");
     const gtPath = path.join(tmp, "gt.json");
@@ -430,12 +285,12 @@ describe("SchemaAwareEvaluator confidence threading", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run test to verify failure**
 
 Run: `npx vitest run apps/temporal/src/evaluators/schema-aware-evaluator.test.ts`
 Expected: FAIL — `confidence` is undefined on details.
 
-- [ ] **Step 3: Update FieldComparisonResult and compareField**
+- [ ] **Step 3: Update `FieldComparisonResult` and `evaluate(...)`**
 
 In `apps/temporal/src/evaluators/schema-aware-evaluator.ts`:
 
@@ -454,24 +309,14 @@ interface FieldComparisonResult {
 }
 ```
 
-3b. In `evaluate(...)`, after loading `prediction` and `groundTruth`, also load the optional confidence map. Insert immediately after the `groundTruth = await this.loadJson(groundTruthPath);` line:
+3b. Inside `evaluate(...)`, immediately after the line `const groundTruth = await this.loadJson(groundTruthPath);`, add:
 
 ```ts
-let confidenceMap: Record<string, number | null> = {};
-const confPath = input.predictionConfidencePaths?.[0];
-if (confPath) {
-  try {
-    confidenceMap = (await this.loadJson(confPath)) as Record<
-      string,
-      number | null
-    >;
-  } catch {
-    confidenceMap = {};
-  }
-}
+const confidenceMap: Record<string, number | null> =
+  input.predictionConfidences ?? {};
 ```
 
-3c. Pass `confidenceMap` into the per-field comparison loop. Change:
+3c. In the per-field comparison loop, attach confidence after `compareField`. Change:
 
 ```ts
 const result = this.compareField(
@@ -480,6 +325,7 @@ const result = this.compareField(
   groundTruth[field],
   config,
 );
+comparisonResults.push(result);
 ```
 
 to:
@@ -492,6 +338,7 @@ const result = this.compareField(
   config,
 );
 result.confidence = field in confidenceMap ? confidenceMap[field] : null;
+comparisonResults.push(result);
 ```
 
 (Attaching after the call avoids touching every overload of `compareField`.)
@@ -510,14 +357,14 @@ git commit -m "feat(benchmark): attach per-field confidence to evaluationDetails
 
 ---
 
-### Task 5: Workflow builds and forwards confidence sidecar
+### Task 4: Workflow builds confidence map and passes it inline to `benchmark.evaluate`
 
 **Files:**
 - Modify: `apps/temporal/src/benchmark-workflow.ts`
 
 - [ ] **Step 1: Update import**
 
-In `apps/temporal/src/benchmark-workflow.ts` line 31, change:
+At [apps/temporal/src/benchmark-workflow.ts:31](apps/temporal/src/benchmark-workflow.ts#L31), change:
 
 ```ts
 import { buildFlatPredictionMapFromCtx } from "./azure-ocr-field-display-value";
@@ -532,26 +379,14 @@ import {
 } from "./azure-ocr-field-display-value";
 ```
 
-- [ ] **Step 2: Build confidence map and pass to writePrediction**
+- [ ] **Step 2: Build the confidence map next to the prediction map**
 
-Around line 574–588 in `benchmark-workflow.ts`, change:
+Around [apps/temporal/src/benchmark-workflow.ts:574-576](apps/temporal/src/benchmark-workflow.ts#L574-L576), change:
 
 ```ts
 const predictionData = buildFlatPredictionMapFromCtx(
   executeOutput.workflowResult?.ctx ?? {},
 );
-
-const { predictionPath } = await customActivities[
-  "benchmark.writePrediction"
-]({
-  predictionData,
-  outputDir: joinPath(
-    materializedPath!,
-    ".benchmark-outputs",
-    sample.id,
-  ),
-  sampleId: sample.id,
-});
 ```
 
 to:
@@ -560,24 +395,13 @@ to:
 const ctx = executeOutput.workflowResult?.ctx ?? {};
 const predictionData = buildFlatPredictionMapFromCtx(ctx);
 const confidenceData = buildFlatConfidenceMapFromCtx(ctx);
-
-const { predictionPath, predictionConfidencePath } = await customActivities[
-  "benchmark.writePrediction"
-]({
-  predictionData,
-  confidenceData,
-  outputDir: joinPath(
-    materializedPath!,
-    ".benchmark-outputs",
-    sample.id,
-  ),
-  sampleId: sample.id,
-});
 ```
 
-- [ ] **Step 3: Forward confidence path to evaluate**
+The existing `customActivities["benchmark.writePrediction"]({...})` call is left unchanged — we are intentionally not threading confidence through the prediction file.
 
-In the same block, find the `customActivities["benchmark.evaluate"]({...})` call and add `predictionConfidencePaths`:
+- [ ] **Step 3: Pass `predictionConfidences` directly on the evaluate activity input**
+
+Find the `customActivities["benchmark.evaluate"]({...})` call (around [apps/temporal/src/benchmark-workflow.ts:590-600](apps/temporal/src/benchmark-workflow.ts#L590-L600)) and add the new field. Change:
 
 ```ts
 const evaluationResult = await customActivities[
@@ -586,9 +410,6 @@ const evaluationResult = await customActivities[
   sampleId: sample.id,
   inputPaths,
   predictionPaths: [predictionPath],
-  predictionConfidencePaths: predictionConfidencePath
-    ? [predictionConfidencePath]
-    : undefined,
   groundTruthPaths,
   metadata: sample.metadata,
   evaluatorType,
@@ -596,11 +417,28 @@ const evaluationResult = await customActivities[
 });
 ```
 
-- [ ] **Step 4: Update workflow activity-proxy type**
+to:
 
-Around line 112 of `benchmark-workflow.ts` where the local proxy types `"benchmark.writePrediction"`, update its input/output to include `confidenceData?: Record<string, number | null>` and `predictionConfidencePath?: string` matching the activity. If a separate `customActivities` type union exists, update there too.
+```ts
+const evaluationResult = await customActivities[
+  "benchmark.evaluate"
+]({
+  sampleId: sample.id,
+  inputPaths,
+  predictionPaths: [predictionPath],
+  predictionConfidences: confidenceData,
+  groundTruthPaths,
+  metadata: sample.metadata,
+  evaluatorType,
+  evaluatorConfig,
+});
+```
 
-- [ ] **Step 5: Type-check workflow**
+- [ ] **Step 4: Update the workflow's local activity-proxy type**
+
+Around [apps/temporal/src/benchmark-workflow.ts:112](apps/temporal/src/benchmark-workflow.ts#L112) where the local proxy types `"benchmark.writePrediction"` and `"benchmark.evaluate"`, find the `"benchmark.evaluate"` entry and add `predictionConfidences?: Record<string, number | null>` to its input type so the type-check passes. Do not touch the `"benchmark.writePrediction"` entry.
+
+- [ ] **Step 5: Type-check the worker**
 
 Run: `cd apps/temporal && npx tsc --noEmit`
 Expected: clean.
@@ -614,14 +452,15 @@ Expected: all tests pass.
 
 ```bash
 git add apps/temporal/src/benchmark-workflow.ts
-git commit -m "feat(benchmark): forward per-field confidence through workflow to evaluator"
+git commit -m "feat(benchmark): forward per-field confidence inline to evaluator"
 ```
 
 ---
 
+
 ## Phase 2 — Backend: precompute curve and expose endpoint
 
-### Task 6: Response DTOs
+### Task 5: Response DTOs
 
 **Files:**
 - Create: `apps/backend-services/src/benchmark/dto/error-detection-analysis.dto.ts`
@@ -729,7 +568,7 @@ git commit -m "feat(benchmark): add error detection analysis DTOs"
 
 ---
 
-### Task 7: `BenchmarkErrorDetectionService` — pure curve computation
+### Task 6: `BenchmarkErrorDetectionService` — pure curve computation
 
 **Files:**
 - Create: `apps/backend-services/src/benchmark/benchmark-error-detection.service.ts`
@@ -971,7 +810,7 @@ git commit -m "feat(benchmark): pure curve and suggested-threshold computation"
 
 ---
 
-### Task 8: `getAnalysis(runId)` — load run, group by field, cache result
+### Task 7: `getAnalysis(runId)` — load run, group by field, cache result
 
 **Files:**
 - Modify: `apps/backend-services/src/benchmark/benchmark-error-detection.service.ts`
@@ -1177,7 +1016,7 @@ git commit -m "feat(benchmark): error-detection analysis service with caching"
 
 ---
 
-### Task 9: Wire service into module and add controller endpoint
+### Task 8: Wire service into module and add controller endpoint
 
 **Files:**
 - Modify: `apps/backend-services/src/benchmark/benchmark.module.ts`
@@ -1306,7 +1145,7 @@ git commit -m "feat(benchmark): expose error detection analysis endpoint"
 
 ## Phase 3 — Frontend: render the analysis
 
-### Task 10: Typed API client
+### Task 9: Typed API client
 
 **Files:**
 - Create: `apps/frontend/src/features/benchmark/api/errorDetectionAnalysis.ts`
@@ -1374,7 +1213,7 @@ git commit -m "feat(benchmark): frontend api client for error detection analysis
 
 ---
 
-### Task 11: `ErrorDetectionAnalysis` component
+### Task 10: `ErrorDetectionAnalysis` component
 
 **Files:**
 - Create: `apps/frontend/src/features/benchmark/components/ErrorDetectionAnalysis.tsx`
@@ -1714,7 +1553,7 @@ git commit -m "feat(benchmark): frontend ErrorDetectionAnalysis component"
 
 ---
 
-### Task 12: Render component on RunDetailPage
+### Task 11: Render component on RunDetailPage
 
 **Files:**
 - Modify: `apps/frontend/src/features/benchmark/pages/RunDetailPage.tsx`
@@ -1755,7 +1594,7 @@ git commit -m "feat(benchmark): show error detection analysis on run detail page
 
 ## Phase 4 — Documentation
 
-### Task 13: Update benchmarking docs
+### Task 12: Update benchmarking docs
 
 **Files:**
 - Modify: a benchmarking-related file under `docs-md/` (e.g. `docs-md/benchmarking-guide.md` if present, or the closest existing file describing run analysis)
@@ -1794,17 +1633,17 @@ git commit -m "docs(benchmark): document error detection analysis"
 
 Spec requirements covered:
 
-- Per-field table with sortable rows (default sort by error rate desc) — Task 8 sorts on the server, Task 11 renders.
-- Inline slider 0–1 step 0.01 — Task 11.
-- Three suggested-threshold chips per row, disabled when unattainable — Tasks 7 and 11.
-- Plain-language metric labels with technical-term tooltips — Task 11 (`title=` attributes; component tests verify the user-facing copy).
-- Roll-up summary derived from current slider state — Task 11.
-- Excluded fields footnote — Task 11; data populated by Task 8.
-- Lazy precomputation cached by run ID — Task 8.
-- Endpoint returns 404 / `notReady` correctly — Task 8 tests + Task 9 endpoint behavior.
-- Confidence sourced from Azure DI through new sidecar pipeline — Tasks 1–5.
-- No `any` types, full Swagger DTOs with `@ApiProperty`, dedicated response decorators — Tasks 6 and 9.
-- Backend tests created/updated for every new behavior — Tasks 1, 2, 4, 7, 8, 9.
+- Per-field table with sortable rows (default sort by error rate desc) — Task 7 sorts on the server, Task 10 renders.
+- Inline slider 0–1 step 0.01 — Task 10.
+- Three suggested-threshold chips per row, disabled when unattainable — Tasks 6 and 10.
+- Plain-language metric labels with technical-term tooltips — Task 10 (`title=` attributes; component tests verify the user-facing copy).
+- Roll-up summary derived from current slider state — Task 10.
+- Excluded fields footnote — Task 10; data populated by Task 7.
+- Lazy precomputation cached by run ID — Task 7.
+- Endpoint returns 404 / `notReady` correctly — Task 7 tests + Task 8 endpoint behavior.
+- Confidence sourced from Azure DI carried in-memory through `EvaluationInput.predictionConfidences` — Tasks 1–4. No new files written to disk.
+- No `any` types, full Swagger DTOs with `@ApiProperty`, dedicated response decorators — Tasks 5 and 8.
+- Backend tests created/updated for every new behavior — Tasks 1, 3, 6, 7, 8.
 - Per CLAUDE.md, after backend changes run the relevant test suites — included in steps.
 
 Open items deferred (not in scope per spec):
@@ -1814,4 +1653,4 @@ Open items deferred (not in scope per spec):
 - No global threshold control.
 - Cache invalidation on run mutation: a single `invalidate(runId)` hook is provided for future wiring; the spec accepts that the cache lives for the process lifetime since runs are immutable once completed.
 
-If during Task 9 the existing controller test file uses a setup pattern that does not match the snippet shown, copy the existing test pattern from the closest sibling test in the same file rather than the snippet — the snippet is illustrative.
+If during Task 8 the existing controller test file uses a setup pattern that does not match the snippet shown, copy the existing test pattern from the closest sibling test in the same file rather than the snippet — the snippet is illustrative.
