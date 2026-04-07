@@ -96,7 +96,7 @@ jobs:
           tags: |
             ${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}:${{ needs.metadata.outputs.image-tag }}
           build-args: |
-            VITE_BACKEND_URL=https://${{ needs.metadata.outputs.instance-name }}-backend-${{ secrets.OPENSHIFT_NAMESPACE }}.${{ secrets.CLUSTER_DOMAIN }}
+            VITE_API_BASE_URL=/api
             VITE_SSO_AUTH_SERVER_URL=${{ secrets.VITE_SSO_AUTH_SERVER_URL }}
             VITE_SSO_REALM=${{ secrets.VITE_SSO_REALM }}
             VITE_SSO_CLIENT_ID=${{ secrets.VITE_SSO_CLIENT_ID }}
