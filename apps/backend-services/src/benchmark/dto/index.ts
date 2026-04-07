@@ -11,6 +11,7 @@ export * from "./create-version.dto";
 export * from "./dataset-response.dto";
 export * from "./definition-response.dto";
 export * from "./eligible-documents.dto";
+export * from "./error-detection-analysis.dto";
 export * from "./ground-truth-generation.dto";
 export * from "./ground-truth-response.dto";
 export * from "./hitl-dataset-response.dto";
