@@ -37,7 +37,7 @@ export async function splitDocument(
 
   try {
     const sourceData = await blobStorage.read(input.blobKey);
-    await fs.writeFile(sourcePath, sourceData);
+    await fs.writeFile(sourcePath, new Uint8Array(sourceData));
 
     const totalPages = await getTotalPages(sourcePath);
     const ranges = await buildRanges(input, sourcePath, totalPages);

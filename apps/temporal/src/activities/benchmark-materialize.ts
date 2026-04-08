@@ -124,7 +124,7 @@ export async function materializeDataset(
         await fs.mkdir(localDir, { recursive: true });
 
         const data = await blobStorage.read(key);
-        await fs.writeFile(localPath, data);
+        await fs.writeFile(localPath, new Uint8Array(data));
       }
 
       log.info("Download complete", {
