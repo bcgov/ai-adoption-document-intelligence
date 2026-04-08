@@ -5,8 +5,10 @@
  * This file re-exports all individual activity modules.
  */
 
-// Load environment variables first (before reading them)
-import "dotenv/config";
+// Load environment variables first (before reading them).
+// Loads external secret override first ($DI_SECRETS_DIR/temporal.env),
+// then repo-local .env for non-sensitive defaults. MUST remain first import.
+import "./env-loader";
 
 export type { BenchmarkBaselineComparisonInput } from "./activities/benchmark-baseline-comparison";
 export { benchmarkCompareAgainstBaseline } from "./activities/benchmark-baseline-comparison";
