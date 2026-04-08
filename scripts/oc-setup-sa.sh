@@ -116,7 +116,7 @@ metadata:
 rules:
   # Core resources
   - apiGroups: [""]
-    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events"]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events", "replicationcontrollers"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods/exec", "pods/portforward"]
@@ -126,7 +126,18 @@ rules:
     verbs: ["get"]
   # Apps (deployments, replicasets, statefulsets, daemonsets)
   - apiGroups: ["apps"]
-    resources: ["deployments", "deployments/scale", "replicasets", "replicasets/scale", "statefulsets"]
+    resources: ["deployments", "deployments/scale", "replicasets", "replicasets/scale", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # OpenShift apps (deploymentconfigs)
+  - apiGroups: ["apps.openshift.io"]
+    resources: ["deploymentconfigs", "deploymentconfigs/scale"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # OpenShift builds and image streams
+  - apiGroups: ["build.openshift.io"]
+    resources: ["buildconfigs", "builds"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["image.openshift.io"]
+    resources: ["imagestreams", "imagestreamtags"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Batch (jobs, cronjobs)
   - apiGroups: ["batch"]

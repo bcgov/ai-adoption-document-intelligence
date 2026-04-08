@@ -237,15 +237,25 @@ log_step "Step 5: Restoring database from backup"
 log_info "Restoring backup file '${BACKUP_FILE}' into database '${DB_NAME}' on pod '${PG_POD}'..."
 log_info "This may take a while depending on the backup size."
 
-# Pipe the local SQL dump into psql running inside the pod.
-# The backup was created with pg_dump --clean --if-exists, so it includes DROP/CREATE
-# statements that will replace existing data.
-oc exec -i "${PG_POD}" -n "${NAMESPACE}" -c database -- \
-  psql -U "${DB_USER}" -d "${DB_NAME}" -v ON_ERROR_STOP=1 < "${BACKUP_FILE}" || {
-  log_error "Database restore failed."
-  log_error "Check that the backup file is a valid SQL dump and the target database is accessible."
+# Copy the dump into the pod and run pg_restore there. The backup is expected to be
+# a custom-format dump (-Fc) produced by oc-backup-db.sh, which is binary-safe and
+# handles JSON/text content that can break plain SQL COPY streams via oc exec stdin.
+REMOTE_DUMP="/tmp/oc-restore-$(date +%s).pgc"
+
+oc cp "${BACKUP_FILE}" "${NAMESPACE}/${PG_POD}:${REMOTE_DUMP}" -c database || {
+  log_error "Failed to copy backup file into pod."
   exit 1
 }
+
+oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- \
+  pg_restore -U "${DB_USER}" -d "${DB_NAME}" --clean --if-exists --no-owner --no-privileges "${REMOTE_DUMP}" || {
+  log_error "Database restore failed."
+  log_error "Check that the backup file is a valid custom-format dump (-Fc) and the target database is accessible."
+  oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
+  exit 1
+}
+
+oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
 
 log_info "Database restore completed successfully."
 

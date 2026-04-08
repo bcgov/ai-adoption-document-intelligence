@@ -213,22 +213,32 @@ log_info "Backups directory: ${BACKUPS_DIR}"
 log_step "Step 6: Running pg_dump"
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-BACKUP_FILENAME="${INSTANCE_NAME}-${TIMESTAMP}.sql"
+BACKUP_FILENAME="${INSTANCE_NAME}-${TIMESTAMP}.pgc"
 BACKUP_PATH="${BACKUPS_DIR}/${BACKUP_FILENAME}"
 
 log_info "Executing pg_dump on pod '${PG_POD}' for database '${DB_NAME}'..."
 log_info "Output file: ${BACKUP_PATH}"
 
-# Run pg_dump inside the pod and stream the output to a local file.
-# The Crunchy PostgreSQL container has pg_dump available and the database
-# container uses the 'database' container name.
+# Run pg_dump inside the pod writing to a temp file, then copy it out.
+# Uses custom format (-Fc) which is binary-safe and robust against JSON/text
+# content that can break plain SQL COPY streams when piped through oc exec.
+REMOTE_DUMP="/tmp/oc-backup-${TIMESTAMP}.pgc"
+
 oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- \
-  pg_dump -U "${DB_USER}" -d "${DB_NAME}" --clean --if-exists > "${BACKUP_PATH}" || {
+  pg_dump -U "${DB_USER}" -d "${DB_NAME}" -Fc --clean --if-exists -f "${REMOTE_DUMP}" || {
   log_error "pg_dump failed."
-  # Clean up partial dump file
+  oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
+  exit 1
+}
+
+oc cp "${NAMESPACE}/${PG_POD}:${REMOTE_DUMP}" "${BACKUP_PATH}" -c database || {
+  log_error "Failed to copy dump file out of pod."
+  oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
   rm -f "${BACKUP_PATH}"
   exit 1
 }
+
+oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
 
 # Verify the backup file is not empty
 if [[ ! -s "${BACKUP_PATH}" ]]; then
