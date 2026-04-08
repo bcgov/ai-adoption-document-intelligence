@@ -12,10 +12,12 @@ COPY apps/backend-services/.swcrc ./
 
 # Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
 COPY packages/logging /packages/logging
-RUN cd /packages/logging && npm install && npm run build
+RUN cd /packages/logging && npm install --ignore-scripts && npm run build
 
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
-RUN npm install
+RUN npm install --ignore-scripts
+# bcrypt ships prebuilt binaries — run its install script to select the correct binary for the target platform
+RUN cd node_modules/bcrypt && node-gyp-build
 
 # Copy source and shared Prisma schema
 COPY apps/backend-services/src ./src
