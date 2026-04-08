@@ -195,6 +195,10 @@ resource "azurerm_api_management_subscription" "default" {
   product_id          = azurerm_api_management_product.default.id
   display_name        = "Default Subscription"
   state               = "active"
+  # Tracing is disabled in the live resource (likely by Landing Zone policy)
+  # because trace payloads can leak request/response data. Pin to false to
+  # match the enforced state and stop drift.
+  allow_tracing = false
 }
 
 # -----------------------------------------------------------------------------
