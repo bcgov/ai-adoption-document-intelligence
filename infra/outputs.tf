@@ -46,6 +46,34 @@ output "storage_connection_string" {
   sensitive   = true
 }
 
+# --- Storage (PROD) ---
+output "prod_storage_account_name" {
+  description = "PROD storage account name"
+  value       = module.services.prod_storage_account_name
+}
+
+output "prod_storage_blob_endpoint" {
+  description = "PROD storage blob endpoint"
+  value       = module.services.prod_storage_account_blob_endpoint
+}
+
+output "prod_storage_container_name" {
+  description = "PROD storage container name"
+  value       = module.services.prod_storage_container_name
+}
+
+output "prod_storage_connection_string" {
+  description = "PROD storage account connection string"
+  value       = module.services.prod_storage_account_connection_string
+  sensitive   = true
+}
+
+output "prod_storage_account_key" {
+  description = "PROD storage account primary access key"
+  value       = module.services.prod_storage_account_access_key
+  sensitive   = true
+}
+
 # --- Key Vault ---
 output "key_vault_name" {
   description = "Key Vault name"
@@ -77,6 +105,14 @@ output "env_config" {
     AZURE_STORAGE_CONTAINER_NAME=${var.storage_container}
     # Use: terraform output -raw storage_connection_string
     # AZURE_STORAGE_CONNECTION_STRING=<run above command>
+
+    # Azure Storage (PROD)
+    AZURE_STORAGE_ACCOUNT_NAME=${module.services.prod_storage_account_name}
+    AZURE_STORAGE_CONTAINER_NAME=${var.prod_storage_container}
+    # Use: terraform output -raw prod_storage_connection_string
+    # AZURE_STORAGE_CONNECTION_STRING=<run above command>
+    # Use: terraform output -raw prod_storage_account_key
+    # AZURE_STORAGE_ACCOUNT_KEY=<run above command>
 
     # Key Vault
     KEY_VAULT_NAME=${module.services.key_vault_name}

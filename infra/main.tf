@@ -45,12 +45,13 @@ module "network" {
 module "services" {
   source = "./modules/services"
 
-  name_prefix         = local.name_prefix
-  location            = var.location
-  resource_group_name = azurerm_resource_group.this.name
-  pe_subnet_id        = module.network.pe_subnet_id
-  storage_container   = var.storage_container
-  tags                = local.tags
+  name_prefix            = local.name_prefix
+  location               = var.location
+  resource_group_name    = azurerm_resource_group.this.name
+  pe_subnet_id           = module.network.pe_subnet_id
+  storage_container      = var.storage_container
+  prod_storage_container = var.prod_storage_container
+  tags                   = local.tags
 }
 
 # -----------------------------------------------------------------------------
@@ -130,21 +131,8 @@ resource "azurerm_role_assignment" "apim_to_docint" {
   principal_id         = module.apim.apim_principal_id
 }
 
-resource "azurerm_role_assignment" "apim_to_storage" {
-  scope                = module.services.storage_account_id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = module.apim.apim_principal_id
-}
-
 resource "azurerm_role_assignment" "apim_to_keyvault" {
   scope                = module.services.key_vault_id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = module.apim.apim_principal_id
-}
-
-# RBAC: AI Foundry managed identity → Storage (for model data access)
-resource "azurerm_role_assignment" "foundry_to_storage" {
-  scope                = module.services.storage_account_id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = module.foundry.ai_foundry_principal_id
 }

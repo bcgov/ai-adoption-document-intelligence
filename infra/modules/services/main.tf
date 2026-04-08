@@ -115,6 +115,47 @@ resource "azurerm_storage_container" "default" {
 }
 
 # -----------------------------------------------------------------------------
+# Storage Account (PROD)
+# -----------------------------------------------------------------------------
+resource "azurerm_storage_account" "prod" {
+  name                = "${local.name_short}stp${random_string.suffix.result}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  account_kind             = "StorageV2"
+  access_tier              = "Hot"
+
+  # Landing Zone allows public access for storage
+  public_network_access_enabled   = true
+  allow_nested_items_to_be_public = false
+  min_tls_version                 = "TLS1_2"
+  https_traffic_only_enabled      = true
+
+  network_rules {
+    default_action = "Allow"
+    bypass         = ["AzureServices"]
+  }
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [tags, network_rules]
+  }
+}
+
+resource "azurerm_storage_container" "prod" {
+  name                  = var.prod_storage_container
+  storage_account_id    = azurerm_storage_account.prod.id
+  container_access_type = "private"
+}
+
+# -----------------------------------------------------------------------------
 # Document Intelligence (using AVM Cognitive Services)
 # -----------------------------------------------------------------------------
 module "document_intelligence" {
@@ -168,6 +209,50 @@ resource "azurerm_monitor_diagnostic_setting" "key_vault" {
 
   enabled_metric {
     category = "AllMetrics"
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "storage_blob" {
+  name                       = "${var.name_prefix}-st-blob-diag"
+  target_resource_id         = "${azurerm_storage_account.this.id}/blobServices/default"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+
+  enabled_log {
+    category = "StorageRead"
+  }
+
+  enabled_log {
+    category = "StorageWrite"
+  }
+
+  enabled_log {
+    category = "StorageDelete"
+  }
+
+  enabled_metric {
+    category = "Transaction"
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "prod_storage_blob" {
+  name                       = "${var.name_prefix}-stp-blob-diag"
+  target_resource_id         = "${azurerm_storage_account.prod.id}/blobServices/default"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+
+  enabled_log {
+    category = "StorageRead"
+  }
+
+  enabled_log {
+    category = "StorageWrite"
+  }
+
+  enabled_log {
+    category = "StorageDelete"
+  }
+
+  enabled_metric {
+    category = "Transaction"
   }
 }
 

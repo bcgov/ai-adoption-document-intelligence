@@ -108,6 +108,12 @@ variable "storage_container" {
   default     = "document-blobs"
 }
 
+variable "prod_storage_container" {
+  description = "Prod blob container name (on the prod storage account)"
+  type        = string
+  default     = "document-blobs-prod"
+}
+
 # -----------------------------------------------------------------------------
 # APIM
 # -----------------------------------------------------------------------------
