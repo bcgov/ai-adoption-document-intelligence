@@ -45,38 +45,6 @@ output "storage_account_access_key" {
   sensitive   = true
 }
 
-output "prod_storage_account_id" {
-  description = "Resource ID of the PROD Storage Account"
-  value       = azurerm_storage_account.prod.id
-}
-
-output "prod_storage_account_name" {
-  description = "Name of the PROD Storage Account"
-  value       = azurerm_storage_account.prod.name
-}
-
-output "prod_storage_account_blob_endpoint" {
-  description = "Blob endpoint of the PROD Storage Account"
-  value       = azurerm_storage_account.prod.primary_blob_endpoint
-}
-
-output "prod_storage_account_connection_string" {
-  description = "Connection string for the PROD Storage Account"
-  value       = azurerm_storage_account.prod.primary_connection_string
-  sensitive   = true
-}
-
-output "prod_storage_account_access_key" {
-  description = "Primary access key for the PROD Storage Account"
-  value       = azurerm_storage_account.prod.primary_access_key
-  sensitive   = true
-}
-
-output "prod_storage_container_name" {
-  description = "Name of the PROD blob container"
-  value       = azurerm_storage_container.prod.name
-}
-
 output "document_intelligence_id" {
   description = "Resource ID of the Document Intelligence account"
   value       = module.document_intelligence.resource_id

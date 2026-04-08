@@ -45,13 +45,12 @@ module "network" {
 module "services" {
   source = "./modules/services"
 
-  name_prefix            = local.name_prefix
-  location               = var.location
-  resource_group_name    = azurerm_resource_group.this.name
-  pe_subnet_id           = module.network.pe_subnet_id
-  storage_container      = var.storage_container
-  prod_storage_container = var.prod_storage_container
-  tags                   = local.tags
+  name_prefix         = local.name_prefix
+  location            = var.location
+  resource_group_name = azurerm_resource_group.this.name
+  pe_subnet_id        = module.network.pe_subnet_id
+  storage_container   = var.storage_container
+  tags                = local.tags
 }
 
 # -----------------------------------------------------------------------------
