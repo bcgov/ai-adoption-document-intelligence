@@ -29,14 +29,14 @@
 		"docs:build": "npm run generate:openapi && cd docs && bash build.sh"
 	},
 	"devDependencies": {
-		"lefthook": "^2.1.4",
-		"concurrently": "^9.2.1"
+		"lefthook": "2.1.4",
+		"concurrently": "9.2.1"
 	},
 	"engines": {
 		"node": ">=24.0.0",
 		"npm": ">=10.0.0"
 	},
 	"dependencies": {
-		"@playwright/test": "^1.58.2"
+		"@playwright/test": "1.58.2"
 	}
 }
