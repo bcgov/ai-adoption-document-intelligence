@@ -50,7 +50,6 @@ interface DocumentUploadPanelProps {
 }
 
 const dropzoneAccept: Record<string, string[]> = {
-  "application/pdf": [".pdf"],
   "image/jpeg": [".jpg", ".jpeg"],
   "image/png": [".png"],
   "image/tiff": [".tif", ".tiff"],
