@@ -24,10 +24,10 @@ jobs:
         with:
           node-version: '24'
       - name: Install dependencies (root)
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts
       - name: Install dependencies (temporal)
         working-directory: apps/temporal
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts
       - name: Generate Prisma
         working-directory: apps/temporal
         run: npm run db:generate

@@ -15,14 +15,14 @@ All developer workstations and CI runs inherit these settings automatically.
 
 ## CI / GitHub Actions
 
-All workflows use `npm ci --ignore-scripts` (never plain `npm install`):
+All workflows use `npm install --ignore-scripts`. `npm ci` is avoided because npm v11 only adds the current-platform optional package to lockfile v3 — on macOS arm64, only `@biomejs/cli-darwin-arm64` is locked, so `npm ci` on linux-x64 CI runners fails to install the biome binary. `npm install --ignore-scripts` resolves the correct platform optional package dynamically while still locking all non-optional package versions.
 
 | Workflow | Command |
 |---|---|
-| `backend-qa.yml` | `npm ci --ignore-scripts` (root) |
-| `frontend-qa.yml` | `npm ci --ignore-scripts` (root) |
-| `temporal-qa.yml` | `npm ci --ignore-scripts` (root + apps/temporal) |
-| `release.yml` | `npm ci --ignore-scripts` (root) |
+| `backend-qa.yml` | `npm install --ignore-scripts` (root) |
+| `frontend-qa.yml` | `npm install --ignore-scripts` (root) |
+| `temporal-qa.yml` | `npm install --ignore-scripts` (root + apps/temporal) |
+| `release.yml` | `npm install --ignore-scripts` (root) |
 | `migrate-db.yml` | `npm install --ignore-scripts @changesets/cli` (single tool install, no lockfile) |
 
 `build-apps.yml` builds apps inside Docker containers; the host CI job does not run `npm install`. The npm cache key uses the root `package-lock.json` only.
