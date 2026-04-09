@@ -7,7 +7,7 @@ export class GenerateApiKeyRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  groupId: string;
+  groupId!: string;
 }
 
 export class ApiKeyByIdRequestDto {
@@ -16,40 +16,40 @@ export class ApiKeyByIdRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  id: string;
+  id!: string;
 }
 
 export class ApiKeyInfoDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  keyPrefix: string;
+  keyPrefix!: string;
 
   @ApiProperty()
-  groupId: string;
+  groupId!: string;
 
   @ApiProperty()
-  actorId: string;
+  actorId!: string;
 
   @ApiProperty()
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty({ type: Date, nullable: true })
-  lastUsed: Date | null;
+  lastUsed!: Date | null;
 }
 
 export class GeneratedApiKeyDto extends ApiKeyInfoDto {
   @ApiProperty()
-  key: string; // Full key, only returned once at creation
+  key!: string; // Full key, only returned once at creation
 }
 
 export class ApiKeyInfoWrapperDto {
   @ApiProperty({ type: ApiKeyInfoDto, nullable: true })
-  apiKey: ApiKeyInfoDto | null;
+  apiKey!: ApiKeyInfoDto | null;
 }
 
 export class GeneratedApiKeyWrapperDto {
   @ApiProperty({ type: GeneratedApiKeyDto, nullable: true })
-  apiKey: GeneratedApiKeyDto | null;
+  apiKey!: GeneratedApiKeyDto | null;
 }

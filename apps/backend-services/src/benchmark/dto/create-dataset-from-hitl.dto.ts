@@ -12,7 +12,7 @@ export class CreateDatasetFromHitlDto {
   @ApiProperty({ description: "Dataset name" })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "Dataset description" })
   @IsString()
@@ -31,7 +31,7 @@ export class CreateDatasetFromHitlDto {
   @ApiProperty({ description: "Group ID that owns this dataset" })
   @IsString()
   @IsNotEmpty()
-  groupId: string;
+  groupId!: string;
 
   @ApiProperty({
     description: "Array of HITL document IDs to include",
@@ -40,7 +40,7 @@ export class CreateDatasetFromHitlDto {
   @IsArray()
   @IsString({ each: true })
   @ArrayMinSize(1)
-  documentIds: string[];
+  documentIds!: string[];
 }
 
 export class AddVersionFromHitlDto {
@@ -63,5 +63,5 @@ export class AddVersionFromHitlDto {
   @IsArray()
   @IsString({ each: true })
   @ArrayMinSize(1)
-  documentIds: string[];
+  documentIds!: string[];
 }

@@ -19,7 +19,7 @@ export class ExportDto {
     default: ExportFormat.AZURE,
   })
   @IsEnum(ExportFormat)
-  format: ExportFormat;
+  format!: ExportFormat;
 
   @ApiPropertyOptional({ description: "Include OCR data in export" })
   @IsOptional()

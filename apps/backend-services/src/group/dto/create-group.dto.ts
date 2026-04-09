@@ -9,7 +9,7 @@ export class CreateGroupDto {
   @ApiProperty({ description: "The name of the group to create" })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "An optional description for the group" })
   @IsString()

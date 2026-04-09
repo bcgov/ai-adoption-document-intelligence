@@ -9,7 +9,7 @@ export class UpdateGroupDto {
   @ApiProperty({ description: "The new name for the group" })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "An optional description for the group" })
   @IsString()

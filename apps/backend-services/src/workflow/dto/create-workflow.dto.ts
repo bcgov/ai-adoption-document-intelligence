@@ -8,7 +8,7 @@ export class CreateWorkflowDto {
     example: "Invoice processing",
   })
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: "Optional description of the workflow",
@@ -23,10 +23,10 @@ export class CreateWorkflowDto {
     description: "Graph workflow configuration (GraphWorkflowConfig JSON).",
   })
   @IsObject()
-  config: GraphWorkflowConfig;
+  config!: GraphWorkflowConfig;
 
   @ApiProperty({ description: "Group ID" })
   @IsString()
   @IsNotEmpty()
-  groupId: string;
+  groupId!: string;
 }

@@ -57,7 +57,7 @@ export interface TokenClaims {
  */
 export class TokenResponseDto {
   @ApiProperty()
-  access_token: string;
+  access_token!: string;
 
   @ApiProperty()
   refresh_token?: string;
@@ -66,11 +66,11 @@ export class TokenResponseDto {
   id_token?: string;
 
   @ApiProperty()
-  expires_in: number;
+  expires_in!: number;
 
   @ApiProperty()
-  token_type: string;
+  token_type!: string;
 
   @ApiProperty()
-  claims: TokenClaims;
+  claims!: TokenClaims;
 }
