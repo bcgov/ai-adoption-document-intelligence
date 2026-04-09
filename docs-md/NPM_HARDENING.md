@@ -33,7 +33,7 @@ Dockerfiles do **not** have a lockfile in the build context (monorepo `file:` pa
 
 | Image | Builder stage | Production stage |
 |---|---|---|
-| `backend-services` | `npm install --ignore-scripts` + explicit bcrypt binary step | `npm install --omit=dev --ignore-scripts` |
+| `backend-services` | `npm install --ignore-scripts` | `npm install --omit=dev --ignore-scripts` |
 | `temporal` | `npm install --ignore-scripts` | `npm install --omit=dev --ignore-scripts` |
 | `frontend` | `npm install --ignore-scripts` | n/a (nginx static) |
 | `packages/logging` (build dep) | `npm install --ignore-scripts` + explicit `npm run build` | n/a (pre-built into dist) |
@@ -49,14 +49,8 @@ bcrypt: { "install": "node-gyp-build" }
 ```
 
 - Used in: `apps/backend-services` (production dependency, API-key hashing).
-- Build tool: `node-gyp-build` reads prebuilt binaries from `bcrypt/prebuilds/`; it ships binaries for `linux-x64/bcrypt.glibc.node` **and** `linux-x64/bcrypt.musl.node` (Alpine), `darwin-arm64`, etc.  No compiler (`python3`/`make`/`g++`) is needed.
-- With `--ignore-scripts`, the install script is skipped but the runtime `require('node-gyp-build')` in `bcrypt/bcrypt.js` still locates the correct prebuilt at load time.
-- The Dockerfile **builder stage** explicitly runs the step for clarity:
-  ```dockerfile
-  RUN npm install --ignore-scripts
-  RUN cd node_modules/bcrypt && node-gyp-build
-  ```
-- The **production stage** (`npm install --omit=dev --ignore-scripts`) relies on the runtime dynamic-load path — no separate step needed because prebuilt binaries are bundled in the package.
+- `node-gyp-build` is called **both** from the `install` script and at module load time inside `bcrypt/bcrypt.js` (`require('node-gyp-build')(path.resolve(__dirname))`). This means skipping the install script with `--ignore-scripts` is safe — the correct prebuilt binary is still selected at `require('bcrypt')` time from `prebuilds/linux-x64/bcrypt.glibc.node` or `bcrypt.musl.node`.
+- No extra Dockerfile step is needed. `RUN npm install --ignore-scripts` is sufficient in both builder and production stages.
 
 ### esbuild — no exception needed
 
