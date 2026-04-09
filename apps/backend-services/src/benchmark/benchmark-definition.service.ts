@@ -25,7 +25,6 @@ import {
   DatasetVersionInfo,
   DefinitionDetailsDto,
   DefinitionSummaryDto,
-  MetricThreshold,
   RunHistorySummary,
   ScheduleConfigDto,
   ScheduleInfoDto,

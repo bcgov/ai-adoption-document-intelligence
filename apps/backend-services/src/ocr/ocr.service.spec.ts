@@ -59,7 +59,7 @@ describe("OcrService", () => {
           useValue: {
             findDocument: jest
               .fn()
-              .mockImplementation(async (id: String) => defaultDocument),
+              .mockImplementation(async (_id: string) => defaultDocument),
             updateDocument: jest.fn().mockResolvedValue({
               ...defaultDocument,
               status: DocumentStatus.ongoing_ocr,

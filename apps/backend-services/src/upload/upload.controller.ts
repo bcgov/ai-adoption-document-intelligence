@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Req,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
@@ -14,7 +13,6 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
@@ -47,7 +45,6 @@ export class UploadController {
   @ApiBadRequestResponse({ description: "Invalid input or upload failed" })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
-    @Req() req: Request,
   ): Promise<UploadDocumentResponseDto> {
     this.logger.debug("=== UploadController.uploadDocument ===");
     this.logger.debug(

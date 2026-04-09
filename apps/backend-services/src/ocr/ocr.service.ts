@@ -13,11 +13,6 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import { DocumentService } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import {
-  AnalysisResponse,
-  AnalysisResult,
-  KeyValuePair,
-} from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 
 export interface OcrRequestResponse {

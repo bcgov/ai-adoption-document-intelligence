@@ -154,7 +154,7 @@ describe("ClassifierService", () => {
       });
       azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
-      const pollCallback = jest.fn(async (opLoc, onSuccess, onError) => {
+      const pollCallback = jest.fn(async (_opLoc, onSuccess, _onError) => {
         await onSuccess({ result: "layout" });
       });
       azureService.pollOperationUntilResolved = pollCallback;
@@ -200,7 +200,7 @@ describe("ClassifierService", () => {
       }) as any;
 
       (service as any).client = {
-        path: (url: string) => ({
+        path: (_url: string) => ({
           post: jest.fn().mockImplementation(({ body }) => {
             if (body && body.base64Source) {
               return Promise.resolve({
@@ -273,7 +273,7 @@ describe("ClassifierService", () => {
       }) as any;
 
       (service as any).client = {
-        path: (url: string) => ({
+        path: (_url: string) => ({
           post: jest.fn().mockImplementation(({ body }) => {
             if (body && body.base64Source) {
               return Promise.resolve({

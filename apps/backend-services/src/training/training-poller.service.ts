@@ -9,7 +9,6 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { AppLoggerService } from "../logging/app-logger.service";
 import {
   TrainingDbService,
-  type TrainingJobWithTemplateModel,
 } from "./training-db.service";
 
 interface AzureErrorResponse {
@@ -40,7 +39,7 @@ interface AzureModelResponse {
 
 @Injectable()
 export class TrainingPollerService {
-  private adminClient: DocumentIntelligenceClient;
+  private adminClient!: DocumentIntelligenceClient;
   private readonly pollInterval: number;
   private readonly maxAttempts: number;
 

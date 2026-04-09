@@ -18,7 +18,6 @@ describe("TemplateModelOcrService", () => {
   let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
   let mockHttpService: jest.Mocked<HttpService>;
   let mockBlobStorage: jest.Mocked<BlobStorageInterface>;
-  let _mockConfigService: jest.Mocked<ConfigService>;
 
   const mockLabelingDocument = {
     id: "doc-1",
@@ -96,7 +95,6 @@ describe("TemplateModelOcrService", () => {
     mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockHttpService = module.get(HttpService);
     mockBlobStorage = module.get(BLOB_STORAGE);
-    _mockConfigService = module.get(ConfigService);
   });
 
   describe("createLabelingDocument", () => {

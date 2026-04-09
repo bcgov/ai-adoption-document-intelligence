@@ -51,7 +51,7 @@ describe("ApiKeyController", () => {
     it("should return null when the group has no key", async () => {
       mockApiKeyService.getApiKey.mockResolvedValue(null);
 
-      const result = await controller.getApiKey(mockRequest as any, "group123");
+      const result = await controller.getApiKey("group123");
 
       expect(result).toEqual({ apiKey: null });
       expect(apiKeyService.getApiKey).toHaveBeenCalledWith("group123");
@@ -65,15 +65,14 @@ describe("ApiKeyController", () => {
       };
       mockApiKeyService.getApiKey.mockResolvedValue(mockKeyInfo);
 
-      const result = await controller.getApiKey(mockRequest as any, "group123");
-
+      const result = await controller.getApiKey("group123");
       expect(result).toEqual({ apiKey: mockKeyInfo });
       expect(apiKeyService.getApiKey).toHaveBeenCalledWith("group123");
     });
 
     it("should throw BadRequestException when groupId is missing", async () => {
       await expect(
-        controller.getApiKey(mockRequest as any, ""),
+        controller.getApiKey(""),
       ).rejects.toThrow(BadRequestException);
       expect(apiKeyService.getApiKey).not.toHaveBeenCalled();
     });

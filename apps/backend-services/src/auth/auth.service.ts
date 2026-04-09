@@ -32,7 +32,7 @@ export interface LoginUrlResult {
  */
 @Injectable()
 export class AuthService implements OnModuleInit {
-  private config: client.Configuration;
+  private config!: client.Configuration;
   private readonly issuer: string;
   private readonly clientId: string;
   private readonly clientSecret: string;

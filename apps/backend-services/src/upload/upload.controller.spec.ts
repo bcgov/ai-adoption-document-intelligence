@@ -1,4 +1,4 @@
-import { DocumentStatus, GroupRole } from "@generated/client";
+import { DocumentStatus } from "@generated/client";
 import { BadRequestException } from "@nestjs/common";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
@@ -26,12 +26,6 @@ describe("UploadController", () => {
   });
 
   describe("uploadDocument", () => {
-    const mockIdentity = {
-      userId: "user-1",
-      isSystemAdmin: false,
-      groupRoles: { "group-1": GroupRole.MEMBER },
-    };
-    const mockReq = { resolvedIdentity: mockIdentity } as any;
     const baseDto: UploadDocumentDto = {
       title: "Test",
       file: "ZmFrZUJhc2U2NA==",
@@ -59,7 +53,7 @@ describe("UploadController", () => {
 
     it("should upload document and queue OCR", async () => {
       documentService.uploadDocument.mockResolvedValue(uploadedDoc);
-      const result = await controller.uploadDocument(baseDto, mockReq);
+      const result = await controller.uploadDocument(baseDto);
       expect(result.success).toBe(true);
       expect(result.document.id).toBe("1");
       expect(documentService.uploadDocument).toHaveBeenCalledWith(
@@ -83,13 +77,13 @@ describe("UploadController", () => {
 
     it("should throw BadRequestException if file is missing", async () => {
       await expect(
-        controller.uploadDocument({ ...baseDto, file: "" }, mockReq),
+        controller.uploadDocument({ ...baseDto, file: "" }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it("should rethrow BadRequestException if documentService throws", async () => {
       documentService.uploadDocument.mockRejectedValue(new Error("fail"));
-      await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
+      await expect(controller.uploadDocument(baseDto)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -98,7 +92,7 @@ describe("UploadController", () => {
       documentService.uploadDocument.mockRejectedValue(
         new BadRequestException("bad"),
       );
-      await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
+      await expect(controller.uploadDocument(baseDto)).rejects.toThrow(
         BadRequestException,
       );
     });

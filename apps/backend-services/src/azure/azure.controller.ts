@@ -229,7 +229,6 @@ export class AzureController {
     type: UploadClassifierDocumentsResponseDto,
   })
   async uploadClassifierDocuments(
-    @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body() body: UploadClassifierDocumentsDto,
     @Query("group_id") group_id: string,
@@ -273,7 +272,6 @@ export class AzureController {
     type: [String],
   })
   async getClassifierDocuments(
-    @Request() req,
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
@@ -306,7 +304,6 @@ export class AzureController {
   })
   @HttpCode(204)
   async deleteClassifierDocuments(
-    @Request() req,
     @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
     const { name, group_id, folder } = query;

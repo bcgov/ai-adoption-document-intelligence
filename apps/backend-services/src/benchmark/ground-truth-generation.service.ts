@@ -470,7 +470,7 @@ export class GroundTruthGenerationService {
    */
   async completeJob(
     jobId: string,
-    sessionId: string,
+    _sessionId: string, // TODO: Remove this from function.
     corrections: FieldCorrection[],
   ): Promise<void> {
     const job =

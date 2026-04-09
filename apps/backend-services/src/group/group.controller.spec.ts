@@ -1,7 +1,6 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import TestFactory from "@/testUtils/testFactory";
-import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
@@ -252,8 +251,7 @@ describe("GroupController", () => {
       jest
         .spyOn(service, "getGroupRequests")
         .mockResolvedValueOnce(mockRequests);
-      const req = { resolvedIdentity: makeIdentity() } as any;
-      const result = await controller.getGroupRequests(req, groupId, undefined);
+      const result = await controller.getGroupRequests(groupId, undefined);
       expect(service.getGroupRequests).toHaveBeenCalledWith(groupId, undefined);
       expect(result).toEqual(mockRequests);
     });
@@ -261,15 +259,13 @@ describe("GroupController", () => {
     it("should pass parsed status to service when valid status query param is provided", async () => {
       const groupId = "group1";
       jest.spyOn(service, "getGroupRequests").mockResolvedValueOnce([]);
-      const req = { resolvedIdentity: makeIdentity() } as any;
-      await controller.getGroupRequests(req, groupId, "PENDING");
+      await controller.getGroupRequests(groupId, "PENDING");
       expect(service.getGroupRequests).toHaveBeenCalledWith(groupId, "PENDING");
     });
 
     it("should throw 400 when an invalid status value is provided", async () => {
-      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
       await expect(
-        controller.getGroupRequests(req, "group1", "INVALID"),
+        controller.getGroupRequests("group1", "INVALID"),
       ).rejects.toThrow("Invalid status value");
       expect(service.getGroupRequests).not.toHaveBeenCalled();
     });
@@ -278,9 +274,8 @@ describe("GroupController", () => {
       jest
         .spyOn(service, "getGroupRequests")
         .mockRejectedValueOnce(new Error("Forbidden"));
-      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
       await expect(
-        controller.getGroupRequests(req, "group1", undefined),
+        controller.getGroupRequests("group1", undefined),
       ).rejects.toThrow("Forbidden");
     });
   });

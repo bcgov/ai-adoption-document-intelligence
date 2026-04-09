@@ -143,11 +143,9 @@ describe("AzureController", () => {
     it("should upload files if user in group and classifier exists", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.write.mockResolvedValue(undefined);
-      const req = createMockReq("user1", ["g1"]);
       const files = [mockFile];
       const body = { name: "c1", label: "l1" };
       const result = await controller.uploadClassifierDocuments(
-        req,
         files,
         body,
         "g1",
@@ -164,10 +162,8 @@ describe("AzureController", () => {
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
-      const req = createMockReq("user1", ["g1"]);
       await expect(
         controller.uploadClassifierDocuments(
-          req,
           [],
           { name: "c1", label: "l1" },
           "g1",
@@ -179,10 +175,9 @@ describe("AzureController", () => {
   describe("deleteClassifierDocuments", () => {
     it("should delete folders if user in group and classifier exists", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
-      const req = createMockReq("user1", ["g1"]);
       const body = { name: "c1", group_id: "g1", folders: ["f1"] };
       await expect(
-        controller.deleteClassifierDocuments(req, body),
+        controller.deleteClassifierDocuments(body),
       ).resolves.toBeUndefined();
       expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
         "classifier/g1/c1/",
@@ -190,9 +185,8 @@ describe("AzureController", () => {
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
-      const req = createMockReq("user1", ["g1"]);
       await expect(
-        controller.deleteClassifierDocuments(req, {
+        controller.deleteClassifierDocuments({
           name: "c1",
           group_id: "g1",
         }),
@@ -412,7 +406,7 @@ describe("AzureController", () => {
       });
       const req = createMockReq("user1", ["g1"]);
       azureService.pollOperationUntilResolved.mockImplementation(
-        async (_loc, _onSuccess, onFailure) =>
+        async (_loc: string, _onSuccess: unknown, onFailure: (r: { error: { code: string; message: string } }) => void) =>
           onFailure({ error: { code: "fail", message: "fail" } }),
       );
       await expect(
@@ -428,10 +422,9 @@ describe("AzureController", () => {
       storageService.deleteByPrefix.mockImplementation(() => {
         throw new Error("fail");
       });
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1", folder: "f1" };
       await expect(
-        controller.deleteClassifierDocuments(req, query),
+        controller.deleteClassifierDocuments(query),
       ).rejects.toThrow(InternalServerErrorException);
     });
   });
@@ -439,10 +432,9 @@ describe("AzureController", () => {
     it("should delete a specific folder if folder param is provided", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.deleteByPrefix.mockResolvedValue(undefined);
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1", folder: "f1" };
       await expect(
-        controller.deleteClassifierDocuments(req, query),
+        controller.deleteClassifierDocuments(query),
       ).resolves.toBeUndefined();
       expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
         "classifier/g1/c1/f1/",
@@ -456,18 +448,16 @@ describe("AzureController", () => {
         "classifier/g1/c1/labelA/doc1",
         "classifier/g1/c1/labelB/doc2",
       ]);
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1" };
-      const result = await controller.getClassifierDocuments(req, query);
+      const result = await controller.getClassifierDocuments(query);
       expect(result).toEqual(["labelA/doc1", "labelB/doc2"]);
       expect(storageService.list).toHaveBeenCalledWith("classifier/g1/c1/");
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1" };
       await expect(
-        controller.getClassifierDocuments(req, query),
+        controller.getClassifierDocuments(query),
       ).rejects.toThrow(NotFoundException);
     });
   });

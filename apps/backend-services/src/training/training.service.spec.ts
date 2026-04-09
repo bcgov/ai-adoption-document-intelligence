@@ -24,7 +24,6 @@ jest.mock("@azure-rest/ai-document-intelligence", () => ({
 
 import DocumentIntelligence, {
   isUnexpected,
-  parseResultIdFromResponse,
 } from "@azure-rest/ai-document-intelligence";
 
 describe("TrainingService", () => {
@@ -32,7 +31,6 @@ describe("TrainingService", () => {
   let mockBlobStorage: jest.Mocked<AzureStorageService>;
   let mockPrimaryBlobStorage: jest.Mocked<BlobStorageInterface>;
   let mockTemplateModelService: jest.Mocked<TemplateModelService>;
-  let _mockConfigService: jest.Mocked<ConfigService>;
   let mockAdminClient: Record<string, jest.Mock>;
   let mockTrainingDb: {
     createTrainingJob: jest.Mock;
@@ -227,7 +225,6 @@ describe("TrainingService", () => {
     mockBlobStorage = module.get(AzureStorageService);
     mockPrimaryBlobStorage = module.get(BLOB_STORAGE);
     mockTemplateModelService = module.get(TemplateModelService);
-    _mockConfigService = module.get(ConfigService);
   });
 
   describe("constructor", () => {

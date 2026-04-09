@@ -53,7 +53,7 @@ export const AZURE_STORAGE = Symbol("AZURE_STORAGE");
 
 @Injectable()
 export class AzureStorageService {
-  private blobServiceClient: BlobServiceClient;
+  private blobServiceClient!: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
   private readonly deleteRetryDelayMs = 5000;

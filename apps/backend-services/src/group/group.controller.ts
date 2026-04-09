@@ -402,7 +402,6 @@ export class GroupController {
   @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
   @Get(":groupId/requests")
   async getGroupRequests(
-    @Req() req: Request,
     @Param("groupId") groupId: string,
     @Query("status") status?: string,
   ): Promise<GroupMembershipRequestDto[]> {

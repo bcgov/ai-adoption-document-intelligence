@@ -50,7 +50,7 @@ interface ErrorWithRequest {
 
 @Injectable()
 export class TrainingService {
-  private adminClient: DocumentIntelligenceClient;
+  private adminClient!: DocumentIntelligenceClient;
   private readonly minDocuments: number;
   private readonly sasExpiryDays: number;
 
