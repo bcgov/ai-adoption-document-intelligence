@@ -12,7 +12,10 @@ jest.mock("fs/promises", () => ({
   mkdir: jest.fn(),
   mkdtemp: jest.fn(),
   rm: jest.fn(),
-  writeFile: jest.fn().mockResolvedValue(undefined),
+  open: jest.fn().mockResolvedValue({
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    close: jest.fn().mockResolvedValue(undefined),
+  }),
   readFile: jest.fn().mockResolvedValue(Buffer.from("")),
 }));
 
