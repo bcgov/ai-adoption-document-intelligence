@@ -25,6 +25,9 @@ jobs:
           node-version: '24'
       - name: Install dependencies (root)
         run: npm install --ignore-scripts --no-package-lock
+      - name: Build shared packages
+        run: npm run build
+        working-directory: packages/logging
       - name: Install dependencies (temporal)
         working-directory: apps/temporal
         run: npm install --ignore-scripts --no-package-lock
