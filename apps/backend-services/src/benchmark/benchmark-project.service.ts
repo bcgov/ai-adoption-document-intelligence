@@ -1,3 +1,4 @@
+import { getErrorStack } from "@ai-di/shared-logging";
 /**
  * Benchmark Project Service
  *
@@ -52,14 +53,14 @@ export class BenchmarkProjectService {
 
       return this.mapToProjectDetails(project);
     } catch (error) {
-      if (error?.code === "P2002") {
+      if ((error as { code?: string })?.code === "P2002") {
         throw new ConflictException(
           `A project with the name "${dto.name}" already exists. Please choose a different name.`,
         );
       }
       this.logger.error(
         `Failed to create project in database: ${dto.name}`,
-        error.stack,
+        (getErrorStack(error)),
       );
       throw error;
     }

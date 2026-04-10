@@ -1,3 +1,4 @@
+import { getErrorStack } from "@ai-di/shared-logging";
 import { Injectable } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
@@ -33,7 +34,7 @@ export class ClassifierPollerService {
       }
     } catch (error) {
       this.logger.error("Error polling active classifiers", {
-        stack: error instanceof Error ? error.stack : String(error),
+        stack: getErrorStack(error),
       });
     }
   }
@@ -83,7 +84,7 @@ export class ClassifierPollerService {
     } catch (error) {
       this.logger.error(
         `Error polling classifier ${classifierName} (group ${groupId})`,
-        error.stack,
+        (getErrorStack(error)),
       );
     }
   }

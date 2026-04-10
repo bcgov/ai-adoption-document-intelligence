@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import {
   BadRequestException,
   Body,
@@ -103,9 +104,9 @@ export class UploadController {
         })
         .catch((error) => {
           this.logger.error(
-            `Background OCR processing failed for document ${uploadedDocument.id}: ${error.message}`,
+            `Background OCR processing failed for document ${uploadedDocument.id}: ${getErrorMessage(error)}`,
           );
-          this.logger.error(`Stack: ${error.stack}`);
+          this.logger.error(`Stack: ${getErrorStack(error)}`);
         });
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
@@ -123,8 +124,8 @@ export class UploadController {
         },
       };
     } catch (error) {
-      this.logger.error(`Error in uploadDocument: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof BadRequestException ||
@@ -134,7 +135,7 @@ export class UploadController {
       }
 
       throw new BadRequestException(
-        error.message || "Failed to upload document",
+        (getErrorMessage(error)) || "Failed to upload document",
       );
     }
   }

@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
 import { Inject, Injectable } from "@nestjs/common";
@@ -103,7 +104,7 @@ export class TemplateModelOcrService {
       });
     } catch (error) {
       this.logger.error(
-        `Labeling OCR failed for ${labelingDocumentId}: ${error.message}`,
+        `Labeling OCR failed for ${labelingDocumentId}: ${getErrorMessage(error)}`,
       );
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.failed,

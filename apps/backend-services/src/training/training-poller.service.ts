@@ -1,3 +1,4 @@
+import { getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
@@ -110,7 +111,7 @@ export class TrainingPollerService {
       }
     } catch (error) {
       this.logger.error("Error polling active jobs", {
-        stack: error instanceof Error ? error.stack : String(error),
+        stack: getErrorStack(error),
       });
     }
   }
@@ -256,20 +257,20 @@ export class TrainingPollerService {
         this.logger.log(`Created trained model record for: ${modelId}`);
       } catch (modelError) {
         this.logger.error(
-          `Error polling operation ${operationId} for model ${modelId}: ${modelError.message}`,
+          `Error polling operation ${operationId} for model ${modelId}: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
         );
 
         // Mark job as failed
         await this.trainingDb.updateTrainingJob(jobId, {
           status: TrainingStatus.FAILED,
-          error_message: `Training failed: ${modelError.message}`,
+          error_message: `Training failed: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
           completed_at: new Date(),
         });
       }
     } catch (error) {
       this.logger.error(
         `Error polling training status for job ${jobId}`,
-        error.stack,
+        (getErrorStack(error)),
       );
     }
   }

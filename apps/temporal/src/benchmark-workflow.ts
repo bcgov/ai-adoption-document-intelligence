@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Run Workflow Orchestrator
  *
@@ -573,7 +574,7 @@ export async function benchmarkRunWorkflow(
                   outputPaths: [],
                   error: {
                     message:
-                      error instanceof Error ? error.message : String(error),
+                      getErrorMessage(error),
                     type: "EXECUTION_ERROR",
                   },
                   durationMs: 0,
@@ -641,7 +642,7 @@ export async function benchmarkRunWorkflow(
               sampleId: sample.id,
               metrics: {},
               diagnostics: {
-                error: error instanceof Error ? error.message : String(error),
+                error: getErrorMessage(error),
               },
               pass: false,
             });
@@ -756,7 +757,7 @@ export async function benchmarkRunWorkflow(
           workflow: "benchmarkRunWorkflow",
           event: "baseline_comparison_failed",
           runId,
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
           timestamp: new Date().toISOString(),
         }),
       );
@@ -815,7 +816,7 @@ export async function benchmarkRunWorkflow(
     }
 
     // Handle failure
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = getErrorMessage(error);
 
     currentPhase = "cleanup";
 

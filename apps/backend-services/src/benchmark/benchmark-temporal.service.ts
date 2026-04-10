@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Temporal Service
  *
@@ -65,7 +66,7 @@ export class BenchmarkTemporalService {
       this.logger.log("Temporal client connected successfully");
     } catch (error) {
       this.logger.error(
-        `Failed to connect to Temporal: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to connect to Temporal: ${getErrorMessage(error)}`,
       );
       throw error;
     }
@@ -145,7 +146,7 @@ export class BenchmarkTemporalService {
       return handle.workflowId;
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        getErrorMessage(error);
       this.logger.error(
         `Failed to start benchmark run workflow: ${errorMessage}`,
       );
@@ -172,7 +173,7 @@ export class BenchmarkTemporalService {
       this.logger.log(`Benchmark run workflow cancelled: ${workflowId}`);
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        getErrorMessage(error);
       this.logger.error(
         `Failed to cancel benchmark run workflow: ${errorMessage}`,
       );
@@ -207,7 +208,7 @@ export class BenchmarkTemporalService {
       };
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        getErrorMessage(error);
       this.logger.error(`Failed to get workflow status: ${errorMessage}`);
       throw new Error(`Failed to get workflow status: ${errorMessage}`);
     }
@@ -283,7 +284,7 @@ export class BenchmarkTemporalService {
       return scheduleId;
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        getErrorMessage(error);
       this.logger.error(`Failed to create schedule: ${errorMessage}`);
       throw new Error(`Failed to create schedule: ${errorMessage}`);
     }
@@ -309,7 +310,7 @@ export class BenchmarkTemporalService {
       this.logger.log(`Schedule deleted: ${scheduleId}`);
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        getErrorMessage(error);
       this.logger.error(`Failed to delete schedule: ${errorMessage}`);
       throw new Error(`Failed to delete schedule: ${errorMessage}`);
     }
@@ -340,7 +341,7 @@ export class BenchmarkTemporalService {
       };
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        getErrorMessage(error);
       this.logger.error(`Failed to get schedule info: ${errorMessage}`);
       throw new Error(`Failed to get schedule info: ${errorMessage}`);
     }

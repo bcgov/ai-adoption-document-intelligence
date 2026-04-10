@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Black-Box Evaluator
  *
@@ -101,7 +102,7 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
           field_overlap: 0,
         },
         diagnostics: {
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
         },
         pass: false,
       };

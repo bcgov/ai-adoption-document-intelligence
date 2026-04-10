@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   DocumentStatus,
   FieldCorrection,
@@ -305,7 +306,7 @@ export class GroundTruthGenerationService {
         `Job ${jobId}: started OCR for document ${documentId}, workflow ${ocrResult.workflowId}`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       this.logger.error(`Job ${jobId} failed: ${message}`);
       await this.groundTruthJobDbService.updateJob(jobId, {
         status: GroundTruthJobStatus.failed,

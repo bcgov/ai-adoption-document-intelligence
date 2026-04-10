@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Error Handling
  *
@@ -96,7 +97,7 @@ export function extractErrorDetails(
   type?: string;
   retryable?: boolean;
 } {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = getErrorMessage(error);
   const type =
     error && typeof error === "object" && "type" in error
       ? String((error as { type?: string }).type)

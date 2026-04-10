@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
@@ -143,8 +144,8 @@ export class OcrService {
         status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
-      this.logger.error(`Error processing document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (document != null) {
         await this.documentService.updateDocument(documentId, {
@@ -154,7 +155,7 @@ export class OcrService {
 
       // Ensure error is a string for the response
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        getErrorMessage(error);
       return {
         status: DocumentStatus.failed,
         error: errorMessage,

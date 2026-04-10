@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import {
   BadRequestException,
@@ -265,7 +266,7 @@ export class DocumentController {
                 } catch (queryError) {
                   // Query failed but workflow is running - this is OK, just return current status
                   this.logger.debug(
-                    `Could not query running workflow for document ${doc.id}: ${queryError.message}`,
+                    `Could not query running workflow for document ${doc.id}: ${queryError instanceof Error ? queryError.message : String(queryError)}`,
                   );
                 }
               }
@@ -273,7 +274,7 @@ export class DocumentController {
               // If workflow status check fails, log but don't fail the entire request
               // This can happen if Temporal is unavailable
               this.logger.debug(
-                `Could not get workflow status for document ${doc.id}: ${error.message}`,
+                `Could not get workflow status for document ${doc.id}: ${getErrorMessage(error)}`,
               );
             }
           }
@@ -286,11 +287,11 @@ export class DocumentController {
 
       return documentsWithWorkflowStatus;
     } catch (error) {
-      this.logger.error(`Error retrieving documents: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error retrieving documents: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       throw new NotFoundException(
-        error.message || "Failed to retrieve documents",
+        (getErrorMessage(error)) || "Failed to retrieve documents",
       );
     }
   }
@@ -371,8 +372,8 @@ export class DocumentController {
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
       return response;
     } catch (error) {
-      this.logger.error(`Error retrieving OCR result: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error retrieving OCR result: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -382,7 +383,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message ||
+        (getErrorMessage(error)) ||
           `Failed to retrieve OCR result for document: ${documentId}`,
       );
     }
@@ -450,8 +451,8 @@ export class DocumentController {
 
       res.send(fileBuffer);
     } catch (error) {
-      this.logger.error(`Error downloading document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error downloading document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -461,7 +462,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message || `Failed to download document: ${documentId}`,
+        (getErrorMessage(error)) || `Failed to download document: ${documentId}`,
       );
     }
   }
@@ -566,8 +567,8 @@ export class DocumentController {
         message: `Document ${body.approved ? "approved" : "rejected"} successfully`,
       };
     } catch (error) {
-      this.logger.error(`Error approving document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error approving document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -578,7 +579,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message || `Failed to approve document: ${documentId}`,
+        (getErrorMessage(error)) || `Failed to approve document: ${documentId}`,
       );
     }
   }

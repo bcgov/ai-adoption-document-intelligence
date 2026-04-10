@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   DocumentStatus,
   OcrResult,
@@ -61,7 +62,7 @@ export class DocumentDbService {
       return document;
     } catch (error) {
       this.logger.error("Failed to create document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -91,7 +92,7 @@ export class DocumentDbService {
       return document;
     } catch (error) {
       this.logger.error("Failed to find document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -118,7 +119,7 @@ export class DocumentDbService {
       return documents;
     } catch (error) {
       this.logger.error("Failed to find documents", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -159,7 +160,7 @@ export class DocumentDbService {
         return null;
       }
       this.logger.error("Failed to update document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -194,7 +195,7 @@ export class DocumentDbService {
         return false;
       }
       this.logger.error("Failed to delete document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -225,7 +226,7 @@ export class DocumentDbService {
       return ocrResult;
     } catch (error) {
       this.logger.error("Failed to find OCR result", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -311,7 +312,7 @@ export class DocumentDbService {
       });
     } catch (error) {
       this.logger.error("Failed to create/update OCR result", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }

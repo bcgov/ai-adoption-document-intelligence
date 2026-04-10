@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
 import { Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
@@ -86,7 +87,7 @@ export class DocumentService {
           : fileBase64;
         fileBuffer = Buffer.from(base64Data, "base64");
       } catch (error) {
-        this.logger.error(`Failed to decode base64 file: ${error.message}`);
+        this.logger.error(`Failed to decode base64 file: ${getErrorMessage(error)}`);
         throw new Error("Invalid base64 file data");
       }
 
@@ -141,8 +142,8 @@ export class DocumentService {
       this.logger.debug("=== DocumentService.uploadDocument completed ===");
       return result;
     } catch (error) {
-      this.logger.error(`Error uploading document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error uploading document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
       throw error;
     }
   }

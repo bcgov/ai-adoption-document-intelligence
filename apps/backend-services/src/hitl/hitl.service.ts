@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   CorrectionAction,
   Document,
@@ -374,7 +375,7 @@ export class HitlService {
     } catch (error) {
       // Non-critical: log but don't fail the approval
       this.logger.warn(
-        `Ground truth post-approval hook error: ${error instanceof Error ? error.message : String(error)}`,
+        `Ground truth post-approval hook error: ${getErrorMessage(error)}`,
       );
     }
 

@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Workflow Execution
  *
@@ -208,7 +209,7 @@ export async function benchmarkExecuteWorkflow(
   } catch (error) {
     const durationMs = Date.now() - startTime;
     const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+      getErrorMessage(error);
     const errorType = extractErrorType(error);
 
     console.log(

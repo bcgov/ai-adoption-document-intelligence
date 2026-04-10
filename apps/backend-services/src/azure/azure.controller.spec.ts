@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+import { Request } from "express";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
@@ -16,17 +17,18 @@ describe("AzureController", () => {
   let classifierService: any;
   let storageService: any;
   let azureService: any;
-  const createMockReq = (sub = "user1", groups: string[] = []) => ({
-    user: { sub },
-    resolvedIdentity: {
-      userId: sub,
-      groupRoles: Object.fromEntries(
-        groups.map((g) => [g, GroupRole.MEMBER]),
-      ) as Record<string, GroupRole>,
-      actorId: "actor-1",
-      isSystemAdmin: false,
-    },
-  });
+  const createMockReq = (sub = "user1", groups: string[] = []): Request =>
+    ({
+      user: { sub },
+      resolvedIdentity: {
+        userId: sub,
+        groupRoles: Object.fromEntries(
+          groups.map((g) => [g, GroupRole.MEMBER]),
+        ) as Record<string, GroupRole>,
+        actorId: "actor-1",
+        isSystemAdmin: false,
+      },
+    }) as unknown as Request;
 
   beforeEach(() => {
     classifierService = {

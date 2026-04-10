@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   CorrectionAction,
   DocumentStatus,
@@ -245,7 +246,7 @@ export class HitlDatasetService {
           manifestSamples.push(result);
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getErrorMessage(error);
         this.logger.warn(`Skipping document ${documentId}: ${message}`);
         skipped.push({ documentId, reason: message });
       }

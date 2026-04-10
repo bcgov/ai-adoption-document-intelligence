@@ -1,3 +1,6 @@
+import { getErrorStack,
+  getErrorMessage,
+} from "@ai-di/shared-logging";
 import { Prisma } from "@generated/client";
 import { createActivityLogger } from "../logger";
 import type { EnrichmentSummary, OCRResult } from "../types";
@@ -188,9 +191,9 @@ export async function upsertOcrResult(params: {
 
     log.error("Upsert OCR result error", {
       event: "error",
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: getErrorMessage(error),
       durationMs: duration,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: getErrorStack(error),
     });
     throw error;
   }
