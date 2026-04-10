@@ -5,7 +5,6 @@ import {
   buildBlobFilePath,
   buildBlobPrefixPath,
   OperationCategory,
-  validateBlobFilePath,
 } from "@/blob-storage/storage-path-builder";
 import {
   BLOB_STORAGE,

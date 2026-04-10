@@ -38,11 +38,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  buildBlobFilePath,
-  OperationCategory,
-  validateBlobFilePath,
-} from "@/blob-storage/storage-path-builder";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
