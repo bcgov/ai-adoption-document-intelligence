@@ -573,8 +573,7 @@ export async function benchmarkRunWorkflow(
                   success: false,
                   outputPaths: [],
                   error: {
-                    message:
-                      getErrorMessage(error),
+                    message: getErrorMessage(error),
                     type: "EXECUTION_ERROR",
                   },
                   durationMs: 0,

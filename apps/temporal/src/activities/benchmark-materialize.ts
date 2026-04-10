@@ -1,6 +1,4 @@
-import { getErrorStack,
-  getErrorMessage,
-} from "@ai-di/shared-logging";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import * as fs from "fs/promises";
 import * as path from "path";
 import type { DatasetManifest } from "../benchmark-types";
@@ -135,8 +133,7 @@ export async function materializeDataset(
         fileCount: keys.length,
       });
     } catch (error) {
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       log.error("Dataset download failed", {
         event: "download_failed",
         error: errorMessage,
@@ -164,8 +161,7 @@ export async function materializeDataset(
     return { materializedPath };
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage =
-      getErrorMessage(error);
+    const errorMessage = getErrorMessage(error);
     log.error("Materialize dataset error", {
       event: "error",
       error: errorMessage,
@@ -236,8 +232,7 @@ export async function loadDatasetManifest(
 
     return { manifest };
   } catch (error) {
-    const errorMessage =
-      getErrorMessage(error);
+    const errorMessage = getErrorMessage(error);
     log.error("Load dataset manifest error", {
       event: "error",
       error: errorMessage,

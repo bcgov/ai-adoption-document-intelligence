@@ -1,6 +1,4 @@
-import { getErrorStack,
-  getErrorMessage,
-} from "@ai-di/shared-logging";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
@@ -55,8 +53,7 @@ export async function storeDocumentRejection(params: {
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage =
-      getErrorMessage(error);
+    const errorMessage = getErrorMessage(error);
     log.error("Store document rejection error", {
       event: "error",
       reason,

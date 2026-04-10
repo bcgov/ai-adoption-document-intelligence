@@ -208,8 +208,7 @@ export async function benchmarkExecuteWorkflow(
     };
   } catch (error) {
     const durationMs = Date.now() - startTime;
-    const errorMessage =
-      getErrorMessage(error);
+    const errorMessage = getErrorMessage(error);
     const errorType = extractErrorType(error);
 
     console.log(

@@ -1,6 +1,4 @@
-import { getErrorStack,
-  getErrorMessage,
-} from "@ai-di/shared-logging";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 /**
  * Activity: Enrich OCR results using field schema and optional LLM.
  * Fetches TemplateModel field_schema, applies generic rules, optionally calls Azure OpenAI for low-confidence fields.
@@ -199,8 +197,7 @@ export async function enrichResults(
 
     return { ocrResult: finalResult, summary };
   } catch (error) {
-    const errorMessage =
-      getErrorMessage(error);
+    const errorMessage = getErrorMessage(error);
     log.error("Enrich results error", {
       event: "error",
       error: errorMessage,

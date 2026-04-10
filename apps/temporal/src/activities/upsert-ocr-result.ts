@@ -1,6 +1,4 @@
-import { getErrorStack,
-  getErrorMessage,
-} from "@ai-di/shared-logging";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { Prisma } from "@generated/client";
 import { createActivityLogger } from "../logger";
 import type { EnrichmentSummary, OCRResult } from "../types";
