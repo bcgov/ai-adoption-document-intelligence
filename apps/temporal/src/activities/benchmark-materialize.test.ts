@@ -19,7 +19,7 @@ jest.mock("fs/promises", () => ({
   mkdir: jest.fn(),
   rm: jest.fn(),
   readFile: jest.fn(),
-  writeFile: jest.fn(),
+  open: jest.fn(),
 }));
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
@@ -30,7 +30,7 @@ const fsMock = {
   mkdir: fs.mkdir as jest.Mock,
   rm: fs.rm as jest.Mock,
   readFile: (fs as unknown as { readFile: jest.Mock }).readFile as jest.Mock,
-  writeFile: (fs as unknown as { writeFile: jest.Mock }).writeFile as jest.Mock,
+  open: (fs as unknown as { open: jest.Mock }).open as jest.Mock,
 };
 
 describe("materializeDataset activity", () => {
@@ -85,7 +85,10 @@ describe("materializeDataset activity", () => {
       );
       fsMock.access.mockRejectedValue(new Error("ENOENT")); // Cache miss
       fsMock.mkdir.mockResolvedValue(undefined);
-      fsMock.writeFile.mockResolvedValue(undefined);
+      fsMock.open.mockResolvedValue({
+        writeFile: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined),
+      });
 
       blobStorageMock.list.mockResolvedValue([
         "datasets/dataset-1/version-1/dataset-manifest.json",
@@ -105,7 +108,7 @@ describe("materializeDataset activity", () => {
         "datasets/dataset-1/version-1",
       );
       expect(blobStorageMock.read).toHaveBeenCalledTimes(3);
-      expect(fsMock.writeFile).toHaveBeenCalledTimes(3);
+      expect(fsMock.open).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -116,7 +119,10 @@ describe("materializeDataset activity", () => {
       );
       fsMock.access.mockRejectedValue(new Error("ENOENT"));
       fsMock.mkdir.mockResolvedValue(undefined);
-      fsMock.writeFile.mockResolvedValue(undefined);
+      fsMock.open.mockResolvedValue({
+        writeFile: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined),
+      });
 
       blobStorageMock.list.mockResolvedValue([]);
 
@@ -209,7 +215,10 @@ describe("materializeDataset activity", () => {
       );
       fsMock.access.mockRejectedValue(new Error("ENOENT"));
       fsMock.mkdir.mockResolvedValue(undefined);
-      fsMock.writeFile.mockResolvedValue(undefined);
+      fsMock.open.mockResolvedValue({
+        writeFile: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined),
+      });
       blobStorageMock.list.mockResolvedValue([]);
 
       const result = await materializeDataset({
