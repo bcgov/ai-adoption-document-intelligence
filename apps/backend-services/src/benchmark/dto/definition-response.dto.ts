@@ -6,7 +6,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import type { MetricThreshold } from "./promote-baseline.dto";
+import { MetricThreshold } from "./promote-baseline.dto";
 
 /**
  * Dataset version info embedded in definition response
@@ -26,13 +26,20 @@ export class DatasetVersionInfo {
  * Workflow info embedded in definition response
  */
 export class WorkflowInfo {
-  @ApiProperty({ description: "Workflow ID" })
+  @ApiProperty({
+    description: "Stable workflow lineage ID (WorkflowLineage.id)",
+  })
   id: string;
 
-  @ApiProperty({ description: "Workflow name" })
+  @ApiProperty({
+    description: "Pinned graph config version (WorkflowVersion.id)",
+  })
+  workflowVersionId: string;
+
+  @ApiProperty({ description: "Workflow name (from lineage)" })
   name: string;
 
-  @ApiProperty({ description: "Workflow version" })
+  @ApiProperty({ description: "Immutable config revision number" })
   version: number;
 }
 
@@ -46,7 +53,9 @@ export class SplitInfo {
   @ApiProperty({ description: "Split name" })
   name: string;
 
-  @ApiProperty({ description: "Split type (train, val, test, golden)" })
+  @ApiProperty({
+    description: "Split type (train, val, test, golden)",
+  })
   type: string;
 }
 
@@ -60,14 +69,10 @@ export class RunHistorySummary {
   @ApiProperty({ description: "Run status" })
   status: string;
 
-  @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
+  @ApiProperty({ description: "Start timestamp", nullable: true })
   startedAt: Date | null;
 
-  @ApiProperty({
-    description: "Completion timestamp",
-    nullable: true,
-    type: Date,
-  })
+  @ApiProperty({ description: "Completion timestamp", nullable: true })
   completedAt: Date | null;
 }
 
@@ -81,24 +86,17 @@ export class BaselineRunSummary {
   @ApiProperty({ description: "Run status" })
   status: string;
 
-  @ApiProperty({
-    description: "Aggregated metrics from the baseline run",
-    type: "object",
-    additionalProperties: { type: "number" },
-  })
+  @ApiProperty({ description: "Aggregated metrics from the baseline run" })
   metrics: Record<string, number>;
 
   @ApiProperty({
     description: "Baseline thresholds for regression detection",
+    type: () => MetricThreshold,
     isArray: true,
   })
   baselineThresholds: MetricThreshold[];
 
-  @ApiProperty({
-    description: "Completion timestamp",
-    nullable: true,
-    type: Date,
-  })
+  @ApiProperty({ description: "Completion timestamp", nullable: true })
   completedAt: Date | null;
 }
 
@@ -175,18 +173,10 @@ export class DefinitionDetailsDto {
   @ApiProperty({ description: "Evaluator type" })
   evaluatorType: string;
 
-  @ApiProperty({
-    description: "Evaluator configuration",
-    type: "object",
-    additionalProperties: true,
-  })
+  @ApiProperty({ description: "Evaluator configuration" })
   evaluatorConfig: Record<string, unknown>;
 
-  @ApiProperty({
-    description: "Runtime settings",
-    type: "object",
-    additionalProperties: true,
-  })
+  @ApiProperty({ description: "Runtime settings" })
   runtimeSettings: Record<string, unknown>;
 
   @ApiProperty({
@@ -197,10 +187,12 @@ export class DefinitionDetailsDto {
   @ApiProperty({ description: "Definition revision number" })
   revision: number;
 
-  @ApiProperty({ description: "Whether scheduling is enabled" })
+  @ApiProperty({ description: "Schedule configuration" })
   scheduleEnabled: boolean;
 
-  @ApiPropertyOptional({ description: "Cron expression for scheduled runs" })
+  @ApiPropertyOptional({
+    description: "Cron expression for scheduled runs",
+  })
   scheduleCron?: string;
 
   @ApiPropertyOptional({ description: "Temporal schedule ID" })

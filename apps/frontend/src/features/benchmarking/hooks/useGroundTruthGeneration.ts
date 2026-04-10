@@ -13,7 +13,7 @@ export interface GroundTruthJob {
   datasetVersionId: string;
   sampleId: string;
   documentId: string | null;
-  workflowConfigId: string;
+  workflowVersionId: string;
   temporalWorkflowId: string | null;
   status: GroundTruthJobStatus;
   groundTruthPath: string | null;
@@ -60,10 +60,10 @@ export const useGroundTruthGeneration = (
   });
 
   const startGenerationMutation = useMutation({
-    mutationFn: async (workflowConfigId: string) => {
+    mutationFn: async (workflowVersionId: string) => {
       const response = await apiService.post<StartGenerationResponse>(
         basePath,
-        { workflowConfigId },
+        { workflowVersionId },
       );
       return response.data;
     },

@@ -11,11 +11,13 @@
 import { Prisma } from "@generated/client";
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { computeConfigHash } from "@/workflow/config-hash";
+import { validateGraphConfig } from "@/workflow/graph-schema-validator";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
@@ -35,12 +37,21 @@ import {
 } from "./dto";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
 
+const PROMOTE_WORKFLOW_VERSION_MAX_ATTEMPTS = 3;
+
+function isWorkflowVersionUniqueConflict(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
 @Injectable()
 export class BenchmarkDefinitionService {
   private readonly logger = new Logger(BenchmarkDefinitionService.name);
 
   constructor(
-    private readonly definitionDbService: BenchmarkDefinitionDbService,
+    private readonly definitionDb: BenchmarkDefinitionDbService,
     private readonly evaluatorRegistry: EvaluatorRegistryService,
     private readonly temporalService: BenchmarkTemporalService,
   ) {}
@@ -60,8 +71,7 @@ export class BenchmarkDefinitionService {
     );
 
     // Validate that the project exists
-    const project =
-      await this.definitionDbService.findBenchmarkProject(projectId);
+    const project = await this.definitionDb.findBenchmarkProject(projectId);
 
     if (!project) {
       throw new NotFoundException(
@@ -70,7 +80,7 @@ export class BenchmarkDefinitionService {
     }
 
     // Validate that the dataset version exists
-    const datasetVersion = await this.definitionDbService.findDatasetVersion(
+    const datasetVersion = await this.definitionDb.findDatasetVersion(
       dto.datasetVersionId,
     );
 
@@ -82,7 +92,7 @@ export class BenchmarkDefinitionService {
 
     // Validate that the split exists and belongs to the dataset version (when provided)
     if (dto.splitId) {
-      const split = await this.definitionDbService.findSplit(dto.splitId);
+      const split = await this.definitionDb.findSplit(dto.splitId);
 
       if (!split) {
         throw new BadRequestException(
@@ -97,14 +107,15 @@ export class BenchmarkDefinitionService {
       }
     }
 
-    // Validate that the workflow exists
-    const workflow = await this.definitionDbService.findWorkflow(
-      dto.workflowId,
-    );
+    // Validate that the workflow version exists
+    const workflowVersion =
+      await this.definitionDb.findWorkflowVersionWithLineage(
+        dto.workflowVersionId,
+      );
 
-    if (!workflow) {
+    if (!workflowVersion) {
       throw new BadRequestException(
-        `Workflow with ID "${dto.workflowId}" does not exist`,
+        `Workflow version with ID "${dto.workflowVersionId}" does not exist`,
       );
     }
 
@@ -117,25 +128,23 @@ export class BenchmarkDefinitionService {
 
     // Compute workflow config hash
     const workflowConfigHash = computeConfigHash(
-      workflow.config as GraphWorkflowConfig,
+      workflowVersion.config as unknown as GraphWorkflowConfig,
     );
 
     // Create the definition
-    const definition = await this.definitionDbService.createBenchmarkDefinition(
-      {
-        projectId,
-        name: dto.name,
-        datasetVersionId: dto.datasetVersionId,
-        splitId: dto.splitId || null,
-        workflowId: dto.workflowId,
-        workflowConfigHash,
-        evaluatorType: dto.evaluatorType,
-        evaluatorConfig: dto.evaluatorConfig as Prisma.InputJsonValue,
-        runtimeSettings: dto.runtimeSettings as Prisma.InputJsonValue,
-        immutable: false,
-        revision: 1,
-      },
-    );
+    const definition = await this.definitionDb.createBenchmarkDefinition({
+      projectId,
+      name: dto.name,
+      datasetVersionId: dto.datasetVersionId,
+      splitId: dto.splitId || null,
+      workflowVersionId: dto.workflowVersionId,
+      workflowConfigHash,
+      evaluatorType: dto.evaluatorType,
+      evaluatorConfig: dto.evaluatorConfig as Prisma.InputJsonValue,
+      runtimeSettings: dto.runtimeSettings as Prisma.InputJsonValue,
+      immutable: false,
+      revision: 1,
+    });
 
     this.logger.log(
       `Created benchmark definition: ${definition.id} (workflowConfigHash: ${workflowConfigHash})`,
@@ -149,8 +158,7 @@ export class BenchmarkDefinitionService {
    */
   async listDefinitions(projectId: string): Promise<DefinitionSummaryDto[]> {
     // Verify project exists
-    const project =
-      await this.definitionDbService.findBenchmarkProject(projectId);
+    const project = await this.definitionDb.findBenchmarkProject(projectId);
 
     if (!project) {
       throw new NotFoundException(
@@ -159,7 +167,7 @@ export class BenchmarkDefinitionService {
     }
 
     const definitions =
-      await this.definitionDbService.findAllBenchmarkDefinitions(projectId);
+      await this.definitionDb.findAllBenchmarkDefinitions(projectId);
 
     return definitions.map((def) => this.mapToDefinitionSummary(def));
   }
@@ -171,7 +179,7 @@ export class BenchmarkDefinitionService {
     projectId: string,
     definitionId: string,
   ): Promise<DefinitionDetailsDto> {
-    const definition = await this.definitionDbService.findBenchmarkDefinition(
+    const definition = await this.definitionDb.findBenchmarkDefinition(
       definitionId,
       projectId,
     );
@@ -184,7 +192,7 @@ export class BenchmarkDefinitionService {
 
     // Fetch baseline run separately if it exists
     const baselineRun =
-      await this.definitionDbService.findBaselineBenchmarkRun(definitionId);
+      await this.definitionDb.findBaselineBenchmarkRun(definitionId);
 
     return this.mapToDefinitionDetails(definition, baselineRun);
   }
@@ -204,12 +212,10 @@ export class BenchmarkDefinitionService {
       `Updating benchmark definition: ${definitionId} for project ${projectId}`,
     );
 
-    // Get the existing definition
-    const existing =
-      await this.definitionDbService.findBenchmarkDefinitionForUpdate(
-        definitionId,
-        projectId,
-      );
+    const existing = await this.definitionDb.findBenchmarkDefinitionForUpdate(
+      definitionId,
+      projectId,
+    );
 
     if (!existing) {
       throw new NotFoundException(
@@ -219,7 +225,7 @@ export class BenchmarkDefinitionService {
 
     // Validate referenced entities if they are being changed
     if (dto.datasetVersionId) {
-      const datasetVersion = await this.definitionDbService.findDatasetVersion(
+      const datasetVersion = await this.definitionDb.findDatasetVersion(
         dto.datasetVersionId,
       );
 
@@ -231,7 +237,7 @@ export class BenchmarkDefinitionService {
     }
 
     if (dto.splitId) {
-      const split = await this.definitionDbService.findSplit(dto.splitId);
+      const split = await this.definitionDb.findSplit(dto.splitId);
 
       if (!split) {
         throw new BadRequestException(
@@ -250,20 +256,20 @@ export class BenchmarkDefinitionService {
     }
 
     let workflowConfigHash = existing.workflowConfigHash;
-    if (dto.workflowId) {
-      const workflow = await this.definitionDbService.findWorkflow(
-        dto.workflowId,
+    if (dto.workflowVersionId) {
+      const workflowVersion = await this.definitionDb.findWorkflowVersion(
+        dto.workflowVersionId,
       );
 
-      if (!workflow) {
+      if (!workflowVersion) {
         throw new BadRequestException(
-          `Workflow with ID "${dto.workflowId}" does not exist`,
+          `Workflow version with ID "${dto.workflowVersionId}" does not exist`,
         );
       }
 
       // Recompute workflow config hash
       workflowConfigHash = computeConfigHash(
-        workflow.config as GraphWorkflowConfig,
+        workflowVersion.config as GraphWorkflowConfig,
       );
     }
 
@@ -279,28 +285,23 @@ export class BenchmarkDefinitionService {
     const hasRuns = existing._count.benchmarkRuns > 0;
 
     if (hasRuns) {
-      // Mark the existing definition as immutable
-      await this.definitionDbService.updateBenchmarkDefinition(definitionId, {
-        immutable: true,
-      });
+      await this.definitionDb.setBenchmarkDefinitionImmutable(definitionId);
 
-      // Create a new revision
-      const newDefinition =
-        await this.definitionDbService.createBenchmarkDefinition({
-          projectId,
-          name: dto.name ?? existing.name,
-          datasetVersionId: dto.datasetVersionId ?? existing.datasetVersionId,
-          splitId: dto.splitId ?? existing.splitId,
-          workflowId: dto.workflowId ?? existing.workflowId,
-          workflowConfigHash,
-          evaluatorType: dto.evaluatorType ?? existing.evaluatorType,
-          evaluatorConfig: (dto.evaluatorConfig ??
-            existing.evaluatorConfig) as Prisma.InputJsonValue,
-          runtimeSettings: (dto.runtimeSettings ??
-            existing.runtimeSettings) as Prisma.InputJsonValue,
-          immutable: false,
-          revision: existing.revision + 1,
-        });
+      const newDefinition = await this.definitionDb.createBenchmarkDefinition({
+        projectId,
+        name: dto.name ?? existing.name,
+        datasetVersionId: dto.datasetVersionId ?? existing.datasetVersionId,
+        splitId: dto.splitId ?? existing.splitId,
+        workflowVersionId: dto.workflowVersionId ?? existing.workflowVersionId,
+        workflowConfigHash,
+        evaluatorType: dto.evaluatorType ?? existing.evaluatorType,
+        evaluatorConfig: (dto.evaluatorConfig ??
+          existing.evaluatorConfig) as Prisma.InputJsonValue,
+        runtimeSettings: (dto.runtimeSettings ??
+          existing.runtimeSettings) as Prisma.InputJsonValue,
+        immutable: false,
+        revision: existing.revision + 1,
+      });
 
       this.logger.log(
         `Created new revision ${newDefinition.revision} for definition ${definitionId}`,
@@ -314,8 +315,10 @@ export class BenchmarkDefinitionService {
       if (dto.datasetVersionId)
         updateData.datasetVersion = { connect: { id: dto.datasetVersionId } };
       if (dto.splitId) updateData.split = { connect: { id: dto.splitId } };
-      if (dto.workflowId) {
-        updateData.workflow = { connect: { id: dto.workflowId } };
+      if (dto.workflowVersionId) {
+        updateData.workflowVersion = {
+          connect: { id: dto.workflowVersionId },
+        };
         updateData.workflowConfigHash = workflowConfigHash;
       }
       if (dto.evaluatorType) updateData.evaluatorType = dto.evaluatorType;
@@ -326,7 +329,7 @@ export class BenchmarkDefinitionService {
         updateData.runtimeSettings =
           dto.runtimeSettings as Prisma.InputJsonValue;
 
-      const updated = await this.definitionDbService.updateBenchmarkDefinition(
+      const updated = await this.definitionDb.updateBenchmarkDefinition(
         definitionId,
         updateData,
       );
@@ -352,7 +355,7 @@ export class BenchmarkDefinitionService {
     definitionId: string,
   ): Promise<void> {
     const definition =
-      await this.definitionDbService.findBenchmarkDefinitionForDeletion(
+      await this.definitionDb.findBenchmarkDefinitionForDeletion(
         definitionId,
         projectId,
       );
@@ -374,7 +377,7 @@ export class BenchmarkDefinitionService {
       );
     }
 
-    await this.definitionDbService.deleteBenchmarkDefinition(definitionId);
+    await this.definitionDb.deleteBenchmarkDefinition(definitionId);
 
     this.logger.log(
       `Deleted benchmark definition "${definition.name}" (${definitionId}) from project ${projectId}`,
@@ -399,10 +402,10 @@ export class BenchmarkDefinitionService {
         name: string;
       };
     };
-    workflow: {
+    workflowVersion: {
       id: string;
-      name: string;
-      version: number;
+      version_number: number;
+      lineage: { id: string; name: string };
     };
   }): DefinitionSummaryDto {
     return {
@@ -414,9 +417,10 @@ export class BenchmarkDefinitionService {
         version: definition.datasetVersion.version,
       },
       workflow: {
-        id: definition.workflow.id,
-        name: definition.workflow.name,
-        version: definition.workflow.version,
+        id: definition.workflowVersion.lineage.id,
+        workflowVersionId: definition.workflowVersion.id,
+        name: definition.workflowVersion.lineage.name,
+        version: definition.workflowVersion.version_number,
       },
       evaluatorType: definition.evaluatorType,
       immutable: definition.immutable,
@@ -457,10 +461,10 @@ export class BenchmarkDefinitionService {
         name: string;
         type: string;
       } | null;
-      workflow: {
+      workflowVersion: {
         id: string;
-        name: string;
-        version: number;
+        version_number: number;
+        lineage: { id: string; name: string };
       };
       benchmarkRuns: Array<{
         id: string;
@@ -484,9 +488,10 @@ export class BenchmarkDefinitionService {
     };
 
     const workflow: WorkflowInfo = {
-      id: definition.workflow.id,
-      name: definition.workflow.name,
-      version: definition.workflow.version,
+      id: definition.workflowVersion.lineage.id,
+      workflowVersionId: definition.workflowVersion.id,
+      name: definition.workflowVersion.lineage.name,
+      version: definition.workflowVersion.version_number,
     };
 
     const split: SplitInfo | undefined = definition.split
@@ -548,6 +553,176 @@ export class BenchmarkDefinitionService {
     };
   }
 
+  async promoteCandidateWorkflow(
+    projectId: string,
+    definitionId: string,
+    candidateWorkflowVersionId: string,
+  ): Promise<DefinitionDetailsDto> {
+    this.logger.log(
+      `Promoting candidate workflow ${candidateWorkflowVersionId} into definition ${definitionId} (project ${projectId})`,
+    );
+
+    const definition =
+      await this.definitionDb.findBenchmarkDefinitionForPromote(
+        projectId,
+        definitionId,
+      );
+
+    if (!definition?.workflowVersion?.lineage) {
+      throw new NotFoundException(
+        `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
+      );
+    }
+
+    const baseLineageId = definition.workflowVersion.lineage.id;
+    const baseLineageGroupId = definition.workflowVersion.lineage.group_id;
+
+    const candidateVersion =
+      await this.definitionDb.findWorkflowVersionWithLineage(
+        candidateWorkflowVersionId,
+      );
+
+    if (!candidateVersion?.lineage) {
+      throw new NotFoundException(
+        `Candidate workflow version not found: ${candidateWorkflowVersionId}`,
+      );
+    }
+
+    const candidateLineage = candidateVersion.lineage;
+
+    if (candidateLineage.workflow_kind !== "benchmark_candidate") {
+      throw new BadRequestException(
+        `Candidate lineage ${candidateLineage.id} is not a benchmark candidate`,
+      );
+    }
+
+    if (candidateLineage.source_workflow_id !== baseLineageId) {
+      throw new BadRequestException(
+        `Candidate is not derived from the definition's base workflow lineage`,
+      );
+    }
+
+    if (candidateLineage.group_id !== baseLineageGroupId) {
+      throw new BadRequestException(
+        `Candidate lineage group does not match the definition's base lineage`,
+      );
+    }
+
+    const candidateConfig =
+      candidateVersion.config as unknown as GraphWorkflowConfig;
+    const validation = validateGraphConfig(candidateConfig);
+    if (!validation.valid) {
+      throw new BadRequestException({
+        message: "Invalid candidate workflow configuration",
+        errors: validation.errors,
+      });
+    }
+
+    const newHash = computeConfigHash(candidateConfig);
+
+    /**
+     * Append version, bump base lineage head, and repin definitions in one transaction so
+     * concurrent promotes cannot allocate the same version_number. (Version append stays here
+     * rather than WorkflowService: benchmark-specific validation and definition repinning.)
+     * Head version id for `updateMany` and the definition pin are read inside this transaction
+     * so they match DB state at commit time. Retries on unique (lineage_id, version_number)
+     * conflicts from concurrent writers.
+     */
+    for (
+      let attempt = 1;
+      attempt <= PROMOTE_WORKFLOW_VERSION_MAX_ATTEMPTS;
+      attempt++
+    ) {
+      try {
+        await this.definitionDb.transaction(async (tx) => {
+          const baseLineageRow = await tx.workflowLineage.findUnique({
+            where: { id: baseLineageId },
+            select: { head_version_id: true },
+          });
+          if (!baseLineageRow?.head_version_id) {
+            throw new BadRequestException(
+              `Base workflow lineage ${baseLineageId} has no head version to promote into`,
+            );
+          }
+          const headIdForRepin = baseLineageRow.head_version_id;
+
+          const defPin = await tx.benchmarkDefinition.findFirst({
+            where: { id: definitionId, projectId },
+            select: { workflowVersionId: true },
+          });
+          if (!defPin) {
+            throw new NotFoundException(
+              `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
+            );
+          }
+          if (defPin.workflowVersionId !== headIdForRepin) {
+            throw new ConflictException(
+              "Benchmark definition workflow pin no longer matches the lineage head; refresh and retry.",
+            );
+          }
+
+          const latestInTx = await tx.workflowVersion.findFirst({
+            where: { lineage_id: baseLineageId },
+            orderBy: { version_number: "desc" },
+            select: { version_number: true },
+          });
+          const nextVersionNumber = (latestInTx?.version_number ?? 0) + 1;
+
+          const newVersion = await tx.workflowVersion.create({
+            data: {
+              lineage_id: baseLineageId,
+              version_number: nextVersionNumber,
+              config: candidateConfig as unknown as Prisma.InputJsonValue,
+            },
+          });
+
+          await tx.workflowLineage.update({
+            where: { id: baseLineageId },
+            data: { head_version_id: newVersion.id },
+          });
+
+          await tx.benchmarkDefinition.updateMany({
+            where: {
+              projectId,
+              workflowVersionId: headIdForRepin,
+            },
+            data: {
+              workflowVersionId: newVersion.id,
+              workflowConfigHash: newHash,
+            },
+          });
+        });
+        break;
+      } catch (err) {
+        if (
+          isWorkflowVersionUniqueConflict(err) &&
+          attempt < PROMOTE_WORKFLOW_VERSION_MAX_ATTEMPTS
+        ) {
+          this.logger.warn(
+            `promoteCandidateWorkflow: P2002 on workflow_version (concurrent promote); retrying (${attempt}/${PROMOTE_WORKFLOW_VERSION_MAX_ATTEMPTS})`,
+          );
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    // Best-effort: remove the candidate lineage now that config lives on the base lineage.
+    // May fail if workflow versions are still referenced (e.g. ground-truth jobs); that is OK.
+    try {
+      await this.definitionDb.deleteWorkflowLineage(candidateLineage.id);
+      this.logger.log(
+        `Removed benchmark candidate lineage ${candidateLineage.id} after promote into ${baseLineageId}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not delete candidate lineage ${candidateLineage.id} after promote (likely still referenced): ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    return this.getDefinitionById(projectId, definitionId);
+  }
+
   /**
    * Configure schedule for a benchmark definition
    *
@@ -563,11 +738,11 @@ export class BenchmarkDefinitionService {
       `Configuring schedule for definition ${definitionId}: enabled=${dto.enabled}, cron=${dto.cron}`,
     );
 
-    // Get the definition
-    const definition = await this.definitionDbService.findBenchmarkDefinition(
-      definitionId,
-      projectId,
-    );
+    const definition =
+      await this.definitionDb.findBenchmarkDefinitionForScheduleConfig(
+        projectId,
+        definitionId,
+      );
 
     if (!definition) {
       throw new NotFoundException(
@@ -604,7 +779,7 @@ export class BenchmarkDefinitionService {
           definitionId: definition.id,
           datasetVersionId: definition.datasetVersionId,
           splitId: definition.splitId,
-          workflowId: definition.workflowId,
+          workflowVersionId: definition.workflowVersionId,
           workflowConfigHash: definition.workflowConfigHash,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<
@@ -619,15 +794,15 @@ export class BenchmarkDefinitionService {
       );
     }
 
-    // Update definition with schedule info
-    const updated = await this.definitionDbService.updateBenchmarkDefinition(
-      definitionId,
-      {
-        scheduleEnabled: dto.enabled,
-        scheduleCron: dto.cron ?? null,
-        scheduleId: scheduleId,
-      },
-    );
+    const updated =
+      await this.definitionDb.updateBenchmarkDefinitionScheduleFields(
+        definitionId,
+        {
+          scheduleEnabled: dto.enabled,
+          scheduleCron: dto.cron ?? null,
+          scheduleId,
+        },
+      );
 
     return this.mapToDefinitionDetails(updated);
   }
@@ -643,9 +818,9 @@ export class BenchmarkDefinitionService {
   ): Promise<ScheduleInfoDto | null> {
     this.logger.log(`Getting schedule info for definition ${definitionId}`);
 
-    const definition = await this.definitionDbService.findBenchmarkDefinition(
-      definitionId,
+    const definition = await this.definitionDb.findDefinitionScheduleMeta(
       projectId,
+      definitionId,
     );
 
     if (!definition) {

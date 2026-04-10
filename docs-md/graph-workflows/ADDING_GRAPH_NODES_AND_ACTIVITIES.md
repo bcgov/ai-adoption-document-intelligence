@@ -249,3 +249,71 @@ Relevant implementation:
 6. Update docs and workflow templates.
 
 This order catches most contract mismatches early and keeps schema/type changes aligned with execution behavior.
+
+---
+
+## 8. OCR Correction Tool Activities (Feature 008)
+
+Three OCR correction tools are registered as activity types and can be used in graph workflows:
+
+### `ocr.spellcheck`
+
+Dictionary-based spellcheck on OCR field values. Uses nspell with an English dictionary.
+
+**Parameters:**
+- `language` (string, optional, default: `"en"`) — language code
+- `fieldScope` (string[], optional) — restrict to specific field keys
+
+**Input binding:** `ocrResult` (from `ctx.ocrResult` or `ctx.cleanedResult`)
+**Output:** `{ ocrResult, changes, metadata }` (CorrectionResult)
+
+### `ocr.characterConfusion`
+
+Character confusion map replacements (O→0, l→1, S→5, etc.) with optional custom map override.
+
+**Parameters:**
+- `confusionMapOverride` (Record<string, string>, optional) — overrides default confusion map
+- `applyToAllFields` (boolean, optional, default: false) — apply to all fields, not just date/number-like
+- `fieldScope` (string[], optional) — restrict to specific field keys
+
+**Input binding:** `ocrResult` (from `ctx.ocrResult` or `ctx.cleanedResult`)
+**Output:** `{ ocrResult, changes, metadata }` (CorrectionResult)
+
+### `ocr.normalizeFields`
+
+Deterministic field normalization: whitespace cleanup, digit grouping, date separators.
+
+**Parameters:**
+- `documentType` (string, optional) — LabelingProject id for schema-aware rules
+- `enabledRules` / `disabledRules` (string[], optional)
+- `normalizeFullResult` (boolean, optional)
+- `normalizeWhitespace` (boolean, optional, default: true)
+- `normalizeDigitGrouping` (boolean, optional, default: true)
+- `normalizeDateSeparators` (boolean, optional, default: true)
+- `fieldScope` (string[], optional) — restrict to specific field keys
+- `emptyValueCoercion` (`none` | `blank` | `null`, optional, default: `none`) — after rules, coerce empty fields to `""` or JSON null for benchmark GT alignment (all fields in the OCR payload; **not** filtered by `fieldScope`)
+
+**Input binding:** `ocrResult` (from `ctx.ocrResult` or `ctx.cleanedResult`)
+**Output:** `{ ocrResult, changes, metadata }` (CorrectionResult)
+
+### Example graph config snippet
+
+```json
+{
+  "correctionNode": {
+    "id": "correctionNode",
+    "type": "activity",
+    "label": "Spellcheck Correction",
+    "activityType": "ocr.spellcheck",
+    "parameters": { "language": "en" },
+    "inputs": [{ "port": "ocrResult", "ctxKey": "cleanedResult" }],
+    "outputs": [{ "port": "ocrResult", "ctxKey": "cleanedResult" }]
+  }
+}
+```
+
+### Correction Tool Registry
+
+A programmatic manifest of the three AI-recommendable correction tools and their parameters is available via `apps/temporal/src/correction-tool-registry.ts`. The AI recommendation pipeline (Feature 008 Step 3) uses it for tool IDs and parameter schemas; **node placement** for candidate workflows is fixed: **split the first normal edge after `azureOcr.extract`** (see `docs-md/OCR_IMPROVEMENT_PIPELINE.md`), not per-entry “safe insertion” metadata in the registry.
+
+See also: `docs-md/OCR_CONFUSION_MATRICES.md` for confusion matrix documentation.

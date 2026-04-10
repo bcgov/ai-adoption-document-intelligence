@@ -55,6 +55,7 @@ const createDto = {
 
 const workflowInfo = {
   id: "workflow-1",
+  workflowVersionId: "wv-workflow-1",
   name: "Test Workflow",
   description: "A test workflow",
   actorId: "user-1",

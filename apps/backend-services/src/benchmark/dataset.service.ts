@@ -559,15 +559,6 @@ export class DatasetService {
         err.stack,
       );
 
-      if (
-        err.message.includes("NoSuchBucket") ||
-        err.message.includes("bucket does not exist")
-      ) {
-        throw new BadRequestException(
-          "Object storage bucket is not configured. Please ensure MinIO is initialized with the required buckets.",
-        );
-      }
-
       if (err.message.includes("Failed to write blob")) {
         throw new BadRequestException(`File upload failed: ${err.message}`);
       }

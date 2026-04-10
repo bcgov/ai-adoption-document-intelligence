@@ -365,7 +365,7 @@ export class HitlService {
       if (gtService) {
         const job = await gtService.getJobByDocumentId(session.document_id);
         if (job) {
-          await gtService.completeJob(job.id, sessionId, session.corrections);
+          await gtService.completeJob(job.id, sessionId);
           this.logger.log(
             `Ground truth generated for job ${job.id} via session ${sessionId}`,
           );

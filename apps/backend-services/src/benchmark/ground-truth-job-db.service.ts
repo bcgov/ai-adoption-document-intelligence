@@ -40,12 +40,13 @@ type JobWithVersionAndDocument = Prisma.DatasetGroundTruthJobGetPayload<{
   };
 }>;
 
-export interface CreateGroundTruthJobData {
-  datasetVersionId: string;
-  sampleId: string;
-  workflowConfigId: string;
+/** Programmatic job creates always set an explicit status (never rely on DB default). */
+export type CreateGroundTruthJobData = Pick<
+  Prisma.DatasetGroundTruthJobUncheckedCreateInput,
+  "datasetVersionId" | "sampleId" | "workflowVersionId"
+> & {
   status: GroundTruthJobStatus;
-}
+};
 
 @Injectable()
 export class GroundTruthJobDbService {
@@ -191,19 +192,19 @@ export class GroundTruthJobDbService {
   }
 
   /**
-   * Reads the workflow config for a job's workflowConfigId.
+   * Reads the workflow config for a job's workflowVersionId.
    *
-   * @param workflowConfigId - The workflow config ID.
+   * @param workflowVersionId - The workflow version ID.
    * @param tx - Optional transaction client.
-   * @returns The workflow record with config, or `null`.
+   * @returns The workflow version record with config, or `null`.
    */
   async findWorkflowConfig(
-    workflowConfigId: string,
+    workflowVersionId: string,
     tx?: Prisma.TransactionClient,
   ) {
     const client = tx ?? this.prisma;
-    return client.workflow.findUnique({
-      where: { id: workflowConfigId },
+    return client.workflowVersion.findUnique({
+      where: { id: workflowVersionId },
       select: { config: true },
     });
   }
@@ -368,14 +369,16 @@ export class GroundTruthJobDbService {
   }
 
   /**
-   * Validates that a workflow config exists.
+   * Validates that a workflow version exists.
    *
-   * @param workflowConfigId - The workflow config ID.
+   * @param workflowVersionId - The workflow version ID.
    * @param tx - Optional transaction client.
    */
-  async findWorkflow(workflowConfigId: string, tx?: Prisma.TransactionClient) {
+  async findWorkflow(workflowVersionId: string, tx?: Prisma.TransactionClient) {
     const client = tx ?? this.prisma;
-    return client.workflow.findUnique({ where: { id: workflowConfigId } });
+    return client.workflowVersion.findUnique({
+      where: { id: workflowVersionId },
+    });
   }
 
   /**

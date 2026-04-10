@@ -20,7 +20,7 @@ DatasetGroundTruthJob
 ├── datasetVersionId → DatasetVersion
 ├── sampleId         (manifest sample ID)
 ├── documentId       → Document (created for workflow processing)
-├── workflowConfigId (which workflow to run)
+├── workflowVersionId → WorkflowVersion (which workflow version to run)
 ├── temporalWorkflowId
 ├── status           (pending → processing → awaiting_review → completed/failed)
 ├── groundTruthPath  (blob storage path of generated GT)
@@ -31,7 +31,7 @@ DatasetGroundTruthJob
 
 ```
 1. Upload documents to dataset version (inputs only, no ground truth)
-2. Click "Generate Ground Truth" and select a workflow template
+2. Click "Generate Ground Truth" and select a workflow (head version is used from the list)
 3. System creates DatasetGroundTruthJob per sample without GT
 4. For each job:
    a. Read input file from dataset storage
@@ -61,7 +61,7 @@ Both use the same `ReviewSession` and `FieldCorrection` models for the actual re
 
 ```
 POST   /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation
-       Body: { workflowConfigId: string }
+       Body: { workflowVersionId: string }  // WorkflowVersion.id
        Start ground truth generation for samples without GT.
 
 GET    /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation/jobs

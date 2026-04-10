@@ -1,8 +1,8 @@
 import {
   DocumentStatus,
-  FieldCorrection,
   GroundTruthJobStatus,
   Prisma,
+  ReviewStatus,
 } from "@generated/client";
 import {
   BadRequestException,
@@ -17,6 +17,7 @@ import {
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { DocumentService } from "@/document/document.service";
+import { ReviewDbService } from "@/hitl/review-db.service";
 import { ExtractedFields } from "@/ocr/azure-types";
 import { OcrService } from "@/ocr/ocr.service";
 import {
@@ -50,8 +51,9 @@ export class GroundTruthGenerationService {
   private readonly logger = new Logger(GroundTruthGenerationService.name);
 
   constructor(
-    private readonly groundTruthJobDbService: GroundTruthJobDbService,
+    private readonly groundTruthJobDb: GroundTruthJobDbService,
     private readonly documentService: DocumentService,
+    private readonly reviewDb: ReviewDbService,
     private readonly ocrService: OcrService,
     private readonly hitlDatasetService: HitlDatasetService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
@@ -64,10 +66,10 @@ export class GroundTruthGenerationService {
   async startGeneration(
     datasetId: string,
     versionId: string,
-    workflowConfigId: string,
+    workflowVersionId: string,
   ): Promise<StartGroundTruthGenerationResponseDto> {
     // Validate version exists and is not frozen
-    const version = await this.groundTruthJobDbService.findVersionForValidation(
+    const version = await this.groundTruthJobDb.findVersionForValidation(
       versionId,
       datasetId,
     );
@@ -90,13 +92,13 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Validate workflow config exists
-    const workflow =
-      await this.groundTruthJobDbService.findWorkflow(workflowConfigId);
+    // Validate workflow version exists
+    const workflowVersion =
+      await this.groundTruthJobDb.findWorkflow(workflowVersionId);
 
-    if (!workflow) {
+    if (!workflowVersion) {
       throw new NotFoundException(
-        `Workflow configuration ${workflowConfigId} not found`,
+        `Workflow version ${workflowVersionId} not found`,
       );
     }
 
@@ -116,7 +118,7 @@ export class GroundTruthGenerationService {
 
     // Check for existing jobs that haven't failed
     const existingJobs =
-      await this.groundTruthJobDbService.findExistingJobs(versionId);
+      await this.groundTruthJobDb.findExistingJobs(versionId);
     const existingJobSampleIds = new Set(existingJobs.map((j) => j.sampleId));
 
     // Only create jobs for samples that don't already have a non-failed job
@@ -130,12 +132,11 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Create job records
-    const jobs = await this.groundTruthJobDbService.createManyJobs(
+    const jobs = await this.groundTruthJobDb.createManyJobs(
       samplesToProcess.map((sample) => ({
         datasetVersionId: versionId,
         sampleId: sample.id,
-        workflowConfigId,
+        workflowVersionId,
         status: GroundTruthJobStatus.pending,
       })),
     );
@@ -164,7 +165,7 @@ export class GroundTruthGenerationService {
     datasetId: string,
     versionId: string,
   ): Promise<void> {
-    const version = await this.groundTruthJobDbService.findVersionForProcessing(
+    const version = await this.groundTruthJobDb.findVersionForProcessing(
       versionId,
       datasetId,
     );
@@ -173,8 +174,7 @@ export class GroundTruthGenerationService {
 
     const groupId = version.dataset.group_id;
 
-    const pendingJobs =
-      await this.groundTruthJobDbService.findPendingJobs(versionId);
+    const pendingJobs = await this.groundTruthJobDb.findPendingJobs(versionId);
 
     // Process in batches
     for (let i = 0; i < pendingJobs.length; i += BATCH_SIZE) {
@@ -207,7 +207,7 @@ export class GroundTruthGenerationService {
     storagePrefix: string,
     groupId: string,
   ): Promise<void> {
-    const job = await this.groundTruthJobDbService.findJob(jobId);
+    const job = await this.groundTruthJobDb.findJob(jobId);
 
     if (!job || job.status !== GroundTruthJobStatus.pending) return;
 
@@ -236,10 +236,10 @@ export class GroundTruthGenerationService {
       const ext = path.extname(originalFilename);
 
       // Read modelId from workflow config ctx defaults
-      const workflow = await this.groundTruthJobDbService.findWorkflowConfig(
-        job.workflowConfigId,
+      const workflowVersion = await this.groundTruthJobDb.findWorkflowConfig(
+        job.workflowVersionId,
       );
-      const workflowConfig = workflow?.config as {
+      const workflowConfig = workflowVersion?.config as {
         ctx?: Record<string, { defaultValue?: unknown }>;
       } | null;
       const modelId =
@@ -271,7 +271,7 @@ export class GroundTruthGenerationService {
         status: DocumentStatus.pre_ocr,
         apim_request_id: null,
         workflow_id: null,
-        workflow_config_id: job.workflowConfigId,
+        workflow_config_id: job.workflowVersionId,
         workflow_execution_id: null,
         model_id: modelId,
         group_id: groupId,
@@ -280,7 +280,7 @@ export class GroundTruthGenerationService {
       await this.documentService.createDocument(documentData);
 
       // Update job with document ID and set to processing
-      await this.groundTruthJobDbService.updateJob(jobId, {
+      await this.groundTruthJobDb.updateJob(jobId, {
         documentId,
         status: GroundTruthJobStatus.processing,
       });
@@ -292,7 +292,7 @@ export class GroundTruthGenerationService {
 
       // Update job with temporal workflow ID
       if (ocrResult.workflowId) {
-        await this.groundTruthJobDbService.updateJob(jobId, {
+        await this.groundTruthJobDb.updateJob(jobId, {
           temporalWorkflowId: ocrResult.workflowId,
         });
       }
@@ -307,7 +307,7 @@ export class GroundTruthGenerationService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Job ${jobId} failed: ${message}`);
-      await this.groundTruthJobDbService.updateJob(jobId, {
+      await this.groundTruthJobDb.updateJob(jobId, {
         status: GroundTruthJobStatus.failed,
         error: message,
       });
@@ -332,13 +332,8 @@ export class GroundTruthGenerationService {
     await this.syncJobStatuses(versionId);
 
     const [jobs, total] = await Promise.all([
-      this.groundTruthJobDbService.findJobs(
-        versionId,
-        datasetId,
-        offset,
-        validLimit,
-      ),
-      this.groundTruthJobDbService.countJobs({
+      this.groundTruthJobDb.findJobs(versionId, datasetId, offset, validLimit),
+      this.groundTruthJobDb.countJobs({
         datasetVersionId: versionId,
         datasetVersion: { datasetId },
       }),
@@ -379,19 +374,20 @@ export class GroundTruthGenerationService {
       );
     }
 
-    const where: Prisma.DatasetGroundTruthJobWhereInput = {
+    const queueWhere = {
       datasetVersionId: versionId,
       datasetVersion: { datasetId },
       status: { in: statusFilter },
       documentId: { not: null },
     };
-    const jobs = await this.groundTruthJobDbService.findJobsForReviewQueue(
-      where,
+
+    const jobs = await this.groundTruthJobDb.findJobsForReviewQueue(
+      queueWhere,
       offset,
       limit,
     );
 
-    const total = await this.groundTruthJobDbService.countJobs(where);
+    const total = await this.groundTruthJobDb.countJobs(queueWhere);
 
     const documents: GroundTruthReviewQueueItemDto[] = jobs
       .filter((j) => j.document)
@@ -438,25 +434,23 @@ export class GroundTruthGenerationService {
   ): Promise<GroundTruthReviewStatsResponseDto> {
     await this.syncJobStatuses(versionId);
 
+    const baseWhere = {
+      datasetVersionId: versionId,
+      datasetVersion: { datasetId },
+    };
     const [totalDocuments, awaitingReview, completed, failed] =
       await Promise.all([
-        this.groundTruthJobDbService.countJobs({
-          datasetVersionId: versionId,
-          datasetVersion: { datasetId },
-        }),
-        this.groundTruthJobDbService.countJobs({
-          datasetVersionId: versionId,
-          datasetVersion: { datasetId },
+        this.groundTruthJobDb.countJobs(baseWhere),
+        this.groundTruthJobDb.countJobs({
+          ...baseWhere,
           status: GroundTruthJobStatus.awaiting_review,
         }),
-        this.groundTruthJobDbService.countJobs({
-          datasetVersionId: versionId,
-          datasetVersion: { datasetId },
+        this.groundTruthJobDb.countJobs({
+          ...baseWhere,
           status: GroundTruthJobStatus.completed,
         }),
-        this.groundTruthJobDbService.countJobs({
-          datasetVersionId: versionId,
-          datasetVersion: { datasetId },
+        this.groundTruthJobDb.countJobs({
+          ...baseWhere,
           status: GroundTruthJobStatus.failed,
         }),
       ]);
@@ -468,13 +462,9 @@ export class GroundTruthGenerationService {
    * Complete a ground truth job after HITL approval.
    * Extracts ground truth from OCR + corrections and writes to dataset storage.
    */
-  async completeJob(
-    jobId: string,
-    sessionId: string,
-    corrections: FieldCorrection[],
-  ): Promise<void> {
+  async completeJob(jobId: string, sessionId: string): Promise<void> {
     const job =
-      await this.groundTruthJobDbService.findJobWithVersionAndDocument(jobId);
+      await this.groundTruthJobDb.findJobWithVersionAndDocument(jobId);
 
     if (!job) {
       throw new NotFoundException(`Ground truth job ${jobId} not found`);
@@ -486,6 +476,12 @@ export class GroundTruthGenerationService {
       );
     }
 
+    // Load the review session with corrections
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
     const ocrFields = job.document.ocr_result
       .keyValuePairs as unknown as ExtractedFields | null;
     if (!ocrFields || typeof ocrFields !== "object") {
@@ -495,7 +491,7 @@ export class GroundTruthGenerationService {
     // Build ground truth using existing HitlDatasetService logic
     const groundTruth = this.hitlDatasetService.buildGroundTruth(
       ocrFields,
-      corrections,
+      session.corrections,
     );
 
     // Write ground truth to dataset storage
@@ -518,8 +514,7 @@ export class GroundTruthGenerationService {
       gtRelativePath,
     );
 
-    // Update job status
-    await this.groundTruthJobDbService.updateJob(jobId, {
+    await this.groundTruthJobDb.updateJob(jobId, {
       status: GroundTruthJobStatus.completed,
       groundTruthPath: gtBlobKey,
     });
@@ -533,7 +528,7 @@ export class GroundTruthGenerationService {
    * Find a ground truth job by its associated document ID.
    */
   async getJobByDocumentId(documentId: string) {
-    return this.groundTruthJobDbService.findJobByDocumentId(documentId);
+    return this.groundTruthJobDb.findJobByDocumentId(documentId);
   }
 
   // ---- Private helpers ----
@@ -542,7 +537,7 @@ export class GroundTruthGenerationService {
    * Sync job statuses: processing → awaiting_review when document is completed_ocr.
    */
   private async syncJobStatuses(versionId: string): Promise<void> {
-    await this.groundTruthJobDbService.syncProcessingJobStatuses(versionId);
+    await this.groundTruthJobDb.syncProcessingJobStatuses(versionId);
   }
 
   /**
@@ -591,7 +586,7 @@ export class GroundTruthGenerationService {
     datasetVersionId: string;
     sampleId: string;
     documentId: string | null;
-    workflowConfigId: string;
+    workflowVersionId: string;
     temporalWorkflowId: string | null;
     status: GroundTruthJobStatus;
     groundTruthPath: string | null;
@@ -604,7 +599,7 @@ export class GroundTruthGenerationService {
       datasetVersionId: job.datasetVersionId,
       sampleId: job.sampleId,
       documentId: job.documentId,
-      workflowConfigId: job.workflowConfigId,
+      workflowVersionId: job.workflowVersionId,
       temporalWorkflowId: job.temporalWorkflowId,
       status: job.status,
       groundTruthPath: job.groundTruthPath,

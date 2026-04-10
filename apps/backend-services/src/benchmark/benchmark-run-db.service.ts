@@ -7,7 +7,17 @@ type DefinitionForRun = Prisma.BenchmarkDefinitionGetPayload<{
     project: true;
     datasetVersion: { include: { dataset: true } };
     split: true;
-    workflow: true;
+    workflowVersion: true;
+  };
+}>;
+
+/** Definition shape for {@link BenchmarkRunService.startRun} (workflow lineage for Temporal). */
+export type DefinitionForStartRun = Prisma.BenchmarkDefinitionGetPayload<{
+  include: {
+    project: true;
+    datasetVersion: { include: { dataset: true } };
+    split: true;
+    workflowVersion: { include: { lineage: true } };
   };
 }>;
 
@@ -43,7 +53,7 @@ export class BenchmarkRunDbService {
         project: true,
         datasetVersion: { include: { dataset: true } },
         split: true,
-        workflow: true,
+        workflowVersion: true,
       },
     });
   }
@@ -172,6 +182,10 @@ export class BenchmarkRunDbService {
   /**
    * Deletes a benchmark run by ID.
    *
+   * Removes `benchmark_ocr_cache` rows for this run in the same transaction as the run delete
+   * (DB FK also uses ON DELETE CASCADE; explicit delete keeps behavior obvious and safe if the
+   * database predates that constraint).
+   *
    * @param id - The run ID.
    * @param tx - Optional transaction client.
    */
@@ -179,8 +193,23 @@ export class BenchmarkRunDbService {
     id: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const client = tx ?? this.prisma;
-    await client.benchmarkRun.delete({ where: { id } });
+    const deleteRunAndCache = async (
+      client: Prisma.TransactionClient | PrismaClient,
+    ) => {
+      await client.benchmarkOcrCache.deleteMany({
+        where: { sourceRunId: id },
+      });
+      await client.benchmarkRun.delete({ where: { id } });
+    };
+
+    if (tx) {
+      await deleteRunAndCache(tx);
+      return;
+    }
+
+    await this.prisma.$transaction(async (inner) => {
+      await deleteRunAndCache(inner);
+    });
   }
 
   /**
@@ -226,5 +255,165 @@ export class BenchmarkRunDbService {
   async freezeSplit(id: string, tx?: Prisma.TransactionClient): Promise<void> {
     const client = tx ?? this.prisma;
     await client.split.update({ where: { id }, data: { frozen: true } });
+  }
+
+  /**
+   * Interactive Prisma transaction (post-Temporal-start updates, baseline promotion, etc.).
+   */
+  async transaction<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(fn);
+  }
+
+  /**
+   * Definition + nested data for starting a benchmark run (includes workflow lineage).
+   */
+  async findBenchmarkDefinitionForStartRun(
+    definitionId: string,
+    projectId: string,
+  ): Promise<DefinitionForStartRun | null> {
+    return this.prisma.benchmarkDefinition.findFirst({
+      where: { id: definitionId, projectId },
+      include: {
+        project: true,
+        datasetVersion: { include: { dataset: true } },
+        split: true,
+        workflowVersion: { include: { lineage: true } },
+      },
+    });
+  }
+
+  /**
+   * Candidate workflow config only (for `candidateWorkflowVersionId` runs).
+   */
+  async findWorkflowVersionConfig(
+    workflowVersionId: string,
+  ): Promise<{ config: unknown } | null> {
+    return this.prisma.workflowVersion.findUnique({
+      where: { id: workflowVersionId },
+      select: { config: true },
+    });
+  }
+
+  /**
+   * Validates OCR cache baseline run id: completed run scoped to definition/project.
+   */
+  async findRunForOcrCacheValidation(
+    projectId: string,
+    definitionId: string,
+    runId: string,
+  ): Promise<BenchmarkRun | null> {
+    return this.prisma.benchmarkRun.findFirst({
+      where: {
+        id: runId,
+        projectId,
+        definitionId,
+        status: "completed",
+      },
+    });
+  }
+
+  /**
+   * Latest completed baseline run id for a definition (replay OCR cache).
+   */
+  async findLatestCompletedBaselineRunId(
+    projectId: string,
+    definitionId: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        projectId,
+        definitionId,
+        isBaseline: true,
+        status: "completed",
+      },
+      orderBy: { completedAt: "desc" },
+      select: { id: true },
+    });
+    return row?.id ?? null;
+  }
+
+  /**
+   * Run row without relations (drill-down, per-sample, cancel eligibility, delete eligibility).
+   */
+  async findBenchmarkRunBare(
+    runId: string,
+    projectId: string,
+  ): Promise<BenchmarkRun | null> {
+    return this.prisma.benchmarkRun.findFirst({
+      where: { id: runId, projectId },
+    });
+  }
+
+  /**
+   * After Temporal start: running status, immutable definition, frozen dataset version/split.
+   */
+  async postTemporalStartTransaction(
+    runId: string,
+    definitionId: string,
+    datasetVersionId: string,
+    splitId: string | null,
+    temporalWorkflowId: string,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.benchmarkRun.update({
+        where: { id: runId },
+        data: {
+          temporalWorkflowId,
+          status: "running",
+          startedAt: new Date(),
+        },
+      });
+      await tx.benchmarkDefinition.update({
+        where: { id: definitionId },
+        data: { immutable: true },
+      });
+      await tx.datasetVersion.update({
+        where: { id: datasetVersionId },
+        data: { frozen: true },
+      });
+      if (splitId) {
+        await tx.split.update({
+          where: { id: splitId },
+          data: { frozen: true },
+        });
+      }
+    });
+  }
+
+  /**
+   * Clears previous baseline for the definition and promotes the given run.
+   */
+  async promoteRunToBaseline(
+    runId: string,
+    definitionId: string,
+    thresholds: Prisma.InputJsonValue | typeof Prisma.JsonNull,
+  ): Promise<{ previousBaselineId: string | null }> {
+    return this.prisma.$transaction(async (tx) => {
+      const previousBaseline = await tx.benchmarkRun.findFirst({
+        where: {
+          definitionId,
+          isBaseline: true,
+        },
+      });
+
+      if (previousBaseline) {
+        await tx.benchmarkRun.update({
+          where: { id: previousBaseline.id },
+          data: { isBaseline: false },
+        });
+      }
+
+      await tx.benchmarkRun.update({
+        where: { id: runId },
+        data: {
+          isBaseline: true,
+          baselineThresholds: thresholds,
+        },
+      });
+
+      return { previousBaselineId: previousBaseline?.id ?? null };
+    });
   }
 }

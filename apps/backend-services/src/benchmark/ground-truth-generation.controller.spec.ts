@@ -5,8 +5,8 @@
  */
 
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
-  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
+  getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
 import { Test, TestingModule } from "@nestjs/testing";
@@ -62,7 +62,7 @@ describe("GroundTruthGenerationController", () => {
 
   describe("POST /ground-truth-generation", () => {
     it("starts generation successfully", async () => {
-      const dto = { workflowConfigId: "wf-config-1" };
+      const dto = { workflowVersionId: "wf-config-1" };
       const expected = {
         jobsCreated: 5,
         samplesWithoutGroundTruth: 5,
