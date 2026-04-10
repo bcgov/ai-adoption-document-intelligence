@@ -76,6 +76,7 @@ import {
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { DocumentService } from "@/document/document.service";
+import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { OcrService } from "@/ocr/ocr.service";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
 import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
@@ -100,6 +101,13 @@ const mockOcrService = {
 
 const mockHitlDatasetService = {
   buildGroundTruth: jest.fn(),
+};
+
+const mockPdfNormalizationService = {
+  validateForUpload: jest.fn().mockResolvedValue(undefined),
+  normalizeToPdf: jest
+    .fn()
+    .mockImplementation((buf: Buffer) => Promise.resolve(Buffer.from(buf))),
 };
 
 const sampleManifest = {
@@ -147,6 +155,10 @@ describe("GroundTruthGenerationService", () => {
         {
           provide: HitlDatasetService,
           useValue: mockHitlDatasetService,
+        },
+        {
+          provide: PdfNormalizationService,
+          useValue: mockPdfNormalizationService,
         },
         {
           provide: BLOB_STORAGE,

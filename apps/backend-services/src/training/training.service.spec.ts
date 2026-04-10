@@ -81,6 +81,7 @@ describe("TrainingService", () => {
       title: "Test Doc",
       original_filename: "test.pdf",
       file_path: "labeling-documents/labeling-doc-1/original.pdf",
+      normalized_file_path: "labeling-documents/labeling-doc-1/normalized.pdf",
       file_type: "pdf",
       file_size: 1024,
       metadata: {},
