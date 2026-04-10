@@ -15,16 +15,21 @@ import {
   Res,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -35,6 +40,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
+import { getContentTypeFromFilename } from "../document/mime-from-filename";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
@@ -46,6 +52,7 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
+import { LabelingConversionFailedResponseDto } from "./dto/labeling-conversion-failed-response.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import {
@@ -68,6 +75,7 @@ export class TemplateModelController {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly labelingDocumentDbService: LabelingDocumentDbService,
+    private readonly auditService: AuditService,
   ) {}
 
   // ========== TEMPLATE MODEL ENDPOINTS ==========
@@ -316,6 +324,17 @@ export class TemplateModelController {
     description: "Document uploaded and queued for OCR processing",
     type: UploadLabelingResponseDto,
   })
+  @ApiUnprocessableEntityResponse({
+    description:
+      "Original stored but PDF normalization failed (see response body)",
+    type: LabelingConversionFailedResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "group_id does not match the template model's group, or invalid body",
+  })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async uploadLabelingDocument(
     @Param("id") id: string,
     @Body() dto: LabelingUploadDto,
@@ -353,14 +372,74 @@ export class TemplateModelController {
     return labeledDoc;
   }
 
+  @Get(":id/documents/:docId/view")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "View labeling document as normalized PDF",
+    description:
+      "Streams the normalized PDF for in-app display. Content-Type is always application/pdf.",
+  })
+  @ApiParam({ name: "id", description: "Template Model ID" })
+  @ApiParam({ name: "docId", description: "Labeling Document ID" })
+  @ApiProduces("application/pdf")
+  @ApiOkResponse({ description: "Normalized PDF bytes" })
+  @ApiNotFoundResponse({ description: "Document or normalized PDF not found" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async viewLabelingDocument(
+    @Param("id") templateModelId: string,
+    @Param("docId") documentId: string,
+    @Res() res: Response,
+    @Req() req: Request,
+  ): Promise<void> {
+    const labeledDoc = await this.templateModelService.getTemplateModelDocument(
+      templateModelId,
+      documentId,
+    );
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+    );
+    const labelingDocument = labeledDoc.labeling_document;
+    if (!labelingDocument.normalized_file_path) {
+      throw new NotFoundException(
+        `Normalized PDF is not available for labeling document: ${documentId}`,
+      );
+    }
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "labeling_document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labelingDocument.group_id ?? undefined,
+      payload: { action: "view", template_model_id: templateModelId },
+    });
+
+    const fileBuffer = await this.blobStorage.read(
+      labelingDocument.normalized_file_path,
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');
+    res.setHeader("Content-Length", fileBuffer.length);
+    res.send(fileBuffer);
+  }
+
   @Get(":id/documents/:docId/download")
   @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Download a labeling document file" })
+  @ApiOperation({
+    summary: "Download original labeling document file",
+    description:
+      "Serves the stored original upload. Type follows original_filename.",
+  })
   @ApiParam({ name: "id", description: "Template Model ID" })
   @ApiParam({ name: "docId", description: "Labeling Document ID" })
-  @ApiOkResponse({ description: "Binary file content (PDF or image)" })
+  @ApiOkResponse({ description: "Original file bytes" })
   @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async downloadLabelingDocument(
     @Param("id") id: string,
@@ -381,12 +460,7 @@ export class TemplateModelController {
 
     const fileName =
       labelingDocument.original_filename || `document-${documentId}`;
-    const mimeType =
-      labelingDocument.file_type === "pdf"
-        ? "application/pdf"
-        : labelingDocument.file_type === "image"
-          ? "image/jpeg"
-          : "application/octet-stream";
+    const mimeType = getContentTypeFromFilename(fileName);
 
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);

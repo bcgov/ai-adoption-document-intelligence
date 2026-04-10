@@ -8,13 +8,23 @@ import {
 } from "../blob-storage/blob-storage.interface";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
+import { PdfNormalizationService } from "./pdf-normalization.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;
   let documentDbService: DocumentDbService;
   let blobStorage: BlobStorageInterface;
+  let pdfNormalization: jest.Mocked<
+    Pick<PdfNormalizationService, "validateForUpload" | "normalizeToPdf">
+  >;
 
   beforeEach(async () => {
+    pdfNormalization = {
+      validateForUpload: jest.fn().mockResolvedValue(undefined),
+      normalizeToPdf: jest
+        .fn()
+        .mockImplementation((buf: Buffer) => Promise.resolve(Buffer.from(buf))),
+    };
     documentDbService = {
       createDocument: jest.fn(),
       findDocument: jest.fn(),
@@ -38,6 +48,7 @@ describe("DocumentService", () => {
         { provide: AppLoggerService, useValue: mockAppLogger },
         { provide: DocumentDbService, useValue: documentDbService },
         { provide: BLOB_STORAGE, useValue: blobStorage },
+        { provide: PdfNormalizationService, useValue: pdfNormalization },
       ],
     }).compile();
     service = module.get<DocumentService>(DocumentService);
@@ -49,14 +60,16 @@ describe("DocumentService", () => {
 
   describe("uploadDocument", () => {
     it("should upload a document and save to db", async () => {
-      const base64 = Buffer.from("test").toString("base64");
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
       const mockDoc = {
         id: "1",
         title: "Test",
         original_filename: "file.pdf",
         file_path: "documents/1/original.pdf",
+        normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
-        file_size: 123,
+        file_size: pdfBytes.length,
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -77,12 +90,17 @@ describe("DocumentService", () => {
         "group-1",
         {},
       );
-      expect(result.id).toBe("1");
-      expect(result.original_filename).toBe("file.pdf");
-      expect(result.title).toBe("Test");
+      expect(result.kind).toBe("success");
+      expect(result.document.id).toBe("1");
+      expect(result.document.original_filename).toBe("file.pdf");
+      expect(result.document.title).toBe("Test");
       expect(documentDbService.createDocument).toHaveBeenCalled();
       expect(blobStorage.write).toHaveBeenCalledWith(
         expect.stringMatching(/^documents\/.+\/original\.pdf$/),
+        expect.any(Buffer),
+      );
+      expect(blobStorage.write).toHaveBeenCalledWith(
+        expect.stringMatching(/^documents\/.+\/normalized\.pdf$/),
         expect.any(Buffer),
       );
     });
@@ -108,6 +126,7 @@ describe("DocumentService", () => {
         title: "sample-doc",
         original_filename: "doc.pdf",
         file_path: "documents/doc-123/original.pdf",
+        normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 512,
         metadata: { source: "ground-truth-generation" },
@@ -147,6 +166,7 @@ describe("DocumentService", () => {
         title: "tx-doc",
         original_filename: "tx.pdf",
         file_path: "documents/doc-456/original.pdf",
+        normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 256,
         metadata: {},
@@ -269,7 +289,7 @@ describe("DocumentService", () => {
       const result = await service.deleteDocument("1");
       expect(result).toBe(true);
       expect(documentDbService.deleteDocument).toHaveBeenCalledWith("1");
-      expect(blobStorage.delete).toHaveBeenCalledWith(mockDoc.file_path);
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith("documents/1/");
     });
 
     it("should return false if document not found", async () => {
@@ -287,7 +307,7 @@ describe("DocumentService", () => {
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
-      (blobStorage.delete as jest.Mock).mockRejectedValue(
+      (blobStorage.deleteByPrefix as jest.Mock).mockRejectedValue(
         new Error("blob not found"),
       );
       const result = await service.deleteDocument("1");
