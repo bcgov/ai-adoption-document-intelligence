@@ -40,10 +40,13 @@ type JobWithVersionAndDocument = Prisma.DatasetGroundTruthJobGetPayload<{
   };
 }>;
 
+/** Programmatic job creates always set an explicit status (never rely on DB default). */
 export type CreateGroundTruthJobData = Pick<
   Prisma.DatasetGroundTruthJobUncheckedCreateInput,
-  "datasetVersionId" | "sampleId" | "workflowVersionId" | "status"
->;
+  "datasetVersionId" | "sampleId" | "workflowVersionId"
+> & {
+  status: GroundTruthJobStatus;
+};
 
 @Injectable()
 export class GroundTruthJobDbService {

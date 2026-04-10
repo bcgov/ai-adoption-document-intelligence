@@ -18,12 +18,21 @@ const mockPrismaClient = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  benchmarkOcrCache: {
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
   datasetVersion: {
     update: jest.fn(),
   },
   split: {
     update: jest.fn(),
   },
+  workflowVersion: {
+    findUnique: jest.fn(),
+  },
+  $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+    fn(mockPrismaClient),
+  ),
 };
 
 describe("BenchmarkRunDbService", () => {
@@ -292,6 +301,154 @@ describe("BenchmarkRunDbService", () => {
       await service.freezeSplit("s-1", tx);
       expect(txSplit.update).toHaveBeenCalled();
       expect(mockPrismaClient.split.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("transaction", () => {
+    it("delegates to prisma.$transaction", async () => {
+      const fn = jest.fn().mockResolvedValue("ok");
+      const result = await service.transaction(fn);
+      expect(result).toBe("ok");
+      expect(mockPrismaClient.$transaction).toHaveBeenCalledWith(fn);
+    });
+  });
+
+  describe("findBenchmarkDefinitionForStartRun", () => {
+    it("includes workflow lineage", async () => {
+      mockPrismaClient.benchmarkDefinition.findFirst.mockResolvedValue({
+        id: "def-1",
+      });
+      await service.findBenchmarkDefinitionForStartRun("def-1", "p-1");
+      expect(
+        mockPrismaClient.benchmarkDefinition.findFirst,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "def-1", projectId: "p-1" },
+          include: {
+            project: true,
+            datasetVersion: { include: { dataset: true } },
+            split: true,
+            workflowVersion: { include: { lineage: true } },
+          },
+        }),
+      );
+    });
+  });
+
+  describe("findWorkflowVersionConfig", () => {
+    it("selects config only", async () => {
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+        config: {},
+      });
+      const result = await service.findWorkflowVersionConfig("wv-1");
+      expect(result).toEqual({ config: {} });
+      expect(mockPrismaClient.workflowVersion.findUnique).toHaveBeenCalledWith({
+        where: { id: "wv-1" },
+        select: { config: true },
+      });
+    });
+  });
+
+  describe("findRunForOcrCacheValidation", () => {
+    it("scopes by project, definition, and completed status", async () => {
+      mockPrismaClient.benchmarkRun.findFirst.mockResolvedValue({ id: "r-1" });
+      await service.findRunForOcrCacheValidation("p-1", "def-1", "r-1");
+      expect(mockPrismaClient.benchmarkRun.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "r-1",
+          projectId: "p-1",
+          definitionId: "def-1",
+          status: "completed",
+        },
+      });
+    });
+  });
+
+  describe("findLatestCompletedBaselineRunId", () => {
+    it("returns id when found", async () => {
+      mockPrismaClient.benchmarkRun.findFirst.mockResolvedValue({
+        id: "base-1",
+      });
+      const result = await service.findLatestCompletedBaselineRunId(
+        "p-1",
+        "def-1",
+      );
+      expect(result).toBe("base-1");
+    });
+  });
+
+  describe("findBenchmarkRunBare", () => {
+    it("finds by run and project without includes", async () => {
+      mockPrismaClient.benchmarkRun.findFirst.mockResolvedValue({ id: "r-1" });
+      await service.findBenchmarkRunBare("r-1", "p-1");
+      expect(mockPrismaClient.benchmarkRun.findFirst).toHaveBeenCalledWith({
+        where: { id: "r-1", projectId: "p-1" },
+      });
+    });
+  });
+
+  describe("deleteBenchmarkRun", () => {
+    it("deletes benchmark_ocr_cache rows then the run in one transaction", async () => {
+      mockPrismaClient.benchmarkRun.delete.mockResolvedValue({} as never);
+
+      await service.deleteBenchmarkRun("run-xyz");
+
+      expect(mockPrismaClient.$transaction).toHaveBeenCalled();
+      expect(
+        mockPrismaClient.benchmarkOcrCache.deleteMany,
+      ).toHaveBeenCalledWith({
+        where: { sourceRunId: "run-xyz" },
+      });
+      expect(mockPrismaClient.benchmarkRun.delete).toHaveBeenCalledWith({
+        where: { id: "run-xyz" },
+      });
+    });
+  });
+
+  describe("postTemporalStartTransaction", () => {
+    it("updates run, definition, dataset, and optional split in one transaction", async () => {
+      mockPrismaClient.benchmarkRun.update.mockResolvedValue({});
+      await service.postTemporalStartTransaction(
+        "run-1",
+        "def-1",
+        "dv-1",
+        "split-1",
+        "tw-1",
+      );
+      expect(mockPrismaClient.$transaction).toHaveBeenCalled();
+      expect(mockPrismaClient.benchmarkRun.update).toHaveBeenCalled();
+      expect(mockPrismaClient.benchmarkDefinition.update).toHaveBeenCalled();
+      expect(mockPrismaClient.datasetVersion.update).toHaveBeenCalled();
+      expect(mockPrismaClient.split.update).toHaveBeenCalled();
+    });
+
+    it("skips split update when splitId is null", async () => {
+      jest.clearAllMocks();
+      mockPrismaClient.benchmarkRun.update.mockResolvedValue({});
+      await service.postTemporalStartTransaction(
+        "run-1",
+        "def-1",
+        "dv-1",
+        null,
+        "tw-1",
+      );
+      expect(mockPrismaClient.split.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("promoteRunToBaseline", () => {
+    it("clears previous baseline and sets thresholds in one transaction", async () => {
+      mockPrismaClient.benchmarkRun.findFirst.mockResolvedValueOnce({
+        id: "old-base",
+      });
+      mockPrismaClient.benchmarkRun.update.mockResolvedValue({});
+      const result = await service.promoteRunToBaseline("run-1", "def-1", {
+        metricName: "x",
+        type: "absolute",
+        value: 1,
+      } as never);
+      expect(result.previousBaselineId).toBe("old-base");
+      expect(mockPrismaClient.$transaction).toHaveBeenCalled();
     });
   });
 });

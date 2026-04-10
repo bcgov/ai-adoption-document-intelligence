@@ -187,28 +187,34 @@ describe("WorkflowService", () => {
     });
   });
 
-  describe("getWorkflowById", () => {
-    it("resolves by version id", async () => {
+  describe("getWorkflowVersionById", () => {
+    it("returns snapshot for version id", async () => {
       mockVersion.findUnique.mockResolvedValue({
         ...headVersion,
         lineage: lineageRow,
       });
-      const result = await service.getWorkflowById("wv-1");
+      const result = await service.getWorkflowVersionById("wv-1");
       expect(result?.workflowVersionId).toBe("wv-1");
       expect(result?.id).toBe("lin-1");
     });
 
-    it("resolves by lineage id via head", async () => {
+    it("returns null when version not found", async () => {
       mockVersion.findUnique.mockResolvedValue(null);
+      const result = await service.getWorkflowVersionById("x");
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getWorkflowLineageHeadById", () => {
+    it("returns head for lineage id", async () => {
       mockLineage.findUnique.mockResolvedValue(lineageRow);
-      const result = await service.getWorkflowById("lin-1");
+      const result = await service.getWorkflowLineageHeadById("lin-1");
       expect(result?.id).toBe("lin-1");
     });
 
-    it("returns null when not found", async () => {
-      mockVersion.findUnique.mockResolvedValue(null);
+    it("returns null when lineage or head missing", async () => {
       mockLineage.findUnique.mockResolvedValue(null);
-      const result = await service.getWorkflowById("x");
+      const result = await service.getWorkflowLineageHeadById("x");
       expect(result).toBeNull();
     });
   });
@@ -241,6 +247,7 @@ describe("WorkflowService", () => {
           id: baseLineageId,
           name: "Base Lineage",
           group_id: "group-1",
+          headVersion: { version_number: 6 },
         },
       });
 
@@ -259,7 +266,23 @@ describe("WorkflowService", () => {
 
       const txLineageUpdate = jest.fn().mockResolvedValue({
         id: candidateLineageId,
-        name: "Base Lineage (candidate v2)",
+        name: "Base Lineage (candidate v7)",
+        description: "AI-generated candidate from workflow version wv-source-1",
+        user_id: "user-1",
+        group_id: "group-1",
+        created_at: new Date(),
+        updated_at: new Date(),
+        user: { actor_id: "user-1" },
+        headVersion: {
+          id: candidateVersionId,
+          version_number: 1,
+          config: candidateConfig,
+        },
+      });
+
+      const txLineageFindUnique = jest.fn().mockResolvedValue({
+        id: candidateLineageId,
+        name: "Base Lineage (candidate v7)",
         description: "AI-generated candidate from workflow version wv-source-1",
         user_id: "user-1",
         group_id: "group-1",
@@ -279,28 +302,13 @@ describe("WorkflowService", () => {
             workflowLineage: {
               create: txLineageCreate,
               update: txLineageUpdate,
+              findUnique: txLineageFindUnique,
             },
             workflowVersion: {
               create: txVersionCreate,
             },
           }),
       );
-
-      mockLineage.findUnique.mockResolvedValue({
-        id: candidateLineageId,
-        name: "Base Lineage (candidate v2)",
-        description: "AI-generated candidate from workflow version wv-source-1",
-        user_id: "user-1",
-        group_id: "group-1",
-        created_at: new Date(),
-        updated_at: new Date(),
-        user: { actor_id: "user-1" },
-        headVersion: {
-          id: candidateVersionId,
-          version_number: 1,
-          config: candidateConfig,
-        },
-      });
 
       const result = await service.createCandidateVersion(
         sourceVersionId,
@@ -312,11 +320,30 @@ describe("WorkflowService", () => {
       expect(txLineageCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
+            name: "Base Lineage (candidate v7)",
             workflow_kind: "benchmark_candidate",
             source_workflow_id: baseLineageId,
           }),
         }),
       );
+    });
+
+    it("throws NotFoundException when base lineage has no head version", async () => {
+      mockVersion.findUnique.mockResolvedValue({
+        id: "wv-1",
+        version_number: 1,
+        config: makeGraphConfig(),
+        lineage: {
+          id: "lin-1",
+          name: "Base",
+          group_id: "group-1",
+          headVersion: null,
+        },
+      });
+
+      await expect(
+        service.createCandidateVersion("wv-1", makeGraphConfig(), "user-1"),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

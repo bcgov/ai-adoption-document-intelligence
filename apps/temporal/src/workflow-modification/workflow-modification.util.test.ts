@@ -1,6 +1,9 @@
 import type { ToolRecommendation } from "../ai-recommendation-types";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
-import { applyRecommendations } from "./workflow-modification.util";
+import {
+  applyOcrNormalizeFieldsEmptyValueCoercion,
+  applyRecommendations,
+} from "./workflow-modification.util";
 
 function makeSimpleGraph(): GraphWorkflowConfig {
   return {
@@ -337,5 +340,67 @@ describe("applyRecommendations", () => {
     );
     expect(newEdge).toBeDefined();
     expect(newEdge!.target).toBe("enrich");
+  });
+
+  it("resolves afterNodeId / beforeNodeId case-insensitively", () => {
+    const graph = makeSimpleGraph();
+    const recs: ToolRecommendation[] = [
+      {
+        toolId: "ocr.spellcheck",
+        parameters: { language: "en" },
+        insertionPoint: {
+          afterNodeId: "CLEANUP",
+          beforeNodeId: "ENRICH",
+        },
+        rationale: "Case mismatch from model",
+        priority: 1,
+      },
+    ];
+
+    const result = applyRecommendations(graph, recs);
+
+    expect(result.rejectedRecommendations).toHaveLength(0);
+    expect(result.appliedRecommendations).toHaveLength(1);
+    const oldEdge = result.newConfig.edges.find(
+      (e) => e.source === "cleanup" && e.target === "enrich",
+    );
+    expect(oldEdge).toBeUndefined();
+  });
+});
+
+describe("applyOcrNormalizeFieldsEmptyValueCoercion", () => {
+  it("sets emptyValueCoercion on all ocr.normalizeFields nodes", () => {
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      nodes: {
+        n1: {
+          id: "n1",
+          type: "activity",
+          label: "Normalize",
+          activityType: "ocr.normalizeFields",
+          parameters: { other: 1 },
+          inputs: [],
+          outputs: [],
+        },
+        n2: {
+          id: "n2",
+          type: "activity",
+          label: "Extract",
+          activityType: "azureOcr.extract",
+          parameters: {},
+          inputs: [],
+          outputs: [],
+        },
+      },
+      edges: [],
+      entryNodeId: "n2",
+      ctx: {},
+    };
+
+    const out = applyOcrNormalizeFieldsEmptyValueCoercion(graph, "null");
+    const norm = out.nodes.n1 as { parameters: Record<string, unknown> };
+    expect(norm.parameters.other).toBe(1);
+    expect(norm.parameters.emptyValueCoercion).toBe("null");
   });
 });

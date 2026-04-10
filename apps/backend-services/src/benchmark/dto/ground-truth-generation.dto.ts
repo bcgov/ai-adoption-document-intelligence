@@ -1,6 +1,14 @@
 import { GroundTruthJobStatus } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsString } from "class-validator";
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
 
 export class StartGroundTruthGenerationDto {
   @ApiProperty({
@@ -74,7 +82,24 @@ export class GroundTruthReviewStatsResponseDto {
 }
 
 export class GroundTruthReviewQueueFilterDto {
-  @ApiPropertyOptional() limit?: number;
-  @ApiPropertyOptional() offset?: number;
-  @ApiPropertyOptional() reviewStatus?: "pending" | "reviewed" | "all";
+  @ApiPropertyOptional({ description: "Page size" })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+
+  @ApiPropertyOptional({ description: "Offset for pagination" })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
+
+  @ApiPropertyOptional({
+    description: "Filter by review status",
+    enum: ["pending", "reviewed", "all"],
+  })
+  @IsOptional()
+  @IsIn(["pending", "reviewed", "all"])
+  reviewStatus?: "pending" | "reviewed" | "all";
 }

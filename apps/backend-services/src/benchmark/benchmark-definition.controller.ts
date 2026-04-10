@@ -24,6 +24,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -256,6 +257,10 @@ export class BenchmarkDefinitionController {
   })
   @ApiBadRequestResponse({ description: "Invalid candidate workflow" })
   @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiConflictResponse({
+    description:
+      "Definition workflow pin no longer matches the lineage head (concurrent change); refresh and retry",
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async promoteCandidateWorkflow(
     @Param("projectId") projectId: string,

@@ -63,9 +63,7 @@ interface RunDetails {
 
 export interface CreateRunDto {
   tags?: Record<string, string>;
-  /** When provided, the run uses this config instead of the definition's workflow (candidate run). */
-  workflowConfigOverride?: Record<string, unknown>;
-  /** When provided with workflowConfigOverride, references the candidate workflow record. */
+  /** When set, the run uses this workflow version's config (e.g. candidate). Otherwise the definition's pinned workflow is used. */
   candidateWorkflowVersionId?: string;
   /** Persist Azure OCR poll JSON per sample for replay (benchmark OCR cache). Backend defaults to true when omitted. */
   persistOcrCache?: boolean;

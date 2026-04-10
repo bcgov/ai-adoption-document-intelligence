@@ -1,5 +1,4 @@
 export * from "./audit-log-response.dto";
-export * from "./confusion-matrix-derive.dto";
 export * from "./create-dataset.dto";
 export * from "./create-dataset-from-hitl.dto";
 export * from "./create-definition.dto";

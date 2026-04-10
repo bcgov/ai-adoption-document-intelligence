@@ -62,7 +62,7 @@ describe("BenchmarkRunController", () => {
   };
 
   const mockWorkflowService = {
-    getWorkflowById: jest.fn(),
+    getWorkflowVersionById: jest.fn(),
   };
 
   const mockReq = {
@@ -128,6 +128,7 @@ describe("BenchmarkRunController", () => {
         projectId,
         "def-1",
         createRunDto,
+        "actor-for-user-1",
       );
       expect(result).toEqual(expected);
     });
@@ -178,7 +179,7 @@ describe("BenchmarkRunController", () => {
         projectId,
         "def-1",
       );
-      expect(mockWorkflowService.getWorkflowById).not.toHaveBeenCalled();
+      expect(mockWorkflowService.getWorkflowVersionById).not.toHaveBeenCalled();
       expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
         expect.objectContaining({
           workflowVersionId: "wv-workflow-1",
@@ -252,13 +253,15 @@ describe("BenchmarkRunController", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockWorkflowService.getWorkflowById.mockResolvedValue(sourceWorkflow);
+      mockWorkflowService.getWorkflowVersionById.mockResolvedValue(
+        sourceWorkflow,
+      );
 
       const apiKeyOnlyReq = {} as Request;
 
       await controller.runOcrImprovement(projectId, "def-1", {}, apiKeyOnlyReq);
 
-      expect(mockWorkflowService.getWorkflowById).toHaveBeenCalledWith(
+      expect(mockWorkflowService.getWorkflowVersionById).toHaveBeenCalledWith(
         "wv-workflow-1",
       );
       expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
@@ -487,6 +490,7 @@ describe("BenchmarkRunController", () => {
         projectId,
         "run-1",
         promoteDto,
+        "actor-for-user-1",
       );
       expect(result).toEqual(expected);
     });

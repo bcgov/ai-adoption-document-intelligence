@@ -46,7 +46,7 @@ import {
   CreateRunDto,
   DrillDownResponseDto,
   OcrImprovementRunDto,
-  type OcrImprovementRunResponseDto,
+  OcrImprovementRunResponseDto,
   PerSampleResultsResponseDto,
   PromoteBaselineDto,
   PromoteBaselineResponseDto,
@@ -113,7 +113,10 @@ export class BenchmarkRunController {
   @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
   @ApiBody({ type: OcrImprovementRunDto })
   @ApiOkResponse({
-    description: "Pipeline result with candidate and run IDs",
+    description:
+      'HTTP 200 with a structured body for all outcomes (including `status: "error"`). ' +
+      "Clients should inspect `status` and optional `error` rather than inferring success from the status code alone.",
+    type: OcrImprovementRunResponseDto,
   })
   @ApiNotFoundResponse({ description: "Definition not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
@@ -136,7 +139,7 @@ export class BenchmarkRunController {
     // Must be DB Actor.id (see User.actor_id), not JWT sub / User.id — WorkflowService.createCandidateVersion resolves the user via actor_id.
     let actorId = req.resolvedIdentity?.actorId;
     if (!actorId) {
-      const sourceWorkflow = await this.workflowService.getWorkflowById(
+      const sourceWorkflow = await this.workflowService.getWorkflowVersionById(
         definition.workflow.workflowVersionId,
       );
       if (!sourceWorkflow) {
@@ -205,10 +208,12 @@ export class BenchmarkRunController {
       `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/runs`,
     );
     await this.assertProjectGroupAccess(projectId, req);
+    const actorId = req.resolvedIdentity!.actorId;
     return this.benchmarkRunService.startRun(
       projectId,
       definitionId,
       createRunDto,
+      actorId,
     );
   }
 
@@ -395,10 +400,12 @@ export class BenchmarkRunController {
       `POST /api/benchmark/projects/${projectId}/runs/${runId}/baseline`,
     );
     await this.assertProjectGroupAccess(projectId, req);
+    const actorId = req.resolvedIdentity!.actorId;
     return this.benchmarkRunService.promoteToBaseline(
       projectId,
       runId,
       promoteBaselineDto,
+      actorId,
     );
   }
 

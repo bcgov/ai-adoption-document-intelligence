@@ -33,7 +33,7 @@ describe("OcrImprovementPipelineService", () => {
   };
 
   const mockWorkflowService = {
-    getWorkflowById: jest.fn(),
+    getWorkflowVersionById: jest.fn(),
     createCandidateVersion: jest.fn(),
   };
 
@@ -84,7 +84,7 @@ describe("OcrImprovementPipelineService", () => {
     expect(result.pipelineMessage).toContain("No HITL corrections");
     expect(result.candidateWorkflowVersionId).toBe("");
     expect(result.benchmarkRunId).toBe("");
-    expect(mockWorkflowService.getWorkflowById).not.toHaveBeenCalled();
+    expect(mockWorkflowService.getWorkflowVersionById).not.toHaveBeenCalled();
   });
 
   it("should return error when workflow not found", async () => {
@@ -100,7 +100,7 @@ describe("OcrImprovementPipelineService", () => {
       total: 1,
       filters: {},
     });
-    mockWorkflowService.getWorkflowById.mockResolvedValue(null);
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue(null);
 
     const result = await service.run({
       workflowVersionId: "wf-missing",
@@ -128,7 +128,7 @@ describe("OcrImprovementPipelineService", () => {
       filters: {},
     });
 
-    mockWorkflowService.getWorkflowById.mockResolvedValue({
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
       id: "wf-1",
       config: {
         schemaVersion: "1.0",
@@ -236,7 +236,7 @@ describe("OcrImprovementPipelineService", () => {
       filters: {},
     });
 
-    mockWorkflowService.getWorkflowById.mockResolvedValue({
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
       id: "wf-1",
       config: {
         schemaVersion: "1.0",

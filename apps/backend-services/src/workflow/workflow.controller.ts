@@ -30,6 +30,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { GroupRole } from "@/generated";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
   RevertHeadDto,
@@ -77,7 +78,7 @@ export class WorkflowController {
   ): Promise<{ workflows: WorkflowInfo[] }> {
     const includeCandidates = includeBenchmarkCandidates === "true";
     if (groupId) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
+      identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
       const workflows = await this.workflowService.getGroupWorkflows(
         [groupId],
         includeCandidates,
@@ -120,7 +121,7 @@ export class WorkflowController {
   ): Promise<{ versions: WorkflowVersionSummary[] }> {
     const actorId = req.resolvedIdentity.actorId;
     const wf = await this.workflowService.getWorkflow(id, actorId);
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
     const versions = await this.workflowService.listVersions(id);
     return { versions };
   }
@@ -145,7 +146,11 @@ export class WorkflowController {
   ): Promise<{ workflow: WorkflowInfo }> {
     const actorId = req.resolvedIdentity.actorId;
     const existing = await this.workflowService.getWorkflow(id, actorId);
-    identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      GroupRole.MEMBER,
+    );
     const workflow = await this.workflowService.revertHeadToVersion(
       id,
       body.workflowVersionId,
@@ -172,7 +177,11 @@ export class WorkflowController {
 
     const workflow = await this.workflowService.getWorkflow(id, actorId);
 
-    identityCanAccessGroup(req.resolvedIdentity, workflow.groupId);
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      workflow.groupId,
+      GroupRole.MEMBER,
+    );
 
     return { workflow };
   }
@@ -193,13 +202,19 @@ export class WorkflowController {
   @ApiBadRequestResponse({
     description: "Invalid request body or workflow config validation failed",
   })
+  @ApiForbiddenResponse({
+    description:
+      "Not a member of the target group, or role below MEMBER (same as former @Identity minimumRole)",
+  })
   async createWorkflow(
     @Body() dto: CreateWorkflowDto,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
     const actorId = req.resolvedIdentity.actorId;
 
-    identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
+    // Same as @Identity({ groupIdFrom: { body: "groupId" }, minimumRole: MEMBER }):
+    // identityCanAccessGroup defaults to MEMBER, but pass explicitly for clarity.
+    identityCanAccessGroup(req.resolvedIdentity, dto.groupId, GroupRole.MEMBER);
 
     const workflow = await this.workflowService.createWorkflow(actorId, dto);
     return { workflow };
@@ -232,7 +247,11 @@ export class WorkflowController {
 
     const existing = await this.workflowService.getWorkflow(id, actorId);
 
-    identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      GroupRole.MEMBER,
+    );
 
     const workflow = await this.workflowService.updateWorkflow(
       id,
@@ -258,7 +277,11 @@ export class WorkflowController {
 
     const existing = await this.workflowService.getWorkflow(id, actorId);
 
-    identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      GroupRole.MEMBER,
+    );
 
     await this.workflowService.deleteWorkflow(id, actorId);
   }

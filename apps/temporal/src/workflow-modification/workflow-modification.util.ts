@@ -2,7 +2,7 @@
  * Workflow Modification Utility (Temporal worker)
  *
  * Backend mirror: `apps/backend-services/src/workflow/workflow-modification.util.ts`
- * (candidate creation on the API). Both implement the same DAG edge-splitting logic.
+ * (candidate creation on the API). Keep insertion / coercion behavior aligned with that file.
  *
  * Takes a current GraphWorkflowConfig and AI tool recommendations, and
  * produces a new config with the recommended correction nodes inserted
@@ -63,6 +63,11 @@ function getNodePortBindings(node: GraphNode | undefined): {
   };
 }
 
+/**
+ * Infer which ctx key flows along the edge being split (source → target) so
+ * correction nodes use the same bindings as the rest of the pipeline.
+ * Falls back to cleanedResult / ocrResult when the graph omits port metadata.
+ */
 function inferPipelineCtxKeyForSplit(
   config: GraphWorkflowConfig,
   splitSourceNodeId: string,
@@ -99,6 +104,7 @@ function inferPipelineCtxKeyForSplit(
   return "cleanedResult";
 }
 
+/** Ensure save-time graph validation passes for port bindings. */
 function ensureCtxKeyDeclared(config: GraphWorkflowConfig, key: string): void {
   if (!config.ctx) {
     config.ctx = {};
@@ -161,10 +167,30 @@ function findLastNormalEdgeBeforeNode(
   return undefined;
 }
 
+function findNodeIdCaseInsensitive(
+  nodes: Record<string, unknown>,
+  requestedId: string,
+): string | null {
+  const lower = requestedId.toLowerCase();
+  for (const k of Object.keys(nodes)) {
+    if (k.toLowerCase() === lower) return k;
+  }
+  return null;
+}
+
+/** Resolve insertion point node id: exact match, else case-insensitive. */
+function resolveNodeId(
+  nodes: Record<string, unknown>,
+  requestedId: string,
+): string | null {
+  if (requestedId in nodes) return requestedId;
+  return findNodeIdCaseInsensitive(nodes, requestedId);
+}
+
 /**
  * Apply a list of tool recommendations to a graph config.
- * Returns a new config with correction nodes inserted and the list of
- * applied/rejected recommendations.
+ * `afterNodeId` / `beforeNodeId` are resolved with exact match, then case-insensitive fallback
+ * (aligned with the Nest `workflow-modification.util.ts`).
  */
 export function applyRecommendations(
   config: GraphWorkflowConfig,
@@ -181,10 +207,10 @@ export function applyRecommendations(
 
   for (let i = 0; i < recommendations.length; i++) {
     const rec = recommendations[i];
-    const afterNodeId = rec.insertionPoint.afterNodeId;
-    const beforeNodeId = rec.insertionPoint.beforeNodeId;
+    const requestedAfter = rec.insertionPoint.afterNodeId;
+    const requestedBefore = rec.insertionPoint.beforeNodeId;
 
-    if (!afterNodeId) {
+    if (!requestedAfter) {
       rejected.push({
         recommendation: rec,
         reason: "insertionPoint.afterNodeId is required",
@@ -192,10 +218,16 @@ export function applyRecommendations(
       continue;
     }
 
+    const afterNodeId =
+      resolveNodeId(newConfig.nodes, requestedAfter) ?? requestedAfter;
+    const beforeNodeId = requestedBefore
+      ? (resolveNodeId(newConfig.nodes, requestedBefore) ?? requestedBefore)
+      : undefined;
+
     if (!newConfig.nodes[afterNodeId]) {
       rejected.push({
         recommendation: rec,
-        reason: `Node "${afterNodeId}" not found in graph`,
+        reason: `Node "${requestedAfter}" not found in graph (resolved: ${afterNodeId})`,
       });
       continue;
     }
@@ -314,4 +346,28 @@ export function applyRecommendations(
     appliedRecommendations: applied,
     rejectedRecommendations: rejected,
   };
+}
+
+/** Matches `EmptyValueCoercionMode` in `ocr.normalizeFields` activity. */
+export type OcrNormalizeFieldsEmptyValueCoercion = "none" | "blank" | "null";
+
+/**
+ * Sets `parameters.emptyValueCoercion` on every `ocr.normalizeFields` activity node.
+ * Align with backend `workflow-modification.util.ts` (OCR improvement pipeline).
+ */
+export function applyOcrNormalizeFieldsEmptyValueCoercion(
+  config: GraphWorkflowConfig,
+  mode: OcrNormalizeFieldsEmptyValueCoercion,
+): GraphWorkflowConfig {
+  const newConfig: GraphWorkflowConfig = JSON.parse(JSON.stringify(config));
+  for (const node of Object.values(newConfig.nodes)) {
+    if (node.type !== "activity") continue;
+    const activity = node as ActivityNode;
+    if (activity.activityType !== "ocr.normalizeFields") continue;
+    activity.parameters = {
+      ...(activity.parameters ?? {}),
+      emptyValueCoercion: mode,
+    };
+  }
+  return newConfig;
 }

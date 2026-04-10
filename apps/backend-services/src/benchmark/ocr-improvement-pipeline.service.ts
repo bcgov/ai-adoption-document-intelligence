@@ -23,6 +23,7 @@ import type {
 import {
   buildInsertionSlots,
   findSlotImmediatelyAfterAzureOcrExtract,
+  insertionSlotsToSummary,
   resolveRecommendationsInsertionSlots,
 } from "@/workflow/insertion-slots.util";
 import {
@@ -202,7 +203,7 @@ export class OcrImprovementPipelineService {
       }));
 
       // Step 4: Load current workflow and build summary
-      const currentWorkflow = await this.workflowService.getWorkflowById(
+      const currentWorkflow = await this.workflowService.getWorkflowVersionById(
         input.workflowVersionId,
       );
       if (!currentWorkflow) {
@@ -235,13 +236,7 @@ export class OcrImprovementPipelineService {
             nodeId,
             activityType: (n as ActivityNode).activityType,
           })),
-        insertionSlots: insertionSlots.map((s) => ({
-          slotIndex: s.slotIndex,
-          afterNodeId: s.afterNodeId,
-          beforeNodeId: s.beforeNodeId,
-          afterActivityType: s.afterActivityType,
-          beforeActivityType: s.beforeActivityType,
-        })),
+        insertionSlots: insertionSlotsToSummary(insertionSlots),
       };
 
       this.logger.log(
@@ -380,15 +375,12 @@ export class OcrImprovementPipelineService {
         input.benchmarkProjectId,
         input.benchmarkDefinitionId,
         {
-          workflowConfigOverride: candidateConfig as unknown as Record<
-            string,
-            unknown
-          >,
           candidateWorkflowVersionId: candidate.workflowVersionId,
           ...(baselineForOcrCache
             ? { ocrCacheBaselineRunId: baselineForOcrCache }
             : {}),
         },
+        input.actorId,
       );
 
       const pollInterval =

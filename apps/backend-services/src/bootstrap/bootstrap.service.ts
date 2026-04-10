@@ -90,7 +90,7 @@ export class BootstrapService {
         data: { is_system_admin: true },
       });
 
-      // Ensure "Default" group exists (seed may have created it already)
+      // Idempotent: seed data may already define "Default"; upsert keeps bootstrap safe to re-run.
       const group = await tx.group.upsert({
         where: { name: "Default" },
         update: {},

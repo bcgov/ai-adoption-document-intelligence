@@ -9,9 +9,13 @@ import { Prisma } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
+import { AuditLogService } from "./audit-log.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
+import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
+
+const ACTOR_ID = "actor-test";
 
 // Mock child_process
 jest.mock("child_process", () => ({
@@ -35,6 +39,9 @@ const mockPrismaClient = {
     findMany: jest.fn(),
     delete: jest.fn(),
   },
+  benchmarkOcrCache: {
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
   datasetVersion: {
     update: jest.fn(),
   },
@@ -47,6 +54,9 @@ const mockPrismaClient = {
   workflowVersion: {
     findUnique: jest.fn(),
   },
+  $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+    fn(mockPrismaClient),
+  ),
 };
 
 describe("BenchmarkRunService", () => {
@@ -130,6 +140,7 @@ describe("BenchmarkRunService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BenchmarkRunService,
+        BenchmarkRunDbService,
         {
           provide: PrismaService,
           useValue: { prisma: mockPrismaClient },
@@ -157,6 +168,13 @@ describe("BenchmarkRunService", () => {
               },
               issues: [],
             }),
+          },
+        },
+        {
+          provide: AuditLogService,
+          useValue: {
+            logRunStarted: jest.fn().mockResolvedValue({}),
+            logBaselinePromoted: jest.fn().mockResolvedValue({}),
           },
         },
       ],
@@ -212,7 +230,12 @@ describe("BenchmarkRunService", () => {
         startedAt: new Date(),
       });
 
-      const result = await service.startRun("project-1", "def-1", createDto);
+      const result = await service.startRun(
+        "project-1",
+        "def-1",
+        createDto,
+        ACTOR_ID,
+      );
 
       // Verify Temporal workflow was started
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
@@ -243,7 +266,7 @@ describe("BenchmarkRunService", () => {
       expect(result.status).toBe("running");
     });
 
-    it("defaults persistOcrCache to true when omitted", async () => {
+    it("defaults persistOcrCache to false when omitted", async () => {
       (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
         mockDefinition,
       );
@@ -269,7 +292,48 @@ describe("BenchmarkRunService", () => {
         status: "running",
       });
 
-      await service.startRun("project-1", "def-1", {});
+      await service.startRun("project-1", "def-1", {}, ACTOR_ID);
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          persistOcrCache: false,
+        }),
+      );
+    });
+
+    it("sets persistOcrCache true when explicitly true", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun(
+        "project-1",
+        "def-1",
+        { persistOcrCache: true },
+        ACTOR_ID,
+      );
 
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
         expect.any(String),
@@ -305,7 +369,12 @@ describe("BenchmarkRunService", () => {
         status: "running",
       });
 
-      await service.startRun("project-1", "def-1", { persistOcrCache: false });
+      await service.startRun(
+        "project-1",
+        "def-1",
+        { persistOcrCache: false },
+        ACTOR_ID,
+      );
 
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
         expect.any(String),
@@ -353,9 +422,14 @@ describe("BenchmarkRunService", () => {
         mockDefinition,
       );
 
-      await service.startRun("project-1", "def-1", {
-        ocrCacheBaselineRunId: baselineId,
-      });
+      await service.startRun(
+        "project-1",
+        "def-1",
+        {
+          ocrCacheBaselineRunId: baselineId,
+        },
+        ACTOR_ID,
+      );
 
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
         expect.any(String),
@@ -366,7 +440,7 @@ describe("BenchmarkRunService", () => {
       );
     });
 
-    it("loads workflow config from DB when candidateWorkflowVersionId is set without workflowConfigOverride", async () => {
+    it("loads workflow config from DB when candidateWorkflowVersionId is set", async () => {
       const candidateConfig = {
         schemaVersion: "1.0",
         metadata: {},
@@ -404,9 +478,14 @@ describe("BenchmarkRunService", () => {
         status: "running",
       });
 
-      await service.startRun("project-1", "def-1", {
-        candidateWorkflowVersionId: "wv-cand-1",
-      });
+      await service.startRun(
+        "project-1",
+        "def-1",
+        {
+          candidateWorkflowVersionId: "wv-cand-1",
+        },
+        ACTOR_ID,
+      );
 
       expect(prisma.workflowVersion.findUnique).toHaveBeenCalledWith({
         where: { id: "wv-cand-1" },
@@ -428,114 +507,15 @@ describe("BenchmarkRunService", () => {
       (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.startRun("project-1", "def-1", {
-          candidateWorkflowVersionId: "missing-wv",
-        }),
+        service.startRun(
+          "project-1",
+          "def-1",
+          {
+            candidateWorkflowVersionId: "missing-wv",
+          },
+          ACTOR_ID,
+        ),
       ).rejects.toThrow(BadRequestException);
-    });
-
-    it("throws when workflowConfigOverride does not match candidateWorkflowVersionId stored config", async () => {
-      const storedGraph = {
-        schemaVersion: "1.0",
-        metadata: { name: "stored" },
-        nodes: {
-          n1: {
-            id: "n1",
-            type: "activity" as const,
-            label: "N",
-            activityType: "document.updateStatus",
-            inputs: [] as { port: string; ctxKey: string }[],
-          },
-        },
-        edges: [] as { source: string; target: string }[],
-        entryNodeId: "n1",
-        ctx: {},
-      };
-      const differentGraph = {
-        ...storedGraph,
-        nodes: {
-          n1: {
-            ...storedGraph.nodes.n1,
-            label: "Changed",
-          },
-        },
-      };
-      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
-        mockDefinition,
-      );
-      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
-        id: "wv-cand-1",
-        config: storedGraph,
-      });
-
-      await expect(
-        service.startRun("project-1", "def-1", {
-          candidateWorkflowVersionId: "wv-cand-1",
-          workflowConfigOverride: differentGraph as Record<string, unknown>,
-        }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it("accepts workflowConfigOverride when it matches stored candidate config after canonical hashing (key order)", async () => {
-      const canonicalOrder = {
-        schemaVersion: "1.0",
-        metadata: { name: "g" },
-        entryNodeId: "n1",
-        ctx: {},
-        nodes: {
-          n1: {
-            id: "n1",
-            type: "activity" as const,
-            label: "N",
-            activityType: "document.updateStatus",
-            inputs: [] as { port: string; ctxKey: string }[],
-          },
-        },
-        edges: [] as { source: string; target: string }[],
-      };
-      const reversedTopLevel = {
-        nodes: canonicalOrder.nodes,
-        edges: canonicalOrder.edges,
-        entryNodeId: canonicalOrder.entryNodeId,
-        ctx: canonicalOrder.ctx,
-        schemaVersion: canonicalOrder.schemaVersion,
-        metadata: canonicalOrder.metadata,
-      };
-      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
-        mockDefinition,
-      );
-      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
-        id: "wv-cand-1",
-        config: reversedTopLevel,
-      });
-      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
-        ...mockRun,
-        id: "run-1",
-        temporalWorkflowId: "",
-      });
-      (
-        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
-      ).mockResolvedValue("benchmark-run-run-1");
-      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
-        ...mockRun,
-        temporalWorkflowId: "benchmark-run-run-1",
-        status: "running",
-      });
-      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
-        mockDefinition,
-      );
-      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
-        ...mockRun,
-        temporalWorkflowId: "benchmark-run-run-1",
-        status: "running",
-      });
-
-      await service.startRun("project-1", "def-1", {
-        candidateWorkflowVersionId: "wv-cand-1",
-        workflowConfigOverride: canonicalOrder as Record<string, unknown>,
-      });
-
-      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalled();
     });
 
     it("should freeze dataset version but not split when definition has no split", async () => {
@@ -572,7 +552,7 @@ describe("BenchmarkRunService", () => {
         startedAt: new Date(),
       });
 
-      await service.startRun("project-1", "def-1", {});
+      await service.startRun("project-1", "def-1", {}, ACTOR_ID);
 
       // Verify dataset version was frozen
       expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
@@ -614,9 +594,9 @@ describe("BenchmarkRunService", () => {
         ],
       });
 
-      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.startRun("project-1", "def-1", {}, ACTOR_ID),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("should throw NotFoundException when definition does not exist", async () => {
@@ -624,9 +604,9 @@ describe("BenchmarkRunService", () => {
         null,
       );
 
-      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.startRun("project-1", "def-1", {}, ACTOR_ID),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("should mark run as failed if Temporal workflow fails to start", async () => {
@@ -643,9 +623,9 @@ describe("BenchmarkRunService", () => {
         error: "Failed to start Temporal workflow: Temporal error",
       });
 
-      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
-        "Failed to start benchmark run workflow",
-      );
+      await expect(
+        service.startRun("project-1", "def-1", {}, ACTOR_ID),
+      ).rejects.toThrow("Failed to start benchmark run workflow");
 
       expect(prisma.benchmarkRun.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -691,7 +671,7 @@ describe("BenchmarkRunService", () => {
           },
         });
 
-        await service.startRun("project-1", "def-1", {});
+        await service.startRun("project-1", "def-1", {}, ACTOR_ID);
 
         // Verify worker image digest was captured in create call
         expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
@@ -739,7 +719,7 @@ describe("BenchmarkRunService", () => {
           },
         });
 
-        await service.startRun("project-1", "def-1", {});
+        await service.startRun("project-1", "def-1", {}, ACTOR_ID);
 
         // Verify worker image digest is null
         expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
@@ -1023,9 +1003,14 @@ describe("BenchmarkRunService", () => {
         { metricName: "precision", type: "absolute" as const, value: 0.9 },
       ];
 
-      const result = await service.promoteToBaseline("project-1", "run-1", {
-        thresholds,
-      });
+      const result = await service.promoteToBaseline(
+        "project-1",
+        "run-1",
+        {
+          thresholds,
+        },
+        ACTOR_ID,
+      );
 
       expect(result).toEqual({
         runId: "run-1",
@@ -1065,7 +1050,12 @@ describe("BenchmarkRunService", () => {
         isBaseline: true,
       });
 
-      const result = await service.promoteToBaseline("project-1", "run-1", {});
+      const result = await service.promoteToBaseline(
+        "project-1",
+        "run-1",
+        {},
+        ACTOR_ID,
+      );
 
       expect(result.previousBaselineId).toBe("baseline-run-1");
 
@@ -1089,7 +1079,7 @@ describe("BenchmarkRunService", () => {
       (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.promoteToBaseline("project-1", "run-1", {}),
+        service.promoteToBaseline("project-1", "run-1", {}, ACTOR_ID),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1104,7 +1094,7 @@ describe("BenchmarkRunService", () => {
       );
 
       await expect(
-        service.promoteToBaseline("project-1", "run-1", {}),
+        service.promoteToBaseline("project-1", "run-1", {}, ACTOR_ID),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -1429,6 +1419,9 @@ describe("BenchmarkRunService", () => {
 
       await service.deleteRun("project-1", "run-1");
 
+      expect(prisma.benchmarkOcrCache.deleteMany).toHaveBeenCalledWith({
+        where: { sourceRunId: "run-1" },
+      });
       expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
         where: { id: "run-1" },
       });
@@ -1450,6 +1443,9 @@ describe("BenchmarkRunService", () => {
 
       await service.deleteRun("project-1", "run-2");
 
+      expect(prisma.benchmarkOcrCache.deleteMany).toHaveBeenCalledWith({
+        where: { sourceRunId: "run-2" },
+      });
       expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
         where: { id: "run-2" },
       });

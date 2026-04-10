@@ -201,7 +201,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         `[Temporal] Looking up graph workflow configuration: ${workflowConfigId}`,
       );
       const workflowConfig =
-        await this.workflowService.getWorkflowById(workflowConfigId);
+        await this.workflowService.getWorkflowVersionById(workflowConfigId);
       if (!workflowConfig) {
         throw new Error(
           `Workflow configuration not found: ${workflowConfigId}`,

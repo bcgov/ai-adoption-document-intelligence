@@ -5,63 +5,52 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md
  */
 
-import {
-  IsBoolean,
-  IsObject,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from "class-validator";
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { IsBoolean, IsObject, IsOptional, IsUUID } from "class-validator";
 
 /**
  * DTO for creating a benchmark run
  */
 export class CreateRunDto {
-  /**
-   * Optional runtime settings override
-   * If provided, these will override the definition's runtime settings
-   */
+  @ApiPropertyOptional({
+    description:
+      "Optional runtime settings override (merged with definition runtime settings)",
+    type: Object,
+  })
   @IsOptional()
   @IsObject()
   runtimeSettingsOverride?: Record<string, unknown>;
 
-  /**
-   * Optional tags to attach to this run
-   */
+  @ApiPropertyOptional({
+    description: "Optional tags for this run",
+    type: Object,
+  })
   @IsOptional()
   @IsObject()
   tags?: Record<string, unknown>;
 
-  /**
-   * Optional workflow configuration override.
-   * When provided, the run uses this config instead of the definition's workflow config.
-   * Used by the AI recommendation pipeline to run candidate workflows for comparison.
-   */
+  @ApiPropertyOptional({
+    description:
+      "When set, the run uses this workflow version's config (e.g. a candidate). Otherwise the definition's pinned workflow is used.",
+    format: "uuid",
+  })
   @IsOptional()
-  @IsObject()
-  workflowConfigOverride?: Record<string, unknown>;
-
-  /**
-   * Optional workflow version ID override (WorkflowVersion.id).
-   * When `workflowConfigOverride` is omitted, the run loads graph config from this row
-   * so execution matches the referenced version (hash matches stored config).
-   * When both are set, the override must match the stored config for that version.
-   */
-  @IsOptional()
+  @IsUUID()
   candidateWorkflowVersionId?: string;
 
-  /**
-   * When true, persist Azure OCR poll JSON per sample to benchmark_ocr_cache for replay.
-   * When omitted, defaults to true (unless `ocrCacheBaselineRunId` is set — replay never persists).
-   */
+  @ApiPropertyOptional({
+    description:
+      "When true, persist Azure OCR poll JSON per sample for replay. Default false when omitted.",
+  })
   @IsOptional()
   @IsBoolean()
   persistOcrCache?: boolean;
 
-  /**
-   * When set, load OCR poll JSON from cache rows for this completed benchmark run (same definition).
-   * Mutually exclusive with persistOcrCache in practice (one populates cache, one consumes it).
-   */
+  @ApiPropertyOptional({
+    description:
+      "Replay OCR from a prior completed baseline run (same definition). Replay runs do not persist cache.",
+    format: "uuid",
+  })
   @IsOptional()
   @IsUUID()
   ocrCacheBaselineRunId?: string;

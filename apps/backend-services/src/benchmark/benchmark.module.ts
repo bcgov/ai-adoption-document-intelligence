@@ -20,8 +20,6 @@ import { BenchmarkRunController } from "./benchmark-run.controller";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
-import { ConfusionMatrixController } from "./confusion-matrix.controller";
-import { ConfusionMatrixService } from "./confusion-matrix.service";
 import { DatasetController } from "./dataset.controller";
 import { DatasetService } from "./dataset.service";
 import { DatasetDbService } from "./dataset-db.service";
@@ -51,7 +49,6 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     BenchmarkProjectController,
     BenchmarkDefinitionController,
     BenchmarkRunController,
-    ConfusionMatrixController,
   ],
   providers: [
     DatasetDbService,
@@ -69,7 +66,6 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     EvaluatorRegistryService,
     AuditLogDbService,
     AuditLogService,
-    ConfusionMatrixService,
     AiRecommendationService,
     OcrImprovementPipelineService,
   ],
@@ -83,7 +79,6 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     BenchmarkTemporalService,
     EvaluatorRegistryService,
     AuditLogService,
-    ConfusionMatrixService,
     AiRecommendationService,
     OcrImprovementPipelineService,
   ],

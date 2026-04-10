@@ -36,7 +36,7 @@ describe("HitlAggregationService", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           action: {
-            in: [CorrectionAction.confirmed, CorrectionAction.corrected],
+            in: [CorrectionAction.corrected],
           },
         }),
       }),
@@ -61,18 +61,8 @@ describe("HitlAggregationService", () => {
     );
   });
 
-  it("excludes internal fields (field_key starting with _) in application code", async () => {
+  it("scopes field_key and non-null values in the Prisma where clause", async () => {
     mockPrisma.prisma.fieldCorrection.findMany.mockResolvedValueOnce([
-      {
-        field_key: "_escalation",
-        original_value: "reason",
-        corrected_value: null,
-        action: CorrectionAction.corrected,
-        original_conf: null,
-        created_at: new Date(),
-        session_id: "s1",
-        session: { document_id: "d1" },
-      },
       {
         field_key: "invoice_number",
         original_value: "INV-1",
@@ -87,8 +77,36 @@ describe("HitlAggregationService", () => {
 
     const result = await service.getAggregatedCorrections({});
 
+    expect(mockPrisma.prisma.fieldCorrection.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          original_value: { not: null },
+          corrected_value: { not: null },
+          AND: [{ field_key: { not: { startsWith: "_" } } }],
+        }),
+      }),
+    );
     expect(result.corrections).toHaveLength(1);
     expect(result.corrections[0].fieldKey).toBe("invoice_number");
     expect(result.total).toBe(1);
+  });
+
+  it("adds field_key in filter when fieldKeys is set", async () => {
+    mockPrisma.prisma.fieldCorrection.findMany.mockResolvedValueOnce([]);
+
+    await service.getAggregatedCorrections({
+      fieldKeys: ["a", "b"],
+    });
+
+    expect(mockPrisma.prisma.fieldCorrection.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            { field_key: { not: { startsWith: "_" } } },
+            { field_key: { in: ["a", "b"] } },
+          ],
+        }),
+      }),
+    );
   });
 });

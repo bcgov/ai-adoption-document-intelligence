@@ -16,7 +16,6 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { PrismaService } from "@/database/prisma.service";
 import { DocumentService } from "@/document/document.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
 import { ExtractedFields } from "@/ocr/azure-types";
@@ -30,6 +29,7 @@ import {
   GroundTruthReviewStatsResponseDto,
   StartGroundTruthGenerationResponseDto,
 } from "./dto";
+import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
 interface ManifestSample {
@@ -51,17 +51,13 @@ export class GroundTruthGenerationService {
   private readonly logger = new Logger(GroundTruthGenerationService.name);
 
   constructor(
-    private readonly prismaService: PrismaService,
+    private readonly groundTruthJobDb: GroundTruthJobDbService,
     private readonly documentService: DocumentService,
     private readonly reviewDb: ReviewDbService,
     private readonly ocrService: OcrService,
     private readonly hitlDatasetService: HitlDatasetService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
   ) {}
-
-  private get prisma() {
-    return this.prismaService.prisma;
-  }
 
   /**
    * Start ground truth generation for samples without ground truth in a dataset version.
@@ -71,12 +67,12 @@ export class GroundTruthGenerationService {
     datasetId: string,
     versionId: string,
     workflowVersionId: string,
-    userId: string,
   ): Promise<StartGroundTruthGenerationResponseDto> {
     // Validate version exists and is not frozen
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.groundTruthJobDb.findVersionForValidation(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -97,9 +93,8 @@ export class GroundTruthGenerationService {
     }
 
     // Validate workflow version exists
-    const workflowVersion = await this.prisma.workflowVersion.findUnique({
-      where: { id: workflowVersionId },
-    });
+    const workflowVersion =
+      await this.groundTruthJobDb.findWorkflow(workflowVersionId);
 
     if (!workflowVersion) {
       throw new NotFoundException(
@@ -122,13 +117,8 @@ export class GroundTruthGenerationService {
     }
 
     // Check for existing jobs that haven't failed
-    const existingJobs = await this.prisma.datasetGroundTruthJob.findMany({
-      where: {
-        datasetVersionId: versionId,
-        status: { not: GroundTruthJobStatus.failed },
-      },
-      select: { sampleId: true },
-    });
+    const existingJobs =
+      await this.groundTruthJobDb.findExistingJobs(versionId);
     const existingJobSampleIds = new Set(existingJobs.map((j) => j.sampleId));
 
     // Only create jobs for samples that don't already have a non-failed job
@@ -142,18 +132,13 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Create job records
-    const jobs = await this.prisma.$transaction(
-      samplesToProcess.map((sample) =>
-        this.prisma.datasetGroundTruthJob.create({
-          data: {
-            datasetVersionId: versionId,
-            sampleId: sample.id,
-            workflowVersionId,
-            status: GroundTruthJobStatus.pending,
-          },
-        }),
-      ),
+    const jobs = await this.groundTruthJobDb.createManyJobs(
+      samplesToProcess.map((sample) => ({
+        datasetVersionId: versionId,
+        sampleId: sample.id,
+        workflowVersionId,
+        status: GroundTruthJobStatus.pending,
+      })),
     );
 
     this.logger.log(
@@ -180,22 +165,16 @@ export class GroundTruthGenerationService {
     datasetId: string,
     versionId: string,
   ): Promise<void> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-      include: { dataset: { select: { group_id: true } } },
-    });
+    const version = await this.groundTruthJobDb.findVersionForProcessing(
+      versionId,
+      datasetId,
+    );
 
     if (!version?.storagePrefix) return;
 
     const groupId = version.dataset.group_id;
 
-    const pendingJobs = await this.prisma.datasetGroundTruthJob.findMany({
-      where: {
-        datasetVersionId: versionId,
-        status: GroundTruthJobStatus.pending,
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const pendingJobs = await this.groundTruthJobDb.findPendingJobs(versionId);
 
     // Process in batches
     for (let i = 0; i < pendingJobs.length; i += BATCH_SIZE) {
@@ -228,9 +207,7 @@ export class GroundTruthGenerationService {
     storagePrefix: string,
     groupId: string,
   ): Promise<void> {
-    const job = await this.prisma.datasetGroundTruthJob.findUnique({
-      where: { id: jobId },
-    });
+    const job = await this.groundTruthJobDb.findJob(jobId);
 
     if (!job || job.status !== GroundTruthJobStatus.pending) return;
 
@@ -259,10 +236,9 @@ export class GroundTruthGenerationService {
       const ext = path.extname(originalFilename);
 
       // Read modelId from workflow config ctx defaults
-      const workflowVersion = await this.prisma.workflowVersion.findUnique({
-        where: { id: job.workflowVersionId },
-        select: { config: true },
-      });
+      const workflowVersion = await this.groundTruthJobDb.findWorkflowConfig(
+        job.workflowVersionId,
+      );
       const workflowConfig = workflowVersion?.config as {
         ctx?: Record<string, { defaultValue?: unknown }>;
       } | null;
@@ -304,12 +280,9 @@ export class GroundTruthGenerationService {
       await this.documentService.createDocument(documentData);
 
       // Update job with document ID and set to processing
-      await this.prisma.datasetGroundTruthJob.update({
-        where: { id: jobId },
-        data: {
-          documentId,
-          status: GroundTruthJobStatus.processing,
-        },
+      await this.groundTruthJobDb.updateJob(jobId, {
+        documentId,
+        status: GroundTruthJobStatus.processing,
       });
 
       // Start OCR workflow with confidenceThreshold=0 to skip humanGate
@@ -319,9 +292,8 @@ export class GroundTruthGenerationService {
 
       // Update job with temporal workflow ID
       if (ocrResult.workflowId) {
-        await this.prisma.datasetGroundTruthJob.update({
-          where: { id: jobId },
-          data: { temporalWorkflowId: ocrResult.workflowId },
+        await this.groundTruthJobDb.updateJob(jobId, {
+          temporalWorkflowId: ocrResult.workflowId,
         });
       }
 
@@ -335,12 +307,9 @@ export class GroundTruthGenerationService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Job ${jobId} failed: ${message}`);
-      await this.prisma.datasetGroundTruthJob.update({
-        where: { id: jobId },
-        data: {
-          status: GroundTruthJobStatus.failed,
-          error: message,
-        },
+      await this.groundTruthJobDb.updateJob(jobId, {
+        status: GroundTruthJobStatus.failed,
+        error: message,
       });
     }
   }
@@ -363,14 +332,10 @@ export class GroundTruthGenerationService {
     await this.syncJobStatuses(versionId);
 
     const [jobs, total] = await Promise.all([
-      this.prisma.datasetGroundTruthJob.findMany({
-        where: { datasetVersionId: versionId, datasetVersion: { datasetId } },
-        orderBy: { createdAt: "asc" },
-        skip: offset,
-        take: validLimit,
-      }),
-      this.prisma.datasetGroundTruthJob.count({
-        where: { datasetVersionId: versionId, datasetVersion: { datasetId } },
+      this.groundTruthJobDb.findJobs(versionId, datasetId, offset, validLimit),
+      this.groundTruthJobDb.countJobs({
+        datasetVersionId: versionId,
+        datasetVersion: { datasetId },
       }),
     ]);
 
@@ -409,47 +374,20 @@ export class GroundTruthGenerationService {
       );
     }
 
-    const jobs = await this.prisma.datasetGroundTruthJob.findMany({
-      where: {
-        datasetVersionId: versionId,
-        datasetVersion: { datasetId },
-        status: { in: statusFilter },
-        documentId: { not: null },
-      },
-      include: {
-        document: {
-          include: {
-            ocr_result: true,
-            review_sessions: {
-              where: {
-                status: {
-                  in: [
-                    ReviewStatus.approved,
-                    ReviewStatus.escalated,
-                    ReviewStatus.skipped,
-                  ],
-                },
-              },
-              include: { corrections: true },
-              orderBy: { completed_at: "desc" },
-              take: 1,
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-      skip: offset,
-      take: limit,
-    });
+    const queueWhere = {
+      datasetVersionId: versionId,
+      datasetVersion: { datasetId },
+      status: { in: statusFilter },
+      documentId: { not: null },
+    };
 
-    const total = await this.prisma.datasetGroundTruthJob.count({
-      where: {
-        datasetVersionId: versionId,
-        datasetVersion: { datasetId },
-        status: { in: statusFilter },
-        documentId: { not: null },
-      },
-    });
+    const jobs = await this.groundTruthJobDb.findJobsForReviewQueue(
+      queueWhere,
+      offset,
+      limit,
+    );
+
+    const total = await this.groundTruthJobDb.countJobs(queueWhere);
 
     const documents: GroundTruthReviewQueueItemDto[] = jobs
       .filter((j) => j.document)
@@ -496,31 +434,24 @@ export class GroundTruthGenerationService {
   ): Promise<GroundTruthReviewStatsResponseDto> {
     await this.syncJobStatuses(versionId);
 
+    const baseWhere = {
+      datasetVersionId: versionId,
+      datasetVersion: { datasetId },
+    };
     const [totalDocuments, awaitingReview, completed, failed] =
       await Promise.all([
-        this.prisma.datasetGroundTruthJob.count({
-          where: { datasetVersionId: versionId, datasetVersion: { datasetId } },
+        this.groundTruthJobDb.countJobs(baseWhere),
+        this.groundTruthJobDb.countJobs({
+          ...baseWhere,
+          status: GroundTruthJobStatus.awaiting_review,
         }),
-        this.prisma.datasetGroundTruthJob.count({
-          where: {
-            datasetVersionId: versionId,
-            datasetVersion: { datasetId },
-            status: GroundTruthJobStatus.awaiting_review,
-          },
+        this.groundTruthJobDb.countJobs({
+          ...baseWhere,
+          status: GroundTruthJobStatus.completed,
         }),
-        this.prisma.datasetGroundTruthJob.count({
-          where: {
-            datasetVersionId: versionId,
-            datasetVersion: { datasetId },
-            status: GroundTruthJobStatus.completed,
-          },
-        }),
-        this.prisma.datasetGroundTruthJob.count({
-          where: {
-            datasetVersionId: versionId,
-            datasetVersion: { datasetId },
-            status: GroundTruthJobStatus.failed,
-          },
+        this.groundTruthJobDb.countJobs({
+          ...baseWhere,
+          status: GroundTruthJobStatus.failed,
         }),
       ]);
 
@@ -532,15 +463,8 @@ export class GroundTruthGenerationService {
    * Extracts ground truth from OCR + corrections and writes to dataset storage.
    */
   async completeJob(jobId: string, sessionId: string): Promise<void> {
-    const job = await this.prisma.datasetGroundTruthJob.findUnique({
-      where: { id: jobId },
-      include: {
-        datasetVersion: true,
-        document: {
-          include: { ocr_result: true },
-        },
-      },
-    });
+    const job =
+      await this.groundTruthJobDb.findJobWithVersionAndDocument(jobId);
 
     if (!job) {
       throw new NotFoundException(`Ground truth job ${jobId} not found`);
@@ -590,13 +514,9 @@ export class GroundTruthGenerationService {
       gtRelativePath,
     );
 
-    // Update job status
-    await this.prisma.datasetGroundTruthJob.update({
-      where: { id: jobId },
-      data: {
-        status: GroundTruthJobStatus.completed,
-        groundTruthPath: gtBlobKey,
-      },
+    await this.groundTruthJobDb.updateJob(jobId, {
+      status: GroundTruthJobStatus.completed,
+      groundTruthPath: gtBlobKey,
     });
 
     this.logger.log(
@@ -608,9 +528,7 @@ export class GroundTruthGenerationService {
    * Find a ground truth job by its associated document ID.
    */
   async getJobByDocumentId(documentId: string) {
-    return this.prisma.datasetGroundTruthJob.findUnique({
-      where: { documentId },
-    });
+    return this.groundTruthJobDb.findJobByDocumentId(documentId);
   }
 
   // ---- Private helpers ----
@@ -619,41 +537,7 @@ export class GroundTruthGenerationService {
    * Sync job statuses: processing → awaiting_review when document is completed_ocr.
    */
   private async syncJobStatuses(versionId: string): Promise<void> {
-    const processingJobs = await this.prisma.datasetGroundTruthJob.findMany({
-      where: {
-        datasetVersionId: versionId,
-        status: GroundTruthJobStatus.processing,
-        documentId: { not: null },
-      },
-      include: {
-        document: { select: { status: true } },
-      },
-    });
-
-    const jobsToUpdate = processingJobs.filter(
-      (j) => j.document?.status === DocumentStatus.completed_ocr,
-    );
-
-    const jobsToFail = processingJobs.filter(
-      (j) => j.document?.status === DocumentStatus.failed,
-    );
-
-    if (jobsToUpdate.length > 0) {
-      await this.prisma.datasetGroundTruthJob.updateMany({
-        where: { id: { in: jobsToUpdate.map((j) => j.id) } },
-        data: { status: GroundTruthJobStatus.awaiting_review },
-      });
-    }
-
-    if (jobsToFail.length > 0) {
-      await this.prisma.datasetGroundTruthJob.updateMany({
-        where: { id: { in: jobsToFail.map((j) => j.id) } },
-        data: {
-          status: GroundTruthJobStatus.failed,
-          error: "OCR processing failed",
-        },
-      });
-    }
+    await this.groundTruthJobDb.syncProcessingJobStatuses(versionId);
   }
 
   /**

@@ -58,7 +58,7 @@ The primary source is `FieldCorrection` records from the HITL review pipeline:
 - **Corrected value**: `corrected_value` from the human reviewer
 - **Action**: Only `corrected` actions yield confusion data (confirmed/flagged/deleted do not)
 
-The `ConfusionMatrixService` compares original vs corrected strings character-by-character using alignment to identify substitutions, insertions, and deletions.
+Deriving a matrix from HITL pairs compares original vs corrected strings character-by-character using alignment to identify substitutions, insertions, and deletions.
 
 ### 2. Benchmark Ground Truth vs Predictions
 
@@ -77,15 +77,9 @@ When a benchmark dataset has both ground truth (from HITL-reviewed data via `Hit
 - **AI recommendation pipeline**: The confusion matrix statistics can inform the AI when recommending which correction tools to add and with what parameters.
 - **Benchmarking**: Confusion matrices computed from benchmark runs provide per-iteration quality metrics to track improvement over time.
 
-## Storage and HTTP API
+## Implementation status
 
-Confusion matrices are computed on demand via `ConfusionMatrixService` (`apps/backend-services/src/benchmark/confusion-matrix.service.ts`).
-
-**HTTP:** `POST /api/benchmark/projects/:projectId/confusion-matrix/derive` with JSON body (all optional): `startDate`, `endDate`, `groupIds`, `fieldKeys` (ISO date strings for dates). If `groupIds` is omitted, the benchmark project’s group is used. Requires the same auth as other benchmark APIs. Response body is the `ConfusionMatrixResult` JSON (schema version `1.0`).
-
-Results may also be:
-- Used offline or in scripts by calling the service directly
-- Passed manually into correction tools (e.g. `confusionMapOverride` on `ocr.characterConfusion`) or considered when tuning the AI recommendation pipeline (the recommender consumes raw HITL rows, not this matrix, unless you extend it)
+There is **no** backend HTTP API or shared service for confusion-matrix derivation in this repository. Matrices can be produced **offline** (scripts, notebooks) using `FieldCorrection` rows and the alignment approach described above, then passed manually into correction tools (e.g. `confusionMapOverride` on `ocr.characterConfusion`) or used to tune workflows. The AI recommendation pipeline consumes raw HITL rows, not a pre-aggregated matrix, unless you extend it.
 
 ## Related References
 

@@ -51,17 +51,30 @@ export class HitlAggregationService {
   async getAggregatedCorrections(
     filters: HitlAggregationFilters,
   ): Promise<HitlAggregationResult> {
-    const where: Prisma.FieldCorrectionWhereInput = {};
+    const where: Prisma.FieldCorrectionWhereInput = {
+      original_value: { not: null },
+      corrected_value: { not: null },
+    };
+
+    const fieldKeyAnd: Prisma.FieldCorrectionWhereInput[] = [
+      { field_key: { not: { startsWith: "_" } } },
+    ];
+    if (filters.fieldKeys && filters.fieldKeys.length > 0) {
+      fieldKeyAnd.push({ field_key: { in: filters.fieldKeys } });
+    }
+    where.AND = fieldKeyAnd;
 
     if (filters.actions && filters.actions.length > 0) {
       where.action = {
         in: filters.actions as CorrectionAction[],
       };
     } else {
-      // Default to reviewed HITL rows that can still inform OCR improvement.
-      // Confirmed rows often capture a reviewer-validated value alongside corrected ones.
+      // Default to rows where the reviewer changed the value — these carry error signal
+      // for OCR improvement. `confirmed` means the OCR output was accepted as-is (often
+      // original === corrected), so they consume `take` limit without helping recommendations.
+      // Pass `actions` explicitly if you need confirmed rows too.
       where.action = {
-        in: [CorrectionAction.confirmed, CorrectionAction.corrected],
+        in: [CorrectionAction.corrected],
       };
     }
 
@@ -76,14 +89,6 @@ export class HitlAggregationService {
         document: { group_id: { in: filters.groupIds } },
       };
     }
-
-    if (filters.fieldKeys && filters.fieldKeys.length > 0) {
-      where.field_key = { in: filters.fieldKeys };
-    }
-
-    // Do not use Prisma startsWith("_") here: in PostgreSQL LIKE '_%' treats _
-    // as a wildcard, so NOT LIKE '_%' matches only the empty string. We exclude
-    // internal fields (keys starting with "_") in application code below.
 
     const limit = Math.min(filters.limit ?? 5000, 10000);
 
@@ -107,27 +112,18 @@ export class HitlAggregationService {
       take: limit,
     });
 
-    const records: HitlCorrectionRecord[] = corrections
-      .filter(
-        (c) =>
-          !c.field_key.startsWith("_") &&
-          c.original_value != null &&
-          c.corrected_value != null,
-      )
-      .map((c) => ({
-        fieldKey: c.field_key,
-        originalValue: c.original_value!,
-        correctedValue: c.corrected_value!,
-        action: c.action,
-        originalConfidence: c.original_conf,
-        sessionId: c.session_id,
-        documentId: c.session.document_id,
-        createdAt: c.created_at,
-      }));
+    const records: HitlCorrectionRecord[] = corrections.map((c) => ({
+      fieldKey: c.field_key,
+      originalValue: c.original_value!,
+      correctedValue: c.corrected_value!,
+      action: c.action,
+      originalConfidence: c.original_conf,
+      sessionId: c.session_id,
+      documentId: c.session.document_id,
+      createdAt: c.created_at,
+    }));
 
-    this.logger.debug(
-      `Aggregated ${records.length} corrections (after excluding internal fields)`,
-    );
+    this.logger.debug(`Aggregated ${records.length} corrections`);
     if (records.length === 0) {
       this.logger.log(
         `HITL aggregation returned 0 corrections; filters used: ${JSON.stringify(filters)}`,
@@ -139,47 +135,5 @@ export class HitlAggregationService {
       total: records.length,
       filters,
     };
-  }
-
-  /**
-   * Get correction pattern summary: groups corrections by field_key and
-   * counts occurrences of each (original→corrected) transformation.
-   */
-  async getCorrectionPatterns(filters: HitlAggregationFilters): Promise<
-    Array<{
-      fieldKey: string;
-      originalValue: string;
-      correctedValue: string;
-      count: number;
-    }>
-  > {
-    const { corrections } = await this.getAggregatedCorrections(filters);
-
-    const patternMap = new Map<
-      string,
-      {
-        fieldKey: string;
-        originalValue: string;
-        correctedValue: string;
-        count: number;
-      }
-    >();
-
-    for (const c of corrections) {
-      const key = `${c.fieldKey}|${c.originalValue}|${c.correctedValue}`;
-      const existing = patternMap.get(key);
-      if (existing) {
-        existing.count++;
-      } else {
-        patternMap.set(key, {
-          fieldKey: c.fieldKey,
-          originalValue: c.originalValue,
-          correctedValue: c.correctedValue,
-          count: 1,
-        });
-      }
-    }
-
-    return Array.from(patternMap.values()).sort((a, b) => b.count - a.count);
   }
 }

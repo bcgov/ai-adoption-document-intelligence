@@ -2,13 +2,15 @@
  * Workflow Modification Utility (backend)
  *
  * Applies AI tool recommendations to a graph config by inserting
- * correction nodes. Duplicates `apps/temporal/src/workflow-modification/workflow-modification.util.ts`
+ * correction nodes. Mirrors `apps/temporal/src/workflow-modification/workflow-modification.util.ts`
  * so the Nest API can build candidate graphs without importing the worker bundle.
- * Keep behavior aligned with that file (shared `@ai-di/graph-insertion-slots` helps).
+ * Keep `applyRecommendations` / `applyOcrNormalizeFieldsEmptyValueCoercion` aligned with that file
+ * (shared `@ai-di/graph-insertion-slots` helps). `ToolRecommendation` is the Temporal pipeline type.
  *
  * See feature-docs/008-ocr-correction-agentic-sdlc/step-04-benchmark-integration-workflow-comparison.md
  */
 
+import type { ToolRecommendation } from "../../../temporal/src/ai-recommendation-types";
 import type {
   ActivityNode,
   GraphEdge,
@@ -17,16 +19,7 @@ import type {
 } from "./graph-workflow-types";
 import { isOcrCorrectionInsertionEdgeSourceAllowed } from "./insertion-slots.util";
 
-export interface ToolRecommendation {
-  toolId: string;
-  parameters: Record<string, unknown>;
-  insertionPoint: {
-    afterNodeId?: string;
-    beforeNodeId?: string;
-  };
-  rationale: string;
-  priority: number;
-}
+export type { ToolRecommendation };
 
 export interface WorkflowModificationResult {
   newConfig: GraphWorkflowConfig;
@@ -187,7 +180,7 @@ function resolveNodeId(
 
 /**
  * Apply a list of tool recommendations to a graph config.
- * Insertion points must use node ids that exist in the graph (see Temporal `applyRecommendations`).
+ * `afterNodeId` / `beforeNodeId` are resolved with exact match, then case-insensitive fallback.
  */
 export function applyRecommendations(
   config: GraphWorkflowConfig,

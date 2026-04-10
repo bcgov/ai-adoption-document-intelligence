@@ -78,6 +78,7 @@ import { DocumentService } from "@/document/document.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
 import { OcrService } from "@/ocr/ocr.service";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
+import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
 const mockBlobStorage: BlobStorageInterface = {
@@ -135,6 +136,7 @@ describe("GroundTruthGenerationService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GroundTruthGenerationService,
+        GroundTruthJobDbService,
         {
           provide: PrismaService,
           useValue: { prisma: mockPrismaClient },
@@ -171,18 +173,12 @@ describe("GroundTruthGenerationService", () => {
     const datasetId = "dataset-1";
     const versionId = "version-1";
     const workflowVersionId = "wv-workflow-1";
-    const userId = "user-1";
 
     it("should throw NotFoundException if version not found", async () => {
       mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.startGeneration(
-          datasetId,
-          versionId,
-          workflowVersionId,
-          userId,
-        ),
+        service.startGeneration(datasetId, versionId, workflowVersionId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -194,12 +190,7 @@ describe("GroundTruthGenerationService", () => {
       });
 
       await expect(
-        service.startGeneration(
-          datasetId,
-          versionId,
-          workflowVersionId,
-          userId,
-        ),
+        service.startGeneration(datasetId, versionId, workflowVersionId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -211,12 +202,7 @@ describe("GroundTruthGenerationService", () => {
       });
 
       await expect(
-        service.startGeneration(
-          datasetId,
-          versionId,
-          workflowVersionId,
-          userId,
-        ),
+        service.startGeneration(datasetId, versionId, workflowVersionId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -229,12 +215,7 @@ describe("GroundTruthGenerationService", () => {
       mockPrismaClient.workflowVersion.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.startGeneration(
-          datasetId,
-          versionId,
-          workflowVersionId,
-          userId,
-        ),
+        service.startGeneration(datasetId, versionId, workflowVersionId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -278,7 +259,6 @@ describe("GroundTruthGenerationService", () => {
         datasetId,
         versionId,
         workflowVersionId,
-        userId,
       );
 
       expect(result.jobCount).toBe(2);
@@ -318,12 +298,7 @@ describe("GroundTruthGenerationService", () => {
       );
 
       await expect(
-        service.startGeneration(
-          datasetId,
-          versionId,
-          workflowVersionId,
-          userId,
-        ),
+        service.startGeneration(datasetId, versionId, workflowVersionId),
       ).rejects.toThrow(BadRequestException);
     });
   });

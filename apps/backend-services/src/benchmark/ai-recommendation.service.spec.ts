@@ -3,6 +3,7 @@
  */
 
 import { HttpService } from "@nestjs/axios";
+import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
@@ -165,6 +166,40 @@ describe("AiRecommendationService", () => {
     expect(userContent).toBeDefined();
     expect(userContent).not.toContain("safeInsertionPoints");
     expect(userContent).toContain("Insertion: the server places");
+  });
+
+  it("preserves multi-line JSON in the user message (does not collapse embedded whitespace)", async () => {
+    const post = httpService.post as jest.Mock;
+    await service.getRecommendations(mockInput);
+    const payload = post.mock.calls[0][1] as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const userContent = payload.messages.find((m) => m.role === "user")
+      ?.content as string;
+    expect(userContent).toMatch(/\n[\s\S]*"toolId"/);
+  });
+
+  it("logs structured truncation metadata when corrections exceed prompt cap", async () => {
+    const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+    const many = Array.from({ length: 201 }, (_, i) => ({
+      fieldKey: `f${i}`,
+      originalValue: "a",
+      correctedValue: "b",
+      action: "corrected",
+    }));
+    await service.getRecommendations({
+      ...mockInput,
+      corrections: many,
+    });
+    expect(warn).toHaveBeenCalled();
+    const arg = warn.mock.calls.find(
+      (c) =>
+        typeof c[0] === "string" &&
+        c[0].includes("ai_recommendation_prompt_truncation"),
+    )?.[0] as string | undefined;
+    expect(arg).toBeDefined();
+    expect(JSON.parse(arg as string).correctionsTotal).toBe(201);
+    warn.mockRestore();
   });
 
   it("returns empty recommendations when no post-extract insertion slot exists", async () => {

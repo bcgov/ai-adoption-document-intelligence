@@ -13,9 +13,7 @@ export class PrismaService implements OnModuleInit {
     private configService: ConfigService,
     private readonly logger: AppLoggerService,
   ) {
-    const shouldLogQueries =
-      process.env.PRISMA_LOG_QUERIES === "true" ||
-      process.env.NODE_ENV !== "production";
+    const shouldLogQueries = process.env.PRISMA_LOG_QUERIES === "true";
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
     );
@@ -54,10 +52,7 @@ export class PrismaService implements OnModuleInit {
       category: "database",
     });
 
-    if (
-      process.env.PRISMA_LOG_QUERIES === "true" ||
-      process.env.NODE_ENV !== "production"
-    ) {
+    if (process.env.PRISMA_LOG_QUERIES === "true") {
       this.prisma.$on(
         "query",
         (e: { query: string; params: string; duration: number }) => {

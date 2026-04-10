@@ -44,22 +44,30 @@ const AZURE_OCR_CACHE_ACTIVITY_TYPES = new Set([
  * Inject benchmark OCR replay payload from ctx.__benchmarkOcrCache into Azure OCR
  * activities so submit/poll/extract can short-circuit without graph definition changes.
  */
+function isOcrCachePayload(
+  value: unknown,
+): value is { ocrResponse?: unknown } {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "ocrResponse" in value
+  );
+}
+
 function mergeBenchmarkOcrCacheParams(
   activityType: string,
   activityParams: Record<string, unknown>,
   ctx: Record<string, unknown>,
 ): Record<string, unknown> {
-  const raw = ctx.__benchmarkOcrCache;
+  const raw: unknown = ctx.__benchmarkOcrCache;
   if (
-    !raw ||
-    typeof raw !== "object" ||
-    raw === null ||
-    !("ocrResponse" in raw) ||
+    !isOcrCachePayload(raw) ||
     !AZURE_OCR_CACHE_ACTIVITY_TYPES.has(activityType)
   ) {
     return activityParams;
   }
-  const cache = raw as { ocrResponse?: unknown };
+  const cache = raw;
   const merged: Record<string, unknown> = {
     ...activityParams,
     __benchmarkOcrCache: raw,

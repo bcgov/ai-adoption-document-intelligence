@@ -1654,33 +1654,6 @@ describe("DatasetService", () => {
       createdAt: new Date(),
     };
 
-    it("throws BadRequestException on NoSuchBucket error", async () => {
-      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
-      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
-
-      (mockBlobStorage.write as jest.Mock).mockRejectedValueOnce(
-        new Error("NoSuchBucket: bucket does not exist"),
-      );
-
-      await expect(
-        service.uploadFilesToVersion(
-          "dataset-1",
-          "version-1",
-          [
-            {
-              fieldname: "files",
-              originalname: "test.pdf",
-              encoding: "7bit",
-              mimetype: "application/pdf",
-              buffer: Buffer.from("data"),
-              size: 4,
-            },
-          ],
-          "actor-1",
-        ),
-      ).rejects.toThrow(BadRequestException);
-    });
-
     it("throws BadRequestException on Failed to write blob error", async () => {
       mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);

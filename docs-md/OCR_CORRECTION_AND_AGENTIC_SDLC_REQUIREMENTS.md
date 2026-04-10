@@ -257,10 +257,10 @@ flowchart LR
 
 **Feature 008** (implement first — run baseline, make corrections, AI review results) — **IMPLEMENTED**:
 
-1. **Confusion matrices:** Document and, if applicable, implement ingestion/derivation of confusion-matrix–style data (Section 2). — See `docs-md/OCR_CONFUSION_MATRICES.md` and `ConfusionMatrixService`.
+1. **Confusion matrices:** Document and, if applicable, implement ingestion/derivation of confusion-matrix–style data (Section 2). — See `docs-md/OCR_CONFUSION_MATRICES.md` (format and concepts; no dedicated backend derivation API in-repo).
 2. **OCR correction tools:** Implement at least three correction tools and simple correction nodes, including spellcheck (Sections 3 and 4). — See `ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields` activities and `correction-tool-registry.ts`.
 3. **AI HITL processing:** Implement AI processing of HITL feedback and tool-selection output (Section 5). — See `HitlAggregationService`, `ToolManifestService`, `AiRecommendationService`.
-4. **Integrate with benchmarking system:** Use the existing benchmarking system for Section 6. — See `workflow-modification.util.ts`, `WorkflowService.createCandidateVersion()`, `CreateRunDto.workflowConfigOverride`, `OcrCorrectionEvaluator`, and `OcrImprovementPipelineService`.
+4. **Integrate with benchmarking system:** Use the existing benchmarking system for Section 6. — See `workflow-modification.util.ts`, `WorkflowService.createCandidateVersion()`, `CreateRunDto.candidateWorkflowVersionId`, `OcrCorrectionEvaluator`, and `OcrImprovementPipelineService`.
 
 For detailed file locations and implementation notes, see [feature-docs/008-ocr-correction-agentic-sdlc/README.md](../feature-docs/008-ocr-correction-agentic-sdlc/README.md).
 

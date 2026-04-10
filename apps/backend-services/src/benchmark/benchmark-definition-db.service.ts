@@ -40,6 +40,34 @@ const definitionSummaryInclude = {
   },
 } as const;
 
+/** Load shape for schedule enable/disable (no run history). */
+const scheduleConfigDefinitionInclude = {
+  datasetVersion: {
+    include: { dataset: { select: { name: true } } },
+  },
+  split: true,
+  workflowVersion: { include: { lineage: true } },
+} as const;
+
+/** Response shape after schedule update (limited recent runs, ordered by createdAt). */
+const scheduleUpdateResponseInclude = {
+  datasetVersion: {
+    include: { dataset: { select: { name: true } } },
+  },
+  split: true,
+  workflowVersion: { include: { lineage: true } },
+  benchmarkRuns: {
+    select: {
+      id: true,
+      status: true,
+      startedAt: true,
+      completedAt: true,
+    },
+    orderBy: { createdAt: "desc" as const },
+    take: 10,
+  },
+} as const;
+
 export type BenchmarkDefinitionWithDetails =
   Prisma.BenchmarkDefinitionGetPayload<{
     include: typeof definitionDetailsInclude;
@@ -299,6 +327,145 @@ export class BenchmarkDefinitionDbService {
       include: {
         benchmarkRuns: { select: { id: true, status: true } },
       },
+    });
+  }
+
+  /**
+   * Runs a Prisma interactive transaction (workflow promote, etc.).
+   */
+  async transaction<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(fn);
+  }
+
+  /**
+   * Deletes a workflow lineage row (e.g. benchmark_candidate after promote).
+   */
+  async deleteWorkflowLineage(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.workflowLineage.delete({ where: { id } });
+  }
+
+  /**
+   * Loads a workflow version with full lineage (create/promote validation).
+   */
+  async findWorkflowVersionWithLineage(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Prisma.WorkflowVersionGetPayload<{
+    include: { lineage: true };
+  }> | null> {
+    const client = tx ?? this.prisma;
+    return client.workflowVersion.findUnique({
+      where: { id },
+      include: { lineage: true },
+    });
+  }
+
+  /**
+   * Loads base lineage head pointer for promote.
+   */
+  async findWorkflowLineageHead(
+    lineageId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{
+    id: string;
+    group_id: string;
+    head_version_id: string | null;
+  } | null> {
+    const client = tx ?? this.prisma;
+    return client.workflowLineage.findUnique({
+      where: { id: lineageId },
+      select: { id: true, group_id: true, head_version_id: true },
+    });
+  }
+
+  /**
+   * Definition row with workflow lineage for benchmark candidate promote.
+   */
+  async findBenchmarkDefinitionForPromote(
+    projectId: string,
+    definitionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Prisma.BenchmarkDefinitionGetPayload<{
+    include: {
+      workflowVersion: { include: { lineage: true } };
+    };
+  }> | null> {
+    const client = tx ?? this.prisma;
+    return client.benchmarkDefinition.findFirst({
+      where: { id: definitionId, projectId },
+      include: {
+        workflowVersion: { include: { lineage: true } },
+      },
+    });
+  }
+
+  /**
+   * Minimal fields for Temporal schedule lookup.
+   */
+  async findDefinitionScheduleMeta(
+    projectId: string,
+    definitionId: string,
+  ): Promise<{ id: string; scheduleId: string | null } | null> {
+    return this.prisma.benchmarkDefinition.findFirst({
+      where: { id: definitionId, projectId },
+      select: { id: true, scheduleId: true },
+    });
+  }
+
+  /**
+   * Definition + dataset/split/workflow for schedule configuration.
+   */
+  async findBenchmarkDefinitionForScheduleConfig(
+    projectId: string,
+    definitionId: string,
+  ): Promise<Prisma.BenchmarkDefinitionGetPayload<{
+    include: typeof scheduleConfigDefinitionInclude;
+  }> | null> {
+    return this.prisma.benchmarkDefinition.findFirst({
+      where: { id: definitionId, projectId },
+      include: scheduleConfigDefinitionInclude,
+    });
+  }
+
+  /**
+   * Persists schedule fields and returns a definition payload suitable for {@link DefinitionDetailsDto}.
+   */
+  async updateBenchmarkDefinitionScheduleFields(
+    id: string,
+    data: {
+      scheduleEnabled: boolean;
+      scheduleCron: string | null;
+      scheduleId: string | null;
+    },
+  ): Promise<
+    Prisma.BenchmarkDefinitionGetPayload<{
+      include: typeof scheduleUpdateResponseInclude;
+    }>
+  > {
+    return this.prisma.benchmarkDefinition.update({
+      where: { id },
+      data,
+      include: scheduleUpdateResponseInclude,
+    });
+  }
+
+  /**
+   * Marks a definition immutable before creating a new revision (no full reload).
+   */
+  async setBenchmarkDefinitionImmutable(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.benchmarkDefinition.update({
+      where: { id },
+      data: { immutable: true },
     });
   }
 }
