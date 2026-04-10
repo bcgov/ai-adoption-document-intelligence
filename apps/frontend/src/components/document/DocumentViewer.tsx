@@ -412,7 +412,7 @@ export function DocumentViewer({
             >
               Loading PDF page...
             </div>
-          ) : pdfImageUrl ? (
+          ) : (
             <img
               ref={imageRef}
               src={pdfImageUrl}
@@ -425,7 +425,7 @@ export function DocumentViewer({
               }}
               onLoad={handleImageLoad}
             />
-          ) : null}
+          )}
           {renderFieldOverlays()}
         </div>
       </div>
