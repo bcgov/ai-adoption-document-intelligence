@@ -160,16 +160,4 @@ export class ToolManifestService {
   getManifest(): ToolManifestEntry[] {
     return TOOL_MANIFEST;
   }
-
-  getToolById(toolId: string): ToolManifestEntry | undefined {
-    return TOOL_MANIFEST.find((t) => t.toolId === toolId);
-  }
-
-  getToolIds(): string[] {
-    return TOOL_MANIFEST.map((t) => t.toolId);
-  }
-
-  isValidToolId(toolId: string): boolean {
-    return TOOL_MANIFEST.some((t) => t.toolId === toolId);
-  }
 }
