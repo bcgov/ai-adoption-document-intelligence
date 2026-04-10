@@ -1,5 +1,5 @@
 import { DocumentStatus, GroupRole } from "@generated/client";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, HttpException, HttpStatus } from "@nestjs/common";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
@@ -51,6 +51,7 @@ describe("UploadController", () => {
       created_at: new Date(),
       updated_at: new Date(),
       file_path: "path",
+      normalized_file_path: "documents/1/normalized.pdf",
       metadata: { foo: "bar" },
       source: "api",
       model_id: "test-model-id",
@@ -58,7 +59,10 @@ describe("UploadController", () => {
     };
 
     it("should upload document and queue OCR", async () => {
-      documentService.uploadDocument.mockResolvedValue(uploadedDoc);
+      documentService.uploadDocument.mockResolvedValue({
+        kind: "success",
+        document: uploadedDoc,
+      });
       const result = await controller.uploadDocument(baseDto, mockReq);
       expect(result.success).toBe(true);
       expect(result.document.id).toBe("1");
@@ -75,7 +79,7 @@ describe("UploadController", () => {
       expect(queueService.processOcrForDocument).toHaveBeenCalledWith(
         expect.objectContaining({
           documentId: "1",
-          filePath: "path",
+          filePath: "documents/1/normalized.pdf",
           fileType: "pdf",
         }),
       );
@@ -101,6 +105,39 @@ describe("UploadController", () => {
       await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it("should throw HttpException 422 when PDF normalization failed", async () => {
+      const failedDoc = {
+        ...uploadedDoc,
+        normalized_file_path: null,
+        status: DocumentStatus.conversion_failed,
+      };
+      documentService.uploadDocument.mockResolvedValue({
+        kind: "conversion_failed",
+        document: failedDoc,
+      });
+
+      let caught: unknown;
+      try {
+        await controller.uploadDocument(baseDto, mockReq);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeDefined();
+      expect(caught).toBeInstanceOf(HttpException);
+      expect((caught as HttpException).getStatus()).toBe(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+      const body = (caught as HttpException).getResponse() as {
+        code?: string;
+        document?: { id: string };
+      };
+      expect(body.code).toBe("conversion_failed");
+      expect(body.document?.id).toBe("1");
+
+      expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
     });
   });
 });

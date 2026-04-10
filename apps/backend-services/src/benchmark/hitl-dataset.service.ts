@@ -33,6 +33,7 @@ interface DocumentWithReview {
   id: string;
   original_filename: string;
   file_path: string;
+  normalized_file_path: string | null;
   file_type: string;
   ocr_result: {
     keyValuePairs: unknown;
@@ -345,13 +346,20 @@ export class HitlDatasetService {
     }
     usedSampleIds.add(sampleId);
 
-    // Copy the original document file
-    const inputFilename = `${sampleId}${ext}`;
+    if (!doc.normalized_file_path) {
+      throw new Error(
+        "Document has no normalized PDF; cannot export to dataset",
+      );
+    }
+
+    const inputFilename = `${sampleId}.pdf`;
     const inputRelativePath = `inputs/${inputFilename}`;
     const inputBlobKey = `${storagePrefix}/${inputRelativePath}`;
 
-    const originalFileBuffer = await this.blobStorage.read(doc.file_path);
-    await this.blobStorage.write(inputBlobKey, originalFileBuffer);
+    const normalizedPdfBuffer = await this.blobStorage.read(
+      doc.normalized_file_path,
+    );
+    await this.blobStorage.write(inputBlobKey, normalizedPdfBuffer);
 
     // Build ground truth as flat key-value pairs (same format as uploaded
     // ground truth and as predictions produced by extractPredictionFromCtx
@@ -369,8 +377,7 @@ export class HitlDatasetService {
       Buffer.from(JSON.stringify(groundTruth, null, 2)),
     );
 
-    // Determine MIME type
-    const mimeType = this.getMimeType(ext);
+    const mimeType = "application/pdf";
 
     return {
       id: sampleId,
@@ -444,19 +451,6 @@ export class HitlDatasetService {
     }
 
     return groundTruth;
-  }
-
-  private getMimeType(ext: string): string {
-    const mimeTypes: Record<string, string> = {
-      ".pdf": "application/pdf",
-      ".png": "image/png",
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".tif": "image/tiff",
-      ".tiff": "image/tiff",
-      ".bmp": "image/bmp",
-    };
-    return mimeTypes[ext.toLowerCase()] ?? "application/octet-stream";
   }
 }
 

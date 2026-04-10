@@ -127,19 +127,33 @@ class ApiService {
         success: true,
       };
     } catch (error) {
-      // Error handling - logging removed for lint compliance
       let message = "Unknown error";
+      let errorPayload: unknown = null;
       if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError<{ message?: string }>;
-        message =
-          axiosError.response?.data?.message ??
-          axiosError.message ??
-          "Unknown error";
+        const axiosError = error as AxiosError<{
+          message?: string | string[] | Record<string, unknown>;
+        }>;
+        errorPayload = axiosError.response?.data ?? null;
+        const raw = axiosError.response?.data?.message;
+        if (typeof raw === "string") {
+          message = raw;
+        } else if (Array.isArray(raw)) {
+          message = raw.join(", ");
+        } else if (
+          raw &&
+          typeof raw === "object" &&
+          "message" in raw &&
+          typeof (raw as { message: unknown }).message === "string"
+        ) {
+          message = (raw as { message: string }).message;
+        } else {
+          message = axiosError.message ?? "Unknown error";
+        }
       } else if (error instanceof Error) {
         message = error.message;
       }
       return {
-        data: null as T,
+        data: (errorPayload as T) ?? (null as T),
         success: false,
         message,
       };

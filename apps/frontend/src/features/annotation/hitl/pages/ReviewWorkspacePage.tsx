@@ -13,15 +13,18 @@ import {
 } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { IconArrowLeft } from "@tabler/icons-react";
-import { FC, useEffect, useMemo, useState } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
-import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
-import { DocumentViewer } from "../../core/document-viewer/DocumentViewer";
+import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
+import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { CorrectionAction } from "../../core/types/annotation";
 import type { BoundingBox } from "../../core/types/canvas";
-import { CanvasTool } from "../../core/types/canvas";
 import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
 import { ReviewToolbar } from "../components/ReviewToolbar";
@@ -35,6 +38,7 @@ interface OcrField {
   confidence?: number;
   boundingRegions?: Array<{
     polygon: number[];
+    pageNumber?: number;
   }>;
   [key: string]: unknown;
 }
@@ -44,6 +48,8 @@ interface ReviewField {
   value: string;
   confidence?: number;
   boundingBox?: BoundingBox;
+  /** 1-based page index from OCR (defaults to 1). */
+  pageNumber: number;
 }
 
 interface EnrichmentChange {
@@ -147,11 +153,23 @@ export const ReviewWorkspacePage: FC = () => {
     isSkipping,
   } = useReviewSession(sessionId);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [numPages, setNumPages] = useState(0);
+  const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
   const {
-    ref: canvasRef,
-    width: canvasWidth,
-    height: canvasHeight,
+    ref: pdfContainerRef,
+    width: pdfContainerWidth,
+    height: pdfContainerHeight,
   } = useElementSize();
+  const [pdfRenderedSize, setPdfRenderedSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const [pdfOriginalSize, setPdfOriginalSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const initialZoomSetRef = useRef(false);
   const [correctionMap, setCorrectionMap] = useState<
     Record<
       string,
@@ -168,7 +186,13 @@ export const ReviewWorkspacePage: FC = () => {
   const [escalationReason, setEscalationReason] = useState("");
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState("");
-  const isPdf = session?.document?.storage_path?.endsWith(".pdf");
+
+  useEffect(() => {
+    initialZoomSetRef.current = false;
+    setCurrentPage(1);
+    setPdfRenderedSize(null);
+    setPdfOriginalSize(null);
+  }, [session?.document?.id]);
 
   useEffect(() => {
     const loadDocument = async () => {
@@ -177,7 +201,7 @@ export const ReviewWorkspacePage: FC = () => {
       }
       try {
         const response = await fetch(
-          `/api/documents/${session.document.id}/download`,
+          `/api/documents/${session.document.id}/view`,
           { credentials: "include" },
         );
         if (!response.ok) return;
@@ -191,6 +215,23 @@ export const ReviewWorkspacePage: FC = () => {
 
     void loadDocument();
   }, [session?.document?.id]);
+
+  useEffect(() => {
+    if (
+      !initialZoomSetRef.current &&
+      pdfContainerWidth > 0 &&
+      pdfContainerHeight > 0 &&
+      pdfOriginalSize
+    ) {
+      zoomToFit(
+        pdfContainerWidth,
+        pdfContainerHeight,
+        pdfOriginalSize.width,
+        pdfOriginalSize.height,
+      );
+      initialZoomSetRef.current = true;
+    }
+  }, [pdfContainerWidth, pdfContainerHeight, pdfOriginalSize, zoomToFit]);
 
   useEffect(() => {
     return () => {
@@ -216,6 +257,7 @@ export const ReviewWorkspacePage: FC = () => {
           "";
         const boundingRegion = field.boundingRegions?.[0];
         const polygon = boundingRegion?.polygon || [];
+        const pageNumber = boundingRegion?.pageNumber ?? 1;
         const points = [];
         for (let i = 0; i < polygon.length; i += 2) {
           points.push({ x: polygon[i], y: polygon[i + 1] });
@@ -227,6 +269,7 @@ export const ReviewWorkspacePage: FC = () => {
           value,
           confidence: field.confidence,
           boundingBox,
+          pageNumber,
         };
       },
     );
@@ -257,25 +300,16 @@ export const ReviewWorkspacePage: FC = () => {
     return sortedFields.filter((f) => f.fieldKey.toLowerCase().includes(lower));
   }, [sortedFields, fieldFilter]);
 
-  const boxes = useMemo(() => {
-    const result = sortedFields
-      .filter((field) => field.boundingBox)
-      .map((field) => {
-        // Generate deterministic color based on field key
-        const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
-        const isActive = field.fieldKey === activeFieldKey;
-
-        return {
-          id: field.fieldKey,
-          box: field.boundingBox!,
-          label: field.fieldKey,
-          color: borderCss,
-          confidence: field.confidence,
-          isActive,
-        };
-      });
-    return result;
-  }, [sortedFields, activeFieldKey]);
+  const fieldsOnCurrentPage = useMemo(
+    () =>
+      filteredSortedFields.filter(
+        (f) =>
+          f.pageNumber === currentPage &&
+          f.boundingBox &&
+          f.boundingBox.polygon.length >= 2,
+      ),
+    [filteredSortedFields, currentPage],
+  );
 
   const handleFieldChange = (field: ReviewField, value: string) => {
     setCorrectionMap((prev) => ({
@@ -378,59 +412,134 @@ export const ReviewWorkspacePage: FC = () => {
             overflow: "hidden",
           }}
         >
-          {isPdf ? (
-            !documentUrl ? (
-              <Stack
-                align="center"
-                justify="center"
-                style={{ position: "absolute", inset: 0 }}
-              >
-                <Text size="sm" c="dimmed">
-                  Document preview is unavailable.
-                </Text>
-              </Stack>
-            ) : (
+          {!documentUrl ? (
+            <Stack
+              align="center"
+              justify="center"
+              style={{ position: "absolute", inset: 0 }}
+            >
+              <Text size="sm" c="dimmed">
+                Document preview is unavailable.
+              </Text>
+            </Stack>
+          ) : (
+            <Stack
+              gap="xs"
+              style={{
+                position: "absolute",
+                inset: 0,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <ViewerToolbar
+                currentPage={currentPage}
+                totalPages={numPages || 1}
+                zoom={zoom}
+                onPageChange={setCurrentPage}
+                onZoomIn={zoomIn}
+                onZoomOut={zoomOut}
+                onZoomReset={resetZoom}
+              />
               <div
-                style={{ position: "absolute", inset: 0 }}
+                ref={pdfContainerRef}
+                style={{
+                  position: "relative",
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: "auto",
+                }}
                 onClick={(e) => {
-                  // Deselect when clicking on PDF background
                   if (e.target === e.currentTarget) {
                     setActiveFieldKey(null);
                   }
                 }}
               >
-                <DocumentViewer documentUrl={documentUrl} fitToContainer />
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <Document
+                    file={documentUrl}
+                    onLoadSuccess={({ numPages: n }) => {
+                      setNumPages(n);
+                    }}
+                  >
+                    <Page
+                      pageNumber={currentPage}
+                      scale={zoom}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      onLoadSuccess={(page) => {
+                        setPdfRenderedSize({
+                          width: page.width,
+                          height: page.height,
+                        });
+                        const originalWidth = page.width / zoom;
+                        const originalHeight = page.height / zoom;
+                        setPdfOriginalSize({
+                          width: originalWidth,
+                          height: originalHeight,
+                        });
+                      }}
+                    />
+                  </Document>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: pdfRenderedSize?.width ?? "100%",
+                      height: pdfRenderedSize?.height ?? "100%",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {fieldsOnCurrentPage.map((field) => {
+                      const poly = field.boundingBox!.polygon;
+                      const xs = poly.map((p) => p.x);
+                      const ys = poly.map((p) => p.y);
+                      const minX = Math.min(...xs);
+                      const minY = Math.min(...ys);
+                      const maxX = Math.max(...xs);
+                      const maxY = Math.max(...ys);
+                      const pageW = pdfOriginalSize?.width ?? 1;
+                      const pageH = pdfOriginalSize?.height ?? 1;
+                      const rw = pdfRenderedSize?.width ?? 1;
+                      const rh = pdfRenderedSize?.height ?? 1;
+                      const INCH_TO_PT = 72;
+                      const left = minX * INCH_TO_PT * (rw / pageW);
+                      const top = minY * INCH_TO_PT * (rh / pageH);
+                      const width = (maxX - minX) * INCH_TO_PT * (rw / pageW);
+                      const height = (maxY - minY) * INCH_TO_PT * (rh / pageH);
+                      const { borderCss } = colorForFieldKeyWithBorder(
+                        field.fieldKey,
+                      );
+                      const isActive = field.fieldKey === activeFieldKey;
+                      return (
+                        <div
+                          key={field.fieldKey}
+                          style={{
+                            position: "absolute",
+                            left,
+                            top,
+                            width,
+                            height,
+                            border: `${isActive ? 3 : 2}px solid ${isActive ? "#ff0000" : borderCss}`,
+                            backgroundColor: isActive
+                              ? "rgba(255, 0, 0, 0.06)"
+                              : "rgba(0, 0, 0, 0.04)",
+                            pointerEvents: "auto",
+                            cursor: "pointer",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveFieldKey(field.fieldKey);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            )
-          ) : (
-            <div
-              ref={canvasRef}
-              style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-            >
-              {!documentUrl ? (
-                <Stack
-                  align="center"
-                  justify="center"
-                  style={{ position: "absolute", inset: 0 }}
-                >
-                  <Text size="sm" c="dimmed">
-                    Document preview is unavailable.
-                  </Text>
-                </Stack>
-              ) : (
-                canvasWidth > 0 &&
-                canvasHeight > 0 && (
-                  <AnnotationCanvas
-                    imageUrl={documentUrl}
-                    width={canvasWidth}
-                    height={canvasHeight}
-                    boxes={boxes}
-                    activeTool={CanvasTool.SELECT}
-                    onBoxSelect={(boxId) => setActiveFieldKey(boxId)}
-                  />
-                )
-              )}
-            </div>
+            </Stack>
           )}
         </Paper>
 
