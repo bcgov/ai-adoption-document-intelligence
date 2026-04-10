@@ -5,10 +5,10 @@ export class BootstrapStatusResponseDto {
     description:
       "Whether system bootstrap is still needed (no system admins exist)",
   })
-  needed: boolean;
+  needed!: boolean;
 
   @ApiProperty({
     description: "Whether the current caller is eligible to perform bootstrap",
   })
-  eligible: boolean;
+  eligible!: boolean;
 }

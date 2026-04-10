@@ -53,7 +53,7 @@ export const AZURE_STORAGE = Symbol("AZURE_STORAGE");
 
 @Injectable()
 export class AzureStorageService {
-  private blobServiceClient: BlobServiceClient;
+  private blobServiceClient!: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
   private readonly deleteRetryDelayMs = 5000;
@@ -68,10 +68,10 @@ export class AzureStorageService {
     );
     this.accountName = this.configService.get<string>(
       "AZURE_STORAGE_ACCOUNT_NAME",
-    );
+    )!;
     this.accountKey = this.configService.get<string>(
       "AZURE_STORAGE_ACCOUNT_KEY",
-    );
+    )!;
 
     if (!connectionString) {
       this.logger.warn(

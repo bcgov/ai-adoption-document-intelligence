@@ -15,31 +15,31 @@ export class ProjectSummaryDto {
    * Project ID
    */
   @ApiProperty({ description: "Project ID" })
-  id: string;
+  id!: string;
 
   /**
    * Project name
    */
   @ApiProperty({ description: "Project name" })
-  name: string;
+  name!: string;
 
   /**
    * Project description
    */
   @ApiPropertyOptional({ description: "Project description", nullable: true })
-  description: string | null;
+  description!: string | null;
 
   /**
    * User who created the project
    */
   @ApiProperty({ description: "User who created the project" })
-  createdBy: string;
+  createdBy!: string;
 
   /**
    * Group ID that owns this project
    */
   @ApiProperty({ description: "Group ID that owns this project" })
-  groupId: string;
+  groupId!: string;
 
   /**
    * Number of benchmark definitions in this project
@@ -47,25 +47,25 @@ export class ProjectSummaryDto {
   @ApiProperty({
     description: "Number of benchmark definitions in this project",
   })
-  definitionCount: number;
+  definitionCount!: number;
 
   /**
    * Number of benchmark runs in this project
    */
   @ApiProperty({ description: "Number of benchmark runs in this project" })
-  runCount: number;
+  runCount!: number;
 
   /**
    * Creation timestamp
    */
   @ApiProperty({ description: "Creation timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 
   /**
    * Last update timestamp
    */
   @ApiProperty({ description: "Last update timestamp" })
-  updatedAt: Date;
+  updatedAt!: Date;
 }
 
 /**
@@ -76,31 +76,31 @@ export class RecentRunSummary {
    * Run ID
    */
   @ApiProperty({ description: "Run ID" })
-  id: string;
+  id!: string;
 
   /**
    * Definition name
    */
   @ApiProperty({ description: "Definition name" })
-  definitionName: string;
+  definitionName!: string;
 
   /**
    * Run status
    */
   @ApiProperty({ description: "Run status" })
-  status: string;
+  status!: string;
 
   /**
    * Temporal workflow ID
    */
   @ApiProperty({ description: "Temporal workflow ID", nullable: true })
-  temporalWorkflowId: string | null;
+  temporalWorkflowId!: string | null;
 
   /**
    * Start timestamp
    */
   @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
-  startedAt: Date | null;
+  startedAt!: Date | null;
 
   /**
    * Completion timestamp
@@ -110,7 +110,7 @@ export class RecentRunSummary {
     nullable: true,
     type: Date,
   })
-  completedAt: Date | null;
+  completedAt!: Date | null;
 }
 
 /**
@@ -121,37 +121,37 @@ export class DefinitionSummary {
    * Definition ID
    */
   @ApiProperty({ description: "Definition ID" })
-  id: string;
+  id!: string;
 
   /**
    * Definition name
    */
   @ApiProperty({ description: "Definition name" })
-  name: string;
+  name!: string;
 
   /**
    * Dataset version ID
    */
   @ApiProperty({ description: "Dataset version ID" })
-  datasetVersionId: string;
+  datasetVersionId!: string;
 
   /**
    * Evaluator type
    */
   @ApiProperty({ description: "Evaluator type" })
-  evaluatorType: string;
+  evaluatorType!: string;
 
   /**
    * Whether the definition is immutable
    */
   @ApiProperty({ description: "Whether the definition is immutable" })
-  immutable: boolean;
+  immutable!: boolean;
 
   /**
    * Creation timestamp
    */
   @ApiProperty({ description: "Creation timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 /**
@@ -162,31 +162,31 @@ export class ProjectDetailsDto {
    * Project ID
    */
   @ApiProperty({ description: "Project ID" })
-  id: string;
+  id!: string;
 
   /**
    * Project name
    */
   @ApiProperty({ description: "Project name" })
-  name: string;
+  name!: string;
 
   /**
    * Project description
    */
   @ApiPropertyOptional({ description: "Project description", nullable: true })
-  description: string | null;
+  description!: string | null;
 
   /**
    * User who created the project
    */
   @ApiProperty({ description: "User who created the project" })
-  createdBy: string;
+  createdBy!: string;
 
   /**
    * Group ID that owns this project
    */
   @ApiProperty({ description: "Group ID that owns this project" })
-  groupId: string;
+  groupId!: string;
 
   /**
    * List of benchmark definitions
@@ -196,7 +196,7 @@ export class ProjectDetailsDto {
     type: () => DefinitionSummary,
     isArray: true,
   })
-  definitions: DefinitionSummary[];
+  definitions!: DefinitionSummary[];
 
   /**
    * Recent benchmark runs
@@ -206,17 +206,17 @@ export class ProjectDetailsDto {
     type: () => RecentRunSummary,
     isArray: true,
   })
-  recentRuns: RecentRunSummary[];
+  recentRuns!: RecentRunSummary[];
 
   /**
    * Creation timestamp
    */
   @ApiProperty({ description: "Creation timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 
   /**
    * Last update timestamp
    */
   @ApiProperty({ description: "Last update timestamp" })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

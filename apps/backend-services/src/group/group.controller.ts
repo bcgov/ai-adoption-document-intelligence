@@ -72,7 +72,7 @@ export class GroupController {
   @Identity()
   @Get()
   async getAllGroups(): Promise<
-    Array<{ id: string; name: string; description?: string }>
+    Array<{ id: string; name: string; description: string | null }>
   > {
     return await this.groupService.getAllGroups();
   }
@@ -119,7 +119,7 @@ export class GroupController {
     @Req() req: Request & { user?: User },
     @Body() body: RequestMembershipDto,
   ): Promise<{ success: boolean }> {
-    const userId = req.resolvedIdentity.userId;
+    const userId = req.resolvedIdentity.userId!;
     await this.groupService.requestMembership(
       userId,
       body.groupId,
@@ -146,7 +146,7 @@ export class GroupController {
     @Req() req: Request,
     @Query("status") status?: string,
   ): Promise<MyMembershipRequestDto[]> {
-    const userId = req.resolvedIdentity?.userId;
+    const userId = req.resolvedIdentity.userId!;
     const validStatuses = Object.values($Enums.GroupMembershipRequestStatus);
     let parsedStatus: $Enums.GroupMembershipRequestStatus | undefined;
     if (status !== undefined) {
@@ -402,7 +402,6 @@ export class GroupController {
   @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
   @Get(":groupId/requests")
   async getGroupRequests(
-    @Req() req: Request,
     @Param("groupId") groupId: string,
     @Query("status") status?: string,
   ): Promise<GroupMembershipRequestDto[]> {
@@ -507,7 +506,7 @@ export class GroupController {
     @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<{ success: boolean }> {
-    const userId = req.resolvedIdentity?.userId;
+    const userId = req.resolvedIdentity.userId!;
     await this.groupService.leaveGroup(userId, groupId);
     return { success: true };
   }

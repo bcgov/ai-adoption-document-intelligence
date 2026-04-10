@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
@@ -43,8 +44,8 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * @returns Enhanced error with helpful message
    */
   private handleError(error: unknown, context: string): Error {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorMessage = getErrorMessage(error);
+    const errorStack = getErrorStack(error);
 
     // Build helpful error message based on error type
     let enhancedMessage = `Failed to ${context}: ${errorMessage}`;

@@ -11,7 +11,7 @@ export enum TemplateModelStatus {
 export class CreateTemplateModelDto {
   @ApiProperty({ description: "Template model name" })
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "Template model description" })
   @IsOptional()
@@ -21,7 +21,7 @@ export class CreateTemplateModelDto {
   @ApiProperty({ description: "Group ID" })
   @IsString()
   @IsNotEmpty()
-  group_id: string;
+  group_id!: string;
 }
 
 export class UpdateTemplateModelDto {

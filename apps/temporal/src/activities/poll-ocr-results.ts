@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
@@ -144,8 +145,8 @@ export async function pollOCRResults(params: {
   } catch (error) {
     log.error("Poll OCR results error", {
       event: "error",
-      error: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
+      error: getErrorMessage(error),
+      stack: getErrorStack(error),
     });
     throw error;
   }

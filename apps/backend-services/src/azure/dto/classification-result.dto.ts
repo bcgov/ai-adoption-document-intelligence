@@ -1,39 +1,39 @@
 export class BoundingRegionDto {
-  pageNumber: number;
-  polygon: number[];
+  pageNumber!: number;
+  polygon!: number[];
 }
 
 export class DocumentDto {
-  docType: string;
-  boundingRegions: BoundingRegionDto[];
-  confidence: number;
-  spans: unknown[];
+  docType!: string;
+  boundingRegions!: BoundingRegionDto[];
+  confidence!: number;
+  spans!: unknown[];
 }
 
 export class PageDto {
-  pageNumber: number;
-  angle: number;
-  width: number;
-  height: number;
-  unit: string;
-  words: unknown[];
-  lines: unknown[];
-  spans: unknown[];
+  pageNumber!: number;
+  angle!: number;
+  width!: number;
+  height!: number;
+  unit!: string;
+  words!: unknown[];
+  lines!: unknown[];
+  spans!: unknown[];
 }
 
 export class AnalyzeResultDto {
-  apiVersion: string;
-  modelId: string;
-  stringIndexType: string;
-  content: string;
-  pages: PageDto[];
-  documents: DocumentDto[];
-  contentFormat: string;
+  apiVersion!: string;
+  modelId!: string;
+  stringIndexType!: string;
+  content!: string;
+  pages!: PageDto[];
+  documents!: DocumentDto[];
+  contentFormat!: string;
 }
 
 export class ClassificationResultDto {
-  status: string;
-  createdDateTime: string;
-  lastUpdatedDateTime: string;
-  analyzeResult: AnalyzeResultDto;
+  status!: string;
+  createdDateTime!: string;
+  lastUpdatedDateTime!: string;
+  analyzeResult!: AnalyzeResultDto;
 }

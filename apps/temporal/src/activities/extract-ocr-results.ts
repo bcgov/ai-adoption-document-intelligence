@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import axios from "axios";
 import { createActivityLogger } from "../logger";
 import type { OCRResponse, OCRResult } from "../types";
@@ -99,13 +100,12 @@ export async function extractOCRResults(params: {
     // Return with port name as key for output binding
     return { ocrResult: result };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = getErrorMessage(error);
     log.error("Extract OCR results error", {
       event: "error",
       fileName,
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: getErrorStack(error),
     });
     throw error;
   }

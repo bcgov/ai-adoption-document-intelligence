@@ -2,7 +2,6 @@ import {
   CorrectionAction,
   DocumentStatus,
   GroundTruthJobStatus,
-  ReviewStatus,
 } from "@generated/client";
 
 const mockGroundTruthJobDbService = {

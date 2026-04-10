@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   DocumentStatus,
   OcrResult,
@@ -48,7 +49,10 @@ export class DocumentDbService {
           normalized_file_path: data.normalized_file_path ?? null,
           file_type: data.file_type,
           file_size: data.file_size,
-          metadata: data.metadata,
+          metadata:
+            data.metadata != null
+              ? (data.metadata as Prisma.InputJsonValue)
+              : Prisma.DbNull,
           source: data.source,
           status: data.status as DocumentStatus,
           model_id: data.model_id,
@@ -62,7 +66,7 @@ export class DocumentDbService {
       return document;
     } catch (error) {
       this.logger.error("Failed to create document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -92,7 +96,7 @@ export class DocumentDbService {
       return document;
     } catch (error) {
       this.logger.error("Failed to find document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -119,7 +123,7 @@ export class DocumentDbService {
       return documents;
     } catch (error) {
       this.logger.error("Failed to find documents", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -145,7 +149,7 @@ export class DocumentDbService {
         data: {
           ...data,
           updated_at: new Date(),
-        },
+        } as Prisma.DocumentUncheckedUpdateInput,
       });
       this.logger.debug("Document updated", { id: document.id });
       return document;
@@ -160,7 +164,7 @@ export class DocumentDbService {
         return null;
       }
       this.logger.error("Failed to update document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -195,7 +199,7 @@ export class DocumentDbService {
         return false;
       }
       this.logger.error("Failed to delete document", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -226,7 +230,7 @@ export class DocumentDbService {
       return ocrResult;
     } catch (error) {
       this.logger.error("Failed to find OCR result", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }
@@ -276,21 +280,33 @@ export class DocumentDbService {
     });
     try {
       const analysisResult = data.analysisResponse.analyzeResult;
-      const asJson = (obj: unknown): Prisma.JsonValue =>
-        obj as Prisma.JsonValue;
+      if (!analysisResult) {
+        this.logger.warn(
+          "No analyzeResult in analysis response, skipping OCR upsert",
+          {
+            documentId: data.documentId,
+          },
+        );
+        return;
+      }
+
+      const asJson = (
+        obj: unknown,
+      ): Prisma.InputJsonValue | typeof Prisma.DbNull =>
+        obj === null ? Prisma.DbNull : (obj as Prisma.InputJsonValue);
 
       let extractedFields: ExtractedFields | null = null;
-      if (analysisResult.documents?.length > 0) {
-        extractedFields = analysisResult.documents[0].fields;
+      if ((analysisResult.documents?.length ?? 0) > 0) {
+        extractedFields = analysisResult.documents![0].fields;
         this.logger.debug("Using custom model fields", {
           fieldCount: Object.keys(extractedFields).length,
         });
-      } else if (analysisResult.keyValuePairs?.length > 0) {
+      } else if ((analysisResult.keyValuePairs?.length ?? 0) > 0) {
         extractedFields = this.convertKeyValuePairsToFields(
-          analysisResult.keyValuePairs,
+          analysisResult.keyValuePairs!,
         );
         this.logger.debug("Converted keyValuePairs to fields format", {
-          count: analysisResult.keyValuePairs.length,
+          count: analysisResult.keyValuePairs!.length,
         });
       }
 
@@ -312,7 +328,7 @@ export class DocumentDbService {
       });
     } catch (error) {
       this.logger.error("Failed to create/update OCR result", {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       });
       throw error;
     }

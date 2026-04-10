@@ -12,7 +12,6 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { UserService } from "@/actor/user.service";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
@@ -93,7 +92,7 @@ export class GroupService {
    * Returns all existing non-deleted groups.
    */
   async getAllGroups(): Promise<
-    Array<{ id: string; name: string; description?: string }>
+    Array<{ id: string; name: string; description: string | null }>
   > {
     return await this.groupDb.findAllGroups();
   }
@@ -136,10 +135,10 @@ export class GroupService {
       callerGroupIds,
     );
     return userGroups.map((ug) => ({
-      id: ug.group.id,
-      name: ug.group.name,
+      id: ug.group!.id,
+      name: ug.group!.name,
       role: ug.role,
-      description: ug.group.description ?? undefined,
+      description: ug.group!.description ?? undefined,
     }));
   }
 
@@ -150,10 +149,10 @@ export class GroupService {
   private async fetchUserGroups(userId: string): Promise<UserGroupDto[]> {
     const userGroups = await this.groupDb.findUserGroupsWithGroup(userId);
     return userGroups.map((ug) => ({
-      id: ug.group.id,
-      name: ug.group.name,
+      id: ug.group!.id,
+      name: ug.group!.name,
       role: ug.role,
-      description: ug.group.description ?? undefined,
+      description: ug.group!.description ?? undefined,
     }));
   }
 

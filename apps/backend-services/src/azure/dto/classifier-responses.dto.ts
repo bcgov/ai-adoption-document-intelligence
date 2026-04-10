@@ -6,23 +6,23 @@ import {
 
 export class UploadClassifierDocumentsResponseDto {
   @ApiProperty({ example: "Received files and data." })
-  message: string;
+  message!: string;
 
   @ApiProperty({ example: 2 })
-  fileCount: number;
+  fileCount!: number;
 
   @ApiProperty({ example: ["groupId/classifierName/file.jpg"] })
-  results: string[];
+  results!: string[];
 }
 
 export class DeleteClassifierDocumentsResponseDto {}
 
 export class ClassifierResponseDto {
   @ApiProperty({ example: "succeeded" })
-  status: string;
+  status!: string;
 
   @ApiProperty({ example: "result content" })
-  content: string;
+  content!: string;
 
   @ApiProperty({ required: false })
   error?: unknown;
@@ -30,40 +30,40 @@ export class ClassifierResponseDto {
 
 export class ClassifierModelResponseDto {
   @ApiProperty({ example: "Classifier description" })
-  description: string;
+  description!: string;
 
   @ApiProperty({ enum: ClassifierStatus, example: ClassifierStatus.READY })
-  status: ClassifierStatus;
+  status!: ClassifierStatus;
 
   @ApiProperty({ example: "classifier-name" })
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: "user-id" })
-  created_by: string;
+  created_by!: string;
 
   @ApiProperty({ example: "user-id" })
-  updated_by: string;
+  updated_by!: string;
 
   @ApiProperty({ example: "group-id" })
-  group_id: string;
+  group_id!: string;
 
   @ApiProperty({ type: Object, example: { labels: [] } })
   config: unknown;
 
   @ApiProperty({ type: Date })
-  created_at: Date;
+  created_at!: Date;
 
   @ApiProperty({ type: Date })
-  updated_at: Date;
+  updated_at!: Date;
 
   @ApiProperty({ type: Date, nullable: true })
   last_used_at?: Date;
 
   @ApiProperty({ example: 1 })
-  version: number;
+  version!: number;
 
   @ApiProperty({ enum: ClassifierSource })
-  source: ClassifierSource;
+  source!: ClassifierSource;
 
   @ApiProperty({ type: String, nullable: true })
   operation_location?: string;

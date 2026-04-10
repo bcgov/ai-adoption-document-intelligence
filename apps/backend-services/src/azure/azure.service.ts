@@ -19,10 +19,10 @@ export class AzureService {
   ) {
     this.endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    );
+    )!;
     this.apiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    );
+    )!;
 
     this.client = DocumentIntelligence(
       this.endpoint,

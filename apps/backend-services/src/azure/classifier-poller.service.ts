@@ -1,3 +1,4 @@
+import { getErrorStack } from "@ai-di/shared-logging";
 import { Injectable } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
@@ -33,7 +34,7 @@ export class ClassifierPollerService {
       }
     } catch (error) {
       this.logger.error("Error polling active classifiers", {
-        stack: error instanceof Error ? error.stack : String(error),
+        stack: getErrorStack(error),
       });
     }
   }
@@ -41,9 +42,15 @@ export class ClassifierPollerService {
   private async pollClassifierStatus(
     classifierName: string,
     groupId: string,
-    operationLocation: string,
+    operationLocation: string | null,
   ): Promise<void> {
     try {
+      if (!operationLocation) {
+        this.logger.warn(
+          `Classifier ${classifierName} (group ${groupId}) has no operation location`,
+        );
+        return;
+      }
       const result =
         await this.azureService.checkOperationStatus(operationLocation);
       const data = await result.json();
@@ -83,7 +90,7 @@ export class ClassifierPollerService {
     } catch (error) {
       this.logger.error(
         `Error polling classifier ${classifierName} (group ${groupId})`,
-        error.stack,
+        { stack: getErrorStack(error) },
       );
     }
   }

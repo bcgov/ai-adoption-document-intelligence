@@ -4,10 +4,10 @@ import { VersionResponseDto } from "./version-response.dto";
 
 export class SkippedDocumentDto {
   @ApiProperty({ description: "ID of the skipped document" })
-  documentId: string;
+  documentId!: string;
 
   @ApiProperty({ description: "Reason the document was skipped" })
-  reason: string;
+  reason!: string;
 }
 
 export class CreateDatasetFromHitlResponseDto {
@@ -15,20 +15,20 @@ export class CreateDatasetFromHitlResponseDto {
     description: "The newly created dataset",
     type: () => DatasetResponseDto,
   })
-  dataset: DatasetResponseDto;
+  dataset!: DatasetResponseDto;
 
   @ApiProperty({
     description: "The initial version created for the dataset",
     type: () => VersionResponseDto,
   })
-  version: VersionResponseDto;
+  version!: VersionResponseDto;
 
   @ApiProperty({
     description: "Documents that could not be processed",
     type: () => SkippedDocumentDto,
     isArray: true,
   })
-  skipped: SkippedDocumentDto[];
+  skipped!: SkippedDocumentDto[];
 }
 
 export class AddVersionFromHitlResponseDto {
@@ -36,12 +36,12 @@ export class AddVersionFromHitlResponseDto {
     description: "The newly created version",
     type: () => VersionResponseDto,
   })
-  version: VersionResponseDto;
+  version!: VersionResponseDto;
 
   @ApiProperty({
     description: "Documents that could not be processed",
     type: () => SkippedDocumentDto,
     isArray: true,
   })
-  skipped: SkippedDocumentDto[];
+  skipped!: SkippedDocumentDto[];
 }
