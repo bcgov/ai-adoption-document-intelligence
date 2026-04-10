@@ -82,7 +82,7 @@ export class ClassifierDbService {
     classifierName: string,
     groupId: string,
     properties: Partial<ClassifierEditableProperties>,
-    actorId: string,
+    actorId: string | undefined,
     tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModel> {
     const client = tx ?? this.prisma;
@@ -95,8 +95,7 @@ export class ClassifierDbService {
       },
       data: {
         ...properties,
-        created_by: actorId,
-        updated_by: actorId,
+        ...(actorId ? { created_by: actorId, updated_by: actorId } : {}),
         name: classifierName,
       },
     });
@@ -158,14 +157,13 @@ export class ClassifierDbService {
    * @returns An array of ClassifierModel records with their associated group.
    */
   async findAllClassifierModelsForGroups(
-    groupIds: string[],
+    groupIds: string[] | undefined,
     tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModelWithGroup[]> {
     const client = tx ?? this.prisma;
     return client.classifierModel.findMany({
-      where: {
-        group_id: { in: groupIds },
-      },
+      where:
+        groupIds !== undefined ? { group_id: { in: groupIds } } : undefined,
       include: {
         group: true,
       },

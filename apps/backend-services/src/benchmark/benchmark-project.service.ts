@@ -60,7 +60,7 @@ export class BenchmarkProjectService {
       }
       this.logger.error(
         `Failed to create project in database: ${dto.name}`,
-        (getErrorStack(error)),
+        getErrorStack(error),
       );
       throw error;
     }

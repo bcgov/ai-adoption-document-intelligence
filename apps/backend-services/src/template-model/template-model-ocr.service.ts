@@ -10,7 +10,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
+import type { AnalysisResponse } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 
@@ -31,10 +31,10 @@ export class TemplateModelOcrService {
   ) {
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    );
+    )!;
     this.azureApiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    );
+    )!;
   }
 
   private getFileExtension(fileType: string): string {

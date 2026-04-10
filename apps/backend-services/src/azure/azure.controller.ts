@@ -19,7 +19,6 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import "multer";
-import { Request } from "express";
 import {
   ApiBody,
   ApiConsumes,
@@ -30,6 +29,7 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -94,7 +94,10 @@ export class AzureController {
     description: "Classifiers retrieved successfully",
     type: [ClassifierModelResponseDto],
   })
-  async getClassifiers(@Req() req: Request, @Query("group_id") groupId?: string) {
+  async getClassifiers(
+    @Req() req: Request,
+    @Query("group_id") groupId?: string,
+  ) {
     if (groupId) {
       identityCanAccessGroup(req.resolvedIdentity, groupId);
       return this.classifierService.findAllClassifierModelsForGroups([groupId]);
@@ -122,7 +125,10 @@ export class AzureController {
     type: ClassifierCreationDto,
     description: "Classifier creation payload",
   })
-  async createClassifier(@Req() req: Request, @Body() body: ClassifierCreationDto) {
+  async createClassifier(
+    @Req() req: Request,
+    @Body() body: ClassifierCreationDto,
+  ) {
     const { name, description, source, group_id } = body;
 
     // Does this classifier already exist?
@@ -164,7 +170,10 @@ export class AzureController {
     type: UpdateClassifierDto,
     description: "Classifier update payload",
   })
-  async updateClassifier(@Req() req: Request, @Body() body: UpdateClassifierDto) {
+  async updateClassifier(
+    @Req() req: Request,
+    @Body() body: UpdateClassifierDto,
+  ) {
     const { name, group_id, description, source } = body;
 
     // Check if classifier exists
@@ -388,7 +397,7 @@ export class AzureController {
       } catch (e) {
         this.logger.error(
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
-          e,
+          { error: String(e) },
         );
         await this.classifierService.updateClassifierModel(
           name,
@@ -403,6 +412,8 @@ export class AzureController {
       ...model,
       status: ClassifierStatus[model.status as keyof typeof ClassifierStatus],
       source: ClassifierSource[model.source as keyof typeof ClassifierSource],
+      last_used_at: model.last_used_at ?? undefined,
+      operation_location: model.operation_location ?? undefined,
     };
   }
 
@@ -497,7 +508,7 @@ export class AzureController {
         );
       },
     );
-    return returnValue as ClassificationResultDto;
+    return returnValue as unknown as ClassificationResultDto;
   }
 
   @Get("classifier/train")
@@ -554,6 +565,6 @@ export class AzureController {
         );
       },
     );
-    return returnValue;
+    return returnValue as unknown as ClassifierModelResponseDto;
   }
 }

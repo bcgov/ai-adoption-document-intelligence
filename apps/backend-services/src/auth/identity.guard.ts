@@ -91,7 +91,8 @@ export class IdentityGuard implements CanActivate {
       }
     } else if (request.user?.sub) {
       const userId = request.user.sub;
-      const user = await this.userService.findUserWithGroups(userId);
+      // User guaranteed because they would be added during login process
+      const user = (await this.userService.findUserWithGroups(userId))!;
 
       const groupRoles: Record<string, GroupRole> = {};
       for (const ug of user.userGroups) {

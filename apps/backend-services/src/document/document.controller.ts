@@ -287,11 +287,13 @@ export class DocumentController {
 
       return documentsWithWorkflowStatus;
     } catch (error) {
-      this.logger.error(`Error retrieving documents: ${getErrorMessage(error)}`);
+      this.logger.error(
+        `Error retrieving documents: ${getErrorMessage(error)}`,
+      );
       this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       throw new NotFoundException(
-        (getErrorMessage(error)) || "Failed to retrieve documents",
+        getErrorMessage(error) || "Failed to retrieve documents",
       );
     }
   }
@@ -372,7 +374,9 @@ export class DocumentController {
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
       return response;
     } catch (error) {
-      this.logger.error(`Error retrieving OCR result: ${getErrorMessage(error)}`);
+      this.logger.error(
+        `Error retrieving OCR result: ${getErrorMessage(error)}`,
+      );
       this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
@@ -383,7 +387,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        (getErrorMessage(error)) ||
+        getErrorMessage(error) ||
           `Failed to retrieve OCR result for document: ${documentId}`,
       );
     }
@@ -451,7 +455,9 @@ export class DocumentController {
 
       res.send(fileBuffer);
     } catch (error) {
-      this.logger.error(`Error downloading document: ${getErrorMessage(error)}`);
+      this.logger.error(
+        `Error downloading document: ${getErrorMessage(error)}`,
+      );
       this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
@@ -462,7 +468,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        (getErrorMessage(error)) || `Failed to download document: ${documentId}`,
+        getErrorMessage(error) || `Failed to download document: ${documentId}`,
       );
     }
   }
@@ -579,7 +585,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        (getErrorMessage(error)) || `Failed to approve document: ${documentId}`,
+        getErrorMessage(error) || `Failed to approve document: ${documentId}`,
       );
     }
   }

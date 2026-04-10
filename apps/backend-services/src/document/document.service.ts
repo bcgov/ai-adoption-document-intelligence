@@ -87,7 +87,9 @@ export class DocumentService {
           : fileBase64;
         fileBuffer = Buffer.from(base64Data, "base64");
       } catch (error) {
-        this.logger.error(`Failed to decode base64 file: ${getErrorMessage(error)}`);
+        this.logger.error(
+          `Failed to decode base64 file: ${getErrorMessage(error)}`,
+        );
         throw new Error("Invalid base64 file data");
       }
 

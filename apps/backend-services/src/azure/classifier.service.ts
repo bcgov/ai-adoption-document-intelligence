@@ -435,7 +435,7 @@ export class ClassifierService {
    * @returns An array of ClassifierModel records with their associated group.
    */
   async findAllClassifierModelsForGroups(
-    groupIds: string[],
+    groupIds: string[] | undefined,
   ): Promise<ClassifierModelWithGroup[]> {
     return this.classifierDb.findAllClassifierModelsForGroups(groupIds);
   }

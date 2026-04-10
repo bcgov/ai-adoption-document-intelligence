@@ -1,6 +1,4 @@
-import { getErrorStack,
-  getErrorMessage,
-} from "@ai-di/shared-logging";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import {
   HttpException,
   HttpStatus,
@@ -186,10 +184,9 @@ export class AuthService implements OnModuleInit {
         claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
-      this.logger.error(
-        `OAuth callback failed: ${getErrorMessage(error)}`,
-        { stack: getErrorStack(error) },
-      );
+      this.logger.error(`OAuth callback failed: ${getErrorMessage(error)}`, {
+        stack: getErrorStack(error),
+      });
       throw new HttpException("Authentication failed", HttpStatus.BAD_REQUEST);
     }
   }
@@ -210,10 +207,9 @@ export class AuthService implements OnModuleInit {
         claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
-      this.logger.error(
-        `Token refresh failed: ${getErrorMessage(error)}`,
-        { stack: getErrorStack(error) },
-      );
+      this.logger.error(`Token refresh failed: ${getErrorMessage(error)}`, {
+        stack: getErrorStack(error),
+      });
       throw new HttpException("Token refresh failed", HttpStatus.BAD_REQUEST);
     }
   }

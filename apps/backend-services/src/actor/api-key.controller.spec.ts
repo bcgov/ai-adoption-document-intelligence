@@ -71,9 +71,9 @@ describe("ApiKeyController", () => {
     });
 
     it("should throw BadRequestException when groupId is missing", async () => {
-      await expect(
-        controller.getApiKey(""),
-      ).rejects.toThrow(BadRequestException);
+      await expect(controller.getApiKey("")).rejects.toThrow(
+        BadRequestException,
+      );
       expect(apiKeyService.getApiKey).not.toHaveBeenCalled();
     });
 

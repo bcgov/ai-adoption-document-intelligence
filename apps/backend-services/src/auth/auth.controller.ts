@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   Controller,
   Get,
@@ -253,7 +254,9 @@ export class AuthController {
       // Redirect to the SPA with a clean URL (no UUID or tokens in query string)
       return res.redirect(this.authService.getFrontendUrl());
     } catch (error) {
-      this.logger.error("OAuth callback handling failed:", error);
+      this.logger.error("OAuth callback handling failed:", {
+        error: getErrorMessage(error),
+      });
       const redirectUrl =
         this.authService.buildErrorRedirect("callback_failed");
       return res.redirect(redirectUrl);
@@ -287,13 +290,15 @@ export class AuthController {
     const exp = (user.exp as number) || now;
 
     const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
+    // There will always be a user Id, as this is non-accessible via api-key
+    const userId = req.resolvedIdentity.userId!;
     const groups = await this.groupService.getUserGroups(
       req.resolvedIdentity,
-      req.resolvedIdentity?.userId,
+      userId,
     );
 
     return {
-      sub: req.resolvedIdentity?.userId,
+      sub: userId,
       name: (user.name as string) || (user.display_name as string),
       preferred_username:
         (user.preferred_username as string) || (user.idir_username as string),

@@ -135,7 +135,7 @@ export class UploadController {
       }
 
       throw new BadRequestException(
-        (getErrorMessage(error)) || "Failed to upload document",
+        getErrorMessage(error) || "Failed to upload document",
       );
     }
   }

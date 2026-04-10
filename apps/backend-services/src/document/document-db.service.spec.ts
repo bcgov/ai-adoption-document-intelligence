@@ -1,4 +1,4 @@
-import { DocumentStatus, OcrResult } from "@generated/client";
+import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { PrismaService } from "../database/prisma.service";
 import { DocumentDbService } from "./document-db.service";
@@ -288,7 +288,7 @@ describe("DocumentDbService", () => {
       expect(mockPrismaOcrResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { document_id: "doc-1" },
-          update: expect.objectContaining({ keyValuePairs: null }),
+          update: expect.objectContaining({ keyValuePairs: Prisma.DbNull }),
           create: expect.objectContaining({ document_id: "doc-1" }),
         }),
       );

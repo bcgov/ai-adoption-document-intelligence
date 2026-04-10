@@ -42,9 +42,15 @@ export class ClassifierPollerService {
   private async pollClassifierStatus(
     classifierName: string,
     groupId: string,
-    operationLocation: string,
+    operationLocation: string | null,
   ): Promise<void> {
     try {
+      if (!operationLocation) {
+        this.logger.warn(
+          `Classifier ${classifierName} (group ${groupId}) has no operation location`,
+        );
+        return;
+      }
       const result =
         await this.azureService.checkOperationStatus(operationLocation);
       const data = await result.json();
@@ -84,7 +90,7 @@ export class ClassifierPollerService {
     } catch (error) {
       this.logger.error(
         `Error polling classifier ${classifierName} (group ${groupId})`,
-        (getErrorStack(error)),
+        { stack: getErrorStack(error) },
       );
     }
   }

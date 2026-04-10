@@ -57,9 +57,7 @@ export class BenchmarkRunService {
     try {
       return execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
     } catch (error) {
-      this.logger.warn(
-        `Failed to get git SHA: ${getErrorMessage(error)}`,
-      );
+      this.logger.warn(`Failed to get git SHA: ${getErrorMessage(error)}`);
       return "unknown";
     }
   }

@@ -139,7 +139,7 @@ export class OcrService {
       // Status is set by workflow pre-execution hook
       return {
         apimRequestId:
-          updateResult.workflow_execution_id || workflowExecutionId,
+          updateResult?.workflow_execution_id || workflowExecutionId,
         workflowId: workflowExecutionId,
         status: DocumentStatus.ongoing_ocr,
       };
@@ -154,8 +154,7 @@ export class OcrService {
       }
 
       // Ensure error is a string for the response
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       return {
         status: DocumentStatus.failed,
         error: errorMessage,

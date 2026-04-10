@@ -68,10 +68,10 @@ export class AzureStorageService {
     );
     this.accountName = this.configService.get<string>(
       "AZURE_STORAGE_ACCOUNT_NAME",
-    );
+    )!;
     this.accountKey = this.configService.get<string>(
       "AZURE_STORAGE_ACCOUNT_KEY",
-    );
+    )!;
 
     if (!connectionString) {
       this.logger.warn(

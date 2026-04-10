@@ -145,8 +145,7 @@ export class BenchmarkTemporalService {
       );
       return handle.workflowId;
     } catch (error) {
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(
         `Failed to start benchmark run workflow: ${errorMessage}`,
       );
@@ -172,8 +171,7 @@ export class BenchmarkTemporalService {
 
       this.logger.log(`Benchmark run workflow cancelled: ${workflowId}`);
     } catch (error) {
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(
         `Failed to cancel benchmark run workflow: ${errorMessage}`,
       );
@@ -207,8 +205,7 @@ export class BenchmarkTemporalService {
             : undefined,
       };
     } catch (error) {
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to get workflow status: ${errorMessage}`);
       throw new Error(`Failed to get workflow status: ${errorMessage}`);
     }
@@ -228,7 +225,7 @@ export class BenchmarkTemporalService {
     benchmarkDefinition: {
       definitionId: string;
       datasetVersionId: string;
-      splitId: string;
+      splitId: string | null;
       workflowId: string;
       workflowConfigHash: string;
       evaluatorType: string;
@@ -283,8 +280,7 @@ export class BenchmarkTemporalService {
       this.logger.log(`Schedule created: ${scheduleId}`);
       return scheduleId;
     } catch (error) {
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to create schedule: ${errorMessage}`);
       throw new Error(`Failed to create schedule: ${errorMessage}`);
     }
@@ -309,8 +305,7 @@ export class BenchmarkTemporalService {
 
       this.logger.log(`Schedule deleted: ${scheduleId}`);
     } catch (error) {
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to delete schedule: ${errorMessage}`);
       throw new Error(`Failed to delete schedule: ${errorMessage}`);
     }
@@ -340,8 +335,7 @@ export class BenchmarkTemporalService {
         paused: description.state.paused,
       };
     } catch (error) {
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to get schedule info: ${errorMessage}`);
       throw new Error(`Failed to get schedule info: ${errorMessage}`);
     }

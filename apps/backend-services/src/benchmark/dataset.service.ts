@@ -72,7 +72,7 @@ export class DatasetService {
       const dataset = await this.datasetDbService.createDataset({
         name: createDto.name,
         description: createDto.description || null,
-        metadata: (createDto.metadata || {}) as Prisma.JsonValue,
+        metadata: (createDto.metadata || {}) as Prisma.InputJsonValue,
         storagePath: "", // Will be set after we have the ID
         createdBy: actorId,
         group_id: createDto.groupId,
@@ -115,10 +115,9 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to create dataset: ${createDto.name}`,
-        (getErrorStack(error)),
+        getErrorStack(error),
       );
-      const errorMessage =
-        getErrorMessage(error);
+      const errorMessage = getErrorMessage(error);
       throw new BadRequestException(
         `Failed to create dataset: ${errorMessage}`,
       );
@@ -257,8 +256,9 @@ export class DatasetService {
       storagePrefix: null,
       manifestPath: manifestPath,
       documentCount: 0,
-      groundTruthSchema: (createDto.groundTruthSchema ||
-        null) as Prisma.JsonValue,
+      groundTruthSchema: createDto.groundTruthSchema
+        ? (createDto.groundTruthSchema as Prisma.InputJsonValue)
+        : undefined,
     });
 
     this.logger.log(
@@ -704,7 +704,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to delete sample ${sampleId} from version ${versionId}`,
-        (getErrorStack(error)),
+        getErrorStack(error),
       );
       throw error;
     }
@@ -829,7 +829,8 @@ export class DatasetService {
         throw error;
       }
       this.logger.error(
-        `Failed to list samples for dataset ${datasetId}, version ${versionId}`, (getErrorStack(error)),
+        `Failed to list samples for dataset ${datasetId}, version ${versionId}`,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -891,7 +892,7 @@ export class DatasetService {
       } catch (error) {
         this.logger.error(
           `Failed to read or parse ground truth file at ${groundTruthFile.path}`,
-          (getErrorStack(error)),
+          getErrorStack(error),
         );
         throw new BadRequestException(
           `Failed to read or parse ground truth file: ${getErrorMessage(error)}`,
@@ -912,7 +913,8 @@ export class DatasetService {
         throw error;
       }
       this.logger.error(
-        `Failed to get ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`, (getErrorStack(error)),
+        `Failed to get ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -1558,7 +1560,8 @@ export class DatasetService {
         throw error;
       }
       this.logger.error(
-        `Failed to validate dataset ${datasetId}, version ${versionId}`, (getErrorStack(error)),
+        `Failed to validate dataset ${datasetId}, version ${versionId}`,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -1679,10 +1682,10 @@ export class DatasetService {
       datasetVersionId: versionId,
       name: createDto.name,
       type: createDto.type as SplitType,
-      sampleIds: createDto.sampleIds as Prisma.JsonValue,
+      sampleIds: createDto.sampleIds as Prisma.InputJsonValue,
       stratificationRules: createDto.stratificationRules
-        ? (createDto.stratificationRules as Prisma.JsonValue)
-        : null,
+        ? (createDto.stratificationRules as Prisma.InputJsonValue)
+        : Prisma.DbNull,
       frozen: false,
     });
 
@@ -1845,7 +1848,7 @@ export class DatasetService {
     }
 
     const updated = await this.datasetDbService.updateSplit(splitId, {
-      sampleIds: updateDto.sampleIds as Prisma.JsonValue,
+      sampleIds: updateDto.sampleIds as Prisma.InputJsonValue,
     });
 
     return {

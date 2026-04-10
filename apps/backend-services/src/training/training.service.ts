@@ -309,6 +309,10 @@ export class TrainingService {
       // Get job to get container name
       const job = await this.trainingDb.findTrainingJob(jobId);
 
+      if (!job) {
+        throw new Error(`Training job ${jobId} not found`);
+      }
+
       // Clear container contents so each training run starts clean
       await this.azureStorage.clearContainerContents(job.container_name);
 
@@ -539,12 +543,12 @@ export class TrainingService {
       templateModelId: job.template_model_id,
       status: job.status,
       containerName: job.container_name,
-      sasUrl: job.sas_url,
+      sasUrl: job.sas_url ?? undefined,
       blobCount: job.blob_count,
-      operationId: job.operation_id,
-      errorMessage: job.error_message,
+      operationId: job.operation_id ?? undefined,
+      errorMessage: job.error_message ?? undefined,
       startedAt: job.started_at,
-      completedAt: job.completed_at,
+      completedAt: job.completed_at ?? undefined,
     };
   }
 
@@ -601,7 +605,7 @@ export class TrainingService {
       templateModelId: model.template_model_id,
       trainingJobId: model.training_job_id,
       modelId: model.model_id,
-      description: model.description,
+      description: model.description ?? undefined,
       docTypes: model.doc_types as Record<string, unknown> | undefined,
       fieldCount: model.field_count,
       createdAt: model.created_at,

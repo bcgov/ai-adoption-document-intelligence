@@ -107,9 +107,12 @@ export class WorkflowService {
    * @param groupIds Array of group IDs to filter by
    * @returns List of workflows in those groups
    */
-  async getGroupWorkflows(groupIds: string[]): Promise<WorkflowInfo[]> {
+  async getGroupWorkflows(
+    groupIds: string[] | undefined,
+  ): Promise<WorkflowInfo[]> {
     const workflows = await this.prisma.workflow.findMany({
-      where: { group_id: { in: groupIds } },
+      where:
+        groupIds !== undefined ? { group_id: { in: groupIds } } : undefined,
       orderBy: { created_at: "desc" },
     });
 

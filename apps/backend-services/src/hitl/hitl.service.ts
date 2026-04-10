@@ -69,7 +69,7 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
-    const documents = await this.reviewDb.findReviewQueue({
+    const documents = (await this.reviewDb.findReviewQueue({
       status,
       modelId: filters.modelId,
       maxConfidence: filters.maxConfidence ?? 0.9,
@@ -77,10 +77,10 @@ export class HitlService {
       offset: filters.offset ?? 0,
       reviewStatus: reviewStatusFilter,
       groupIds,
-    });
+    })) as DocumentWithOcrResult[];
 
     // Filter by confidence if OCR results exist
-    const filtered = documents.filter((doc: DocumentWithOcrResult) => {
+    const filtered = documents.filter((doc) => {
       if (!doc.ocr_result) return false;
 
       const fields = doc.ocr_result
@@ -102,7 +102,7 @@ export class HitlService {
     });
 
     return {
-      documents: filtered.map((doc: DocumentWithOcrResult) => ({
+      documents: filtered.map((doc) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
@@ -137,14 +137,14 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
-    const allDocs = await this.reviewDb.findReviewQueue({
+    const allDocs = (await this.reviewDb.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       limit: 1000,
       reviewStatus: reviewStatusFilter,
       groupIds,
-    });
+    })) as DocumentWithOcrResult[];
 
-    const lowConfidenceDocs = allDocs.filter((doc: DocumentWithOcrResult) => {
+    const lowConfidenceDocs = allDocs.filter((doc) => {
       if (!doc.ocr_result?.keyValuePairs) return false;
       const fields = doc.ocr_result.keyValuePairs as unknown as ExtractedFields;
       if (typeof fields !== "object") return false;
@@ -407,6 +407,10 @@ export class HitlService {
       completed_at: new Date(),
     });
 
+    if (!updated) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -441,6 +445,10 @@ export class HitlService {
       status: ReviewStatus.skipped,
       completed_at: new Date(),
     });
+
+    if (!updated) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
 
     const doc = session.document as {
       group_id?: string;

@@ -8,9 +8,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AppLoggerService } from "../logging/app-logger.service";
-import {
-  TrainingDbService,
-} from "./training-db.service";
+import { TrainingDbService } from "./training-db.service";
 
 interface AzureErrorResponse {
   error?: {
@@ -122,7 +120,7 @@ export class TrainingPollerService {
   private async pollTrainingStatus(
     jobId: string,
     modelId: string,
-    operationId: string,
+    operationId: string | null,
   ): Promise<void> {
     try {
       if (!operationId) {
@@ -250,7 +248,10 @@ export class TrainingPollerService {
           training_job_id: jobId,
           model_id: job.template_model.model_id,
           description,
-          doc_types: docTypes as Prisma.JsonValue,
+          doc_types:
+            docTypes == null
+              ? Prisma.DbNull
+              : (docTypes as Prisma.InputJsonValue),
           field_count: fieldCount,
         });
 
@@ -268,10 +269,9 @@ export class TrainingPollerService {
         });
       }
     } catch (error) {
-      this.logger.error(
-        `Error polling training status for job ${jobId}`,
-        (getErrorStack(error)),
-      );
+      this.logger.error(`Error polling training status for job ${jobId}`, {
+        stack: getErrorStack(error),
+      });
     }
   }
 

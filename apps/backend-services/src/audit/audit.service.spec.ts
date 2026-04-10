@@ -73,7 +73,7 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ actor_id: undefined }),
+        expect.objectContaining({ actor_id: null }),
       );
     });
 
@@ -90,7 +90,7 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ actor_id: undefined }),
+        expect.objectContaining({ actor_id: null }),
       );
     });
 
@@ -125,7 +125,7 @@ describe("AuditService", () => {
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          actor_id: undefined,
+          actor_id: null,
           document_id: null,
           workflow_execution_id: null,
           group_id: null,

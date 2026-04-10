@@ -327,8 +327,8 @@ describe("AzureController", () => {
       const req = createMockReq();
       await expect(
         controller.getTrainingResult(req, {
-          name: null,
-          group_id: null,
+          name: null as unknown as string,
+          group_id: null as unknown as string,
         }),
       ).rejects.toThrow();
     });
@@ -383,7 +383,10 @@ describe("AzureController", () => {
     it("should throw BadRequestException if name or group_id is missing", async () => {
       const req = createMockReq();
       await expect(
-        controller.getTrainingResult(req, { name: null, group_id: null }),
+        controller.getTrainingResult(req, {
+          name: null as unknown as string,
+          group_id: null as unknown as string,
+        }),
       ).rejects.toThrow();
     });
     it("should throw NotFoundException if classifier not found", async () => {
@@ -408,8 +411,11 @@ describe("AzureController", () => {
       });
       const req = createMockReq("user1", ["g1"]);
       azureService.pollOperationUntilResolved.mockImplementation(
-        async (_loc: string, _onSuccess: unknown, onFailure: (r: { error: { code: string; message: string } }) => void) =>
-          onFailure({ error: { code: "fail", message: "fail" } }),
+        async (
+          _loc: string,
+          _onSuccess: unknown,
+          onFailure: (r: { error: { code: string; message: string } }) => void,
+        ) => onFailure({ error: { code: "fail", message: "fail" } }),
       );
       await expect(
         controller.getTrainingResult(req, { name: "c1", group_id: "g1" }),
@@ -425,9 +431,9 @@ describe("AzureController", () => {
         throw new Error("fail");
       });
       const query = { name: "c1", group_id: "g1", folder: "f1" };
-      await expect(
-        controller.deleteClassifierDocuments(query),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(controller.deleteClassifierDocuments(query)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
   describe("deleteClassifierDocuments", () => {
@@ -458,9 +464,9 @@ describe("AzureController", () => {
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
       const query = { name: "c1", group_id: "g1" };
-      await expect(
-        controller.getClassifierDocuments(query),
-      ).rejects.toThrow(NotFoundException);
+      await expect(controller.getClassifierDocuments(query)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
   describe("updateClassifier", () => {

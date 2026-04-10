@@ -56,7 +56,7 @@ export class HitlController {
     type: QueueResponseDto,
   })
   async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (filters.group_id) {
       identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
@@ -92,7 +92,7 @@ export class HitlController {
     @Req() req?: Request,
     @Query("group_id") group_id?: string,
   ) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (group_id) {
       identityCanAccessGroup(req?.resolvedIdentity, group_id);
       groupIds = [group_id];
@@ -255,7 +255,7 @@ export class HitlController {
     @Query() filters: AnalyticsFilterDto,
     @Req() req: Request,
   ) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (filters.group_id) {
       identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
