@@ -26,7 +26,8 @@ describe("TemplateModelOcrService", () => {
     title: "Test Document",
     original_filename: "test.pdf",
     file_path: "testgroup1/training/labeling-documents/doc-1/original.pdf",
-    normalized_file_path: "labeling-documents/doc-1/normalized.pdf",
+    normalized_file_path:
+      "testgroup1/training/labeling-documents/doc-1/normalized.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -146,7 +147,7 @@ describe("TemplateModelOcrService", () => {
             /labeling-documents\/[^/]+\/original\.pdf$/,
           ),
           normalized_file_path: expect.stringMatching(
-            /^labeling-documents\/[^/]+\/normalized\.pdf$/,
+            /labeling-documents\/[^/]+\/normalized\.pdf$/,
           ),
         }),
       );

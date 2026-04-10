@@ -446,7 +446,7 @@ export class DocumentController {
     });
 
     const fileBuffer = await this.blobStorage.read(
-      document.normalized_file_path,
+      validateBlobFilePath(document.normalized_file_path),
     );
 
     res.setHeader("Content-Type", "application/pdf");

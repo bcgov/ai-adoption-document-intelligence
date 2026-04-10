@@ -100,7 +100,7 @@ describe("DocumentService", () => {
         expect.any(Buffer),
       );
       expect(blobStorage.write).toHaveBeenCalledWith(
-        expect.stringMatching(/^documents\/.+\/normalized\.pdf$/),
+        expect.stringMatching(/^group-1\/ocr\/.+\/normalized\.pdf$/),
         expect.any(Buffer),
       );
     });
@@ -289,7 +289,9 @@ describe("DocumentService", () => {
       const result = await service.deleteDocument("1");
       expect(result).toBe(true);
       expect(documentDbService.deleteDocument).toHaveBeenCalledWith("1");
-      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith("documents/1/");
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "testgroup1/ocr/1",
+      );
     });
 
     it("should return false if document not found", async () => {

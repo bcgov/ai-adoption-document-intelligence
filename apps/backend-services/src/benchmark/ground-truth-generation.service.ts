@@ -279,7 +279,12 @@ export class GroundTruthGenerationService {
 
       await this.blobStorage.write(docBlobKey, fileBuffer);
 
-      const normalizedKey = `documents/${documentId}/normalized.pdf`;
+      const normalizedKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        ["documents", documentId],
+        "normalized.pdf",
+      );
       try {
         const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
           fileBuffer,

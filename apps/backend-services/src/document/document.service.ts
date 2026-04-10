@@ -3,9 +3,9 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import {
   buildBlobFilePath,
+  buildBlobPrefixPath,
   OperationCategory,
   validateBlobFilePath,
-  validateBlobPrefixPath,
 } from "@/blob-storage/storage-path-builder";
 import {
   BLOB_STORAGE,
@@ -132,7 +132,12 @@ export class DocumentService {
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);
 
-      const normalizedKey = `documents/${documentId}/normalized.pdf`;
+      const normalizedKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.OCR,
+        [documentId],
+        "normalized.pdf",
+      );
       try {
         const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
           fileBuffer,
@@ -243,10 +248,10 @@ export class DocumentService {
     }
     await this.documentDb.deleteDocument(id);
     try {
-      const documentPath = validateBlobPrefixPath(
+      const documentPath = buildBlobPrefixPath(
         document.group_id,
         OperationCategory.OCR,
-        ["documents", id],
+        [id],
       );
       await this.blobStorage.deleteByPrefix(documentPath);
     } catch (error) {

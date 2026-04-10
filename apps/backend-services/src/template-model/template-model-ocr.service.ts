@@ -75,7 +75,12 @@ export class TemplateModelOcrService {
 
     await this.blobStorage.write(blobKey, fileBuffer);
 
-    const normalizedKey = `labeling-documents/${documentId}/normalized.pdf`;
+    const normalizedKey = buildBlobFilePath(
+      dto.group_id,
+      OperationCategory.TRAINING,
+      ["labeling-documents", documentId],
+      "normalized.pdf",
+    );
     try {
       const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
         fileBuffer,
