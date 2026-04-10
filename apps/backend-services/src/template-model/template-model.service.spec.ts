@@ -63,6 +63,7 @@ describe("TemplateModelService", () => {
     title: "Test Invoice",
     original_filename: "invoice.pdf",
     file_path: "labeling-documents/labeling-doc-1/original.pdf",
+    normalized_file_path: "labeling-documents/labeling-doc-1/normalized.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -1198,9 +1199,10 @@ describe("TemplateModelService", () => {
       mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
         mockTemplateModel,
       );
-      mockOcrService.createLabelingDocument.mockResolvedValueOnce(
-        mockLabelingDocument as never,
-      );
+      mockOcrService.createLabelingDocument.mockResolvedValueOnce({
+        kind: "success",
+        labelingDocument: mockLabelingDocument,
+      } as never);
       mockTemplateModelDbService.addDocumentToTemplateModel.mockResolvedValueOnce(
         mockLabeledDocument,
       );

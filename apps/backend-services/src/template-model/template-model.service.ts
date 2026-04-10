@@ -641,17 +641,20 @@ export class TemplateModelService {
       );
     }
 
-    const labelingDocument =
+    const labelingResult =
       await this.templateModelOcrService.createLabelingDocument(dto);
+    const labelingDocument = labelingResult.labelingDocument;
 
     const labeledDoc = await this.templateModelDb.addDocumentToTemplateModel(
       templateModelId,
       labelingDocument.id,
     );
 
-    void this.templateModelOcrService.processOcrForLabelingDocument(
-      labelingDocument.id,
-    );
+    if (labelingResult.kind === "success") {
+      void this.templateModelOcrService.processOcrForLabelingDocument(
+        labelingDocument.id,
+      );
+    }
 
     return {
       labeledDocument: labeledDoc,

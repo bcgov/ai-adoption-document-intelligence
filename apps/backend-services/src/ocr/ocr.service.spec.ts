@@ -17,6 +17,7 @@ const defaultDocument = {
   id: "id",
   title: "hi",
   file_path: "path/goes/here",
+  normalized_file_path: "path/goes/here/normalized.pdf",
   file_size: 1223,
   file_type: "image/png",
   original_filename: "test-file.png",

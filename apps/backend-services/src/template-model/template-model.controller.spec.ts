@@ -2,6 +2,7 @@ import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "../blob-storage/blob-storage.interface";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
@@ -107,6 +108,12 @@ describe("TemplateModelController", () => {
         {
           provide: LabelingDocumentDbService,
           useValue: labelingDocumentDbService,
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            recordEvent: jest.fn().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();

@@ -1,10 +1,15 @@
 import { getErrorMessage } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
+import {
+  PdfNormalizationError,
+  PdfNormalizationService,
+} from "@/document/pdf-normalization.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   BLOB_STORAGE,
@@ -13,8 +18,13 @@ import {
 import type { AnalysisResponse } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
+import type { LabelingDocumentData } from "./labeling-document-db.types";
 
 type JsonValue = Prisma.JsonValue;
+
+export type CreateLabelingDocumentResult =
+  | { kind: "success"; labelingDocument: LabelingDocumentData }
+  | { kind: "conversion_failed"; labelingDocument: LabelingDocumentData };
 
 @Injectable()
 export class TemplateModelOcrService {
@@ -27,6 +37,7 @@ export class TemplateModelOcrService {
     private readonly httpService: HttpService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly pdfNormalization: PdfNormalizationService,
     private readonly logger: AppLoggerService,
   ) {
     this.azureEndpoint = this.configService.get<string>(
@@ -37,16 +48,9 @@ export class TemplateModelOcrService {
     )!;
   }
 
-  private getFileExtension(fileType: string): string {
-    const typeMap: Record<string, string> = {
-      pdf: "pdf",
-      image: "jpg",
-      scan: "pdf",
-    };
-    return typeMap[fileType.toLowerCase()] || "bin";
-  }
-
-  async createLabelingDocument(dto: LabelingUploadDto) {
+  async createLabelingDocument(
+    dto: LabelingUploadDto,
+  ): Promise<CreateLabelingDocumentResult> {
     const base64Data = dto.file.includes(",")
       ? dto.file.split(",")[1]
       : dto.file;
@@ -54,17 +58,57 @@ export class TemplateModelOcrService {
     const originalFilename =
       dto.original_filename || `${dto.title}.${dto.file_type}`;
 
+    await this.pdfNormalization.validateForUpload(fileBuffer, dto.file_type);
+
     const documentId = uuidv4();
-    const extension = this.getFileExtension(dto.file_type);
+    const extension = extensionForOriginalBlob(originalFilename, dto.file_type);
     const blobKey = `labeling-documents/${documentId}/original.${extension}`;
 
     await this.blobStorage.write(blobKey, fileBuffer);
+
+    const normalizedKey = `labeling-documents/${documentId}/normalized.pdf`;
+    try {
+      const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
+        fileBuffer,
+        dto.file_type,
+      );
+      await this.blobStorage.write(normalizedKey, pdfBuffer);
+    } catch (e) {
+      if (e instanceof BadRequestException) {
+        throw e;
+      }
+      if (!(e instanceof PdfNormalizationError)) {
+        this.logger.warn("Labeling PDF normalization failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+
+      const labelingDocument =
+        await this.labelingDocumentDb.createLabelingDocument({
+          title: dto.title,
+          original_filename: originalFilename,
+          file_path: blobKey,
+          normalized_file_path: null,
+          file_type: dto.file_type,
+          file_size: fileBuffer.length,
+          metadata: dto.metadata,
+          source: "labeling",
+          status: DocumentStatus.conversion_failed,
+          apim_request_id: null,
+          model_id: "prebuilt-layout",
+          ocr_result: null,
+          group_id: dto.group_id,
+        });
+
+      return { kind: "conversion_failed", labelingDocument };
+    }
 
     const labelingDocument =
       await this.labelingDocumentDb.createLabelingDocument({
         title: dto.title,
         original_filename: originalFilename,
         file_path: blobKey,
+        normalized_file_path: normalizedKey,
         file_type: dto.file_type,
         file_size: fileBuffer.length,
         metadata: dto.metadata,
@@ -76,7 +120,7 @@ export class TemplateModelOcrService {
         group_id: dto.group_id,
       });
 
-    return labelingDocument;
+    return { kind: "success", labelingDocument };
   }
 
   async processOcrForLabelingDocument(
@@ -88,8 +132,20 @@ export class TemplateModelOcrService {
       return;
     }
 
+    if (
+      !labelingDocument.normalized_file_path ||
+      labelingDocument.status === DocumentStatus.conversion_failed
+    ) {
+      this.logger.debug(
+        `Skipping OCR for labeling document ${labelingDocumentId}: no normalized PDF`,
+      );
+      return;
+    }
+
     try {
-      const apimRequestId = await this.requestOcr(labelingDocument.file_path);
+      const apimRequestId = await this.requestOcr(
+        labelingDocument.normalized_file_path,
+      );
 
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         apim_request_id: apimRequestId,

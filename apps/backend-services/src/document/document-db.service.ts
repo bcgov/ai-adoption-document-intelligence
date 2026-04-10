@@ -46,6 +46,7 @@ export class DocumentDbService {
           title: data.title,
           original_filename: data.original_filename,
           file_path: data.file_path,
+          normalized_file_path: data.normalized_file_path ?? null,
           file_type: data.file_type,
           file_size: data.file_size,
           metadata:

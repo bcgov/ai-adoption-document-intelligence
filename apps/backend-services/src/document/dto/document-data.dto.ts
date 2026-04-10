@@ -15,6 +15,14 @@ export class DocumentDataDto {
   @ApiProperty()
   file_path!: string;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description:
+      "Blob key of the normalized PDF used for OCR and in-app viewing.",
+  })
+  normalized_file_path!: string | null;
+
   @ApiProperty()
   file_type!: string;
 
