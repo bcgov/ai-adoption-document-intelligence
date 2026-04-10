@@ -462,6 +462,15 @@ export class TemplateModelController {
       labelingDocument.original_filename || `document-${documentId}`;
     const mimeType = getContentTypeFromFilename(fileName);
 
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: id,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: labeledDoc.labeling_document.group_id,
+      payload: { action: "download" },
+    });
+
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
     res.setHeader("Content-Length", fileBuffer.length);
