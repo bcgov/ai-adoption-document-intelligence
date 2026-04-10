@@ -15,6 +15,11 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { ReviewDbService } from "../hitl/review-db.service";
 import { AuditLogService } from "./audit-log.service";
@@ -35,6 +40,7 @@ interface DocumentWithReview {
   file_path: string;
   normalized_file_path: string | null;
   file_type: string;
+  group_id: string;
   ocr_result: {
     keyValuePairs: unknown;
   } | null;
@@ -161,6 +167,7 @@ export class HitlDatasetService {
       dataset.id,
       dto.documentIds,
       actorId,
+      dto.groupId,
     );
 
     return { dataset, version, skipped };
@@ -173,6 +180,7 @@ export class HitlDatasetService {
     datasetId: string,
     dto: AddVersionFromHitlDto,
     actorId: string,
+    groupId: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
     this.logger.log(
       `Adding HITL version to dataset ${datasetId} from ${dto.documentIds.length} documents`,
@@ -182,6 +190,7 @@ export class HitlDatasetService {
       datasetId,
       dto.documentIds,
       actorId,
+      groupId,
       dto.version,
       dto.name,
     );
@@ -194,6 +203,7 @@ export class HitlDatasetService {
     datasetId: string,
     documentIds: string[],
     actorId: string,
+    groupId: string,
     versionLabel?: string,
     versionName?: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
@@ -264,7 +274,12 @@ export class HitlDatasetService {
       samples: manifestSamples,
     };
 
-    const manifestKey = `${storagePrefix}/dataset-manifest.json`;
+    const manifestKey = buildBlobFilePath(
+      groupId,
+      OperationCategory.BENCHMARK,
+      [storagePrefix],
+      "dataset-manifest.json",
+    );
     await this.blobStorage.write(
       manifestKey,
       Buffer.from(JSON.stringify(manifest, null, 2)),
@@ -354,10 +369,15 @@ export class HitlDatasetService {
 
     const inputFilename = `${sampleId}.pdf`;
     const inputRelativePath = `inputs/${inputFilename}`;
-    const inputBlobKey = `${storagePrefix}/${inputRelativePath}`;
+    const inputBlobKey = buildBlobFilePath(
+      doc.group_id,
+      OperationCategory.BENCHMARK,
+      [storagePrefix, "inputs"],
+      inputFilename,
+    );
 
     const normalizedPdfBuffer = await this.blobStorage.read(
-      doc.normalized_file_path,
+      validateBlobFilePath(doc.normalized_file_path),
     );
     await this.blobStorage.write(inputBlobKey, normalizedPdfBuffer);
 
@@ -371,7 +391,12 @@ export class HitlDatasetService {
 
     // Write ground truth file
     const gtRelativePath = `ground-truth/${sampleId}.json`;
-    const gtBlobKey = `${storagePrefix}/${gtRelativePath}`;
+    const gtBlobKey = buildBlobFilePath(
+      doc.group_id,
+      OperationCategory.BENCHMARK,
+      [storagePrefix, "ground-truth"],
+      `${sampleId}.json`,
+    );
     await this.blobStorage.write(
       gtBlobKey,
       Buffer.from(JSON.stringify(groundTruth, null, 2)),

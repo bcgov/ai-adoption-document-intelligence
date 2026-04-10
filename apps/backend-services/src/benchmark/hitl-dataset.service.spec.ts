@@ -82,20 +82,22 @@ describe("HitlDatasetService", () => {
     {
       id: "doc-1",
       original_filename: "invoice-001.pdf",
-      file_path: "documents/doc-1/original.pdf",
-      normalized_file_path: "documents/doc-1/normalized.pdf",
+      file_path: "testgroup/ocr/documents/doc-1/original.pdf",
+      normalized_file_path: "testgroup/ocr/doc1/normalized.pdf",
       file_type: "pdf",
       status: "completed_ocr",
+      group_id: "testgroup",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [mockApprovedSession],
     },
     {
       id: "doc-2",
       original_filename: "invoice-002.pdf",
-      file_path: "documents/doc-2/original.pdf",
-      normalized_file_path: "documents/doc-2/normalized.pdf",
+      file_path: "testgroup/ocr/documents/doc-2/original.pdf",
+      normalized_file_path: "testgroup/ocr/doc2/normalized.pdf",
       file_type: "pdf",
       status: "completed_ocr",
+      group_id: "testgroup",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [
         {
@@ -517,6 +519,7 @@ describe("HitlDatasetService", () => {
           documentIds: ["doc-1"],
         },
         "user-1",
+        "group",
       );
 
       expect(result.version.id).toBe("version-1");
@@ -538,6 +541,7 @@ describe("HitlDatasetService", () => {
           documentIds: ["doc-1"],
         },
         "user-1",
+        "group",
       );
 
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(

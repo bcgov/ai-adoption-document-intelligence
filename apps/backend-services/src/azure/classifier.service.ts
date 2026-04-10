@@ -16,6 +16,12 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
+import {
+  buildBlobPrefixPath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 export type {
@@ -34,7 +40,6 @@ interface DocType {
 @Injectable()
 export class ClassifierService {
   private readonly client: DocumentIntelligenceClient;
-  public readonly classifierContainer: string = "classification";
 
   constructor(
     private classifierDb: ClassifierDbService,
@@ -43,6 +48,8 @@ export class ClassifierService {
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
+    @Inject(BLOB_STORAGE_CONTAINER_NAME)
+    private readonly containerName: string,
   ) {
     this.client = azureService.getClient();
   }
@@ -52,21 +59,29 @@ export class ClassifierService {
    * Saves them to blob storage beside the original files.
    * @param filePaths A list of relative file paths in blob storage for analysis. They should match the files exactly, not folders.
    */
-  createLayoutJson = async (filePaths: string[]) => {
+  createLayoutJson = async (
+    filePaths: string[],
+    groupId: string,
+    classifierName: string,
+  ) => {
     // Each file in a training folder needs accompanying layout json.
     // The file must be named just like its corresponding image + .ocr.json
     // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
-    const containerClient = this.azureStorage.getContainerClient(
-      this.classifierContainer,
-    );
 
     // Looping through each folder of training
     await Promise.all(
       filePaths.map(async (filePath) => {
         // Analyze each file
         if (!filePath.match(/\.(jpg|jpeg|png|bmp|tif|tiff)$/i)) return; // Only process images
+        // Does this file already exist?
+        const jsonBlobName = filePath + ".ocr.json";
+        const exists = await this.azureStorage.fileExists(
+          this.containerName,
+          jsonBlobName,
+        );
+        if (exists) return;
         const url = this.azureStorage.getBlobSasUrl(
-          this.classifierContainer,
+          this.containerName,
           filePath,
         );
 
@@ -97,12 +112,10 @@ export class ClassifierService {
             operationLocation,
             async (result) => {
               // Save JSON result to blob storage with same base name but .ocr.json extension
-              const jsonBlobName = filePath + ".ocr.json";
-              const blockBlobClient =
-                containerClient.getBlockBlobClient(jsonBlobName);
-              await blockBlobClient.upload(
+              await this.azureStorage.uploadFile(
+                this.containerName,
+                jsonBlobName,
                 Buffer.from(JSON.stringify(result, null, 2)),
-                Buffer.byteLength(JSON.stringify(result, null, 2)),
               );
               this.logger.debug(
                 `Uploaded layout JSON to blob: ${jsonBlobName}`,
@@ -140,12 +153,10 @@ export class ClassifierService {
               headers: { "Content-Type": "application/json" },
             });
           if (uploadResponse.status == "200") {
-            const jsonBlobName = filePath + ".ocr.json";
-            const blockBlobClient =
-              containerClient.getBlockBlobClient(jsonBlobName);
-            await blockBlobClient.upload(
+            await this.azureStorage.uploadFile(
+              this.containerName,
+              jsonBlobName,
               Buffer.from(JSON.stringify(uploadResponse.body, null, 2)),
-              Buffer.byteLength(JSON.stringify(uploadResponse.body, null, 2)),
             );
             this.logger.debug(
               `Uploaded layout JSON to blob (fallback): ${jsonBlobName}`,
@@ -176,29 +187,39 @@ export class ClassifierService {
    * @returns A list of objects specifying the original path and new blob path.
    */
   async uploadDocumentsForTraining(groupId: string, classifierName: string) {
-    await this.azureStorage.ensureContainerExists(this.classifierContainer);
+    // No need to ensure container exists, handled by blobStorage implementation
 
     // List all files from primary blob storage under the classifier prefix
-    const primaryPrefix = `classifier/${groupId}/${classifierName}/`;
-    const allKeys = await this.blobStorage.list(primaryPrefix);
+    const allKeys = await this.blobStorage.list(
+      buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
+        classifierName,
+      ]),
+    );
 
     const uploadResults = await Promise.all(
       allKeys.map(async (key) => {
         // Read file data from primary blob storage
-        const fileBuffer = await this.blobStorage.read(key);
-
-        // Azure training blob name strips the "classifier/" prefix
-        // e.g. "classifier/gid/name/label/file.jpg" -> "gid/name/label/file.jpg"
-        const blobName = key.replace(/^classifier\//, "");
+        const blobFilePath = validateBlobFilePath(key);
+        // Does this file already exist in Azure storage?
+        const exists = await this.azureStorage.fileExists(
+          this.containerName,
+          blobFilePath,
+        );
+        if (exists)
+          return {
+            originalPath: key,
+            blobPath: blobFilePath,
+          };
+        const fileBuffer = await this.blobStorage.read(blobFilePath);
 
         await this.azureStorage.uploadFile(
-          this.classifierContainer,
-          blobName,
+          this.containerName,
+          blobFilePath,
           fileBuffer,
         );
         return {
           originalPath: key,
-          blobPath: blobName,
+          blobPath: blobFilePath,
         };
       }),
     );
@@ -221,9 +242,14 @@ export class ClassifierService {
     containerUrl: string,
   ) {
     // Get a list of folder paths in the groupId/classifierName folder in blob storage
-    const prefix = path.posix.join(groupId, classifierName) + "/";
+    const prefix =
+      path.posix.join(
+        groupId,
+        OperationCategory.CLASSIFICATION,
+        classifierName,
+      ) + "/";
     const containerClient = this.azureStorage.getContainerClient(
-      this.classifierContainer,
+      this.containerName,
     );
     const folderPaths: string[] = [];
     for await (const item of containerClient.listBlobsByHierarchy("/", {
@@ -236,7 +262,7 @@ export class ClassifierService {
 
     const docTypes: Record<string, DocType> = {};
     for (const folderPath of folderPaths) {
-      // folderPath = 'groupId/classifierName/label/'
+      // folderPath = 'groupId/operation/classifierName/label/'
       const parts = folderPath.split("/").filter(Boolean);
       const label = parts[parts.length - 1];
       docTypes[label] = {
@@ -280,8 +306,9 @@ export class ClassifierService {
         "Classifier entry not found. Cannot proceed with training.",
       );
     }
+
     const containerUrl = await this.azureStorage.generateSasUrl(
-      this.classifierContainer,
+      this.containerName,
     );
 
     const trainingConfig = await this.generateTrainingConfig(
@@ -347,7 +374,8 @@ export class ClassifierService {
       classiferName,
     );
     // Read file and encode to base64
-    const fileData = await this.blobStorage.read(filePath);
+    const blobFilePath = validateBlobFilePath(filePath);
+    const fileData = await this.blobStorage.read(blobFilePath);
     const base64String = Buffer.from(fileData).toString("base64");
 
     const response = await this.client

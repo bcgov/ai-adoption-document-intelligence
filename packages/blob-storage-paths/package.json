@@ -1,0 +1,30 @@
+{
+  "name": "@ai-di/blob-storage-paths",
+  "version": "1.0.0",
+  "description": "Shared blob storage path builder utilities for backend-services and temporal-worker",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepare": "npm run build",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "rootDir": "src",
+    "testMatch": ["**/*.test.ts"],
+    "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.test.ts"]
+  }
+}

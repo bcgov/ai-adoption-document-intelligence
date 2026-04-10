@@ -234,6 +234,7 @@ describe("GroundTruthGenerationService", () => {
       });
       mockGroundTruthJobDbService.findWorkflow.mockResolvedValue({
         id: workflowConfigId,
+        group_id: "testgroup",
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
         Buffer.from(JSON.stringify(sampleManifest)),
@@ -299,6 +300,7 @@ describe("GroundTruthGenerationService", () => {
       });
       mockGroundTruthJobDbService.findWorkflow.mockResolvedValue({
         id: workflowConfigId,
+        group_id: "testgroup",
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
         Buffer.from(JSON.stringify(allWithGt)),
@@ -365,6 +367,7 @@ describe("GroundTruthGenerationService", () => {
               },
             },
             review_sessions: [],
+            group_id: "cuid",
           },
         },
       ];
@@ -430,6 +433,7 @@ describe("GroundTruthGenerationService", () => {
               Date: { content: "2026-01-01", confidence: 0.8, type: "date" },
             },
           },
+          group_id: "cuid",
         },
       };
 
@@ -483,13 +487,13 @@ describe("GroundTruthGenerationService", () => {
 
       // Should write ground truth JSON
       expect(mockBlobStorage.write).toHaveBeenCalledWith(
-        "datasets/dataset-1/v-1/ground-truth/doc-001.json",
+        "cuid/benchmark/datasets/dataset-1/v-1/ground-truth/doc-001.json",
         expect.any(Buffer),
       );
 
       // Should update manifest
       expect(mockBlobStorage.write).toHaveBeenCalledWith(
-        "datasets/dataset-1/v-1/dataset-manifest.json",
+        "cuid/benchmark/datasets/dataset-1/v-1/dataset-manifest.json",
         expect.any(Buffer),
       );
 
@@ -498,7 +502,8 @@ describe("GroundTruthGenerationService", () => {
         "job-1",
         {
           status: GroundTruthJobStatus.completed,
-          groundTruthPath: "datasets/dataset-1/v-1/ground-truth/doc-001.json",
+          groundTruthPath:
+            "cuid/benchmark/datasets/dataset-1/v-1/ground-truth/doc-001.json",
         },
       );
     });
