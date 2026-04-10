@@ -44,9 +44,7 @@ const AZURE_OCR_CACHE_ACTIVITY_TYPES = new Set([
  * Inject benchmark OCR replay payload from ctx.__benchmarkOcrCache into Azure OCR
  * activities so submit/poll/extract can short-circuit without graph definition changes.
  */
-function isOcrCachePayload(
-  value: unknown,
-): value is { ocrResponse?: unknown } {
+function isOcrCachePayload(value: unknown): value is { ocrResponse?: unknown } {
   return (
     value !== null &&
     typeof value === "object" &&
