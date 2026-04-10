@@ -35,6 +35,7 @@ describe("HitlService", () => {
     title: "Test Document",
     original_filename: "test.pdf",
     file_path: "/path/to/test.pdf",
+    normalized_file_path: "/path/to/normalized.pdf",
     file_type: "pdf",
     file_size: 1000,
     metadata: {},

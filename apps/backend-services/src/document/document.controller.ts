@@ -26,8 +26,10 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
@@ -52,6 +54,7 @@ import { type DocumentData, DocumentService } from "./document.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
+import { getContentTypeFromFilename } from "./mime-from-filename";
 
 @ApiTags("Documents")
 @Controller("api/documents")
@@ -393,15 +396,81 @@ export class DocumentController {
     }
   }
 
+  @Get("/:documentId/view")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "View normalized document as PDF",
+    description:
+      "Streams the normalized PDF used for in-app display and OCR. Always application/pdf.",
+  })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiProduces("application/pdf")
+  @ApiOkResponse({
+    description: "Normalized PDF bytes (Content-Type: application/pdf)",
+  })
+  @ApiNotFoundResponse({
+    description: "Document not found or normalized PDF unavailable",
+  })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async viewDocument(
+    @Param("documentId") documentId: string,
+    @Res() res: Response,
+    @Req() req: Request,
+  ): Promise<void> {
+    this.logger.debug(`=== DocumentController.viewDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+
+    const document = await this.documentService.findDocument(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+
+    if (!document.normalized_file_path) {
+      throw new NotFoundException(
+        `Normalized PDF is not available for document: ${documentId}`,
+      );
+    }
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: { action: "view" },
+    });
+
+    const fileBuffer = await this.blobStorage.read(
+      document.normalized_file_path,
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');
+    res.setHeader("Content-Length", fileBuffer.length);
+    res.send(fileBuffer);
+
+    this.logger.debug("=== DocumentController.viewDocument completed ===");
+  }
+
   @Get("/:documentId/download")
   @HttpCode(HttpStatus.OK)
-  @Identity()
-  @ApiOperation({ summary: "Download a document file by ID" })
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Download original uploaded file",
+    description:
+      "Serves the stored original blob (not the normalized PDF). Filename and type follow original_filename.",
+  })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
-    description: "Returns the document file buffer as a download",
+    description: "Returns the original file buffer",
   })
   @ApiNotFoundResponse({ description: "Document not found or file missing" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async downloadDocument(
     @Param("documentId") documentId: string,
@@ -434,14 +503,8 @@ export class DocumentController {
       const filePath = validateBlobFilePath(document.file_path);
       const fileBuffer = await this.blobStorage.read(filePath);
 
-      // Set appropriate headers
       const fileName = document.original_filename || `document-${documentId}`;
-      const mimeType =
-        document.file_type === "pdf"
-          ? "application/pdf"
-          : document.file_type === "image"
-            ? "image/jpeg"
-            : "application/octet-stream";
+      const mimeType = getContentTypeFromFilename(fileName);
 
       res.setHeader("Content-Type", mimeType);
       res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);

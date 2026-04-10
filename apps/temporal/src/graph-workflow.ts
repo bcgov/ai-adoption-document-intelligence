@@ -113,7 +113,6 @@ export async function graphWorkflow(
   setHandler(cancelSignal, (signal: CancelSignal) => {
     cancelled = true;
     cancelMode = signal.mode;
-    // biome-ignore lint/suspicious/noConsole: workflow sandbox; console is the supported way to emit logs
     console.log(
       `[GraphWorkflow] Cancellation requested with mode: ${cancelMode}`,
     );
@@ -154,7 +153,6 @@ export async function graphWorkflow(
         status: "ongoing_ocr",
       });
 
-      // biome-ignore lint/suspicious/noConsole: workflow sandbox; console is the supported way to emit logs
       console.log(
         `[GraphWorkflow] Pre-execution: Updated document ${input.initialCtx.documentId} status to ongoing_ocr`,
       );
@@ -214,7 +212,6 @@ function enforceRunnerVersion(inputVersion: string): void {
   }
 
   if (workflowInfo().unsafe.isReplaying) {
-    // biome-ignore lint/suspicious/noConsole: workflow sandbox; console is the supported way to emit logs
     console.warn(
       `[GraphWorkflow] Runner version mismatch: input=${inputVersion}, current=${GRAPH_RUNNER_VERSION}`,
     );

@@ -81,7 +81,10 @@ export class DatasetController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "groupId" },
+  })
   @ApiOperation({ summary: "Create a new dataset" })
   @ApiBody({
     type: CreateDatasetDto,

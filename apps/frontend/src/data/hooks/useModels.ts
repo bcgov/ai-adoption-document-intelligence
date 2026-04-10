@@ -15,6 +15,6 @@ export function useModels() {
       }
       return response.data.models;
     },
-    staleTime: 1000 * 60 * 60, // 1 hour - models rarely change
+    staleTime: 0, // Always refetch when the page mounts
   });
 }

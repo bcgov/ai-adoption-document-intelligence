@@ -9,7 +9,6 @@ import * as client from "openid-client";
 import { URL } from "url";
 import { UserService } from "@/actor/user.service";
 import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
-import { PrismaService } from "../database/prisma.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 
 /**

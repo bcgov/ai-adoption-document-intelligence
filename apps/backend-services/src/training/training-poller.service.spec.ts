@@ -30,12 +30,17 @@ describe("TrainingPollerService", () => {
     deleteTrainedModel: jest.Mock;
     findAllTrainedModels: jest.Mock;
   };
-  let mockAdminClient: any;
+  let mockAdminClient: Record<string, jest.Mock>;
+
+  const mockTemplateModel = {
+    id: "tm-1",
+    model_id: "model-123",
+  };
 
   const mockTrainingJob = {
     id: "job-1",
-    project_id: "project-1",
-    model_id: "model-123",
+    template_model_id: "tm-1",
+    template_model: mockTemplateModel,
     operation_id: "operation-123",
     status: TrainingStatus.TRAINING,
     container_name: "training-project-1",
@@ -44,8 +49,6 @@ describe("TrainingPollerService", () => {
     started_at: new Date(),
     completed_at: null,
     error_message: null,
-    dataset_id: "dataset-1",
-    build_mode: "template",
     created_at: new Date(),
     updated_at: new Date(),
   };
@@ -87,8 +90,8 @@ describe("TrainingPollerService", () => {
     (DocumentIntelligence as jest.Mock).mockReturnValue(mockAdminClient);
 
     const mockConfig = {
-      get: jest.fn((key: string, defaultValue?: any) => {
-        const config: Record<string, any> = {
+      get: jest.fn((key: string, defaultValue?: number) => {
+        const config: Record<string, string | number> = {
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_POLL_INTERVAL_SECONDS: 10,
@@ -124,8 +127,8 @@ describe("TrainingPollerService", () => {
 
     it("should handle missing Azure credentials", async () => {
       const mockConfigNoCredentials = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          const config: Record<string, any> = {
+        get: jest.fn((key: string, defaultValue?: number) => {
+          const config: Record<string, number> = {
             TRAINING_POLL_INTERVAL_SECONDS: 10,
             TRAINING_MAX_POLL_ATTEMPTS: 60,
           };
@@ -194,8 +197,16 @@ describe("TrainingPollerService", () => {
 
     it("should poll all active jobs", async () => {
       const jobs = [
-        { ...mockTrainingJob, id: "job-1", operation_id: "op-1" },
-        { ...mockTrainingJob, id: "job-2", operation_id: "op-2" },
+        {
+          ...mockTrainingJob,
+          id: "job-1",
+          operation_id: "op-1",
+        },
+        {
+          ...mockTrainingJob,
+          id: "job-2",
+          operation_id: "op-2",
+        },
       ];
 
       mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValueOnce(jobs);
@@ -259,7 +270,11 @@ describe("TrainingPollerService", () => {
 
       mockTrainingDb.findTrainingJob.mockResolvedValueOnce(oldJob);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
         status: TrainingStatus.FAILED,
@@ -280,7 +295,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
@@ -301,7 +320,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
         status: TrainingStatus.FAILED,
@@ -324,7 +347,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
@@ -343,7 +370,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
@@ -365,7 +396,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
         status: TrainingStatus.FAILED,
@@ -402,10 +437,14 @@ describe("TrainingPollerService", () => {
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
       mockTrainingDb.createTrainedModel.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
         status: TrainingStatus.SUCCEEDED,
@@ -413,9 +452,9 @@ describe("TrainingPollerService", () => {
       });
 
       expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
-        project_id: "project-1",
+        template_model_id: "tm-1",
         training_job_id: "job-1",
-        model_id: "model-1",
+        model_id: "model-123",
         description: "Test model",
         doc_types: expect.any(Object),
         field_count: 2,
@@ -460,16 +499,20 @@ describe("TrainingPollerService", () => {
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
       mockTrainingDb.createTrainedModel.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockGetModel).toHaveBeenCalled();
       expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
-        project_id: "project-1",
+        template_model_id: "tm-1",
         training_job_id: "job-1",
-        model_id: "model-1",
+        model_id: "model-123",
         description: "Fetched model",
         doc_types: expect.any(Object),
         field_count: 3,
@@ -508,7 +551,11 @@ describe("TrainingPollerService", () => {
         return callCount > 1; // First call (operation) = false, second call (model) = true
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
         status: TrainingStatus.FAILED,
@@ -537,15 +584,19 @@ describe("TrainingPollerService", () => {
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
       mockTrainingDb.createTrainedModel.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
-        project_id: "project-1",
+        template_model_id: "tm-1",
         training_job_id: "job-1",
-        model_id: "model-1",
+        model_id: "model-123",
         description: "Model without docTypes",
         doc_types: {},
         field_count: 0,

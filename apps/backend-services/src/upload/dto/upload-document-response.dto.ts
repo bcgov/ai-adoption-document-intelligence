@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class UploadDocumentResponseDocumentDto {
   @ApiProperty()
@@ -9,6 +9,9 @@ export class UploadDocumentResponseDocumentDto {
 
   @ApiProperty()
   original_filename: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  normalized_file_path?: string | null;
 
   @ApiProperty()
   file_type: string;

@@ -6,7 +6,8 @@ export type DocumentStatus =
   | "completed_ocr"
   | "needs_validation"
   | "failed"
-  | "rejected_by_human";
+  | "rejected_by_human"
+  | "conversion_failed";
 
 export enum RejectionReason {
   INPUT_QUALITY = "INPUT_QUALITY", // Scan unreadable, cutoff, skew
@@ -21,6 +22,8 @@ export interface Document {
   title: string;
   original_filename: string;
   file_path: string;
+  /** Normalized PDF blob key when conversion succeeded; null if conversion failed. */
+  normalized_file_path?: string | null;
   file_type: string;
   file_size: number;
   source: string;
