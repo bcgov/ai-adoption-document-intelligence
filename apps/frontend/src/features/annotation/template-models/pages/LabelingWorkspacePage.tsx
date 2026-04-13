@@ -23,7 +23,6 @@ import {
   colorForFieldKeyWithAlpha,
   colorForFieldKeyWithBorder,
 } from "@/shared/utils";
-import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
@@ -139,11 +138,6 @@ export const LabelingWorkspacePage: FC = () => {
   const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
     { width: 1000, height: 1400 },
   );
-  const {
-    ref: canvasRef,
-    width: canvasWidth,
-    height: canvasHeight,
-  } = useElementSize();
   const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
@@ -252,7 +246,7 @@ export const LabelingWorkspacePage: FC = () => {
       if (!templateModelDocument?.labeling_document) return;
       try {
         const response = await fetch(
-          `/api/template-models/${modelId}/documents/${documentId}/download`,
+          `/api/template-models/${modelId}/documents/${documentId}/view`,
           { credentials: "include" },
         );
         if (!response.ok) return;
@@ -462,38 +456,6 @@ export const LabelingWorkspacePage: FC = () => {
     ocrWords,
     loadSuggestionsAsync,
   ]);
-
-  const wordBoxes = useMemo(() => {
-    return ocrWords.map((element) => {
-      const points = [];
-      for (let i = 0; i < element.polygon.length; i += 2) {
-        points.push({ x: element.polygon[i], y: element.polygon[i + 1] });
-      }
-      const assignedField = wordAssignments[element.id];
-      const isActive = assignedField === activeFieldKey;
-      const isCheckbox = element.type === "selectionMark";
-
-      // Generate deterministic color based on field key
-      let color: string;
-      if (assignedField) {
-        const { borderCss } = colorForFieldKeyWithBorder(assignedField);
-        color = borderCss;
-      } else if (isCheckbox) {
-        color = "#FFA500";
-      } else {
-        color = "#ced4da";
-      }
-
-      return {
-        id: element.id,
-        box: { polygon: points },
-        label: assignedField ?? undefined,
-        color,
-        confidence: undefined,
-        isActive,
-      };
-    });
-  }, [ocrWords, wordAssignments, activeFieldKey]);
 
   const updateLabelsFromAssignments = useMemo(() => {
     const updates: Record<string, LabelState> = {};
@@ -724,7 +686,9 @@ export const LabelingWorkspacePage: FC = () => {
 
   const documentName =
     templateModelDocument?.labeling_document?.original_filename || "Document";
-  const isPdf = templateModelDocument?.labeling_document?.file_type === "pdf";
+  const hasNormalizedPdf = Boolean(
+    templateModelDocument?.labeling_document?.normalized_file_path,
+  );
 
   return (
     <Stack
@@ -800,6 +764,16 @@ export const LabelingWorkspacePage: FC = () => {
                 Document preview is unavailable.
               </Text>
             </Stack>
+          ) : !hasNormalizedPdf ? (
+            <Stack
+              align="center"
+              justify="center"
+              style={{ position: "absolute", inset: 0 }}
+            >
+              <Text size="sm" c="dimmed">
+                Normalized PDF is not available for this document.
+              </Text>
+            </Stack>
           ) : ocrWords.length === 0 ? (
             <Stack
               align="center"
@@ -810,7 +784,7 @@ export const LabelingWorkspacePage: FC = () => {
                 OCR results are not available yet.
               </Text>
             </Stack>
-          ) : isPdf ? (
+          ) : (
             <Stack
               gap="xs"
               style={{ position: "absolute", inset: 0, overflow: "hidden" }}
@@ -976,21 +950,6 @@ export const LabelingWorkspacePage: FC = () => {
                 </div>
               </div>
             </Stack>
-          ) : (
-            <div
-              ref={canvasRef}
-              style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-            >
-              {canvasWidth > 0 && canvasHeight > 0 && (
-                <AnnotationCanvas
-                  imageUrl={documentUrl}
-                  width={canvasWidth}
-                  height={canvasHeight}
-                  boxes={wordBoxes}
-                  onBoxSelect={handleWordSelect}
-                />
-              )}
-            </div>
           )}
         </Paper>
 

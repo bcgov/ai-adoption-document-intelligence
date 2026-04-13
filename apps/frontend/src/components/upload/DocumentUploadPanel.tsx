@@ -159,15 +159,59 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           }),
         };
 
-        const response = await apiService.post<{ document: Document }>(
-          "/upload",
-          payload,
-        );
+        const response = await apiService.post<{
+          success?: boolean;
+          document?: Document;
+          code?: string;
+          message?: string;
+        }>("/upload", payload);
 
-        if (!response.success || !response.data) {
+        if (
+          !response.success &&
+          response.data &&
+          typeof response.data === "object" &&
+          "code" in response.data &&
+          (response.data as { code?: string }).code === "conversion_failed" &&
+          (response.data as { document?: Document }).document
+        ) {
+          const doc = (response.data as { document: Document }).document;
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? {
+                    ...q,
+                    status: "error",
+                    progress: 0,
+                    document: doc,
+                    message:
+                      response.message ||
+                      "Document could not be converted to PDF",
+                  }
+                : q,
+            ),
+          );
+          notifications.show({
+            title: "Conversion failed",
+            message:
+              response.message ||
+              "Document could not be converted to PDF. You can remove it and try another file.",
+            color: "red",
+          });
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+          continue;
+        }
+
+        if (
+          !response.success ||
+          !response.data ||
+          !("document" in response.data) ||
+          !(response.data as { document: Document }).document
+        ) {
           const errorMsg = response.message || "Upload failed";
           throw new Error(errorMsg);
         }
+
+        const uploaded = (response.data as { document: Document }).document;
 
         setQueue((prev) =>
           prev.map((q) =>
@@ -176,7 +220,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                   ...q,
                   status: "success",
                   progress: 100,
-                  document: response.data.document,
+                  document: uploaded,
                 }
               : q,
           ),
@@ -189,8 +233,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
         });
 
         queryClient.invalidateQueries({ queryKey: ["documents"] });
-        if (response.data.document && onDocumentFocus) {
-          onDocumentFocus(response.data.document);
+        if (uploaded && onDocumentFocus) {
+          onDocumentFocus(uploaded);
         }
       } catch (error) {
         setQueue((prev) =>

@@ -18,6 +18,11 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import { PrismaService } from "@/database/prisma.service";
 import { DocumentService } from "@/document/document.service";
+import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
+import {
+  PdfNormalizationError,
+  PdfNormalizationService,
+} from "@/document/pdf-normalization.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
 import { ExtractedFields } from "@/ocr/azure-types";
 import { OcrService } from "@/ocr/ocr.service";
@@ -63,6 +68,7 @@ export class GroundTruthGenerationService {
     private readonly ocrService: OcrService,
     private readonly hitlDatasetService: HitlDatasetService,
     private readonly temporalClient: TemporalClientService,
+    private readonly pdfNormalization: PdfNormalizationService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
   ) {}
 
@@ -323,7 +329,10 @@ export class GroundTruthGenerationService {
         ? "image"
         : "pdf";
       const originalFilename = path.basename(inputFile.path);
-      const ext = path.extname(originalFilename);
+      const originalExtension = extensionForOriginalBlob(
+        originalFilename,
+        fileType,
+      );
 
       // Read workflow config and apply per-job overrides (if any)
       const workflowVersion = await this.prisma.workflowVersion.findUnique({
@@ -349,12 +358,69 @@ export class GroundTruthGenerationService {
         (effectiveConfigCtx?.modelId?.defaultValue as string) ||
         "prebuilt-layout";
 
-      // Create document record
       const documentId = crypto.randomUUID();
-      const docBlobKey = `documents/${documentId}/original${ext}`;
+      const docBlobKey = `documents/${documentId}/original.${originalExtension}`;
 
-      // Write file to document storage
+      await this.pdfNormalization.validateForUpload(fileBuffer, fileType);
+
       await this.blobStorage.write(docBlobKey, fileBuffer);
+
+      const normalizedKey = `documents/${documentId}/normalized.pdf`;
+      try {
+        const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
+          fileBuffer,
+          fileType,
+        );
+        await this.blobStorage.write(normalizedKey, pdfBuffer);
+      } catch (e) {
+        if (e instanceof BadRequestException) {
+          throw e;
+        }
+        if (!(e instanceof PdfNormalizationError)) {
+          this.logger.warn(
+            `Ground truth job ${jobId}: unexpected normalization error: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          );
+        }
+        const errorMessage =
+          e instanceof PdfNormalizationError
+            ? e.message
+            : "Document could not be converted to PDF.";
+        const failedDoc = {
+          id: documentId,
+          title: job.sampleId,
+          original_filename: originalFilename,
+          file_path: docBlobKey,
+          normalized_file_path: null as string | null,
+          file_type: fileType,
+          file_size: fileBuffer.length,
+          metadata: {
+            source: "ground-truth-generation",
+            datasetId,
+            datasetVersionId: versionId,
+            sampleId: job.sampleId,
+          } as Prisma.JsonValue,
+          source: "ground-truth-generation",
+          status: DocumentStatus.conversion_failed,
+          apim_request_id: null,
+          workflow_id: null,
+          workflow_config_id: null,
+          workflow_execution_id: null,
+          model_id: modelId,
+          group_id: groupId,
+        };
+        await this.documentService.createDocument(failedDoc);
+        await this.prisma.datasetGroundTruthJob.update({
+          where: { id: jobId },
+          data: {
+            documentId,
+            status: GroundTruthJobStatus.failed,
+            error: errorMessage,
+          },
+        });
+        return;
+      }
 
       // Create document in DB
       const documentData = {
@@ -362,6 +428,7 @@ export class GroundTruthGenerationService {
         title: job.sampleId,
         original_filename: originalFilename,
         file_path: docBlobKey,
+        normalized_file_path: normalizedKey,
         file_type: fileType,
         file_size: fileBuffer.length,
         metadata: {

@@ -54,6 +54,7 @@ interface TemplateModelDocument {
     title: string;
     original_filename: string;
     file_path?: string;
+    normalized_file_path?: string | null;
     file_type: string;
     file_size: number;
     status: string;

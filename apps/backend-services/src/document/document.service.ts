@@ -1,5 +1,10 @@
 import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
-import { ConflictException, Inject, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+} from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import {
   BLOB_STORAGE,
@@ -8,6 +13,11 @@ import {
 import { AppLoggerService } from "../logging/app-logger.service";
 import { DocumentDbService } from "./document-db.service";
 import type { DocumentData } from "./document-db.types";
+import { extensionForOriginalBlob } from "./original-blob-key.util";
+import {
+  PdfNormalizationError,
+  PdfNormalizationService,
+} from "./pdf-normalization.service";
 
 export type { DocumentData };
 
@@ -16,6 +26,7 @@ export interface UploadedDocument {
   title: string;
   original_filename: string;
   file_path: string;
+  normalized_file_path: string | null;
   file_type: string;
   file_size: number;
   metadata?: Record<string, unknown>;
@@ -27,22 +38,37 @@ export interface UploadedDocument {
   group_id: string;
 }
 
+export type UploadDocumentResult =
+  | { kind: "success"; document: UploadedDocument }
+  | { kind: "conversion_failed"; document: UploadedDocument };
+
 @Injectable()
 export class DocumentService {
   constructor(
     private readonly documentDb: DocumentDbService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly pdfNormalization: PdfNormalizationService,
     private readonly logger: AppLoggerService,
   ) {}
 
-  private getFileExtension(fileType: string): string {
-    const typeMap: Record<string, string> = {
-      pdf: "pdf",
-      image: "jpg",
-      scan: "pdf",
+  private toUploadedDocument(saved: DocumentData): UploadedDocument {
+    return {
+      id: saved.id!,
+      title: saved.title,
+      original_filename: saved.original_filename,
+      file_path: saved.file_path,
+      normalized_file_path: saved.normalized_file_path ?? null,
+      file_type: saved.file_type,
+      file_size: saved.file_size,
+      metadata: saved.metadata as Record<string, unknown>,
+      source: saved.source,
+      status: saved.status,
+      created_at: saved.created_at || new Date(),
+      updated_at: saved.updated_at || new Date(),
+      model_id: saved.model_id,
+      group_id: saved.group_id,
     };
-    return typeMap[fileType.toLowerCase()] || "bin";
   }
 
   /**
@@ -70,51 +96,97 @@ export class DocumentService {
     groupId: string,
     metadata?: Record<string, unknown>,
     workflowId?: string,
-  ): Promise<UploadedDocument> {
+  ): Promise<UploadDocumentResult> {
     this.logger.debug("=== DocumentService.uploadDocument ===");
     this.logger.debug(
       `Title: ${title}, FileType: ${fileType}, OriginalFilename: ${originalFilename}`,
     );
 
     try {
-      // Decode base64 file
       let fileBuffer: Buffer;
       try {
-        // Remove data URL prefix if present (e.g., "data:application/pdf;base64,")
         const base64Data = fileBase64.includes(",")
           ? fileBase64.split(",")[1]
           : fileBase64;
         fileBuffer = Buffer.from(base64Data, "base64");
       } catch (error) {
         this.logger.error(`Failed to decode base64 file: ${error.message}`);
-        throw new Error("Invalid base64 file data");
+        throw new BadRequestException("Invalid base64 file data");
       }
 
       const fileSize = fileBuffer.length;
       this.logger.debug(`Decoded file size: ${fileSize} bytes`);
 
+      await this.pdfNormalization.validateForUpload(fileBuffer, fileType);
+
       const documentId = uuidv4();
-      const extension = this.getFileExtension(fileType);
+      const extension = extensionForOriginalBlob(originalFilename, fileType);
       const blobKey = `documents/${documentId}/original.${extension}`;
 
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);
 
-      // Store metadata in database via API
+      const normalizedKey = `documents/${documentId}/normalized.pdf`;
+      try {
+        const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
+          fileBuffer,
+          fileType,
+        );
+        await this.blobStorage.write(normalizedKey, pdfBuffer);
+      } catch (e) {
+        if (e instanceof BadRequestException) {
+          throw e;
+        }
+        if (!(e instanceof PdfNormalizationError)) {
+          this.logger.error(
+            `Unexpected normalization error: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+
+        const failedDoc: Omit<DocumentData, "created_at" | "updated_at"> = {
+          id: documentId,
+          title,
+          original_filename: originalFilename,
+          file_path: blobKey,
+          normalized_file_path: null,
+          file_type: fileType,
+          file_size: fileSize,
+          metadata: (metadata || {}) as Prisma.JsonValue,
+          source: "api",
+          status: DocumentStatus.conversion_failed,
+          apim_request_id: null,
+          workflow_id: workflowId || null,
+          workflow_config_id: workflowId || null,
+          workflow_execution_id: null,
+          model_id: modelId,
+          group_id: groupId,
+        };
+
+        const saved = await this.documentDb.createDocument(failedDoc);
+        this.logger.warn(
+          `Document ${saved.id} stored but PDF normalization failed`,
+        );
+        return {
+          kind: "conversion_failed",
+          document: this.toUploadedDocument(saved),
+        };
+      }
+
       const documentData: Omit<DocumentData, "created_at" | "updated_at"> = {
         id: documentId,
         title,
         original_filename: originalFilename,
         file_path: blobKey,
+        normalized_file_path: normalizedKey,
         file_type: fileType,
         file_size: fileSize,
         metadata: (metadata || {}) as Prisma.JsonValue,
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,
-        workflow_id: workflowId || null, // Legacy field, kept for backward compatibility
-        workflow_config_id: workflowId || null, // New field for workflow configuration ID
-        workflow_execution_id: null, // Will be set when workflow starts
+        workflow_id: workflowId || null,
+        workflow_config_id: workflowId || null,
+        workflow_execution_id: null,
         model_id: modelId,
         group_id: groupId,
       };
@@ -122,24 +194,11 @@ export class DocumentService {
       const savedDocument = await this.documentDb.createDocument(documentData);
       this.logger.debug(`Document saved to database: ${savedDocument.id}`);
 
-      const result: UploadedDocument = {
-        id: savedDocument.id!,
-        title: savedDocument.title,
-        original_filename: savedDocument.original_filename,
-        file_path: savedDocument.file_path,
-        file_type: savedDocument.file_type,
-        file_size: savedDocument.file_size,
-        metadata: savedDocument.metadata as Record<string, unknown>,
-        source: savedDocument.source,
-        status: savedDocument.status,
-        created_at: savedDocument.created_at || new Date(),
-        updated_at: savedDocument.updated_at || new Date(),
-        model_id: savedDocument.model_id,
-        group_id: savedDocument.group_id,
-      };
-
       this.logger.debug("=== DocumentService.uploadDocument completed ===");
-      return result;
+      return {
+        kind: "success",
+        document: this.toUploadedDocument(savedDocument),
+      };
     } catch (error) {
       this.logger.error(`Error uploading document: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
@@ -191,10 +250,10 @@ export class DocumentService {
     }
     await this.documentDb.deleteDocument(id);
     try {
-      await this.blobStorage.delete(document.file_path);
+      await this.blobStorage.deleteByPrefix(`documents/${id}/`);
     } catch (error) {
       this.logger.warn(
-        `Failed to delete blob for document ${id}: ${(error as Error).message}`,
+        `Failed to delete blobs for document ${id}: ${(error as Error).message}`,
       );
     }
     return true;

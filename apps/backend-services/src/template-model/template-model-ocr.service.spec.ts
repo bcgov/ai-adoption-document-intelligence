@@ -3,6 +3,7 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
+import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
@@ -25,6 +26,7 @@ describe("TemplateModelOcrService", () => {
     title: "Test Document",
     original_filename: "test.pdf",
     file_path: "labeling-documents/doc-1/original.pdf",
+    normalized_file_path: "labeling-documents/doc-1/normalized.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -69,6 +71,13 @@ describe("TemplateModelOcrService", () => {
       }),
     };
 
+    const mockPdfNormalization = {
+      validateForUpload: jest.fn().mockResolvedValue(undefined),
+      normalizeToPdf: jest
+        .fn()
+        .mockImplementation((buf: Buffer) => Promise.resolve(Buffer.from(buf))),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TemplateModelOcrService,
@@ -88,6 +97,10 @@ describe("TemplateModelOcrService", () => {
         {
           provide: BLOB_STORAGE,
           useValue: mockBlob,
+        },
+        {
+          provide: PdfNormalizationService,
+          useValue: mockPdfNormalization,
         },
       ],
     }).compile();
@@ -132,9 +145,13 @@ describe("TemplateModelOcrService", () => {
           file_path: expect.stringMatching(
             /^labeling-documents\/[^/]+\/original\.pdf$/,
           ),
+          normalized_file_path: expect.stringMatching(
+            /^labeling-documents\/[^/]+\/normalized\.pdf$/,
+          ),
         }),
       );
-      expect(result).toEqual(mockLabelingDocument);
+      expect(result.kind).toBe("success");
+      expect(result.labelingDocument).toEqual(mockLabelingDocument);
     });
 
     it("should handle base64 without data prefix", async () => {

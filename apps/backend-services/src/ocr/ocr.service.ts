@@ -60,8 +60,15 @@ export class OcrService {
       );
     }
     try {
-      // Read file from blob storage using the blob key stored in file_path
-      const fileBuffer = await this.blobStorage.read(document.file_path);
+      if (!document.normalized_file_path) {
+        throw new BadRequestException(
+          `Document ${documentId} has no normalized PDF; cannot start OCR.`,
+        );
+      }
+
+      const fileBuffer = await this.blobStorage.read(
+        document.normalized_file_path,
+      );
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
@@ -69,19 +76,8 @@ export class OcrService {
       const modelId = document.model_id;
       this.logger.debug(`Document model_id: ${modelId}`);
 
-      // Determine file type and content type
-      const fileType = document.file_type === "pdf" ? "pdf" : "image";
-      let contentType = "application/pdf";
-      if (fileType === "image") {
-        const lowerFileName = document.original_filename.toLowerCase();
-        if (lowerFileName.endsWith(".png")) {
-          contentType = "image/png";
-        } else if (lowerFileName.match(/\.(jpg|jpeg)$/i)) {
-          contentType = "image/jpeg";
-        } else {
-          contentType = "image/jpeg";
-        }
-      }
+      const fileType = "pdf";
+      const contentType = "application/pdf";
 
       // Get workflow_config_id from document if available
       // This references the Workflow table and contains the workflow configuration
@@ -99,8 +95,8 @@ export class OcrService {
 
       const initialCtx: Record<string, unknown> = {
         documentId,
-        blobKey: document.file_path,
-        fileName: document.original_filename,
+        blobKey: document.normalized_file_path,
+        fileName: "normalized.pdf",
         fileType,
         contentType,
         modelId,

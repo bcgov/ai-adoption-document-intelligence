@@ -76,6 +76,7 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import { PrismaService } from "@/database/prisma.service";
 import { DocumentService } from "@/document/document.service";
+import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
 import { OcrService } from "@/ocr/ocr.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
@@ -110,6 +111,13 @@ const mockHitlDatasetService = {
 const mockTemporalClient = {
   getWorkflowStatus: jest.fn(),
   cancelWorkflow: jest.fn(),
+};
+
+const mockPdfNormalizationService = {
+  validateForUpload: jest.fn().mockResolvedValue(undefined),
+  normalizeToPdf: jest
+    .fn()
+    .mockImplementation((buf: Buffer) => Promise.resolve(Buffer.from(buf))),
 };
 
 const sampleManifest = {
@@ -165,6 +173,10 @@ describe("GroundTruthGenerationService", () => {
         {
           provide: TemporalClientService,
           useValue: mockTemporalClient,
+        },
+        {
+          provide: PdfNormalizationService,
+          useValue: mockPdfNormalizationService,
         },
         {
           provide: BLOB_STORAGE,
