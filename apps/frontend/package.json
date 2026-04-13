@@ -35,7 +35,6 @@
 		"react": "19.2.1",
 		"react-dom": "19.2.1",
 		"react-konva": "^19.2.1",
-		"react-pdf": "^10.3.0",
 		"react-router-dom": "^7.9.6",
 		"recharts": "^3.7.0"
 	},

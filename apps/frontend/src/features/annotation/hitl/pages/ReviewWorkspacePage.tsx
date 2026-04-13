@@ -17,24 +17,24 @@ import { useElementSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
-import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
+import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
+import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
-
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { KeyboardManager } from "../../core/keyboard/KeyboardManager";
 import type { ShortcutDefinition } from "../../core/keyboard/useKeyboardShortcuts";
 import { CorrectionAction } from "../../core/types/annotation";
 import type { BoundingBox } from "../../core/types/canvas";
+import { CanvasTool } from "../../core/types/canvas";
 import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
+import { SnippetView } from "../components/SnippetView";
 import { useAutoAdvance } from "../hooks/useAutoAdvance";
+import { useFieldFocus } from "../hooks/useFieldFocus";
 import { useReviewSession } from "../hooks/useReviewSession";
 import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 import { useUndoRedo } from "../hooks/useUndoRedo";
@@ -165,23 +165,16 @@ export const ReviewWorkspacePage: FC = () => {
     reopenSessionAsync,
   } = useReviewSession(sessionId);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [isNormalizedPdf, setIsNormalizedPdf] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [numPages, setNumPages] = useState(0);
-  const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
   const {
-    ref: pdfContainerRef,
-    width: pdfContainerWidth,
-    height: pdfContainerHeight,
+    ref: canvasRef,
+    width: canvasWidth,
+    height: canvasHeight,
   } = useElementSize();
-  const [pdfRenderedSize, setPdfRenderedSize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-  const [pdfOriginalSize, setPdfOriginalSize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-  const initialZoomSetRef = useRef(false);
+  const [documentImage, setDocumentImage] = useState<HTMLImageElement | null>(
+    null,
+  );
   const [correctionMap, setCorrectionMap] = useState<
     Record<
       string,
@@ -198,6 +191,7 @@ export const ReviewWorkspacePage: FC = () => {
   const [escalationReason, setEscalationReason] = useState("");
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState("");
+  const [viewMode, setViewMode] = useState<"document" | "snippet">("document");
   const [sortMode, setSortMode] = useState<"confidence" | "alphabetical">(
     "confidence",
   );
@@ -224,10 +218,8 @@ export const ReviewWorkspacePage: FC = () => {
   const { advance } = useAutoAdvance();
 
   useEffect(() => {
-    initialZoomSetRef.current = false;
     setCurrentPage(1);
-    setPdfRenderedSize(null);
-    setPdfOriginalSize(null);
+    setDocumentImage(null);
   }, [session?.document?.id]);
 
   useEffect(() => {
@@ -238,17 +230,30 @@ export const ReviewWorkspacePage: FC = () => {
       if (!session?.document?.id) {
         return;
       }
+      setDocumentImage(null);
+      setIsNormalizedPdf(false);
       try {
-        const response = await fetch(
+        // Try normalized PDF first; fall back to original for pre-normalization documents
+        let usedNormalized = false;
+        let response = await fetch(
           `/api/documents/${session.document.id}/view`,
           { credentials: "include" },
         );
+        if (response.ok) {
+          usedNormalized = true;
+        } else if (!revoked) {
+          response = await fetch(
+            `/api/documents/${session.document.id}/download`,
+            { credentials: "include" },
+          );
+        }
         if (!response.ok || revoked) return;
         const blob = await response.blob();
         if (revoked) return;
         const url = URL.createObjectURL(blob);
         objectUrl = url;
         setDocumentUrl(url);
+        setIsNormalizedPdf(usedNormalized);
       } catch {
         // Document load failed; leave URL unset
       }
@@ -264,22 +269,54 @@ export const ReviewWorkspacePage: FC = () => {
     };
   }, [session?.document?.id]);
 
+  const {
+    imageUrl: pdfPageImageUrl,
+    pageSize: pdfPageSize,
+    numPages,
+  } = usePdfPageImage(isNormalizedPdf ? documentUrl : null, currentPage);
+
+  // Canvas gets the rendered PDF page image, or raw image URL for non-PDFs
+  const canvasImageUrl = isNormalizedPdf ? pdfPageImageUrl : documentUrl;
+
+  // Load the current canvas image as an HTMLImageElement for SnippetView
   useEffect(() => {
-    if (
-      !initialZoomSetRef.current &&
-      pdfContainerWidth > 0 &&
-      pdfContainerHeight > 0 &&
-      pdfOriginalSize
-    ) {
-      zoomToFit(
-        pdfContainerWidth,
-        pdfContainerHeight,
-        pdfOriginalSize.width,
-        pdfOriginalSize.height,
-      );
-      initialZoomSetRef.current = true;
+    if (!canvasImageUrl) {
+      setDocumentImage(null);
+      return;
     }
-  }, [pdfContainerWidth, pdfContainerHeight, pdfOriginalSize, zoomToFit]);
+    const img = new Image();
+    img.src = canvasImageUrl;
+    img.onload = () => setDocumentImage(img);
+  }, [canvasImageUrl]);
+
+  // Compute the scale factor for converting OCR inch coords to image pixels.
+  // Needed by focusField and boxes. Stable across renders for the same page.
+  const coordScale = useMemo(() => {
+    if (!isNormalizedPdf || !pdfPageSize) return 1;
+    const ocrResult = session?.document?.ocr_result as
+      | {
+          analyzeResult?: {
+            pages?: Array<{
+              width?: number;
+              height?: number;
+              pageNumber?: number;
+            }>;
+          };
+        }
+      | undefined;
+    const ocrPage = ocrResult?.analyzeResult?.pages?.find(
+      (p) => (p.pageNumber ?? 1) === currentPage,
+    );
+    if (ocrPage?.width) {
+      return pdfPageSize.width / ocrPage.width;
+    }
+    return 144; // 72 pts/inch * RENDER_SCALE(2)
+  }, [
+    isNormalizedPdf,
+    pdfPageSize,
+    session?.document?.ocr_result,
+    currentPage,
+  ]);
 
   const fields = useMemo<ReviewField[]>(() => {
     const ocrFields = session?.document?.ocr_result?.fields;
@@ -349,16 +386,52 @@ export const ReviewWorkspacePage: FC = () => {
     return sortedFields.filter((f) => f.fieldKey.toLowerCase().includes(lower));
   }, [sortedFields, fieldFilter]);
 
-  const fieldsOnCurrentPage = useMemo(
+  // Scale field coordinates to image pixels for useFieldFocus panTo
+  const scaledFields = useMemo(
     () =>
-      filteredSortedFields.filter(
-        (f) =>
-          f.pageNumber === currentPage &&
-          f.boundingBox &&
-          f.boundingBox.polygon.length >= 2,
-      ),
-    [filteredSortedFields, currentPage],
+      fields.map((f) => ({
+        ...f,
+        boundingBox: f.boundingBox
+          ? {
+              polygon: f.boundingBox.polygon.map((p) => ({
+                x: p.x * coordScale,
+                y: p.y * coordScale,
+              })),
+            }
+          : undefined,
+      })),
+    [fields, coordScale],
   );
+
+  const { canvasRef: fieldFocusCanvasRef, focusField } =
+    useFieldFocus(scaledFields);
+
+  const boxes = useMemo(() => {
+    const fieldsOnPage = filteredSortedFields.filter(
+      (f) =>
+        f.pageNumber === currentPage &&
+        f.boundingBox &&
+        f.boundingBox.polygon.length >= 2,
+    );
+
+    return fieldsOnPage.map((field) => {
+      const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+      const isActive = field.fieldKey === activeFieldKey;
+      return {
+        id: field.fieldKey,
+        box: {
+          polygon: field.boundingBox!.polygon.map((p) => ({
+            x: p.x * coordScale,
+            y: p.y * coordScale,
+          })),
+        },
+        label: field.fieldKey,
+        color: borderCss,
+        confidence: field.confidence,
+        isActive,
+      };
+    });
+  }, [filteredSortedFields, currentPage, activeFieldKey, coordScale]);
 
   // Focus first field input when a new session loads
   useEffect(() => {
@@ -380,6 +453,21 @@ export const ReviewWorkspacePage: FC = () => {
       });
     }
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Zoom to first field once the document image is loaded into the canvas
+  useEffect(() => {
+    if (
+      documentImage &&
+      viewMode === "document" &&
+      filteredSortedFields.length > 0
+    ) {
+      const firstField = filteredSortedFields[0];
+      setActiveFieldKey(firstField.fieldKey);
+      requestAnimationFrame(() => {
+        focusField(firstField.fieldKey);
+      });
+    }
+  }, [documentImage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll the active field row into view in the field panel when selection
   // changes (e.g. via clicking a bounding box on the canvas).
@@ -513,6 +601,9 @@ export const ReviewWorkspacePage: FC = () => {
       const nextField = filteredSortedFields[nextIndex];
       if (nextField) {
         setActiveFieldKey(nextField.fieldKey);
+        if (viewMode === "document") {
+          focusField(nextField.fieldKey);
+        }
         // Focus the input/textarea/checkbox after React re-renders
         requestAnimationFrame(() => {
           const el = document.querySelector<HTMLElement>(
@@ -522,14 +613,13 @@ export const ReviewWorkspacePage: FC = () => {
           if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
             el.focus();
           } else {
-            // Checkbox wrapper — find the input inside
             const input = el.querySelector<HTMLInputElement>("input");
             input?.focus();
           }
         });
       }
     },
-    [filteredSortedFields, activeFieldKey],
+    [filteredSortedFields, activeFieldKey, viewMode, focusField],
   );
 
   const handleUndo = useCallback(() => {
@@ -637,6 +727,15 @@ export const ReviewWorkspacePage: FC = () => {
         alwaysActive: true,
       },
       {
+        key: "V",
+        ctrl: true,
+        shift: true,
+        handler: () =>
+          setViewMode((m) => (m === "document" ? "snippet" : "document")),
+        description: "Toggle view mode",
+        alwaysActive: true,
+      },
+      {
         key: "O",
         ctrl: true,
         shift: true,
@@ -721,6 +820,10 @@ export const ReviewWorkspacePage: FC = () => {
             isApproving={isApproving}
             isEscalating={isEscalating}
             isSkipping={isSkipping}
+            viewMode={viewMode}
+            onViewModeToggle={() =>
+              setViewMode((m) => (m === "document" ? "snippet" : "document"))
+            }
             sortMode={sortMode}
             onSortModeToggle={() =>
               setSortMode((m) =>
@@ -730,325 +833,278 @@ export const ReviewWorkspacePage: FC = () => {
           />
         )}
 
-        <Group
-          align="stretch"
-          gap="md"
-          style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
-          wrap="nowrap"
-        >
-          <Paper
-            withBorder
-            style={{
-              flex: 1,
-              minHeight: 0,
-              minWidth: 0,
-              position: "relative",
-              overflow: "hidden",
+        {viewMode === "snippet" ? (
+          <SnippetView
+            fields={filteredSortedFields.map((f) => {
+              const ocrField = (
+                session?.document?.ocr_result?.fields as
+                  | Record<string, OcrField>
+                  | undefined
+              )?.[f.fieldKey];
+              return {
+                fieldKey: f.fieldKey,
+                value: f.value,
+                confidence: f.confidence,
+                boundingRegions: ocrField?.boundingRegions?.map((br) => ({
+                  ...br,
+                  polygon: br.polygon.map((v, i) =>
+                    i % 2 === 0 ? v * coordScale : v * coordScale,
+                  ),
+                })),
+              };
+            })}
+            documentImage={documentImage}
+            activeFieldKey={activeFieldKey}
+            onFieldSelect={(key) => setActiveFieldKey(key)}
+            onFieldChange={(key, value) => {
+              const field = fields.find((fl) => fl.fieldKey === key);
+              if (field) handleFieldChange(field, value);
             }}
+            correctionMap={correctionMap}
+            readOnly={readOnly}
+          />
+        ) : (
+          <Group
+            align="stretch"
+            gap="md"
+            style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+            wrap="nowrap"
           >
-            {!documentUrl ? (
-              <Stack
-                align="center"
-                justify="center"
-                style={{ position: "absolute", inset: 0 }}
-              >
-                <Text size="sm" c="dimmed">
-                  Document preview is unavailable.
-                </Text>
-              </Stack>
-            ) : (
-              <Stack
-                gap="xs"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <ViewerToolbar
-                  currentPage={currentPage}
-                  totalPages={numPages || 1}
-                  zoom={zoom}
-                  onPageChange={setCurrentPage}
-                  onZoomIn={zoomIn}
-                  onZoomOut={zoomOut}
-                  onZoomReset={resetZoom}
-                />
-                <div
-                  ref={pdfContainerRef}
-                  style={{
-                    position: "relative",
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                  }}
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget) {
-                      setActiveFieldKey(null);
-                    }
-                  }}
-                >
-                  <div
-                    style={{ position: "relative", display: "inline-block" }}
-                  >
-                    <Document
-                      file={documentUrl}
-                      onLoadSuccess={({ numPages: n }) => {
-                        setNumPages(n);
-                      }}
-                    >
-                      <Page
-                        pageNumber={currentPage}
-                        scale={zoom}
-                        renderTextLayer={false}
-                        renderAnnotationLayer={false}
-                        onLoadSuccess={(page) => {
-                          setPdfRenderedSize({
-                            width: page.width,
-                            height: page.height,
-                          });
-                          const originalWidth = page.width / zoom;
-                          const originalHeight = page.height / zoom;
-                          setPdfOriginalSize({
-                            width: originalWidth,
-                            height: originalHeight,
-                          });
-                        }}
-                      />
-                    </Document>
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: pdfRenderedSize?.width ?? "100%",
-                        height: pdfRenderedSize?.height ?? "100%",
-                        pointerEvents: "none",
-                      }}
-                    >
-                      {fieldsOnCurrentPage.map((field) => {
-                        const poly = field.boundingBox!.polygon;
-                        const xs = poly.map((p) => p.x);
-                        const ys = poly.map((p) => p.y);
-                        const minX = Math.min(...xs);
-                        const minY = Math.min(...ys);
-                        const maxX = Math.max(...xs);
-                        const maxY = Math.max(...ys);
-                        const pageW = pdfOriginalSize?.width ?? 1;
-                        const pageH = pdfOriginalSize?.height ?? 1;
-                        const rw = pdfRenderedSize?.width ?? 1;
-                        const rh = pdfRenderedSize?.height ?? 1;
-                        const INCH_TO_PT = 72;
-                        const left = minX * INCH_TO_PT * (rw / pageW);
-                        const top = minY * INCH_TO_PT * (rh / pageH);
-                        const width = (maxX - minX) * INCH_TO_PT * (rw / pageW);
-                        const height =
-                          (maxY - minY) * INCH_TO_PT * (rh / pageH);
-                        const { borderCss } = colorForFieldKeyWithBorder(
-                          field.fieldKey,
-                        );
-                        const isActive = field.fieldKey === activeFieldKey;
-                        return (
-                          <div
-                            key={field.fieldKey}
-                            style={{
-                              position: "absolute",
-                              left,
-                              top,
-                              width,
-                              height,
-                              border: `${isActive ? 3 : 2}px solid ${isActive ? "#ff0000" : borderCss}`,
-                              backgroundColor: isActive
-                                ? "rgba(255, 0, 0, 0.06)"
-                                : "rgba(0, 0, 0, 0.04)",
-                              pointerEvents: "auto",
-                              cursor: "pointer",
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveFieldKey(field.fieldKey);
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </Stack>
-            )}
-          </Paper>
-
-          <Paper
-            ref={fieldPanelRef}
-            withBorder
-            p="sm"
-            style={{
-              width: 360,
-              minHeight: 0,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-            onClick={(e) => {
-              // Deselect when clicking on panel background
-              if (e.target === e.currentTarget) {
-                setActiveFieldKey(null);
-              }
-            }}
-          >
-            {session?.document?.ocr_result?.enrichment_summary != null && (
-              <EnrichmentSummaryPanel
-                summary={
-                  session.document.ocr_result
-                    .enrichment_summary as EnrichmentSummary
-                }
-                mb="sm"
-              />
-            )}
-            <Text
-              size="sm"
-              fw={600}
-              mb="sm"
-              onClick={() => setActiveFieldKey(null)}
-              style={{ cursor: "pointer" }}
-            >
-              Fields
-            </Text>
-
-            <FieldFilterInput
-              value={fieldFilter}
-              onChange={setFieldFilter}
-              totalCount={sortedFields.length}
-              filteredCount={filteredSortedFields.length}
-            />
-
-            <ScrollArea
-              type="auto"
-              style={{ flex: 1, minHeight: 0 }}
-              offsetScrollbars="present"
-              viewportProps={{
-                style: { paddingRight: 16 },
-                onClick: (e: React.MouseEvent) => {
-                  if (
-                    e.target === e.currentTarget ||
-                    (e.target as HTMLElement).classList.contains(
-                      "mantine-ScrollArea-viewport",
-                    )
-                  ) {
-                    setActiveFieldKey(null);
-                  }
-                },
+            <Paper
+              withBorder
+              style={{
+                flex: 1,
+                minHeight: 0,
+                minWidth: 0,
+                position: "relative",
+                overflow: "hidden",
               }}
             >
-              <Stack gap="md">
-                {filteredSortedFields.map((field) => {
-                  const correction = correctionMap[field.fieldKey];
-                  const isCorrected =
-                    correction?.action === CorrectionAction.CORRECTED;
-                  const isActive = field.fieldKey === activeFieldKey;
+              {!documentUrl ? (
+                <Stack
+                  align="center"
+                  justify="center"
+                  style={{ position: "absolute", inset: 0 }}
+                >
+                  <Text size="sm" c="dimmed">
+                    Document preview is unavailable.
+                  </Text>
+                </Stack>
+              ) : (
+                <Stack
+                  gap="xs"
+                  style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+                >
+                  {isNormalizedPdf && numPages > 1 && (
+                    <ViewerToolbar
+                      currentPage={currentPage}
+                      totalPages={numPages}
+                      onPageChange={setCurrentPage}
+                    />
+                  )}
+                  <div
+                    ref={canvasRef}
+                    style={{
+                      position: "relative",
+                      flex: 1,
+                      minHeight: 0,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {canvasWidth > 0 && canvasHeight > 0 && canvasImageUrl && (
+                      <AnnotationCanvas
+                        ref={fieldFocusCanvasRef}
+                        imageUrl={canvasImageUrl}
+                        width={canvasWidth}
+                        height={canvasHeight}
+                        boxes={boxes}
+                        activeTool={CanvasTool.SELECT}
+                        onBoxSelect={(boxId) => {
+                          setActiveFieldKey(boxId);
+                          if (boxId) {
+                            focusField(boxId);
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </Stack>
+              )}
+            </Paper>
 
-                  // Generate deterministic color based on field key
-                  const { borderCss } = colorForFieldKeyWithBorder(
-                    field.fieldKey,
-                  );
+            <Paper
+              ref={fieldPanelRef}
+              withBorder
+              p="sm"
+              style={{
+                width: 360,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+              onClick={(e) => {
+                // Deselect when clicking on panel background
+                if (e.target === e.currentTarget) {
+                  setActiveFieldKey(null);
+                }
+              }}
+            >
+              {session?.document?.ocr_result?.enrichment_summary != null && (
+                <EnrichmentSummaryPanel
+                  summary={
+                    session.document.ocr_result
+                      .enrichment_summary as EnrichmentSummary
+                  }
+                  mb="sm"
+                />
+              )}
+              <Text
+                size="sm"
+                fw={600}
+                mb="sm"
+                onClick={() => setActiveFieldKey(null)}
+                style={{ cursor: "pointer" }}
+              >
+                Fields
+              </Text>
 
-                  return (
-                    <Paper
-                      key={field.fieldKey}
-                      data-field-key={field.fieldKey}
-                      withBorder
-                      p="sm"
-                      style={{
-                        borderColor: isActive ? "#ff0000" : borderCss,
-                        borderStyle: isActive ? "dashed" : "solid",
-                        borderWidth: isActive
-                          ? "3px"
-                          : isCorrected
-                            ? "2px"
-                            : "2px",
-                        cursor: "pointer",
-                      }}
-                      onClick={() => {
-                        setActiveFieldKey(field.fieldKey);
-                      }}
-                    >
-                      <Stack gap="xs">
-                        <Group justify="space-between">
-                          <Group gap="xs">
-                            <Text fw={600} size="sm">
-                              {field.fieldKey}
-                            </Text>
-                            {isCorrected && (
-                              <Text size="xs" c="yellow" fw={500}>
-                                ✎ Edited
+              <FieldFilterInput
+                value={fieldFilter}
+                onChange={setFieldFilter}
+                totalCount={sortedFields.length}
+                filteredCount={filteredSortedFields.length}
+              />
+
+              <ScrollArea
+                type="auto"
+                style={{ flex: 1, minHeight: 0 }}
+                offsetScrollbars="present"
+                viewportProps={{
+                  style: { paddingRight: 16 },
+                  onClick: (e: React.MouseEvent) => {
+                    if (
+                      e.target === e.currentTarget ||
+                      (e.target as HTMLElement).classList.contains(
+                        "mantine-ScrollArea-viewport",
+                      )
+                    ) {
+                      setActiveFieldKey(null);
+                    }
+                  },
+                }}
+              >
+                <Stack gap="md">
+                  {filteredSortedFields.map((field) => {
+                    const correction = correctionMap[field.fieldKey];
+                    const isCorrected =
+                      correction?.action === CorrectionAction.CORRECTED;
+                    const isActive = field.fieldKey === activeFieldKey;
+
+                    // Generate deterministic color based on field key
+                    const { borderCss } = colorForFieldKeyWithBorder(
+                      field.fieldKey,
+                    );
+
+                    return (
+                      <Paper
+                        key={field.fieldKey}
+                        data-field-key={field.fieldKey}
+                        withBorder
+                        p="sm"
+                        style={{
+                          borderColor: isActive ? "#ff0000" : borderCss,
+                          borderStyle: isActive ? "dashed" : "solid",
+                          borderWidth: isActive
+                            ? "3px"
+                            : isCorrected
+                              ? "2px"
+                              : "2px",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          setActiveFieldKey(field.fieldKey);
+                          focusField(field.fieldKey);
+                        }}
+                      >
+                        <Stack gap="xs">
+                          <Group justify="space-between">
+                            <Group gap="xs">
+                              <Text fw={600} size="sm">
+                                {field.fieldKey}
                               </Text>
-                            )}
+                              {isCorrected && (
+                                <Text size="xs" c="yellow" fw={500}>
+                                  ✎ Edited
+                                </Text>
+                              )}
+                            </Group>
+                            <ConfidenceIndicator
+                              confidence={field.confidence}
+                            />
                           </Group>
-                          <ConfidenceIndicator confidence={field.confidence} />
-                        </Group>
-                        {(() => {
-                          const displayValue =
-                            correctionMap[field.fieldKey]?.corrected_value ??
-                            enrichmentCorrectedValues.get(field.fieldKey) ??
-                            field.value;
-                          const isSelectionMark =
-                            displayValue === ":selected:" ||
-                            displayValue === ":unselected:";
-                          if (isSelectionMark) {
+                          {(() => {
+                            const displayValue =
+                              correctionMap[field.fieldKey]?.corrected_value ??
+                              enrichmentCorrectedValues.get(field.fieldKey) ??
+                              field.value;
+                            const isSelectionMark =
+                              displayValue === ":selected:" ||
+                              displayValue === ":unselected:";
+                            if (isSelectionMark) {
+                              return (
+                                <Checkbox
+                                  data-field-key={field.fieldKey}
+                                  checked={displayValue === ":selected:"}
+                                  onChange={(event) =>
+                                    handleFieldChange(
+                                      field,
+                                      event.currentTarget.checked
+                                        ? ":selected:"
+                                        : ":unselected:",
+                                    )
+                                  }
+                                  disabled={readOnly}
+                                  label={
+                                    displayValue === ":selected:"
+                                      ? "Selected"
+                                      : "Unselected"
+                                  }
+                                />
+                              );
+                            }
                             return (
-                              <Checkbox
+                              <Textarea
                                 data-field-key={field.fieldKey}
-                                checked={displayValue === ":selected:"}
+                                value={displayValue}
                                 onChange={(event) =>
                                   handleFieldChange(
                                     field,
-                                    event.currentTarget.checked
-                                      ? ":selected:"
-                                      : ":unselected:",
+                                    event.currentTarget.value,
                                   )
                                 }
                                 disabled={readOnly}
-                                label={
-                                  displayValue === ":selected:"
-                                    ? "Selected"
-                                    : "Unselected"
+                                autosize
+                                minRows={1}
+                                error={
+                                  fieldValidators[field.fieldKey]
+                                    ? fieldValidators[field.fieldKey]!(
+                                        displayValue,
+                                      )
+                                    : undefined
                                 }
                               />
                             );
-                          }
-                          return (
-                            <Textarea
-                              data-field-key={field.fieldKey}
-                              value={displayValue}
-                              onChange={(event) =>
-                                handleFieldChange(
-                                  field,
-                                  event.currentTarget.value,
-                                )
-                              }
-                              disabled={readOnly}
-                              autosize
-                              minRows={1}
-                              error={
-                                fieldValidators[field.fieldKey]
-                                  ? fieldValidators[field.fieldKey]!(
-                                      displayValue,
-                                    )
-                                  : undefined
-                              }
-                            />
-                          );
-                        })()}
-                      </Stack>
-                    </Paper>
-                  );
-                })}
-              </Stack>
-            </ScrollArea>
-          </Paper>
-        </Group>
+                          })()}
+                        </Stack>
+                      </Paper>
+                    );
+                  })}
+                </Stack>
+              </ScrollArea>
+            </Paper>
+          </Group>
+        )}
 
         <Stack gap="xs">
           <Text fw={600}>Correction history</Text>

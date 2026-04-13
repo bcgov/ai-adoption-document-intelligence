@@ -16,14 +16,11 @@ import {
   IconRefresh,
   IconRestore,
 } from "@tabler/icons-react";
-import { FC, useEffect, useMemo, useRef, useState } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
+import { FC, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  colorForFieldKeyWithAlpha,
-  colorForFieldKeyWithBorder,
-} from "@/shared/utils";
-import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
+import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
+import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldPanel } from "../../core/field-panel/FieldPanel";
@@ -31,8 +28,6 @@ import { useFieldSchema } from "../hooks/useFieldSchema";
 import { type LabelDto, useLabels } from "../hooks/useLabels";
 import { useSuggestions } from "../hooks/useSuggestions";
 import { useTemplateModelDocument } from "../hooks/useTemplateModels";
-
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface LabelState {
   field_key: string;
@@ -138,41 +133,12 @@ export const LabelingWorkspacePage: FC = () => {
   const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
     { width: 1000, height: 1400 },
   );
-  const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
-  const [currentPage, setCurrentPage] = useState(1);
-  const [numPages, setNumPages] = useState(0);
   const {
-    ref: pdfContainerRef,
-    width: pdfContainerWidth,
-    height: pdfContainerHeight,
+    ref: canvasRef,
+    width: canvasWidth,
+    height: canvasHeight,
   } = useElementSize();
-  const [pdfRenderedSize, setPdfRenderedSize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-  const [pdfOriginalSize, setPdfOriginalSize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-  const initialZoomSetRef = useRef(false);
-
-  // Auto-fit zoom when container dimensions and PDF size are available
-  useEffect(() => {
-    if (
-      !initialZoomSetRef.current &&
-      pdfContainerWidth > 0 &&
-      pdfContainerHeight > 0 &&
-      pdfOriginalSize
-    ) {
-      zoomToFit(
-        pdfContainerWidth,
-        pdfContainerHeight,
-        pdfOriginalSize.width,
-        pdfOriginalSize.height,
-      );
-      initialZoomSetRef.current = true;
-    }
-  }, [pdfContainerWidth, pdfContainerHeight, pdfOriginalSize, zoomToFit]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     // Group labels by field_key since the server returns individual labels for each word
@@ -244,11 +210,15 @@ export const LabelingWorkspacePage: FC = () => {
   useEffect(() => {
     const loadDocument = async () => {
       if (!templateModelDocument?.labeling_document) return;
+      const base = `/api/template-models/${modelId}/documents/${documentId}`;
       try {
-        const response = await fetch(
-          `/api/template-models/${modelId}/documents/${documentId}/view`,
-          { credentials: "include" },
-        );
+        // Try normalized PDF first; fall back to original for pre-normalization documents
+        let response = await fetch(`${base}/view`, { credentials: "include" });
+        if (!response.ok) {
+          response = await fetch(`${base}/download`, {
+            credentials: "include",
+          });
+        }
         if (!response.ok) return;
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
@@ -276,6 +246,22 @@ export const LabelingWorkspacePage: FC = () => {
     img.onload = () =>
       setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
   }, [documentUrl]);
+
+  // Render the current PDF page as an image for the AnnotationCanvas.
+  // For non-PDF documents (images), documentUrl is used directly.
+  const hasNormalizedPdf = Boolean(
+    templateModelDocument?.labeling_document?.normalized_file_path,
+  );
+  const {
+    imageUrl: pdfPageImageUrl,
+    pageSize: pdfPageSize,
+    numPages,
+    isRendering: isPdfRendering,
+  } = usePdfPageImage(hasNormalizedPdf ? documentUrl : null, currentPage);
+
+  // The image URL to pass to AnnotationCanvas: rendered PDF page, or the raw
+  // image URL for non-PDF documents.
+  const canvasImageUrl = hasNormalizedPdf ? pdfPageImageUrl : documentUrl;
 
   const labelValues = useMemo(() => {
     const values: Record<string, { value?: string }> = {};
@@ -339,6 +325,68 @@ export const LabelingWorkspacePage: FC = () => {
     });
     return map;
   }, [ocrWords]);
+
+  const wordBoxes = useMemo(() => {
+    const wordsOnPage = wordsByPage[currentPage] || [];
+
+    // For PDFs, OCR coordinates are in inches but the rendered image is in
+    // pixels.  Compute per-axis scale from the OCR page dimensions (inches)
+    // to the rendered image size (pixels).
+    let scaleX = 1;
+    let scaleY = 1;
+    if (hasNormalizedPdf && pdfPageSize) {
+      const azureOcr = templateModelDocument?.labeling_document?.ocr_result as
+        | AzureOcrResult
+        | undefined;
+      const ocrPage = azureOcr?.analyzeResult?.pages?.find(
+        (p) => (p.pageNumber ?? p.page_number ?? 1) === currentPage,
+      );
+      if (ocrPage?.width && ocrPage?.height) {
+        scaleX = pdfPageSize.width / ocrPage.width;
+        scaleY = pdfPageSize.height / ocrPage.height;
+      }
+    }
+
+    return wordsOnPage.map((element) => {
+      const points = [];
+      for (let i = 0; i < element.polygon.length; i += 2) {
+        points.push({
+          x: element.polygon[i] * scaleX,
+          y: element.polygon[i + 1] * scaleY,
+        });
+      }
+      const assignedField = wordAssignments[element.id];
+      const isActive = assignedField === activeFieldKey;
+      const isCheckbox = element.type === "selectionMark";
+
+      let color: string;
+      if (assignedField) {
+        const { borderCss } = colorForFieldKeyWithBorder(assignedField);
+        color = borderCss;
+      } else if (isCheckbox) {
+        color = "#FFA500";
+      } else {
+        color = "#ced4da";
+      }
+
+      return {
+        id: element.id,
+        box: { polygon: points },
+        label: assignedField ?? undefined,
+        color,
+        confidence: undefined,
+        isActive,
+      };
+    });
+  }, [
+    wordsByPage,
+    currentPage,
+    wordAssignments,
+    activeFieldKey,
+    hasNormalizedPdf,
+    pdfPageSize,
+    templateModelDocument?.labeling_document?.ocr_result,
+  ]);
 
   useEffect(() => {
     if (
@@ -686,9 +734,6 @@ export const LabelingWorkspacePage: FC = () => {
 
   const documentName =
     templateModelDocument?.labeling_document?.original_filename || "Document";
-  const hasNormalizedPdf = Boolean(
-    templateModelDocument?.labeling_document?.normalized_file_path,
-  );
 
   return (
     <Stack
@@ -764,16 +809,6 @@ export const LabelingWorkspacePage: FC = () => {
                 Document preview is unavailable.
               </Text>
             </Stack>
-          ) : !hasNormalizedPdf ? (
-            <Stack
-              align="center"
-              justify="center"
-              style={{ position: "absolute", inset: 0 }}
-            >
-              <Text size="sm" c="dimmed">
-                Normalized PDF is not available for this document.
-              </Text>
-            </Stack>
           ) : ocrWords.length === 0 ? (
             <Stack
               align="center"
@@ -781,7 +816,9 @@ export const LabelingWorkspacePage: FC = () => {
               style={{ position: "absolute", inset: 0 }}
             >
               <Text size="sm" c="dimmed">
-                OCR results are not available yet.
+                {isPdfRendering
+                  ? "Rendering document..."
+                  : "OCR results are not available yet."}
               </Text>
             </Stack>
           ) : (
@@ -789,165 +826,31 @@ export const LabelingWorkspacePage: FC = () => {
               gap="xs"
               style={{ position: "absolute", inset: 0, overflow: "hidden" }}
             >
-              <ViewerToolbar
-                currentPage={currentPage}
-                totalPages={numPages || 1}
-                zoom={zoom}
-                onPageChange={setCurrentPage}
-                onZoomIn={zoomIn}
-                onZoomOut={zoomOut}
-                onZoomReset={resetZoom}
-              />
+              {hasNormalizedPdf && numPages > 1 && (
+                <ViewerToolbar
+                  currentPage={currentPage}
+                  totalPages={numPages}
+                  onPageChange={setCurrentPage}
+                />
+              )}
               <div
-                ref={pdfContainerRef}
+                ref={canvasRef}
                 style={{
                   position: "relative",
                   flex: 1,
                   minHeight: 0,
-                  overflow: "auto",
-                }}
-                onClick={(e) => {
-                  // Deselect active field if clicking on PDF background (not on an overlay box)
-                  if (e.target === e.currentTarget) {
-                    setActiveFieldKey(null);
-                  }
+                  overflow: "hidden",
                 }}
               >
-                <Document
-                  file={documentUrl}
-                  onLoadSuccess={({ numPages }) => {
-                    setNumPages(numPages);
-                  }}
-                >
-                  <Page
-                    pageNumber={currentPage}
-                    scale={zoom}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                    onLoadSuccess={(page) => {
-                      setPdfRenderedSize({
-                        width: page.width,
-                        height: page.height,
-                      });
-                      // Store original (unscaled) dimensions for zoom calculation
-                      const originalWidth = page.width / zoom;
-                      const originalHeight = page.height / zoom;
-                      setPdfOriginalSize({
-                        width: originalWidth,
-                        height: originalHeight,
-                      });
-                    }}
+                {canvasWidth > 0 && canvasHeight > 0 && canvasImageUrl && (
+                  <AnnotationCanvas
+                    imageUrl={canvasImageUrl}
+                    width={canvasWidth}
+                    height={canvasHeight}
+                    boxes={wordBoxes}
+                    onBoxSelect={handleWordSelect}
                   />
-                </Document>
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: pdfRenderedSize?.width ?? "100%",
-                    height: pdfRenderedSize?.height ?? "100%",
-                    pointerEvents: "none",
-                  }}
-                >
-                  {(wordsByPage[currentPage] || []).map((element) => {
-                    const xs = element.polygon.filter(
-                      (_, idx) => idx % 2 === 0,
-                    );
-                    const ys = element.polygon.filter(
-                      (_, idx) => idx % 2 === 1,
-                    );
-                    const minX = Math.min(...xs);
-                    const minY = Math.min(...ys);
-                    const maxX = Math.max(...xs);
-                    const maxY = Math.max(...ys);
-                    const azureOcr = templateModelDocument?.labeling_document
-                      ?.ocr_result as AzureOcrResult | undefined;
-                    const ocrPage = azureOcr?.analyzeResult?.pages?.find(
-                      (p) => p.pageNumber === element.pageNumber,
-                    );
-                    const scaleX =
-                      ocrPage?.width && pdfRenderedSize?.width
-                        ? pdfRenderedSize.width / ocrPage.width
-                        : zoom;
-                    const scaleY =
-                      ocrPage?.height && pdfRenderedSize?.height
-                        ? pdfRenderedSize.height / ocrPage.height
-                        : zoom;
-                    const assignedField = wordAssignments[element.id];
-                    const isActive = assignedField === activeFieldKey;
-                    const isCheckbox = element.type === "selectionMark";
-
-                    // Generate deterministic colors based on field key
-                    let borderColor: string;
-                    let backgroundColor: string;
-                    let borderStyle: string;
-                    let borderWidth: string;
-
-                    if (assignedField) {
-                      const fillColors = colorForFieldKeyWithAlpha(
-                        assignedField,
-                        0.15,
-                      );
-                      const borderColors =
-                        colorForFieldKeyWithBorder(assignedField);
-                      borderColor = borderColors.borderCss;
-                      backgroundColor = fillColors.fillCssAlpha;
-                      borderStyle = isActive ? "dashed" : "solid";
-                      borderWidth = isActive ? "3px" : "2px";
-                      if (isActive) borderColor = "#ff0000";
-                    } else if (isCheckbox) {
-                      borderColor = "#FFA500";
-                      backgroundColor = "rgba(255, 165, 0, 0.1)";
-                      borderStyle = "solid";
-                      borderWidth = "2px";
-                    } else {
-                      borderColor = "#ced4da";
-                      backgroundColor = "rgba(173, 181, 189, 0.08)";
-                      borderStyle = "solid";
-                      borderWidth = "1px";
-                    }
-
-                    return (
-                      <div
-                        key={element.id}
-                        data-word-id={element.id}
-                        style={{
-                          position: "absolute",
-                          left: minX * scaleX,
-                          top: minY * scaleY,
-                          width: (maxX - minX) * scaleX,
-                          height: (maxY - minY) * scaleY,
-                          border: `${borderWidth} ${borderStyle} ${borderColor}`,
-                          backgroundColor,
-                          pointerEvents: "auto",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: isCheckbox
-                            ? `${Math.min((maxX - minX) * scaleX, (maxY - minY) * scaleY) * 0.8}px`
-                            : undefined,
-                          fontWeight: "bold",
-                          color:
-                            element.state === "selected"
-                              ? "#228be6"
-                              : "#adb5bd",
-                        }}
-                        onClick={() => {
-                          handleWordSelect(element.id);
-                        }}
-                        title={
-                          assignedField ||
-                          (isCheckbox
-                            ? `Checkbox (${element.state})`
-                            : "Unlabeled")
-                        }
-                      >
-                        {isCheckbox ? element.content : null}
-                      </div>
-                    );
-                  })}
-                </div>
+                )}
               </div>
             </Stack>
           )}
