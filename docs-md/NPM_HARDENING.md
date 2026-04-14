@@ -10,19 +10,19 @@ ignore-scripts=true  # disable lifecycle scripts globally
 min-release-age=3    # block packages published less than 3 days ago
 ```
 
-`package-lock=true` is deliberately omitted — it is already npm's default in v7+ and explicitly setting it causes CI breakage. npm v11 only records the current-platform optional package in lockfile v3 (e.g. `@biomejs/cli-darwin-arm64` when generating on macOS arm64). Forcing strict lockfile adherence in CI would prevent the linux runner from resolving `@biomejs/cli-linux-x64`. The three settings above are the primary supply-chain controls; the lockfile provides secondary coverage for all non-optional packages.
+`package-lock=true` is deliberately omitted — it is already npm's default in v7+. npm v11 only records the current-platform optional package in lockfile v3 (e.g. `@biomejs/cli-darwin-arm64` when generating on macOS arm64). When CI runs on Linux and a lockfile is present, npm honours that recorded resolution and installs the macOS binary; the Linux binary (`@biomejs/cli-linux-x64`) is never installed, causing tools like biome to fail. The three settings above are the primary supply-chain controls; the lockfile provides secondary coverage for all non-optional packages.
 
 ## CI / GitHub Actions
 
-All workflows use `npm install --ignore-scripts`. `npm ci` and `--no-package-lock` are both avoided — the former breaks on cross-platform optional packages, the latter was only needed to override an explicit `package-lock=true` that has since been removed from `.npmrc`.
+QA workflows use `npm install --ignore-scripts --no-package-lock`. `npm ci` is avoided because it enforces strict lockfile adherence, which also breaks on cross-platform optional packages. `--no-package-lock` causes npm to skip the lockfile entirely and resolve optional packages for the current platform, ensuring the Linux runner installs the correct binary (e.g. `@biomejs/cli-linux-x64` for biome).
 
-npm's default lockfile behavior (use it if present, resolve cross-platform optional packages dynamically) is the right balance here.
+Workflows that do not run platform-specific optional tools use `npm install --ignore-scripts` without `--no-package-lock` and benefit from lockfile-based reproducibility.
 
 | Workflow | Command |
 |---|---|
-| `backend-qa.yml` | `npm install --ignore-scripts` (root) |
-| `frontend-qa.yml` | `npm install --ignore-scripts` (root) |
-| `temporal-qa.yml` | `npm install --ignore-scripts` (root + apps/temporal) |
+| `backend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
+| `frontend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
+| `temporal-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root + apps/temporal) |
 | `release.yml` | `npm install --ignore-scripts` (root) |
 | `migrate-db.yml` | `npm install --ignore-scripts @changesets/cli` (single tool install) |
 
