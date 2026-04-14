@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm install --ignore-scripts --no-package-lock
       - name: Build shared packages
         run: npm run build
         working-directory: packages/logging
