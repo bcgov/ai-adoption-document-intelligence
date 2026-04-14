@@ -48,11 +48,12 @@ describe("materializeDataset activity", () => {
   const mockDatasetVersion = {
     id: "version-1",
     datasetId: "dataset-1",
-    storagePrefix: "atestgroup/benchmark/version1",
+    storagePrefix: "datasets/dataset-1/version-1",
     dataset: {
       id: "dataset-1",
       name: "Test Dataset",
-      storagePath: "atestgroup/benchmark",
+      storagePath: "",
+      group_id: "atestgroup",
     },
   };
 
@@ -88,9 +89,9 @@ describe("materializeDataset activity", () => {
       fsMock.writeFile.mockResolvedValue(undefined);
 
       blobStorageMock.list.mockResolvedValue([
-        "atestgroup/benchmark/version1/dataset-manifest.json",
-        "atestgroup/benchmark/version1/inputs/doc1.pdf",
-        "atestgroup/benchmark/version1/ground-truth/doc1.json",
+        "atestgroup/benchmark/datasets/dataset-1/version-1/dataset-manifest.json",
+        "atestgroup/benchmark/datasets/dataset-1/version-1/inputs/doc1.pdf",
+        "atestgroup/benchmark/datasets/dataset-1/version-1/ground-truth/doc1.json",
       ]);
       blobStorageMock.read.mockResolvedValue(Buffer.from("file-content"));
 
@@ -102,7 +103,7 @@ describe("materializeDataset activity", () => {
         "/tmp/test-cache/dataset-1-version-1",
       );
       expect(blobStorageMock.list).toHaveBeenCalledWith(
-        "atestgroup/benchmark/version1",
+        "atestgroup/benchmark/datasets/dataset-1/version-1",
       );
       expect(blobStorageMock.read).toHaveBeenCalledTimes(3);
       expect(fsMock.writeFile).toHaveBeenCalledTimes(3);
