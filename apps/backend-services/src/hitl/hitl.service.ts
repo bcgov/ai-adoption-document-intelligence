@@ -56,7 +56,11 @@ export class HitlService {
     private readonly moduleRef: ModuleRef,
   ) {}
 
-  async getQueue(filters: QueueFilterDto, groupIds?: string[]) {
+  async getQueue(
+    filters: QueueFilterDto,
+    groupIds?: string[],
+    currentReviewerId?: string,
+  ) {
     this.logger.debug("Getting review queue with filters", { ...filters });
 
     const maxConfidence = filters.maxConfidence ?? 0.9;
@@ -81,6 +85,7 @@ export class HitlService {
       offset: filters.offset ?? 0,
       reviewStatus: reviewStatusFilter,
       groupIds,
+      currentReviewerId,
     });
 
     // Filter by confidence if OCR results exist

@@ -1,5 +1,6 @@
+import { Paper, Text } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnnotationCanvas } from "../../features/annotation/core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../features/annotation/core/canvas/hooks/usePdfPageImage";
 import type { ExtractedFields } from "../../shared/types";
@@ -13,6 +14,24 @@ interface DocumentViewerProps {
 }
 
 const PIXELS_PER_INCH = 144;
+
+function getFieldDisplayValue(field: ExtractedFields[string]): string {
+  if (field.valueSelectionMark !== undefined) {
+    return field.valueSelectionMark === "selected"
+      ? "☑ Selected"
+      : "☐ Unselected";
+  }
+  if (field.valueNumber !== undefined) {
+    return field.valueNumber.toString();
+  }
+  if (field.valueDate !== undefined) {
+    return field.valueDate;
+  }
+  if (field.valueString !== undefined) {
+    return field.valueString;
+  }
+  return field.content || "—";
+}
 
 export function DocumentViewer({
   imageUrl,
@@ -31,13 +50,11 @@ export function DocumentViewer({
     pageNumber,
   );
 
-  // If PDF rendering worked, use it; otherwise fall back to the raw URL
   const [canvasImageUrl, setCanvasImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (pdfPageImageUrl) {
       setCanvasImageUrl(pdfPageImageUrl);
     } else if (imageUrl && numPages === 0) {
-      // pdfjs couldn't parse it — use raw image URL
       const timer = setTimeout(() => setCanvasImageUrl(imageUrl), 500);
       return () => clearTimeout(timer);
     }
@@ -82,6 +99,26 @@ export function DocumentViewer({
       });
   }, [extractedFields, pageNumber, showOverlays, isPdf]);
 
+  // Tooltip state — positioned relative to the canvas container
+  const [tooltip, setTooltip] = useState<{
+    fieldName: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const handleBoxHover = useCallback(
+    (info: { boxId: string; x: number; y: number } | null) => {
+      if (!info) {
+        setTooltip(null);
+        return;
+      }
+      setTooltip({ fieldName: info.boxId, x: info.x, y: info.y });
+    },
+    [],
+  );
+
+  const tooltipField = tooltip ? extractedFields[tooltip.fieldName] : undefined;
+
   return (
     <div
       ref={canvasRef}
@@ -93,7 +130,47 @@ export function DocumentViewer({
           width={canvasWidth}
           height={canvasHeight}
           boxes={boxes}
+          onBoxHover={handleBoxHover}
         />
+      )}
+
+      {tooltip && tooltipField && (
+        <Paper
+          shadow="md"
+          p="xs"
+          radius="sm"
+          withBorder
+          style={{
+            position: "absolute",
+            left: tooltip.x + 12,
+            top: tooltip.y - 10,
+            pointerEvents: "none",
+            zIndex: 100,
+            maxWidth: 300,
+          }}
+        >
+          <Text size="sm" fw={700} mb={2}>
+            {tooltip.fieldName}
+          </Text>
+          <Text size="sm" mb={2}>
+            {getFieldDisplayValue(tooltipField)}
+          </Text>
+          <Text size="xs" c="dimmed">
+            Type: {tooltipField.type}
+          </Text>
+          <Text
+            size="xs"
+            c={
+              tooltipField.confidence >= 0.9
+                ? "green"
+                : tooltipField.confidence >= 0.7
+                  ? "yellow"
+                  : "red"
+            }
+          >
+            Confidence: {Math.round(tooltipField.confidence * 100)}%
+          </Text>
+        </Paper>
       )}
     </div>
   );

@@ -104,6 +104,7 @@ export class ReviewDbService {
       offset?: number;
       reviewStatus?: "pending" | "reviewed" | "all";
       groupIds?: string[];
+      currentReviewerId?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<Document[]> {
@@ -120,10 +121,13 @@ export class ReviewDbService {
       // Belt-and-braces: even if a future source value is introduced, never
       // surface a document that is currently linked to a ground truth job.
       groundTruthJob: { is: null },
-      // Exclude documents with active (non-expired) locks
+      // Exclude documents locked by other reviewers (keep own locks visible)
       NOT: {
         lock: {
           expires_at: { gt: new Date() },
+          ...(filters.currentReviewerId
+            ? { reviewer_id: { not: filters.currentReviewerId } }
+            : {}),
         },
       },
     };
@@ -170,6 +174,7 @@ export class ReviewDbService {
           where: {
             status: {
               in: [
+                ReviewStatus.in_progress,
                 ReviewStatus.approved,
                 ReviewStatus.escalated,
                 ReviewStatus.skipped,
@@ -179,7 +184,7 @@ export class ReviewDbService {
           include: {
             corrections: true,
           },
-          orderBy: { completed_at: "desc" },
+          orderBy: { started_at: "desc" },
           take: 1,
         },
       },

@@ -234,6 +234,10 @@ export const ReviewQueuePage: FC = () => {
                 <Table.Tbody>
                   {pendingQueue.queue.map((doc) => {
                     const avgConfidence = getAverageConfidence(doc);
+                    const inProgressSession =
+                      doc.lastSession?.status === "in_progress"
+                        ? doc.lastSession
+                        : undefined;
 
                     return (
                       <Table.Tr key={doc.id}>
@@ -243,9 +247,15 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Badge variant="light" size="sm">
-                            {doc.status}
-                          </Badge>
+                          {inProgressSession ? (
+                            <Badge variant="light" color="blue" size="sm">
+                              In Review
+                            </Badge>
+                          ) : (
+                            <Badge variant="light" size="sm">
+                              {doc.status}
+                            </Badge>
+                          )}
                         </Table.Td>
                         <Table.Td>
                           <Text size="sm" c="dimmed">
@@ -267,15 +277,29 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Button
-                            size="xs"
-                            variant="light"
-                            leftSection={<IconEye size={14} />}
-                            onClick={() => handleStartSession(doc.id, false)}
-                            loading={pendingQueue.isStartingSession}
-                          >
-                            Review
-                          </Button>
+                          {inProgressSession ? (
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color="blue"
+                              leftSection={<IconEye size={14} />}
+                              onClick={() =>
+                                navigate(`/review/${inProgressSession.id}`)
+                              }
+                            >
+                              Resume
+                            </Button>
+                          ) : (
+                            <Button
+                              size="xs"
+                              variant="light"
+                              leftSection={<IconEye size={14} />}
+                              onClick={() => handleStartSession(doc.id, false)}
+                              loading={pendingQueue.isStartingSession}
+                            >
+                              Review
+                            </Button>
+                          )}
                         </Table.Td>
                       </Table.Tr>
                     );

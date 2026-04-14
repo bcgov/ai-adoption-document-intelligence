@@ -21,7 +21,6 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
-import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { KeyboardManager } from "../../core/keyboard/KeyboardManager";
 import type { ShortcutDefinition } from "../../core/keyboard/useKeyboardShortcuts";
@@ -164,8 +163,12 @@ export const ReviewWorkspacePage: FC = () => {
     isSkipping,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
-  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
-  const [isNormalizedPdf, setIsNormalizedPdf] = useState(false);
+  const [docState, setDocState] = useState<{
+    url: string | null;
+    isNormalizedPdf: boolean;
+  }>({ url: null, isNormalizedPdf: false });
+  const documentUrl = docState.url;
+  const isNormalizedPdf = docState.isNormalizedPdf;
   const [currentPage, setCurrentPage] = useState(1);
   const {
     ref: canvasRef,
@@ -231,7 +234,7 @@ export const ReviewWorkspacePage: FC = () => {
         return;
       }
       setDocumentImage(null);
-      setIsNormalizedPdf(false);
+      setDocState({ url: null, isNormalizedPdf: false });
       try {
         // Try normalized PDF first; fall back to original for pre-normalization documents
         let usedNormalized = false;
@@ -252,8 +255,7 @@ export const ReviewWorkspacePage: FC = () => {
         if (revoked) return;
         const url = URL.createObjectURL(blob);
         objectUrl = url;
-        setDocumentUrl(url);
-        setIsNormalizedPdf(usedNormalized);
+        setDocState({ url, isNormalizedPdf: usedNormalized });
       } catch {
         // Document load failed; leave URL unset
       }
@@ -269,11 +271,10 @@ export const ReviewWorkspacePage: FC = () => {
     };
   }, [session?.document?.id]);
 
-  const {
-    imageUrl: pdfPageImageUrl,
-    pageSize: pdfPageSize,
-    numPages,
-  } = usePdfPageImage(isNormalizedPdf ? documentUrl : null, currentPage);
+  const { imageUrl: pdfPageImageUrl, pageSize: pdfPageSize } = usePdfPageImage(
+    isNormalizedPdf ? documentUrl : null,
+    currentPage,
+  );
 
   // Canvas gets the rendered PDF page image, or raw image URL for non-PDFs
   const canvasImageUrl = isNormalizedPdf ? pdfPageImageUrl : documentUrl;
@@ -446,8 +447,8 @@ export const ReviewWorkspacePage: FC = () => {
           if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
             el.focus();
           } else {
-            const input = el.querySelector<HTMLInputElement>("input");
-            input?.focus();
+            const focusable = el.querySelector<HTMLElement>("textarea, input");
+            focusable?.focus();
           }
         }
       });
@@ -613,8 +614,8 @@ export const ReviewWorkspacePage: FC = () => {
           if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
             el.focus();
           } else {
-            const input = el.querySelector<HTMLInputElement>("input");
-            input?.focus();
+            const focusable = el.querySelector<HTMLElement>("textarea, input");
+            focusable?.focus();
           }
         });
       }
@@ -880,56 +881,42 @@ export const ReviewWorkspacePage: FC = () => {
                 overflow: "hidden",
               }}
             >
-              {!documentUrl ? (
-                <Stack
-                  align="center"
-                  justify="center"
-                  style={{ position: "absolute", inset: 0 }}
-                >
-                  <Text size="sm" c="dimmed">
-                    Document preview is unavailable.
-                  </Text>
-                </Stack>
-              ) : (
-                <Stack
-                  gap="xs"
-                  style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-                >
-                  {isNormalizedPdf && numPages > 1 && (
-                    <ViewerToolbar
-                      currentPage={currentPage}
-                      totalPages={numPages}
-                      onPageChange={setCurrentPage}
-                    />
-                  )}
-                  <div
-                    ref={canvasRef}
-                    style={{
-                      position: "relative",
-                      flex: 1,
-                      minHeight: 0,
-                      overflow: "hidden",
-                    }}
+              <div
+                ref={canvasRef}
+                style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+              >
+                {!canvasImageUrl ? (
+                  <Stack
+                    align="center"
+                    justify="center"
+                    style={{ height: "100%" }}
                   >
-                    {canvasWidth > 0 && canvasHeight > 0 && canvasImageUrl && (
-                      <AnnotationCanvas
-                        ref={fieldFocusCanvasRef}
-                        imageUrl={canvasImageUrl}
-                        width={canvasWidth}
-                        height={canvasHeight}
-                        boxes={boxes}
-                        activeTool={CanvasTool.SELECT}
-                        onBoxSelect={(boxId) => {
-                          setActiveFieldKey(boxId);
-                          if (boxId) {
-                            focusField(boxId);
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                </Stack>
-              )}
+                    <Text size="sm" c="dimmed">
+                      {documentUrl
+                        ? "Loading document..."
+                        : "Document preview is unavailable."}
+                    </Text>
+                  </Stack>
+                ) : (
+                  canvasWidth > 0 &&
+                  canvasHeight > 0 && (
+                    <AnnotationCanvas
+                      ref={fieldFocusCanvasRef}
+                      imageUrl={canvasImageUrl}
+                      width={canvasWidth}
+                      height={canvasHeight}
+                      boxes={boxes}
+                      activeTool={CanvasTool.SELECT}
+                      onBoxSelect={(boxId) => {
+                        setActiveFieldKey(boxId);
+                        if (boxId) {
+                          focusField(boxId);
+                        }
+                      }}
+                    />
+                  )
+                )}
+              </div>
             </Paper>
 
             <Paper

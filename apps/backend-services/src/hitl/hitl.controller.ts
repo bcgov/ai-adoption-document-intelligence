@@ -68,7 +68,11 @@ export class HitlController {
     } else {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
-    return this.hitlService.getQueue(filters, groupIds);
+    return this.hitlService.getQueue(
+      filters,
+      groupIds,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get("queue/stats")

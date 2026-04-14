@@ -35,6 +35,7 @@ interface AnnotationCanvasProps {
   activeTool?: CanvasTool;
   onBoxSelect?: (boxId: string | null) => void;
   onBoxCreate?: (box: BoundingBox) => void;
+  onBoxHover?: (info: { boxId: string; x: number; y: number } | null) => void;
 }
 
 export const AnnotationCanvas = forwardRef<
@@ -50,6 +51,7 @@ export const AnnotationCanvas = forwardRef<
       activeTool = CanvasTool.SELECT,
       onBoxSelect,
       onBoxCreate,
+      onBoxHover,
     },
     ref,
   ) => {
@@ -294,8 +296,19 @@ export const AnnotationCanvas = forwardRef<
             selectedBoxId={selectedBoxId}
             hoveredBoxId={hoveredBoxId}
             onBoxClick={handleBoxClick}
-            onBoxMouseEnter={hoverBox}
-            onBoxMouseLeave={() => hoverBox(null)}
+            onBoxMouseEnter={(id) => {
+              hoverBox(id);
+              if (onBoxHover && stageRef.current) {
+                const pointer = stageRef.current.getPointerPosition();
+                if (pointer) {
+                  onBoxHover({ boxId: id, x: pointer.x, y: pointer.y });
+                }
+              }
+            }}
+            onBoxMouseLeave={() => {
+              hoverBox(null);
+              onBoxHover?.(null);
+            }}
           />
 
           <DrawingLayer drawingBox={drawingBox} />
