@@ -59,7 +59,9 @@ export class GroundTruthGenerationController {
     @Req() req: Request,
   ) {
     await this.assertDatasetGroupAccess(datasetId, req);
-    const userId = req.user?.sub || "anonymous";
+    const userId =
+      (req.user as Record<string, unknown> | undefined)?.sub?.toString() ??
+      "anonymous";
     return this.groundTruthGenerationService.startGeneration(
       datasetId,
       versionId,

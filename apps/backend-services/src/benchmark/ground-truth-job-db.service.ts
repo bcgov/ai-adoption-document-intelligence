@@ -42,6 +42,7 @@ type JobWithVersionAndDocument = Prisma.DatasetGroundTruthJobGetPayload<{
   };
 }>;
 
+/** Programmatic job creates always set an explicit status (never rely on DB default). */
 export type CreateGroundTruthJobData = Pick<
   Prisma.DatasetGroundTruthJobUncheckedCreateInput,
   | "datasetVersionId"

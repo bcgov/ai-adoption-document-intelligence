@@ -2,19 +2,31 @@
  * DTOs for OCR improvement pipeline generate endpoint.
  */
 
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsIn, IsOptional } from "class-validator";
 
 export class OcrImprovementGenerateDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Force emptyValueCoercion on every ocr.normalizeFields node ("none" | "blank" | "null")',
-    required: false,
     enum: ["none", "blank", "null"],
   })
   @IsOptional()
   @IsIn(["none", "blank", "null"])
   normalizeFieldsEmptyValueCoercion?: "none" | "blank" | "null";
+}
+
+export class OcrImprovementRecommendationsSummaryDto {
+  @ApiProperty({
+    description: "Number of recommendations applied to the graph",
+  })
+  applied: number;
+
+  @ApiProperty({ description: "Number of recommendations rejected" })
+  rejected: number;
+
+  @ApiProperty({ description: "Tool IDs applied", type: [String] })
+  toolIds: string[];
 }
 
 export class OcrImprovementGenerateResponseDto {
@@ -24,25 +36,21 @@ export class OcrImprovementGenerateResponseDto {
   @ApiProperty({ description: "Candidate workflow lineage ID" })
   candidateLineageId: string;
 
-  @ApiProperty({ description: "Summary of applied/rejected recommendations" })
-  recommendationsSummary: {
-    applied: number;
-    rejected: number;
-    toolIds: string[];
-  };
+  @ApiProperty({ type: () => OcrImprovementRecommendationsSummaryDto })
+  recommendationsSummary: OcrImprovementRecommendationsSummaryDto;
 
-  @ApiProperty({ description: "AI analysis text", required: false })
+  @ApiPropertyOptional({ description: "AI analysis text" })
   analysis?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: "Human-readable message when status is no_recommendations",
-    required: false,
   })
   pipelineMessage?: string;
 
-  @ApiProperty({
-    description: "Per-recommendation rejection reasons",
-    required: false,
+  @ApiPropertyOptional({
+    description:
+      "One line per failed recommendation when graph apply rejected tools",
+    type: [String],
   })
   rejectionDetails?: string[];
 
@@ -52,9 +60,6 @@ export class OcrImprovementGenerateResponseDto {
   })
   status: "candidate_created" | "no_recommendations" | "error";
 
-  @ApiProperty({
-    description: "Error message if status is error",
-    required: false,
-  })
+  @ApiPropertyOptional({ description: "Present when status is error" })
   error?: string;
 }

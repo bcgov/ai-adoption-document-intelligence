@@ -30,6 +30,8 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "benchmark.writePrediction",
   "benchmark.materializeDataset",
   "benchmark.loadDatasetManifest",
+  "benchmark.loadOcrCache",
+  "benchmark.persistOcrCache",
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",

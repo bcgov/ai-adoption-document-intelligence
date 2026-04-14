@@ -2,11 +2,10 @@
  * Unit tests for ConfusionProfileService.
  *
  * Tests CRUD operations (with mocked PrismaService) and
- * deriveAndSave (with mocked ConfusionMatrixService + PrismaService).
+ * deriveAndSave (with mocked PrismaService).
  */
 
 import { NotFoundException } from "@nestjs/common";
-import { ConfusionMatrixService } from "@/benchmark/confusion-matrix.service";
 import { PrismaService } from "@/database/prisma.service";
 import { ConfusionProfileService } from "./confusion-profile.service";
 
@@ -49,23 +48,15 @@ function makePrismaMock() {
   } as unknown as PrismaService;
 }
 
-function makeConfusionMatrixMock() {
-  return {
-    alignAndDiff: jest.fn(),
-  } as unknown as ConfusionMatrixService;
-}
-
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe("ConfusionProfileService", () => {
   let service: ConfusionProfileService;
   let prismaMock: ReturnType<typeof makePrismaMock>;
-  let matrixServiceMock: ReturnType<typeof makeConfusionMatrixMock>;
 
   beforeEach(() => {
     prismaMock = makePrismaMock();
-    matrixServiceMock = makeConfusionMatrixMock();
-    service = new ConfusionProfileService(prismaMock, matrixServiceMock);
+    service = new ConfusionProfileService(prismaMock);
   });
 
   // ── create ──────────────────────────────────────────────────────────
@@ -219,9 +210,10 @@ describe("ConfusionProfileService", () => {
       ]);
 
       // Mock alignAndDiff to return substitution
-      (matrixServiceMock.alignAndDiff as jest.Mock).mockReturnValue([
-        { trueChar: "0", recognizedChar: "O" },
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      jest
+        .spyOn(service as any, "alignAndDiff")
+        .mockReturnValue([{ trueChar: "0", recognizedChar: "O" }]);
 
       // Mock create
       const createdProfile = buildProfile({
@@ -241,7 +233,11 @@ describe("ConfusionProfileService", () => {
       expect(prismaMock.prisma.fieldCorrection.findMany).toHaveBeenCalledTimes(
         1,
       );
-      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith("1O0", "100");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(jest.spyOn(service as any, "alignAndDiff")).toHaveBeenCalledWith(
+        "1O0",
+        "100",
+      );
       expect(prismaMock.prisma.confusionProfile.create).toHaveBeenCalledTimes(
         1,
       );
@@ -291,7 +287,8 @@ describe("ConfusionProfileService", () => {
       ]);
 
       // Mock alignAndDiff for the mismatch pair
-      (matrixServiceMock.alignAndDiff as jest.Mock).mockReturnValue([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      jest.spyOn(service as any, "alignAndDiff").mockReturnValue([
         { trueChar: "0", recognizedChar: "O" },
         { trueChar: "0", recognizedChar: "O" },
       ]);
@@ -314,7 +311,8 @@ describe("ConfusionProfileService", () => {
         where: { id: { in: ["run-1"] }, status: "completed" },
         select: { id: true, metrics: true },
       });
-      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(jest.spyOn(service as any, "alignAndDiff")).toHaveBeenCalledWith(
         "2O24-O1-15",
         "2024-01-15",
       );
@@ -353,9 +351,10 @@ describe("ConfusionProfileService", () => {
       ]);
 
       // Only "amount" field should be processed because of fieldKeys filter
-      (matrixServiceMock.alignAndDiff as jest.Mock).mockReturnValue([
-        { trueChar: "0", recognizedChar: "O" },
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      jest
+        .spyOn(service as any, "alignAndDiff")
+        .mockReturnValue([{ trueChar: "0", recognizedChar: "O" }]);
 
       const createdProfile = buildProfile();
       (
@@ -372,8 +371,15 @@ describe("ConfusionProfileService", () => {
       });
 
       // alignAndDiff should only be called once (for "amount", not "date")
-      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledTimes(1);
-      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith("1O0", "100");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(jest.spyOn(service as any, "alignAndDiff")).toHaveBeenCalledTimes(
+        1,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(jest.spyOn(service as any, "alignAndDiff")).toHaveBeenCalledWith(
+        "1O0",
+        "100",
+      );
     });
 
     it("resolves templateModelIds to field keys and filters HITL + benchmark", async () => {
@@ -426,9 +432,10 @@ describe("ConfusionProfileService", () => {
         },
       ]);
 
-      (matrixServiceMock.alignAndDiff as jest.Mock).mockReturnValue([
-        { trueChar: "0", recognizedChar: "O" },
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      jest
+        .spyOn(service as any, "alignAndDiff")
+        .mockReturnValue([{ trueChar: "0", recognizedChar: "O" }]);
 
       const createdProfile = buildProfile();
       (
@@ -459,9 +466,17 @@ describe("ConfusionProfileService", () => {
 
       // Benchmark mismatches: "date" included (in template model), "name" excluded
       // alignAndDiff called for HITL "amount" pair + benchmark "date" pair = 2 calls
-      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledTimes(2);
-      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith("1O0", "100");
-      expect(matrixServiceMock.alignAndDiff).toHaveBeenCalledWith(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(jest.spyOn(service as any, "alignAndDiff")).toHaveBeenCalledTimes(
+        2,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(jest.spyOn(service as any, "alignAndDiff")).toHaveBeenCalledWith(
+        "1O0",
+        "100",
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(jest.spyOn(service as any, "alignAndDiff")).toHaveBeenCalledWith(
         "2O24",
         "2024",
       );
@@ -479,9 +494,10 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.fieldCorrection.findMany as jest.Mock
       ).mockResolvedValue(corrections);
 
-      (matrixServiceMock.alignAndDiff as jest.Mock).mockReturnValue([
-        { trueChar: "0", recognizedChar: "O" },
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      jest
+        .spyOn(service as any, "alignAndDiff")
+        .mockReturnValue([{ trueChar: "0", recognizedChar: "O" }]);
 
       const createdProfile = buildProfile();
       (

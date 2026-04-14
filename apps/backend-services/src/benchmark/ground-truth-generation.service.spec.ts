@@ -108,6 +108,7 @@ describe("GroundTruthGenerationService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GroundTruthGenerationService,
+        GroundTruthJobDbService,
         {
           provide: GroundTruthJobDbService,
           useValue: mockJobDb,
@@ -152,7 +153,6 @@ describe("GroundTruthGenerationService", () => {
     const datasetId = "dataset-1";
     const versionId = "version-1";
     const workflowVersionId = "wv-workflow-1";
-    const userId = "user-1";
 
     it("should throw NotFoundException if version not found", async () => {
       mockJobDb.findVersionForValidation.mockResolvedValue(null);
@@ -162,7 +162,7 @@ describe("GroundTruthGenerationService", () => {
           datasetId,
           versionId,
           workflowVersionId,
-          userId,
+          "user-1",
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -179,7 +179,7 @@ describe("GroundTruthGenerationService", () => {
           datasetId,
           versionId,
           workflowVersionId,
-          userId,
+          "user-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -196,7 +196,7 @@ describe("GroundTruthGenerationService", () => {
           datasetId,
           versionId,
           workflowVersionId,
-          userId,
+          "user-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -214,7 +214,7 @@ describe("GroundTruthGenerationService", () => {
           datasetId,
           versionId,
           workflowVersionId,
-          userId,
+          "user-1",
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -260,7 +260,7 @@ describe("GroundTruthGenerationService", () => {
         datasetId,
         versionId,
         workflowVersionId,
-        userId,
+        "user-1",
       );
 
       expect(result.jobCount).toBe(2);
@@ -302,7 +302,7 @@ describe("GroundTruthGenerationService", () => {
           datasetId,
           versionId,
           workflowVersionId,
-          userId,
+          "user-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });

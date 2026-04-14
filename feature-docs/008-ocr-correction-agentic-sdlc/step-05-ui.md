@@ -15,14 +15,14 @@ Provide a UI for the OCR improvement pipeline and candidate runs by extending th
 - **Entry point:** At benchmark project or definition level, an "OCR improvement" (or "Improvement pipeline") section or tab.
 - **Trigger pipeline:** Action that runs the full pipeline (aggregate HITL → AI recommendation → create candidate workflow → start benchmark run). Calls a new backend API; response includes candidate workflow ID and benchmark run ID.
 - **Show recommendations:** Display AI tool recommendations (tool IDs, placement, rationale) when available (e.g. from pipeline response).
-- **Run candidate:** When the user has a candidate (from the pipeline), "Run candidate" starts a benchmark run with workflow override using the existing start-run API (`workflowConfigOverride` / `candidateWorkflowId`). Existing run list and run detail pages are used for status and baseline comparison.
+- **Run candidate:** When the user has a candidate (from the pipeline), "Run candidate" starts a benchmark run using the existing start-run API with optional **`candidateWorkflowVersionId`** (config loaded from that workflow version row). Existing run list and run detail pages are used for status and baseline comparison.
 - **Comparison:** Use existing run detail and run comparison pages for baseline vs candidate; promote baseline when satisfied.
 
 ## Requirements
 
 - The UI SHALL extend the existing benchmarking frontend (`apps/frontend/src/features/benchmarking/`).
 - The UI SHALL call a new pipeline run endpoint (e.g. `POST .../benchmark/projects/:projectId/definitions/:definitionId/ocr-improvement/run`) with required context (workflow ID, user ID, optional HITL filters).
-- The UI SHALL use the existing start-run API with `workflowConfigOverride` and `candidateWorkflowId` when starting a candidate run (no new endpoint for starting runs).
+- The UI SHALL use the existing start-run API with optional `candidateWorkflowVersionId` when starting a candidate run (no new endpoint for starting runs).
 - The UI SHALL reuse existing run list, run detail, run comparison, and promote-baseline flows.
 
 ## Implementation tasks
@@ -30,7 +30,7 @@ Provide a UI for the OCR improvement pipeline and candidate runs by extending th
 - Add backend endpoint for running the OCR improvement pipeline (see Step 4 orchestration).
 - Add an "OCR improvement" section or tab in the benchmarking UI at project or definition level.
 - In that section: button/action to "Run improvement pipeline", display of pipeline result (candidate workflow ID, benchmark run ID, recommendations summary), and "Run candidate" that starts a run with override when a candidate is available.
-- Extend the existing start-run payload (e.g. in `useRuns` or call site) to support optional `workflowConfigOverride` and `candidateWorkflowId` when running a candidate.
+- Extend the existing start-run payload (e.g. in `useRuns` or call site) to support optional `candidateWorkflowVersionId` when running a candidate.
 
 ## Acceptance criteria
 
@@ -44,4 +44,4 @@ Provide a UI for the OCR improvement pipeline and candidate runs by extending th
 - Step 4: [step-04-benchmark-integration-workflow-comparison.md](./step-04-benchmark-integration-workflow-comparison.md)
 - [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../docs-md/OCR_IMPROVEMENT_PIPELINE.md) — pipeline endpoint, UI behavior, and how candidate runs relate to baseline comparison
 - Benchmarking frontend: `apps/frontend/src/features/benchmarking/`
-- Start-run API: `POST /api/benchmark/projects/:projectId/definitions/:definitionId/runs` — see `CreateRunDto` and benchmark controller for optional candidate / override fields used when re-running a candidate workflow
+- Start-run API: `POST /api/benchmark/projects/:projectId/definitions/:definitionId/runs` — see `CreateRunDto` and benchmark controller for optional `candidateWorkflowVersionId` when running a candidate workflow

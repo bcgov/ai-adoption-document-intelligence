@@ -8,12 +8,14 @@
 
 import { CorrectionAction, Prisma } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import {
-  ConfusionMatrixService,
-  type CorrectionPair,
-} from "@/benchmark/confusion-matrix.service";
 import { PrismaService } from "@/database/prisma.service";
 import type { ConfusionProfileResponseDto } from "./dto";
+
+export interface CorrectionPair {
+  originalValue: string;
+  correctedValue: string;
+  fieldKey: string;
+}
 
 interface CreateProfileInput {
   name: string;
@@ -58,10 +60,7 @@ const MAX_EXAMPLES_PER_PAIR = 5;
 export class ConfusionProfileService {
   private readonly logger = new Logger(ConfusionProfileService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly confusionMatrixService: ConfusionMatrixService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // ── CRUD ────────────────────────────────────────────────────────────
 
@@ -339,7 +338,7 @@ export class ConfusionProfileService {
       if (!pair.originalValue || !pair.correctedValue) continue;
       if (pair.originalValue === pair.correctedValue) continue;
 
-      const confusions = this.confusionMatrixService.alignAndDiff(
+      const confusions = this.alignAndDiff(
         pair.originalValue,
         pair.correctedValue,
       );
@@ -380,6 +379,62 @@ export class ConfusionProfileService {
     }
 
     return { matrix, examples, fieldCounts };
+  }
+
+  private alignAndDiff(
+    original: string,
+    corrected: string,
+  ): Array<{ trueChar: string; recognizedChar: string }> {
+    if (original.length === corrected.length) {
+      const diffs: Array<{ trueChar: string; recognizedChar: string }> = [];
+      for (let i = 0; i < original.length; i++) {
+        if (original[i] !== corrected[i]) {
+          diffs.push({ trueChar: corrected[i], recognizedChar: original[i] });
+        }
+      }
+      return diffs;
+    }
+
+    // Use Levenshtein backtrace for unequal-length strings
+    const m = original.length;
+    const n = corrected.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () =>
+      Array(n + 1).fill(0),
+    );
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (original[i - 1] === corrected[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+    }
+
+    const diffs: Array<{ trueChar: string; recognizedChar: string }> = [];
+    let i = m;
+    let j = n;
+    while (i > 0 && j > 0) {
+      if (original[i - 1] === corrected[j - 1]) {
+        i--;
+        j--;
+      } else if (dp[i][j] === dp[i - 1][j - 1] + 1) {
+        diffs.push({
+          trueChar: corrected[j - 1],
+          recognizedChar: original[i - 1],
+        });
+        i--;
+        j--;
+      } else if (dp[i][j] === dp[i - 1][j] + 1) {
+        i--;
+      } else {
+        j--;
+      }
+    }
+    return diffs;
   }
 
   private toDto(profile: {

@@ -17,6 +17,9 @@ import { findSlotImmediatelyAfterAzureOcrExtract } from "@/workflow/insertion-sl
 
 const DEFAULT_API_VERSION = "2024-12-01-preview";
 
+/** Max corrections embedded in the user prompt (token control); remainder are omitted. */
+const MAX_CORRECTIONS_IN_PROMPT = 200;
+
 const OCR_AI_CORRECTION_TOOL_ORDER = [
   "ocr.characterConfusion",
   "ocr.spellcheck",
@@ -149,7 +152,10 @@ function toolsForPrompt(tools: AiRecommendationInput["availableTools"]): Array<{
 }
 
 function buildUserMessage(input: AiRecommendationInput): string {
-  const correctionsSample = input.corrections.slice(0, 200);
+  const correctionsSample = input.corrections.slice(
+    0,
+    MAX_CORRECTIONS_IN_PROMPT,
+  );
   const tools = filterManifestToOrderedCorrectionTools(input.availableTools);
   const toolsJson = JSON.stringify(toolsForPrompt(tools), null, 2);
   const correctionsJson = JSON.stringify(correctionsSample, null, 2);
@@ -177,7 +183,7 @@ function buildUserMessage(input: AiRecommendationInput): string {
       `    "${k}": { "include": <true|false>, "parameters": { }, "rationale": "<optional short reason>" }`,
   ).join(",\n");
 
-  return `HITL corrections (${input.corrections.length} total, up to 200 shown):
+  return `HITL corrections (${input.corrections.length} total, up to ${MAX_CORRECTIONS_IN_PROMPT} shown):
 ${correctionsJson}
 
 OCR correction tools (only these may be enabled; pipeline order is fixed: character confusion, then spellcheck — you only choose include/parameters):
@@ -313,6 +319,16 @@ export class AiRecommendationService {
       `AI recommendation start: ${input.corrections.length} corrections, ${input.availableTools.length} tools`,
     );
 
+    if (input.corrections.length > MAX_CORRECTIONS_IN_PROMPT) {
+      this.logger.warn(
+        JSON.stringify({
+          event: "ai_recommendation_prompt_truncation",
+          correctionsTotal: input.corrections.length,
+          correctionsIncludedInPrompt: MAX_CORRECTIONS_IN_PROMPT,
+        }),
+      );
+    }
+
     const systemMessage = buildSystemMessage();
     const userMessage = buildUserMessage(input);
 
@@ -336,7 +352,8 @@ export class AiRecommendationService {
         },
         {
           role: "user" as const,
-          content: userMessage.replace(/\s+/g, " ").trim(),
+          // Preserve JSON indentation in tools/workflow blocks; only trim outer whitespace.
+          content: userMessage.trim(),
         },
       ],
       response_format: { type: "json_object" as const },

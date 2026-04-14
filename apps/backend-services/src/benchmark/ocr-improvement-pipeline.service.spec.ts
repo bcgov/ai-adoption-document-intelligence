@@ -133,7 +133,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
   };
 
   const mockWorkflowService = {
-    getWorkflowById: jest.fn(),
+    getWorkflowVersionById: jest.fn(),
     createCandidateVersion: jest.fn(),
   };
 
@@ -233,7 +233,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       makeBaselineRun(),
     );
 
-    mockWorkflowService.getWorkflowById.mockResolvedValue({
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
       id: "wf-1",
       config: baseWorkflowConfig,
     });
@@ -295,7 +295,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
     mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
       makeBaselineRun(),
     );
-    mockWorkflowService.getWorkflowById.mockResolvedValue({
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
       id: "wf-1",
       config: baseWorkflowConfig,
     });
@@ -342,7 +342,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
     mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
       makeBaselineRun(),
     );
-    mockWorkflowService.getWorkflowById.mockResolvedValue(null);
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue(null);
 
     const result = await service.generate({
       workflowVersionId: "wf-missing",
@@ -360,7 +360,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
       makeBaselineRun(),
     );
 
-    mockWorkflowService.getWorkflowById.mockResolvedValue({
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
       id: "wf-1",
       config: {
         schemaVersion: "1.0",
@@ -469,7 +469,7 @@ describe("OcrImprovementPipelineService - generate()", () => {
     mockBenchmarkRunDb.findBaselineBenchmarkRun.mockResolvedValue(
       makeBaselineRun(),
     );
-    mockWorkflowService.getWorkflowById.mockResolvedValue({
+    mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
       id: "wf-1",
       config: baseWorkflowConfig,
     });
