@@ -340,6 +340,13 @@ export class HitlDatasetService {
     groundTruth: Array<{ path: string; format: string }>;
     metadata: Record<string, unknown>;
   }> {
+    // Self-protecting tenant guard: the caller also checks this, but keep
+    // it here so future callers can't accidentally bypass it and copy a
+    // document from another group into this group's dataset prefix.
+    if (doc.group_id !== groupId) {
+      throw new Error(`Document belongs to a different group than the dataset`);
+    }
+
     // Find the latest approved session
     const approvedSession = doc.review_sessions
       ?.filter((s) => s.status === ReviewStatus.approved)
