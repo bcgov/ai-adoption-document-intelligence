@@ -207,11 +207,14 @@ export class HitlDatasetService {
     versionLabel?: string,
     versionName?: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
-    // Fetch all reviewed documents once
+    // Fetch all reviewed documents once, scoped to the dataset's group to
+    // prevent cross-tenant packaging (a caller in group A cannot pull
+    // documents belonging to group B into their dataset).
     const allDocuments = (await this.reviewDbService.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       reviewStatus: "reviewed",
       limit: 10000,
+      groupIds: [groupId],
     })) as unknown as DocumentWithReview[];
 
     const documentMap = new Map(allDocuments.map((d) => [d.id, d]));
@@ -246,8 +249,18 @@ export class HitlDatasetService {
           throw new Error("Document not found or not in completed_ocr status");
         }
 
+        // Defense-in-depth: the findReviewQueue call above already filters
+        // by groupId, so this should never trigger. If it does, the query
+        // filter was bypassed and we refuse to write cross-tenant blobs.
+        if (doc.group_id !== groupId) {
+          throw new Error(
+            `Document belongs to a different group than the dataset`,
+          );
+        }
+
         const result = await this.processDocument(
           doc,
+          groupId,
           storagePrefix,
           usedSampleIds,
         );
@@ -318,6 +331,7 @@ export class HitlDatasetService {
    */
   private async processDocument(
     doc: DocumentWithReview,
+    groupId: string,
     storagePrefix: string,
     usedSampleIds: Set<string>,
   ): Promise<{
@@ -370,7 +384,7 @@ export class HitlDatasetService {
     const inputFilename = `${sampleId}.pdf`;
     const inputRelativePath = `inputs/${inputFilename}`;
     const inputBlobKey = buildBlobFilePath(
-      doc.group_id,
+      groupId,
       OperationCategory.BENCHMARK,
       [storagePrefix, "inputs"],
       inputFilename,
@@ -392,7 +406,7 @@ export class HitlDatasetService {
     // Write ground truth file
     const gtRelativePath = `ground-truth/${sampleId}.json`;
     const gtBlobKey = buildBlobFilePath(
-      doc.group_id,
+      groupId,
       OperationCategory.BENCHMARK,
       [storagePrefix, "ground-truth"],
       `${sampleId}.json`,
