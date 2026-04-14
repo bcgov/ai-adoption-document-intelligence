@@ -78,6 +78,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -86,25 +87,37 @@ describe("HitlController", () => {
       hitlService.getQueue.mockResolvedValue(mockResult as any);
       const result = await controller.getQueue({} as any, req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.getQueue).toHaveBeenCalledWith({}, ["group-1"]);
+      expect(hitlService.getQueue).toHaveBeenCalledWith(
+        {},
+        ["group-1"],
+        "actor-1",
+      );
     });
 
     it("delegates to service with group ID from API key identity", async () => {
       const req = {
-        resolvedIdentity: { groupRoles: { "group-1": GroupRole.MEMBER } },
+        resolvedIdentity: {
+          actorId: "actor-1",
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
       } as unknown as Request;
       hitlService.getQueue.mockResolvedValue({
         documents: [],
         total: 0,
       } as any);
       await controller.getQueue({} as any, req);
-      expect(hitlService.getQueue).toHaveBeenCalledWith({}, ["group-1"]);
+      expect(hitlService.getQueue).toHaveBeenCalledWith(
+        {},
+        ["group-1"],
+        "actor-1",
+      );
     });
 
     it("scopes to a single group when group_id is provided and user is a member", async () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -117,6 +130,7 @@ describe("HitlController", () => {
       expect(hitlService.getQueue).toHaveBeenCalledWith(
         { group_id: "group-1" },
         ["group-1"],
+        "actor-1",
       );
     });
 
@@ -771,9 +785,9 @@ describe("HitlController", () => {
   describe("reopenSession", () => {
     it("reopens session for the original reviewer", async () => {
       const req = {
-        user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -788,15 +802,15 @@ describe("HitlController", () => {
       expect(result).toEqual(mockResult);
       expect(hitlService.reopenSession).toHaveBeenCalledWith(
         "session-1",
-        "user-1",
+        "actor-1",
       );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: {},
         },
@@ -809,9 +823,9 @@ describe("HitlController", () => {
 
     it("throws NotFoundException when session does not exist", async () => {
       const req = {
-        user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -827,9 +841,9 @@ describe("HitlController", () => {
   describe("getNextSession", () => {
     it("delegates to service with group IDs from JWT identity", async () => {
       const req = {
-        user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -838,16 +852,16 @@ describe("HitlController", () => {
       hitlService.getNextSession.mockResolvedValue(mockResult as any);
       const result = await controller.getNextSession({} as any, req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.getNextSession).toHaveBeenCalledWith({}, "user-1", [
+      expect(hitlService.getNextSession).toHaveBeenCalledWith({}, "actor-1", [
         "group-1",
       ]);
     });
 
     it("scopes to a single group when group_id is provided", async () => {
       const req = {
-        user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -856,16 +870,16 @@ describe("HitlController", () => {
       await controller.getNextSession({ group_id: "group-1" } as any, req);
       expect(hitlService.getNextSession).toHaveBeenCalledWith(
         { group_id: "group-1" },
-        "user-1",
+        "actor-1",
         ["group-1"],
       );
     });
 
     it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
       const req = {
-        user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },

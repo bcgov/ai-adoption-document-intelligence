@@ -575,6 +575,7 @@ export class GroundTruthGenerationService {
               where: {
                 status: {
                   in: [
+                    ReviewStatus.in_progress,
                     ReviewStatus.approved,
                     ReviewStatus.escalated,
                     ReviewStatus.skipped,
@@ -582,7 +583,7 @@ export class GroundTruthGenerationService {
                 },
               },
               include: { corrections: true },
-              orderBy: { completed_at: "desc" },
+              orderBy: { started_at: "desc" },
               take: 1,
             },
           },

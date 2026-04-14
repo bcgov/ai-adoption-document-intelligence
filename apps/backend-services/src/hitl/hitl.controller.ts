@@ -135,8 +135,7 @@ export class HitlController {
     } else {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
-    const reviewerId =
-      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+    const reviewerId = req.resolvedIdentity.actorId;
     return this.hitlService.getNextSession(filters, reviewerId, groupIds);
   }
 
@@ -345,8 +344,7 @@ export class HitlController {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    const reviewerId =
-      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+    const reviewerId = req.resolvedIdentity.actorId;
     return this.hitlService.reopenSession(sessionId, reviewerId);
   }
 

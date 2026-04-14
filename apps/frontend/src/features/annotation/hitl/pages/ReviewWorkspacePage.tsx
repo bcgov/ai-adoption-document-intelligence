@@ -220,6 +220,24 @@ export const ReviewWorkspacePage: FC = () => {
 
   const { advance } = useAutoAdvance();
 
+  // Seed correctionMap from previously saved corrections so that both
+  // readOnly "View" and reopened-for-editing sessions show prior edits.
+  useEffect(() => {
+    if (corrections.length > 0 && Object.keys(correctionMap).length === 0) {
+      const seeded: typeof correctionMap = {};
+      for (const c of corrections) {
+        seeded[c.fieldKey] = {
+          field_key: c.fieldKey,
+          original_value: c.originalValue,
+          corrected_value: c.correctedValue,
+          original_conf: c.originalConfidence,
+          action: c.action as CorrectionAction,
+        };
+      }
+      setCorrectionMap(seeded);
+    }
+  }, [corrections]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     setCurrentPage(1);
     setDocumentImage(null);
