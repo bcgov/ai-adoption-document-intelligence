@@ -67,18 +67,20 @@ export class HitlController {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
     const result = await this.hitlService.getQueue(filters, groupIds);
-    await Promise.all(
-      result.documents.map((doc) =>
-        this.auditService.recordEvent({
-          event_type: "document_accessed",
-          resource_type: "document",
-          resource_id: doc.id,
-          actor_id: req.resolvedIdentity?.actorId,
-          document_id: doc.id,
-          payload: { action: "queue_review" },
-        }),
-      ),
-    );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "hitl_queue",
+      resource_id:
+        filters.group_id ?? (groupIds.length === 1 ? groupIds[0] : "multi"),
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: filters.group_id,
+      payload: {
+        action: "metadata",
+        document_ids: result.documents.map((doc) => doc.id),
+        count: result.documents.length,
+        group_ids: groupIds,
+      },
+    });
     return result;
   }
 
@@ -158,10 +160,10 @@ export class HitlController {
       event_type: "document_accessed",
       resource_type: "ocr_result",
       resource_id: session.document_id,
-      actor_id: req.resolvedIdentity?.actorId,
+      actor_id: req.resolvedIdentity.actorId,
       document_id: session.document_id,
       group_id: session.document.group_id ?? undefined,
-      payload: { action: "review_session" },
+      payload: { action: "ocr" },
     });
     return result;
   }
@@ -205,7 +207,17 @@ export class HitlController {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.getCorrections(sessionId);
+    const result = await this.hitlService.getCorrections(sessionId);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: session.document_id,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: session.document_id,
+      group_id: session.document.group_id ?? undefined,
+      payload: { action: "ocr" },
+    });
+    return result;
   }
 
   @Post("sessions/:id/submit")

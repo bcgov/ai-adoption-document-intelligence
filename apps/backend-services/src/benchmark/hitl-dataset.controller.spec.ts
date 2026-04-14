@@ -6,6 +6,7 @@ jest.mock("@/auth/identity.helpers", () => ({
 import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { DatasetService } from "./dataset.service";
 import { HitlDatasetController } from "./hitl-dataset.controller";
 import { HitlDatasetService } from "./hitl-dataset.service";
@@ -54,6 +55,10 @@ describe("HitlDatasetController", () => {
       providers: [
         { provide: HitlDatasetService, useValue: mockService },
         { provide: DatasetService, useValue: mockDatasetService },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

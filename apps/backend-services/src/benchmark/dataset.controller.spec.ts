@@ -720,10 +720,14 @@ describe("DatasetController", () => {
       expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
         event_type: "document_accessed",
         resource_type: "dataset_document",
-        resource_id: "dataset-123",
+        resource_id: "inputs/test.pdf",
         actor_id: "user-123",
         group_id: "test-group",
-        payload: { action: "download" },
+        payload: {
+          action: "download",
+          dataset_id: "dataset-123",
+          dataset_version_id: "version-123",
+        },
       });
     });
 

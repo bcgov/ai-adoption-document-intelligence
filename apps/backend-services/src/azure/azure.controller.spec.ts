@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+import type { AuditService } from "@/audit/audit.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
@@ -55,6 +56,7 @@ describe("AzureController", () => {
       storageService,
       azureService,
       mockAppLogger,
+      { recordEvent: jest.fn() } as unknown as AuditService,
     );
   });
 

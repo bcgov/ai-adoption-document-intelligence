@@ -479,12 +479,31 @@ export class DatasetController {
     @Query("page") page?: string,
     @Query("limit") limit?: string,
   ): Promise<SampleListResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
 
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
-    return this.datasetService.listSamples(id, versionId, pageNum, limitNum);
+    const result = await this.datasetService.listSamples(
+      id,
+      versionId,
+      pageNum,
+      limitNum,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "metadata",
+        sample_ids: result.samples.map((s) => s.id),
+        count: result.samples.length,
+        dataset_id: id,
+      },
+    });
+    return result;
   }
 
   @Get(":id/versions/:versionId/samples/:sampleId/ground-truth")
@@ -514,15 +533,24 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<GroundTruthResponseDto> {
     const groupId = await this.assertDatasetGroupAccess(id, req);
+    const result = await this.datasetService.getGroundTruth(
+      id,
+      versionId,
+      sampleId,
+    );
     await this.auditService.recordEvent({
-      event_type: "dataset_accessed",
+      event_type: "document_accessed",
       resource_type: "ground_truth",
-      resource_id: id,
+      resource_id: sampleId,
       actor_id: req.resolvedIdentity.actorId,
       group_id: groupId,
-      payload: { action: "download" },
+      payload: {
+        action: "ocr",
+        dataset_id: id,
+        dataset_version_id: versionId,
+      },
     });
-    return this.datasetService.getGroundTruth(id, versionId, sampleId);
+    return result;
   }
 
   @Get(":id/versions/:versionId/files/download")
@@ -553,10 +581,14 @@ export class DatasetController {
     await this.auditService.recordEvent({
       event_type: "document_accessed",
       resource_type: "dataset_document",
-      resource_id: id,
+      resource_id: filePath,
       actor_id: req.resolvedIdentity.actorId,
       group_id: groupId,
-      payload: { action: "download" },
+      payload: {
+        action: "download",
+        dataset_id: id,
+        dataset_version_id: versionId,
+      },
     });
     res.set({
       "Content-Type": mimeType,
@@ -686,8 +718,23 @@ export class DatasetController {
     @Param("splitId") splitId: string,
     @Req() req: Request,
   ): Promise<SplitDetailResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.getSplit(id, versionId, splitId);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
+    const result = await this.datasetService.getSplit(id, versionId, splitId);
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "dataset_split",
+      resource_id: splitId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "metadata",
+        sample_ids: result.sampleIds ?? [],
+        count: result.sampleIds?.length ?? 0,
+        dataset_id: id,
+        dataset_version_id: versionId,
+      },
+    });
+    return result;
   }
 
   @Patch(":id/versions/:versionId/splits/:splitId")

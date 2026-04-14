@@ -290,18 +290,26 @@ export class DocumentController {
               );
             }
           }
-          await this.auditService.recordEvent({
-            event_type: "document_accessed",
-            resource_type: "document",
-            resource_id: doc.id,
-            actor_id: req.resolvedIdentity.actorId,
-            document_id: doc.id,
-            group_id: doc.group_id,
-            payload: { action: "metadata" },
-          });
           return doc;
         }),
       );
+
+      if (req.resolvedIdentity) {
+        await this.auditService.recordEvent({
+          event_type: "document_list_accessed",
+          resource_type: "document_collection",
+          resource_id:
+            groupId ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+          actor_id: req.resolvedIdentity.actorId,
+          group_id: groupId,
+          payload: {
+            action: "metadata",
+            document_ids: documents.map((d) => d.id),
+            count: documents.length,
+            group_ids: groupIds,
+          },
+        });
+      }
 
       this.logger.debug(`Retrieved ${documents.length} documents`);
       this.logger.debug("=== DocumentController.getAllDocuments completed ===");

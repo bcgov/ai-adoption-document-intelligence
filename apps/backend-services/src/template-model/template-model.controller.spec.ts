@@ -897,10 +897,11 @@ describe("TemplateModelController", () => {
       expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
         event_type: "document_accessed",
         resource_type: "template_model_document",
-        resource_id: "tm-1",
+        resource_id: "labeled-doc-1",
         actor_id: "user-1",
+        document_id: "labeled-doc-1",
         group_id: "group-1",
-        payload: { action: "download" },
+        payload: { action: "download", template_model_id: "tm-1" },
       });
       expect(mockRes.send).toHaveBeenCalledWith(fileBuffer);
     });
