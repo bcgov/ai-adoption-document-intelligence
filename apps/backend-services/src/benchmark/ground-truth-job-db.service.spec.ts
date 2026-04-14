@@ -10,6 +10,7 @@ const mockPrismaClient = {
     findUnique: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
     count: jest.fn(),
   },
   datasetVersion: {
@@ -492,6 +493,102 @@ describe("GroundTruthJobDbService", () => {
       expect(txWf.findUnique).toHaveBeenCalled();
       expect(
         mockPrismaClient.workflowVersion.findUnique,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findStaleJobs", () => {
+    it("returns non-completed jobs with id and temporalWorkflowId", async () => {
+      const stale = [{ id: "j-1", temporalWorkflowId: "tw-1" }];
+      mockPrismaClient.datasetGroundTruthJob.findMany.mockResolvedValue(stale);
+
+      const result = await service.findStaleJobs("v-1");
+
+      expect(result).toEqual(stale);
+      expect(
+        mockPrismaClient.datasetGroundTruthJob.findMany,
+      ).toHaveBeenCalledWith({
+        where: {
+          datasetVersionId: "v-1",
+          status: { not: GroundTruthJobStatus.completed },
+        },
+        select: { id: true, temporalWorkflowId: true },
+      });
+    });
+
+    it("uses provided tx client", async () => {
+      const txJob = { findMany: jest.fn().mockResolvedValue([]) };
+      const tx = {
+        datasetGroundTruthJob: txJob,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
+      await service.findStaleJobs("v-1", tx);
+      expect(txJob.findMany).toHaveBeenCalled();
+      expect(
+        mockPrismaClient.datasetGroundTruthJob.findMany,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteJobsByIds", () => {
+    it("deletes jobs by IDs", async () => {
+      mockPrismaClient.datasetGroundTruthJob.deleteMany.mockResolvedValue({
+        count: 2,
+      });
+
+      await service.deleteJobsByIds(["j-1", "j-2"]);
+
+      expect(
+        mockPrismaClient.datasetGroundTruthJob.deleteMany,
+      ).toHaveBeenCalledWith({
+        where: { id: { in: ["j-1", "j-2"] } },
+      });
+    });
+
+    it("uses provided tx client", async () => {
+      const txJob = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      };
+      const tx = {
+        datasetGroundTruthJob: txJob,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
+      await service.deleteJobsByIds(["j-1"], tx);
+      expect(txJob.deleteMany).toHaveBeenCalled();
+      expect(
+        mockPrismaClient.datasetGroundTruthJob.deleteMany,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findCompletedJobSampleIds", () => {
+    it("returns completed job sample IDs", async () => {
+      const completed = [{ sampleId: "s-1" }, { sampleId: "s-2" }];
+      mockPrismaClient.datasetGroundTruthJob.findMany.mockResolvedValue(
+        completed,
+      );
+
+      const result = await service.findCompletedJobSampleIds("v-1");
+
+      expect(result).toEqual(completed);
+      expect(
+        mockPrismaClient.datasetGroundTruthJob.findMany,
+      ).toHaveBeenCalledWith({
+        where: {
+          datasetVersionId: "v-1",
+          status: GroundTruthJobStatus.completed,
+        },
+        select: { sampleId: true },
+      });
+    });
+
+    it("uses provided tx client", async () => {
+      const txJob = { findMany: jest.fn().mockResolvedValue([]) };
+      const tx = {
+        datasetGroundTruthJob: txJob,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
+      await service.findCompletedJobSampleIds("v-1", tx);
+      expect(txJob.findMany).toHaveBeenCalled();
+      expect(
+        mockPrismaClient.datasetGroundTruthJob.findMany,
       ).not.toHaveBeenCalled();
     });
   });

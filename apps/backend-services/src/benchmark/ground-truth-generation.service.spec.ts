@@ -2,86 +2,44 @@ import {
   CorrectionAction,
   DocumentStatus,
   GroundTruthJobStatus,
-  ReviewStatus,
 } from "@generated/client";
-
-const mockPrismaClient = {
-  datasetVersion: {
-    findFirst: jest.fn(),
-  },
-  datasetGroundTruthJob: {
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    updateMany: jest.fn(),
-    deleteMany: jest.fn(),
-    count: jest.fn(),
-  },
-  workflowVersion: {
-    findUnique: jest.fn(),
-  },
-  $transaction: jest.fn(),
-};
-
-jest.mock("@prisma/adapter-pg", () => ({
-  PrismaPg: jest.fn(),
-}));
-
-jest.mock("@generated/client", () => {
-  return {
-    PrismaClient: jest.fn(() => mockPrismaClient),
-    GroundTruthJobStatus: {
-      pending: "pending",
-      processing: "processing",
-      awaiting_review: "awaiting_review",
-      completed: "completed",
-      failed: "failed",
-    },
-    DocumentStatus: {
-      pre_ocr: "pre_ocr",
-      ongoing_ocr: "ongoing_ocr",
-      completed_ocr: "completed_ocr",
-      failed: "failed",
-    },
-    ReviewStatus: {
-      in_progress: "in_progress",
-      approved: "approved",
-      escalated: "escalated",
-      skipped: "skipped",
-    },
-    CorrectionAction: {
-      confirmed: "confirmed",
-      corrected: "corrected",
-      flagged: "flagged",
-      deleted: "deleted",
-    },
-    Prisma: {
-      PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
-        code: string;
-        constructor(message: string, args: { code: string }) {
-          super(message);
-          this.code = args.code;
-        }
-      },
-    },
-  };
-});
-
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { PrismaService } from "@/database/prisma.service";
 import { DocumentService } from "@/document/document.service";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
 import { OcrService } from "@/ocr/ocr.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
+import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
+
+const mockJobDb = {
+  findVersionForValidation: jest.fn(),
+  findVersionForProcessing: jest.fn(),
+  findWorkflow: jest.fn(),
+  findWorkflowConfig: jest.fn(),
+  findStaleJobs: jest.fn(),
+  deleteJobsByIds: jest.fn(),
+  findCompletedJobSampleIds: jest.fn(),
+  createManyJobs: jest.fn(),
+  findPendingJobs: jest.fn(),
+  findJob: jest.fn(),
+  findJobByDocumentId: jest.fn(),
+  findJobWithVersionAndDocument: jest.fn(),
+  findJobs: jest.fn(),
+  findJobsForReviewQueue: jest.fn(),
+  countJobs: jest.fn(),
+  updateJob: jest.fn(),
+  updateManyJobs: jest.fn(),
+  findProcessingJobsWithDocumentStatus: jest.fn(),
+  syncProcessingJobStatuses: jest.fn(),
+  findExistingJobs: jest.fn(),
+};
 
 const mockBlobStorage: BlobStorageInterface = {
   write: jest.fn().mockResolvedValue(undefined),
@@ -151,8 +109,8 @@ describe("GroundTruthGenerationService", () => {
       providers: [
         GroundTruthGenerationService,
         {
-          provide: PrismaService,
-          useValue: { prisma: mockPrismaClient },
+          provide: GroundTruthJobDbService,
+          useValue: mockJobDb,
         },
         {
           provide: DocumentService,
@@ -197,7 +155,7 @@ describe("GroundTruthGenerationService", () => {
     const userId = "user-1";
 
     it("should throw NotFoundException if version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockJobDb.findVersionForValidation.mockResolvedValue(null);
 
       await expect(
         service.startGeneration(
@@ -210,7 +168,7 @@ describe("GroundTruthGenerationService", () => {
     });
 
     it("should throw BadRequestException if version is frozen", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         frozen: true,
         storagePrefix: "datasets/dataset-1/version-1",
@@ -227,7 +185,7 @@ describe("GroundTruthGenerationService", () => {
     });
 
     it("should throw BadRequestException if version has no files uploaded", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         frozen: false,
         storagePrefix: null,
@@ -244,12 +202,12 @@ describe("GroundTruthGenerationService", () => {
     });
 
     it("should throw NotFoundException if workflow config not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
       });
-      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue(null);
+      mockJobDb.findWorkflow.mockResolvedValue(null);
 
       await expect(
         service.startGeneration(
@@ -262,40 +220,41 @@ describe("GroundTruthGenerationService", () => {
     });
 
     it("should create jobs only for samples without ground truth", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         datasetId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
-        dataset: { group_id: "test-group" },
       });
-      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+      mockJobDb.findWorkflow.mockResolvedValue({
         id: workflowVersionId,
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
         Buffer.from(JSON.stringify(sampleManifest)),
       );
-      mockPrismaClient.datasetGroundTruthJob.findMany.mockResolvedValue([]);
+      mockJobDb.findStaleJobs.mockResolvedValue([]);
+      mockJobDb.findCompletedJobSampleIds.mockResolvedValue([]);
 
-      const createdJob1 = {
-        id: "job-1",
-        sampleId: "doc-001",
-        status: GroundTruthJobStatus.pending,
-      };
-      const createdJob2 = {
-        id: "job-2",
-        sampleId: "doc-003",
-        status: GroundTruthJobStatus.pending,
-      };
-      mockPrismaClient.$transaction.mockResolvedValue([
-        createdJob1,
-        createdJob2,
-      ]);
+      const createdJobs = [
+        {
+          id: "job-1",
+          sampleId: "doc-001",
+          status: GroundTruthJobStatus.pending,
+        },
+        {
+          id: "job-2",
+          sampleId: "doc-003",
+          status: GroundTruthJobStatus.pending,
+        },
+      ];
+      mockJobDb.createManyJobs.mockResolvedValue(createdJobs);
 
-      // Mock background processing (will try to process but we don't care about it in this test)
-      mockPrismaClient.datasetGroundTruthJob.findMany
-        .mockResolvedValueOnce([]) // first call for existing jobs check
-        .mockResolvedValue([]); // processJobs call
+      // Background processing mocks
+      mockJobDb.findVersionForProcessing.mockResolvedValue({
+        storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "test-group" },
+      });
+      mockJobDb.findPendingJobs.mockResolvedValue([]);
 
       const result = await service.startGeneration(
         datasetId,
@@ -306,10 +265,8 @@ describe("GroundTruthGenerationService", () => {
 
       expect(result.jobCount).toBe(2);
       expect(result.message).toContain("2 samples");
-      // $transaction should have been called with an array of 2 items
-      expect(mockPrismaClient.$transaction).toHaveBeenCalledTimes(1);
-      const transactionArg = mockPrismaClient.$transaction.mock.calls[0][0];
-      expect(transactionArg).toHaveLength(2);
+      expect(mockJobDb.createManyJobs).toHaveBeenCalledTimes(1);
+      expect(mockJobDb.createManyJobs.mock.calls[0][0]).toHaveLength(2);
     });
 
     it("should throw BadRequestException if all samples have ground truth", async () => {
@@ -328,12 +285,12 @@ describe("GroundTruthGenerationService", () => {
         ],
       };
 
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
-        id: versionId,
+      mockJobDb.findVersionForValidation.mockResolvedValue({
+        id: "version-1",
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
       });
-      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+      mockJobDb.findWorkflow.mockResolvedValue({
         id: workflowVersionId,
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
@@ -370,11 +327,9 @@ describe("GroundTruthGenerationService", () => {
       ];
 
       // syncJobStatuses - no processing jobs
-      mockPrismaClient.datasetGroundTruthJob.findMany
-        .mockResolvedValueOnce([]) // syncJobStatuses
-        .mockResolvedValueOnce(mockJobs); // getJobs
-
-      mockPrismaClient.datasetGroundTruthJob.count.mockResolvedValue(1);
+      mockJobDb.findProcessingJobsWithDocumentStatus.mockResolvedValue([]);
+      mockJobDb.findJobs.mockResolvedValue(mockJobs);
+      mockJobDb.countJobs.mockResolvedValue(1);
 
       const result = await service.getJobs("dataset-1", "v-1", 1, 50);
 
@@ -410,11 +365,9 @@ describe("GroundTruthGenerationService", () => {
       ];
 
       // syncJobStatuses
-      mockPrismaClient.datasetGroundTruthJob.findMany
-        .mockResolvedValueOnce([]) // sync
-        .mockResolvedValueOnce(mockJobsWithDocs); // review queue
-
-      mockPrismaClient.datasetGroundTruthJob.count.mockResolvedValue(1);
+      mockJobDb.findProcessingJobsWithDocumentStatus.mockResolvedValue([]);
+      mockJobDb.findJobsForReviewQueue.mockResolvedValue(mockJobsWithDocs);
+      mockJobDb.countJobs.mockResolvedValue(1);
 
       const result = await service.getReviewQueue("dataset-1", "v-1", {});
 
@@ -428,9 +381,9 @@ describe("GroundTruthGenerationService", () => {
   describe("getReviewStats", () => {
     it("should return correct stats", async () => {
       // syncJobStatuses
-      mockPrismaClient.datasetGroundTruthJob.findMany.mockResolvedValue([]);
+      mockJobDb.findProcessingJobsWithDocumentStatus.mockResolvedValue([]);
 
-      mockPrismaClient.datasetGroundTruthJob.count
+      mockJobDb.countJobs
         .mockResolvedValueOnce(10) // total
         .mockResolvedValueOnce(3) // awaiting_review
         .mockResolvedValueOnce(5) // completed
@@ -481,7 +434,7 @@ describe("GroundTruthGenerationService", () => {
         ],
       };
 
-      mockPrismaClient.datasetGroundTruthJob.findUnique.mockResolvedValue(job);
+      mockJobDb.findJobWithVersionAndDocument.mockResolvedValue(job);
       mockReviewDb.findReviewSession.mockResolvedValue(session);
       mockHitlDatasetService.buildGroundTruth.mockReturnValue({
         Name: "John",
@@ -506,7 +459,7 @@ describe("GroundTruthGenerationService", () => {
         ),
       );
 
-      mockPrismaClient.datasetGroundTruthJob.update.mockResolvedValue({
+      mockJobDb.updateJob.mockResolvedValue({
         ...job,
         status: GroundTruthJobStatus.completed,
       });
@@ -532,19 +485,14 @@ describe("GroundTruthGenerationService", () => {
       );
 
       // Should update job status to completed
-      expect(
-        mockPrismaClient.datasetGroundTruthJob.update,
-      ).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: GroundTruthJobStatus.completed,
-          groundTruthPath: "datasets/dataset-1/v-1/ground-truth/doc-001.json",
-        },
+      expect(mockJobDb.updateJob).toHaveBeenCalledWith("job-1", {
+        status: GroundTruthJobStatus.completed,
+        groundTruthPath: "datasets/dataset-1/v-1/ground-truth/doc-001.json",
       });
     });
 
     it("should throw NotFoundException if job not found", async () => {
-      mockPrismaClient.datasetGroundTruthJob.findUnique.mockResolvedValue(null);
+      mockJobDb.findJobWithVersionAndDocument.mockResolvedValue(null);
 
       await expect(
         service.completeJob("nonexistent", "session-1"),
@@ -559,22 +507,16 @@ describe("GroundTruthGenerationService", () => {
         documentId: "doc-id-1",
         sampleId: "doc-001",
       };
-      mockPrismaClient.datasetGroundTruthJob.findUnique.mockResolvedValue(
-        mockJob,
-      );
+      mockJobDb.findJobByDocumentId.mockResolvedValue(mockJob);
 
       const result = await service.getJobByDocumentId("doc-id-1");
 
       expect(result).toEqual(mockJob);
-      expect(
-        mockPrismaClient.datasetGroundTruthJob.findUnique,
-      ).toHaveBeenCalledWith({
-        where: { documentId: "doc-id-1" },
-      });
+      expect(mockJobDb.findJobByDocumentId).toHaveBeenCalledWith("doc-id-1");
     });
 
     it("should return null if no job found", async () => {
-      mockPrismaClient.datasetGroundTruthJob.findUnique.mockResolvedValue(null);
+      mockJobDb.findJobByDocumentId.mockResolvedValue(null);
 
       const result = await service.getJobByDocumentId("nonexistent");
 
@@ -584,20 +526,13 @@ describe("GroundTruthGenerationService", () => {
 
   describe("reopenJob", () => {
     it("should revert job status to awaiting_review and clear groundTruthPath", async () => {
-      mockPrismaClient.datasetGroundTruthJob.update.mockResolvedValue(
-        undefined,
-      );
+      mockJobDb.updateJob.mockResolvedValue(undefined);
 
       await service.reopenJob("job-1");
 
-      expect(
-        mockPrismaClient.datasetGroundTruthJob.update,
-      ).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: GroundTruthJobStatus.awaiting_review,
-          groundTruthPath: null,
-        },
+      expect(mockJobDb.updateJob).toHaveBeenCalledWith("job-1", {
+        status: GroundTruthJobStatus.awaiting_review,
+        groundTruthPath: null,
       });
     });
   });
