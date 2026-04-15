@@ -38,7 +38,8 @@ describe("TemplateModelController", () => {
     id: "labeling-doc-1",
     title: "Test Invoice",
     original_filename: "invoice.pdf",
-    file_path: "labeling-documents/labeling-doc-1/original.pdf",
+    file_path:
+      "clh7z2xk00000356u8e3h1234/training/labeling-documents/labeling-doc-1/original.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
