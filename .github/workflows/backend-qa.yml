@@ -26,8 +26,7 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts --no-package-lock
       - name: Build shared packages
-        run: npm run build
-        working-directory: packages/logging
+        run: npm run build:packages
         # Prisma-generated types needed
         # ENV is just so this will run
       - name: Generate Prisma files
