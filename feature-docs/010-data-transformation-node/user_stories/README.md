@@ -55,8 +55,8 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-001** (Define TransformNode TypeScript interface in all three apps) -- all other stories depend on this
 
 ### Phase 2 — Core Transformation Engine
-- [ ] **US-002** (Implement input format parsers: JSON/XML/CSV → intermediate JSON)
-- [ ] **US-003** (Implement binding expression resolver: `{{nodeName.field.path}}`)
+- [x] **US-002** (Implement input format parsers: JSON/XML/CSV → intermediate JSON)
+- [x] **US-003** (Implement binding expression resolver: `{{nodeName.field.path}}`)
 - [ ] **US-004** (Implement JSON output renderer)
 - [ ] **US-005** (Implement XML output renderer without envelope)
 - [ ] **US-006** (Implement CSV output renderer)

@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Simple binding resolves to upstream value
+- [x] **Scenario 1**: Simple binding resolves to upstream value
     - **Given** a binding expression `{{extractionNode.FirstName}}` and an upstream context containing `{ extractionNode: { FirstName: "Alice" } }`
     - **When** the resolver processes the binding
     - **Then** the binding is replaced with `"Alice"`
 
-- [ ] **Scenario 2**: Deeply nested binding resolves through arbitrary depth
+- [x] **Scenario 2**: Deeply nested binding resolves through arbitrary depth
     - **Given** a binding expression `{{extractionNode.payload.header.userId}}` and a matching nested value in upstream context
     - **When** the resolver processes the binding
     - **Then** the binding is replaced with the value at that nested path
 
-- [ ] **Scenario 3**: Literal string values pass through unchanged
+- [x] **Scenario 3**: Literal string values pass through unchanged
     - **Given** a mapping value that contains no `{{...}}` syntax (e.g., `"EA SD81 Submission"`)
     - **When** the resolver processes the value
     - **Then** the value is returned unchanged
 
-- [ ] **Scenario 4**: Unresolved binding throws structured error
+- [x] **Scenario 4**: Unresolved binding throws structured error
     - **Given** a binding expression `{{extractionNode.MissingField}}` where `MissingField` does not exist in upstream context
     - **When** the resolver processes the binding
     - **Then** it throws a structured error that identifies the full unresolved path (e.g., `"extractionNode.MissingField"`)
 
-- [ ] **Scenario 5**: Bindings can reference any prior node in the workflow
+- [x] **Scenario 5**: Bindings can reference any prior node in the workflow
     - **Given** a mapping with `{{nodeA.value}}` and `{{nodeB.value}}` where both `nodeA` and `nodeB` are prior nodes (not just the immediate predecessor)
     - **When** the resolver processes both bindings against a context containing outputs from `nodeA` and `nodeB`
     - **Then** both bindings are resolved correctly
