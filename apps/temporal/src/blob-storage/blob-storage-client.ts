@@ -9,6 +9,7 @@
  * (MinIO) or `AZURE_STORAGE_CONTAINER_NAME` (Azure).
  */
 
+import type { BlobFilePath, BlobPrefixPath } from "@ai-di/blob-storage-paths";
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -23,17 +24,17 @@ import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
 /** Minimal blob-storage interface used by Temporal activities. */
 export interface BlobStorageClient {
   /** Write `data` to `key`. */
-  write(key: string, data: Buffer): Promise<void>;
+  write(key: BlobFilePath, data: Buffer): Promise<void>;
   /** Read full content of `key`. */
-  read(key: string): Promise<Buffer>;
+  read(key: BlobFilePath): Promise<Buffer>;
   /** Check whether `key` exists. */
-  exists(key: string): Promise<boolean>;
+  exists(key: BlobFilePath): Promise<boolean>;
   /** Delete a single object. */
-  delete(key: string): Promise<void>;
+  delete(key: BlobFilePath): Promise<void>;
   /** List all object keys matching a prefix. */
-  list(prefix: string): Promise<string[]>;
+  list(prefix: BlobPrefixPath): Promise<string[]>;
   /** Delete all objects matching a prefix. */
-  deleteByPrefix(prefix: string): Promise<void>;
+  deleteByPrefix(prefix: BlobPrefixPath): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,20 +64,20 @@ function buildMinioClient(): BlobStorageClient {
   const { s3, bucket } = createMinioClient();
 
   return {
-    async write(key: string, data: Buffer): Promise<void> {
+    async write(key: BlobFilePath, data: Buffer): Promise<void> {
       await s3.send(
         new PutObjectCommand({ Bucket: bucket, Key: key, Body: data }),
       );
     },
 
-    async read(key: string): Promise<Buffer> {
+    async read(key: BlobFilePath): Promise<Buffer> {
       const res = await s3.send(
         new GetObjectCommand({ Bucket: bucket, Key: key }),
       );
       return Buffer.from(await res.Body!.transformToByteArray());
     },
 
-    async exists(key: string): Promise<boolean> {
+    async exists(key: BlobFilePath): Promise<boolean> {
       try {
         await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
         return true;
@@ -85,11 +86,11 @@ function buildMinioClient(): BlobStorageClient {
       }
     },
 
-    async delete(key: string): Promise<void> {
+    async delete(key: BlobFilePath): Promise<void> {
       await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
 
-    async list(prefix: string): Promise<string[]> {
+    async list(prefix: BlobPrefixPath): Promise<string[]> {
       const keys: string[] = [];
       let continuationToken: string | undefined;
       do {
@@ -110,7 +111,7 @@ function buildMinioClient(): BlobStorageClient {
       return keys;
     },
 
-    async deleteByPrefix(prefix: string): Promise<void> {
+    async deleteByPrefix(prefix: BlobPrefixPath): Promise<void> {
       const keys = await this.list(prefix);
       if (keys.length === 0) return;
       const batches: string[][] = [];
@@ -154,25 +155,25 @@ function buildAzureClient(): BlobStorageClient {
   const container = createAzureContainerClient();
 
   return {
-    async write(key: string, data: Buffer): Promise<void> {
+    async write(key: BlobFilePath, data: Buffer): Promise<void> {
       const blockBlob = container.getBlockBlobClient(key);
       await blockBlob.upload(data, data.length);
     },
 
-    async read(key: string): Promise<Buffer> {
+    async read(key: BlobFilePath): Promise<Buffer> {
       const blobClient = container.getBlobClient(key);
       return blobClient.downloadToBuffer();
     },
 
-    async exists(key: string): Promise<boolean> {
+    async exists(key: BlobFilePath): Promise<boolean> {
       return container.getBlobClient(key).exists();
     },
 
-    async delete(key: string): Promise<void> {
+    async delete(key: BlobFilePath): Promise<void> {
       await container.getBlobClient(key).deleteIfExists();
     },
 
-    async list(prefix: string): Promise<string[]> {
+    async list(prefix: BlobPrefixPath): Promise<string[]> {
       const keys: string[] = [];
       for await (const blob of container.listBlobsFlat({ prefix })) {
         keys.push(blob.name);
@@ -180,7 +181,7 @@ function buildAzureClient(): BlobStorageClient {
       return keys;
     },
 
-    async deleteByPrefix(prefix: string): Promise<void> {
+    async deleteByPrefix(prefix: BlobPrefixPath): Promise<void> {
       const keys = await this.list(prefix);
       await Promise.all(
         keys.map((k) => container.getBlobClient(k).deleteIfExists()),

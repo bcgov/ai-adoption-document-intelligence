@@ -389,6 +389,7 @@ describe("DatasetController", () => {
         "version-123",
         mockFiles,
         "user-123",
+        "test-group",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -564,6 +565,7 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         "sample-1",
+        "test-group",
       );
     });
   });
