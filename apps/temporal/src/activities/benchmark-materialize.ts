@@ -1,3 +1,8 @@
+import {
+  buildBlobPrefixPath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -46,13 +51,24 @@ export async function materializeDataset(
     }
 
     const { dataset, storagePrefix } = datasetVersion;
-    const { id: datasetId } = dataset;
+    const { id: datasetId, group_id: groupId } = dataset;
 
     if (!storagePrefix) {
       throw new Error(
         `Dataset version ${datasetVersionId} has no storage prefix (no files uploaded)`,
       );
     }
+
+    // storagePrefix in the DB is the relative portion
+    // (e.g. "datasets/{datasetId}/{versionId}"). Backend writers prepend
+    // "{groupId}/benchmark/" via buildBlobFilePath, so the real blob keys
+    // live at "{groupId}/benchmark/{storagePrefix}/...". Rebuild the full
+    // canonical prefix here before listing.
+    const fullStoragePrefix = buildBlobPrefixPath(
+      groupId,
+      OperationCategory.BENCHMARK,
+      [storagePrefix],
+    );
 
     // Determine cache directory
     const cacheBaseDir =
@@ -99,11 +115,11 @@ export async function materializeDataset(
 
     log.info("Download start", {
       event: "download_start",
-      storagePrefix,
+      storagePrefix: fullStoragePrefix,
     });
 
     try {
-      const keys = await blobStorage.list(storagePrefix);
+      const keys = await blobStorage.list(fullStoragePrefix);
 
       log.info("Files listed", {
         event: "files_listed",
@@ -112,10 +128,10 @@ export async function materializeDataset(
 
       // Download each file to the local cache directory
       for (const key of keys) {
-        // Compute relative path by removing the storage prefix
-        const relativePath = key.startsWith(storagePrefix + "/")
-          ? key.slice(storagePrefix.length + 1)
-          : key.slice(storagePrefix.length);
+        // Compute relative path by removing the full storage prefix
+        const relativePath = key.startsWith(fullStoragePrefix + "/")
+          ? key.slice(fullStoragePrefix.length + 1)
+          : key.slice(fullStoragePrefix.length);
 
         if (!relativePath) continue;
 
@@ -124,8 +140,16 @@ export async function materializeDataset(
 
         await fs.mkdir(localDir, { recursive: true });
 
-        const data = await blobStorage.read(key);
-        await fs.writeFile(localPath, data);
+        const data = await blobStorage.read(validateBlobFilePath(key));
+        // wx flag is exclusive creation. Will fail if already exists.
+        // 0x600 permissions restrict to read/write only for the owner
+        const fileHandle = await fs.open(localPath, "wx", 0o600);
+        try {
+          await fileHandle.writeFile(new Uint8Array(data));
+        } finally {
+          // Close to prevent file handler memory leaks.
+          await fileHandle.close();
+        }
       }
 
       log.info("Download complete", {

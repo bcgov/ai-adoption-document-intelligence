@@ -1,7 +1,7 @@
 {
-  "name": "@ai-di/shared-logging",
+  "name": "@ai-di/blob-storage-paths",
   "version": "1.0.0",
-  "description": "Shared structured NDJSON logging for backend-services and temporal-worker",
+  "description": "Shared blob storage path builder utilities for backend-services and temporal-worker",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

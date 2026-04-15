@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "../azure/azure.service";
@@ -31,6 +32,7 @@ const mockBlobService = {
   uploadFile: jest.fn(),
   generateSasUrl: jest.fn().mockReturnValue("https://mockbloburl"),
   deleteFilesWithPrefix: jest.fn(),
+  fileExists: jest.fn().mockReturnValue(false),
 };
 const mockBlobStorage = {
   write: jest.fn(),
@@ -62,6 +64,7 @@ describe("ClassifierService", () => {
         { provide: AzureService, useValue: azureService },
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
+        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
@@ -137,7 +140,7 @@ describe("ClassifierService", () => {
       azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
       (service as any).client = { path: jest.fn() };
       await expect(
-        service.createLayoutJson(["file.txt"]),
+        service.createLayoutJson(["file.txt"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(mockGetBlobSasUrl).not.toHaveBeenCalled();
     });
@@ -171,14 +174,18 @@ describe("ClassifierService", () => {
       };
 
       await expect(
-        service.createLayoutJson(["file.jpg"]),
+        service.createLayoutJson(["file.jpg"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(mockGetBlobSasUrl).toHaveBeenCalledWith(
-        "classification",
+        "document-blobs",
         "file.jpg",
       );
       expect(pollCallback).toHaveBeenCalled();
-      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+      expect(mockBlobService.uploadFile).toHaveBeenCalledWith(
+        "document-blobs",
+        "file.jpg.ocr.json",
+        expect.any(Buffer),
+      );
     });
 
     it("should handle 404 and upload fallback layout JSON", async () => {
@@ -221,10 +228,14 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"]),
+        service.createLayoutJson(["file.jpg"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(global.fetch).toHaveBeenCalled();
-      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+      expect(mockBlobService.uploadFile).toHaveBeenCalledWith(
+        "document-blobs",
+        "file.jpg.ocr.json",
+        expect.any(Buffer),
+      );
     });
 
     it("should log error if fallback download fails", async () => {
@@ -251,7 +262,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"]),
+        service.createLayoutJson(["file.jpg"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith(
         "Failed to download blob for fallback: file.jpg",
@@ -294,7 +305,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"]),
+        service.createLayoutJson(["file.jpg"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith("Fallback analyze failed", {
         filePath: "file.jpg",
@@ -326,7 +337,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"]),
+        service.createLayoutJson(["file.jpg"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith("Failed to analyze blob", {
         filePath: "file.jpg",
@@ -359,7 +370,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"]),
+        service.createLayoutJson(["file.jpg"], "group", "name"),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith(
         "No operation-location header returned for 202 response",
@@ -373,13 +384,13 @@ describe("ClassifierService", () => {
         undefined,
       );
       (blobStorage.list as jest.Mock).mockResolvedValue([
-        "classifier/gid/cid/label/file1.pdf",
+        "cuid/classification/cid/label/file1.pdf",
       ]);
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
       (azureStorage.uploadFile as jest.Mock).mockResolvedValue(undefined);
-      const result = await service.uploadDocumentsForTraining("gid", "cid");
+      const result = await service.uploadDocumentsForTraining("cuid", "cid");
       expect(result[0].originalPath).toContain("file1.pdf");
-      expect(result[0].blobPath).toContain("gid");
+      expect(result[0].blobPath).toContain("cuid");
       expect(mockBlobService.uploadFile).toHaveBeenCalled();
     });
   });
@@ -421,7 +432,11 @@ describe("ClassifierService", () => {
         }),
       };
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
-      const result = await service.requestClassification("file", "cid", "gid");
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
       expect(result.status).toBe("202");
       expect(result.content).toBe("loc");
     });
@@ -435,7 +450,11 @@ describe("ClassifierService", () => {
         }),
       };
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
-      const result = await service.requestClassification("file", "cid", "gid");
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
       expect(result.status).toBe("400");
       expect(result.error).toBe("fail");
     });

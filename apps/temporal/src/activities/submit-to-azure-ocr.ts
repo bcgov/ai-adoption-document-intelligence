@@ -1,3 +1,4 @@
+import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
@@ -30,7 +31,7 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
 
   const client = getBlobStorageClient();
   try {
-    return await client.read(blobKey);
+    return await client.read(validateBlobFilePath(blobKey));
   } catch (_error) {
     throw new Error(`Blob not found: "${blobKey}"`);
   }

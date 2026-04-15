@@ -333,7 +333,7 @@ describe("DocumentController", () => {
     it("should send PDF file if document found", async () => {
       documentService.findDocument.mockResolvedValue({
         id: "1",
-        file_path: "file.pdf",
+        file_path: "cuid/ocr/file.pdf",
         original_filename: "file.pdf",
         file_type: "pdf",
         group_id: mockGroupId,
@@ -369,7 +369,7 @@ describe("DocumentController", () => {
     it("should send image file with correct MIME type", async () => {
       documentService.findDocument.mockResolvedValue({
         id: "1",
-        file_path: "file.jpg",
+        file_path: "cuid/ocr/file.jpg",
         original_filename: "file.jpg",
         file_type: "image",
         group_id: mockGroupId,
@@ -387,7 +387,7 @@ describe("DocumentController", () => {
     it("should send file with default MIME type for unknown file type", async () => {
       documentService.findDocument.mockResolvedValue({
         id: "1",
-        file_path: "file.unknown",
+        file_path: "cuid/ocr/file.unknown",
         original_filename: "file.unknown",
         file_type: "unknown",
         group_id: mockGroupId,
@@ -408,7 +408,7 @@ describe("DocumentController", () => {
     it("should use document ID as filename if original_filename is missing", async () => {
       documentService.findDocument.mockResolvedValue({
         id: "1",
-        file_path: "file.pdf",
+        file_path: "cuid/ocr/file.pdf",
         original_filename: null,
         file_type: "pdf",
         group_id: mockGroupId,

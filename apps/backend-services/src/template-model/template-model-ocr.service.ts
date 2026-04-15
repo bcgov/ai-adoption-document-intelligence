@@ -5,6 +5,11 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
 import {
   PdfNormalizationError,
@@ -62,11 +67,21 @@ export class TemplateModelOcrService {
 
     const documentId = uuidv4();
     const extension = extensionForOriginalBlob(originalFilename, dto.file_type);
-    const blobKey = `labeling-documents/${documentId}/original.${extension}`;
+    const blobKey = buildBlobFilePath(
+      dto.group_id,
+      OperationCategory.TRAINING,
+      ["labeling-documents", documentId],
+      `original.${extension}`,
+    );
 
     await this.blobStorage.write(blobKey, fileBuffer);
 
-    const normalizedKey = `labeling-documents/${documentId}/normalized.pdf`;
+    const normalizedKey = buildBlobFilePath(
+      dto.group_id,
+      OperationCategory.TRAINING,
+      ["labeling-documents", documentId],
+      "normalized.pdf",
+    );
     try {
       const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
         fileBuffer,
@@ -169,7 +184,9 @@ export class TemplateModelOcrService {
   }
 
   private async requestOcr(blobKey: string): Promise<string> {
-    const fileBuffer = await this.blobStorage.read(blobKey);
+    const fileBuffer = await this.blobStorage.read(
+      validateBlobFilePath(blobKey),
+    );
 
     const url = `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
 

@@ -16,6 +16,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -196,7 +197,9 @@ export class TrainingService {
     for (const doc of labeledDocuments) {
       const filename = doc.labeling_document.original_filename;
 
-      const blobKey = doc.labeling_document.normalized_file_path;
+      const blobKey = validateBlobFilePath(
+        doc.labeling_document.normalized_file_path,
+      );
       if (!blobKey) {
         this.logger.warn(
           `Skipping labeling document ${doc.labeling_document.id}: no normalized PDF`,

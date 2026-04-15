@@ -24,8 +24,9 @@ describe("TemplateModelOcrService", () => {
     id: "doc-1",
     title: "Test Document",
     original_filename: "test.pdf",
-    file_path: "labeling-documents/doc-1/original.pdf",
-    normalized_file_path: "labeling-documents/doc-1/normalized.pdf",
+    file_path: "testgroup1/training/labeling-documents/doc-1/original.pdf",
+    normalized_file_path:
+      "testgroup1/training/labeling-documents/doc-1/normalized.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -128,7 +129,7 @@ describe("TemplateModelOcrService", () => {
       const result = await service.createLabelingDocument(dto);
 
       expect(mockBlobStorage.write).toHaveBeenCalledWith(
-        expect.stringMatching(/^labeling-documents\/[^/]+\/original\.pdf$/),
+        expect.stringMatching(/labeling-documents\/[^/]+\/original\.pdf$/),
         expect.any(Buffer),
       );
       expect(
@@ -141,10 +142,10 @@ describe("TemplateModelOcrService", () => {
           status: DocumentStatus.ongoing_ocr,
           model_id: "prebuilt-layout",
           file_path: expect.stringMatching(
-            /^labeling-documents\/[^/]+\/original\.pdf$/,
+            /labeling-documents\/[^/]+\/original\.pdf$/,
           ),
           normalized_file_path: expect.stringMatching(
-            /^labeling-documents\/[^/]+\/normalized\.pdf$/,
+            /labeling-documents\/[^/]+\/normalized\.pdf$/,
           ),
         }),
       );
