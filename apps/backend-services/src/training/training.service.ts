@@ -197,15 +197,15 @@ export class TrainingService {
     for (const doc of labeledDocuments) {
       const filename = doc.labeling_document.original_filename;
 
-      const blobKey = validateBlobFilePath(
-        doc.labeling_document.normalized_file_path,
-      );
-      if (!blobKey) {
+      if (!doc.labeling_document.normalized_file_path) {
         this.logger.warn(
           `Skipping labeling document ${doc.labeling_document.id}: no normalized PDF`,
         );
         continue;
       }
+      const blobKey = validateBlobFilePath(
+        doc.labeling_document.normalized_file_path,
+      );
       const fileExists = await this.blobStorage.exists(blobKey);
       if (fileExists) {
         files.push({

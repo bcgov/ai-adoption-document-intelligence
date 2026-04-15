@@ -786,6 +786,11 @@ export class DatasetService {
         const groupId = (
           await this.datasetDbService.findDataset(version.datasetId)
         )?.group_id;
+        if (!groupId) {
+          throw new NotFoundException(
+            `Dataset not found for version ${versionId}`,
+          );
+        }
         const prefix = buildBlobPrefixPath(
           groupId,
           OperationCategory.BENCHMARK,
@@ -846,6 +851,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const manifest = await this.loadAndValidateManifestFromStorage(
         groupId,
         version.storagePrefix,
@@ -915,6 +925,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const manifest = await this.loadAndValidateManifestFromStorage(
         groupId,
         version.storagePrefix,
@@ -940,6 +955,11 @@ export class DatasetService {
         const groupId = (
           await this.datasetDbService.findDataset(version.datasetId)
         )?.group_id;
+        if (!groupId) {
+          throw new NotFoundException(
+            `Dataset not found for version ${versionId}`,
+          );
+        }
         const key = buildBlobFilePath(
           groupId,
           OperationCategory.BENCHMARK,
@@ -1021,6 +1041,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const key = buildBlobFilePath(
         groupId,
         OperationCategory.BENCHMARK,
@@ -1427,6 +1452,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const manifest = await this.loadAndValidateManifestFromStorage(
         groupId,
         version.storagePrefix,

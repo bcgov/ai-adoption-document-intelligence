@@ -407,11 +407,7 @@ export class AzureController {
 
         // Create the layout json for them
         const filePaths = uploadResults.map((r) => r.blobPath);
-        await this.classifierService.createLayoutJson(
-          filePaths,
-          group_id,
-          name,
-        );
+        await this.classifierService.createLayoutJson(filePaths);
 
         // Start the training process
         await this.classifierService.requestClassifierTraining(

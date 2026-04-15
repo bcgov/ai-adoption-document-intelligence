@@ -140,7 +140,7 @@ describe("ClassifierService", () => {
       azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
       (service as any).client = { path: jest.fn() };
       await expect(
-        service.createLayoutJson(["file.txt"], "group", "name"),
+        service.createLayoutJson(["file.txt"]),
       ).resolves.toBeUndefined();
       expect(mockGetBlobSasUrl).not.toHaveBeenCalled();
     });
@@ -174,7 +174,7 @@ describe("ClassifierService", () => {
       };
 
       await expect(
-        service.createLayoutJson(["file.jpg"], "group", "name"),
+        service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(mockGetBlobSasUrl).toHaveBeenCalledWith(
         "document-blobs",
@@ -228,7 +228,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"], "group", "name"),
+        service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(global.fetch).toHaveBeenCalled();
       expect(mockBlobService.uploadFile).toHaveBeenCalledWith(
@@ -262,7 +262,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"], "group", "name"),
+        service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith(
         "Failed to download blob for fallback: file.jpg",
@@ -305,7 +305,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"], "group", "name"),
+        service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith("Fallback analyze failed", {
         filePath: "file.jpg",
@@ -337,7 +337,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"], "group", "name"),
+        service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith("Failed to analyze blob", {
         filePath: "file.jpg",
@@ -370,7 +370,7 @@ describe("ClassifierService", () => {
       });
 
       await expect(
-        service.createLayoutJson(["file.jpg"], "group", "name"),
+        service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(errorLogger).toHaveBeenCalledWith(
         "No operation-location header returned for 202 response",
