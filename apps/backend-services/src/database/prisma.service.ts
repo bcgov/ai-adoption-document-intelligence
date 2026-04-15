@@ -7,7 +7,9 @@ import { getPrismaPgOptions } from "@/utils/database-url";
 
 @Injectable()
 export class PrismaService implements OnModuleInit {
-  public readonly prisma: PrismaClient;
+  public readonly prisma: PrismaClient<{
+    log: Array<{ emit: "event"; level: "warn" | "error" | "query" }>;
+  }>;
   private readonly shouldLogQueries: boolean;
 
   constructor(
@@ -41,10 +43,10 @@ export class PrismaService implements OnModuleInit {
   }
 
   onModuleInit(): void {
-    this.prisma.$on("warn", (e: { message: string; target?: string }) => {
+    this.prisma.$on("warn", (e) => {
       this.logger.warn(e.message, { category: "external", target: e.target });
     });
-    this.prisma.$on("error", (e: { message: string; target?: string }) => {
+    this.prisma.$on("error", (e) => {
       this.logger.error(e.message, { category: "external", target: e.target });
     });
     const url = this.configService.get<string>("DATABASE_URL");

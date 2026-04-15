@@ -33,8 +33,9 @@ const mockPrismaClient = {
   benchmarkRun: {
     findFirst: jest.fn(),
   },
-  $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-    fn(mockPrismaClient),
+  $transaction: jest.fn(
+    async (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+      fn(mockPrismaClient),
   ),
 };
 

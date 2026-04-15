@@ -73,7 +73,7 @@ describe("BenchmarkProjectController", () => {
       const expectedResponse: ProjectDetailsDto = {
         id: "project-123",
         name: createDto.name,
-        description: createDto.description,
+        description: createDto.description ?? null,
         createdBy: "user-1",
         groupId: "test-group",
         definitions: [],

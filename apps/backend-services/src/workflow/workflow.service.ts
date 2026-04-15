@@ -291,6 +291,12 @@ export class WorkflowService {
       return loaded;
     });
 
+    if (!full.headVersion) {
+      throw new NotFoundException(
+        `Workflow not found after create: ${full.id}`,
+      );
+    }
+
     this.logger.log(
       `Workflow lineage created: ${full.id} v${full.headVersion.version_number} by actor ${actorId}`,
     );
@@ -527,6 +533,12 @@ export class WorkflowService {
       }
       return loaded;
     });
+
+    if (!full.headVersion) {
+      throw new NotFoundException(
+        `Candidate workflow not found after create: ${full.id}`,
+      );
+    }
 
     this.logger.log(
       `Candidate workflow lineage created: ${full.id} from source version ${sourceWorkflowVersionId}`,

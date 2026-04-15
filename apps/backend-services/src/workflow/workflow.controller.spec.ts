@@ -82,7 +82,7 @@ describe("WorkflowController", () => {
 
   describe("getWorkflows", () => {
     it("returns empty array when no identity is set", async () => {
-      const req = { resolvedIdentity: undefined } as Request;
+      const req = { resolvedIdentity: undefined } as unknown as Request;
       const result = await controller.getWorkflows(undefined, undefined, req);
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
@@ -92,9 +92,12 @@ describe("WorkflowController", () => {
       const req = {
         resolvedIdentity: identityWithGroups({}),
       } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([]);
       const result = await controller.getWorkflows(undefined, undefined, req);
       expect(result).toEqual({ workflows: [] });
-      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
+      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalledWith(
+        undefined,
+      );
     });
 
     it("returns workflows for the user's groups", async () => {

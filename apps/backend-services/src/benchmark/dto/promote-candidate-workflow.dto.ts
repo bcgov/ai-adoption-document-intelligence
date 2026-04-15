@@ -8,5 +8,5 @@ export class PromoteCandidateWorkflowDto {
   })
   @IsString()
   @IsNotEmpty()
-  candidateWorkflowVersionId: string;
+  candidateWorkflowVersionId!: string;
 }

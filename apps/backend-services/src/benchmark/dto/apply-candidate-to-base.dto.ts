@@ -8,7 +8,7 @@ export class ApplyCandidateToBaseDto {
   })
   @IsString()
   @IsNotEmpty()
-  candidateWorkflowVersionId: string;
+  candidateWorkflowVersionId!: string;
 
   @ApiProperty({
     description:
@@ -23,16 +23,16 @@ export class ApplyCandidateToBaseDto {
 
 export class ApplyCandidateToBaseResponseDto {
   @ApiProperty({ description: "New workflow version ID on the base lineage" })
-  newBaseWorkflowVersionId: string;
+  newBaseWorkflowVersionId!: string;
 
   @ApiProperty({ description: "Base workflow lineage ID" })
-  baseLineageId: string;
+  baseLineageId!: string;
 
   @ApiProperty({ description: "New version number on the base lineage" })
-  newVersionNumber: number;
+  newVersionNumber!: number;
 
   @ApiProperty({
     description: "Whether candidate artifacts were cleaned up",
   })
-  cleanedUp: boolean;
+  cleanedUp!: boolean;
 }

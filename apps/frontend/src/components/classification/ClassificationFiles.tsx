@@ -8,7 +8,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierModel } from "@/shared/types/classifier";
 import ClassificationFileCards from "./ClassificationFileCards";
@@ -34,16 +34,16 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
   const docsQuery = getClassifierDocuments(groupId, name);
 
   // Transform API result into label/fileCount objects
-  const files = (() => {
+  const files = useMemo(() => {
     const data = docsQuery.data || [];
     const labelCounts: Record<string, number> = {};
-    data.forEach((item) => {
+    data.forEach((item: string) => {
       // If item ends with '/', it's a directory label
       if (item.endsWith("/")) {
         labelCounts[item.replace(/\/$/, "")] = 0;
       } else {
         // Extract directory name
-        const match = item.match(/^([^/]+)\//);
+        const match = item.match(/^\/([^/]+)\//);
         if (match) {
           const label = match[1];
           labelCounts[label] = (labelCounts[label] || 0) + 1;
@@ -54,7 +54,7 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
       label,
       fileCount,
     }));
-  })();
+  }, [docsQuery.data]);
 
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;

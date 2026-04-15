@@ -12,7 +12,10 @@ jest.mock("fs/promises", () => ({
   mkdir: jest.fn(),
   mkdtemp: jest.fn(),
   rm: jest.fn(),
-  writeFile: jest.fn().mockResolvedValue(undefined),
+  open: jest.fn().mockResolvedValue({
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    close: jest.fn().mockResolvedValue(undefined),
+  }),
   readFile: jest.fn().mockResolvedValue(Buffer.from("")),
 }));
 
@@ -58,7 +61,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-1/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-1",
       strategy: "per-page",
     };
@@ -68,7 +72,7 @@ describe("splitDocument activity", () => {
     expect(result.segments[0].pageRange).toEqual({ start: 1, end: 1 });
     expect(result.segments[2].pageRange).toEqual({ start: 3, end: 3 });
     expect(result.segments[0].blobKey).toContain(
-      "documents/doc-1/segments/segment-001-pages-1-1.pdf",
+      "atestgroup/ocr/doc-1/segments/segment-001-pages-1-1.pdf",
     );
   });
 
@@ -82,7 +86,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-2/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-2",
       strategy: "fixed-range",
       fixedRangeSize: 5,
@@ -121,7 +126,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-3/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-3",
       strategy: "boundary-detection",
     };
@@ -142,7 +148,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-4/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-4",
       strategy: "per-page",
     };
@@ -163,7 +170,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-5/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-5",
       strategy: "custom-ranges",
       customRanges: [
@@ -182,7 +190,7 @@ describe("splitDocument activity", () => {
     expect(result.segments[2].pageRange).toEqual({ start: 5, end: 5 });
     expect(result.segments[2].pageCount).toBe(1);
     expect(result.segments[0].blobKey).toContain(
-      "documents/doc-5/segments/segment-001-pages-1-3.pdf",
+      "atestgroup/ocr/doc-5/segments/segment-001-pages-1-3.pdf",
     );
   });
 
@@ -196,7 +204,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-6/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-6",
       strategy: "custom-ranges",
       customRanges: [
@@ -220,7 +229,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-7/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-7",
       strategy: "custom-ranges",
       customRanges: [
@@ -244,7 +254,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-8/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-8",
       strategy: "custom-ranges",
       customRanges: [{ start: 5, end: 3 }], // Invalid: start > end
@@ -265,7 +276,8 @@ describe("splitDocument activity", () => {
     });
 
     const input: SplitDocumentInput = {
-      blobKey: "documents/doc-9/original.pdf",
+      blobKey: "atestgroup/ocr/original.pdf",
+      groupId: "atestgroup",
       documentId: "doc-9",
       strategy: "custom-ranges",
       // customRanges not provided

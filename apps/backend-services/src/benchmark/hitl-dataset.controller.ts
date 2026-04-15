@@ -22,6 +22,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -45,6 +46,7 @@ export class HitlDatasetController {
   constructor(
     private readonly hitlDatasetService: HitlDatasetService,
     private readonly datasetService: DatasetService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("from-hitl/eligible-documents")
@@ -69,7 +71,7 @@ export class HitlDatasetController {
     @Query() filters: EligibleDocumentsFilterDto,
     @Req() req: Request,
   ) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (filters.group_id) {
       identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
@@ -77,11 +79,29 @@ export class HitlDatasetController {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
-    if (groupIds.length === 0) {
+    if (!groupIds || groupIds.length === 0) {
       return { documents: [], total: 0, page: 1, limit: 20 };
     }
 
-    return this.hitlDatasetService.listEligibleDocuments(filters, groupIds);
+    const result = await this.hitlDatasetService.listEligibleDocuments(
+      filters,
+      groupIds,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "hitl_eligible",
+      resource_id:
+        filters.group_id ?? (groupIds.length === 1 ? groupIds[0] : "multi"),
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: filters.group_id,
+      payload: {
+        action: "metadata",
+        document_ids: result.documents.map((d) => d.id),
+        count: result.documents.length,
+        group_ids: groupIds,
+      },
+    });
+    return result;
   }
 
   @Post("from-hitl")
@@ -143,6 +163,7 @@ export class HitlDatasetController {
       datasetId,
       dto,
       req.resolvedIdentity.actorId,
+      dataset.groupId,
     );
   }
 }

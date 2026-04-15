@@ -12,7 +12,6 @@ import {
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
-import { computeConfigHash } from "@/workflow/config-hash";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
@@ -52,8 +51,9 @@ const mockPrismaClient = {
     findFirst: jest.fn().mockResolvedValue(null),
     deleteMany: jest.fn(),
   },
-  $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-    fn(mockPrismaClient),
+  $transaction: jest.fn(
+    async (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+      fn(mockPrismaClient),
   ),
 };
 

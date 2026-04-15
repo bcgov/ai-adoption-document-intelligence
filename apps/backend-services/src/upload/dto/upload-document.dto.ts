@@ -17,17 +17,17 @@ export class UploadDocumentDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  title: string;
+  title!: string;
 
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  file: string; // base64-encoded file
+  file!: string; // base64-encoded file
 
   @IsEnum(FileType)
   @IsNotEmpty()
   @ApiProperty({ enum: FileType })
-  file_type: FileType;
+  file_type!: FileType;
 
   @IsString()
   @IsOptional()
@@ -42,12 +42,12 @@ export class UploadDocumentDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  model_id: string;
+  model_id!: string;
 
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  group_id: string;
+  group_id!: string;
 
   @IsString()
   @IsOptional()

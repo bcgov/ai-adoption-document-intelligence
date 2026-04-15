@@ -12,26 +12,26 @@ import { SplitType } from "./create-split.dto";
  */
 export class SplitResponseDto {
   @ApiProperty({ description: "Split ID (UUID)" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Parent dataset version ID (UUID)" })
-  datasetVersionId: string;
+  datasetVersionId!: string;
 
   @ApiProperty({ description: "Split name", example: "train-v1" })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: "Split type",
     enum: SplitType,
     example: SplitType.train,
   })
-  type: string;
+  type!: string;
 
   @ApiProperty({
     description: "Array of sample IDs included in this split",
     type: [String],
   })
-  sampleIds: string[];
+  sampleIds!: string[];
 
   @ApiPropertyOptional({
     description: "Optional stratification rules",
@@ -40,10 +40,10 @@ export class SplitResponseDto {
   stratificationRules?: Record<string, unknown>;
 
   @ApiProperty({ description: "Whether the split is frozen (immutable)" })
-  frozen: boolean;
+  frozen!: boolean;
 
   @ApiProperty({ description: "Timestamp when the split was created" })
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 /**
@@ -51,7 +51,7 @@ export class SplitResponseDto {
  */
 export class SplitDetailResponseDto extends SplitResponseDto {
   @ApiProperty({ description: "Number of samples in the split" })
-  sampleCount: number;
+  sampleCount!: number;
 }
 
 /**
@@ -59,26 +59,26 @@ export class SplitDetailResponseDto extends SplitResponseDto {
  */
 export class SplitListDetailDto {
   @ApiProperty({ description: "Split ID (UUID)" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Parent dataset version ID (UUID)" })
-  datasetVersionId: string;
+  datasetVersionId!: string;
 
   @ApiProperty({ description: "Split name", example: "train-v1" })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: "Split type",
     enum: SplitType,
     example: SplitType.train,
   })
-  type: string;
+  type!: string;
 
   @ApiProperty({ description: "Number of samples in the split" })
-  sampleCount: number;
+  sampleCount!: number;
 
   @ApiProperty({ description: "Whether the split is frozen (immutable)" })
-  frozen: boolean;
+  frozen!: boolean;
 
   @ApiPropertyOptional({
     description: "Optional stratification rules",
@@ -87,7 +87,7 @@ export class SplitListDetailDto {
   stratificationRules?: Record<string, unknown>;
 
   @ApiProperty({ description: "Timestamp when the split was created" })
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 /**
@@ -98,7 +98,7 @@ export class SplitListResponseDto {
     description: "List of splits for the dataset version",
     type: [SplitListDetailDto],
   })
-  splits: SplitListDetailDto[];
+  splits!: SplitListDetailDto[];
 }
 
 /**
@@ -106,17 +106,17 @@ export class SplitListResponseDto {
  */
 export class FreezeSplitResponseDto {
   @ApiProperty({ description: "Split ID (UUID)" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Parent dataset version ID (UUID)" })
-  datasetVersionId: string;
+  datasetVersionId!: string;
 
   @ApiProperty({ description: "Split name" })
-  name: string;
+  name!: string;
 
   @ApiProperty({ description: "Split type", enum: SplitType })
-  type: string;
+  type!: string;
 
   @ApiProperty({ description: "Whether the split is frozen (immutable)" })
-  frozen: boolean;
+  frozen!: boolean;
 }

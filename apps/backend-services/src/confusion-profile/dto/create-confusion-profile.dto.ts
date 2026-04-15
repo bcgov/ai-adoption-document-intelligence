@@ -9,7 +9,7 @@ export class CreateConfusionProfileDto {
   @ApiProperty({ description: "Profile name" })
   @IsNotEmpty()
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "Profile description" })
   @IsOptional()
@@ -23,5 +23,5 @@ export class CreateConfusionProfileDto {
   })
   @IsNotEmpty()
   @IsObject()
-  matrix: Record<string, Record<string, number>>;
+  matrix!: Record<string, Record<string, number>>;
 }

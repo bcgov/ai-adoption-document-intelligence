@@ -14,8 +14,6 @@ import type {
   TemplateModelData,
 } from "./template-model-db.types";
 
-type JsonValue = Prisma.JsonValue;
-
 @Injectable()
 export class TemplateModelDbService {
   constructor(
@@ -483,7 +481,10 @@ export class TemplateModelDbService {
             label_name: label.label_name,
             value: label.value,
             page_number: label.page_number,
-            bounding_box: label.bounding_box as JsonValue,
+            bounding_box:
+              label.bounding_box == null
+                ? Prisma.JsonNull
+                : (label.bounding_box as Prisma.InputJsonValue),
           },
         });
       }
@@ -503,7 +504,10 @@ export class TemplateModelDbService {
             label_name: label.label_name,
             value: label.value,
             page_number: label.page_number,
-            bounding_box: label.bounding_box as JsonValue,
+            bounding_box:
+              label.bounding_box == null
+                ? Prisma.JsonNull
+                : (label.bounding_box as Prisma.InputJsonValue),
           },
         }),
       ),

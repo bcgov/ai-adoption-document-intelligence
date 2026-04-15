@@ -11,19 +11,19 @@ export class BaselinePromotionHistoryDto {
     description: "Timestamp when baseline was promoted",
     type: Date,
   })
-  promotedAt: Date;
+  promotedAt!: Date;
 
   /**
    * Run ID that was promoted to baseline
    */
   @ApiProperty({ description: "Run ID that was promoted to baseline" })
-  runId: string;
+  runId!: string;
 
   /**
    * Actor who promoted the baseline
    */
   @ApiProperty({ description: "Actor who promoted the baseline" })
-  actorId: string;
+  actorId!: string;
 
   /**
    * Definition ID this baseline belongs to

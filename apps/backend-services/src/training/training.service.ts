@@ -16,6 +16,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -50,7 +51,7 @@ interface ErrorWithRequest {
 
 @Injectable()
 export class TrainingService {
-  private adminClient: DocumentIntelligenceClient;
+  private adminClient!: DocumentIntelligenceClient;
   private readonly minDocuments: number;
   private readonly sasExpiryDays: number;
 
@@ -196,13 +197,15 @@ export class TrainingService {
     for (const doc of labeledDocuments) {
       const filename = doc.labeling_document.original_filename;
 
-      const blobKey = doc.labeling_document.normalized_file_path;
-      if (!blobKey) {
+      if (!doc.labeling_document.normalized_file_path) {
         this.logger.warn(
           `Skipping labeling document ${doc.labeling_document.id}: no normalized PDF`,
         );
         continue;
       }
+      const blobKey = validateBlobFilePath(
+        doc.labeling_document.normalized_file_path,
+      );
       const fileExists = await this.blobStorage.exists(blobKey);
       if (fileExists) {
         files.push({
@@ -313,6 +316,10 @@ export class TrainingService {
 
       // Get job to get container name
       const job = await this.trainingDb.findTrainingJob(jobId);
+
+      if (!job) {
+        throw new Error(`Training job ${jobId} not found`);
+      }
 
       // Clear container contents so each training run starts clean
       await this.azureStorage.clearContainerContents(job.container_name);
@@ -544,12 +551,12 @@ export class TrainingService {
       templateModelId: job.template_model_id,
       status: job.status,
       containerName: job.container_name,
-      sasUrl: job.sas_url,
+      sasUrl: job.sas_url ?? undefined,
       blobCount: job.blob_count,
-      operationId: job.operation_id,
-      errorMessage: job.error_message,
+      operationId: job.operation_id ?? undefined,
+      errorMessage: job.error_message ?? undefined,
       startedAt: job.started_at,
-      completedAt: job.completed_at,
+      completedAt: job.completed_at ?? undefined,
     };
   }
 
@@ -606,7 +613,7 @@ export class TrainingService {
       templateModelId: model.template_model_id,
       trainingJobId: model.training_job_id,
       modelId: model.model_id,
-      description: model.description,
+      description: model.description ?? undefined,
       docTypes: model.doc_types as Record<string, unknown> | undefined,
       fieldCount: model.field_count,
       createdAt: model.created_at,

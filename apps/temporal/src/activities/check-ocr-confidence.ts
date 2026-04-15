@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../logger";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
@@ -96,12 +97,11 @@ export async function checkOcrConfidence(params: {
       requiresReview,
     };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = getErrorMessage(error);
     log.error("Check OCR confidence error", {
       event: "error",
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: getErrorStack(error),
     });
     // Default to requiring review if we can't calculate confidence
     return {

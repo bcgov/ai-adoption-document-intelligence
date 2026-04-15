@@ -2,6 +2,7 @@ import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { DocumentService } from "../document/document.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
@@ -66,6 +67,10 @@ describe("HitlController", () => {
         {
           provide: DocumentService,
           useValue: documentService,
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -226,7 +231,7 @@ describe("HitlController", () => {
     it("delegates to service with empty groupIds when no identity", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       hitlService.getAnalytics.mockResolvedValue({} as any);
       await controller.getAnalytics({} as any, req);
       expect(hitlService.getAnalytics).toHaveBeenCalledWith({}, []);
@@ -302,7 +307,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.startSession(dto, req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -333,6 +338,7 @@ describe("HitlController", () => {
           userId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
+          actorId: "actor-1",
         },
       } as unknown as Request;
       const mockResult = { id: "session-1" };
@@ -359,7 +365,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.getSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -420,7 +426,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(
         controller.submitCorrections("session-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -476,7 +482,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.getCorrections("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -535,7 +541,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.approveSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -600,7 +606,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(
         controller.escalateSession("session-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -660,7 +666,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.skipSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );

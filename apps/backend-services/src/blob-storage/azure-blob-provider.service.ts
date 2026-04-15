@@ -34,8 +34,8 @@ export class AzureBlobProviderService
   implements BlobStorageInterface, OnModuleInit
 {
   private readonly logger = new Logger(AzureBlobProviderService.name);
-  private readonly containerClient: ContainerClient;
-  private readonly containerName: string;
+  private readonly containerClient!: ContainerClient;
+  private readonly containerName!: string;
 
   constructor(private configService: ConfigService) {
     const connectionString = this.configService.get<string>(

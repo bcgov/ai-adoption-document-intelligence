@@ -1,7 +1,9 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -61,7 +63,7 @@ export class UploadController {
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
-    @Req() req: Request,
+    @Req() _req: Request,
   ): Promise<UploadDocumentResponseDto> {
     this.logger.debug("=== UploadController.uploadDocument ===");
     this.logger.debug(
@@ -146,9 +148,9 @@ export class UploadController {
         })
         .catch((error) => {
           this.logger.error(
-            `Background OCR processing failed for document ${uploadedDocument.id}: ${error.message}`,
+            `Background OCR processing failed for document ${uploadedDocument.id}: ${getErrorMessage(error)}`,
           );
-          this.logger.error(`Stack: ${error.stack}`);
+          this.logger.error(`Stack: ${getErrorStack(error)}`);
         });
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
@@ -167,15 +169,19 @@ export class UploadController {
         },
       };
     } catch (error) {
-      if (error instanceof HttpException) {
+      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
+
+      if (
+        error instanceof HttpException ||
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
 
-      this.logger.error(`Error in uploadDocument: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
-
       throw new BadRequestException(
-        error instanceof Error ? error.message : "Failed to upload document",
+        getErrorMessage(error) || "Failed to upload document",
       );
     }
   }

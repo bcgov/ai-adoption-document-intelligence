@@ -56,7 +56,7 @@ export class DeriveConfusionProfileDto {
   @ApiProperty({ description: "Profile name" })
   @IsNotEmpty()
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "Profile description" })
   @IsOptional()

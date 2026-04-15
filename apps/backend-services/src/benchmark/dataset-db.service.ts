@@ -41,7 +41,7 @@ type DatasetVersionForDeletion = Prisma.DatasetVersionGetPayload<{
 export interface CreateDatasetData {
   name: string;
   description?: string | null;
-  metadata: Prisma.JsonValue;
+  metadata: Prisma.InputJsonValue;
   storagePath: string;
   createdBy: string;
   group_id: string;
@@ -54,15 +54,17 @@ export interface CreateDatasetVersionData {
   storagePrefix?: string | null;
   manifestPath: string;
   documentCount: number;
-  groundTruthSchema?: Prisma.JsonValue;
+  groundTruthSchema?: Prisma.InputJsonValue;
 }
 
 export interface CreateSplitData {
   datasetVersionId: string;
   name: string;
   type: SplitType;
-  sampleIds: Prisma.JsonValue;
-  stratificationRules?: Prisma.JsonValue | null;
+  sampleIds: Prisma.InputJsonValue;
+  stratificationRules?:
+    | Prisma.InputJsonValue
+    | Prisma.NullableJsonNullValueInput;
   frozen?: boolean;
 }
 

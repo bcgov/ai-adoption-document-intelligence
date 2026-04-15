@@ -6,34 +6,34 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class ConfusionProfileResponseDto {
   @ApiProperty({ description: "Profile ID" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Profile name" })
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "Profile description" })
-  description: string | null;
+  description!: string | null;
 
   @ApiProperty({
     description: "Confusion matrix: { trueChar: { recognizedChar: count } }",
     type: "object",
     additionalProperties: true,
   })
-  matrix: Record<string, Record<string, number>>;
+  matrix!: Record<string, Record<string, number>>;
 
   @ApiPropertyOptional({
     description: "Metadata JSON",
     type: "object",
     additionalProperties: true,
   })
-  metadata: Record<string, unknown> | null;
+  metadata!: Record<string, unknown> | null;
 
   @ApiProperty({ description: "Group ID" })
-  groupId: string;
+  groupId!: string;
 
   @ApiProperty({ description: "Created timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty({ description: "Updated timestamp" })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

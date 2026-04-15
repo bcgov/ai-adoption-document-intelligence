@@ -5,7 +5,7 @@ export class CreateDatasetDto {
   @ApiProperty({ description: "Dataset name" })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: "Dataset description" })
   @IsString()
@@ -24,5 +24,5 @@ export class CreateDatasetDto {
   @ApiProperty({ description: "Group ID that owns this dataset" })
   @IsString()
   @IsNotEmpty()
-  groupId: string;
+  groupId!: string;
 }

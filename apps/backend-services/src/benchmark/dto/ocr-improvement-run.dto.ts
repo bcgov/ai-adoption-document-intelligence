@@ -20,24 +20,24 @@ export class OcrImprovementRecommendationsSummaryDto {
   @ApiProperty({
     description: "Number of recommendations applied to the graph",
   })
-  applied: number;
+  applied!: number;
 
   @ApiProperty({ description: "Number of recommendations rejected" })
-  rejected: number;
+  rejected!: number;
 
   @ApiProperty({ description: "Tool IDs applied", type: [String] })
-  toolIds: string[];
+  toolIds!: string[];
 }
 
 export class OcrImprovementGenerateResponseDto {
   @ApiProperty({ description: "Candidate workflow version ID" })
-  candidateWorkflowVersionId: string;
+  candidateWorkflowVersionId!: string;
 
   @ApiProperty({ description: "Candidate workflow lineage ID" })
-  candidateLineageId: string;
+  candidateLineageId!: string;
 
   @ApiProperty({ type: () => OcrImprovementRecommendationsSummaryDto })
-  recommendationsSummary: OcrImprovementRecommendationsSummaryDto;
+  recommendationsSummary!: OcrImprovementRecommendationsSummaryDto;
 
   @ApiPropertyOptional({ description: "AI analysis text" })
   analysis?: string;
@@ -58,7 +58,7 @@ export class OcrImprovementGenerateResponseDto {
     description: "Pipeline status",
     enum: ["candidate_created", "no_recommendations", "error"],
   })
-  status: "candidate_created" | "no_recommendations" | "error";
+  status!: "candidate_created" | "no_recommendations" | "error";
 
   @ApiPropertyOptional({ description: "Present when status is error" })
   error?: string;

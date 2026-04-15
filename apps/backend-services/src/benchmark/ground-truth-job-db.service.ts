@@ -383,6 +383,7 @@ export class GroundTruthJobDbService {
     const client = tx ?? this.prisma;
     return client.workflowVersion.findUnique({
       where: { id: workflowVersionId },
+      include: { lineage: { select: { group_id: true } } },
     });
   }
 

@@ -77,7 +77,7 @@ describe("DatasetService", () => {
     name: "Test Dataset",
     description: "Test description",
     metadata: { domain: "invoices" },
-    storagePath: "datasets/dataset-1",
+    storagePath: "testgroup1/benchmark/datasets/dataset-1",
     createdBy: "user-1",
     group_id: "test-group",
     createdAt: new Date(),
@@ -246,7 +246,7 @@ describe("DatasetService", () => {
         "dataset-1",
       );
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
-        "datasets/dataset-1",
+        "testgroup1/benchmark/datasets/dataset-1",
       );
     });
 
@@ -423,25 +423,26 @@ describe("DatasetService", () => {
         "version-1",
         mockFiles,
         "actor-1",
+        "group-1",
       );
 
       // Verify files were uploaded to blob storage
       expect(blobStorage.write).toHaveBeenCalledWith(
         expect.stringContaining(
-          "datasets/dataset-1/version-1/inputs/sample1.pdf",
+          "group-1/benchmark/datasets/dataset-1/version-1/inputs/sample1.pdf",
         ),
         expect.any(Buffer),
       );
       expect(blobStorage.write).toHaveBeenCalledWith(
         expect.stringContaining(
-          "datasets/dataset-1/version-1/ground-truth/sample1.json",
+          "group-1/benchmark/datasets/dataset-1/version-1/ground-truth/sample1.json",
         ),
         expect.any(Buffer),
       );
 
       // Verify manifest was written
       expect(blobStorage.write).toHaveBeenCalledWith(
-        "datasets/dataset-1/version-1/dataset-manifest.json",
+        "group-1/benchmark/datasets/dataset-1/version-1/dataset-manifest.json",
         expect.any(Buffer),
       );
 
@@ -453,7 +454,13 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
-        service.uploadFilesToVersion("nonexistent", "v1", mockFiles, "actor-1"),
+        service.uploadFilesToVersion(
+          "nonexistent",
+          "v1",
+          mockFiles,
+          "actor-1",
+          "group-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -467,6 +474,7 @@ describe("DatasetService", () => {
           "nonexistent",
           mockFiles,
           "actor-1",
+          "group-1",
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -484,6 +492,7 @@ describe("DatasetService", () => {
           "version-1",
           mockFiles,
           "actor-1",
+          "group-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -531,19 +540,24 @@ describe("DatasetService", () => {
       );
       mockDatasetDbService.updateDatasetVersion.mockResolvedValue({});
 
-      await service.deleteSample("dataset-1", "version-1", "sample-1");
+      await service.deleteSample(
+        "dataset-1",
+        "version-1",
+        "sample-1",
+        "group-1",
+      );
 
       // Verify files were deleted from storage
       expect(blobStorage.delete).toHaveBeenCalledWith(
-        "datasets/dataset-1/version-1/inputs/sample-1.pdf",
+        "group-1/benchmark/datasets/dataset-1/version-1/inputs/sample-1.pdf",
       );
       expect(blobStorage.delete).toHaveBeenCalledWith(
-        "datasets/dataset-1/version-1/ground-truth/sample-1.json",
+        "group-1/benchmark/datasets/dataset-1/version-1/ground-truth/sample-1.json",
       );
 
       // Verify updated manifest was written
       expect(blobStorage.write).toHaveBeenCalledWith(
-        "datasets/dataset-1/version-1/dataset-manifest.json",
+        "group-1/benchmark/datasets/dataset-1/version-1/dataset-manifest.json",
         expect.any(Buffer),
       );
 
@@ -567,7 +581,7 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.deleteSample("dataset-1", "version-1", "sample-1"),
+        service.deleteSample("dataset-1", "version-1", "sample-1", "group-1"),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -597,7 +611,12 @@ describe("DatasetService", () => {
       );
 
       await expect(
-        service.deleteSample("dataset-1", "version-1", "nonexistent"),
+        service.deleteSample(
+          "dataset-1",
+          "version-1",
+          "nonexistent",
+          "group-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -659,7 +678,7 @@ describe("DatasetService", () => {
       await service.deleteVersion("dataset-1", "version-1");
 
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
-        "datasets/dataset-1/version-1",
+        "test-group/benchmark/datasets/dataset-1/version-1",
       );
     });
 
@@ -1543,7 +1562,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
-        service.deleteSample("nonexistent", "v1", "s1"),
+        service.deleteSample("nonexistent", "v1", "s1", "group-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1552,7 +1571,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.deleteSample("dataset-1", "nonexistent", "s1"),
+        service.deleteSample("dataset-1", "nonexistent", "s1", "group-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1565,7 +1584,7 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.deleteSample("dataset-1", "v1", "s1"),
+        service.deleteSample("dataset-1", "v1", "s1", "group-1"),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1597,7 +1616,7 @@ describe("DatasetService", () => {
       ]);
       mockDatasetDbService.updateSplit.mockResolvedValue({});
 
-      await service.deleteSample("dataset-1", "v1", "s1");
+      await service.deleteSample("dataset-1", "v1", "s1", "group-1");
 
       expect(mockDatasetDbService.updateSplit).toHaveBeenCalledWith("split-1", {
         sampleIds: ["s2"],
@@ -1654,6 +1673,34 @@ describe("DatasetService", () => {
       createdAt: new Date(),
     };
 
+    it("throws BadRequestException on NoSuchBucket error", async () => {
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
+
+      (mockBlobStorage.write as jest.Mock).mockRejectedValueOnce(
+        new Error("NoSuchBucket: bucket does not exist"),
+      );
+
+      await expect(
+        service.uploadFilesToVersion(
+          "dataset-1",
+          "version-1",
+          [
+            {
+              fieldname: "files",
+              originalname: "test.pdf",
+              encoding: "7bit",
+              mimetype: "application/pdf",
+              buffer: Buffer.from("data"),
+              size: 4,
+            },
+          ],
+          "actor-1",
+          "group-1",
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it("throws BadRequestException on Failed to write blob error", async () => {
       mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
@@ -1677,6 +1724,7 @@ describe("DatasetService", () => {
             },
           ],
           "actor-1",
+          "group-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1718,6 +1766,7 @@ describe("DatasetService", () => {
         "version-1",
         dupeFiles,
         "actor-1",
+        "group-1",
       );
 
       const filenames = result.uploadedFiles.map(

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
 import {
   BadRequestException,
@@ -6,6 +7,11 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
+import {
+  buildBlobFilePath,
+  buildBlobPrefixPath,
+  OperationCategory,
+} from "@/blob-storage/storage-path-builder";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -110,7 +116,9 @@ export class DocumentService {
           : fileBase64;
         fileBuffer = Buffer.from(base64Data, "base64");
       } catch (error) {
-        this.logger.error(`Failed to decode base64 file: ${error.message}`);
+        this.logger.error(
+          `Failed to decode base64 file: ${getErrorMessage(error)}`,
+        );
         throw new BadRequestException("Invalid base64 file data");
       }
 
@@ -121,12 +129,22 @@ export class DocumentService {
 
       const documentId = uuidv4();
       const extension = extensionForOriginalBlob(originalFilename, fileType);
-      const blobKey = `documents/${documentId}/original.${extension}`;
+      const blobKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.OCR,
+        [documentId],
+        `original.${extension}`,
+      );
 
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);
 
-      const normalizedKey = `documents/${documentId}/normalized.pdf`;
+      const normalizedKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.OCR,
+        [documentId],
+        "normalized.pdf",
+      );
       try {
         const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
           fileBuffer,
@@ -200,8 +218,8 @@ export class DocumentService {
         document: this.toUploadedDocument(savedDocument),
       };
     } catch (error) {
-      this.logger.error(`Error uploading document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error uploading document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
       throw error;
     }
   }
@@ -250,7 +268,12 @@ export class DocumentService {
     }
     await this.documentDb.deleteDocument(id);
     try {
-      await this.blobStorage.deleteByPrefix(`documents/${id}/`);
+      const documentPath = buildBlobPrefixPath(
+        document.group_id,
+        OperationCategory.OCR,
+        [id],
+      );
+      await this.blobStorage.deleteByPrefix(documentPath);
     } catch (error) {
       this.logger.warn(
         `Failed to delete blobs for document ${id}: ${(error as Error).message}`,

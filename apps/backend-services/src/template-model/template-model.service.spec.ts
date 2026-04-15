@@ -740,9 +740,7 @@ describe("TemplateModelService", () => {
       mockTemplateModelDbService.findLabeledDocument
         .mockResolvedValueOnce(mockLabeledDocument)
         .mockResolvedValueOnce(mockLabeledDocument);
-      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce(
-        undefined,
-      );
+      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce([]);
       mockTemplateModelDbService.updateLabeledDocument.mockResolvedValueOnce(
         undefined,
       );
@@ -778,9 +776,7 @@ describe("TemplateModelService", () => {
       mockTemplateModelDbService.findLabeledDocument
         .mockResolvedValueOnce(mockLabeledDocument)
         .mockResolvedValueOnce(mockLabeledDocument);
-      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce(
-        undefined,
-      );
+      mockTemplateModelDbService.upsertDocumentLabels.mockResolvedValueOnce([]);
       mockTemplateModelDbService.updateLabeledDocument.mockResolvedValueOnce(
         undefined,
       );

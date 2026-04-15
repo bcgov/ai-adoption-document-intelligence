@@ -11,10 +11,10 @@ export class PipelineLogEntryDto {
     description:
       "Pipeline step identifier (e.g. baseline_mismatch_extraction, llm_request)",
   })
-  step: string;
+  step!: string;
 
   @ApiProperty({ description: "ISO 8601 timestamp when the step started" })
-  timestamp: string;
+  timestamp!: string;
 
   @ApiProperty({
     description: "Step duration in milliseconds",
@@ -23,7 +23,7 @@ export class PipelineLogEntryDto {
   durationMs?: number;
 
   @ApiProperty({ description: "Step-specific payload (varies by step)" })
-  data: Record<string, unknown>;
+  data!: Record<string, unknown>;
 }
 
 export class PipelineDebugLogResponseDto {
@@ -31,5 +31,5 @@ export class PipelineDebugLogResponseDto {
     description: "Debug log entries from the last pipeline run",
     type: [PipelineLogEntryDto],
   })
-  entries: PipelineLogEntryDto[];
+  entries!: PipelineLogEntryDto[];
 }

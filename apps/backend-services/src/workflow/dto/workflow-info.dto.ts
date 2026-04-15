@@ -5,76 +5,76 @@ export class WorkflowInfoDto {
   @ApiProperty({
     description: "Stable workflow lineage ID (identity in lists and URLs)",
   })
-  id: string;
+  id!: string;
 
   @ApiProperty({
     description:
       "ID of the workflow version row whose config is shown (head or pinned snapshot)",
   })
-  workflowVersionId: string;
+  workflowVersionId!: string;
 
   @ApiProperty({ description: "Display name for the workflow" })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: "Optional description",
     nullable: true,
   })
-  description: string | null;
+  description!: string | null;
 
   @ApiProperty({ description: "ID of the user who owns the workflow" })
-  actorId: string;
+  actorId!: string;
 
   @ApiProperty({ description: "ID of the group this workflow belongs to" })
-  groupId: string;
+  groupId!: string;
 
   @ApiProperty({
     description: "Graph workflow configuration",
     type: "object",
     additionalProperties: true,
   })
-  config: GraphWorkflowConfig;
+  config!: GraphWorkflowConfig;
 
   @ApiProperty({ description: "Schema version for the workflow config" })
-  schemaVersion: string;
+  schemaVersion!: string;
 
   @ApiProperty({
     description:
       "Immutable revision number for this workflow version row (increments on new config)",
   })
-  version: number;
+  version!: number;
 
   @ApiProperty({ description: "Creation timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty({ description: "Last update timestamp" })
-  updatedAt: Date;
+  updatedAt!: Date;
 }
 
 export class WorkflowResponseDto {
   @ApiProperty({ type: WorkflowInfoDto })
-  workflow: WorkflowInfoDto;
+  workflow!: WorkflowInfoDto;
 }
 
 export class WorkflowListResponseDto {
   @ApiProperty({ type: [WorkflowInfoDto] })
-  workflows: WorkflowInfoDto[];
+  workflows!: WorkflowInfoDto[];
 }
 
 export class WorkflowVersionSummaryDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  versionNumber: number;
+  versionNumber!: number;
 
   @ApiProperty()
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 export class WorkflowVersionListResponseDto {
   @ApiProperty({ type: [WorkflowVersionSummaryDto] })
-  versions: WorkflowVersionSummaryDto[];
+  versions!: WorkflowVersionSummaryDto[];
 }
 
 export class RevertHeadDto {
@@ -82,5 +82,5 @@ export class RevertHeadDto {
     description:
       "Existing WorkflowVersion.id within this lineage to set as head",
   })
-  workflowVersionId: string;
+  workflowVersionId!: string;
 }

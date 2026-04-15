@@ -7,7 +7,7 @@ export class FormatSpecDto {
       "Canonicalize operation(s). Available: digits, uppercase, lowercase, strip-spaces, text, number, date:FORMAT, noop. Chainable with |.",
     example: "digits",
   })
-  canonicalize: string;
+  canonicalize!: string;
 
   @ApiPropertyOptional({
     description: "Regex pattern the canonicalized value must match",
@@ -38,23 +38,23 @@ export class FormatSuggestionResponseDto {
     description: "The field key this suggestion applies to",
     example: "sin",
   })
-  fieldKey: string;
+  fieldKey!: string;
 
   @ApiProperty({
     description: "Suggested format specification",
     type: FormatSpecDto,
   })
-  formatSpec: FormatSpecDto;
+  formatSpec!: FormatSpecDto;
 
   @ApiProperty({
     description: "AI rationale for the suggestion",
     example: "All 22 corrections strip spaces/dashes from 9-digit values",
   })
-  rationale: string;
+  rationale!: string;
 
   @ApiProperty({
     description: "Number of corrections analyzed for this field",
     example: 22,
   })
-  sampleCount: number;
+  sampleCount!: number;
 }

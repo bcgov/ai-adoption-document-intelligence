@@ -13,6 +13,7 @@ jest.mock("@/auth/identity.helpers", () => ({
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import type { WorkflowInfo } from "@/workflow/workflow.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
@@ -91,6 +92,10 @@ describe("BenchmarkRunController", () => {
     getAnalysis: jest.fn(),
   };
 
+  const mockAuditService = {
+    recordEvent: jest.fn().mockResolvedValue(undefined),
+  };
+
   const mockReq = {
     user: { sub: "user-1" },
     resolvedIdentity: {
@@ -122,6 +127,7 @@ describe("BenchmarkRunController", () => {
           provide: BenchmarkErrorDetectionService,
           useValue: mockErrorDetectionService,
         },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -430,7 +436,7 @@ describe("BenchmarkRunController", () => {
   describe("GET /runs/:runId/samples", () => {
     it("returns paginated per-sample results with defaults", async () => {
       const expected = {
-        items: [],
+        results: [],
         total: 0,
         page: 1,
         limit: 20,
@@ -456,7 +462,7 @@ describe("BenchmarkRunController", () => {
     });
 
     it("parses pagination and filter params from query", async () => {
-      const expected = { items: [], total: 5, page: 2, limit: 10 };
+      const expected = { results: [], total: 5, page: 2, limit: 10 };
       mockRunService.getPerSampleResults.mockResolvedValue(expected);
 
       const query = {
@@ -485,7 +491,7 @@ describe("BenchmarkRunController", () => {
 
     it("keeps non-numeric filter values as strings", async () => {
       mockRunService.getPerSampleResults.mockResolvedValue({
-        items: [],
+        results: [],
         total: 0,
         page: 1,
         limit: 20,

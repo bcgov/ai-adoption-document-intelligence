@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 /**
  * Benchmark Evaluation Activities
  *
@@ -159,7 +160,7 @@ export async function benchmarkEvaluate(
     return result;
   } catch (error) {
     // Handle evaluation errors
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = getErrorMessage(error);
 
     return {
       sampleId,
@@ -167,7 +168,7 @@ export async function benchmarkEvaluate(
       diagnostics: {
         error: "evaluation_failed",
         message: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
+        stack: getErrorStack(error),
       },
       pass: false,
     };
