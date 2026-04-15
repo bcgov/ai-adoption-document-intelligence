@@ -1,4 +1,5 @@
 import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
@@ -192,8 +193,8 @@ export async function submitToAzureOCR(params: {
   } catch (error) {
     log.error("Submit to Azure OCR error", {
       event: "error",
-      error: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
+      error: getErrorMessage(error),
+      stack: getErrorStack(error),
     });
     throw error;
   }

@@ -79,8 +79,8 @@ describe("DatasetController", () => {
       const mockResponse: DatasetResponseDto = {
         id: "dataset-123",
         name: createDto.name,
-        description: createDto.description,
-        metadata: createDto.metadata,
+        description: createDto.description ?? null,
+        metadata: createDto.metadata ?? {},
         storagePath: "datasets/dataset-123",
         createdBy: "user-123",
         groupId: "test-group",

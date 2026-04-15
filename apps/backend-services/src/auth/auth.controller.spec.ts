@@ -6,7 +6,7 @@ import { GroupService } from "../group/group.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { AuthController } from "./auth.controller";
 import { AuthService, LoginUrlResult } from "./auth.service";
-import { AUTH_COOKIE_NAMES, COOKIE_OPTIONS } from "./cookie-auth.utils";
+import { AUTH_COOKIE_NAMES } from "./cookie-auth.utils";
 import { OAuthCallbackQueryDto } from "./dto";
 import { TokenResponseDto } from "./dto/token-response.dto";
 import { User } from "./types";

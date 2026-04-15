@@ -208,7 +208,7 @@ describe("HitlController", () => {
     it("delegates to service with empty groupIds when no identity", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       hitlService.getAnalytics.mockResolvedValue({} as any);
       await controller.getAnalytics({} as any, req);
       expect(hitlService.getAnalytics).toHaveBeenCalledWith({}, []);
@@ -284,7 +284,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.startSession(dto, req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -341,7 +341,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.getSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -402,7 +402,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(
         controller.submitCorrections("session-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -458,7 +458,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.getCorrections("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -517,7 +517,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.approveSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -582,7 +582,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(
         controller.escalateSession("session-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -642,7 +642,7 @@ describe("HitlController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(controller.skipSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );

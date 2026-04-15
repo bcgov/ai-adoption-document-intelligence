@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
@@ -19,7 +20,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
+import type { AnalysisResponse } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import type { LabelingDocumentData } from "./labeling-document-db.types";
@@ -46,10 +47,10 @@ export class TemplateModelOcrService {
   ) {
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    );
+    )!;
     this.azureApiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    );
+    )!;
   }
 
   async createLabelingDocument(
@@ -174,7 +175,7 @@ export class TemplateModelOcrService {
       });
     } catch (error) {
       this.logger.error(
-        `Labeling OCR failed for ${labelingDocumentId}: ${error.message}`,
+        `Labeling OCR failed for ${labelingDocumentId}: ${getErrorMessage(error)}`,
       );
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.failed,

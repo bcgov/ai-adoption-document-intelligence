@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
@@ -87,9 +88,9 @@ export async function updateDocumentStatus(params: {
     log.error("Update document status failed", {
       event: "error",
       status,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: getErrorMessage(error),
       durationMs: duration,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: getErrorStack(error),
     });
     throw error;
   }

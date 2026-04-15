@@ -6,5 +6,5 @@ export class AddDocumentDto {
     description: "Labeling document ID to add to template model",
   })
   @IsString()
-  labelingDocumentId: string;
+  labelingDocumentId!: string;
 }

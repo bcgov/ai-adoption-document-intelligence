@@ -4,16 +4,16 @@ import { JsonValue } from "@prisma/client/runtime/client";
 
 export class DocumentDataDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  title: string;
+  title!: string;
 
   @ApiProperty()
-  original_filename: string;
+  original_filename!: string;
 
   @ApiProperty()
-  file_path: string;
+  file_path!: string;
 
   @ApiProperty({
     required: false,
@@ -21,35 +21,35 @@ export class DocumentDataDto {
     description:
       "Blob key of the normalized PDF used for OCR and in-app viewing.",
   })
-  normalized_file_path: string | null;
+  normalized_file_path!: string | null;
 
   @ApiProperty()
-  file_type: string;
+  file_type!: string;
 
   @ApiProperty()
-  file_size: number;
+  file_size!: number;
 
   @ApiProperty({ type: Object, required: false, nullable: true })
   metadata?: JsonValue;
 
   @ApiProperty()
-  source: string;
+  source!: string;
 
   @ApiProperty({ enum: DocumentStatus })
-  status: DocumentStatus;
+  status!: DocumentStatus;
 
   @ApiProperty()
-  created_at: Date;
+  created_at!: Date;
 
   @ApiProperty()
-  updated_at: Date;
+  updated_at!: Date;
 
   @ApiProperty({ required: false, nullable: true, type: "string" })
   apim_request_id?: string | null;
 
   @ApiProperty()
-  model_id: string;
+  model_id!: string;
 
   @ApiProperty({ type: "string" })
-  group_id: string;
+  group_id!: string;
 }

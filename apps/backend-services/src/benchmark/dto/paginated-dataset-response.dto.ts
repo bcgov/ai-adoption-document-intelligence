@@ -7,17 +7,17 @@ export class PaginatedDatasetResponseDto {
     type: () => DatasetResponseDto,
     isArray: true,
   })
-  data: DatasetResponseDto[];
+  data!: DatasetResponseDto[];
 
   @ApiProperty({ description: "Total number of datasets" })
-  total: number;
+  total!: number;
 
   @ApiProperty({ description: "Current page number" })
-  page: number;
+  page!: number;
 
   @ApiProperty({ description: "Number of items per page" })
-  limit: number;
+  limit!: number;
 
   @ApiProperty({ description: "Total number of pages" })
-  totalPages: number;
+  totalPages!: number;
 }

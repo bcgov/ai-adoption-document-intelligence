@@ -4,7 +4,7 @@ import { IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
 export class ReviewSessionDto {
   @ApiProperty({ description: "Document ID to review" })
   @IsString()
-  documentId: string;
+  documentId!: string;
 
   @ApiProperty({ description: "Minimum confidence threshold", required: false })
   @IsOptional()

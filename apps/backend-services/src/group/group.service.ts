@@ -12,8 +12,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { UserService } from "@/actor/user.service";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { identityCanAccessGroup, requireUserId } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
 import { AppLoggerService } from "../logging/app-logger.service";
@@ -93,7 +92,7 @@ export class GroupService {
    * Returns all existing non-deleted groups.
    */
   async getAllGroups(): Promise<
-    Array<{ id: string; name: string; description?: string }>
+    Array<{ id: string; name: string; description: string | null }>
   > {
     return await this.groupDb.findAllGroups();
   }
@@ -121,7 +120,7 @@ export class GroupService {
     }
 
     const callerAdminMemberships = await this.groupDb.findUserAdminMemberships(
-      identity.userId!,
+      requireUserId(identity),
     );
 
     if (callerAdminMemberships.length === 0) {
@@ -135,12 +134,7 @@ export class GroupService {
       userId,
       callerGroupIds,
     );
-    return userGroups.map((ug) => ({
-      id: ug.group.id,
-      name: ug.group.name,
-      role: ug.role,
-      description: ug.group.description ?? undefined,
-    }));
+    return userGroups.map((ug) => this.toUserGroupDto(ug));
   }
 
   /**
@@ -149,12 +143,24 @@ export class GroupService {
    */
   private async fetchUserGroups(userId: string): Promise<UserGroupDto[]> {
     const userGroups = await this.groupDb.findUserGroupsWithGroup(userId);
-    return userGroups.map((ug) => ({
-      id: ug.group.id,
-      name: ug.group.name,
+    return userGroups.map((ug) => this.toUserGroupDto(ug));
+  }
+
+  private toUserGroupDto(
+    ug: Prisma.UserGroupGetPayload<{ include: { group: true } }>,
+  ): UserGroupDto {
+    const group = ug.group;
+    if (!group) {
+      throw new Error(
+        `UserGroup ${ug.user_id}:${ug.group_id} missing group relation`,
+      );
+    }
+    return {
+      id: group.id,
+      name: group.name,
       role: ug.role,
-      description: ug.group.description ?? undefined,
-    }));
+      description: group.description ?? undefined,
+    };
   }
 
   /**

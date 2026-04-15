@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Definition Service
  *
@@ -25,7 +26,6 @@ import {
   DatasetVersionInfo,
   DefinitionDetailsDto,
   DefinitionSummaryDto,
-  MetricThreshold,
   RunHistorySummary,
   ScheduleConfigDto,
   ScheduleInfoDto,
@@ -588,7 +588,7 @@ export class BenchmarkDefinitionService {
         await this.temporalService.deleteSchedule(definition.scheduleId);
       } catch (error) {
         this.logger.warn(
-          `Failed to delete existing schedule ${definition.scheduleId}: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to delete existing schedule ${definition.scheduleId}: ${getErrorMessage(error)}`,
         );
       }
     }
@@ -662,7 +662,7 @@ export class BenchmarkDefinitionService {
       return await this.temporalService.getScheduleInfo(definition.scheduleId);
     } catch (error) {
       this.logger.error(
-        `Failed to get schedule info for ${definition.scheduleId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get schedule info for ${definition.scheduleId}: ${getErrorMessage(error)}`,
       );
       return null;
     }

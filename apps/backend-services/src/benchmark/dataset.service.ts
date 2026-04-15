@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 /**
  * Dataset Service
  *
@@ -77,7 +78,7 @@ export class DatasetService {
       const dataset = await this.datasetDbService.createDataset({
         name: createDto.name,
         description: createDto.description || null,
-        metadata: (createDto.metadata || {}) as Prisma.JsonValue,
+        metadata: (createDto.metadata || {}) as Prisma.InputJsonValue,
         storagePath: "", // Will be set after we have the ID
         createdBy: actorId,
         group_id: createDto.groupId,
@@ -112,7 +113,7 @@ export class DatasetService {
       }
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
+        (error as { code?: string })?.code === "P2002"
       ) {
         throw new ConflictException(
           `A dataset with the name "${createDto.name}" already exists. Please choose a different name.`,
@@ -120,10 +121,9 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to create dataset: ${createDto.name}`,
-        error.stack,
+        getErrorStack(error),
       );
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       throw new BadRequestException(
         `Failed to create dataset: ${errorMessage}`,
       );
@@ -238,7 +238,7 @@ export class DatasetService {
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
-    actorId: string, // TODO: Why isn't this used?
+    _actorId: string, // TODO: Why isn't this used?
   ): Promise<VersionResponseDto> {
     const dataset = await this.datasetDbService.findDataset(datasetId);
 
@@ -263,8 +263,9 @@ export class DatasetService {
       storagePrefix: null,
       manifestPath: manifestPath,
       documentCount: 0,
-      groundTruthSchema: (createDto.groundTruthSchema ||
-        null) as Prisma.JsonValue,
+      groundTruthSchema: createDto.groundTruthSchema
+        ? (createDto.groundTruthSchema as Prisma.InputJsonValue)
+        : undefined,
     });
 
     this.logger.log(
@@ -381,7 +382,7 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
-    actorId: string, // TODO: Why isn't this used?
+    _actorId: string, // TODO: Why isn't this used?
     groupId: string,
   ): Promise<UploadResponseDto> {
     this.logger.log(
@@ -738,7 +739,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to delete sample ${sampleId} from version ${versionId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -785,6 +786,11 @@ export class DatasetService {
         const groupId = (
           await this.datasetDbService.findDataset(version.datasetId)
         )?.group_id;
+        if (!groupId) {
+          throw new NotFoundException(
+            `Dataset not found for version ${versionId}`,
+          );
+        }
         const prefix = buildBlobPrefixPath(
           groupId,
           OperationCategory.BENCHMARK,
@@ -845,6 +851,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const manifest = await this.loadAndValidateManifestFromStorage(
         groupId,
         version.storagePrefix,
@@ -876,7 +887,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to list samples for dataset ${datasetId}, version ${versionId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -914,6 +925,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const manifest = await this.loadAndValidateManifestFromStorage(
         groupId,
         version.storagePrefix,
@@ -939,6 +955,11 @@ export class DatasetService {
         const groupId = (
           await this.datasetDbService.findDataset(version.datasetId)
         )?.group_id;
+        if (!groupId) {
+          throw new NotFoundException(
+            `Dataset not found for version ${versionId}`,
+          );
+        }
         const key = buildBlobFilePath(
           groupId,
           OperationCategory.BENCHMARK,
@@ -950,10 +971,10 @@ export class DatasetService {
       } catch (error) {
         this.logger.error(
           `Failed to read or parse ground truth file at ${groundTruthFile.path}`,
-          error.stack,
+          getErrorStack(error),
         );
         throw new BadRequestException(
-          `Failed to read or parse ground truth file: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to read or parse ground truth file: ${getErrorMessage(error)}`,
         );
       }
 
@@ -972,7 +993,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to get ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -1020,6 +1041,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const key = buildBlobFilePath(
         groupId,
         OperationCategory.BENCHMARK,
@@ -1177,7 +1203,7 @@ export class DatasetService {
       }
       if (error instanceof SyntaxError) {
         throw new BadRequestException(
-          `Invalid manifest: malformed JSON - ${error.message}`,
+          `Invalid manifest: malformed JSON - ${getErrorMessage(error)}`,
         );
       }
       throw error;
@@ -1254,7 +1280,7 @@ export class DatasetService {
    */
   private groupFilesBySampleId(
     files: UploadedFileDto[],
-    existingSampleIds: Set<string> = new Set(),
+    _existingSampleIds: Set<string> = new Set(),
   ): Record<string, UploadedFileDto[]> {
     const groups: Record<string, UploadedFileDto[]> = {};
     const assignedPaths: Set<string> = new Set();
@@ -1426,6 +1452,11 @@ export class DatasetService {
       const groupId = (
         await this.datasetDbService.findDataset(version.datasetId)
       )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
       const manifest = await this.loadAndValidateManifestFromStorage(
         groupId,
         version.storagePrefix,
@@ -1451,7 +1482,7 @@ export class DatasetService {
           );
         } catch (error) {
           this.logger.warn(
-            `Invalid ground truth schema for version ${versionId}: ${error instanceof Error ? error.message : String(error)}`,
+            `Invalid ground truth schema for version ${versionId}: ${getErrorMessage(error)}`,
           );
         }
       }
@@ -1645,7 +1676,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to validate dataset ${datasetId}, version ${versionId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -1766,10 +1797,10 @@ export class DatasetService {
       datasetVersionId: versionId,
       name: createDto.name,
       type: createDto.type as SplitType,
-      sampleIds: createDto.sampleIds as Prisma.JsonValue,
+      sampleIds: createDto.sampleIds as Prisma.InputJsonValue,
       stratificationRules: createDto.stratificationRules
-        ? (createDto.stratificationRules as Prisma.JsonValue)
-        : null,
+        ? (createDto.stratificationRules as Prisma.InputJsonValue)
+        : Prisma.DbNull,
       frozen: false,
     });
 
@@ -1932,7 +1963,7 @@ export class DatasetService {
     }
 
     const updated = await this.datasetDbService.updateSplit(splitId, {
-      sampleIds: updateDto.sampleIds as Prisma.JsonValue,
+      sampleIds: updateDto.sampleIds as Prisma.InputJsonValue,
     });
 
     return {

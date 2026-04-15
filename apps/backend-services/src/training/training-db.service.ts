@@ -23,7 +23,7 @@ export interface TrainingJobCreateData {
 export interface TrainingJobUpdateData {
   status?: TrainingStatus;
   sas_url?: string | null;
-  blob_count?: number | null;
+  blob_count?: number;
   operation_id?: string | null;
   error_message?: string | null;
   completed_at?: Date | null;
@@ -34,7 +34,7 @@ export interface TrainedModelCreateData {
   training_job_id: string;
   model_id: string;
   description?: string | null;
-  doc_types: Prisma.JsonValue;
+  doc_types: Prisma.InputJsonValue | typeof Prisma.DbNull;
   field_count: number;
 }
 

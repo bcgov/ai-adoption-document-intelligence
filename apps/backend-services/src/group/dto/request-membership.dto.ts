@@ -8,5 +8,5 @@ import { IsString } from "class-validator";
 export class RequestMembershipDto {
   @ApiProperty({ description: "The ID of the group to request membership for" })
   @IsString()
-  groupId: string;
+  groupId!: string;
 }

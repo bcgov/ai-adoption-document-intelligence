@@ -16,13 +16,13 @@ export class InputFileDto {
       "Relative path to the input file within the dataset repository",
     example: "inputs/form_image_0.jpg",
   })
-  path: string;
+  path!: string;
 
   @ApiProperty({
     description: "MIME type of the input file",
     example: "image/jpeg",
   })
-  mimeType: string;
+  mimeType!: string;
 }
 
 /**
@@ -34,13 +34,13 @@ export class GroundTruthFileDto {
       "Relative path to the ground truth file within the dataset repository",
     example: "ground-truth/form_data_0.json",
   })
-  path: string;
+  path!: string;
 
   @ApiProperty({
     description: "Format of the ground truth file (json, jsonl, csv, etc.)",
     example: "json",
   })
-  format: string;
+  format!: string;
 }
 
 /**
@@ -51,19 +51,19 @@ export class ManifestSampleDto {
     description: "Unique sample identifier",
     example: "sample-001",
   })
-  id: string;
+  id!: string;
 
   @ApiProperty({
     description: "Array of input file references",
     type: [InputFileDto],
   })
-  inputs: InputFileDto[];
+  inputs!: InputFileDto[];
 
   @ApiProperty({
     description: "Array of ground truth file references",
     type: [GroundTruthFileDto],
   })
-  groundTruth: GroundTruthFileDto[];
+  groundTruth!: GroundTruthFileDto[];
 
   @ApiProperty({
     description: "Sample metadata (docType, pageCount, language, source, etc.)",
@@ -86,29 +86,29 @@ export class SampleListResponseDto {
     description: "Array of samples",
     type: [ManifestSampleDto],
   })
-  samples: ManifestSampleDto[];
+  samples!: ManifestSampleDto[];
 
   @ApiProperty({
     description: "Total number of samples in the dataset version",
     example: 100,
   })
-  total: number;
+  total!: number;
 
   @ApiProperty({
     description: "Current page number",
     example: 1,
   })
-  page: number;
+  page!: number;
 
   @ApiProperty({
     description: "Number of items per page",
     example: 20,
   })
-  limit: number;
+  limit!: number;
 
   @ApiProperty({
     description: "Total number of pages",
     example: 5,
   })
-  totalPages: number;
+  totalPages!: number;
 }

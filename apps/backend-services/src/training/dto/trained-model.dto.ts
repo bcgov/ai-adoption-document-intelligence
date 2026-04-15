@@ -2,16 +2,16 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class TrainedModelDto {
   @ApiProperty({ description: "Trained model record ID" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Template model ID" })
-  templateModelId: string;
+  templateModelId!: string;
 
   @ApiProperty({ description: "Training job that produced this model" })
-  trainingJobId: string;
+  trainingJobId!: string;
 
   @ApiProperty({ description: "Azure Document Intelligence model ID" })
-  modelId: string;
+  modelId!: string;
 
   @ApiPropertyOptional({ description: "Model description" })
   description?: string;
@@ -24,8 +24,8 @@ export class TrainedModelDto {
   docTypes?: Record<string, unknown>;
 
   @ApiProperty({ description: "Number of fields the model recognizes" })
-  fieldCount: number;
+  fieldCount!: number;
 
   @ApiProperty({ description: "When the model was created" })
-  createdAt: Date;
+  createdAt!: Date;
 }

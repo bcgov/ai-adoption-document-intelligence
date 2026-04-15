@@ -15,7 +15,7 @@ export class CreateDefinitionDto {
   @ApiProperty({ description: "Definition name" })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   /**
    * Dataset version ID
@@ -23,7 +23,7 @@ export class CreateDefinitionDto {
   @ApiProperty({ description: "Dataset version ID" })
   @IsString()
   @IsNotEmpty()
-  datasetVersionId: string;
+  datasetVersionId!: string;
 
   /**
    * Split ID (optional — if omitted, the benchmark runs on all samples)
@@ -42,7 +42,7 @@ export class CreateDefinitionDto {
   @ApiProperty({ description: "Workflow ID" })
   @IsString()
   @IsNotEmpty()
-  workflowId: string;
+  workflowId!: string;
 
   /**
    * Evaluator type (must match a registered evaluator)
@@ -52,7 +52,7 @@ export class CreateDefinitionDto {
   })
   @IsString()
   @IsNotEmpty()
-  evaluatorType: string;
+  evaluatorType!: string;
 
   /**
    * Evaluator configuration (JSON object)
@@ -63,7 +63,7 @@ export class CreateDefinitionDto {
     additionalProperties: true,
   })
   @IsObject()
-  evaluatorConfig: Record<string, unknown>;
+  evaluatorConfig!: Record<string, unknown>;
 
   /**
    * Runtime settings (JSON object)
@@ -74,5 +74,5 @@ export class CreateDefinitionDto {
     additionalProperties: true,
   })
   @IsObject()
-  runtimeSettings: Record<string, unknown>;
+  runtimeSettings!: Record<string, unknown>;
 }

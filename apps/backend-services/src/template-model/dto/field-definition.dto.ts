@@ -12,11 +12,11 @@ export enum FieldType {
 export class CreateFieldDefinitionDto {
   @ApiProperty({ description: "Unique field key" })
   @IsString()
-  field_key: string;
+  field_key!: string;
 
   @ApiProperty({ description: "Field type", enum: FieldType })
   @IsEnum(FieldType)
-  field_type: FieldType;
+  field_type!: FieldType;
 
   @ApiPropertyOptional({ description: "Field format (e.g., currency, dmy)" })
   @IsOptional()

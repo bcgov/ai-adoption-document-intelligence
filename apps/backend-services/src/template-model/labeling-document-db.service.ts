@@ -4,8 +4,6 @@ import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import type { LabelingDocumentData } from "./labeling-document-db.types";
 
-type JsonValue = import("@generated/client").Prisma.JsonValue;
-
 @Injectable()
 export class LabelingDocumentDbService {
   constructor(
@@ -31,12 +29,18 @@ export class LabelingDocumentDbService {
         normalized_file_path: data.normalized_file_path ?? null,
         file_type: data.file_type,
         file_size: data.file_size,
-        metadata: data.metadata as JsonValue,
+        metadata:
+          data.metadata != null
+            ? (data.metadata as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         source: data.source,
         status: data.status as DocumentStatus,
         apim_request_id: data.apim_request_id,
         model_id: data.model_id,
-        ocr_result: data.ocr_result as JsonValue,
+        ocr_result:
+          data.ocr_result != null
+            ? (data.ocr_result as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         group_id: data.group_id,
       },
     });
@@ -68,12 +72,20 @@ export class LabelingDocumentDbService {
         where: { id },
         data: {
           ...restData,
-          ...(metadata !== undefined && { metadata: metadata as JsonValue }),
+          ...(metadata !== undefined && {
+            metadata:
+              metadata != null
+                ? (metadata as Prisma.InputJsonValue)
+                : Prisma.DbNull,
+          }),
           ...(ocr_result !== undefined && {
-            ocr_result: ocr_result as JsonValue,
+            ocr_result:
+              ocr_result != null
+                ? (ocr_result as Prisma.InputJsonValue)
+                : Prisma.DbNull,
           }),
           updated_at: new Date(),
-        },
+        } as Prisma.LabelingDocumentUncheckedUpdateInput,
       });
       return labelingDocument as LabelingDocumentData;
     } catch (error: unknown) {

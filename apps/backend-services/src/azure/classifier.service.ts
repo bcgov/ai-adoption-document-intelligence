@@ -59,11 +59,7 @@ export class ClassifierService {
    * Saves them to blob storage beside the original files.
    * @param filePaths A list of relative file paths in blob storage for analysis. They should match the files exactly, not folders.
    */
-  createLayoutJson = async (
-    filePaths: string[],
-    groupId: string,
-    classifierName: string,
-  ) => {
+  createLayoutJson = async (filePaths: string[]) => {
     // Each file in a training folder needs accompanying layout json.
     // The file must be named just like its corresponding image + .ocr.json
     // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
@@ -463,7 +459,7 @@ export class ClassifierService {
    * @returns An array of ClassifierModel records with their associated group.
    */
   async findAllClassifierModelsForGroups(
-    groupIds: string[],
+    groupIds: string[] | undefined,
   ): Promise<ClassifierModelWithGroup[]> {
     return this.classifierDb.findAllClassifierModelsForGroups(groupIds);
   }
