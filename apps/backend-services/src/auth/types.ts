@@ -51,6 +51,6 @@ declare module "express" {
      * Set by IdentityGuard after authentication succeeds.
      * Contains the normalised requestor identity for downstream authorization.
      */
-    resolvedIdentity?: ResolvedIdentity;
+    resolvedIdentity: ResolvedIdentity;
   }
 }

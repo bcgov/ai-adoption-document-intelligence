@@ -30,6 +30,7 @@
 		"db:seed": "prisma db seed"
 	},
 	"dependencies": {
+    "@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
 		"@ai-di/shared-logging": "file:../../packages/logging",
 		"@aws-sdk/client-s3": "3.990.0",
 		"@azure-rest/ai-document-intelligence": "1.1.0",
@@ -75,6 +76,7 @@
 		"@swc/cli": "0.7.9",
 		"@swc/core": "1.15.3",
 		"@testcontainers/postgresql": "11.10.0",
+		"@types/bcrypt": "6.0.0",
 		"@types/cookie-parser": "1.4.10",
 		"@types/express": "5.0.6",
 		"@types/helmet": "0.0.48",

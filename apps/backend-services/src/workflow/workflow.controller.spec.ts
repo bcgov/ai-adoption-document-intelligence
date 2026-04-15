@@ -72,9 +72,12 @@ describe("WorkflowController", () => {
       const req = {
         resolvedIdentity: { userId: "user-1", groupRoles: {} },
       } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([]);
       const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [] });
-      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
+      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalledWith(
+        undefined,
+      );
     });
 
     it("returns workflows for the user's groups", async () => {

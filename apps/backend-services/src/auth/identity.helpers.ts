@@ -1,7 +1,23 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { GroupRole } from "@/generated";
 import { ROLE_ORDER } from "./role-order";
 import { ResolvedIdentity } from "./types";
+
+/**
+ * Returns the JWT-authenticated userId from the resolved identity, throwing
+ * 401 Unauthorized if the identity represents a non-user actor (e.g. API key).
+ * Use in routes/services that require a logged-in user.
+ */
+export function requireUserId(identity: ResolvedIdentity): string {
+  if (!identity.userId) {
+    throw new UnauthorizedException("Authenticated user required");
+  }
+  return identity.userId;
+}
 
 /**
  * Resolves the set of group IDs the resolved identity has access to, or

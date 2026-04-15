@@ -69,7 +69,7 @@ export class WorkflowController {
 
     const groupIds = getIdentityGroupIds(req.resolvedIdentity);
 
-    if (groupIds.length === 0) {
+    if (!groupIds || groupIds.length === 0) {
       return { workflows: [] };
     }
 

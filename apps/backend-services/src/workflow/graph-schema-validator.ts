@@ -691,7 +691,7 @@ function validateReachability(
 
 function markBodyNodesReachable(
   entryNodeId: string,
-  exitNodeId: string,
+  _exitNodeId: string,
   adjacency: Map<string, string[]>,
   visited: Set<string>,
   config: GraphWorkflowConfig,

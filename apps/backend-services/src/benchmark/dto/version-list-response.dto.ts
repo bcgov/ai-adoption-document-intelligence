@@ -2,42 +2,42 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class SplitListItemDto {
   @ApiProperty({ description: "Split ID" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Split name" })
-  name: string;
+  name!: string;
 
   @ApiProperty({ description: "Split type (train, val, test, golden)" })
-  type: string;
+  type!: string;
 
   @ApiProperty({ description: "Number of samples in this split" })
-  sampleCount: number;
+  sampleCount!: number;
 }
 
 export class VersionListItemDto {
   @ApiProperty({ description: "Version ID" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Version label" })
-  version: string;
+  version!: string;
 
   @ApiProperty({ description: "Version name", nullable: true })
-  name: string | null;
+  name!: string | null;
 
   @ApiProperty({ description: "Number of documents in this version" })
-  documentCount: number;
+  documentCount!: number;
 
   @ApiProperty({
     description: "Storage prefix for this version",
     nullable: true,
   })
-  storagePrefix: string | null;
+  storagePrefix!: string | null;
 
   @ApiProperty({ description: "Whether this version is frozen" })
-  frozen: boolean;
+  frozen!: boolean;
 
   @ApiProperty({ description: "Creation timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiPropertyOptional({
     description: "Splits associated with this version",
@@ -53,5 +53,5 @@ export class VersionListResponseDto {
     type: () => VersionListItemDto,
     isArray: true,
   })
-  versions: VersionListItemDto[];
+  versions!: VersionListItemDto[];
 }

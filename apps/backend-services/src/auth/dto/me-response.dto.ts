@@ -7,16 +7,16 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
  */
 export class GroupSummaryDto {
   @ApiProperty({ description: "Group unique identifier" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Group display name" })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: "The authenticated user's role in this group",
     enum: GroupRole,
   })
-  role: GroupRole;
+  role!: GroupRole;
 }
 
 /**
@@ -25,7 +25,7 @@ export class GroupSummaryDto {
  */
 export class MeResponseDto {
   @ApiProperty({ description: "Keycloak subject identifier" })
-  sub: string;
+  sub!: string;
 
   @ApiPropertyOptional({ description: "User display name" })
   name?: string;
@@ -41,17 +41,17 @@ export class MeResponseDto {
   @ApiProperty({
     description: "Whether the user has system-admin status in the database",
   })
-  isAdmin: boolean;
+  isAdmin!: boolean;
 
   @ApiProperty({
     description: "Seconds until the current access token expires",
   })
-  expires_in: number;
+  expires_in!: number;
 
   @ApiProperty({
     description:
       "Groups the user belongs to; all groups if the user is a system-admin",
     type: [GroupSummaryDto],
   })
-  groups: GroupSummaryDto[];
+  groups!: GroupSummaryDto[];
 }

@@ -33,7 +33,7 @@ export class CreateSplitDto {
     message:
       "Split name can only contain letters, numbers, hyphens, underscores, and dots",
   })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: "Type of split",
@@ -41,7 +41,7 @@ export class CreateSplitDto {
     example: SplitType.train,
   })
   @IsEnum(SplitType)
-  type: SplitType;
+  type!: SplitType;
 
   @ApiProperty({
     description: "Array of sample IDs to include in this split",
@@ -50,7 +50,7 @@ export class CreateSplitDto {
   })
   @IsArray()
   @IsString({ each: true })
-  sampleIds: string[];
+  sampleIds!: string[];
 
   @ApiPropertyOptional({
     description: "Optional stratification rules for distributing samples",

@@ -2,11 +2,11 @@ import { ApiProperty } from "@nestjs/swagger";
 
 export class BootstrapResultDto {
   @ApiProperty({ description: "Whether bootstrap completed successfully" })
-  success: boolean;
+  success!: boolean;
 
   @ApiProperty({ description: "ID of the created Default group" })
-  groupId: string;
+  groupId!: string;
 
   @ApiProperty({ description: "Name of the created Default group" })
-  groupName: string;
+  groupName!: string;
 }

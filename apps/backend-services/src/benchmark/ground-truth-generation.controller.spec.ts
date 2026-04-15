@@ -11,6 +11,7 @@ jest.mock("@/auth/identity.helpers", () => ({
 
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { DatasetService } from "./dataset.service";
 import { GroundTruthGenerationController } from "./ground-truth-generation.controller";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
@@ -33,8 +34,12 @@ describe("GroundTruthGenerationController", () => {
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
+    resolvedIdentity: { userId: "user-1", actorId: "user-1" },
   } as unknown as Request;
+
+  const mockAuditService = {
+    recordEvent: jest.fn().mockResolvedValue(undefined),
+  };
 
   const datasetId = "ds-1";
   const versionId = "ver-1";
@@ -48,6 +53,7 @@ describe("GroundTruthGenerationController", () => {
           useValue: mockGroundTruthService,
         },
         { provide: DatasetService, useValue: mockDatasetService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -128,7 +134,7 @@ describe("GroundTruthGenerationController", () => {
   describe("GET /ground-truth-generation/review/queue", () => {
     it("returns review queue with defaults", async () => {
       const expected = {
-        items: [],
+        documents: [],
         total: 0,
       };
 
@@ -154,7 +160,7 @@ describe("GroundTruthGenerationController", () => {
 
     it("passes filter params when provided", async () => {
       mockGroundTruthService.getReviewQueue.mockResolvedValue({
-        items: [],
+        documents: [],
         total: 0,
       });
 

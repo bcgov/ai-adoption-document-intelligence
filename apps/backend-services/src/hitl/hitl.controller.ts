@@ -5,7 +5,6 @@ import {
   NotFoundException,
   Param,
   Post,
-  Put,
   Query,
   Req,
 } from "@nestjs/common";
@@ -20,6 +19,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -47,6 +47,7 @@ export class HitlController {
   constructor(
     private readonly hitlService: HitlService,
     private readonly documentService: DocumentService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("queue")
@@ -57,14 +58,29 @@ export class HitlController {
     type: QueueResponseDto,
   })
   async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (filters.group_id) {
       identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
-    return this.hitlService.getQueue(filters, groupIds);
+    const result = await this.hitlService.getQueue(filters, groupIds);
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "hitl_queue",
+      resource_id:
+        filters.group_id ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: filters.group_id,
+      payload: {
+        action: "metadata",
+        document_ids: result.documents.map((doc) => doc.id),
+        count: result.documents.length,
+        group_ids: groupIds,
+      },
+    });
+    return result;
   }
 
   @Get("queue/stats")
@@ -93,7 +109,7 @@ export class HitlController {
     @Req() req?: Request,
     @Query("group_id") group_id?: string,
   ) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (group_id) {
       identityCanAccessGroup(req?.resolvedIdentity, group_id);
       groupIds = [group_id];
@@ -138,7 +154,17 @@ export class HitlController {
       throw new NotFoundException(`Review session ${id} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.getSession(id);
+    const result = await this.hitlService.getSession(id);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: session.document_id,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: session.document_id,
+      group_id: session.document.group_id ?? undefined,
+      payload: { action: "ocr" },
+    });
+    return result;
   }
 
   @Post("sessions/:id/corrections")
@@ -180,7 +206,17 @@ export class HitlController {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.getCorrections(sessionId);
+    const result = await this.hitlService.getCorrections(sessionId);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: session.document_id,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: session.document_id,
+      group_id: session.document.group_id ?? undefined,
+      payload: { action: "ocr" },
+    });
+    return result;
   }
 
   @Post("sessions/:id/submit")
@@ -256,7 +292,7 @@ export class HitlController {
     @Query() filters: AnalyticsFilterDto,
     @Req() req: Request,
   ) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (filters.group_id) {
       identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];

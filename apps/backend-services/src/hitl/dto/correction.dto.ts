@@ -19,7 +19,7 @@ export enum CorrectionAction {
 export class CorrectionDto {
   @ApiProperty({ description: "Field key being corrected" })
   @IsString()
-  field_key: string;
+  field_key!: string;
 
   @ApiPropertyOptional({ description: "Original extracted value" })
   @IsOptional()
@@ -42,7 +42,7 @@ export class CorrectionDto {
     default: CorrectionAction.CONFIRMED,
   })
   @IsEnum(CorrectionAction)
-  action: CorrectionAction;
+  action!: CorrectionAction;
 }
 
 export class SubmitCorrectionsDto {
@@ -53,11 +53,11 @@ export class SubmitCorrectionsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CorrectionDto)
-  corrections: CorrectionDto[];
+  corrections!: CorrectionDto[];
 }
 
 export class EscalateDto {
   @ApiProperty({ description: "Reason for escalation" })
   @IsString()
-  reason: string;
+  reason!: string;
 }

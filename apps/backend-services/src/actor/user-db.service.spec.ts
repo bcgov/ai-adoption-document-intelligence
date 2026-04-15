@@ -1,7 +1,5 @@
-import type { ApiKey } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
-import { ApiKeyDbService, type CreateApiKeyData } from "./api-key-db.service";
 import { UserDbService } from "./user-db.service";
 
 describe("UserDbService", () => {

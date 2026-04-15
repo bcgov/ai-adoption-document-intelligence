@@ -34,6 +34,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { BenchmarkProjectService } from "./benchmark-project.service";
@@ -56,15 +57,17 @@ export class BenchmarkRunController {
   constructor(
     private readonly benchmarkRunService: BenchmarkRunService,
     private readonly benchmarkProjectService: BenchmarkProjectService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async assertProjectGroupAccess(
     projectId: string,
     req: Request,
-  ): Promise<void> {
+  ): Promise<string> {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
     identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    return project.groupId;
   }
 
   @Post("definitions/:definitionId/runs")
@@ -194,8 +197,24 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/drill-down`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
-    return this.benchmarkRunService.getDrillDown(projectId, runId);
+    const groupId = await this.assertProjectGroupAccess(projectId, req);
+    const result = await this.benchmarkRunService.getDrillDown(
+      projectId,
+      runId,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "benchmark_run",
+      resource_id: runId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "metadata",
+        project_id: projectId,
+        sample_ids: result.worstSamples?.map((s) => s.sampleId) ?? [],
+      },
+    });
+    return result;
   }
 
   @Get("runs/:runId/samples")
@@ -235,7 +254,7 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/samples`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    const groupId = await this.assertProjectGroupAccess(projectId, req);
 
     // Extract pagination params
     const page = query.page ? parseInt(query.page, 10) : 1;
@@ -251,13 +270,27 @@ export class BenchmarkRunController {
       }
     }
 
-    return this.benchmarkRunService.getPerSampleResults(
+    const result = await this.benchmarkRunService.getPerSampleResults(
       projectId,
       runId,
       filters,
       page,
       limit,
     );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "benchmark_run",
+      resource_id: runId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "ocr",
+        project_id: projectId,
+        sample_ids: result.results.map((r) => r.sampleId),
+        count: result.results.length,
+      },
+    });
+    return result;
   }
 
   @Post("runs/:runId/baseline")

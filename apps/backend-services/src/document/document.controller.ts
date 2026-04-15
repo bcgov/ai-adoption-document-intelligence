@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import {
   BadRequestException,
@@ -38,6 +39,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
@@ -139,6 +141,16 @@ export class DocumentController {
     if (!updated) {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: { action: "metadata" },
+    });
 
     this.logger.debug("=== DocumentController.updateDocument completed ===");
     return updated;
@@ -268,7 +280,7 @@ export class DocumentController {
                 } catch (queryError) {
                   // Query failed but workflow is running - this is OK, just return current status
                   this.logger.debug(
-                    `Could not query running workflow for document ${doc.id}: ${queryError.message}`,
+                    `Could not query running workflow for document ${doc.id}: ${queryError instanceof Error ? queryError.message : String(queryError)}`,
                   );
                 }
               }
@@ -276,7 +288,7 @@ export class DocumentController {
               // If workflow status check fails, log but don't fail the entire request
               // This can happen if Temporal is unavailable
               this.logger.debug(
-                `Could not get workflow status for document ${doc.id}: ${error.message}`,
+                `Could not get workflow status for document ${doc.id}: ${getErrorMessage(error)}`,
               );
             }
           }
@@ -284,16 +296,35 @@ export class DocumentController {
         }),
       );
 
+      if (req.resolvedIdentity) {
+        await this.auditService.recordEvent({
+          event_type: "document_list_accessed",
+          resource_type: "document_collection",
+          resource_id:
+            groupId ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+          actor_id: req.resolvedIdentity.actorId,
+          group_id: groupId,
+          payload: {
+            action: "metadata",
+            document_ids: documents.map((d) => d.id),
+            count: documents.length,
+            group_ids: groupIds,
+          },
+        });
+      }
+
       this.logger.debug(`Retrieved ${documents.length} documents`);
       this.logger.debug("=== DocumentController.getAllDocuments completed ===");
 
       return documentsWithWorkflowStatus;
     } catch (error) {
-      this.logger.error(`Error retrieving documents: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(
+        `Error retrieving documents: ${getErrorMessage(error)}`,
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       throw new NotFoundException(
-        error.message || "Failed to retrieve documents",
+        getErrorMessage(error) || "Failed to retrieve documents",
       );
     }
   }
@@ -325,16 +356,6 @@ export class DocumentController {
       }
 
       identityCanAccessGroup(req.resolvedIdentity, document.group_id);
-
-      await this.auditService.recordEvent({
-        event_type: "document_accessed",
-        resource_type: "document",
-        resource_id: documentId,
-        actor_id: req.resolvedIdentity.actorId,
-        document_id: documentId,
-        group_id: document.group_id ?? undefined,
-        payload: { action: "ocr" },
-      });
 
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
@@ -369,13 +390,26 @@ export class DocumentController {
           `OCR result retrieved successfully for document: ${documentId}`,
         );
         this.logger.debug(`OCR processed at: ${ocrResult.processed_at}`);
+
+        await this.auditService.recordEvent({
+          event_type: "document_accessed",
+          resource_type: "ocr_result",
+          resource_id: ocrResult.id,
+          actor_id: req.resolvedIdentity.actorId,
+          document_id: documentId,
+          group_id: document.group_id ?? undefined,
+          payload: { action: "ocr" },
+        });
       }
 
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
+
       return response;
     } catch (error) {
-      this.logger.error(`Error retrieving OCR result: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(
+        `Error retrieving OCR result: ${getErrorMessage(error)}`,
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -385,7 +419,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message ||
+        getErrorMessage(error) ||
           `Failed to retrieve OCR result for document: ${documentId}`,
       );
     }
@@ -441,7 +475,7 @@ export class DocumentController {
     });
 
     const fileBuffer = await this.blobStorage.read(
-      document.normalized_file_path,
+      validateBlobFilePath(document.normalized_file_path),
     );
 
     res.setHeader("Content-Type", "application/pdf");
@@ -490,12 +524,13 @@ export class DocumentController {
         resource_id: documentId,
         actor_id: req.resolvedIdentity.actorId,
         document_id: documentId,
-        group_id: document.group_id ?? undefined,
+        group_id: document.group_id,
         payload: { action: "download" },
       });
 
       // Read file from blob storage using the blob key
-      const fileBuffer = await this.blobStorage.read(document.file_path);
+      const filePath = validateBlobFilePath(document.file_path);
+      const fileBuffer = await this.blobStorage.read(filePath);
 
       const fileName = document.original_filename || `document-${documentId}`;
       const mimeType = getContentTypeFromFilename(fileName);
@@ -511,10 +546,22 @@ export class DocumentController {
         "=== DocumentController.downloadDocument completed ===",
       );
 
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: documentId,
+        group_id: document.group_id,
+        payload: { action: "download" },
+      });
+
       res.send(fileBuffer);
     } catch (error) {
-      this.logger.error(`Error downloading document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(
+        `Error downloading document: ${getErrorMessage(error)}`,
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -524,7 +571,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message || `Failed to download document: ${documentId}`,
+        getErrorMessage(error) || `Failed to download document: ${documentId}`,
       );
     }
   }
@@ -629,8 +676,8 @@ export class DocumentController {
         message: `Document ${body.approved ? "approved" : "rejected"} successfully`,
       };
     } catch (error) {
-      this.logger.error(`Error approving document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error approving document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -641,7 +688,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message || `Failed to approve document: ${documentId}`,
+        getErrorMessage(error) || `Failed to approve document: ${documentId}`,
       );
     }
   }

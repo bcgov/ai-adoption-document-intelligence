@@ -82,20 +82,22 @@ describe("HitlDatasetService", () => {
     {
       id: "doc-1",
       original_filename: "invoice-001.pdf",
-      file_path: "documents/doc-1/original.pdf",
-      normalized_file_path: "documents/doc-1/normalized.pdf",
+      file_path: "testgroup/ocr/documents/doc-1/original.pdf",
+      normalized_file_path: "testgroup/ocr/doc1/normalized.pdf",
       file_type: "pdf",
       status: "completed_ocr",
+      group_id: "test-group",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [mockApprovedSession],
     },
     {
       id: "doc-2",
       original_filename: "invoice-002.pdf",
-      file_path: "documents/doc-2/original.pdf",
-      normalized_file_path: "documents/doc-2/normalized.pdf",
+      file_path: "testgroup/ocr/documents/doc-2/original.pdf",
+      normalized_file_path: "testgroup/ocr/doc2/normalized.pdf",
       file_type: "pdf",
       status: "completed_ocr",
+      group_id: "test-group",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [
         {
@@ -464,6 +466,38 @@ describe("HitlDatasetService", () => {
       expect(result.skipped[0].documentId).toBe("nonexistent-doc");
     });
 
+    it("should scope document lookup to the dataset's group", async () => {
+      await service.createDatasetFromHitl(
+        {
+          name: "Test Dataset",
+          documentIds: ["doc-1"],
+          groupId: "test-group",
+        },
+        "user-1",
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({ groupIds: ["test-group"] }),
+      );
+    });
+
+    it("should skip documents belonging to a different group", async () => {
+      mockReviewDbService.findReviewQueue = jest
+        .fn()
+        .mockResolvedValue([{ ...mockDocuments[0], group_id: "other-group" }]);
+
+      await expect(
+        service.createDatasetFromHitl(
+          {
+            name: "Test Dataset",
+            documentIds: ["doc-1"],
+            groupId: "test-group",
+          },
+          "user-1",
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it("should throw when all documents are skipped", async () => {
       await expect(
         service.createDatasetFromHitl(
@@ -517,6 +551,7 @@ describe("HitlDatasetService", () => {
           documentIds: ["doc-1"],
         },
         "user-1",
+        "test-group",
       );
 
       expect(result.version.id).toBe("version-1");
@@ -538,6 +573,7 @@ describe("HitlDatasetService", () => {
           documentIds: ["doc-1"],
         },
         "user-1",
+        "test-group",
       );
 
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(

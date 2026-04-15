@@ -353,7 +353,7 @@ describe("ClassifierDbService", () => {
         "clf1",
         "g1",
         { description: "updated" },
-        undefined,
+        "",
         mockTx,
       );
 

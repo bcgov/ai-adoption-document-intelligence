@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../logger";
 import type { OCRResult } from "../types";
 
@@ -209,13 +210,12 @@ export async function postOcrCleanup(params: {
     // Return with port name as key for output binding
     return { cleanedResult };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = getErrorMessage(error);
     log.error("Post-OCR cleanup error", {
       event: "error",
       fileName: ocrResult.fileName,
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: getErrorStack(error),
     });
     // Return original result if cleanup fails
     return { cleanedResult: ocrResult };

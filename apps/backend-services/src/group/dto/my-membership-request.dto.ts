@@ -6,19 +6,19 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
  */
 export class MyMembershipRequestDto {
   @ApiProperty({ description: "The unique identifier of the request" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "The ID of the group the request is for" })
-  groupId: string;
+  groupId!: string;
 
   @ApiProperty({ description: "The name of the group the request is for" })
-  groupName: string;
+  groupName!: string;
 
   @ApiProperty({
     description: "The current status of the request",
     enum: ["PENDING", "APPROVED", "DENIED", "CANCELLED"],
   })
-  status: string;
+  status!: string;
 
   @ApiPropertyOptional({
     description: "The reason provided when acting on the request",
@@ -26,5 +26,5 @@ export class MyMembershipRequestDto {
   reason?: string;
 
   @ApiProperty({ description: "The date the request was created" })
-  createdAt: Date;
+  createdAt!: Date;
 }

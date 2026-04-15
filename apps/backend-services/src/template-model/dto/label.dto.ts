@@ -13,11 +13,11 @@ import {
 export class SpanDto {
   @ApiProperty({ description: "Offset in the document content" })
   @IsNumber()
-  offset: number;
+  offset!: number;
 
   @ApiProperty({ description: "Length of the span" })
   @IsNumber()
-  length: number;
+  length!: number;
 }
 
 export class BoundingBoxDto {
@@ -26,7 +26,7 @@ export class BoundingBoxDto {
   })
   @IsArray()
   @IsNumber({}, { each: true })
-  polygon: number[];
+  polygon!: number[];
 
   @ApiPropertyOptional({
     description: "Page width for coordinate normalization",
@@ -54,11 +54,11 @@ export class BoundingBoxDto {
 export class CreateLabelDto {
   @ApiProperty({ description: "Field key this label belongs to" })
   @IsString()
-  field_key: string;
+  field_key!: string;
 
   @ApiProperty({ description: "Label name (for table cells: field/row/col)" })
   @IsString()
-  label_name: string;
+  label_name!: string;
 
   @ApiPropertyOptional({ description: "Extracted or labeled value" })
   @IsOptional()
@@ -68,12 +68,12 @@ export class CreateLabelDto {
   @ApiProperty({ description: "Page number (1-indexed)" })
   @IsNumber()
   @Min(1)
-  page_number: number;
+  page_number!: number;
 
   @ApiProperty({ description: "Bounding box coordinates" })
   @ValidateNested()
   @Type(() => BoundingBoxDto)
-  bounding_box: BoundingBoxDto;
+  bounding_box!: BoundingBoxDto;
 }
 
 export class SaveLabelsDto {
@@ -84,7 +84,7 @@ export class SaveLabelsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateLabelDto)
-  labels: CreateLabelDto[];
+  labels!: CreateLabelDto[];
 
   @ApiPropertyOptional({
     description: "Whether to replace all existing labels",

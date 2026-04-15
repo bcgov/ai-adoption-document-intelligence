@@ -6,5 +6,5 @@ import { ApiProperty } from "@nestjs/swagger";
  */
 export class RefreshReturnDto {
   @ApiProperty({ description: "Seconds until the new access token expires" })
-  expires_in: number;
+  expires_in!: number;
 }
