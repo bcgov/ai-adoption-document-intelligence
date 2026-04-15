@@ -260,7 +260,6 @@ export class HitlDatasetService {
 
         const result = await this.processDocument(
           doc,
-          groupId,
           storagePrefix,
           usedSampleIds,
         );
@@ -331,7 +330,6 @@ export class HitlDatasetService {
    */
   private async processDocument(
     doc: DocumentWithReview,
-    groupId: string,
     storagePrefix: string,
     usedSampleIds: Set<string>,
   ): Promise<{
@@ -340,13 +338,6 @@ export class HitlDatasetService {
     groundTruth: Array<{ path: string; format: string }>;
     metadata: Record<string, unknown>;
   }> {
-    // Self-protecting tenant guard: the caller also checks this, but keep
-    // it here so future callers can't accidentally bypass it and copy a
-    // document from another group into this group's dataset prefix.
-    if (doc.group_id !== groupId) {
-      throw new Error(`Document belongs to a different group than the dataset`);
-    }
-
     // Find the latest approved session
     const approvedSession = doc.review_sessions
       ?.filter((s) => s.status === ReviewStatus.approved)
@@ -391,7 +382,7 @@ export class HitlDatasetService {
     const inputFilename = `${sampleId}.pdf`;
     const inputRelativePath = `inputs/${inputFilename}`;
     const inputBlobKey = buildBlobFilePath(
-      groupId,
+      doc.group_id,
       OperationCategory.BENCHMARK,
       [storagePrefix, "inputs"],
       inputFilename,
@@ -413,7 +404,7 @@ export class HitlDatasetService {
     // Write ground truth file
     const gtRelativePath = `ground-truth/${sampleId}.json`;
     const gtBlobKey = buildBlobFilePath(
-      groupId,
+      doc.group_id,
       OperationCategory.BENCHMARK,
       [storagePrefix, "ground-truth"],
       `${sampleId}.json`,
