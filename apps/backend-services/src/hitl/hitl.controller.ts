@@ -19,6 +19,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -46,6 +47,7 @@ export class HitlController {
   constructor(
     private readonly hitlService: HitlService,
     private readonly documentService: DocumentService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("queue")
@@ -63,7 +65,22 @@ export class HitlController {
     } else {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
-    return this.hitlService.getQueue(filters, groupIds);
+    const result = await this.hitlService.getQueue(filters, groupIds);
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "hitl_queue",
+      resource_id:
+        filters.group_id ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: filters.group_id,
+      payload: {
+        action: "metadata",
+        document_ids: result.documents.map((doc) => doc.id),
+        count: result.documents.length,
+        group_ids: groupIds,
+      },
+    });
+    return result;
   }
 
   @Get("queue/stats")
@@ -137,7 +154,17 @@ export class HitlController {
       throw new NotFoundException(`Review session ${id} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.getSession(id);
+    const result = await this.hitlService.getSession(id);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: session.document_id,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: session.document_id,
+      group_id: session.document.group_id ?? undefined,
+      payload: { action: "ocr" },
+    });
+    return result;
   }
 
   @Post("sessions/:id/corrections")
@@ -179,7 +206,17 @@ export class HitlController {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.getCorrections(sessionId);
+    const result = await this.hitlService.getCorrections(sessionId);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: session.document_id,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: session.document_id,
+      group_id: session.document.group_id ?? undefined,
+      payload: { action: "ocr" },
+    });
+    return result;
   }
 
   @Post("sessions/:id/submit")

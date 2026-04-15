@@ -279,7 +279,21 @@ export class TemplateModelController {
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.templateModelService.getTemplateModelDocuments(id);
+    const documents =
+      await this.templateModelService.getTemplateModelDocuments(id);
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "template_model",
+      resource_id: id,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: templateModel.group_id ?? undefined,
+      payload: {
+        action: "metadata",
+        document_ids: documents.map((d) => d.labeling_document_id),
+        count: documents.length,
+      },
+    });
+    return documents;
   }
 
   @Post(":id/documents")
@@ -370,6 +384,15 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "metadata", template_model_id: id },
+    });
     return labeledDoc;
   }
 
@@ -411,7 +434,7 @@ export class TemplateModelController {
 
     await this.auditService.recordEvent({
       event_type: "document_accessed",
-      resource_type: "labeling_document",
+      resource_type: "template_model_document",
       resource_id: documentId,
       actor_id: req.resolvedIdentity.actorId,
       document_id: documentId,
@@ -464,6 +487,16 @@ export class TemplateModelController {
     const fileName =
       labelingDocument.original_filename || `document-${documentId}`;
     const mimeType = getContentTypeFromFilename(fileName);
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "download", template_model_id: id },
+    });
 
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
@@ -527,7 +560,20 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
-    return this.templateModelService.getDocumentLabels(id, documentId);
+    const labels = await this.templateModelService.getDocumentLabels(
+      id,
+      documentId,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "metadata", template_model_id: id },
+    });
+    return labels;
   }
 
   @Post(":id/documents/:docId/labels")
@@ -612,7 +658,17 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
-    return this.templateModelService.getDocumentOcr(id, documentId);
+    const ocr = await this.templateModelService.getDocumentOcr(id, documentId);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "ocr", template_model_id: id },
+    });
+    return ocr;
   }
 
   @Post(":id/documents/:docId/suggestions")

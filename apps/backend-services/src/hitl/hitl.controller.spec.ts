@@ -2,6 +2,7 @@ import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { DocumentService } from "../document/document.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
@@ -63,6 +64,10 @@ describe("HitlController", () => {
           provide: DocumentService,
           useValue: documentService,
         },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -76,6 +81,7 @@ describe("HitlController", () => {
           userId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
+          actorId: "actor-1",
         },
       } as unknown as Request;
       const mockResult = { documents: [], total: 0 };
@@ -103,6 +109,7 @@ describe("HitlController", () => {
           userId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
+          actorId: "actor-1",
         },
       } as unknown as Request;
       hitlService.getQueue.mockResolvedValue({
@@ -315,6 +322,7 @@ describe("HitlController", () => {
           userId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
+          actorId: "actor-1",
         },
       } as unknown as Request;
       const mockResult = { id: "session-1" };

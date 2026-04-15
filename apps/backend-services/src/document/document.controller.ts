@@ -142,6 +142,16 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: { action: "metadata" },
+    });
+
     this.logger.debug("=== DocumentController.updateDocument completed ===");
     return updated;
   }
@@ -286,6 +296,23 @@ export class DocumentController {
         }),
       );
 
+      if (req.resolvedIdentity) {
+        await this.auditService.recordEvent({
+          event_type: "document_list_accessed",
+          resource_type: "document_collection",
+          resource_id:
+            groupId ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+          actor_id: req.resolvedIdentity.actorId,
+          group_id: groupId,
+          payload: {
+            action: "metadata",
+            document_ids: documents.map((d) => d.id),
+            count: documents.length,
+            group_ids: groupIds,
+          },
+        });
+      }
+
       this.logger.debug(`Retrieved ${documents.length} documents`);
       this.logger.debug("=== DocumentController.getAllDocuments completed ===");
 
@@ -330,16 +357,6 @@ export class DocumentController {
 
       identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
-      await this.auditService.recordEvent({
-        event_type: "document_accessed",
-        resource_type: "document",
-        resource_id: documentId,
-        actor_id: req.resolvedIdentity.actorId,
-        document_id: documentId,
-        group_id: document.group_id ?? undefined,
-        payload: { action: "ocr" },
-      });
-
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
       if (document.apim_request_id) {
@@ -373,9 +390,20 @@ export class DocumentController {
           `OCR result retrieved successfully for document: ${documentId}`,
         );
         this.logger.debug(`OCR processed at: ${ocrResult.processed_at}`);
+
+        await this.auditService.recordEvent({
+          event_type: "document_accessed",
+          resource_type: "ocr_result",
+          resource_id: ocrResult.id,
+          actor_id: req.resolvedIdentity.actorId,
+          document_id: documentId,
+          group_id: document.group_id ?? undefined,
+          payload: { action: "ocr" },
+        });
       }
 
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
+
       return response;
     } catch (error) {
       this.logger.error(
@@ -517,6 +545,16 @@ export class DocumentController {
       this.logger.debug(
         "=== DocumentController.downloadDocument completed ===",
       );
+
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: documentId,
+        group_id: document.group_id,
+        payload: { action: "download" },
+      });
 
       res.send(fileBuffer);
     } catch (error) {

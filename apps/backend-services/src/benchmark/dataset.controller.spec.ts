@@ -6,6 +6,8 @@ jest.mock("@/auth/identity.helpers", () => ({
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { DatasetController } from "./dataset.controller";
 import { DatasetService } from "./dataset.service";
 import {
@@ -40,6 +42,16 @@ const mockDatasetService = {
   deleteDataset: jest.fn(),
 };
 
+const mockAuditService = {
+  recordEvent: jest.fn().mockResolvedValue(undefined),
+};
+const mockLogger = {
+  debug: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  log: jest.fn(),
+};
+
 describe("DatasetController", () => {
   let controller: DatasetController;
 
@@ -58,7 +70,11 @@ describe("DatasetController", () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DatasetController],
-      providers: [{ provide: DatasetService, useValue: mockDatasetService }],
+      providers: [
+        { provide: DatasetService, useValue: mockDatasetService },
+        { provide: AppLoggerService, useValue: mockLogger },
+        { provide: AuditService, useValue: mockAuditService },
+      ],
     }).compile();
 
     controller = module.get<DatasetController>(DatasetController);
@@ -703,6 +719,18 @@ describe("DatasetController", () => {
         "Content-Length": fileBuffer.length.toString(),
       });
       expect(mockRes.send).toHaveBeenCalledWith(fileBuffer);
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "dataset_document",
+        resource_id: "inputs/test.pdf",
+        actor_id: "user-123",
+        group_id: "test-group",
+        payload: {
+          action: "download",
+          dataset_id: "dataset-123",
+          dataset_version_id: "version-123",
+        },
+      });
     });
 
     it("throws when path query param is missing", async () => {

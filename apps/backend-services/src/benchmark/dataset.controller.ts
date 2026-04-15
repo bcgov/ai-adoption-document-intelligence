@@ -40,6 +40,7 @@ import {
 } from "@nestjs/swagger";
 import type { Response } from "express";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -69,14 +70,18 @@ import {
 @ApiTags("Benchmark - Datasets")
 @Controller("api/benchmark/datasets")
 export class DatasetController {
-  constructor(private readonly datasetService: DatasetService) {}
+  constructor(
+    private readonly datasetService: DatasetService,
+    private readonly auditService: AuditService,
+  ) {}
 
   private async assertDatasetGroupAccess(
     datasetId: string,
     req: Request,
-  ): Promise<void> {
+  ): Promise<string> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
     identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    return dataset.groupId;
   }
 
   @Post()
@@ -477,12 +482,31 @@ export class DatasetController {
     @Query("page") page?: string,
     @Query("limit") limit?: string,
   ): Promise<SampleListResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
 
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
-    return this.datasetService.listSamples(id, versionId, pageNum, limitNum);
+    const result = await this.datasetService.listSamples(
+      id,
+      versionId,
+      pageNum,
+      limitNum,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "metadata",
+        sample_ids: result.samples.map((s) => s.id),
+        count: result.samples.length,
+        dataset_id: id,
+      },
+    });
+    return result;
   }
 
   @Get(":id/versions/:versionId/samples/:sampleId/ground-truth")
@@ -511,8 +535,25 @@ export class DatasetController {
     @Param("sampleId") sampleId: string,
     @Req() req: Request,
   ): Promise<GroundTruthResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.getGroundTruth(id, versionId, sampleId);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
+    const result = await this.datasetService.getGroundTruth(
+      id,
+      versionId,
+      sampleId,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ground_truth",
+      resource_id: sampleId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "ocr",
+        dataset_id: id,
+        dataset_version_id: versionId,
+      },
+    });
+    return result;
   }
 
   @Get(":id/versions/:versionId/files/download")
@@ -533,13 +574,25 @@ export class DatasetController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
 
     if (!filePath) {
       throw new BadRequestException("Query parameter 'path' is required");
     }
     const { buffer, filename, mimeType } =
       await this.datasetService.getSampleFile(id, versionId, filePath);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "dataset_document",
+      resource_id: filePath,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "download",
+        dataset_id: id,
+        dataset_version_id: versionId,
+      },
+    });
     res.set({
       "Content-Type": mimeType,
       "Content-Disposition": `attachment; filename="${filename}"`,
@@ -668,8 +721,23 @@ export class DatasetController {
     @Param("splitId") splitId: string,
     @Req() req: Request,
   ): Promise<SplitDetailResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.getSplit(id, versionId, splitId);
+    const groupId = await this.assertDatasetGroupAccess(id, req);
+    const result = await this.datasetService.getSplit(id, versionId, splitId);
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "dataset_split",
+      resource_id: splitId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "metadata",
+        sample_ids: result.sampleIds ?? [],
+        count: result.sampleIds?.length ?? 0,
+        dataset_id: id,
+        dataset_version_id: versionId,
+      },
+    });
+    return result;
   }
 
   @Patch(":id/versions/:versionId/splits/:splitId")

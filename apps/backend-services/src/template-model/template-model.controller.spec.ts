@@ -1,7 +1,7 @@
 import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Request } from "express";
+import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "../blob-storage/blob-storage.interface";
 import { AddDocumentDto } from "./dto/add-document.dto";
@@ -19,6 +19,8 @@ describe("TemplateModelController", () => {
   let controller: TemplateModelController;
   let templateModelService: jest.Mocked<TemplateModelService>;
   let labelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
+  let mockBlobStorage: { read: jest.Mock };
+  let mockAuditService: { recordEvent: jest.Mock };
 
   const mockTemplateModel = {
     id: "tm-1",
@@ -36,7 +38,8 @@ describe("TemplateModelController", () => {
     id: "labeling-doc-1",
     title: "Test Invoice",
     original_filename: "invoice.pdf",
-    file_path: "labeling-documents/labeling-doc-1/original.pdf",
+    file_path:
+      "clh7z2xk00000356u8e3h1234/training/labeling-documents/labeling-doc-1/original.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -94,6 +97,9 @@ describe("TemplateModelController", () => {
       findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
     } as unknown as jest.Mocked<LabelingDocumentDbService>;
 
+    mockBlobStorage = { read: jest.fn() };
+    mockAuditService = { recordEvent: jest.fn().mockResolvedValue(undefined) };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TemplateModelController],
       providers: [
@@ -103,7 +109,7 @@ describe("TemplateModelController", () => {
         },
         {
           provide: BLOB_STORAGE,
-          useValue: {},
+          useValue: mockBlobStorage,
         },
         {
           provide: LabelingDocumentDbService,
@@ -111,9 +117,7 @@ describe("TemplateModelController", () => {
         },
         {
           provide: AuditService,
-          useValue: {
-            recordEvent: jest.fn().mockResolvedValue(undefined),
-          },
+          useValue: mockAuditService,
         },
       ],
     }).compile();
@@ -861,6 +865,70 @@ describe("TemplateModelController", () => {
         ),
       ).rejects.toThrow(ForbiddenException);
       expect(templateModelService.exportTemplateModel).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("downloadLabelingDocument", () => {
+    const mockRes = {
+      setHeader: jest.fn(),
+      send: jest.fn(),
+    };
+
+    it("downloads document and records audit event for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          actorId: "user-1",
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      const fileBuffer = Buffer.from("file content");
+      templateModelService.getTemplateModelDocument.mockResolvedValue(
+        mockLabeledDocument as never,
+      );
+      mockBlobStorage.read.mockResolvedValue(fileBuffer);
+
+      await controller.downloadLabelingDocument(
+        "tm-1",
+        "labeled-doc-1",
+        mockRes as unknown as Response,
+        req,
+      );
+
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "template_model_document",
+        resource_id: "labeled-doc-1",
+        actor_id: "user-1",
+        document_id: "labeled-doc-1",
+        group_id: "group-1",
+        payload: { action: "download", template_model_id: "tm-1" },
+      });
+      expect(mockRes.send).toHaveBeenCalledWith(fileBuffer);
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "user-1",
+        },
+      } as Request;
+      templateModelService.getTemplateModelDocument.mockResolvedValue(
+        mockLabeledDocument as never,
+      );
+
+      await expect(
+        controller.downloadLabelingDocument(
+          "tm-1",
+          "labeled-doc-1",
+          mockRes as unknown as Response,
+          req,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
     });
   });
 });

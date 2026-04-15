@@ -50,19 +50,37 @@ This document describes the durable audit table used to record **workflow runs**
 
 ### Document access
 
-| event_type        | When | resource_type | resource_id | Payload / notes        |
-|-------------------|------|---------------|-------------|------------------------|
-| `document_accessed` | After successful access to document metadata, file download, or OCR result | document | document.id | action: "metadata", "download", or "ocr" |
+| event_type                | When                                                                          | resource_type                                                                                             | resource_id                                                | Payload / notes                                                                           |
+|---------------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| `document_accessed`       | After successful access to document metadata, file bytes, or OCR result (single resource) | `document`, `ocr_result`, `template_model_document`, `ground_truth`, `dataset_document`, `benchmark_run` | id of the resource accessed (document id, sample id, etc.) | `{ action: "metadata" \| "ocr" \| "view" \| "download", ...context }`                     |
+| `document_list_accessed`  | After successful access to a list/collection endpoint that returns documents, OCR, or their derivatives | `document_collection`, `template_model`, `hitl_queue`, `hitl_eligible`, `dataset_version`, `dataset_split`, `benchmark_run`, `classifier` | scope id (group id, template model id, version id, etc.)   | `{ action, document_ids \| sample_ids \| document_names, count, ...scope-specific ids }`  |
 
-- **actor_id**: User or API key identity when available; **document_id**, **group_id**, **request_id** from document and request context.
-- Recorded in **DocumentController** for: getDocument (metadata), downloadDocument (download), getOcrResult (ocr).
+**Action vocabulary (compact — same values across all controllers):**
+
+- `metadata` — DB record, list metadata, labeled document record, or aggregate metrics
+- `ocr` — raw OCR output, corrections derived from OCR, ground-truth JSON, or per-sample extracted values
+- `view` — rendered/inline file bytes (e.g. inline PDF)
+- `download` — raw original-file bytes returned as an attachment
+
+**Single-row list audits:** endpoints returning multiple resources emit **one** audit row per request. The returned identifiers are stored in the payload as `document_ids`, `sample_ids`, or `document_names` (whichever is applicable), along with a `count`. This keeps audit volume proportional to request count rather than result size.
+
+- **actor_id / group_id / request_id** are filled from the current request context when not passed explicitly.
+- **Where recorded (user-facing data delivery only):**
+  - `DocumentController` — `getDocument` (metadata), `updateDocument` (metadata), `getAllDocuments` (list metadata), `getOcrResult` (ocr), `viewDocument` (view), `downloadDocument` (download).
+  - `TemplateModelController` — `getTemplateModelDocuments` (list), `getTemplateModelDocument` (metadata), `getDocumentLabels` (metadata), `getDocumentOcr` (ocr), `viewLabelingDocument` (view), `downloadLabelingDocument` (download).
+  - `HitlController` — `getQueue` (list), `getSession` (ocr), `getCorrections` (ocr).
+  - `GroundTruthGenerationController` — `getReviewQueue` (list ocr).
+  - `BenchmarkRunController` — `getDrillDown` (metadata), `getPerSampleResults` (list ocr).
+  - `DatasetController` — `listSamples` (list metadata), `getSplit` (list metadata), `getGroundTruth` (ocr), `downloadFile` (download).
+  - `HitlDatasetController` — `listEligibleDocuments` (list metadata).
+  - `AzureController` — `getClassifierDocuments` (list metadata).
 
 ## Implementation
 
 - **Backend:** `AuditService` (in `apps/backend-services/src/audit/`) provides `recordEvent(events)`. When `request_id` or `actor_id` are omitted in the input, they are filled from the current request context (AsyncLocalStorage) when available, so callers do not need to pass them explicitly. It is called from:
   - **OcrService:** after starting a graph workflow and updating the document.
   - **HitlService:** after creating a session, submitting corrections, approving, escalating, or skipping a session.
-  - **DocumentController:** after successfully sending the human approval signal to a workflow; and after authorized access to a document (get metadata, download file, get OCR result) with event_type `document_accessed` and payload.action `metadata`, `download`, or `ocr`.
+  - **DocumentController:** after successfully sending the human approval signal to a workflow; and after authorized delivery of document metadata, file bytes, or OCR to a user (see "Document access" above for the full list of controllers and endpoints).
 - **Migration:** `apps/shared/prisma/migrations/20250224120000_add_audit_events/`.
 - **Failure behavior:** If an audit insert fails, the service logs a warning and continues; the main operation is not failed.
 

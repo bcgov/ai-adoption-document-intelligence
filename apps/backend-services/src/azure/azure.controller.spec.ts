@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Request } from "express";
+import type { AuditService } from "@/audit/audit.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
@@ -57,6 +58,7 @@ describe("AzureController", () => {
       storageService,
       azureService,
       mockAppLogger,
+      { recordEvent: jest.fn() } as unknown as AuditService,
     );
   });
 
@@ -457,16 +459,22 @@ describe("AzureController", () => {
         "g1/classification/c1/labelB/doc2",
       ]);
       const query = { name: "c1", group_id: "g1" };
-      const result = await controller.getClassifierDocuments(query);
+      const result = await controller.getClassifierDocuments(
+        createMockReq("user1", ["g1"]),
+        query,
+      );
       expect(result).toEqual(["/labelA/doc1", "/labelB/doc2"]);
       expect(storageService.list).toHaveBeenCalledWith("g1/classification/c1");
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
       const query = { name: "c1", group_id: "g1" };
-      await expect(controller.getClassifierDocuments(query)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.getClassifierDocuments(
+          createMockReq("user1", ["g1"]),
+          query,
+        ),
+      ).rejects.toThrow(NotFoundException);
     });
   });
   describe("updateClassifier", () => {

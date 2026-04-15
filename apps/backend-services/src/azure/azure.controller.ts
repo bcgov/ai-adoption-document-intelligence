@@ -30,6 +30,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -80,6 +81,7 @@ export class AzureController {
     private readonly blobStorage: BlobStorageInterface,
     private readonly azureService: AzureService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("classifier")
@@ -291,6 +293,7 @@ export class AzureController {
     type: [String],
   })
   async getClassifierDocuments(
+    @Req() req: Request,
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
@@ -309,7 +312,20 @@ export class AzureController {
       [name],
     );
     const documents = await this.blobStorage.list(prefix);
-    return documents.map((doc) => doc.slice(prefix.length));
+    const names = documents.map((doc) => doc.slice(prefix.length));
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "classifier",
+      resource_id: name,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id,
+      payload: {
+        action: "metadata",
+        document_names: names,
+        count: names.length,
+      },
+    });
+    return names;
   }
 
   @Delete("classifier/documents")

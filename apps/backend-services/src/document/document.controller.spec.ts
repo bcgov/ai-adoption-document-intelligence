@@ -224,12 +224,11 @@ describe("DocumentController", () => {
       const result = await controller.getOcrResult("1", mockReq as any);
       expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
         event_type: "document_accessed",
-        resource_type: "document",
-        resource_id: "1",
+        resource_type: "ocr_result",
+        resource_id: "ocr-1",
         actor_id: "actor-1",
         document_id: "1",
         group_id: mockGroupId,
-        request_id: undefined,
         payload: { action: "ocr" },
       });
       expect(result).toEqual({
