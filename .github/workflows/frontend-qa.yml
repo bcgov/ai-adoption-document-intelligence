@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install dependencies
-        run: npm ci
+        run: npm install --ignore-scripts --no-package-lock
       - name: Run Linter
         working-directory: apps/frontend
         run: npm run lint

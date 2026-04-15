@@ -24,7 +24,7 @@ ENV VITE_SUPPORT_EMAIL=${VITE_SUPPORT_EMAIL}
 ENV VITE_ENV=${VITE_ENV}
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts
 COPY . .
 RUN npm run build
 

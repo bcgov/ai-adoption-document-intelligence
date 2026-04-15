@@ -140,7 +140,15 @@ export async function materializeDataset(
         await fs.mkdir(localDir, { recursive: true });
 
         const data = await blobStorage.read(validateBlobFilePath(key));
-        await fs.writeFile(localPath, data);
+        // wx flag is exclusive creation. Will fail if already exists.
+        // 0x600 permissions restrict to read/write only for the owner
+        const fileHandle = await fs.open(localPath, "wx", 0o600);
+        try {
+          await fileHandle.writeFile(new Uint8Array(data));
+        } finally {
+          // Close to prevent file handler memory leaks.
+          await fileHandle.close();
+        }
       }
 
       log.info("Download complete", {
