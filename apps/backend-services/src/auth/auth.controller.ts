@@ -41,6 +41,7 @@ import {
 } from "./cookie-auth.utils";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
 import { Identity } from "./identity.decorator";
+import { requireUserId } from "./identity.helpers";
 import { Public } from "./public.decorator";
 import { User } from "./types";
 
@@ -290,8 +291,8 @@ export class AuthController {
     const exp = (user.exp as number) || now;
 
     const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
-    // There will always be a user Id, as this is non-accessible via api-key
-    const userId = req.resolvedIdentity.userId!;
+    // Route is JWT-only (allowApiKey: false), so a userId must be present.
+    const userId = requireUserId(req.resolvedIdentity);
     const groups = await this.groupService.getUserGroups(
       req.resolvedIdentity,
       userId,

@@ -22,6 +22,7 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
+import { requireUserId } from "@/auth/identity.helpers";
 import { User } from "../auth/types";
 import { CreateGroupDto } from "./dto/create-group.dto";
 import { GroupMemberDto } from "./dto/group-member.dto";
@@ -119,7 +120,7 @@ export class GroupController {
     @Req() req: Request & { user?: User },
     @Body() body: RequestMembershipDto,
   ): Promise<{ success: boolean }> {
-    const userId = req.resolvedIdentity.userId!;
+    const userId = requireUserId(req.resolvedIdentity);
     await this.groupService.requestMembership(
       userId,
       body.groupId,
@@ -146,7 +147,7 @@ export class GroupController {
     @Req() req: Request,
     @Query("status") status?: string,
   ): Promise<MyMembershipRequestDto[]> {
-    const userId = req.resolvedIdentity.userId!;
+    const userId = requireUserId(req.resolvedIdentity);
     const validStatuses = Object.values($Enums.GroupMembershipRequestStatus);
     let parsedStatus: $Enums.GroupMembershipRequestStatus | undefined;
     if (status !== undefined) {
@@ -506,7 +507,7 @@ export class GroupController {
     @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<{ success: boolean }> {
-    const userId = req.resolvedIdentity.userId!;
+    const userId = requireUserId(req.resolvedIdentity);
     await this.groupService.leaveGroup(userId, groupId);
     return { success: true };
   }

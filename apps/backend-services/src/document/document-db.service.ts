@@ -296,17 +296,17 @@ export class DocumentDbService {
         obj === null ? Prisma.DbNull : (obj as Prisma.InputJsonValue);
 
       let extractedFields: ExtractedFields | null = null;
-      if ((analysisResult.documents?.length ?? 0) > 0) {
-        extractedFields = analysisResult.documents![0].fields;
+      const documents = analysisResult.documents;
+      const keyValuePairs = analysisResult.keyValuePairs;
+      if (documents && documents.length > 0) {
+        extractedFields = documents[0].fields;
         this.logger.debug("Using custom model fields", {
           fieldCount: Object.keys(extractedFields).length,
         });
-      } else if ((analysisResult.keyValuePairs?.length ?? 0) > 0) {
-        extractedFields = this.convertKeyValuePairsToFields(
-          analysisResult.keyValuePairs!,
-        );
+      } else if (keyValuePairs && keyValuePairs.length > 0) {
+        extractedFields = this.convertKeyValuePairsToFields(keyValuePairs);
         this.logger.debug("Converted keyValuePairs to fields format", {
-          count: analysisResult.keyValuePairs!.length,
+          count: keyValuePairs.length,
         });
       }
 
