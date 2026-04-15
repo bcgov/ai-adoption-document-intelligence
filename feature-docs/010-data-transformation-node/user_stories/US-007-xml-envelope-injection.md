@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Envelope with {{payload}} placeholder receives inner XML
+- [x] **Scenario 1**: Envelope with {{payload}} placeholder receives inner XML
     - **Given** an envelope template containing `{{payload}}` and a rendered inner XML string
     - **When** the envelope injector runs
     - **Then** the output is the envelope template with `{{payload}}` replaced by the inner XML string
 
-- [ ] **Scenario 2**: No envelope configured produces inner XML with root element only
+- [x] **Scenario 2**: No envelope configured produces inner XML with root element only
     - **Given** `xmlEnvelope` is `undefined` or empty string on the node config
     - **When** the XML output is produced
     - **Then** the output is the inner XML wrapped only in the default root element (as produced by US-005)
 
-- [ ] **Scenario 3**: Envelope missing {{payload}} placeholder throws structured error
+- [x] **Scenario 3**: Envelope missing {{payload}} placeholder throws structured error
     - **Given** an envelope template that does not contain `{{payload}}`
     - **When** the envelope injector runs
     - **Then** it throws a structured configuration error indicating the missing placeholder
 
-- [ ] **Scenario 4**: Resulting output is valid XML
+- [x] **Scenario 4**: Resulting output is valid XML
     - **Given** a valid envelope template with `{{payload}}` and valid inner XML
     - **When** the envelope injector runs
     - **Then** the final output string is parseable by a standard XML parser

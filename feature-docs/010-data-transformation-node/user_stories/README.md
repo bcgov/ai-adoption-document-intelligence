@@ -62,7 +62,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-006** (Implement CSV output renderer)
 
 ### Phase 3 — Advanced Transformation Engine
-- [ ] **US-007** (Implement XML envelope template injection)
+- [x] **US-007** (Implement XML envelope template injection)
 - [ ] **US-008** (Implement array iteration support: `{{#each}}` / `{{/each}}`)
 
 ### Phase 4 — Error Handling
