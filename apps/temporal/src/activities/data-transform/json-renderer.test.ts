@@ -1,3 +1,4 @@
+import { IterationResult } from "./binding-resolver";
 import { JsonRenderError, renderJson } from "./json-renderer";
 
 describe("renderJson - flat mapping", () => {
@@ -67,5 +68,53 @@ describe("renderJson - rendering failure", () => {
       expect(err).toBeInstanceOf(JsonRenderError);
       expect((err as JsonRenderError).detail).toBeTruthy();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-008: Scenario 6 — JSON output collects iterations into an array
+// ---------------------------------------------------------------------------
+describe("renderJson - iteration support", () => {
+  it("serializes an IterationResult as a JSON array", () => {
+    const mapping = {
+      Items: new IterationResult([
+        { Name: "Alice", Value: "1" },
+        { Name: "Bob", Value: "2" },
+      ]),
+    };
+
+    const result = renderJson(mapping);
+    const parsed = JSON.parse(result) as Record<string, unknown>;
+
+    expect(parsed.Items).toEqual([
+      { Name: "Alice", Value: "1" },
+      { Name: "Bob", Value: "2" },
+    ]);
+  });
+
+  it("serializes a nested IterationResult with object items", () => {
+    const mapping = {
+      ListOfItems: new IterationResult([
+        { Item: { Name: "Alpha", Value: "1" } },
+        { Item: { Name: "Beta", Value: "2" } },
+      ]),
+    };
+
+    const result = renderJson(mapping);
+    const parsed = JSON.parse(result) as Record<string, unknown>;
+
+    expect(Array.isArray(parsed.ListOfItems)).toBe(true);
+    expect(parsed.ListOfItems).toHaveLength(2);
+  });
+
+  it("serializes an empty IterationResult as an empty JSON array", () => {
+    const mapping = {
+      Items: new IterationResult([]),
+    };
+
+    const result = renderJson(mapping);
+    const parsed = JSON.parse(result) as Record<string, unknown>;
+
+    expect(parsed.Items).toEqual([]);
   });
 });

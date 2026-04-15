@@ -6,32 +6,32 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Iteration block renders once per array element
+- [x] **Scenario 1**: Iteration block renders once per array element
     - **Given** a mapping with `{{#each extractionNode.items}}` ... `{{/each}}` and an upstream array of 3 elements
     - **When** the binding resolver processes the iteration block
     - **Then** the body of the block is rendered 3 times, once for each element
 
-- [ ] **Scenario 2**: {{this.fieldName}} accesses fields on the current element
+- [x] **Scenario 2**: {{this.fieldName}} accesses fields on the current element
     - **Given** an iteration block body that references `{{this.name}}` and `{{this.value}}` and the current element has those fields
     - **When** the resolver processes each iteration
     - **Then** `{{this.name}}` resolves to the element's `name` value and `{{this.value}}` to its `value`
 
-- [ ] **Scenario 3**: Empty array produces no output without error
+- [x] **Scenario 3**: Empty array produces no output without error
     - **Given** an iteration block whose `arrayPath` resolves to an empty array (`[]`)
     - **When** the resolver processes the iteration block
     - **Then** no output is produced for that block and no error is thrown
 
-- [ ] **Scenario 4**: XML output produces repeated child elements per iteration
+- [x] **Scenario 4**: XML output produces repeated child elements per iteration
     - **Given** an iteration block inside an XML output mapping
     - **When** the XML renderer processes the resolved iteration
     - **Then** each iteration produces a repeated XML child element in the output
 
-- [ ] **Scenario 5**: CSV output produces additional data rows per iteration
+- [x] **Scenario 5**: CSV output produces additional data rows per iteration
     - **Given** an iteration block inside a CSV output mapping
     - **When** the CSV renderer processes the resolved iteration
     - **Then** each iteration produces an additional data row below the header row
 
-- [ ] **Scenario 6**: JSON output collects iterations into an array
+- [x] **Scenario 6**: JSON output collects iterations into an array
     - **Given** an iteration block inside a JSON output mapping
     - **When** the JSON renderer processes the resolved iteration
     - **Then** iterations are collected into a JSON array value for the containing key

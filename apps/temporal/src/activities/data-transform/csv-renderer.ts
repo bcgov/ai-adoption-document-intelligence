@@ -1,4 +1,5 @@
 import { stringify } from "csv/sync";
+import { IterationResult } from "./binding-resolver";
 
 /** Structured error thrown when CSV output rendering fails. */
 export class CsvRenderError extends Error {
@@ -29,21 +30,60 @@ function isCsvPrimitive(value: unknown): value is CsvPrimitive {
 /**
  * Renders a resolved field mapping object to a valid CSV string.
  *
- * The output always contains two rows: a header row (the mapping keys) and a
- * data row (the mapping values). Values containing commas or double-quotes are
- * quoted and escaped per RFC 4180.
+ * **Flat mapping**: The output contains two rows — a header row (the mapping
+ * keys) and a data row (the mapping values). All values must be primitives.
  *
- * Nested objects (plain objects or arrays) are not supported and will cause a
- * {@link CsvRenderError} to be thrown. All values must be primitives
- * (string, number, boolean, null, or undefined).
+ * **Iteration mapping**: When the mapping contains an {@link IterationResult}
+ * value produced by the binding resolver, the output contains a header row
+ * (the iteration template's keys) followed by one data row per iteration
+ * element. Non-primitive values within iteration items cause a
+ * {@link CsvRenderError}.
+ *
+ * Values containing commas or double-quotes are quoted and escaped per
+ * RFC 4180.
  *
  * @param resolvedMapping - The field mapping with all binding expressions
  *   already resolved by the binding resolver.
- * @returns A valid two-row CSV string (headers + data).
+ * @returns A valid CSV string.
  * @throws {CsvRenderError} If any value is a complex object or if the
  *   underlying serializer fails for any reason.
  */
 export function renderCsv(resolvedMapping: Record<string, unknown>): string {
+  const iterationEntry = Object.entries(resolvedMapping).find(
+    ([, value]) => value instanceof IterationResult,
+  );
+
+  if (iterationEntry) {
+    const [, iterValue] = iterationEntry;
+    const iteration = iterValue as IterationResult;
+
+    if (iteration.items.length === 0) {
+      return "";
+    }
+
+    for (const item of iteration.items) {
+      for (const [key, value] of Object.entries(item)) {
+        if (!isCsvPrimitive(value)) {
+          throw new CsvRenderError(
+            `Value for key "${key}" in iteration item is a non-primitive type (${typeof value}) and cannot be serialized to CSV`,
+          );
+        }
+      }
+    }
+
+    try {
+      return stringify(iteration.items as Record<string, CsvPrimitive>[], {
+        header: true,
+        cast: {
+          boolean: (value) => String(value),
+        },
+      });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new CsvRenderError(detail);
+    }
+  }
+
   for (const [key, value] of Object.entries(resolvedMapping)) {
     if (!isCsvPrimitive(value)) {
       throw new CsvRenderError(

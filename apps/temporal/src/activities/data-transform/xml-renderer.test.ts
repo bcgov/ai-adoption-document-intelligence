@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { IterationResult } from "./binding-resolver";
 import { renderXml, XmlRenderError } from "./xml-renderer";
 
 // ---------------------------------------------------------------------------
@@ -144,5 +145,61 @@ describe("renderXml - rendering failure", () => {
     >;
     expect(() => renderXml(mapping)).toThrow(XmlRenderError);
     expect(() => renderXml(mapping)).toThrow("Person.bad key");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-008: Scenario 4 — XML output produces repeated child elements per iteration
+// ---------------------------------------------------------------------------
+describe("renderXml - iteration support", () => {
+  it("produces repeated child elements for each iteration item", () => {
+    const mapping = {
+      ListOfItems: new IterationResult([
+        { Item: { Name: "Alpha", Value: "1" } },
+        { Item: { Name: "Beta", Value: "2" } },
+      ]),
+    };
+
+    const result = renderXml(mapping);
+
+    // Each iteration produces a repeated <Item> child element
+    expect(result).toContain("<Item><Name>Alpha</Name><Value>1</Value></Item>");
+    expect(result).toContain("<Item><Name>Beta</Name><Value>2</Value></Item>");
+    // Both items are children of the same <ListOfItems> element
+    expect(result).toMatch(
+      /<ListOfItems>.*<Item>.*<\/Item>.*<Item>.*<\/Item>.*<\/ListOfItems>/s,
+    );
+  });
+
+  it("produces parseable XML with repeated elements from iteration", () => {
+    const mapping = {
+      Records: new IterationResult([
+        { Record: { Name: "Alice" } },
+        { Record: { Name: "Bob" } },
+      ]),
+    };
+
+    const result = renderXml(mapping);
+    expect(result).toContain(
+      "<Alice>".replace("<Alice>", "<Name>Alice</Name>"),
+    );
+    expect(result).toContain("<Name>Bob</Name>");
+  });
+
+  it("produces an empty element when the IterationResult is empty", () => {
+    const mapping = {
+      ListOfItems: new IterationResult([]),
+    };
+
+    const result = renderXml(mapping);
+    expect(result).toContain("ListOfItems");
+  });
+
+  it("throws XmlRenderError for an invalid key inside an iteration item", () => {
+    const mapping = {
+      Items: new IterationResult([{ "bad key": "value" }]),
+    } as Record<string, unknown>;
+
+    expect(() => renderXml(mapping)).toThrow(XmlRenderError);
   });
 });

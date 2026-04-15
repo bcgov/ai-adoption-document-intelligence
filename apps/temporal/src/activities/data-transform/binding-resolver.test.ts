@@ -1,9 +1,14 @@
-import { BindingResolutionError, resolveBindings } from "./binding-resolver";
+import {
+  BindingResolutionError,
+  IterationResolutionError,
+  IterationResult,
+  resolveBindings,
+} from "./binding-resolver";
 
 // ---------------------------------------------------------------------------
 // Scenario 1: Simple binding resolves to upstream value
 // ---------------------------------------------------------------------------
-describe("resolveBindings – simple binding", () => {
+describe("resolveBindings - simple binding", () => {
   it("resolves a top-level field from the named upstream node", () => {
     const mapping = { FirstName: "{{extractionNode.FirstName}}" };
     const context = { extractionNode: { FirstName: "Alice" } };
@@ -26,7 +31,7 @@ describe("resolveBindings – simple binding", () => {
 // ---------------------------------------------------------------------------
 // Scenario 2: Deeply nested binding resolves through arbitrary depth
 // ---------------------------------------------------------------------------
-describe("resolveBindings – deeply nested binding", () => {
+describe("resolveBindings - deeply nested binding", () => {
   it("resolves a three-level deep path", () => {
     const mapping = { userId: "{{extractionNode.payload.header.userId}}" };
     const context = {
@@ -51,7 +56,7 @@ describe("resolveBindings – deeply nested binding", () => {
 // ---------------------------------------------------------------------------
 // Scenario 3: Literal string values pass through unchanged
 // ---------------------------------------------------------------------------
-describe("resolveBindings – literal strings", () => {
+describe("resolveBindings - literal strings", () => {
   it("returns a literal string value unchanged", () => {
     const mapping = { TransactionName: "EA SD81 Submission" };
     const context = {};
@@ -75,7 +80,7 @@ describe("resolveBindings – literal strings", () => {
 // ---------------------------------------------------------------------------
 // Scenario 4: Unresolved binding throws a structured error
 // ---------------------------------------------------------------------------
-describe("resolveBindings – unresolved binding throws structured error", () => {
+describe("resolveBindings - unresolved binding throws structured error", () => {
   it("throws BindingResolutionError when the field does not exist", () => {
     const mapping = { name: "{{extractionNode.MissingField}}" };
     const context = { extractionNode: { FirstName: "Alice" } };
@@ -121,7 +126,7 @@ describe("resolveBindings – unresolved binding throws structured error", () =>
 // ---------------------------------------------------------------------------
 // Scenario 5: Bindings can reference any prior node in the workflow
 // ---------------------------------------------------------------------------
-describe("resolveBindings – multi-node references", () => {
+describe("resolveBindings - multi-node references", () => {
   it("resolves bindings from two different upstream nodes in the same mapping", () => {
     const mapping = {
       aValue: "{{nodeA.value}}",
@@ -161,7 +166,7 @@ describe("resolveBindings – multi-node references", () => {
 // ---------------------------------------------------------------------------
 // Additional: inline bindings mixed with literal text
 // ---------------------------------------------------------------------------
-describe("resolveBindings – inline bindings mixed with text", () => {
+describe("resolveBindings - inline bindings mixed with text", () => {
   it("interpolates a binding embedded in a larger string", () => {
     const mapping = { label: "Hello, {{extractionNode.name}}!" };
     const context = { extractionNode: { name: "Bob" } };
@@ -175,7 +180,7 @@ describe("resolveBindings – inline bindings mixed with text", () => {
 // ---------------------------------------------------------------------------
 // Additional: nested mapping objects are walked recursively
 // ---------------------------------------------------------------------------
-describe("resolveBindings – nested objects", () => {
+describe("resolveBindings - nested objects", () => {
   it("resolves bindings inside nested plain objects", () => {
     const mapping = {
       person: {
@@ -188,5 +193,178 @@ describe("resolveBindings – nested objects", () => {
     const result = resolveBindings(mapping, context);
 
     expect(result.person).toEqual({ first: "Jane", last: "Doe" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-008: Array iteration support
+// ---------------------------------------------------------------------------
+describe("resolveBindings - array iteration", () => {
+  // Scenario 1: iteration block renders once per array element
+  it("renders the template body once per array element (3 elements)", () => {
+    const mapping = {
+      Records: {
+        "{{#each extractionNode.items}}": {
+          Name: "{{this.name}}",
+        },
+        "{{/each}}": "",
+      },
+    };
+    const context = {
+      extractionNode: {
+        items: [{ name: "a" }, { name: "b" }, { name: "c" }],
+      },
+    };
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result.Records).toBeInstanceOf(IterationResult);
+    expect((result.Records as IterationResult).items).toHaveLength(3);
+  });
+
+  // Scenario 2: {{this.fieldName}} resolves to current element field
+  it("{{this.fieldName}} resolves to the current element's field value", () => {
+    const mapping = {
+      Items: {
+        "{{#each node.items}}": {
+          ItemName: "{{this.name}}",
+          ItemValue: "{{this.value}}",
+        },
+        "{{/each}}": "",
+      },
+    };
+    const context = {
+      node: { items: [{ name: "Widget", value: "42" }] },
+    };
+
+    const result = resolveBindings(mapping, context);
+    const iterResult = result.Items as IterationResult;
+
+    expect(iterResult.items[0]).toEqual({
+      ItemName: "Widget",
+      ItemValue: "42",
+    });
+  });
+
+  // Scenario 2 (shorthand): {{fieldName}} resolves to current element field
+  it("shorthand {{fieldName}} resolves to the current element's field value", () => {
+    const mapping = {
+      Items: {
+        "{{#each node.items}}": {
+          ItemName: "{{name}}",
+          ItemValue: "{{value}}",
+        },
+        "{{/each}}": "",
+      },
+    };
+    const context = {
+      node: { items: [{ name: "Gadget", value: "99" }] },
+    };
+
+    const result = resolveBindings(mapping, context);
+    const iterResult = result.Items as IterationResult;
+
+    expect(iterResult.items[0]).toEqual({
+      ItemName: "Gadget",
+      ItemValue: "99",
+    });
+  });
+
+  // Scenario 3: empty array produces IterationResult with no items
+  it("empty array produces an IterationResult with no items and no error", () => {
+    const mapping = {
+      Items: {
+        "{{#each node.items}}": { Name: "{{this.name}}" },
+        "{{/each}}": "",
+      },
+    };
+    const context = { node: { items: [] } };
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result.Items).toBeInstanceOf(IterationResult);
+    expect((result.Items as IterationResult).items).toHaveLength(0);
+  });
+
+  // Error: unresolvable array path
+  it("throws IterationResolutionError when the array path does not exist", () => {
+    const mapping = {
+      Items: {
+        "{{#each node.missing}}": { Name: "{{this.name}}" },
+        "{{/each}}": "",
+      },
+    };
+    const context = { node: {} };
+
+    expect(() => resolveBindings(mapping, context)).toThrow(
+      IterationResolutionError,
+    );
+    expect(() => resolveBindings(mapping, context)).toThrow("node.missing");
+  });
+
+  // Error: path resolves to non-array
+  it("throws IterationResolutionError when the resolved path is not an array", () => {
+    const mapping = {
+      Items: {
+        "{{#each node.scalar}}": { Name: "{{this.name}}" },
+        "{{/each}}": "",
+      },
+    };
+    const context = { node: { scalar: "notAnArray" } };
+
+    expect(() => resolveBindings(mapping, context)).toThrow(
+      IterationResolutionError,
+    );
+  });
+
+  // IterationResolutionError exposes path
+  it("IterationResolutionError exposes the path property", () => {
+    const mapping = {
+      Items: {
+        "{{#each node.missing}}": { Name: "{{this.name}}" },
+        "{{/each}}": "",
+      },
+    };
+    const context = { node: {} };
+
+    try {
+      resolveBindings(mapping, context);
+      fail("expected error to be thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(IterationResolutionError);
+      expect((err as IterationResolutionError).path).toBe("node.missing");
+    }
+  });
+
+  // Multi-element with nested template
+  it("resolves each iteration's template independently with nested objects", () => {
+    const mapping = {
+      ListOfItems: {
+        "{{#each extractionNode.items}}": {
+          Item: {
+            Name: "{{this.name}}",
+            Value: "{{this.value}}",
+          },
+        },
+        "{{/each}}": "",
+      },
+    };
+    const context = {
+      extractionNode: {
+        items: [
+          { name: "Alpha", value: "1" },
+          { name: "Beta", value: "2" },
+        ],
+      },
+    };
+
+    const result = resolveBindings(mapping, context);
+    const iterResult = result.ListOfItems as IterationResult;
+
+    expect(iterResult.items).toHaveLength(2);
+    expect(iterResult.items[0]).toEqual({
+      Item: { Name: "Alpha", Value: "1" },
+    });
+    expect(iterResult.items[1]).toEqual({ Item: { Name: "Beta", Value: "2" } });
   });
 });

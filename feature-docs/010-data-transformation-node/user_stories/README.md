@@ -63,7 +63,7 @@ After implementing a user story, check it off at the bottom of this file.
 
 ### Phase 3 — Advanced Transformation Engine
 - [x] **US-007** (Implement XML envelope template injection)
-- [ ] **US-008** (Implement array iteration support: `{{#each}}` / `{{/each}}`)
+- [x] **US-008** (Implement array iteration support: `{{#each}}` / `{{/each}}`)
 
 ### Phase 4 — Error Handling
 - [ ] **US-009** (Unresolved binding error handling — halt, log, non-retryable failure)

@@ -1,4 +1,5 @@
 import { parse } from "csv/sync";
+import { IterationResult } from "./binding-resolver";
 import { CsvRenderError, renderCsv } from "./csv-renderer";
 
 describe("renderCsv - headers", () => {
@@ -130,5 +131,60 @@ describe("renderCsv - rendering failure", () => {
       expect(err).toBeInstanceOf(CsvRenderError);
       expect((err as CsvRenderError).detail).toContain("Nested");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-008: Scenario 5 — CSV output produces additional data rows per iteration
+// ---------------------------------------------------------------------------
+describe("renderCsv - iteration support", () => {
+  it("produces a header row and one data row per iteration element", () => {
+    const mapping = {
+      Records: new IterationResult([
+        { Name: "Alice", Value: "1" },
+        { Name: "Bob", Value: "2" },
+      ]),
+    };
+
+    const result = renderCsv(mapping);
+    const rows = parse(result, {
+      columns: true,
+      skip_empty_lines: true,
+    }) as Record<string, string>[];
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual({ Name: "Alice", Value: "1" });
+    expect(rows[1]).toEqual({ Name: "Bob", Value: "2" });
+  });
+
+  it("produces correct headers from the iteration template's keys", () => {
+    const mapping = {
+      Data: new IterationResult([{ FirstName: "Carol", Score: "95" }]),
+    };
+
+    const result = renderCsv(mapping);
+    const lines = result.trim().split("\n");
+
+    expect(lines[0]).toBe("FirstName,Score");
+  });
+
+  it("produces an empty string for an empty IterationResult", () => {
+    const mapping = {
+      Items: new IterationResult([]),
+    };
+
+    const result = renderCsv(mapping);
+    expect(result).toBe("");
+  });
+
+  it("throws CsvRenderError when an iteration item contains a non-primitive value", () => {
+    const mapping = {
+      Items: new IterationResult([
+        { Name: "Alice", Nested: { deep: true } } as Record<string, unknown>,
+      ]),
+    };
+
+    expect(() => renderCsv(mapping)).toThrow(CsvRenderError);
+    expect(() => renderCsv(mapping)).toThrow("Failed to render CSV output:");
   });
 });
