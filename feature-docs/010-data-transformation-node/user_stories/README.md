@@ -57,7 +57,7 @@ After implementing a user story, check it off at the bottom of this file.
 ### Phase 2 — Core Transformation Engine
 - [x] **US-002** (Implement input format parsers: JSON/XML/CSV → intermediate JSON)
 - [x] **US-003** (Implement binding expression resolver: `{{nodeName.field.path}}`)
-- [ ] **US-004** (Implement JSON output renderer)
+- [x] **US-004** (Implement JSON output renderer)
 - [ ] **US-005** (Implement XML output renderer without envelope)
 - [ ] **US-006** (Implement CSV output renderer)
 
