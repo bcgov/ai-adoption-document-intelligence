@@ -14,6 +14,7 @@ import {
   IconShieldCheck,
   IconSparkles,
   IconSwitch3,
+  IconTransform,
   IconUser,
   IconUserCheck,
 } from "@tabler/icons-react";
@@ -87,6 +88,7 @@ const NODE_DIMENSIONS: Record<
   childWorkflow: { width: 200, height: 80 },
   pollUntil: { width: 190, height: 80 },
   humanGate: { width: 190, height: 80 },
+  transform: { width: 0, height: 0 },
 };
 
 const LAYER_GAP = 120; // Vertical spacing between layers in map containers
@@ -99,6 +101,7 @@ const NODE_COLORS: Record<GraphNode["type"], string> = {
   childWorkflow: "#a855f7",
   pollUntil: "#fb923c",
   humanGate: "#ef4444",
+  transform: "#44efe6",
 };
 
 const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
@@ -109,6 +112,7 @@ const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
   childWorkflow: <IconFolder size={18} />,
   pollUntil: <IconRefresh size={18} />,
   humanGate: <IconUserCheck size={18} />,
+  transform: <IconTransform size={18} />,
 };
 
 const GraphNodeRenderer = memo(function GraphNodeRenderer({

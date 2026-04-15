@@ -52,7 +52,7 @@ After implementing a user story, check it off at the bottom of this file.
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1 — Foundation
-- [ ] **US-001** (Define TransformNode TypeScript interface in all three apps) -- all other stories depend on this
+- [x] **US-001** (Define TransformNode TypeScript interface in all three apps) -- all other stories depend on this
 
 ### Phase 2 — Core Transformation Engine
 - [ ] **US-002** (Implement input format parsers: JSON/XML/CSV → intermediate JSON)
