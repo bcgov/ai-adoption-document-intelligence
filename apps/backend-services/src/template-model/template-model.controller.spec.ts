@@ -160,7 +160,7 @@ describe("TemplateModelController", () => {
     it("returns empty template models when user has no identity", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModels.mockResolvedValue([]);
       const result = await controller.getTemplateModels(req, undefined);
       expect(result).toEqual([]);
@@ -192,7 +192,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
 
       await expect(
         controller.getTemplateModels(req, "group-1"),
@@ -255,7 +255,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -268,7 +268,7 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -310,7 +310,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -324,7 +324,7 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -365,7 +365,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -379,7 +379,7 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -427,7 +427,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
 
       await expect(
         controller.uploadLabelingDocument("tm-1", dto, req),
@@ -441,7 +441,7 @@ describe("TemplateModelController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(
         controller.uploadLabelingDocument("tm-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -483,7 +483,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
 
       await expect(
         controller.addDocumentToTemplateModel("tm-1", dto, req),
@@ -501,7 +501,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       labelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         null,
       );
@@ -516,7 +516,7 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       await expect(
         controller.addDocumentToTemplateModel("tm-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -556,7 +556,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -569,7 +569,7 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -613,7 +613,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -633,7 +633,7 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -682,7 +682,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -696,7 +696,7 @@ describe("TemplateModelController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -755,7 +755,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -804,7 +804,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
         mockLabeledDocument as never,
       );
@@ -852,7 +852,7 @@ describe("TemplateModelController", () => {
           groupRoles: {},
           actorId: "user-1",
         },
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );

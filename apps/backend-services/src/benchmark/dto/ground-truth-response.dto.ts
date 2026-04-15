@@ -15,7 +15,7 @@ export class GroundTruthResponseDto {
     description: "Sample ID",
     example: "sample-001",
   })
-  sampleId: string;
+  sampleId!: string;
 
   @ApiProperty({
     description: "Ground truth JSON content",
@@ -26,17 +26,17 @@ export class GroundTruthResponseDto {
       vendor: "Acme Corp",
     },
   })
-  content: Record<string, unknown>;
+  content!: Record<string, unknown>;
 
   @ApiProperty({
     description: "Path to the ground truth file in the repository",
     example: "ground-truth/data_001.json",
   })
-  path: string;
+  path!: string;
 
   @ApiProperty({
     description: "Format of the ground truth file",
     example: "json",
   })
-  format: string;
+  format!: string;
 }

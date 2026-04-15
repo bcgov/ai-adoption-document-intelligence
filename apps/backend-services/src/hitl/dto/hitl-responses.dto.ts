@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { CorrectionDto } from "./correction.dto";
 
 export class QueueDocumentOcrDto {
   @ApiProperty({
@@ -7,47 +6,47 @@ export class QueueDocumentOcrDto {
     type: "object",
     additionalProperties: true,
   })
-  fields: Record<string, unknown>;
+  fields!: Record<string, unknown>;
 }
 
 export class QueueSessionSummaryDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  reviewer_id: string;
+  reviewer_id!: string;
 
   @ApiProperty()
-  status: string;
+  status!: string;
 
   @ApiPropertyOptional()
-  completed_at: Date | null;
+  completed_at!: Date | null;
 
   @ApiProperty()
-  corrections_count: number;
+  corrections_count!: number;
 }
 
 export class QueueDocumentDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  original_filename: string;
+  original_filename!: string;
 
   @ApiProperty()
-  status: string;
+  status!: string;
 
   @ApiPropertyOptional()
-  model_id: string | null;
+  model_id!: string | null;
 
   @ApiProperty()
-  created_at: Date;
+  created_at!: Date;
 
   @ApiProperty()
-  updated_at: Date;
+  updated_at!: Date;
 
   @ApiProperty({ type: QueueDocumentOcrDto })
-  ocr_result: QueueDocumentOcrDto;
+  ocr_result!: QueueDocumentOcrDto;
 
   @ApiPropertyOptional({ type: QueueSessionSummaryDto })
   lastSession?: QueueSessionSummaryDto;
@@ -55,61 +54,61 @@ export class QueueDocumentDto {
 
 export class QueueResponseDto {
   @ApiProperty({ type: [QueueDocumentDto] })
-  documents: QueueDocumentDto[];
+  documents!: QueueDocumentDto[];
 
   @ApiProperty({ description: "Total number of documents matching the filter" })
-  total: number;
+  total!: number;
 }
 
 export class QueueStatsResponseDto {
   @ApiProperty({ description: "Total documents in the review queue" })
-  totalDocuments: number;
+  totalDocuments!: number;
 
   @ApiProperty({ description: "Documents requiring human review" })
-  requiresReview: number;
+  requiresReview!: number;
 
   @ApiProperty({ description: "Average confidence score across all documents" })
-  averageConfidence: number;
+  averageConfidence!: number;
 
   @ApiProperty({ description: "Number of documents reviewed today" })
-  reviewedToday: number;
+  reviewedToday!: number;
 }
 
 export class SessionDocumentDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  original_filename: string;
+  original_filename!: string;
 
   @ApiProperty()
-  storage_path: string;
+  storage_path!: string;
 
   @ApiProperty({ type: QueueDocumentOcrDto })
-  ocr_result: QueueDocumentOcrDto;
+  ocr_result!: QueueDocumentOcrDto;
 }
 
 export class ReviewSessionResponseDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  documentId: string;
+  documentId!: string;
 
   @ApiProperty()
-  reviewerId: string;
+  reviewerId!: string;
 
   @ApiProperty()
-  status: string;
+  status!: string;
 
   @ApiProperty()
-  startedAt: Date;
+  startedAt!: Date;
 
   @ApiPropertyOptional()
   completedAt?: Date | null;
 
   @ApiProperty({ type: SessionDocumentDto })
-  document: SessionDocumentDto;
+  document!: SessionDocumentDto;
 
   @ApiPropertyOptional({
     description: "Corrections submitted during this session",
@@ -120,10 +119,10 @@ export class ReviewSessionResponseDto {
 
 export class CorrectionRecordDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  fieldKey: string;
+  fieldKey!: string;
 
   @ApiPropertyOptional()
   originalValue?: string | null;
@@ -135,37 +134,37 @@ export class CorrectionRecordDto {
   originalConfidence?: number | null;
 
   @ApiProperty()
-  action: string;
+  action!: string;
 
   @ApiProperty()
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 export class SubmitCorrectionsResponseDto {
   @ApiProperty()
-  sessionId: string;
+  sessionId!: string;
 
   @ApiProperty({ type: "array", description: "Saved correction records" })
-  corrections: unknown[];
+  corrections!: unknown[];
 
   @ApiProperty()
-  message: string;
+  message!: string;
 }
 
 export class CorrectionsListResponseDto {
   @ApiProperty()
-  sessionId: string;
+  sessionId!: string;
 
   @ApiProperty({ type: [CorrectionRecordDto] })
-  corrections: CorrectionRecordDto[];
+  corrections!: CorrectionRecordDto[];
 }
 
 export class SessionActionResponseDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  status: string;
+  status!: string;
 
   @ApiPropertyOptional()
   completedAt?: Date | null;
@@ -176,7 +175,7 @@ export class SessionActionResponseDto {
   reason?: string;
 
   @ApiProperty()
-  message: string;
+  message!: string;
 }
 
 export class AnalyticsCorrectionsByActionDto {
@@ -186,20 +185,20 @@ export class AnalyticsCorrectionsByActionDto {
 }
 
 export class AnalyticsSummaryDto {
-  @ApiProperty() totalSessions: number;
-  @ApiProperty() completedSessions: number;
-  @ApiProperty() totalCorrections: number;
-  @ApiProperty() confirmedFields: number;
-  @ApiProperty() correctedFields: number;
-  @ApiProperty() flaggedFields: number;
+  @ApiProperty() totalSessions!: number;
+  @ApiProperty() completedSessions!: number;
+  @ApiProperty() totalCorrections!: number;
+  @ApiProperty() confirmedFields!: number;
+  @ApiProperty() correctedFields!: number;
+  @ApiProperty() flaggedFields!: number;
 }
 
 export class AnalyticsResponseDto {
-  @ApiProperty() totalDocuments: number;
-  @ApiProperty() reviewedDocuments: number;
-  @ApiProperty() averageConfidence: number;
-  @ApiProperty() correctionRate: number;
+  @ApiProperty() totalDocuments!: number;
+  @ApiProperty() reviewedDocuments!: number;
+  @ApiProperty() averageConfidence!: number;
+  @ApiProperty() correctionRate!: number;
   @ApiProperty({ type: AnalyticsCorrectionsByActionDto })
-  correctionsByAction: AnalyticsCorrectionsByActionDto;
-  @ApiProperty({ type: AnalyticsSummaryDto }) summary: AnalyticsSummaryDto;
+  correctionsByAction!: AnalyticsCorrectionsByActionDto;
+  @ApiProperty({ type: AnalyticsSummaryDto }) summary!: AnalyticsSummaryDto;
 }

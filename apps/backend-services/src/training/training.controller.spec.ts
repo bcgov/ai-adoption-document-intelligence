@@ -107,7 +107,7 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -177,7 +177,7 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -228,7 +228,7 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
         mockTemplateModel as never,
       );
@@ -284,7 +284,7 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       trainingService.getTrainingJob.mockResolvedValue(
         mockTrainingJob as never,
       );
@@ -360,7 +360,7 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
+      } as unknown as Request;
       trainingService.getTrainingJob.mockResolvedValue(
         mockTrainingJob as never,
       );

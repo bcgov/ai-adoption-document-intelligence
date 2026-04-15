@@ -8,7 +8,7 @@ export class PerSampleResultDto {
    * Sample ID
    */
   @ApiProperty({ description: "Sample ID" })
-  sampleId: string;
+  sampleId!: string;
 
   /**
    * Sample metadata from manifest
@@ -18,7 +18,7 @@ export class PerSampleResultDto {
     type: "object",
     additionalProperties: true,
   })
-  metadata: Record<string, unknown>;
+  metadata!: Record<string, unknown>;
 
   /**
    * Per-sample metrics
@@ -28,7 +28,7 @@ export class PerSampleResultDto {
     type: "object",
     additionalProperties: { type: "number" },
   })
-  metrics: Record<string, number>;
+  metrics!: Record<string, number>;
 
   /**
    * Whether this sample passed the evaluator thresholds
@@ -36,7 +36,7 @@ export class PerSampleResultDto {
   @ApiProperty({
     description: "Whether this sample passed the evaluator thresholds",
   })
-  pass: boolean;
+  pass!: boolean;
 
   /**
    * Per-sample diagnostics (arbitrary structured data for debugging)
@@ -78,7 +78,7 @@ export class PerSampleResultsResponseDto {
    * Run ID
    */
   @ApiProperty({ description: "Run ID" })
-  runId: string;
+  runId!: string;
 
   /**
    * List of per-sample results
@@ -88,31 +88,31 @@ export class PerSampleResultsResponseDto {
     type: () => PerSampleResultDto,
     isArray: true,
   })
-  results: PerSampleResultDto[];
+  results!: PerSampleResultDto[];
 
   /**
    * Total number of results (before pagination)
    */
   @ApiProperty({ description: "Total number of results before pagination" })
-  total: number;
+  total!: number;
 
   /**
    * Current page
    */
   @ApiProperty({ description: "Current page number" })
-  page: number;
+  page!: number;
 
   /**
    * Items per page
    */
   @ApiProperty({ description: "Number of items per page" })
-  limit: number;
+  limit!: number;
 
   /**
    * Total pages
    */
   @ApiProperty({ description: "Total number of pages" })
-  totalPages: number;
+  totalPages!: number;
 
   /**
    * Available filter dimensions (metadata keys)
@@ -121,7 +121,7 @@ export class PerSampleResultsResponseDto {
     description: "Available filter dimensions (metadata keys)",
     type: [String],
   })
-  availableDimensions: string[];
+  availableDimensions!: string[];
 
   /**
    * Per-dimension value options
@@ -131,5 +131,5 @@ export class PerSampleResultsResponseDto {
     type: "object",
     additionalProperties: true,
   })
-  dimensionValues: Record<string, Array<string | number>>;
+  dimensionValues!: Record<string, Array<string | number>>;
 }

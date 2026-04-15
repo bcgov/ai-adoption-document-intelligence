@@ -6,16 +6,16 @@ import { ApiProperty } from "@nestjs/swagger";
  */
 export class UserGroupDto {
   @ApiProperty({ description: "Group unique identifier" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Group display name" })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: "The user's role in this group",
     enum: GroupRole,
   })
-  role: GroupRole;
+  role!: GroupRole;
 
   @ApiProperty({
     description: "Optional description of the group",

@@ -8,7 +8,7 @@ import { IsBoolean, IsOptional, IsString, Matches } from "class-validator";
 export class ScheduleConfigDto {
   @ApiProperty({ description: "Whether scheduling is enabled" })
   @IsBoolean()
-  enabled: boolean;
+  enabled!: boolean;
 
   @ApiProperty({
     description:

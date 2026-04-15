@@ -16,19 +16,19 @@ export class RunSummaryDto {
    * Run ID
    */
   @ApiProperty({ description: "Run ID" })
-  id: string;
+  id!: string;
 
   /**
    * Definition ID
    */
   @ApiProperty({ description: "Definition ID" })
-  definitionId: string;
+  definitionId!: string;
 
   /**
    * Definition name
    */
   @ApiProperty({ description: "Definition name" })
-  definitionName: string;
+  definitionName!: string;
 
   /**
    * Run status (pending, running, completed, failed, cancelled)
@@ -36,13 +36,13 @@ export class RunSummaryDto {
   @ApiProperty({
     description: "Run status (pending, running, completed, failed, cancelled)",
   })
-  status: string;
+  status!: string;
 
   /**
    * Start timestamp
    */
   @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
-  startedAt: Date | null;
+  startedAt!: Date | null;
 
   /**
    * Completion timestamp
@@ -52,13 +52,13 @@ export class RunSummaryDto {
     nullable: true,
     type: Date,
   })
-  completedAt: Date | null;
+  completedAt!: Date | null;
 
   /**
    * Duration in milliseconds (if completed)
    */
   @ApiProperty({ description: "Duration in milliseconds", nullable: true })
-  durationMs: number | null;
+  durationMs!: number | null;
 
   /**
    * Headline metrics (if completed)
@@ -69,7 +69,7 @@ export class RunSummaryDto {
     type: "object",
     additionalProperties: true,
   })
-  headlineMetrics: Record<string, unknown> | null;
+  headlineMetrics!: Record<string, unknown> | null;
 
   /**
    * Whether this run has a regression compared to baseline
@@ -112,25 +112,25 @@ export class RunDetailsDto {
    * Run ID
    */
   @ApiProperty({ description: "Run ID" })
-  id: string;
+  id!: string;
 
   /**
    * Definition ID
    */
   @ApiProperty({ description: "Definition ID" })
-  definitionId: string;
+  definitionId!: string;
 
   /**
    * Definition name
    */
   @ApiProperty({ description: "Definition name" })
-  definitionName: string;
+  definitionName!: string;
 
   /**
    * Project ID
    */
   @ApiProperty({ description: "Project ID" })
-  projectId: string;
+  projectId!: string;
 
   /**
    * Run status (pending, running, completed, failed, cancelled)
@@ -138,31 +138,31 @@ export class RunDetailsDto {
   @ApiProperty({
     description: "Run status (pending, running, completed, failed, cancelled)",
   })
-  status: string;
+  status!: string;
 
   /**
    * Temporal workflow ID
    */
   @ApiProperty({ description: "Temporal workflow ID" })
-  temporalWorkflowId: string;
+  temporalWorkflowId!: string;
 
   /**
    * Worker image digest
    */
   @ApiProperty({ description: "Worker image digest", nullable: true })
-  workerImageDigest: string | null;
+  workerImageDigest!: string | null;
 
   /**
    * Worker git SHA
    */
   @ApiProperty({ description: "Worker git SHA" })
-  workerGitSha: string;
+  workerGitSha!: string;
 
   /**
    * Start timestamp
    */
   @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
-  startedAt: Date | null;
+  startedAt!: Date | null;
 
   /**
    * Completion timestamp
@@ -172,7 +172,7 @@ export class RunDetailsDto {
     nullable: true,
     type: Date,
   })
-  completedAt: Date | null;
+  completedAt!: Date | null;
 
   /**
    * Aggregated metrics
@@ -182,7 +182,7 @@ export class RunDetailsDto {
     type: "object",
     additionalProperties: true,
   })
-  metrics: Record<string, unknown>;
+  metrics!: Record<string, unknown>;
 
   /**
    * Run parameters
@@ -192,7 +192,7 @@ export class RunDetailsDto {
     type: "object",
     additionalProperties: true,
   })
-  params: Record<string, unknown>;
+  params!: Record<string, unknown>;
 
   /**
    * Run tags
@@ -202,19 +202,19 @@ export class RunDetailsDto {
     type: "object",
     additionalProperties: true,
   })
-  tags: Record<string, unknown>;
+  tags!: Record<string, unknown>;
 
   /**
    * Error message (if failed)
    */
   @ApiProperty({ description: "Error message (if failed)", nullable: true })
-  error: string | null;
+  error!: string | null;
 
   /**
    * Whether this is the baseline run
    */
   @ApiProperty({ description: "Whether this is the baseline run" })
-  isBaseline: boolean;
+  isBaseline!: boolean;
 
   /**
    * Baseline thresholds (if this run is a baseline)
@@ -224,19 +224,19 @@ export class RunDetailsDto {
     nullable: true,
     isArray: true,
   })
-  baselineThresholds: MetricThreshold[] | null;
+  baselineThresholds!: MetricThreshold[] | null;
 
   /**
    * Baseline comparison result (if compared against a baseline)
    */
   @ApiProperty({ description: "Baseline comparison result", nullable: true })
-  baselineComparison: BaselineComparison | null;
+  baselineComparison!: BaselineComparison | null;
 
   /**
    * Creation timestamp
    */
   @ApiProperty({ description: "Creation timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 /**
@@ -247,19 +247,19 @@ export class SampleFailureDto {
    * Sample ID
    */
   @ApiProperty({ description: "Sample ID" })
-  sampleId: string;
+  sampleId!: string;
 
   /**
    * Metric value (e.g., error rate, accuracy)
    */
   @ApiProperty({ description: "Metric value (e.g., error rate, accuracy)" })
-  metricValue: number;
+  metricValue!: number;
 
   /**
    * Metric name
    */
   @ApiProperty({ description: "Metric name" })
-  metricName: string;
+  metricName!: string;
 
   /**
    * Sample metadata
@@ -280,19 +280,19 @@ export class FieldErrorBreakdownDto {
    * Field name
    */
   @ApiProperty({ description: "Field name" })
-  fieldName: string;
+  fieldName!: string;
 
   /**
    * Error count
    */
   @ApiProperty({ description: "Error count" })
-  errorCount: number;
+  errorCount!: number;
 
   /**
    * Error rate (0-1)
    */
   @ApiProperty({ description: "Error rate (0-1)" })
-  errorRate: number;
+  errorRate!: number;
 }
 
 /**
@@ -303,7 +303,7 @@ export class DrillDownResponseDto {
    * Run ID
    */
   @ApiProperty({ description: "Run ID" })
-  runId: string;
+  runId!: string;
 
   /**
    * Aggregated metrics
@@ -313,7 +313,7 @@ export class DrillDownResponseDto {
     type: "object",
     additionalProperties: true,
   })
-  aggregatedMetrics: Record<string, unknown>;
+  aggregatedMetrics!: Record<string, unknown>;
 
   /**
    * Top N worst-performing samples
@@ -323,7 +323,7 @@ export class DrillDownResponseDto {
     type: () => SampleFailureDto,
     isArray: true,
   })
-  worstSamples: SampleFailureDto[];
+  worstSamples!: SampleFailureDto[];
 
   /**
    * Per-field error breakdown (if schema-aware evaluator)
@@ -334,5 +334,5 @@ export class DrillDownResponseDto {
     type: () => FieldErrorBreakdownDto,
     isArray: true,
   })
-  fieldErrorBreakdown: FieldErrorBreakdownDto[] | null;
+  fieldErrorBreakdown!: FieldErrorBreakdownDto[] | null;
 }

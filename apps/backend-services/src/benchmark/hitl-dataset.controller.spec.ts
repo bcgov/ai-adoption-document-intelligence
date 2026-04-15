@@ -3,7 +3,6 @@ jest.mock("@/auth/identity.helpers", () => ({
   getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
-import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";

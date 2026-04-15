@@ -12,7 +12,7 @@ import {
   Patch,
   Post,
   Query,
-  Request,
+  Req,
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
@@ -29,6 +29,7 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
@@ -100,7 +101,10 @@ export class AzureController {
     description: "Classifiers retrieved successfully",
     type: [ClassifierModelResponseDto],
   })
-  async getClassifiers(@Request() req, @Query("group_id") groupId?: string) {
+  async getClassifiers(
+    @Req() req: Request,
+    @Query("group_id") groupId?: string,
+  ) {
     if (groupId) {
       identityCanAccessGroup(req.resolvedIdentity, groupId);
       return this.classifierService.findAllClassifierModelsForGroups([groupId]);
@@ -128,7 +132,10 @@ export class AzureController {
     type: ClassifierCreationDto,
     description: "Classifier creation payload",
   })
-  async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
+  async createClassifier(
+    @Req() req: Request,
+    @Body() body: ClassifierCreationDto,
+  ) {
     const { name, description, source, group_id } = body;
 
     // Does this classifier already exist?
@@ -170,7 +177,10 @@ export class AzureController {
     type: UpdateClassifierDto,
     description: "Classifier update payload",
   })
-  async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
+  async updateClassifier(
+    @Req() req: Request,
+    @Body() body: UpdateClassifierDto,
+  ) {
     const { name, group_id, description, source } = body;
 
     // Check if classifier exists
@@ -236,7 +246,6 @@ export class AzureController {
     type: UploadClassifierDocumentsResponseDto,
   })
   async uploadClassifierDocuments(
-    @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body() body: UploadClassifierDocumentsDto,
     @Query("group_id") group_id: string,
@@ -284,7 +293,7 @@ export class AzureController {
     type: [String],
   })
   async getClassifierDocuments(
-    @Request() req,
+    @Req() req: Request,
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
@@ -334,7 +343,6 @@ export class AzureController {
   })
   @HttpCode(204)
   async deleteClassifierDocuments(
-    @Request() req,
     @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
     const { name, group_id, folder } = query;
@@ -391,7 +399,7 @@ export class AzureController {
     description: "Request classifier training payload",
   })
   async requestClassifierTraining(
-    @Request() req,
+    @Req() req: Request,
     @Body() body: RequestClassifierTrainingDto,
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = body;
@@ -415,11 +423,7 @@ export class AzureController {
 
         // Create the layout json for them
         const filePaths = uploadResults.map((r) => r.blobPath);
-        await this.classifierService.createLayoutJson(
-          filePaths,
-          group_id,
-          name,
-        );
+        await this.classifierService.createLayoutJson(filePaths);
 
         // Start the training process
         await this.classifierService.requestClassifierTraining(
@@ -429,8 +433,8 @@ export class AzureController {
         );
       } catch (e) {
         this.logger.error(
-          `Background classification request failed for classifier ${name} in group ${group_id}: ${e}.`,
-          e,
+          `Background classification request failed for classifier ${name} in group ${group_id}.`,
+          { error: String(e) },
         );
         await this.classifierService.updateClassifierModel(
           name,
@@ -445,6 +449,8 @@ export class AzureController {
       ...model,
       status: ClassifierStatus[model.status as keyof typeof ClassifierStatus],
       source: ClassifierSource[model.source as keyof typeof ClassifierSource],
+      last_used_at: model.last_used_at ?? undefined,
+      operation_location: model.operation_location ?? undefined,
     };
   }
 
@@ -479,7 +485,7 @@ export class AzureController {
     type: ClassifierResponseDto,
   })
   async requestClassification(
-    @Request() req,
+    @Req() req: Request,
     @Body() body: RequestClassificationDto,
     @UploadedFile() file: Express.Multer.File,
     @Query("group_id") group_id: string,
@@ -539,7 +545,7 @@ export class AzureController {
         );
       },
     );
-    return returnValue as ClassificationResultDto;
+    return returnValue as unknown as ClassificationResultDto;
   }
 
   @Get("classifier/train")
@@ -556,7 +562,7 @@ export class AzureController {
     type: ClassifierModelResponseDto,
   })
   async getTrainingResult(
-    @Request() req,
+    @Req() req: Request,
     @Query() query: GetTrainingResultQueryDto,
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = query;
@@ -582,7 +588,7 @@ export class AzureController {
     let returnValue;
     await this.azureService.pollOperationUntilResolved(
       classifier.operation_location,
-      async (r) => {
+      async (_r) => {
         returnValue = await this.classifierService.updateClassifierModel(
           name,
           group_id,
@@ -596,6 +602,6 @@ export class AzureController {
         );
       },
     );
-    return returnValue;
+    return returnValue as unknown as ClassifierModelResponseDto;
   }
 }

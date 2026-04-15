@@ -1,3 +1,4 @@
+import { getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
@@ -7,10 +8,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AppLoggerService } from "../logging/app-logger.service";
-import {
-  TrainingDbService,
-  type TrainingJobWithTemplateModel,
-} from "./training-db.service";
+import { TrainingDbService } from "./training-db.service";
 
 interface AzureErrorResponse {
   error?: {
@@ -40,7 +38,7 @@ interface AzureModelResponse {
 
 @Injectable()
 export class TrainingPollerService {
-  private adminClient: DocumentIntelligenceClient;
+  private adminClient!: DocumentIntelligenceClient;
   private readonly pollInterval: number;
   private readonly maxAttempts: number;
 
@@ -111,7 +109,7 @@ export class TrainingPollerService {
       }
     } catch (error) {
       this.logger.error("Error polling active jobs", {
-        stack: error instanceof Error ? error.stack : String(error),
+        stack: getErrorStack(error),
       });
     }
   }
@@ -122,7 +120,7 @@ export class TrainingPollerService {
   private async pollTrainingStatus(
     jobId: string,
     modelId: string,
-    operationId: string,
+    operationId: string | null,
   ): Promise<void> {
     try {
       if (!operationId) {
@@ -250,28 +248,30 @@ export class TrainingPollerService {
           training_job_id: jobId,
           model_id: job.template_model.model_id,
           description,
-          doc_types: docTypes as Prisma.JsonValue,
+          doc_types:
+            docTypes == null
+              ? Prisma.DbNull
+              : (docTypes as Prisma.InputJsonValue),
           field_count: fieldCount,
         });
 
         this.logger.log(`Created trained model record for: ${modelId}`);
       } catch (modelError) {
         this.logger.error(
-          `Error polling operation ${operationId} for model ${modelId}: ${modelError.message}`,
+          `Error polling operation ${operationId} for model ${modelId}: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
         );
 
         // Mark job as failed
         await this.trainingDb.updateTrainingJob(jobId, {
           status: TrainingStatus.FAILED,
-          error_message: `Training failed: ${modelError.message}`,
+          error_message: `Training failed: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
           completed_at: new Date(),
         });
       }
     } catch (error) {
-      this.logger.error(
-        `Error polling training status for job ${jobId}`,
-        error.stack,
-      );
+      this.logger.error(`Error polling training status for job ${jobId}`, {
+        stack: getErrorStack(error),
+      });
     }
   }
 

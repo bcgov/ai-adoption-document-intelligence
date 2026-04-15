@@ -30,25 +30,25 @@ export class EligibleDocumentsFilterDto {
 
 export class EligibleDocumentDto {
   @ApiProperty({ description: "Document ID" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Original filename of the document" })
-  originalFilename: string;
+  originalFilename!: string;
 
   @ApiProperty({ description: "File type (MIME type)" })
-  fileType: string;
+  fileType!: string;
 
   @ApiProperty({ description: "Timestamp when the document was approved" })
-  approvedAt: Date;
+  approvedAt!: Date;
 
   @ApiProperty({ description: "ID of the reviewer who approved the document" })
-  reviewerId: string;
+  reviewerId!: string;
 
   @ApiProperty({ description: "Number of fields in the document" })
-  fieldCount: number;
+  fieldCount!: number;
 
   @ApiProperty({ description: "Number of corrections made during review" })
-  correctionCount: number;
+  correctionCount!: number;
 }
 
 export class EligibleDocumentsResponseDto {
@@ -57,14 +57,14 @@ export class EligibleDocumentsResponseDto {
     type: () => EligibleDocumentDto,
     isArray: true,
   })
-  documents: EligibleDocumentDto[];
+  documents!: EligibleDocumentDto[];
 
   @ApiProperty({ description: "Total number of eligible documents" })
-  total: number;
+  total!: number;
 
   @ApiProperty({ description: "Current page number" })
-  page: number;
+  page!: number;
 
   @ApiProperty({ description: "Number of items per page" })
-  limit: number;
+  limit!: number;
 }

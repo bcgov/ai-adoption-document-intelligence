@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Run Service
  *
@@ -56,9 +57,7 @@ export class BenchmarkRunService {
     try {
       return execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
     } catch (error) {
-      this.logger.warn(
-        `Failed to get git SHA: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn(`Failed to get git SHA: ${getErrorMessage(error)}`);
       return "unknown";
     }
   }
@@ -96,7 +95,7 @@ export class BenchmarkRunService {
       this.logger.debug(`Audit log created: ${action} for run ${runId}`);
     } catch (error) {
       this.logger.error(
-        `Failed to create audit log: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to create audit log: ${getErrorMessage(error)}`,
       );
       // Don't throw - audit logging failures shouldn't block operations
     }
@@ -236,11 +235,11 @@ export class BenchmarkRunService {
       // If workflow start fails, mark run as failed
       await this.runDbService.updateBenchmarkRun(run.id, {
         status: "failed",
-        error: `Failed to start Temporal workflow: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Failed to start Temporal workflow: ${getErrorMessage(error)}`,
       });
 
       throw new Error(
-        `Failed to start benchmark run workflow: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to start benchmark run workflow: ${getErrorMessage(error)}`,
       );
     }
 
@@ -298,7 +297,7 @@ export class BenchmarkRunService {
       );
     } catch (error) {
       this.logger.error(
-        `Failed to cancel Temporal workflow: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to cancel Temporal workflow: ${getErrorMessage(error)}`,
       );
       // Continue anyway to update the database status
     }

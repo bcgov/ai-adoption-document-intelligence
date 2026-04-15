@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import {
   HttpException,
   HttpStatus,
@@ -32,7 +33,7 @@ export interface LoginUrlResult {
  */
 @Injectable()
 export class AuthService implements OnModuleInit {
-  private config: client.Configuration;
+  private config!: client.Configuration;
   private readonly issuer: string;
   private readonly clientId: string;
   private readonly clientSecret: string;
@@ -85,7 +86,7 @@ export class AuthService implements OnModuleInit {
       );
     } catch (error) {
       throw new Error(
-        `Failed to discover OIDC endpoints at ${this.issuer}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to discover OIDC endpoints at ${this.issuer}: ${getErrorMessage(error)}`,
       );
     }
   }
@@ -183,10 +184,9 @@ export class AuthService implements OnModuleInit {
         claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
-      this.logger.error(
-        `OAuth callback failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        { stack: error instanceof Error ? error.stack : undefined },
-      );
+      this.logger.error(`OAuth callback failed: ${getErrorMessage(error)}`, {
+        stack: getErrorStack(error),
+      });
       throw new HttpException("Authentication failed", HttpStatus.BAD_REQUEST);
     }
   }
@@ -207,10 +207,9 @@ export class AuthService implements OnModuleInit {
         claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
-      this.logger.error(
-        `Token refresh failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        { stack: error instanceof Error ? error.stack : undefined },
-      );
+      this.logger.error(`Token refresh failed: ${getErrorMessage(error)}`, {
+        stack: getErrorStack(error),
+      });
       throw new HttpException("Token refresh failed", HttpStatus.BAD_REQUEST);
     }
   }
