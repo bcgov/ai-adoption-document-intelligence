@@ -59,7 +59,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-003** (Implement binding expression resolver: `{{nodeName.field.path}}`)
 - [x] **US-004** (Implement JSON output renderer)
 - [x] **US-005** (Implement XML output renderer without envelope)
-- [ ] **US-006** (Implement CSV output renderer)
+- [x] **US-006** (Implement CSV output renderer)
 
 ### Phase 3 — Advanced Transformation Engine
 - [ ] **US-007** (Implement XML envelope template injection)

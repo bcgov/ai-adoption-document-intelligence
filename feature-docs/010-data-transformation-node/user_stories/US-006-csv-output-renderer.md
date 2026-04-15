@@ -37,6 +37,6 @@
 ## Technical Notes / Assumptions
 - For a single-row (non-iterated) mapping, the CSV output is always two rows: headers + one data row.
 - Iteration blocks (US-008) add additional data rows for array inputs.
-- A library such as `csv-stringify` (sync mode) is recommended.
+- Use the `csv` umbrella package (`csv-stringify/sync`) for serialization — the same umbrella already provides `csv-parse/sync` for input parsing, so no additional dependency is needed.
 - Nested objects in mapping values that are not arrays should be serialized as JSON strings within the CSV cell, or throw an error — the implementer should choose and document.
 - Unit tests should cover flat, comma-containing, quoted, and error cases.

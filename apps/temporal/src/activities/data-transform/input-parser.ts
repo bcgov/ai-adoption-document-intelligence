@@ -1,4 +1,4 @@
-import { parse as parseCsv } from "csv-parse/sync";
+import { parse as parseCsv } from "csv/sync";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 
 /** Supported input formats for the data transform node. */
