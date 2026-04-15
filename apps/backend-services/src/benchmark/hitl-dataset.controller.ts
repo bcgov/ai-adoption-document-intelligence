@@ -163,6 +163,7 @@ export class HitlDatasetController {
       datasetId,
       dto,
       req.resolvedIdentity.actorId,
+      dataset.groupId,
     );
   }
 }

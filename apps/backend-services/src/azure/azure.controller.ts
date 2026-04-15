@@ -63,6 +63,11 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import {
+  buildBlobFilePath,
+  buildBlobPrefixPath,
+  OperationCategory,
+} from "@/blob-storage/storage-path-builder";
 import { GroupRole } from "@/generated/edge";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
@@ -246,10 +251,14 @@ export class AzureController {
       throw new NotFoundException("No existing record of classifier model.");
     }
 
-    const keyPrefix = `classifier/${group_id}/${name}/${label}/`;
     const uploadResults: string[] = [];
     for (const file of files) {
-      const key = `${keyPrefix}${file.originalname}`;
+      const key = buildBlobFilePath(
+        group_id,
+        OperationCategory.CLASSIFICATION,
+        [name, label],
+        file.originalname,
+      );
       await this.blobStorage.write(key, file.buffer);
       uploadResults.push(key);
     }
@@ -288,7 +297,11 @@ export class AzureController {
       throw new NotFoundException("No existing record of classifier model.");
     }
 
-    const prefix = `classifier/${group_id}/${name}/`;
+    const prefix = buildBlobPrefixPath(
+      group_id,
+      OperationCategory.CLASSIFICATION,
+      [name],
+    );
     const documents = await this.blobStorage.list(prefix);
     const names = documents.map((doc) => doc.slice(prefix.length));
     await this.auditService.recordEvent({
@@ -336,11 +349,19 @@ export class AzureController {
     try {
       // If there is a folder, only delete that folder
       if (folder != null) {
-        const prefix = `classifier/${group_id}/${name}/${folder}/`;
+        const prefix = buildBlobPrefixPath(
+          group_id,
+          OperationCategory.CLASSIFICATION,
+          [name, folder],
+        );
         await this.blobStorage.deleteByPrefix(prefix);
       } else {
         // Delete all document folders for this classifier.
-        const prefix = `classifier/${group_id}/${name}/`;
+        const prefix = buildBlobPrefixPath(
+          group_id,
+          OperationCategory.CLASSIFICATION,
+          [name],
+        );
         await this.blobStorage.deleteByPrefix(prefix);
       }
       // No return value: 204 No Content
@@ -394,7 +415,11 @@ export class AzureController {
 
         // Create the layout json for them
         const filePaths = uploadResults.map((r) => r.blobPath);
-        await this.classifierService.createLayoutJson(filePaths);
+        await this.classifierService.createLayoutJson(
+          filePaths,
+          group_id,
+          name,
+        );
 
         // Start the training process
         await this.classifierService.requestClassifierTraining(
@@ -404,7 +429,7 @@ export class AzureController {
         );
       } catch (e) {
         this.logger.error(
-          `Background classification request failed for classifier ${name} in group ${group_id}.`,
+          `Background classification request failed for classifier ${name} in group ${group_id}: ${e}.`,
           e,
         );
         await this.classifierService.updateClassifierModel(

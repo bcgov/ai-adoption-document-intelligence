@@ -38,6 +38,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
@@ -469,7 +470,7 @@ export class DocumentController {
     });
 
     const fileBuffer = await this.blobStorage.read(
-      document.normalized_file_path,
+      validateBlobFilePath(document.normalized_file_path),
     );
 
     res.setHeader("Content-Type", "application/pdf");
@@ -512,8 +513,19 @@ export class DocumentController {
 
       identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: documentId,
+        group_id: document.group_id,
+        payload: { action: "download" },
+      });
+
       // Read file from blob storage using the blob key
-      const fileBuffer = await this.blobStorage.read(document.file_path);
+      const filePath = validateBlobFilePath(document.file_path);
+      const fileBuffer = await this.blobStorage.read(filePath);
 
       const fileName = document.original_filename || `document-${documentId}`;
       const mimeType = getContentTypeFromFilename(fileName);

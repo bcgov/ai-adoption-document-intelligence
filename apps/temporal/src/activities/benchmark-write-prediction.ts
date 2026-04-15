@@ -41,7 +41,12 @@ export async function benchmarkWritePrediction(
   await fs.mkdir(outputDir, { recursive: true });
 
   const predictionPath = path.join(outputDir, `${sampleId}-prediction.json`);
-  await fs.writeFile(predictionPath, JSON.stringify(predictionData, null, 2));
+  const fileHandle = await fs.open(predictionPath, "w", 0o600);
+  try {
+    await fileHandle.writeFile(JSON.stringify(predictionData, null, 2));
+  } finally {
+    await fileHandle.close();
+  }
 
   return { predictionPath };
 }

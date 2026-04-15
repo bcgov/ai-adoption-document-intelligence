@@ -264,11 +264,13 @@ export class DatasetController {
       }
     }
 
+    const groupId = (await this.datasetService.getDatasetById(id)).groupId;
     return this.datasetService.uploadFilesToVersion(
       id,
       versionId,
       files,
       req.resolvedIdentity.actorId,
+      groupId,
     );
   }
 
@@ -441,7 +443,8 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<void> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.deleteSample(id, versionId, sampleId);
+    const groupId = (await this.datasetService.getDatasetById(id)).groupId;
+    return this.datasetService.deleteSample(id, versionId, sampleId, groupId);
   }
 
   @Get(":id/versions/:versionId/samples")

@@ -35,6 +35,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { GroupRole } from "@/generated/edge";
 import {
   BLOB_STORAGE,
@@ -442,7 +443,7 @@ export class TemplateModelController {
     });
 
     const fileBuffer = await this.blobStorage.read(
-      labelingDocument.normalized_file_path,
+      validateBlobFilePath(labelingDocument.normalized_file_path),
     );
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');
@@ -479,7 +480,9 @@ export class TemplateModelController {
       labeledDoc.labeling_document.group_id,
     );
     const labelingDocument = labeledDoc.labeling_document;
-    const fileBuffer = await this.blobStorage.read(labelingDocument.file_path);
+    const fileBuffer = await this.blobStorage.read(
+      validateBlobFilePath(labelingDocument.file_path),
+    );
 
     const fileName =
       labelingDocument.original_filename || `document-${documentId}`;

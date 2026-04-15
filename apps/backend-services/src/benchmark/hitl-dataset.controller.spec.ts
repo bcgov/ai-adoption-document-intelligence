@@ -143,6 +143,7 @@ describe("HitlDatasetController", () => {
         "dataset-1",
         dto,
         "actor-1",
+        "test-group",
       );
     });
   });

@@ -114,6 +114,7 @@ Bank record content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -124,6 +125,7 @@ Bank record content`;
       // Verify splitDocument was called with correct ranges
       expect(mockSplitDocument).toHaveBeenCalledWith({
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         strategy: "custom-ranges",
         customRanges: [
           { start: 1, end: 3 },
@@ -208,6 +210,7 @@ Bank record content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -217,6 +220,7 @@ Bank record content`;
 
       expect(mockSplitDocument).toHaveBeenCalledWith({
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         strategy: "custom-ranges",
         customRanges: [
           { start: 1, end: 3 },
@@ -248,6 +252,7 @@ Bank record content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -277,6 +282,7 @@ Bank record content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -306,6 +312,7 @@ Some content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -316,6 +323,7 @@ Some content`;
       // Should only create one segment even though marker appears twice
       expect(mockSplitDocument).toHaveBeenCalledWith({
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         strategy: "custom-ranges",
         customRanges: [{ start: 1, end: 2 }],
         documentId: "doc1",
@@ -343,6 +351,7 @@ Some content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -352,6 +361,7 @@ Some content`;
 
       expect(mockSplitDocument).toHaveBeenCalledWith({
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         strategy: "custom-ranges",
         customRanges: [{ start: 1, end: 3 }],
         documentId: "doc1",
@@ -370,6 +380,7 @@ Some content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -385,6 +396,7 @@ Some content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: [],
@@ -415,6 +427,7 @@ Some content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -436,6 +449,7 @@ Some content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: [invalidPattern],
@@ -452,6 +466,7 @@ Some content`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -495,6 +510,7 @@ Page 3 — Bank Record`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,
@@ -532,6 +548,7 @@ Page 5 — Pay Stub`;
 
       const input: SplitAndClassifyInput = {
         blobKey: "documents/doc1/original.pdf",
+        groupId: "atestgroup",
         ocrResult,
         documentId: "doc1",
         keywordPatterns: defaultKeywordPatterns,

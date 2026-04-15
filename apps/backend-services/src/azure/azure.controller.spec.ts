@@ -157,10 +157,10 @@ describe("AzureController", () => {
       expect(result).toEqual({
         message: "Received files and data.",
         fileCount: 1,
-        results: ["classifier/g1/c1/l1/f1"],
+        results: ["g1/classification/c1/l1/f1"],
       });
       expect(storageService.write).toHaveBeenCalledWith(
-        "classifier/g1/c1/l1/f1",
+        "g1/classification/c1/l1/f1",
         expect.any(Buffer),
       );
     });
@@ -187,7 +187,7 @@ describe("AzureController", () => {
         controller.deleteClassifierDocuments(req, body),
       ).resolves.toBeUndefined();
       expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
-        "classifier/g1/c1/",
+        "g1/classification/c1",
       );
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
@@ -447,7 +447,7 @@ describe("AzureController", () => {
         controller.deleteClassifierDocuments(req, query),
       ).resolves.toBeUndefined();
       expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
-        "classifier/g1/c1/f1/",
+        "g1/classification/c1/f1",
       );
     });
   });
@@ -455,14 +455,14 @@ describe("AzureController", () => {
     it("should return documents if user in group and classifier exists", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.list.mockResolvedValue([
-        "classifier/g1/c1/labelA/doc1",
-        "classifier/g1/c1/labelB/doc2",
+        "g1/classification/c1/labelA/doc1",
+        "g1/classification/c1/labelB/doc2",
       ]);
       const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1" };
       const result = await controller.getClassifierDocuments(req, query);
-      expect(result).toEqual(["labelA/doc1", "labelB/doc2"]);
-      expect(storageService.list).toHaveBeenCalledWith("classifier/g1/c1/");
+      expect(result).toEqual(["/labelA/doc1", "/labelB/doc2"]);
+      expect(storageService.list).toHaveBeenCalledWith("g1/classification/c1");
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
