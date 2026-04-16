@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Unresolved binding halts the workflow
+- [x] **Scenario 1**: Unresolved binding halts the workflow
     - **Given** a transform node whose field mapping contains `{{extractionNode.MissingField}}` and `MissingField` does not exist in the upstream output
     - **When** the transform node executes in Temporal
     - **Then** a non-retryable `ApplicationFailure` is thrown and the workflow halts at that node
 
-- [ ] **Scenario 2**: Error message identifies the unresolved binding path
+- [x] **Scenario 2**: Error message identifies the unresolved binding path
     - **Given** the same unresolved binding scenario
     - **When** the `ApplicationFailure` is thrown
     - **Then** the error message contains the full unresolved binding path (e.g., `"extractionNode.MissingField"`)
 
-- [ ] **Scenario 3**: Error is recorded in the workflow execution log
+- [x] **Scenario 3**: Error is recorded in the workflow execution log
     - **Given** the workflow halts due to an unresolved binding
     - **When** the Temporal workflow execution history is inspected
     - **Then** an activity failure event is present with the unresolved path in its details
 
-- [ ] **Scenario 4**: Workflow node status reflects the error
+- [x] **Scenario 4**: Workflow node status reflects the error
     - **Given** the workflow has halted due to an unresolved binding
     - **When** the node status is queried via the backend
     - **Then** the transform node's status shows a failed/error state

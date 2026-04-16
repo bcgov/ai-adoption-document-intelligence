@@ -66,7 +66,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-008** (Implement array iteration support: `{{#each}}` / `{{/each}}`)
 
 ### Phase 4 — Error Handling
-- [ ] **US-009** (Unresolved binding error handling — halt, log, non-retryable failure)
+- [x] **US-009** (Unresolved binding error handling — halt, log, non-retryable failure)
 - [ ] **US-010** (Malformed output error handling — post-render validation for all formats)
 
 ### Phase 5 — Execution Registration

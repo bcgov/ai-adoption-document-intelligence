@@ -29,6 +29,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "benchmark.writePrediction",
   "benchmark.materializeDataset",
   "benchmark.loadDatasetManifest",
+  "executeTransformNode",
 ];
 
 describe("activity-registry", () => {
