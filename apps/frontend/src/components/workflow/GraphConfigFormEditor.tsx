@@ -640,7 +640,9 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
             onChange({ ...node, fieldMapping: e.currentTarget.value })
           }
           minRows={4}
+          maxRows={16}
           autosize
+          spellCheck={false}
           styles={{ input: { fontFamily: "monospace" } }}
         />
       </Tooltip>
@@ -683,7 +685,9 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
               });
             }}
             minRows={4}
+            maxRows={16}
             autosize
+            spellCheck={false}
             styles={{ input: { fontFamily: "monospace" } }}
           />
           <Group gap="xs">

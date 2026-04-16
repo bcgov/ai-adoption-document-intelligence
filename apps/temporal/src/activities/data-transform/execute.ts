@@ -120,7 +120,10 @@ export async function executeTransformNode(
       output = renderJson(resolvedMapping);
       break;
     case "xml": {
-      const innerXml = renderXml(resolvedMapping);
+      const innerXml = renderXml(
+        resolvedMapping,
+        xmlEnvelope ? null : undefined,
+      );
       output = injectXmlEnvelope(innerXml, xmlEnvelope);
       break;
     }

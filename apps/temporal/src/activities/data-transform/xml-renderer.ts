@@ -126,9 +126,9 @@ function validateElementNames(
  */
 export function renderXml(
   resolvedMapping: Record<string, unknown>,
-  rootElement = "Root",
+  rootElement: string | null = "Root",
 ): string {
-  if (!XML_NAME_PATTERN.test(rootElement)) {
+  if (rootElement !== null && !XML_NAME_PATTERN.test(rootElement)) {
     throw new XmlRenderError(`Invalid XML root element name "${rootElement}"`);
   }
 
@@ -137,7 +137,9 @@ export function renderXml(
 
   try {
     const builder = new XMLBuilder({ format: false });
-    return builder.build({ [rootElement]: preprocessed });
+    return rootElement === null
+      ? builder.build(preprocessed)
+      : builder.build({ [rootElement]: preprocessed });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new XmlRenderError(detail);

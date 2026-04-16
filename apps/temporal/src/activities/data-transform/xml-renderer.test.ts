@@ -55,6 +55,13 @@ describe("renderXml - root element", () => {
     expect(result).toMatch(/^<Payload>/);
     expect(result).toMatch(/<\/Payload>$/);
   });
+
+  it("renders without a root element wrapper when rootElement is null", () => {
+    const mapping = { Name: "Alice" };
+    const result = renderXml(mapping, null);
+    expect(result).not.toMatch(/^<Root>/);
+    expect(result).toContain("<Name>Alice</Name>");
+  });
 });
 
 // ---------------------------------------------------------------------------
