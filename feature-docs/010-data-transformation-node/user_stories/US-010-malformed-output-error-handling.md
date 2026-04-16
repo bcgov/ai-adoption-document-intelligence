@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Invalid XML output halts the workflow
+- [x] **Scenario 1**: Invalid XML output halts the workflow
     - **Given** the transform node renders an XML output string that fails XML parsing
     - **When** the output validation step runs
     - **Then** a non-retryable `ApplicationFailure` is thrown, halting the workflow, with the output format (`xml`) and parser error detail in the message
 
-- [ ] **Scenario 2**: Malformed JSON output halts the workflow
+- [x] **Scenario 2**: Malformed JSON output halts the workflow
     - **Given** the transform node renders a JSON output string that fails `JSON.parse()`
     - **When** the output validation step runs
     - **Then** a non-retryable `ApplicationFailure` is thrown, halting the workflow, with the output format (`json`) and parser error detail in the message
 
-- [ ] **Scenario 3**: Malformed CSV output halts the workflow
+- [x] **Scenario 3**: Malformed CSV output halts the workflow
     - **Given** the transform node renders a CSV output string that fails standard CSV parsing
     - **When** the output validation step runs
     - **Then** a non-retryable `ApplicationFailure` is thrown, halting the workflow, with the output format (`csv`) and parser error detail in the message
 
-- [ ] **Scenario 4**: Error is recorded with diagnostic detail in the execution log
+- [x] **Scenario 4**: Error is recorded with diagnostic detail in the execution log
     - **Given** any of the above malformed output scenarios
     - **When** the workflow halts
     - **Then** the Temporal workflow execution history contains a failure event with the format type and sufficient detail to identify the malformed section

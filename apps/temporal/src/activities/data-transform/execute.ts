@@ -1,4 +1,6 @@
 import { ApplicationFailure } from "@temporalio/activity";
+import { parse as parseCsv } from "csv/sync";
+import { XMLValidator } from "fast-xml-parser";
 import { BindingResolutionError, resolveBindings } from "./binding-resolver";
 import { renderCsv } from "./csv-renderer";
 import type { InputFormat } from "./input-parser";
@@ -125,6 +127,36 @@ export async function executeTransformNode(
     case "csv":
       output = renderCsv(resolvedMapping);
       break;
+  }
+
+  // Step 5: Post-render output validation.
+  // Attempt to re-parse the rendered string with a standard parser for each
+  // format. This acts as a safety net for structural issues introduced by
+  // envelope injection (US-007) or iteration resolution (US-008) that would
+  // not have been caught during rendering.
+  try {
+    switch (outputFormat) {
+      case "json":
+        JSON.parse(output);
+        break;
+      case "xml": {
+        const result = XMLValidator.validate(output);
+        if (result !== true) {
+          throw new Error(result.err.msg);
+        }
+        break;
+      }
+      case "csv":
+        parseCsv(output);
+        break;
+    }
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw ApplicationFailure.create({
+      type: "TRANSFORM_OUTPUT_ERROR",
+      message: `Rendered ${outputFormat} output failed validation: ${detail}`,
+      nonRetryable: true,
+    });
   }
 
   return { output };

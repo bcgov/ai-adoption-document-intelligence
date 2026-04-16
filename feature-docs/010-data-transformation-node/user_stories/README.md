@@ -67,7 +67,7 @@ After implementing a user story, check it off at the bottom of this file.
 
 ### Phase 4 — Error Handling
 - [x] **US-009** (Unresolved binding error handling — halt, log, non-retryable failure)
-- [ ] **US-010** (Malformed output error handling — post-render validation for all formats)
+- [x] **US-010** (Malformed output error handling — post-render validation for all formats)
 
 ### Phase 5 — Execution Registration
 - [ ] **US-011** (Register transform node in node executor and both graph schema validators)
