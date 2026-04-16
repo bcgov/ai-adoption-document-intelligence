@@ -73,7 +73,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-011** (Register transform node in node executor and both graph schema validators)
 
 ### Phase 6 — Frontend UI
-- [ ] **US-012** (Add transform node to workflow builder palette and graph visualization)
+- [x] **US-012** (Add transform node to workflow builder palette and graph visualization)
 - [ ] **US-013** (Node configuration form — format selectors and mapping editor)
 - [ ] **US-014** (Node configuration form — XML envelope editor)
 - [ ] **US-015** (Transform node summary/read-only view with error badge)

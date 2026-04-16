@@ -88,7 +88,7 @@ const NODE_DIMENSIONS: Record<
   childWorkflow: { width: 200, height: 80 },
   pollUntil: { width: 190, height: 80 },
   humanGate: { width: 190, height: 80 },
-  transform: { width: 0, height: 0 },
+  transform: { width: 190, height: 80 },
 };
 
 const LAYER_GAP = 120; // Vertical spacing between layers in map containers

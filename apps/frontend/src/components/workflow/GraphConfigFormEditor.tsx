@@ -25,6 +25,7 @@ import type {
   GraphWorkflowConfig,
   NodeType,
   PortBinding,
+  TransformNode,
 } from "../../types/graph-workflow";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
@@ -35,6 +36,7 @@ const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "childWorkflow", label: "Child workflow" },
   { value: "pollUntil", label: "Poll until" },
   { value: "humanGate", label: "Human gate" },
+  { value: "transform", label: "Data Transformation" },
 ];
 
 const CTX_TYPES = [
@@ -114,6 +116,14 @@ function defaultNodeForType(type: NodeType, id: string): GraphNode {
         timeout: "24h",
         onTimeout: "fail",
       };
+    case "transform":
+      return {
+        ...base,
+        type: "transform",
+        inputFormat: "json",
+        outputFormat: "json",
+        fieldMapping: "{}",
+      } as TransformNode;
     default:
       return { ...base, type: "activity", activityType: "" } as ActivityNode;
   }
