@@ -229,3 +229,173 @@ describe("GraphConfigFormEditor — TransformNodeForm", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// US-014: XML Envelope Editor
+// ---------------------------------------------------------------------------
+
+describe("GraphConfigFormEditor — TransformNodeForm XML Envelope", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  describe("Scenario 1: XML envelope editor visibility", () => {
+    it("hides the XML envelope editor when outputFormat is not xml", () => {
+      renderEditor(makeTransformNode({ outputFormat: "json" }));
+      expect(
+        screen.queryByRole("textbox", { name: /xml envelope/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("hides the XML envelope editor when outputFormat is csv", () => {
+      renderEditor(makeTransformNode({ outputFormat: "csv" }));
+      expect(
+        screen.queryByRole("textbox", { name: /xml envelope/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the XML envelope editor when outputFormat is xml", () => {
+      renderEditor(makeTransformNode({ outputFormat: "xml" }));
+      expect(
+        screen.getByRole("textbox", { name: /xml envelope/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Scenario 2: admin can type or paste an envelope template", () => {
+    it("displays the current xmlEnvelope value in the textarea", () => {
+      const envelope = "<root>{{payload}}</root>";
+      renderEditor(
+        makeTransformNode({ outputFormat: "xml", xmlEnvelope: envelope }),
+      );
+
+      const textarea = screen.getByRole("textbox", { name: /xml envelope/i });
+      expect(textarea).toHaveValue(envelope);
+    });
+
+    it("calls onChange with updated xmlEnvelope when the textarea changes", () => {
+      const onChange = vi.fn();
+      renderEditor(
+        makeTransformNode({ outputFormat: "xml", xmlEnvelope: undefined }),
+        onChange,
+      );
+
+      const textarea = screen.getByRole("textbox", { name: /xml envelope/i });
+      fireEvent.change(textarea, {
+        target: { value: "<wrap>{{payload}}</wrap>" },
+      });
+
+      expect(onChange).toHaveBeenCalled();
+      const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
+      const updatedConfig: GraphWorkflowConfig = lastCall[0];
+      const updatedNode = updatedConfig.nodes.t1 as TransformNode;
+      expect(updatedNode.xmlEnvelope).toBe("<wrap>{{payload}}</wrap>");
+    });
+
+    it("sets xmlEnvelope to undefined when the textarea is cleared", () => {
+      const onChange = vi.fn();
+      renderEditor(
+        makeTransformNode({
+          outputFormat: "xml",
+          xmlEnvelope: "<root>{{payload}}</root>",
+        }),
+        onChange,
+      );
+
+      const textarea = screen.getByRole("textbox", { name: /xml envelope/i });
+      fireEvent.change(textarea, { target: { value: "" } });
+
+      expect(onChange).toHaveBeenCalled();
+      const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
+      const updatedConfig: GraphWorkflowConfig = lastCall[0];
+      const updatedNode = updatedConfig.nodes.t1 as TransformNode;
+      expect(updatedNode.xmlEnvelope).toBeUndefined();
+    });
+  });
+
+  describe("Scenario 3: file upload populates the envelope template", () => {
+    it("reads a .xml file and updates xmlEnvelope with its content", async () => {
+      const onChange = vi.fn();
+      renderEditor(
+        makeTransformNode({ outputFormat: "xml", xmlEnvelope: undefined }),
+        onChange,
+      );
+
+      const envelopeContent = "<soap:Envelope>{{payload}}</soap:Envelope>";
+      const file = new File([envelopeContent], "envelope.xml", {
+        type: "application/xml",
+      });
+
+      class MockFileReader {
+        result: string | null = null;
+        onload: ((e: ProgressEvent<FileReader>) => void) | null = null;
+
+        readAsText(_f: Blob) {
+          this.result = envelopeContent;
+          this.onload?.({
+            target: this,
+          } as unknown as ProgressEvent<FileReader>);
+        }
+      }
+      vi.stubGlobal("FileReader", MockFileReader);
+
+      const fileInput = document.querySelector(
+        'input[type="file"][accept=".xml"]',
+      ) as HTMLInputElement;
+      expect(fileInput).toBeTruthy();
+
+      fireEvent.change(fileInput, { target: { files: [file] } });
+
+      await waitFor(() => {
+        expect(onChange).toHaveBeenCalled();
+        const updatedConfig: GraphWorkflowConfig =
+          onChange.mock.calls[onChange.mock.calls.length - 1][0];
+        const updatedNode = updatedConfig.nodes.t1 as TransformNode;
+        expect(updatedNode.xmlEnvelope).toBe(envelopeContent);
+      });
+    });
+  });
+
+  describe("Scenario 4: download button exports envelope.xml", () => {
+    it("creates a blob URL and triggers download when Download envelope is clicked", () => {
+      const fakeUrl = "blob:fake-envelope-url";
+      vi.spyOn(URL, "createObjectURL").mockReturnValue(fakeUrl);
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+      const clickSpy = vi.fn();
+      const mockAnchor = { href: "", download: "", click: clickSpy };
+      const originalCreateElement = document.createElement.bind(document);
+      vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+        if (tag === "a") return mockAnchor as unknown as HTMLElement;
+        return originalCreateElement(tag);
+      });
+
+      const envelope = "<root>{{payload}}</root>";
+      renderEditor(
+        makeTransformNode({ outputFormat: "xml", xmlEnvelope: envelope }),
+      );
+
+      const downloadBtn = screen.getByRole("button", {
+        name: /download envelope/i,
+      });
+      fireEvent.click(downloadBtn);
+
+      expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(mockAnchor.download).toBe("envelope.xml");
+      expect(clickSpy).toHaveBeenCalled();
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith(fakeUrl);
+    });
+
+    it("disables Download envelope button when xmlEnvelope is empty", () => {
+      renderEditor(
+        makeTransformNode({ outputFormat: "xml", xmlEnvelope: undefined }),
+      );
+
+      const downloadBtn = screen.getByRole("button", {
+        name: /download envelope/i,
+      });
+      expect(downloadBtn).toBeDisabled();
+    });
+  });
+});

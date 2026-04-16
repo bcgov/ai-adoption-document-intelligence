@@ -534,10 +534,12 @@ interface TransformNodeFormProps {
 
 /**
  * Configuration form for transform nodes. Provides format selectors,
- * a field mapping editor, and upload/download helpers.
+ * a field mapping editor, upload/download helpers, and an optional XML
+ * envelope editor (visible only when outputFormat is "xml").
  */
 function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const envelopeFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -560,6 +562,36 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = "mapping.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEnvelopeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === "string") {
+        onChange({
+          ...node,
+          xmlEnvelope: content || undefined,
+        });
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-uploaded
+    e.target.value = "";
+  };
+
+  const handleEnvelopeDownload = () => {
+    const blob = new Blob([node.xmlEnvelope ?? ""], {
+      type: "application/xml",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "envelope.xml";
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -636,6 +668,50 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
         style={{ display: "none" }}
         onChange={handleFileUpload}
       />
+      {node.outputFormat === "xml" && (
+        <>
+          <Textarea
+            label="XML Envelope (optional)"
+            description="Wrap the rendered XML payload in a caller-defined envelope. Use {{payload}} where the rendered XML should be injected."
+            placeholder="<envelope>{{payload}}</envelope>"
+            value={node.xmlEnvelope ?? ""}
+            onChange={(e) => {
+              const val = e.currentTarget.value;
+              onChange({
+                ...node,
+                xmlEnvelope: val || undefined,
+              });
+            }}
+            minRows={4}
+            autosize
+            styles={{ input: { fontFamily: "monospace" } }}
+          />
+          <Group gap="xs">
+            <Button
+              variant="light"
+              size="xs"
+              onClick={() => envelopeFileInputRef.current?.click()}
+            >
+              Upload envelope
+            </Button>
+            <Button
+              variant="light"
+              size="xs"
+              onClick={handleEnvelopeDownload}
+              disabled={!node.xmlEnvelope?.trim()}
+            >
+              Download envelope
+            </Button>
+          </Group>
+          <input
+            ref={envelopeFileInputRef}
+            type="file"
+            accept=".xml"
+            style={{ display: "none" }}
+            onChange={handleEnvelopeFileUpload}
+          />
+        </>
+      )}
     </Stack>
   );
 }
