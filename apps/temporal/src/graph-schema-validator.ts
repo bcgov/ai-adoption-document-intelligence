@@ -20,6 +20,7 @@ import type {
   MapNode,
   PollUntilNode,
   SwitchNode,
+  TransformNode,
   ValueRef,
 } from "./graph-workflow-types";
 
@@ -86,6 +87,7 @@ export function validateGraphConfigForExecution(config: GraphWorkflowConfig): {
   validateActivityTypesAgainstRegistry(config, errors);
   validateSwitchNodes(config, errors);
   validateMapJoinNodes(config, errors);
+  validateTransformNodes(config, errors);
   validatePortBindings(config, errors);
   validateExpressions(config, errors);
   validateDagStructure(config, errors);
@@ -392,6 +394,40 @@ function validateMapJoinNodes(
           });
         }
       }
+    }
+  }
+}
+
+function validateTransformNodes(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.type !== "transform") continue;
+    const transformNode = node as TransformNode;
+
+    if (!transformNode.inputFormat) {
+      errors.push({
+        path: `nodes.${nodeId}.inputFormat`,
+        message: `Transform node "${nodeId}" is missing required field: inputFormat`,
+        severity: "error",
+      });
+    }
+
+    if (!transformNode.outputFormat) {
+      errors.push({
+        path: `nodes.${nodeId}.outputFormat`,
+        message: `Transform node "${nodeId}" is missing required field: outputFormat`,
+        severity: "error",
+      });
+    }
+
+    if (!transformNode.fieldMapping) {
+      errors.push({
+        path: `nodes.${nodeId}.fieldMapping`,
+        message: `Transform node "${nodeId}" is missing required field: fieldMapping`,
+        severity: "error",
+      });
     }
   }
 }

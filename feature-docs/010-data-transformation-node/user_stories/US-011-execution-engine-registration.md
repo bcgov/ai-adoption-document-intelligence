@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: executeNode handles the transform case
+- [x] **Scenario 1**: executeNode handles the transform case
     - **Given** the Temporal graph runner encounters a node with `type: "transform"`
     - **When** `executeNode` dispatches on node type
     - **Then** the transform execution pipeline (parse → resolve bindings → render → validate output) is invoked and the result is written to the workflow context
 
-- [ ] **Scenario 2**: Backend validator rejects transform nodes with missing required fields
+- [x] **Scenario 2**: Backend validator rejects transform nodes with missing required fields
     - **Given** a workflow config containing a transform node missing `inputFormat`, `outputFormat`, or `fieldMapping`
     - **When** the backend graph schema validator runs at save time
     - **Then** validation fails with a clear error message identifying the missing field(s)
 
-- [ ] **Scenario 3**: Temporal validator rejects transform nodes with missing required fields
+- [x] **Scenario 3**: Temporal validator rejects transform nodes with missing required fields
     - **Given** the same invalid transform node config reaching the Temporal worker
     - **When** the Temporal graph schema validator runs defensively at execution time
     - **Then** validation fails with a clear error message identifying the missing field(s)
 
-- [ ] **Scenario 4**: Valid transform node config passes both validators
+- [x] **Scenario 4**: Valid transform node config passes both validators
     - **Given** a workflow config containing a transform node with valid `inputFormat`, `outputFormat`, and `fieldMapping`
     - **When** both the backend and Temporal validators run
     - **Then** validation passes with no errors for the transform node
 
-- [ ] **Scenario 5**: Transform node output is written to workflow context
+- [x] **Scenario 5**: Transform node output is written to workflow context
     - **Given** a transform node that successfully renders its output
     - **When** execution completes
     - **Then** the rendered output string is written to the ctx key specified in the node's `outputs` port bindings

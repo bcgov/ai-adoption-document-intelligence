@@ -3,6 +3,7 @@ import type {
   ActivityNode,
   GraphWorkflowConfig,
   SwitchNode,
+  TransformNode,
 } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
@@ -390,6 +391,148 @@ describe("graph-schema-validator (temporal)", () => {
       const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  describe("transform node validation", () => {
+    it("valid transform node passes validation", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: { transformedOutput: { type: "string" } },
+        nodes: {
+          t: {
+            id: "t",
+            type: "transform",
+            label: "Transform",
+            inputFormat: "json",
+            outputFormat: "xml",
+            fieldMapping: "{}",
+            outputs: [{ port: "output", ctxKey: "transformedOutput" }],
+          } as TransformNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("fails when inputFormat is missing", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: {},
+        nodes: {
+          t: {
+            id: "t",
+            type: "transform",
+            label: "Transform",
+            inputFormat: "" as "json",
+            outputFormat: "xml",
+            fieldMapping: "{}",
+          } as TransformNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: "nodes.t.inputFormat",
+            message: expect.stringContaining("inputFormat"),
+          }),
+        ]),
+      );
+    });
+
+    it("fails when outputFormat is missing", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: {},
+        nodes: {
+          t: {
+            id: "t",
+            type: "transform",
+            label: "Transform",
+            inputFormat: "json",
+            outputFormat: "" as "xml",
+            fieldMapping: "{}",
+          } as TransformNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: "nodes.t.outputFormat",
+            message: expect.stringContaining("outputFormat"),
+          }),
+        ]),
+      );
+    });
+
+    it("fails when fieldMapping is missing", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: {},
+        nodes: {
+          t: {
+            id: "t",
+            type: "transform",
+            label: "Transform",
+            inputFormat: "json",
+            outputFormat: "xml",
+            fieldMapping: "",
+          } as TransformNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: "nodes.t.fieldMapping",
+            message: expect.stringContaining("fieldMapping"),
+          }),
+        ]),
+      );
+    });
+
+    it("fails when all required fields are missing", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: {},
+        nodes: {
+          t: {
+            id: "t",
+            type: "transform",
+            label: "Transform",
+            inputFormat: "" as "json",
+            outputFormat: "" as "xml",
+            fieldMapping: "",
+          } as TransformNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(false);
+      const paths = result.errors.map((e) => e.path);
+      expect(paths).toContain("nodes.t.inputFormat");
+      expect(paths).toContain("nodes.t.outputFormat");
+      expect(paths).toContain("nodes.t.fieldMapping");
     });
   });
 });

@@ -70,7 +70,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-010** (Malformed output error handling — post-render validation for all formats)
 
 ### Phase 5 — Execution Registration
-- [ ] **US-011** (Register transform node in node executor and both graph schema validators)
+- [x] **US-011** (Register transform node in node executor and both graph schema validators)
 
 ### Phase 6 — Frontend UI
 - [ ] **US-012** (Add transform node to workflow builder palette and graph visualization)
