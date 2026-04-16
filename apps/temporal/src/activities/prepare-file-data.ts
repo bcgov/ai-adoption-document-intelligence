@@ -66,7 +66,7 @@ export async function prepareFileData(
   const fileSize = fileBuffer.length;
 
   const fileName = input.fileName || path.basename(blobKey) || "document";
-  let fileType: "pdf" | "image" = input.fileType || "pdf";
+  let fileType: "pdf" | "image";
   let contentType = input.contentType;
 
   // Determine file type from filename or content type

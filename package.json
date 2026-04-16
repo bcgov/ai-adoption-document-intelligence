@@ -46,6 +46,7 @@
 	"overrides": {
 		"axios": "1.15.0",
 		"fast-xml-parser": "5.5.9",
+		"multer": "2.1.1",
 		"serialize-javascript": "7.0.5"
 	}
 }
