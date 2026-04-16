@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Input and output format dropdowns persist selections
+- [x] **Scenario 1**: Input and output format dropdowns persist selections
     - **Given** the admin opens the transform node configuration panel
     - **When** they select an input format (JSON, XML, or CSV) and an output format from the dropdowns
     - **Then** the selections are saved to the node's `inputFormat` and `outputFormat` fields and are reflected when the panel is reopened
 
-- [ ] **Scenario 2**: Mapping text area displays and updates the current fieldMapping
+- [x] **Scenario 2**: Mapping text area displays and updates the current fieldMapping
     - **Given** the transform node has an existing `fieldMapping` value
     - **When** the admin opens the configuration panel
     - **Then** the text area displays the current mapping; edits to the text area update `fieldMapping` in the node config
 
-- [ ] **Scenario 3**: Admin can upload a .json file to replace the mapping
+- [x] **Scenario 3**: Admin can upload a .json file to replace the mapping
     - **Given** the admin clicks "Upload mapping" and selects a valid `.json` file
     - **When** the file is loaded
     - **Then** the text area is populated with the file's content and `fieldMapping` is updated accordingly
 
-- [ ] **Scenario 4**: Admin can export/download the current mapping as a .json file
+- [x] **Scenario 4**: Admin can export/download the current mapping as a .json file
     - **Given** the admin has a non-empty `fieldMapping` in the text area
     - **When** they click "Download mapping"
     - **Then** the browser downloads a file named `mapping.json` containing the current text area content
 
-- [ ] **Scenario 5**: Mapping text area includes inline guidance about binding syntax
+- [x] **Scenario 5**: Mapping text area includes inline guidance about binding syntax
     - **Given** the text area is empty (new node with default mapping)
     - **When** the admin views the text area
     - **Then** placeholder text or a visible tooltip explains the `{{nodeName.fieldName}}` binding syntax

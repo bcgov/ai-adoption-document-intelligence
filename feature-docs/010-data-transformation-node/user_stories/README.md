@@ -74,7 +74,7 @@ After implementing a user story, check it off at the bottom of this file.
 
 ### Phase 6 — Frontend UI
 - [x] **US-012** (Add transform node to workflow builder palette and graph visualization)
-- [ ] **US-013** (Node configuration form — format selectors and mapping editor)
+- [x] **US-013** (Node configuration form — format selectors and mapping editor)
 - [ ] **US-014** (Node configuration form — XML envelope editor)
 - [ ] **US-015** (Transform node summary/read-only view with error badge)
 
