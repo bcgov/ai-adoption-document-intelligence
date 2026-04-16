@@ -207,7 +207,6 @@ describe("resolveBindings - array iteration", () => {
         "{{#each extractionNode.items}}": {
           Name: "{{this.name}}",
         },
-        "{{/each}}": "",
       },
     };
     const context = {
@@ -230,7 +229,6 @@ describe("resolveBindings - array iteration", () => {
           ItemName: "{{this.name}}",
           ItemValue: "{{this.value}}",
         },
-        "{{/each}}": "",
       },
     };
     const context = {
@@ -254,7 +252,6 @@ describe("resolveBindings - array iteration", () => {
           ItemName: "{{name}}",
           ItemValue: "{{value}}",
         },
-        "{{/each}}": "",
       },
     };
     const context = {
@@ -275,7 +272,6 @@ describe("resolveBindings - array iteration", () => {
     const mapping = {
       Items: {
         "{{#each node.items}}": { Name: "{{this.name}}" },
-        "{{/each}}": "",
       },
     };
     const context = { node: { items: [] } };
@@ -291,7 +287,6 @@ describe("resolveBindings - array iteration", () => {
     const mapping = {
       Items: {
         "{{#each node.missing}}": { Name: "{{this.name}}" },
-        "{{/each}}": "",
       },
     };
     const context = { node: {} };
@@ -307,7 +302,6 @@ describe("resolveBindings - array iteration", () => {
     const mapping = {
       Items: {
         "{{#each node.scalar}}": { Name: "{{this.name}}" },
-        "{{/each}}": "",
       },
     };
     const context = { node: { scalar: "notAnArray" } };
@@ -322,7 +316,6 @@ describe("resolveBindings - array iteration", () => {
     const mapping = {
       Items: {
         "{{#each node.missing}}": { Name: "{{this.name}}" },
-        "{{/each}}": "",
       },
     };
     const context = { node: {} };
@@ -346,7 +339,6 @@ describe("resolveBindings - array iteration", () => {
             Value: "{{this.value}}",
           },
         },
-        "{{/each}}": "",
       },
     };
     const context = {

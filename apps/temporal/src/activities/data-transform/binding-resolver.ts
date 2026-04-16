@@ -31,9 +31,6 @@ const INLINE_BINDING_PATTERN = /\{\{([^}]+)\}\}/g;
 /** Matches the opening marker of an iteration block: `{{#each arrayPath}}`. */
 const EACH_KEY_PATTERN = /^\{\{#each\s+(.+?)\}\}$/;
 
-/** The closing marker key for an iteration block. */
-const EACH_END_KEY = "{{/each}}";
-
 /**
  * Resolves a dot-separated binding path against the upstream node context.
  *
@@ -200,15 +197,15 @@ function buildElementContext(
 }
 
 /**
- * Resolves an iteration block (an object containing `{{#each arrayPath}}` and
- * `{{/each}}` sibling keys) against the current context.
+ * Resolves an iteration block (an object whose key matches `{{#each arrayPath}}`)
+ * against the current context.
  *
  * For each element of the resolved array the template (the value associated
  * with the `{{#each ...}}` key) is resolved with a context that makes the
  * element's fields available via `{{this.field}}` and the shorthand
  * `{{field}}`.
  *
- * @param obj - The object containing the `{{#each ...}}` / `{{/each}}` keys.
+ * @param obj - The object containing the `{{#each ...}}` key.
  * @param context - The current binding context.
  * @returns An {@link IterationResult} with one resolved record per array element.
  * @throws {IterationResolutionError} If the array path cannot be resolved or
@@ -261,6 +258,3 @@ function resolveIterationBlock(
 
   return new IterationResult(items);
 }
-
-// Keep the closing marker key constant accessible for potential external use.
-void EACH_END_KEY;

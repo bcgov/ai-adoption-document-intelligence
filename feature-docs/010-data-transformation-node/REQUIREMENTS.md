@@ -100,7 +100,7 @@ The primary driver for this feature is enabling conversion of OCR-extracted JSON
 ### FR-5b: Repeating Elements (Arrays)
 
 - The mapping and binding syntax must support iteration over arrays in the input data.
-- An iteration block is defined in the mapping using `{{#each arrayPath}}` and `{{/each}}` markers, where `arrayPath` is a period-separated path to an array value in an upstream node's output.
+- An iteration block is defined in the mapping using a `{{#each arrayPath}}` key, where `arrayPath` is a period-separated path to an array value in an upstream node's output. The block's scope is the value of that key — no closing marker is needed.
 - Within an iteration block, `{{this.fieldName}}` (or `{{fieldName}}` shorthand) refers to fields on the current array element.
 - Example:
   ```json
@@ -111,8 +111,7 @@ The primary driver for this feature is enabling conversion of OCR-extracted JSON
           "Name": "{{this.name}}",
           "Value": "{{this.value}}"
         }
-      },
-      "{{/each}}": ""
+      }
     }
   }
   ```

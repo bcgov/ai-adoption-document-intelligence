@@ -1,13 +1,13 @@
 # US-008: Implement Array Iteration Support
 
 **As a** developer building the transformation engine,
-**I want to** iterate over arrays in the input data using `{{#each arrayPath}}` ... `{{/each}}` markers in the field mapping,
+**I want to** iterate over arrays in the input data using `{{#each arrayPath}}` markers in the field mapping,
 **So that** repeating structures (lists of items) can be rendered correctly in all supported output formats.
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
 - [x] **Scenario 1**: Iteration block renders once per array element
-    - **Given** a mapping with `{{#each extractionNode.items}}` ... `{{/each}}` and an upstream array of 3 elements
+    - **Given** a mapping with `{{#each extractionNode.items}}` and an upstream array of 3 elements
     - **When** the binding resolver processes the iteration block
     - **Then** the body of the block is rendered 3 times, once for each element
 
@@ -40,8 +40,8 @@
 - [x] High (Must Have)
 
 ## Technical Notes / Assumptions
-- The iteration syntax in mapping keys: `"{{#each nodeName.arrayField}}"` as a key and `"{{/each}}"` as a sibling key with empty string value.
-- This requires the binding resolver to detect and handle `{{#each ...}}` / `{{/each}}` patterns specially, before regular binding resolution.
+- The iteration syntax uses `"{{#each nodeName.arrayField}}"` as a key; the key's value is the template body. No closing marker is required — the JSON structure implicitly bounds the block.
+- This requires the binding resolver to detect and handle `{{#each ...}}` patterns specially, before regular binding resolution.
 - An unresolvable `arrayPath` (path does not exist or is not an array) should throw a structured error identifying the path.
 - `{{this.fieldName}}` and the shorthand `{{fieldName}}` within the block should both resolve to the current element's field.
 - Unit tests should cover all three output format paths, empty array, and unresolvable path.

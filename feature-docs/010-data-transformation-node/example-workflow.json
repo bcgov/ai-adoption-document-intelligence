@@ -66,7 +66,7 @@
       "outputs": [
         { "port": "result", "ctxKey": "orderJson" }
       ],
-      "fieldMapping": "{\n  \"orderId\": \"{{src.Order.OrderId}}\",\n  \"orderDate\": \"{{src.Order.Date}}\",\n  \"currency\": \"{{src.Order.Currency}}\",\n  \"lineItems\": {\n    \"{{#each src.Order.LineItems.Item}}\": {\n      \"sku\": \"{{this.sku}}\",\n      \"qty\": \"{{this.qty}}\",\n      \"price\": \"{{this.price}}\"\n    },\n    \"{{/each}}\": \"\"\n  }\n}"
+      "fieldMapping": "{\n  \"orderId\": \"{{src.Order.OrderId}}\",\n  \"orderDate\": \"{{src.Order.Date}}\",\n  \"currency\": \"{{src.Order.Currency}}\",\n  \"lineItems\": {\n    \"{{#each src.Order.LineItems.Item}}\": {\n      \"sku\": \"{{this.sku}}\",\n      \"qty\": \"{{this.qty}}\",\n      \"price\": \"{{this.price}}\"\n    }\n  }\n}"
     },
 
     "buildPayload": {
@@ -99,7 +99,7 @@
       "outputs": [
         { "port": "result", "ctxKey": "soapOutput" }
       ],
-      "fieldMapping": "{\n  \"SubmitOrderRequest\": {\n    \"CustomerId\": \"{{payload.customerId}}\",\n    \"FullName\": \"{{payload.fullName}}\",\n    \"Email\": \"{{payload.email}}\",\n    \"Tier\": \"{{payload.tier}}\",\n    \"ShippingCity\": \"{{payload.shippingCity}}\",\n    \"OrderId\": \"{{payload.orderId}}\",\n    \"OrderDate\": \"{{payload.orderDate}}\",\n    \"Currency\": \"{{payload.currency}}\",\n    \"LineItems\": {\n      \"{{#each order.lineItems}}\": {\n        \"Item\": {\n          \"Sku\": \"{{this.sku}}\",\n          \"Qty\": \"{{this.qty}}\",\n          \"Price\": \"{{this.price}}\"\n        }\n      },\n      \"{{/each}}\": \"\"\n    }\n  }\n}",
+      "fieldMapping": "{\n  \"SubmitOrderRequest\": {\n    \"CustomerId\": \"{{payload.customerId}}\",\n    \"FullName\": \"{{payload.fullName}}\",\n    \"Email\": \"{{payload.email}}\",\n    \"Tier\": \"{{payload.tier}}\",\n    \"ShippingCity\": \"{{payload.shippingCity}}\",\n    \"OrderId\": \"{{payload.orderId}}\",\n    \"OrderDate\": \"{{payload.orderDate}}\",\n    \"Currency\": \"{{payload.currency}}\",\n    \"LineItems\": {\n      \"{{#each order.lineItems}}\": {\n        \"Item\": {\n          \"Sku\": \"{{this.sku}}\",\n          \"Qty\": \"{{this.qty}}\",\n          \"Price\": \"{{this.price}}\"\n        }\n      }\n    }\n  }\n}",
       "xmlEnvelope": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:tns=\"http://example.com/orders\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <tns:SubmitOrder>\n      {{payload}}\n    </tns:SubmitOrder>\n  </soapenv:Body>\n</soapenv:Envelope>"
     }
   },
