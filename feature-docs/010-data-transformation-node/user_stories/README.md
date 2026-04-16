@@ -76,7 +76,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-012** (Add transform node to workflow builder palette and graph visualization)
 - [x] **US-013** (Node configuration form — format selectors and mapping editor)
 - [x] **US-014** (Node configuration form — XML envelope editor)
-- [ ] **US-015** (Transform node summary/read-only view with error badge)
+- [x] **US-015** (Transform node summary/read-only view with error badge)
 
 > Stories are ordered by dependency chain for automated implementation.
 > Each story should be implementable after all stories in previous phases are complete.
