@@ -1,4 +1,6 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import axios from "axios";
+import { createActivityLogger } from "../logger";
 import type { OCRResponse, OCRResult } from "../types";
 
 /**
@@ -22,20 +24,16 @@ export async function extractOCRResults(params: {
 }): Promise<{ ocrResult: OCRResult }> {
   const activityName = "extractOCRResults";
   const { apimRequestId, fileName, fileType, modelId, ocrResponse } = params;
+  const log = createActivityLogger(activityName, { apimRequestId });
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      apimRequestId,
-      fileName,
-      fileType,
-      modelId,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Extract OCR results start", {
+    event: "start",
+    fileName,
+    fileType,
+    modelId,
+  });
 
   try {
     let ocrResponseObj: OCRResponse | undefined = ocrResponse;
@@ -91,35 +89,24 @@ export async function extractOCRResults(params: {
       processedAt: new Date().toISOString(),
     };
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "complete",
-        apimRequestId,
-        fileName,
-        status: result.status,
-        pagesCount: result.pages.length,
-        tablesCount: result.tables.length,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Extract OCR results complete", {
+      event: "complete",
+      fileName,
+      status: result.status,
+      pagesCount: result.pages.length,
+      tablesCount: result.tables.length,
+    });
 
     // Return with port name as key for output binding
     return { ocrResult: result };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: "error",
-        apimRequestId,
-        fileName,
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    const errorMessage = getErrorMessage(error);
+    log.error("Extract OCR results error", {
+      event: "error",
+      fileName,
+      error: errorMessage,
+      stack: getErrorStack(error),
+    });
     throw error;
   }
 }

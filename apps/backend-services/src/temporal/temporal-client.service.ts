@@ -1,11 +1,9 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from "@nestjs/common";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { getRequestContext } from "@/logging/request-context";
 import { computeConfigHash } from "../workflow/config-hash";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
@@ -13,7 +11,6 @@ import { WORKFLOW_TYPES } from "./workflow-types";
 
 @Injectable()
 export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(TemporalClientService.name);
   private connection: Connection | null = null;
   private client: Client | null = null;
   private readonly address: string;
@@ -47,8 +44,8 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * @returns Enhanced error with helpful message
    */
   private handleError(error: unknown, context: string): Error {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorMessage = getErrorMessage(error);
+    const errorStack = getErrorStack(error);
 
     // Build helpful error message based on error type
     let enhancedMessage = `Failed to ${context}: ${errorMessage}`;
@@ -93,6 +90,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private configService: ConfigService,
     private workflowService: WorkflowService,
+    private readonly logger: AppLoggerService,
   ) {
     this.address =
       this.configService.get<string>("TEMPORAL_ADDRESS") || "localhost:7233";
@@ -167,10 +165,15 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
 
       this.logger.log("Temporal client connected successfully");
     } catch (error) {
-      this.logger.error(
-        `Failed to connect to Temporal: ${error.message}`,
-        error.stack,
-      );
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`Failed to connect to Temporal: ${err.message}`, {
+        error: err.message,
+      });
+      if (err.stack) {
+        this.logger.debug("Temporal connection error stack", {
+          stack: err.stack,
+        });
+      }
       throw error;
     }
   }
@@ -211,6 +214,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       const runnerVersion = "1.0.0";
 
       const workflowType = WORKFLOW_TYPES.GRAPH_WORKFLOW;
+      const requestId = getRequestContext()?.requestId;
 
       const handle = await this.client!.workflow.start(workflowType, {
         args: [
@@ -219,6 +223,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             initialCtx,
             configHash,
             runnerVersion,
+            ...(requestId && { requestId }),
           },
         ],
         taskQueue: this.taskQueue,

@@ -17,7 +17,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
 import { useCreateWorkflow } from "../data/hooks/useWorkflows";
-import { useProjects } from "../features/annotation/labeling/hooks/useProjects";
+import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
 import type { WorkflowStepsConfig } from "../types/workflow";
 
 interface WorkflowStepConfig {
@@ -140,8 +140,11 @@ export function WorkflowPage() {
     (config.steps.enrichResults?.parameters?.enableLlmEnrichment as boolean) ??
     false;
 
-  const { projects, isLoading: projectsLoading } = useProjects();
-  const projectOptions = projects.map((p) => ({ value: p.id, label: p.name }));
+  const { templateModels, isLoading: projectsLoading } = useTemplateModels();
+  const projectOptions = templateModels.map((p) => ({
+    value: p.id,
+    label: p.name,
+  }));
 
   const handleCreateWorkflow = async () => {
     if (!workflowName.trim()) {
@@ -466,7 +469,7 @@ export function WorkflowPage() {
                     <Stack gap="xs">
                       <Switch
                         label="Enrich Results"
-                        description="Apply rules and optional LLM enrichment using a document type (LabelingProject)"
+                        description="Apply rules and optional LLM enrichment using a document type (Template Model)"
                         checked={config.steps.enrichResults?.enabled ?? false}
                         onChange={(e) =>
                           handleStepToggle(

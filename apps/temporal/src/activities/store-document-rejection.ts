@@ -1,3 +1,5 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
 /**
@@ -9,22 +11,22 @@ export async function storeDocumentRejection(params: {
   reason: string;
   reviewer?: string;
   annotations?: string;
+  requestId?: string;
 }): Promise<void> {
   const activityName = "storeDocumentRejection";
-  const { documentId, reason, reviewer, annotations } = params;
+  const { documentId, reason, reviewer, annotations, requestId } = params;
   const startTime = Date.now();
+  const log = createActivityLogger(activityName, {
+    documentId,
+    ...(requestId && { requestId }),
+  });
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      documentId,
-      reason,
-      reviewer,
-      hasAnnotations: !!annotations,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Store document rejection start", {
+    event: "start",
+    reason,
+    reviewer,
+    hasAnnotations: !!annotations,
+  });
 
   try {
     const prisma = getPrismaClient();
@@ -45,31 +47,20 @@ export async function storeDocumentRejection(params: {
       },
     });
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "complete",
-        documentId,
-        reason,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Store document rejection complete", {
+      event: "complete",
+      reason,
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: "error",
-        documentId,
-        reason,
-        error: errorMessage,
-        durationMs: duration,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    const errorMessage = getErrorMessage(error);
+    log.error("Store document rejection error", {
+      event: "error",
+      reason,
+      error: errorMessage,
+      durationMs: duration,
+      stack: getErrorStack(error),
+    });
     throw error;
   }
 }

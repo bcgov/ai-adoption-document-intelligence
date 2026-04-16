@@ -6,3 +6,5 @@
 - When creating or modifying features, create/update documentation in /docs-md folder
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
+- All backend controllers must have full Swagger/OpenAPI documentation: use specific decorators (`@ApiOkResponse`, `@ApiForbiddenResponse`, `@ApiUnauthorizedResponse`, `@ApiConflictResponse`, etc.) instead of generic `@ApiResponse`, create dedicated DTO classes with `@ApiProperty` decorators for all request/response shapes, and reference those DTOs via the `type` field in response decorators.
+- To test API directly, use: `curl -H "x-api-key: 69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY" http://localhost:3002/api/...`

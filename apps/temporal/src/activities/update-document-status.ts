@@ -1,3 +1,5 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
 /**
@@ -8,21 +10,21 @@ export async function updateDocumentStatus(params: {
   documentId: string;
   status: string;
   apimRequestId?: string;
+  requestId?: string;
 }): Promise<void> {
   const activityName = "updateDocumentStatus";
   const startTime = Date.now();
-  const { documentId, status, apimRequestId } = params;
+  const { documentId, status, apimRequestId, requestId } = params;
+  const log = createActivityLogger(activityName, {
+    documentId,
+    ...(requestId && { requestId }),
+  });
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      documentId,
-      status,
-      apimRequestId,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Update document status start", {
+    event: "start",
+    status,
+    apimRequestId,
+  });
 
   try {
     const prisma = getPrismaClient();
@@ -37,17 +39,12 @@ export async function updateDocumentStatus(params: {
       });
       if (!doc) {
         const duration = Date.now() - startTime;
-        console.log(
-          JSON.stringify({
-            activity: activityName,
-            event: "skipped",
-            reason: "benchmark_mode_no_document",
-            documentId,
-            status,
-            durationMs: duration,
-            timestamp: new Date().toISOString(),
-          }),
-        );
+        log.info("Update document status skipped", {
+          event: "skipped",
+          reason: "benchmark_mode_no_document",
+          status,
+          durationMs: duration,
+        });
         return;
       }
     }
@@ -65,15 +62,10 @@ export async function updateDocumentStatus(params: {
       data: updateData,
     });
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "complete",
-        documentId,
-        status,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Update document status complete", {
+      event: "complete",
+      status,
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
 
@@ -84,34 +76,22 @@ export async function updateDocumentStatus(params: {
       "code" in error &&
       (error as { code: string }).code === "P2025"
     ) {
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "skipped",
-          reason: "document_not_found",
-          documentId,
-          status,
-          durationMs: duration,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Update document status skipped", {
+        event: "skipped",
+        reason: "document_not_found",
+        status,
+        durationMs: duration,
+      });
       return;
     }
 
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: "error",
-        documentId,
-        status,
-        error: errorMessage,
-        durationMs: duration,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.error("Update document status failed", {
+      event: "error",
+      status,
+      error: getErrorMessage(error),
+      durationMs: duration,
+      stack: getErrorStack(error),
+    });
     throw error;
   }
 }

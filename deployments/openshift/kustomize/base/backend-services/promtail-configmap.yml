@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-services-promtail
+  labels:
+    app: backend-services
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 0
+      grpc_listen_port: 0
+    positions:
+      filename: /tmp/positions.yaml
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+    scrape_configs:
+      - job_name: backend-services
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              service: backend-services
+              __path__: /var/log/app/*.log

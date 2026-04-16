@@ -1,7 +1,7 @@
 apiVersion: postgres-operator.crunchydata.com/v1beta1
 kind: PostgresCluster
 metadata:
-  name: temporal-postgres-cluster
+  name: temporal-pg
 spec:
   # Crunchy Postgres Operator default pg_hba is SSL-only (hostssl). Temporal must use TLS.
   # Also ensure the Temporal DB user has permission to create schema objects.

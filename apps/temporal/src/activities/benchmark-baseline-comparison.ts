@@ -7,6 +7,7 @@
  */
 
 import type { Prisma } from "../generated";
+import { createActivityLogger } from "../logger";
 import {
   type BaselineComparison,
   computeMetricComparisons,
@@ -34,7 +35,9 @@ export async function benchmarkCompareAgainstBaseline(
   input: BenchmarkBaselineComparisonInput,
 ): Promise<BaselineComparison | null> {
   const { runId } = input;
-
+  const log = createActivityLogger("benchmarkCompareAgainstBaseline", {
+    runId,
+  });
   const prisma = getPrismaClient();
 
   // Get the run
@@ -57,28 +60,18 @@ export async function benchmarkCompareAgainstBaseline(
 
   // No baseline exists yet
   if (!baseline) {
-    console.log(
-      JSON.stringify({
-        activity: "benchmarkCompareAgainstBaseline",
-        event: "no_baseline_found",
-        runId,
-        definitionId: run.definitionId,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("No baseline found for definition", {
+      event: "no_baseline_found",
+      definitionId: run.definitionId,
+    });
     return null;
   }
 
   // Don't compare baseline against itself
   if (baseline.id === runId) {
-    console.log(
-      JSON.stringify({
-        activity: "benchmarkCompareAgainstBaseline",
-        event: "skip_self_comparison",
-        runId,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Skip self-comparison", {
+      event: "skip_self_comparison",
+    });
     return null;
   }
 
@@ -112,17 +105,12 @@ export async function benchmarkCompareAgainstBaseline(
     },
   });
 
-  console.log(
-    JSON.stringify({
-      activity: "benchmarkCompareAgainstBaseline",
-      event: "comparison_complete",
-      runId,
-      baselineRunId: baseline.id,
-      overallPassed: comparison.overallPassed,
-      regressedMetrics,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Baseline comparison complete", {
+    event: "comparison_complete",
+    baselineRunId: baseline.id,
+    overallPassed: comparison.overallPassed,
+    regressedMetrics,
+  });
 
   return comparison;
 }

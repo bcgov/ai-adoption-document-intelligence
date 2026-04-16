@@ -5,11 +5,11 @@ import { ApiProperty } from "@nestjs/swagger";
  */
 export class GroupMemberDto {
   @ApiProperty({ description: "The user's unique identifier" })
-  userId: string;
+  userId!: string;
 
   @ApiProperty({ description: "The user's email address" })
-  email: string;
+  email!: string;
 
   @ApiProperty({ description: "The date the user joined the group" })
-  joinedAt: Date;
+  joinedAt!: Date;
 }

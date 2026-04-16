@@ -1,4 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "../azure/azure.service";
 import { ClassifierStatus } from "../azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
@@ -6,11 +9,11 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { ClassifierService } from "./classifier.service";
+import { ClassifierDbService } from "./classifier-db.service";
 
-const mockDatabaseService = {
-  getClassifierModel: jest.fn(),
+const mockClassifierDbService = {
+  findClassifierModel: jest.fn(),
   updateClassifierModel: jest.fn(),
 };
 const mockAzureService = {
@@ -29,6 +32,7 @@ const mockBlobService = {
   uploadFile: jest.fn(),
   generateSasUrl: jest.fn().mockReturnValue("https://mockbloburl"),
   deleteFilesWithPrefix: jest.fn(),
+  fileExists: jest.fn().mockReturnValue(false),
 };
 const mockBlobStorage = {
   write: jest.fn(),
@@ -43,22 +47,24 @@ describe("ClassifierService", () => {
   let service: ClassifierService;
   let module: TestingModule;
   let blobStorage: BlobStorageInterface;
-  let databaseService: DatabaseService;
+  let classifierDbService: ClassifierDbService;
   let azureService: AzureService;
   let azureStorage: AzureStorageService;
 
   beforeEach(async () => {
     blobStorage = mockBlobStorage as any;
-    databaseService = mockDatabaseService as any;
+    classifierDbService = mockClassifierDbService as any;
     azureService = mockAzureService as any;
     azureStorage = mockBlobService as any;
     module = await Test.createTestingModule({
       providers: [
         ClassifierService,
-        { provide: DatabaseService, useValue: databaseService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
+        { provide: ClassifierDbService, useValue: classifierDbService },
         { provide: AzureService, useValue: azureService },
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
+        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
@@ -72,7 +78,9 @@ describe("ClassifierService", () => {
 
   describe("requestClassifierTraining", () => {
     it("should throw NotFoundException if classifier not found", async () => {
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue(null);
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue(
+        null,
+      );
       await expect(
         service.requestClassifierTraining("c", "g", "u"),
       ).rejects.toThrow();
@@ -88,18 +96,20 @@ describe("ClassifierService", () => {
           }),
         }),
       };
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: jest.fn().mockReturnValue([]),
       });
-      (databaseService.updateClassifierModel as jest.Mock).mockResolvedValue({
+      (
+        classifierDbService.updateClassifierModel as jest.Mock
+      ).mockResolvedValue({
         status: ClassifierStatus.TRAINING,
       });
 
       const result = await service.requestClassifierTraining("c", "g", "u");
-      expect(mockDatabaseService.updateClassifierModel).toHaveBeenCalled();
+      expect(mockClassifierDbService.updateClassifierModel).toHaveBeenCalled();
       expect(result.status).toBe(ClassifierStatus.TRAINING);
     });
 
@@ -109,7 +119,7 @@ describe("ClassifierService", () => {
           post: jest.fn().mockResolvedValue({ status: "202" }),
         }),
       };
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
@@ -147,7 +157,7 @@ describe("ClassifierService", () => {
       });
       azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
-      const pollCallback = jest.fn(async (opLoc, onSuccess, onError) => {
+      const pollCallback = jest.fn(async (_opLoc, onSuccess, _onError) => {
         await onSuccess({ result: "layout" });
       });
       azureService.pollOperationUntilResolved = pollCallback;
@@ -167,11 +177,15 @@ describe("ClassifierService", () => {
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(mockGetBlobSasUrl).toHaveBeenCalledWith(
-        "classification",
+        "document-blobs",
         "file.jpg",
       );
       expect(pollCallback).toHaveBeenCalled();
-      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+      expect(mockBlobService.uploadFile).toHaveBeenCalledWith(
+        "document-blobs",
+        "file.jpg.ocr.json",
+        expect.any(Buffer),
+      );
     });
 
     it("should handle 404 and upload fallback layout JSON", async () => {
@@ -193,7 +207,7 @@ describe("ClassifierService", () => {
       }) as any;
 
       (service as any).client = {
-        path: (url: string) => ({
+        path: (_url: string) => ({
           post: jest.fn().mockImplementation(({ body }) => {
             if (body && body.base64Source) {
               return Promise.resolve({
@@ -217,7 +231,11 @@ describe("ClassifierService", () => {
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
       expect(global.fetch).toHaveBeenCalled();
-      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+      expect(mockBlobService.uploadFile).toHaveBeenCalledWith(
+        "document-blobs",
+        "file.jpg.ocr.json",
+        expect.any(Buffer),
+      );
     });
 
     it("should log error if fallback download fails", async () => {
@@ -266,7 +284,7 @@ describe("ClassifierService", () => {
       }) as any;
 
       (service as any).client = {
-        path: (url: string) => ({
+        path: (_url: string) => ({
           post: jest.fn().mockImplementation(({ body }) => {
             if (body && body.base64Source) {
               return Promise.resolve({
@@ -289,11 +307,11 @@ describe("ClassifierService", () => {
       await expect(
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
-      expect(errorLogger).toHaveBeenCalledWith(
-        "Fallback analyze failed for file.jpg:",
-        "500",
-        "fail",
-      );
+      expect(errorLogger).toHaveBeenCalledWith("Fallback analyze failed", {
+        filePath: "file.jpg",
+        status: "500",
+        body: "fail",
+      });
     });
 
     it("should log error for non-202/404 analyze response", async () => {
@@ -321,12 +339,12 @@ describe("ClassifierService", () => {
       await expect(
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
-      expect(errorLogger).toHaveBeenCalledWith(
-        "Failed to analyze blob file.jpg:",
-        "url: https://mockbloburl/file.jpg",
-        "500",
-        "fail",
-      );
+      expect(errorLogger).toHaveBeenCalledWith("Failed to analyze blob", {
+        filePath: "file.jpg",
+        url: "https://mockbloburl/file.jpg",
+        status: "500",
+        body: "fail",
+      });
     });
 
     it("should log error if operation-location header is missing", async () => {
@@ -366,13 +384,13 @@ describe("ClassifierService", () => {
         undefined,
       );
       (blobStorage.list as jest.Mock).mockResolvedValue([
-        "classifier/gid/cid/label/file1.pdf",
+        "cuid/classification/cid/label/file1.pdf",
       ]);
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
       (azureStorage.uploadFile as jest.Mock).mockResolvedValue(undefined);
-      const result = await service.uploadDocumentsForTraining("gid", "cid");
+      const result = await service.uploadDocumentsForTraining("cuid", "cid");
       expect(result[0].originalPath).toContain("file1.pdf");
-      expect(result[0].blobPath).toContain("gid");
+      expect(result[0].blobPath).toContain("cuid");
       expect(mockBlobService.uploadFile).toHaveBeenCalled();
     });
   });
@@ -414,7 +432,11 @@ describe("ClassifierService", () => {
         }),
       };
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
-      const result = await service.requestClassification("file", "cid", "gid");
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
       expect(result.status).toBe("202");
       expect(result.content).toBe("loc");
     });
@@ -428,7 +450,11 @@ describe("ClassifierService", () => {
         }),
       };
       (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
-      const result = await service.requestClassification("file", "cid", "gid");
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
       expect(result.status).toBe("400");
       expect(result.error).toBe("fail");
     });

@@ -5,6 +5,7 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md
  */
 
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { BaselineComparison, MetricThreshold } from "./promote-baseline.dto";
 
 /**
@@ -14,61 +15,92 @@ export class RunSummaryDto {
   /**
    * Run ID
    */
-  id: string;
+  @ApiProperty({ description: "Run ID" })
+  id!: string;
 
   /**
    * Definition ID
    */
-  definitionId: string;
+  @ApiProperty({ description: "Definition ID" })
+  definitionId!: string;
 
   /**
    * Definition name
    */
-  definitionName: string;
+  @ApiProperty({ description: "Definition name" })
+  definitionName!: string;
 
   /**
    * Run status (pending, running, completed, failed, cancelled)
    */
-  status: string;
+  @ApiProperty({
+    description: "Run status (pending, running, completed, failed, cancelled)",
+  })
+  status!: string;
 
   /**
    * Start timestamp
    */
-  startedAt: Date | null;
+  @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
+  startedAt!: Date | null;
 
   /**
    * Completion timestamp
    */
-  completedAt: Date | null;
+  @ApiProperty({
+    description: "Completion timestamp",
+    nullable: true,
+    type: Date,
+  })
+  completedAt!: Date | null;
 
   /**
    * Duration in milliseconds (if completed)
    */
-  durationMs: number | null;
+  @ApiProperty({ description: "Duration in milliseconds", nullable: true })
+  durationMs!: number | null;
 
   /**
    * Headline metrics (if completed)
    */
-  headlineMetrics: Record<string, unknown> | null;
+  @ApiProperty({
+    description: "Headline metrics",
+    nullable: true,
+    type: "object",
+    additionalProperties: true,
+  })
+  headlineMetrics!: Record<string, unknown> | null;
 
   /**
    * Whether this run has a regression compared to baseline
    */
+  @ApiPropertyOptional({
+    description: "Whether this run has a regression compared to baseline",
+  })
   hasRegression?: boolean;
 
   /**
    * Number of regressed metrics (if compared against baseline)
    */
+  @ApiPropertyOptional({
+    description: "Number of regressed metrics compared against baseline",
+  })
   regressedMetricCount?: number;
 
   /**
    * Whether this is the baseline run
    */
+  @ApiPropertyOptional({ description: "Whether this is the baseline run" })
   isBaseline?: boolean;
 
   /**
    * Run tags (e.g., version, environment)
    */
+  @ApiPropertyOptional({
+    description: "Run tags (e.g., version, environment)",
+    type: "object",
+    additionalProperties: true,
+  })
   tags?: Record<string, unknown>;
 }
 
@@ -79,92 +111,132 @@ export class RunDetailsDto {
   /**
    * Run ID
    */
-  id: string;
+  @ApiProperty({ description: "Run ID" })
+  id!: string;
 
   /**
    * Definition ID
    */
-  definitionId: string;
+  @ApiProperty({ description: "Definition ID" })
+  definitionId!: string;
 
   /**
    * Definition name
    */
-  definitionName: string;
+  @ApiProperty({ description: "Definition name" })
+  definitionName!: string;
 
   /**
    * Project ID
    */
-  projectId: string;
+  @ApiProperty({ description: "Project ID" })
+  projectId!: string;
 
   /**
    * Run status (pending, running, completed, failed, cancelled)
    */
-  status: string;
+  @ApiProperty({
+    description: "Run status (pending, running, completed, failed, cancelled)",
+  })
+  status!: string;
 
   /**
    * Temporal workflow ID
    */
-  temporalWorkflowId: string;
+  @ApiProperty({ description: "Temporal workflow ID" })
+  temporalWorkflowId!: string;
 
   /**
    * Worker image digest
    */
-  workerImageDigest: string | null;
+  @ApiProperty({ description: "Worker image digest", nullable: true })
+  workerImageDigest!: string | null;
 
   /**
    * Worker git SHA
    */
-  workerGitSha: string;
+  @ApiProperty({ description: "Worker git SHA" })
+  workerGitSha!: string;
 
   /**
    * Start timestamp
    */
-  startedAt: Date | null;
+  @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
+  startedAt!: Date | null;
 
   /**
    * Completion timestamp
    */
-  completedAt: Date | null;
+  @ApiProperty({
+    description: "Completion timestamp",
+    nullable: true,
+    type: Date,
+  })
+  completedAt!: Date | null;
 
   /**
    * Aggregated metrics
    */
-  metrics: Record<string, unknown>;
+  @ApiProperty({
+    description: "Aggregated metrics",
+    type: "object",
+    additionalProperties: true,
+  })
+  metrics!: Record<string, unknown>;
 
   /**
    * Run parameters
    */
-  params: Record<string, unknown>;
+  @ApiProperty({
+    description: "Run parameters",
+    type: "object",
+    additionalProperties: true,
+  })
+  params!: Record<string, unknown>;
 
   /**
    * Run tags
    */
-  tags: Record<string, unknown>;
+  @ApiProperty({
+    description: "Run tags",
+    type: "object",
+    additionalProperties: true,
+  })
+  tags!: Record<string, unknown>;
 
   /**
    * Error message (if failed)
    */
-  error: string | null;
+  @ApiProperty({ description: "Error message (if failed)", nullable: true })
+  error!: string | null;
 
   /**
    * Whether this is the baseline run
    */
-  isBaseline: boolean;
+  @ApiProperty({ description: "Whether this is the baseline run" })
+  isBaseline!: boolean;
 
   /**
    * Baseline thresholds (if this run is a baseline)
    */
-  baselineThresholds: MetricThreshold[] | null;
+  @ApiProperty({
+    description: "Baseline thresholds (if this run is a baseline)",
+    nullable: true,
+    isArray: true,
+  })
+  baselineThresholds!: MetricThreshold[] | null;
 
   /**
    * Baseline comparison result (if compared against a baseline)
    */
-  baselineComparison: BaselineComparison | null;
+  @ApiProperty({ description: "Baseline comparison result", nullable: true })
+  baselineComparison!: BaselineComparison | null;
 
   /**
    * Creation timestamp
    */
-  createdAt: Date;
+  @ApiProperty({ description: "Creation timestamp" })
+  createdAt!: Date;
 }
 
 /**
@@ -174,21 +246,29 @@ export class SampleFailureDto {
   /**
    * Sample ID
    */
-  sampleId: string;
+  @ApiProperty({ description: "Sample ID" })
+  sampleId!: string;
 
   /**
    * Metric value (e.g., error rate, accuracy)
    */
-  metricValue: number;
+  @ApiProperty({ description: "Metric value (e.g., error rate, accuracy)" })
+  metricValue!: number;
 
   /**
    * Metric name
    */
-  metricName: string;
+  @ApiProperty({ description: "Metric name" })
+  metricName!: string;
 
   /**
    * Sample metadata
    */
+  @ApiPropertyOptional({
+    description: "Sample metadata",
+    type: "object",
+    additionalProperties: true,
+  })
   metadata?: Record<string, unknown>;
 }
 
@@ -199,17 +279,20 @@ export class FieldErrorBreakdownDto {
   /**
    * Field name
    */
-  fieldName: string;
+  @ApiProperty({ description: "Field name" })
+  fieldName!: string;
 
   /**
    * Error count
    */
-  errorCount: number;
+  @ApiProperty({ description: "Error count" })
+  errorCount!: number;
 
   /**
    * Error rate (0-1)
    */
-  errorRate: number;
+  @ApiProperty({ description: "Error rate (0-1)" })
+  errorRate!: number;
 }
 
 /**
@@ -219,20 +302,37 @@ export class DrillDownResponseDto {
   /**
    * Run ID
    */
-  runId: string;
+  @ApiProperty({ description: "Run ID" })
+  runId!: string;
 
   /**
    * Aggregated metrics
    */
-  aggregatedMetrics: Record<string, unknown>;
+  @ApiProperty({
+    description: "Aggregated metrics",
+    type: "object",
+    additionalProperties: true,
+  })
+  aggregatedMetrics!: Record<string, unknown>;
 
   /**
    * Top N worst-performing samples
    */
-  worstSamples: SampleFailureDto[];
+  @ApiProperty({
+    description: "Top N worst-performing samples",
+    type: () => SampleFailureDto,
+    isArray: true,
+  })
+  worstSamples!: SampleFailureDto[];
 
   /**
    * Per-field error breakdown (if schema-aware evaluator)
    */
-  fieldErrorBreakdown: FieldErrorBreakdownDto[] | null;
+  @ApiProperty({
+    description: "Per-field error breakdown (schema-aware evaluator)",
+    nullable: true,
+    type: () => FieldErrorBreakdownDto,
+    isArray: true,
+  })
+  fieldErrorBreakdown!: FieldErrorBreakdownDto[] | null;
 }

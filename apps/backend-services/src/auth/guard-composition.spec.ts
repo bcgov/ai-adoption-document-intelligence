@@ -9,25 +9,23 @@ import {
 import { APP_GUARD, Reflector } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as request from "supertest";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
-import { ApiKeyService } from "../api-key/api-key.service";
+import { Identity } from "@/auth/identity.decorator";
+import { ApiKeyService } from "../actor/api-key.service";
+import { UserService } from "../actor/user.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
+import { AuthService } from "./auth.service";
 import { CsrfGuard } from "./csrf.guard";
 import { IdentityGuard } from "./identity.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
+import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
 import { Public } from "./public.decorator";
-import { Roles } from "./roles.decorator";
-import { RolesGuard } from "./roles.guard";
 
 /**
  * Integration tests for guard composition.
  *
  * These tests verify that different combinations of auth decorators
  * produce correct access-control behavior when the full guard chain
- * (JwtAuthGuard → ApiKeyAuthGuard → RolesGuard → CsrfGuard) executes.
+ * (JwtAuthGuard → ApiKeyAuthGuard → IdentityGuard → CsrfGuard) executes.
  *
  * The Passport JWT strategy is replaced with a lightweight stub that
  * validates a known test token, keeping the rest of the guard chain real.
@@ -44,17 +42,15 @@ const INVALID_API_KEY = "test-prefix.invalid-api-key";
 const JWT_USER = {
   sub: "jwt-user-id",
   email: "jwt@example.com",
-  roles: ["user"],
 };
 
 const JWT_ADMIN = {
   sub: "jwt-admin-id",
   email: "admin@example.com",
-  roles: ["admin", "user"],
 };
 
-const API_KEY_USER = { groupId: "group-user" };
-const API_KEY_ADMIN = { groupId: "group-admin" };
+const API_KEY_USER = { groupId: "group-user", keyPrefix: "test-pre" };
+const API_KEY_ADMIN = { groupId: "group-admin", keyPrefix: "test-pre" };
 
 // ---------------------------------------------------------------------------
 // Stub: replaces Passport JWT validation with a simple token check.
@@ -66,21 +62,20 @@ class StubJwtAuthGuard extends JwtAuthGuard {
   canActivate(context: import("@nestjs/common").ExecutionContext) {
     const reflector = (this as unknown as { reflector: Reflector }).reflector;
 
-    // Reproduce the same @Public() / @ApiKeyAuth() routing as the real guard
+    // Reproduce the same @Public() / @Identity() routing as the real guard
     const isPublic = reflector.getAllAndOverride<boolean>("isPublic", [
       context.getHandler(),
       context.getClass(),
     ]);
     if (isPublic) return true;
 
-    const allowApiKeyAuth = reflector.getAllAndOverride<boolean>(
-      "allowApiKeyAuth",
-      [context.getHandler(), context.getClass()],
-    );
+    const identityOptions = reflector.getAllAndOverride<
+      { allowApiKey?: boolean } | undefined
+    >("identity", [context.getHandler(), context.getClass()]);
     const req = context.switchToHttp().getRequest();
     const apiKeyHeader = req.headers["x-api-key"];
 
-    if (allowApiKeyAuth && apiKeyHeader) {
+    if (identityOptions?.allowApiKey && apiKeyHeader) {
       return true;
     }
 
@@ -107,9 +102,8 @@ class StubJwtAuthGuard extends JwtAuthGuard {
 
 @Controller("test-guards")
 class TestGuardController {
-  /** Default (no decorators) — JWT required */
+  /** Default — no @Identity decorator, JWT required via guard chain */
   @Get("default")
-  @KeycloakSSOAuth()
   getDefault() {
     return { route: "default" };
   }
@@ -121,37 +115,18 @@ class TestGuardController {
     return { route: "public" };
   }
 
-  /** @ApiKeyAuth() only — API key or JWT accepted */
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  /** @Identity({ allowApiKey: true }) — API key or JWT accepted */
+  @Identity({ allowApiKey: true })
   @Get("api-key")
   getApiKey() {
     return { route: "api-key" };
   }
 
-  /** @ApiKeyAuth() with POST — also tests CSRF behavior */
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  /** @Identity({ allowApiKey: true }) with POST — also tests CSRF behavior */
+  @Identity({ allowApiKey: true })
   @Post("api-key-post")
   postApiKey() {
     return { route: "api-key-post" };
-  }
-
-  /** @Roles('admin') — JWT required + admin role */
-  @Roles("admin")
-  @KeycloakSSOAuth()
-  @Get("roles-admin")
-  getRolesAdmin() {
-    return { route: "roles-admin" };
-  }
-
-  /** @ApiKeyAuth() + @Roles('admin') — either auth method, admin required */
-  @ApiKeyAuth()
-  @Roles("admin")
-  @KeycloakSSOAuth()
-  @Get("api-key-roles-admin")
-  getApiKeyRolesAdmin() {
-    return { route: "api-key-roles-admin" };
   }
 }
 
@@ -166,17 +141,33 @@ describe("Guard Composition Integration", () => {
     validateApiKey: jest.fn(),
   };
 
+  const mockUserService = {
+    findUserWithGroups: jest.fn().mockResolvedValue({
+      user_id: "user-1",
+      userGroups: [],
+      is_system_admin: false,
+      actor_id: "actor-1",
+    }),
+  };
+
+  const mockAuthService = {};
+
+  const mockKeycloakJwtStrategy = {};
+
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TestGuardController],
       providers: [
         Reflector,
+        // Register guards in the correct order, only once each, using the stub for JwtAuthGuard
         { provide: APP_GUARD, useClass: StubJwtAuthGuard },
         { provide: APP_GUARD, useClass: ApiKeyAuthGuard },
         { provide: APP_GUARD, useClass: IdentityGuard },
-        { provide: APP_GUARD, useClass: RolesGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
+        { provide: KeycloakJwtStrategy, useValue: mockKeycloakJwtStrategy },
         { provide: ApiKeyService, useValue: mockApiKeyService },
+        { provide: UserService, useValue: mockUserService },
+        { provide: AuthService, useValue: mockAuthService },
       ],
     }).compile();
 
@@ -192,13 +183,19 @@ describe("Guard Composition Integration", () => {
     jest.clearAllMocks();
 
     mockApiKeyService.validateApiKey.mockImplementation(
-      (key: string): Promise<{ groupId: string } | null> => {
+      (key: string): Promise<{ groupId: string; keyPrefix: string } | null> => {
         if (key === VALID_API_KEY) return Promise.resolve(API_KEY_USER);
         if (key === "valid-admin-api-key")
           return Promise.resolve(API_KEY_ADMIN);
         return Promise.resolve(null);
       },
     );
+
+    mockUserService.findUserWithGroups.mockResolvedValue({
+      userGroups: [],
+      is_system_admin: false,
+      actor_id: "actor-1",
+    });
   });
 
   // =========================================================================
@@ -270,10 +267,10 @@ describe("Guard Composition Integration", () => {
   });
 
   // =========================================================================
-  // @ApiKeyAuth() — accepts either JWT or API key
+  // @Identity({ allowApiKey: true }) — accepts either JWT or API key
   // =========================================================================
 
-  describe("GET /test-guards/api-key (@ApiKeyAuth + @KeycloakSSOAuth)", () => {
+  describe("GET /test-guards/api-key (@Identity + allowApiKey)", () => {
     it("should reject with 401 when no credentials provided", () => {
       return request(app.getHttpServer())
         .get("/test-guards/api-key")
@@ -313,10 +310,10 @@ describe("Guard Composition Integration", () => {
   });
 
   // =========================================================================
-  // @ApiKeyAuth() POST — CSRF behavior
+  // @Identity({ allowApiKey: true }) POST — CSRF behavior
   // =========================================================================
 
-  describe("POST /test-guards/api-key-post (@ApiKeyAuth + POST)", () => {
+  describe("POST /test-guards/api-key-post (@Identity + allowApiKey + POST)", () => {
     it("should allow API key POST without CSRF token (API keys are CSRF-exempt)", () => {
       return request(app.getHttpServer())
         .post("/test-guards/api-key-post")
@@ -334,88 +331,6 @@ describe("Guard Composition Integration", () => {
     it("should reject POST with no credentials", () => {
       return request(app.getHttpServer())
         .post("/test-guards/api-key-post")
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
-  });
-
-  // =========================================================================
-  // @Roles('admin') — JWT required + role check
-  // =========================================================================
-
-  describe("GET /test-guards/roles-admin (@Roles('admin'))", () => {
-    it("should reject with 401 when no credentials provided", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/roles-admin")
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
-
-    it("should allow access for JWT user with admin role", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/roles-admin")
-        .set("Authorization", "Bearer valid-admin-token")
-        .expect(HttpStatus.OK)
-        .expect({ route: "roles-admin" });
-    });
-
-    it("should reject with 403 for JWT user without admin role", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/roles-admin")
-        .set("Authorization", `Bearer ${VALID_JWT}`)
-        .expect(HttpStatus.FORBIDDEN);
-    });
-
-    it("should reject API key with 401 (no @ApiKeyAuth decorator)", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/roles-admin")
-        .set("X-API-Key", "valid-admin-api-key")
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
-  });
-
-  // =========================================================================
-  // @ApiKeyAuth() + @Roles('admin') — either auth method, admin required
-  // =========================================================================
-
-  describe("GET /test-guards/api-key-roles-admin (@ApiKeyAuth + @Roles('admin'))", () => {
-    it("should reject with 401 when no credentials provided", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/api-key-roles-admin")
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
-
-    it("should allow JWT admin", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/api-key-roles-admin")
-        .set("Authorization", "Bearer valid-admin-token")
-        .expect(HttpStatus.OK)
-        .expect({ route: "api-key-roles-admin" });
-    });
-
-    it("should reject JWT user without admin role with 403", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/api-key-roles-admin")
-        .set("Authorization", `Bearer ${VALID_JWT}`)
-        .expect(HttpStatus.FORBIDDEN);
-    });
-
-    it("should reject API key with 403 (API keys carry no roles)", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/api-key-roles-admin")
-        .set("X-API-Key", "valid-admin-api-key")
-        .expect(HttpStatus.FORBIDDEN);
-    });
-
-    it("should reject API key with 403", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/api-key-roles-admin")
-        .set("X-API-Key", VALID_API_KEY)
-        .expect(HttpStatus.FORBIDDEN);
-    });
-
-    it("should reject invalid API key with 401", () => {
-      return request(app.getHttpServer())
-        .get("/test-guards/api-key-roles-admin")
-        .set("X-API-Key", INVALID_API_KEY)
         .expect(HttpStatus.UNAUTHORIZED);
     });
   });

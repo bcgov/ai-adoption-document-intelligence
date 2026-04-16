@@ -60,10 +60,12 @@ A single bucket (MinIO) or container (Azure) holds most platform data, organized
 ```
 document-blobs/
 ├── documents/{documentId}/
-│   └── original.{ext}                        # Uploaded document (pdf, jpg, etc.)
+│   ├── original.{ext}                        # Uploaded file as provided (any supported ext.)
+│   └── normalized.pdf                        # Canonical PDF for OCR, workflows, in-app view
 │
 ├── labeling-documents/{documentId}/
-│   └── original.{ext}                        # Documents uploaded via labeling workflow
+│   ├── original.{ext}                        # Labeling upload as provided
+│   └── normalized.pdf                        # Canonical PDF for OCR and in-app view
 │
 ├── classifier/{groupId}/{classifierName}/{label}/
 │   └── {filename}                             # Classifier training documents (staged here
@@ -118,8 +120,8 @@ classification/
 
 | Feature                  | Container            | Key Pattern                                                     | Operations       |
 |--------------------------|----------------------|-----------------------------------------------------------------|------------------|
-| Document upload          | `document-blobs`     | `documents/{documentId}/original.{ext}`                         | W, R, D          |
-| Labeling documents       | `document-blobs`     | `labeling-documents/{documentId}/original.{ext}`                | W, R             |
+| Document upload          | `document-blobs`     | `documents/{documentId}/original.{ext}`, `.../normalized.pdf` | W, R, D prefix   |
+| Labeling documents       | `document-blobs`     | `labeling-documents/{documentId}/original.{ext}`, `.../normalized.pdf` | W, R, D prefix   |
 | Classifier staging       | `document-blobs`     | `classifier/{groupId}/{classifierName}/{label}/{filename}`      | W, R, LIST, DEL prefix |
 | Benchmark datasets       | `document-blobs`     | `datasets/{datasetId}/{versionId}/dataset-manifest.json`        | W, R             |
 | Dataset inputs           | `document-blobs`     | `datasets/{datasetId}/{versionId}/inputs/{sampleId}.{ext}`      | W, R, D          |

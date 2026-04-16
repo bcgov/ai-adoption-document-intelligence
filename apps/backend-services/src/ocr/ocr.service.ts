@@ -1,22 +1,20 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
-import {
-  AnalysisResponse,
-  AnalysisResult,
-  KeyValuePair,
-} from "@/ocr/azure-types";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
+import { DocumentService } from "@/document/document.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 
 export interface OcrRequestResponse {
@@ -28,14 +26,14 @@ export interface OcrRequestResponse {
 
 @Injectable()
 export class OcrService {
-  private readonly logger = new Logger(OcrService.name);
-
   constructor(
     _configService: ConfigService,
-    private databaseService: DatabaseService,
+    private documentService: DocumentService,
     private temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -50,15 +48,22 @@ export class OcrService {
   ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (document == null) {
       throw new NotFoundException(
         `Entry for document with ID ${documentId} not found.`,
       );
     }
     try {
-      // Read file from blob storage using the blob key stored in file_path
-      const fileBuffer = await this.blobStorage.read(document.file_path);
+      if (!document.normalized_file_path) {
+        throw new BadRequestException(
+          `Document ${documentId} has no normalized PDF; cannot start OCR.`,
+        );
+      }
+
+      const fileBuffer = await this.blobStorage.read(
+        validateBlobFilePath(document.normalized_file_path),
+      );
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
@@ -66,19 +71,8 @@ export class OcrService {
       const modelId = document.model_id;
       this.logger.debug(`Document model_id: ${modelId}`);
 
-      // Determine file type and content type
-      const fileType = document.file_type === "pdf" ? "pdf" : "image";
-      let contentType = "application/pdf";
-      if (fileType === "image") {
-        const lowerFileName = document.original_filename.toLowerCase();
-        if (lowerFileName.endsWith(".png")) {
-          contentType = "image/png";
-        } else if (lowerFileName.match(/\.(jpg|jpeg)$/i)) {
-          contentType = "image/jpeg";
-        } else {
-          contentType = "image/jpeg";
-        }
-      }
+      const fileType = "pdf";
+      const contentType = "application/pdf";
 
       // Get workflow_config_id from document if available
       // This references the Workflow table and contains the workflow configuration
@@ -96,8 +90,8 @@ export class OcrService {
 
       const initialCtx: Record<string, unknown> = {
         documentId,
-        blobKey: document.file_path,
-        fileName: document.original_filename,
+        blobKey: document.normalized_file_path,
+        fileName: "normalized.pdf",
         fileType,
         contentType,
         modelId,
@@ -114,13 +108,25 @@ export class OcrService {
 
       // Update document with workflow configuration ID and Temporal workflow execution ID
       // Note: Status is set automatically by workflow pre-execution hook
-      const updateResult = await this.databaseService.updateDocument(
+      const updateResult = await this.documentService.updateDocument(
         documentId,
         {
           workflow_config_id: workflowConfigId || undefined,
           workflow_execution_id: workflowExecutionId,
         },
       );
+
+      await this.auditService.recordEvent({
+        event_type: "workflow_run_started",
+        resource_type: "workflow_run",
+        resource_id: workflowExecutionId,
+        document_id: documentId,
+        workflow_execution_id: workflowExecutionId,
+        group_id: document.group_id,
+        payload: {
+          workflow_config_id: workflowConfigId ?? undefined,
+        },
+      });
 
       this.logger.log(
         `Started OCR workflow for document ${documentId}, Temporal execution ID: ${workflowExecutionId}${workflowConfigId ? `, using workflow config: ${workflowConfigId}` : ", using default workflow"}`,
@@ -130,23 +136,22 @@ export class OcrService {
       // Status is set by workflow pre-execution hook
       return {
         apimRequestId:
-          updateResult.workflow_execution_id || workflowExecutionId,
+          updateResult?.workflow_execution_id || workflowExecutionId,
         workflowId: workflowExecutionId,
         status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
-      this.logger.error(`Error processing document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (document != null) {
-        await this.databaseService.updateDocument(documentId, {
+        await this.documentService.updateDocument(documentId, {
           status: DocumentStatus.failed,
         });
       }
 
       // Ensure error is a string for the response
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       return {
         status: DocumentStatus.failed,
         error: errorMessage,

@@ -1,15 +1,34 @@
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
-import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import type { ClassifierModel } from "@generated/client";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import "multer";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
+import {
+  type ClassifierConfig,
+  ClassifierDbService,
+  type ClassifierEditableProperties,
+  type ClassifierModelWithGroup,
+} from "@/azure/classifier-db.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
+import {
+  buildBlobPrefixPath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
+import { AppLoggerService } from "@/logging/app-logger.service";
+
+export type {
+  ClassifierConfig,
+  ClassifierEditableProperties,
+  ClassifierModelWithGroup,
+};
 
 interface DocType {
   azureBlobSource: {
@@ -20,16 +39,17 @@ interface DocType {
 
 @Injectable()
 export class ClassifierService {
-  private readonly logger = new Logger(ClassifierService.name);
   private readonly client: DocumentIntelligenceClient;
-  public readonly classifierContainer: string = "classification";
 
   constructor(
-    private databaseService: DatabaseService,
+    private classifierDb: ClassifierDbService,
     private azureService: AzureService,
     private azureStorage: AzureStorageService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
+    @Inject(BLOB_STORAGE_CONTAINER_NAME)
+    private readonly containerName: string,
   ) {
     this.client = azureService.getClient();
   }
@@ -43,17 +63,21 @@ export class ClassifierService {
     // Each file in a training folder needs accompanying layout json.
     // The file must be named just like its corresponding image + .ocr.json
     // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
-    const containerClient = this.azureStorage.getContainerClient(
-      this.classifierContainer,
-    );
 
     // Looping through each folder of training
     await Promise.all(
       filePaths.map(async (filePath) => {
         // Analyze each file
         if (!filePath.match(/\.(jpg|jpeg|png|bmp|tif|tiff)$/i)) return; // Only process images
+        // Does this file already exist?
+        const jsonBlobName = filePath + ".ocr.json";
+        const exists = await this.azureStorage.fileExists(
+          this.containerName,
+          jsonBlobName,
+        );
+        if (exists) return;
         const url = this.azureStorage.getBlobSasUrl(
-          this.classifierContainer,
+          this.containerName,
           filePath,
         );
 
@@ -84,19 +108,17 @@ export class ClassifierService {
             operationLocation,
             async (result) => {
               // Save JSON result to blob storage with same base name but .ocr.json extension
-              const jsonBlobName = filePath + ".ocr.json";
-              const blockBlobClient =
-                containerClient.getBlockBlobClient(jsonBlobName);
-              await blockBlobClient.upload(
+              await this.azureStorage.uploadFile(
+                this.containerName,
+                jsonBlobName,
                 Buffer.from(JSON.stringify(result, null, 2)),
-                Buffer.byteLength(JSON.stringify(result, null, 2)),
               );
               this.logger.debug(
                 `Uploaded layout JSON to blob: ${jsonBlobName}`,
               );
             },
             (result) => {
-              this.logger.error("Analyze operation failed:", result);
+              this.logger.error("Analyze operation failed", { result });
             },
           );
         } else if (analyzeResponse.status == "404") {
@@ -105,7 +127,7 @@ export class ClassifierService {
           this.logger.warn(
             `404 from analyze API for ${filePath}, falling back to download/upload method.`,
           );
-          this.logger.warn(`Original error:`, analyzeResponse.body);
+          this.logger.warn("Original error", { body: analyzeResponse.body });
           // Download the blob
           const blobResp = await fetch(url);
           if (!blobResp.ok) {
@@ -127,30 +149,28 @@ export class ClassifierService {
               headers: { "Content-Type": "application/json" },
             });
           if (uploadResponse.status == "200") {
-            const jsonBlobName = filePath + ".ocr.json";
-            const blockBlobClient =
-              containerClient.getBlockBlobClient(jsonBlobName);
-            await blockBlobClient.upload(
+            await this.azureStorage.uploadFile(
+              this.containerName,
+              jsonBlobName,
               Buffer.from(JSON.stringify(uploadResponse.body, null, 2)),
-              Buffer.byteLength(JSON.stringify(uploadResponse.body, null, 2)),
             );
             this.logger.debug(
               `Uploaded layout JSON to blob (fallback): ${jsonBlobName}`,
             );
           } else {
-            this.logger.error(
-              `Fallback analyze failed for ${filePath}:`,
-              uploadResponse.status,
-              uploadResponse.body,
-            );
+            this.logger.error("Fallback analyze failed", {
+              filePath,
+              status: uploadResponse.status,
+              body: uploadResponse.body,
+            });
           }
         } else {
-          this.logger.error(
-            `Failed to analyze blob ${filePath}:`,
-            `url: ${url}`,
-            analyzeResponse.status,
-            analyzeResponse.body,
-          );
+          this.logger.error("Failed to analyze blob", {
+            filePath,
+            url,
+            status: analyzeResponse.status,
+            body: analyzeResponse.body,
+          });
         }
       }),
     );
@@ -163,29 +183,39 @@ export class ClassifierService {
    * @returns A list of objects specifying the original path and new blob path.
    */
   async uploadDocumentsForTraining(groupId: string, classifierName: string) {
-    await this.azureStorage.ensureContainerExists(this.classifierContainer);
+    // No need to ensure container exists, handled by blobStorage implementation
 
     // List all files from primary blob storage under the classifier prefix
-    const primaryPrefix = `classifier/${groupId}/${classifierName}/`;
-    const allKeys = await this.blobStorage.list(primaryPrefix);
+    const allKeys = await this.blobStorage.list(
+      buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
+        classifierName,
+      ]),
+    );
 
     const uploadResults = await Promise.all(
       allKeys.map(async (key) => {
         // Read file data from primary blob storage
-        const fileBuffer = await this.blobStorage.read(key);
-
-        // Azure training blob name strips the "classifier/" prefix
-        // e.g. "classifier/gid/name/label/file.jpg" -> "gid/name/label/file.jpg"
-        const blobName = key.replace(/^classifier\//, "");
+        const blobFilePath = validateBlobFilePath(key);
+        // Does this file already exist in Azure storage?
+        const exists = await this.azureStorage.fileExists(
+          this.containerName,
+          blobFilePath,
+        );
+        if (exists)
+          return {
+            originalPath: key,
+            blobPath: blobFilePath,
+          };
+        const fileBuffer = await this.blobStorage.read(blobFilePath);
 
         await this.azureStorage.uploadFile(
-          this.classifierContainer,
-          blobName,
+          this.containerName,
+          blobFilePath,
           fileBuffer,
         );
         return {
           originalPath: key,
-          blobPath: blobName,
+          blobPath: blobFilePath,
         };
       }),
     );
@@ -208,9 +238,14 @@ export class ClassifierService {
     containerUrl: string,
   ) {
     // Get a list of folder paths in the groupId/classifierName folder in blob storage
-    const prefix = path.posix.join(groupId, classifierName) + "/";
+    const prefix =
+      path.posix.join(
+        groupId,
+        OperationCategory.CLASSIFICATION,
+        classifierName,
+      ) + "/";
     const containerClient = this.azureStorage.getContainerClient(
-      this.classifierContainer,
+      this.containerName,
     );
     const folderPaths: string[] = [];
     for await (const item of containerClient.listBlobsByHierarchy("/", {
@@ -223,7 +258,7 @@ export class ClassifierService {
 
     const docTypes: Record<string, DocType> = {};
     for (const folderPath of folderPaths) {
-      // folderPath = 'groupId/classifierName/label/'
+      // folderPath = 'groupId/operation/classifierName/label/'
       const parts = folderPath.split("/").filter(Boolean);
       const label = parts[parts.length - 1];
       docTypes[label] = {
@@ -249,16 +284,16 @@ export class ClassifierService {
    * The files must have been uploaded and had their layout json created before this point.
    * @param classifierName Name of the classifier model.
    * @param groupId ID of the group that owns the classifier.
-   * @param userId ID of the user making the request.
+   * @param actorId ID of the user making the request.
    * @returns The updated record of classifier model from the database.
    */
   requestClassifierTraining = async (
     classifierName: string,
     groupId: string,
-    userId: string,
+    actorId: string,
   ) => {
     // Does this classifier record exist?
-    const existingClassifier = await this.databaseService.getClassifierModel(
+    const existingClassifier = await this.classifierDb.findClassifierModel(
       classifierName,
       groupId,
     );
@@ -267,8 +302,9 @@ export class ClassifierService {
         "Classifier entry not found. Cannot proceed with training.",
       );
     }
+
     const containerUrl = await this.azureStorage.generateSasUrl(
-      this.classifierContainer,
+      this.containerName,
     );
 
     const trainingConfig = await this.generateTrainingConfig(
@@ -298,20 +334,21 @@ export class ClassifierService {
       );
 
       // Update classifier record
-      return await this.databaseService.updateClassifierModel(
+      return await this.classifierDb.updateClassifierModel(
         classifierName,
         groupId,
         {
           status: ClassifierStatus.TRAINING,
           operation_location: operationLocation,
         },
-        userId,
+        actorId,
       );
     } else {
       const message = `Request for training classifier ${classifierName} unsuccessful. See logs for details.`;
-      this.logger.error(message);
-      this.logger.error(response.status);
-      this.logger.error(response.body);
+      this.logger.error(message, {
+        status: response.status,
+        body: response.body,
+      });
       throw new Error(message);
     }
   };
@@ -333,7 +370,8 @@ export class ClassifierService {
       classiferName,
     );
     // Read file and encode to base64
-    const fileData = await this.blobStorage.read(filePath);
+    const blobFilePath = validateBlobFilePath(filePath);
+    const fileData = await this.blobStorage.read(blobFilePath);
     const base64String = Buffer.from(fileData).toString("base64");
 
     const response = await this.client
@@ -401,4 +439,69 @@ export class ClassifierService {
   getConstructedClassifierName = (groupId: string, classifierName: string) => {
     return `${groupId}__${classifierName}`;
   };
+
+  /**
+   * Finds a classifier model by name and group ID.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @returns The ClassifierModel record or null if not found.
+   */
+  async findClassifierModel(
+    classifierName: string,
+    groupId: string,
+  ): Promise<ClassifierModel | null> {
+    return this.classifierDb.findClassifierModel(classifierName, groupId);
+  }
+
+  /**
+   * Finds all classifier models belonging to the specified groups.
+   * @param groupIds The list of group IDs to filter by.
+   * @returns An array of ClassifierModel records with their associated group.
+   */
+  async findAllClassifierModelsForGroups(
+    groupIds: string[] | undefined,
+  ): Promise<ClassifierModelWithGroup[]> {
+    return this.classifierDb.findAllClassifierModelsForGroups(groupIds);
+  }
+
+  /**
+   * Creates a new classifier model record.
+   * @param classifierName The name of the classifier.
+   * @param properties The editable properties for the classifier.
+   * @param actorId The ID of the user creating the classifier.
+   * @returns The created ClassifierModel record.
+   */
+  async createClassifierModel(
+    classifierName: string,
+    properties: ClassifierEditableProperties,
+    actorId: string,
+  ): Promise<ClassifierModel> {
+    return this.classifierDb.createClassifierModel(
+      classifierName,
+      properties,
+      actorId,
+    );
+  }
+
+  /**
+   * Updates an existing classifier model record.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @param properties The partial properties to update.
+   * @param actorId The ID of the user making the update.
+   * @returns The updated ClassifierModel record.
+   */
+  async updateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    actorId: string,
+  ): Promise<ClassifierModel> {
+    return this.classifierDb.updateClassifierModel(
+      classifierName,
+      groupId,
+      properties,
+      actorId,
+    );
+  }
 }

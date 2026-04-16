@@ -1,8 +1,8 @@
+import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "../database/database.service";
-import { LabelingService } from "../labeling/labeling.service";
+import { TemplateModelService } from "../template-model/template-model.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainingController } from "./training.controller";
 import { TrainingService } from "./training.service";
@@ -10,34 +10,27 @@ import { TrainingService } from "./training.service";
 describe("TrainingController", () => {
   let controller: TrainingController;
   let trainingService: jest.Mocked<TrainingService>;
-  let labelingService: jest.Mocked<LabelingService>;
-  let databaseService: jest.Mocked<DatabaseService>;
+  let templateModelService: jest.Mocked<TemplateModelService>;
 
-  const mockProject = {
-    id: "project-1",
-    name: "Test Project",
+  const mockTemplateModel = {
+    id: "tm-1",
+    name: "Test Template Model",
+    model_id: "custom-model-1",
     group_id: "group-1",
     created_by: "user-1",
     created_at: new Date(),
     updated_at: new Date(),
-    field_schema: [],
+    status: "draft" as const,
+    description: null,
   };
 
   const mockTrainingJob = {
     id: "job-1",
-    projectId: "project-1",
-    status: "PENDING" as any,
-    containerName: "training-project-1",
+    templateModelId: "tm-1",
+    status: "PENDING" as const,
+    containerName: "training-tm-1",
     blobCount: 0,
     startedAt: new Date(),
-  };
-
-  const mockTrainedModel = {
-    id: "model-1",
-    projectId: "project-1",
-    modelId: "my-model",
-    status: "COMPLETED" as any,
-    createdAt: new Date(),
   };
 
   beforeEach(async () => {
@@ -46,18 +39,12 @@ describe("TrainingController", () => {
       startTraining: jest.fn(),
       getTrainingJobs: jest.fn(),
       getTrainingJob: jest.fn(),
-      getTrainedModels: jest.fn(),
       cancelTrainingJob: jest.fn(),
     } as unknown as jest.Mocked<TrainingService>;
 
-    labelingService = {
-      getProject: jest.fn(),
-    } as unknown as jest.Mocked<LabelingService>;
-
-    databaseService = {
-      isUserInGroup: jest.fn().mockResolvedValue(true),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    } as unknown as jest.Mocked<DatabaseService>;
+    templateModelService = {
+      getTemplateModel: jest.fn(),
+    } as unknown as jest.Mocked<TemplateModelService>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TrainingController],
@@ -67,12 +54,8 @@ describe("TrainingController", () => {
           useValue: trainingService,
         },
         {
-          provide: LabelingService,
-          useValue: labelingService,
-        },
-        {
-          provide: DatabaseService,
-          useValue: databaseService,
+          provide: TemplateModelService,
+          useValue: templateModelService,
         },
       ],
     }).compile();
@@ -80,34 +63,43 @@ describe("TrainingController", () => {
     controller = module.get<TrainingController>(TrainingController);
   });
 
-  describe("validateProject", () => {
+  describe("validateTrainingData", () => {
     it("returns validation result for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockValidation = {
         valid: true,
         labeledDocumentsCount: 5,
         minimumRequired: 5,
         issues: [],
       };
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      trainingService.validateTrainingData.mockResolvedValue(mockValidation);
-      const result = await controller.validateProject("project-1", req);
-      expect(result).toEqual(mockValidation);
-      expect(trainingService.validateTrainingData).toHaveBeenCalledWith(
-        "project-1",
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
       );
+      trainingService.validateTrainingData.mockResolvedValue(mockValidation);
+      const result = await controller.validateTrainingData("tm-1", req);
+      expect(result).toEqual(mockValidation);
+      expect(trainingService.validateTrainingData).toHaveBeenCalledWith("tm-1");
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       await expect(
-        controller.validateProject("project-1", req),
+        controller.validateTrainingData("tm-1", req),
       ).rejects.toThrow(ForbiddenException);
       expect(trainingService.validateTrainingData).not.toHaveBeenCalled();
     });
@@ -115,67 +107,83 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       await expect(
-        controller.validateProject("project-1", req),
+        controller.validateTrainingData("tm-1", req),
       ).rejects.toThrow(ForbiddenException);
       expect(trainingService.validateTrainingData).not.toHaveBeenCalled();
     });
 
-    it("propagates NotFoundException when project does not exist", async () => {
+    it("propagates NotFoundException when template model does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockRejectedValue(
-        new NotFoundException("Project not found"),
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockRejectedValue(
+        new NotFoundException("Template model not found"),
       );
       await expect(
-        controller.validateProject("project-1", req),
+        controller.validateTrainingData("tm-1", req),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe("startTraining", () => {
-    const dto: StartTrainingDto = { modelId: "my-model" };
+    const dto: StartTrainingDto = { description: "Test training" };
 
     it("starts training for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      trainingService.startTraining.mockResolvedValue(mockTrainingJob as any);
-      const result = await controller.startTraining("project-1", dto, req);
-      expect(result).toEqual(mockTrainingJob);
-      expect(trainingService.startTraining).toHaveBeenCalledWith(
-        "project-1",
-        dto,
-        "user-1",
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+          adminId: "admin-1",
+        },
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
       );
+      trainingService.startTraining.mockResolvedValue(mockTrainingJob as never);
+      const result = await controller.startTraining("tm-1", dto, req);
+      expect(result).toEqual(mockTrainingJob);
+      expect(trainingService.startTraining).toHaveBeenCalledWith("tm-1", dto);
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(
-        controller.startTraining("project-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      await expect(controller.startTraining("tm-1", dto, req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(trainingService.startTraining).not.toHaveBeenCalled();
     });
 
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      await expect(
-        controller.startTraining("project-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      await expect(controller.startTraining("tm-1", dto, req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(trainingService.startTraining).not.toHaveBeenCalled();
     });
   });
@@ -183,37 +191,50 @@ describe("TrainingController", () => {
   describe("getTrainingJobs", () => {
     it("returns training jobs for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       trainingService.getTrainingJobs.mockResolvedValue([
-        mockTrainingJob as any,
+        mockTrainingJob as never,
       ]);
-      const result = await controller.getTrainingJobs("project-1", req);
+      const result = await controller.getTrainingJobs("tm-1", req);
       expect(result).toEqual([mockTrainingJob]);
-      expect(trainingService.getTrainingJobs).toHaveBeenCalledWith("project-1");
+      expect(trainingService.getTrainingJobs).toHaveBeenCalledWith("tm-1");
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(
-        controller.getTrainingJobs("project-1", req),
-      ).rejects.toThrow(ForbiddenException);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      await expect(controller.getTrainingJobs("tm-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(trainingService.getTrainingJobs).not.toHaveBeenCalled();
     });
 
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      await expect(
-        controller.getTrainingJobs("project-1", req),
-      ).rejects.toThrow(ForbiddenException);
+      } as unknown as Request;
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      await expect(controller.getTrainingJobs("tm-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(trainingService.getTrainingJobs).not.toHaveBeenCalled();
     });
   });
@@ -221,23 +242,40 @@ describe("TrainingController", () => {
   describe("getJobStatus", () => {
     it("returns job status for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      trainingService.getTrainingJob.mockResolvedValue(mockTrainingJob as any);
-      labelingService.getProject.mockResolvedValue(mockProject as any);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      trainingService.getTrainingJob.mockResolvedValue(
+        mockTrainingJob as never,
+      );
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       const result = await controller.getJobStatus("job-1", req);
       expect(result).toEqual(mockTrainingJob);
       expect(trainingService.getTrainingJob).toHaveBeenCalledWith("job-1");
-      expect(labelingService.getProject).toHaveBeenCalledWith("project-1");
+      expect(templateModelService.getTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      trainingService.getTrainingJob.mockResolvedValue(mockTrainingJob as any);
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      trainingService.getTrainingJob.mockResolvedValue(
+        mockTrainingJob as never,
+      );
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       await expect(controller.getJobStatus("job-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -246,9 +284,13 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
-      trainingService.getTrainingJob.mockResolvedValue(mockTrainingJob as any);
-      labelingService.getProject.mockResolvedValue(mockProject as any);
+      } as unknown as Request;
+      trainingService.getTrainingJob.mockResolvedValue(
+        mockTrainingJob as never,
+      );
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       await expect(controller.getJobStatus("job-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -256,8 +298,12 @@ describe("TrainingController", () => {
 
     it("propagates NotFoundException when job does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       trainingService.getTrainingJob.mockRejectedValue(
         new NotFoundException("Training job not found"),
       );
@@ -267,53 +313,21 @@ describe("TrainingController", () => {
     });
   });
 
-  describe("getTrainedModels", () => {
-    it("returns trained models for a group member", async () => {
-      const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      trainingService.getTrainedModels.mockResolvedValue([
-        mockTrainedModel as any,
-      ]);
-      const result = await controller.getTrainedModels("project-1", req);
-      expect(result).toEqual([mockTrainedModel]);
-      expect(trainingService.getTrainedModels).toHaveBeenCalledWith(
-        "project-1",
-      );
-    });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(
-        controller.getTrainedModels("project-1", req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(trainingService.getTrainedModels).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when no identity is provided", async () => {
-      const req = {
-        resolvedIdentity: undefined,
-      } as Request;
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      await expect(
-        controller.getTrainedModels("project-1", req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(trainingService.getTrainedModels).not.toHaveBeenCalled();
-    });
-  });
-
   describe("cancelJob", () => {
     it("cancels job for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      trainingService.getTrainingJob.mockResolvedValue(mockTrainingJob as any);
-      labelingService.getProject.mockResolvedValue(mockProject as any);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      trainingService.getTrainingJob.mockResolvedValue(
+        mockTrainingJob as never,
+      );
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       trainingService.cancelTrainingJob.mockResolvedValue(undefined);
       const result = await controller.cancelJob("job-1", req);
       expect(result).toEqual({
@@ -325,11 +339,18 @@ describe("TrainingController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      trainingService.getTrainingJob.mockResolvedValue(mockTrainingJob as any);
-      labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      trainingService.getTrainingJob.mockResolvedValue(
+        mockTrainingJob as never,
+      );
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       await expect(controller.cancelJob("job-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -339,9 +360,13 @@ describe("TrainingController", () => {
     it("throws ForbiddenException when no identity is provided", async () => {
       const req = {
         resolvedIdentity: undefined,
-      } as Request;
-      trainingService.getTrainingJob.mockResolvedValue(mockTrainingJob as any);
-      labelingService.getProject.mockResolvedValue(mockProject as any);
+      } as unknown as Request;
+      trainingService.getTrainingJob.mockResolvedValue(
+        mockTrainingJob as never,
+      );
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
       await expect(controller.cancelJob("job-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -350,8 +375,12 @@ describe("TrainingController", () => {
 
     it("propagates NotFoundException when job does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       trainingService.getTrainingJob.mockRejectedValue(
         new NotFoundException("Training job not found"),
       );

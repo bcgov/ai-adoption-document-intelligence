@@ -1,12 +1,14 @@
+import { getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
 import { Prisma, TrainingStatus } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
+import { TrainingDbService } from "./training-db.service";
 
 interface AzureErrorResponse {
   error?: {
@@ -36,14 +38,14 @@ interface AzureModelResponse {
 
 @Injectable()
 export class TrainingPollerService {
-  private readonly logger = new Logger(TrainingPollerService.name);
-  private adminClient: DocumentIntelligenceClient;
+  private adminClient!: DocumentIntelligenceClient;
   private readonly pollInterval: number;
   private readonly maxAttempts: number;
 
   constructor(
-    private readonly db: DatabaseService,
+    private readonly trainingDb: TrainingDbService,
     private readonly configService: ConfigService,
+    private readonly logger: AppLoggerService,
   ) {
     const endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
@@ -89,19 +91,7 @@ export class TrainingPollerService {
 
     try {
       // Find all jobs that are actively training
-      const prisma = this.db.prisma;
-      if (!prisma) {
-        this.logger.error("Prisma client not available");
-        return;
-      }
-
-      const activeJobs = await prisma.trainingJob.findMany({
-        where: {
-          status: {
-            in: [TrainingStatus.TRAINING, TrainingStatus.UPLOADED],
-          },
-        },
-      });
+      const activeJobs = await this.trainingDb.findAllActiveTrainingJobs();
 
       if (activeJobs.length === 0) {
         return; // No active jobs to poll
@@ -111,10 +101,16 @@ export class TrainingPollerService {
 
       // Poll each active job
       for (const job of activeJobs) {
-        await this.pollTrainingStatus(job.id, job.model_id, job.operation_id);
+        await this.pollTrainingStatus(
+          job.id,
+          job.template_model.model_id,
+          job.operation_id,
+        );
       }
     } catch (error) {
-      this.logger.error("Error polling active jobs", error.stack);
+      this.logger.error("Error polling active jobs", {
+        stack: getErrorStack(error),
+      });
     }
   }
 
@@ -124,14 +120,8 @@ export class TrainingPollerService {
   private async pollTrainingStatus(
     jobId: string,
     modelId: string,
-    operationId: string,
+    operationId: string | null,
   ): Promise<void> {
-    const prisma = this.db["prisma"];
-    if (!prisma) {
-      this.logger.error("Prisma client not available");
-      return;
-    }
-
     try {
       if (!operationId) {
         this.logger.warn(`Training job ${jobId} has no operation ID`);
@@ -139,9 +129,7 @@ export class TrainingPollerService {
       }
 
       // Calculate attempt number based on job start time
-      const job = await prisma.trainingJob.findUnique({
-        where: { id: jobId },
-      });
+      const job = await this.trainingDb.findTrainingJob(jobId);
 
       if (!job) {
         return;
@@ -157,13 +145,10 @@ export class TrainingPollerService {
         this.logger.warn(
           `Training job ${jobId} exceeded max polling attempts (${this.maxAttempts})`,
         );
-        await prisma.trainingJob.update({
-          where: { id: jobId },
-          data: {
-            status: TrainingStatus.FAILED,
-            error_message: "Training timeout - exceeded maximum polling time",
-            completed_at: new Date(),
-          },
+        await this.trainingDb.updateTrainingJob(jobId, {
+          status: TrainingStatus.FAILED,
+          error_message: "Training timeout - exceeded maximum polling time",
+          completed_at: new Date(),
         });
         return;
       }
@@ -252,47 +237,41 @@ export class TrainingPollerService {
         }
 
         // Update job status to SUCCEEDED
-        await prisma.trainingJob.update({
-          where: { id: jobId },
-          data: {
-            status: TrainingStatus.SUCCEEDED,
-            completed_at: new Date(),
-          },
+        await this.trainingDb.updateTrainingJob(jobId, {
+          status: TrainingStatus.SUCCEEDED,
+          completed_at: new Date(),
         });
 
         // Create trained model record
-        await prisma.trainedModel.create({
-          data: {
-            project_id: job.project_id,
-            training_job_id: jobId,
-            model_id: modelId,
-            description,
-            doc_types: docTypes as Prisma.JsonValue,
-            field_count: fieldCount,
-          },
+        await this.trainingDb.createTrainedModel({
+          template_model_id: job.template_model_id,
+          training_job_id: jobId,
+          model_id: job.template_model.model_id,
+          description,
+          doc_types:
+            docTypes == null
+              ? Prisma.DbNull
+              : (docTypes as Prisma.InputJsonValue),
+          field_count: fieldCount,
         });
 
         this.logger.log(`Created trained model record for: ${modelId}`);
       } catch (modelError) {
         this.logger.error(
-          `Error polling operation ${operationId} for model ${modelId}: ${modelError.message}`,
+          `Error polling operation ${operationId} for model ${modelId}: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
         );
 
         // Mark job as failed
-        await prisma.trainingJob.update({
-          where: { id: jobId },
-          data: {
-            status: TrainingStatus.FAILED,
-            error_message: `Training failed: ${modelError.message}`,
-            completed_at: new Date(),
-          },
+        await this.trainingDb.updateTrainingJob(jobId, {
+          status: TrainingStatus.FAILED,
+          error_message: `Training failed: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
+          completed_at: new Date(),
         });
       }
     } catch (error) {
-      this.logger.error(
-        `Error polling training status for job ${jobId}`,
-        error.stack,
-      );
+      this.logger.error(`Error polling training status for job ${jobId}`, {
+        stack: getErrorStack(error),
+      });
     }
   }
 
@@ -300,14 +279,7 @@ export class TrainingPollerService {
    * Force poll a specific job (for manual refresh)
    */
   async pollJob(jobId: string): Promise<void> {
-    const prisma = this.db["prisma"];
-    if (!prisma) {
-      throw new Error("Prisma client not available");
-    }
-
-    const job = await prisma.trainingJob.findUnique({
-      where: { id: jobId },
-    });
+    const job = await this.trainingDb.findTrainingJob(jobId);
 
     if (!job) {
       throw new Error(`Job ${jobId} not found`);
@@ -317,7 +289,11 @@ export class TrainingPollerService {
       job.status === TrainingStatus.TRAINING ||
       job.status === TrainingStatus.UPLOADED
     ) {
-      await this.pollTrainingStatus(jobId, job.model_id, job.operation_id);
+      await this.pollTrainingStatus(
+        jobId,
+        job.template_model.model_id,
+        job.operation_id,
+      );
     }
   }
 }

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 /**
  * Dataset Service
  *
@@ -23,7 +24,14 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { PrismaService } from "@/database/prisma.service";
+import {
+  buildBlobFilePath,
+  buildBlobPrefixPath,
+  OperationCategory,
+  validateBlobPrefixPath,
+} from "@/blob-storage/storage-path-builder";
+import { AuditLogDbService } from "./audit-log-db.service";
+import { DatasetDbService } from "./dataset-db.service";
 import {
   CreateDatasetDto,
   CreateVersionDto,
@@ -45,23 +53,21 @@ import {
 @Injectable()
 export class DatasetService {
   private readonly logger = new Logger(DatasetService.name);
-  private readonly prisma;
 
   constructor(
-    private readonly prismaService: PrismaService,
+    private readonly datasetDbService: DatasetDbService,
+    private readonly auditLogDbService: AuditLogDbService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
-  ) {
-    this.prisma = this.prismaService.prisma;
-  }
+  ) {}
 
   /**
    * Create a new dataset
    */
   async createDataset(
     createDto: CreateDatasetDto,
-    userId: string,
+    actorId: string,
   ): Promise<DatasetResponseDto> {
-    this.logger.log(`Creating dataset: ${createDto.name} for user ${userId}`);
+    this.logger.log(`Creating dataset: ${createDto.name} for user ${actorId}`);
 
     if (!createDto.name) {
       throw new BadRequestException("Dataset name is required");
@@ -69,35 +75,28 @@ export class DatasetService {
 
     try {
       // Create dataset record in database
-      const dataset = await this.prisma.dataset.create({
-        data: {
-          name: createDto.name,
-          description: createDto.description || null,
-          metadata: (createDto.metadata || {}) as Prisma.JsonValue,
-          storagePath: "", // Will be set after we have the ID
-          createdBy: userId,
-          group_id: createDto.groupId,
-        },
+      const dataset = await this.datasetDbService.createDataset({
+        name: createDto.name,
+        description: createDto.description || null,
+        metadata: (createDto.metadata || {}) as Prisma.InputJsonValue,
+        storagePath: "", // Will be set after we have the ID
+        createdBy: actorId,
+        group_id: createDto.groupId,
       });
 
       // Set storage path based on dataset ID
       const storagePath = `datasets/${dataset.id}`;
-      await this.prisma.dataset.update({
-        where: { id: dataset.id },
-        data: { storagePath },
-      });
+      await this.datasetDbService.updateDataset(dataset.id, { storagePath });
 
       // Create audit log entry
-      await this.prisma.benchmarkAuditLog.create({
-        data: {
-          userId: userId,
-          action: AuditAction.dataset_created,
-          entityType: "Dataset",
-          entityId: dataset.id,
-          metadata: {
-            name: dataset.name,
-            storagePath,
-          },
+      await this.auditLogDbService.createAuditLog({
+        actorId: actorId,
+        action: AuditAction.dataset_created,
+        entityType: "Dataset",
+        entityId: dataset.id,
+        metadata: {
+          name: dataset.name,
+          storagePath,
         },
       });
 
@@ -114,7 +113,7 @@ export class DatasetService {
       }
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
+        (error as { code?: string })?.code === "P2002"
       ) {
         throw new ConflictException(
           `A dataset with the name "${createDto.name}" already exists. Please choose a different name.`,
@@ -122,10 +121,9 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to create dataset: ${createDto.name}`,
-        error.stack,
+        getErrorStack(error),
       );
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       throw new BadRequestException(
         `Failed to create dataset: ${errorMessage}`,
       );
@@ -148,19 +146,13 @@ export class DatasetService {
 
     const where = { group_id: { in: groupIds } };
 
-    const total = await this.prisma.dataset.count({ where });
+    const total = await this.datasetDbService.countDatasets(where);
 
-    const datasets = await this.prisma.dataset.findMany({
+    const datasets = await this.datasetDbService.findAllDatasets(
       where,
       skip,
-      take: validLimit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        versions: {
-          select: { id: true },
-        },
-      },
-    });
+      validLimit,
+    );
 
     const data = datasets.map((dataset) =>
       this.mapToResponseDto(dataset, dataset.versions.length),
@@ -181,21 +173,7 @@ export class DatasetService {
   async getDatasetById(id: string): Promise<DatasetResponseDto> {
     this.logger.debug(`Getting dataset by ID: ${id}`);
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id },
-      include: {
-        versions: {
-          select: {
-            id: true,
-            version: true,
-            documentCount: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        },
-      },
-    });
+    const dataset = await this.datasetDbService.findDatasetWithVersions(id);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${id} not found`);
@@ -214,17 +192,7 @@ export class DatasetService {
   async deleteDataset(id: string): Promise<void> {
     this.logger.debug(`Deleting dataset with ID: ${id}`);
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id },
-      include: {
-        versions: {
-          include: {
-            benchmarkDefinitions: true,
-            splits: true,
-          },
-        },
-      },
-    });
+    const dataset = await this.datasetDbService.findDatasetForDeletion(id);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${id} not found`);
@@ -233,30 +201,27 @@ export class DatasetService {
     // Manually cascade delete to handle foreign key constraints
     for (const version of dataset.versions) {
       for (const definition of version.benchmarkDefinitions) {
-        await this.prisma.benchmarkRun.deleteMany({
-          where: { definitionId: definition.id },
+        await this.datasetDbService.deleteManyBenchmarkRuns({
+          definitionId: definition.id,
         });
       }
-      await this.prisma.benchmarkDefinition.deleteMany({
-        where: { datasetVersionId: version.id },
+      await this.datasetDbService.deleteManyBenchmarkDefinitions({
+        datasetVersionId: version.id,
       });
-      await this.prisma.split.deleteMany({
-        where: { datasetVersionId: version.id },
+      await this.datasetDbService.deleteManySplits({
+        datasetVersionId: version.id,
       });
     }
 
-    await this.prisma.datasetVersion.deleteMany({
-      where: { datasetId: id },
-    });
+    await this.datasetDbService.deleteManyDatasetVersions({ datasetId: id });
 
-    await this.prisma.dataset.delete({
-      where: { id },
-    });
+    await this.datasetDbService.deleteDataset(id);
 
     // Delete all files from object storage
     if (dataset.storagePath) {
       try {
-        await this.blobStorage.deleteByPrefix(dataset.storagePath);
+        const storagePath = validateBlobPrefixPath(dataset.storagePath);
+        await this.blobStorage.deleteByPrefix(storagePath);
       } catch (error) {
         this.logger.warn(
           `Failed to delete storage files for dataset ${id}: ${error}`,
@@ -273,19 +238,16 @@ export class DatasetService {
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
-    userId: string,
+    _actorId: string, // TODO: Why isn't this used?
   ): Promise<VersionResponseDto> {
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const existingVersionCount = await this.prisma.datasetVersion.count({
-      where: { datasetId },
-    });
+    const existingVersionCount =
+      await this.datasetDbService.countDatasetVersions({ datasetId });
     const versionLabel = createDto.version || `v${existingVersionCount + 1}`;
 
     this.logger.log(
@@ -294,17 +256,16 @@ export class DatasetService {
 
     const manifestPath = createDto.manifestPath || "dataset-manifest.json";
 
-    const version = await this.prisma.datasetVersion.create({
-      data: {
-        datasetId: datasetId,
-        version: versionLabel,
-        name: createDto.name || null,
-        storagePrefix: null,
-        manifestPath: manifestPath,
-        documentCount: 0,
-        groundTruthSchema: (createDto.groundTruthSchema ||
-          null) as Prisma.JsonValue,
-      },
+    const version = await this.datasetDbService.createDatasetVersion({
+      datasetId: datasetId,
+      version: versionLabel,
+      name: createDto.name || null,
+      storagePrefix: null,
+      manifestPath: manifestPath,
+      documentCount: 0,
+      groundTruthSchema: createDto.groundTruthSchema
+        ? (createDto.groundTruthSchema as Prisma.InputJsonValue)
+        : undefined,
     });
 
     this.logger.log(
@@ -320,28 +281,14 @@ export class DatasetService {
   async listVersions(datasetId: string): Promise<VersionListResponseDto> {
     this.logger.debug(`Listing versions for dataset ${datasetId}`);
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const versions = await this.prisma.datasetVersion.findMany({
-      where: { datasetId: datasetId },
-      include: {
-        splits: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            sampleIds: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const versions =
+      await this.datasetDbService.findAllDatasetVersionsWithSplits(datasetId);
 
     const versionList: VersionListItemDto[] = versions.map((v) => ({
       id: v.id,
@@ -371,22 +318,10 @@ export class DatasetService {
   ): Promise<VersionResponseDto> {
     this.logger.debug(`Getting version ${versionId} for dataset ${datasetId}`);
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-      include: {
-        splits: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            sampleIds: true,
-          },
-        },
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersionWithSplits(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -405,12 +340,10 @@ export class DatasetService {
     versionId: string,
     name: string,
   ): Promise<VersionResponseDto> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -422,22 +355,16 @@ export class DatasetService {
       throw new BadRequestException("Cannot update a frozen dataset version");
     }
 
-    const updated = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: { name: name || null },
-      include: {
-        splits: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            sampleIds: true,
-          },
-        },
-      },
+    await this.datasetDbService.updateDatasetVersion(versionId, {
+      name: name || null,
     });
 
-    return this.mapToVersionResponseDto(updated, updated.splits);
+    const updated = await this.datasetDbService.findDatasetVersionWithSplits(
+      versionId,
+      datasetId,
+    );
+
+    return this.mapToVersionResponseDto(updated!, updated!.splits);
   }
 
   /**
@@ -455,23 +382,23 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
-    userId: string,
+    _actorId: string, // TODO: Why isn't this used?
+    groupId: string,
   ): Promise<UploadResponseDto> {
     this.logger.log(
       `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
     );
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -520,7 +447,12 @@ export class DatasetService {
         usedFilenames[dirKey].add(finalFilename);
 
         const relativePath = `${dirKey}/${finalFilename}`;
-        const blobKey = `${storagePrefix}/${relativePath}`;
+        const blobKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [storagePrefix, dirKey],
+          finalFilename,
+        );
 
         // Upload to object storage
         await this.blobStorage.write(blobKey, file.buffer);
@@ -536,7 +468,13 @@ export class DatasetService {
       }
 
       // Load or create manifest
-      const manifestKey = `${storagePrefix}/dataset-manifest.json`;
+      const manifestKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        [storagePrefix],
+        "dataset-manifest.json",
+      );
+
       let manifest: {
         schemaVersion: string;
         samples: Array<{
@@ -610,13 +548,13 @@ export class DatasetService {
       );
 
       // Update version record
-      const updatedVersion = await this.prisma.datasetVersion.update({
-        where: { id: versionId },
-        data: {
+      const updatedVersion = await this.datasetDbService.updateDatasetVersion(
+        versionId,
+        {
           storagePrefix: storagePrefix,
           documentCount: manifest.samples.length,
         },
-      });
+      );
 
       this.logger.log(
         `Upload complete: ${uploadedFiles.length} files added to version ${version.version} (${versionId})`,
@@ -666,22 +604,22 @@ export class DatasetService {
     datasetId: string,
     versionId: string,
     sampleId: string,
+    groupId: string,
   ): Promise<void> {
     this.logger.log(
       `Deleting sample ${sampleId} from dataset ${datasetId}, version ${versionId}`,
     );
 
-    const dataset = await this.prisma.dataset.findUnique({
-      where: { id: datasetId },
-    });
+    const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -703,7 +641,12 @@ export class DatasetService {
 
     try {
       // Load the manifest from object storage
-      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
+      const manifestKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        [version.storagePrefix],
+        "dataset-manifest.json",
+      );
       const manifestBuffer = await this.blobStorage.read(manifestKey);
       const manifest = JSON.parse(manifestBuffer.toString("utf-8")) as {
         schemaVersion: string;
@@ -728,7 +671,12 @@ export class DatasetService {
 
       // Delete the sample's files from object storage
       for (const input of sample.inputs) {
-        const blobKey = `${version.storagePrefix}/${input.path}`;
+        const blobKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [version.storagePrefix],
+          input.path,
+        );
         try {
           await this.blobStorage.delete(blobKey);
         } catch {
@@ -736,8 +684,13 @@ export class DatasetService {
         }
       }
       for (const gt of sample.groundTruth) {
-        const blobKey = `${version.storagePrefix}/${gt.path}`;
         try {
+          const blobKey = buildBlobFilePath(
+            groupId,
+            OperationCategory.BENCHMARK,
+            [version.storagePrefix],
+            gt.path,
+          );
           await this.blobStorage.delete(blobKey);
         } catch {
           this.logger.warn(`Could not delete file: ${gt.path}`);
@@ -754,17 +707,13 @@ export class DatasetService {
       );
 
       // Update version record
-      await this.prisma.datasetVersion.update({
-        where: { id: versionId },
-        data: {
-          documentCount: manifest.samples.length,
-        },
+      await this.datasetDbService.updateDatasetVersion(versionId, {
+        documentCount: manifest.samples.length,
       });
 
       // Remove the sample ID from any splits that reference it
-      const splits = await this.prisma.split.findMany({
-        where: { datasetVersionId: versionId },
-      });
+      const splits =
+        await this.datasetDbService.findAllSplitsForVersion(versionId);
 
       for (const split of splits) {
         const currentSampleIds = Array.isArray(split.sampleIds)
@@ -774,9 +723,8 @@ export class DatasetService {
           const updatedSampleIds = currentSampleIds.filter(
             (id) => id !== sampleId,
           );
-          await this.prisma.split.update({
-            where: { id: split.id },
-            data: { sampleIds: updatedSampleIds },
+          await this.datasetDbService.updateSplit(split.id, {
+            sampleIds: updatedSampleIds,
           });
         }
       }
@@ -791,7 +739,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to delete sample ${sampleId} from version ${versionId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -804,14 +752,10 @@ export class DatasetService {
   async deleteVersion(datasetId: string, versionId: string): Promise<void> {
     this.logger.log(`Deleting version ${versionId} for dataset ${datasetId}`);
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-      include: {
-        benchmarkDefinitions: {
-          select: { id: true, name: true },
-        },
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersionForDeletion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -829,19 +773,30 @@ export class DatasetService {
     }
 
     // Delete splits for the version first
-    await this.prisma.split.deleteMany({
-      where: { datasetVersionId: versionId },
+    await this.datasetDbService.deleteManySplits({
+      datasetVersionId: versionId,
     });
 
     // Delete the version record
-    await this.prisma.datasetVersion.delete({
-      where: { id: versionId },
-    });
+    await this.datasetDbService.deleteDatasetVersion(versionId);
 
     // Delete files from object storage
     if (version.storagePrefix) {
       try {
-        await this.blobStorage.deleteByPrefix(version.storagePrefix);
+        const groupId = (
+          await this.datasetDbService.findDataset(version.datasetId)
+        )?.group_id;
+        if (!groupId) {
+          throw new NotFoundException(
+            `Dataset not found for version ${versionId}`,
+          );
+        }
+        const prefix = buildBlobPrefixPath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [version.storagePrefix],
+        );
+        await this.blobStorage.deleteByPrefix(prefix);
       } catch (error) {
         this.logger.warn(
           `Failed to delete storage files for version ${versionId}: ${error}`,
@@ -869,12 +824,10 @@ export class DatasetService {
     const validLimit = Math.min(100, Math.max(1, limit));
     const skip = (validPage - 1) * validLimit;
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -895,9 +848,18 @@ export class DatasetService {
 
     try {
       // Load manifest from object storage
-      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
-      const manifest =
-        await this.loadAndValidateManifestFromStorage(manifestKey);
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
+      const manifest = await this.loadAndValidateManifestFromStorage(
+        groupId,
+        version.storagePrefix,
+      );
 
       const total = manifest.samples.length;
       const paginatedSamples = manifest.samples.slice(skip, skip + validLimit);
@@ -925,7 +887,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to list samples for dataset ${datasetId}, version ${versionId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -943,12 +905,10 @@ export class DatasetService {
       `Getting ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -962,9 +922,18 @@ export class DatasetService {
 
     try {
       // Load manifest from object storage
-      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
-      const manifest =
-        await this.loadAndValidateManifestFromStorage(manifestKey);
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
+      const manifest = await this.loadAndValidateManifestFromStorage(
+        groupId,
+        version.storagePrefix,
+      );
 
       const sample = manifest.samples.find((s) => s.id === sampleId);
       if (!sample) {
@@ -980,19 +949,32 @@ export class DatasetService {
       }
 
       const groundTruthFile = sample.groundTruth[0];
-      const blobKey = `${version.storagePrefix}/${groundTruthFile.path}`;
 
       let content: Record<string, unknown>;
       try {
-        const buffer = await this.blobStorage.read(blobKey);
+        const groupId = (
+          await this.datasetDbService.findDataset(version.datasetId)
+        )?.group_id;
+        if (!groupId) {
+          throw new NotFoundException(
+            `Dataset not found for version ${versionId}`,
+          );
+        }
+        const key = buildBlobFilePath(
+          groupId,
+          OperationCategory.BENCHMARK,
+          [version.storagePrefix],
+          groundTruthFile.path,
+        );
+        const buffer = await this.blobStorage.read(key);
         content = JSON.parse(buffer.toString("utf-8"));
       } catch (error) {
         this.logger.error(
           `Failed to read or parse ground truth file at ${groundTruthFile.path}`,
-          error.stack,
+          getErrorStack(error),
         );
         throw new BadRequestException(
-          `Failed to read or parse ground truth file: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to read or parse ground truth file: ${getErrorMessage(error)}`,
         );
       }
 
@@ -1011,7 +993,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to get ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -1030,9 +1012,10 @@ export class DatasetService {
       `Downloading file "${filePath}" from dataset ${datasetId}, version ${versionId}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1054,15 +1037,27 @@ export class DatasetService {
       throw new BadRequestException("Invalid file path");
     }
 
-    const blobKey = `${version.storagePrefix}/${normalizedPath}`;
-
     try {
-      const exists = await this.blobStorage.exists(blobKey);
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
+      const key = buildBlobFilePath(
+        groupId,
+        OperationCategory.BENCHMARK,
+        [version.storagePrefix],
+        normalizedPath,
+      );
+      const exists = await this.blobStorage.exists(key);
       if (!exists) {
         throw new NotFoundException(`File not found: ${filePath}`);
       }
 
-      const buffer = await this.blobStorage.read(blobKey);
+      const buffer = await this.blobStorage.read(key);
       const filename = path.basename(normalizedPath);
 
       // Determine MIME type from extension
@@ -1098,7 +1093,8 @@ export class DatasetService {
    * Load and validate a manifest file from object storage
    */
   private async loadAndValidateManifestFromStorage(
-    manifestKey: string,
+    groupdId: string,
+    versionStoragePrefix: string,
   ): Promise<{
     schemaVersion: string;
     samples: Array<{
@@ -1109,6 +1105,12 @@ export class DatasetService {
     }>;
   }> {
     try {
+      const manifestKey = buildBlobFilePath(
+        groupdId,
+        OperationCategory.BENCHMARK,
+        [versionStoragePrefix],
+        "dataset-manifest.json",
+      );
       const exists = await this.blobStorage.exists(manifestKey);
       if (!exists) {
         throw new NotFoundException("Manifest file not found in storage");
@@ -1201,7 +1203,7 @@ export class DatasetService {
       }
       if (error instanceof SyntaxError) {
         throw new BadRequestException(
-          `Invalid manifest: malformed JSON - ${error.message}`,
+          `Invalid manifest: malformed JSON - ${getErrorMessage(error)}`,
         );
       }
       throw error;
@@ -1218,9 +1220,10 @@ export class DatasetService {
     storagePrefix: string,
     documentCount: number,
   ): Promise<VersionResponseDto> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: { id: versionId, datasetId },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1228,10 +1231,10 @@ export class DatasetService {
       );
     }
 
-    const updated = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: { storagePrefix, documentCount },
-    });
+    const updated = await this.datasetDbService.updateDatasetVersion(
+      versionId,
+      { storagePrefix, documentCount },
+    );
 
     return this.mapToVersionResponseDto(updated);
   }
@@ -1277,7 +1280,7 @@ export class DatasetService {
    */
   private groupFilesBySampleId(
     files: UploadedFileDto[],
-    existingSampleIds: Set<string> = new Set(),
+    _existingSampleIds: Set<string> = new Set(),
   ): Record<string, UploadedFileDto[]> {
     const groups: Record<string, UploadedFileDto[]> = {};
     const assignedPaths: Set<string> = new Set();
@@ -1428,12 +1431,10 @@ export class DatasetService {
       `Validating dataset ${datasetId}, version ${versionId} with sampleSize: ${requestDto.sampleSize || "all"}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1448,9 +1449,18 @@ export class DatasetService {
     }
 
     try {
-      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
-      const manifest =
-        await this.loadAndValidateManifestFromStorage(manifestKey);
+      const groupId = (
+        await this.datasetDbService.findDataset(version.datasetId)
+      )?.group_id;
+      if (!groupId) {
+        throw new NotFoundException(
+          `Dataset not found for version ${versionId}`,
+        );
+      }
+      const manifest = await this.loadAndValidateManifestFromStorage(
+        groupId,
+        version.storagePrefix,
+      );
 
       const allSamples = manifest.samples;
       const totalSamples = allSamples.length;
@@ -1472,7 +1482,7 @@ export class DatasetService {
           );
         } catch (error) {
           this.logger.warn(
-            `Invalid ground truth schema for version ${versionId}: ${error instanceof Error ? error.message : String(error)}`,
+            `Invalid ground truth schema for version ${versionId}: ${getErrorMessage(error)}`,
           );
         }
       }
@@ -1491,8 +1501,12 @@ export class DatasetService {
         }
 
         for (const gt of sample.groundTruth) {
-          const blobKey = `${version.storagePrefix}/${gt.path}`;
-
+          const blobKey = buildBlobFilePath(
+            groupId,
+            OperationCategory.BENCHMARK,
+            [version.storagePrefix],
+            gt.path,
+          );
           const fileExists = await this.blobStorage.exists(blobKey);
           if (!fileExists) {
             issues.push({
@@ -1568,8 +1582,12 @@ export class DatasetService {
         }
 
         for (const input of sample.inputs) {
-          const blobKey = `${version.storagePrefix}/${input.path}`;
-
+          const blobKey = buildBlobFilePath(
+            groupId,
+            OperationCategory.BENCHMARK,
+            [version.storagePrefix],
+            input.path,
+          );
           const fileExists = await this.blobStorage.exists(blobKey);
           if (!fileExists) {
             issues.push({
@@ -1658,7 +1676,7 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to validate dataset ${datasetId}, version ${versionId}`,
-        error.stack,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -1753,12 +1771,10 @@ export class DatasetService {
       `Creating split '${createDto.name}' for version ${versionId}`,
     );
 
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1766,12 +1782,10 @@ export class DatasetService {
       );
     }
 
-    const existingSplit = await this.prisma.split.findFirst({
-      where: {
-        datasetVersionId: versionId,
-        name: createDto.name,
-      },
-    });
+    const existingSplit = await this.datasetDbService.findSplitByName(
+      versionId,
+      createDto.name,
+    );
 
     if (existingSplit) {
       throw new BadRequestException(
@@ -1779,17 +1793,15 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.create({
-      data: {
-        datasetVersionId: versionId,
-        name: createDto.name,
-        type: createDto.type as SplitType,
-        sampleIds: createDto.sampleIds as Prisma.JsonValue,
-        stratificationRules: createDto.stratificationRules
-          ? (createDto.stratificationRules as Prisma.JsonValue)
-          : null,
-        frozen: false,
-      },
+    const split = await this.datasetDbService.createSplit({
+      datasetVersionId: versionId,
+      name: createDto.name,
+      type: createDto.type as SplitType,
+      sampleIds: createDto.sampleIds as Prisma.InputJsonValue,
+      stratificationRules: createDto.stratificationRules
+        ? (createDto.stratificationRules as Prisma.InputJsonValue)
+        : Prisma.DbNull,
+      frozen: false,
     });
 
     return {
@@ -1824,12 +1836,10 @@ export class DatasetService {
       createdAt: Date;
     }>
   > {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1837,14 +1847,8 @@ export class DatasetService {
       );
     }
 
-    const splits = await this.prisma.split.findMany({
-      where: {
-        datasetVersionId: versionId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const splits =
+      await this.datasetDbService.findAllSplitsForVersion(versionId);
 
     return splits.map((split) => ({
       id: split.id,
@@ -1880,12 +1884,10 @@ export class DatasetService {
     stratificationRules?: Record<string, unknown>;
     createdAt: Date;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1893,12 +1895,7 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.findFirst({
-      where: {
-        id: splitId,
-        datasetVersionId: versionId,
-      },
-    });
+    const split = await this.datasetDbService.findSplit(splitId, versionId);
 
     if (!split) {
       throw new NotFoundException(
@@ -1940,12 +1937,10 @@ export class DatasetService {
     frozen: boolean;
     createdAt: Date;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -1953,12 +1948,7 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.findFirst({
-      where: {
-        id: splitId,
-        datasetVersionId: versionId,
-      },
-    });
+    const split = await this.datasetDbService.findSplit(splitId, versionId);
 
     if (!split) {
       throw new NotFoundException(
@@ -1972,11 +1962,8 @@ export class DatasetService {
       );
     }
 
-    const updated = await this.prisma.split.update({
-      where: { id: splitId },
-      data: {
-        sampleIds: updateDto.sampleIds as Prisma.JsonValue,
-      },
+    const updated = await this.datasetDbService.updateSplit(splitId, {
+      sampleIds: updateDto.sampleIds as Prisma.InputJsonValue,
     });
 
     return {
@@ -2003,12 +1990,10 @@ export class DatasetService {
     name: string | null;
     frozen: boolean;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -2016,9 +2001,8 @@ export class DatasetService {
       );
     }
 
-    const frozen = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: { frozen: true },
+    const frozen = await this.datasetDbService.updateDatasetVersion(versionId, {
+      frozen: true,
     });
 
     return {
@@ -2044,12 +2028,10 @@ export class DatasetService {
     type: string;
     frozen: boolean;
   }> {
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
+    const version = await this.datasetDbService.findDatasetVersion(
+      versionId,
+      datasetId,
+    );
 
     if (!version) {
       throw new NotFoundException(
@@ -2057,12 +2039,7 @@ export class DatasetService {
       );
     }
 
-    const split = await this.prisma.split.findFirst({
-      where: {
-        id: splitId,
-        datasetVersionId: versionId,
-      },
-    });
+    const split = await this.datasetDbService.findSplit(splitId, versionId);
 
     if (!split) {
       throw new NotFoundException(
@@ -2070,9 +2047,8 @@ export class DatasetService {
       );
     }
 
-    const frozen = await this.prisma.split.update({
-      where: { id: splitId },
-      data: { frozen: true },
+    const frozen = await this.datasetDbService.updateSplit(splitId, {
+      frozen: true,
     });
 
     return {

@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Definition Service
  *
@@ -15,9 +16,9 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { PrismaService } from "@/database/prisma.service";
 import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
+import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import {
   BaselineRunSummary,
@@ -25,7 +26,6 @@ import {
   DatasetVersionInfo,
   DefinitionDetailsDto,
   DefinitionSummaryDto,
-  MetricThreshold,
   RunHistorySummary,
   ScheduleConfigDto,
   ScheduleInfoDto,
@@ -38,15 +38,12 @@ import { EvaluatorRegistryService } from "./evaluator-registry.service";
 @Injectable()
 export class BenchmarkDefinitionService {
   private readonly logger = new Logger(BenchmarkDefinitionService.name);
-  private readonly prisma;
 
   constructor(
-    private readonly prismaService: PrismaService,
+    private readonly definitionDbService: BenchmarkDefinitionDbService,
     private readonly evaluatorRegistry: EvaluatorRegistryService,
     private readonly temporalService: BenchmarkTemporalService,
-  ) {
-    this.prisma = this.prismaService.prisma;
-  }
+  ) {}
 
   /**
    * Create a benchmark definition
@@ -63,9 +60,8 @@ export class BenchmarkDefinitionService {
     );
 
     // Validate that the project exists
-    const project = await this.prisma.benchmarkProject.findUnique({
-      where: { id: projectId },
-    });
+    const project =
+      await this.definitionDbService.findBenchmarkProject(projectId);
 
     if (!project) {
       throw new NotFoundException(
@@ -74,16 +70,9 @@ export class BenchmarkDefinitionService {
     }
 
     // Validate that the dataset version exists
-    const datasetVersion = await this.prisma.datasetVersion.findUnique({
-      where: { id: dto.datasetVersionId },
-      include: {
-        dataset: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    });
+    const datasetVersion = await this.definitionDbService.findDatasetVersion(
+      dto.datasetVersionId,
+    );
 
     if (!datasetVersion) {
       throw new BadRequestException(
@@ -93,9 +82,7 @@ export class BenchmarkDefinitionService {
 
     // Validate that the split exists and belongs to the dataset version (when provided)
     if (dto.splitId) {
-      const split = await this.prisma.split.findUnique({
-        where: { id: dto.splitId },
-      });
+      const split = await this.definitionDbService.findSplit(dto.splitId);
 
       if (!split) {
         throw new BadRequestException(
@@ -111,9 +98,9 @@ export class BenchmarkDefinitionService {
     }
 
     // Validate that the workflow exists
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id: dto.workflowId },
-    });
+    const workflow = await this.definitionDbService.findWorkflow(
+      dto.workflowId,
+    );
 
     if (!workflow) {
       throw new BadRequestException(
@@ -134,8 +121,8 @@ export class BenchmarkDefinitionService {
     );
 
     // Create the definition
-    const definition = await this.prisma.benchmarkDefinition.create({
-      data: {
+    const definition = await this.definitionDbService.createBenchmarkDefinition(
+      {
         projectId,
         name: dto.name,
         datasetVersionId: dto.datasetVersionId,
@@ -148,32 +135,7 @@ export class BenchmarkDefinitionService {
         immutable: false,
         revision: 1,
       },
-      include: {
-        datasetVersion: {
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        split: true,
-        workflow: true,
-        benchmarkRuns: {
-          select: {
-            id: true,
-            status: true,
-
-            startedAt: true,
-            completedAt: true,
-          },
-          orderBy: {
-            startedAt: "desc",
-          },
-        },
-      },
-    });
+    );
 
     this.logger.log(
       `Created benchmark definition: ${definition.id} (workflowConfigHash: ${workflowConfigHash})`,
@@ -187,9 +149,8 @@ export class BenchmarkDefinitionService {
    */
   async listDefinitions(projectId: string): Promise<DefinitionSummaryDto[]> {
     // Verify project exists
-    const project = await this.prisma.benchmarkProject.findUnique({
-      where: { id: projectId },
-    });
+    const project =
+      await this.definitionDbService.findBenchmarkProject(projectId);
 
     if (!project) {
       throw new NotFoundException(
@@ -197,24 +158,8 @@ export class BenchmarkDefinitionService {
       );
     }
 
-    const definitions = await this.prisma.benchmarkDefinition.findMany({
-      where: { projectId },
-      include: {
-        datasetVersion: {
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        workflow: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const definitions =
+      await this.definitionDbService.findAllBenchmarkDefinitions(projectId);
 
     return definitions.map((def) => this.mapToDefinitionSummary(def));
   }
@@ -226,37 +171,10 @@ export class BenchmarkDefinitionService {
     projectId: string,
     definitionId: string,
   ): Promise<DefinitionDetailsDto> {
-    const definition = await this.prisma.benchmarkDefinition.findFirst({
-      where: {
-        id: definitionId,
-        projectId,
-      },
-      include: {
-        datasetVersion: {
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        split: true,
-        workflow: true,
-        benchmarkRuns: {
-          select: {
-            id: true,
-            status: true,
-
-            startedAt: true,
-            completedAt: true,
-          },
-          orderBy: {
-            startedAt: "desc",
-          },
-        },
-      },
-    });
+    const definition = await this.definitionDbService.findBenchmarkDefinition(
+      definitionId,
+      projectId,
+    );
 
     if (!definition) {
       throw new NotFoundException(
@@ -265,19 +183,8 @@ export class BenchmarkDefinitionService {
     }
 
     // Fetch baseline run separately if it exists
-    const baselineRun = await this.prisma.benchmarkRun.findFirst({
-      where: {
-        definitionId,
-        isBaseline: true,
-      },
-      select: {
-        id: true,
-        status: true,
-        metrics: true,
-        baselineThresholds: true,
-        completedAt: true,
-      },
-    });
+    const baselineRun =
+      await this.definitionDbService.findBaselineBenchmarkRun(definitionId);
 
     return this.mapToDefinitionDetails(definition, baselineRun);
   }
@@ -298,30 +205,11 @@ export class BenchmarkDefinitionService {
     );
 
     // Get the existing definition
-    const existing = await this.prisma.benchmarkDefinition.findFirst({
-      where: {
-        id: definitionId,
+    const existing =
+      await this.definitionDbService.findBenchmarkDefinitionForUpdate(
+        definitionId,
         projectId,
-      },
-      include: {
-        _count: {
-          select: {
-            benchmarkRuns: true,
-          },
-        },
-        datasetVersion: {
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        split: true,
-        workflow: true,
-      },
-    });
+      );
 
     if (!existing) {
       throw new NotFoundException(
@@ -331,9 +219,9 @@ export class BenchmarkDefinitionService {
 
     // Validate referenced entities if they are being changed
     if (dto.datasetVersionId) {
-      const datasetVersion = await this.prisma.datasetVersion.findUnique({
-        where: { id: dto.datasetVersionId },
-      });
+      const datasetVersion = await this.definitionDbService.findDatasetVersion(
+        dto.datasetVersionId,
+      );
 
       if (!datasetVersion) {
         throw new BadRequestException(
@@ -343,9 +231,7 @@ export class BenchmarkDefinitionService {
     }
 
     if (dto.splitId) {
-      const split = await this.prisma.split.findUnique({
-        where: { id: dto.splitId },
-      });
+      const split = await this.definitionDbService.findSplit(dto.splitId);
 
       if (!split) {
         throw new BadRequestException(
@@ -365,9 +251,9 @@ export class BenchmarkDefinitionService {
 
     let workflowConfigHash = existing.workflowConfigHash;
     if (dto.workflowId) {
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: dto.workflowId },
-      });
+      const workflow = await this.definitionDbService.findWorkflow(
+        dto.workflowId,
+      );
 
       if (!workflow) {
         throw new BadRequestException(
@@ -394,14 +280,13 @@ export class BenchmarkDefinitionService {
 
     if (hasRuns) {
       // Mark the existing definition as immutable
-      await this.prisma.benchmarkDefinition.update({
-        where: { id: definitionId },
-        data: { immutable: true },
+      await this.definitionDbService.updateBenchmarkDefinition(definitionId, {
+        immutable: true,
       });
 
       // Create a new revision
-      const newDefinition = await this.prisma.benchmarkDefinition.create({
-        data: {
+      const newDefinition =
+        await this.definitionDbService.createBenchmarkDefinition({
           projectId,
           name: dto.name ?? existing.name,
           datasetVersionId: dto.datasetVersionId ?? existing.datasetVersionId,
@@ -415,33 +300,7 @@ export class BenchmarkDefinitionService {
             existing.runtimeSettings) as Prisma.InputJsonValue,
           immutable: false,
           revision: existing.revision + 1,
-        },
-        include: {
-          datasetVersion: {
-            include: {
-              dataset: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-          split: true,
-          workflow: true,
-          benchmarkRuns: {
-            select: {
-              id: true,
-              status: true,
-
-              startedAt: true,
-              completedAt: true,
-            },
-            orderBy: {
-              startedAt: "desc",
-            },
-          },
-        },
-      });
+        });
 
       this.logger.log(
         `Created new revision ${newDefinition.revision} for definition ${definitionId}`,
@@ -467,35 +326,10 @@ export class BenchmarkDefinitionService {
         updateData.runtimeSettings =
           dto.runtimeSettings as Prisma.InputJsonValue;
 
-      const updated = await this.prisma.benchmarkDefinition.update({
-        where: { id: definitionId },
-        data: updateData,
-        include: {
-          datasetVersion: {
-            include: {
-              dataset: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-          split: true,
-          workflow: true,
-          benchmarkRuns: {
-            select: {
-              id: true,
-              status: true,
-
-              startedAt: true,
-              completedAt: true,
-            },
-            orderBy: {
-              startedAt: "desc",
-            },
-          },
-        },
-      });
+      const updated = await this.definitionDbService.updateBenchmarkDefinition(
+        definitionId,
+        updateData,
+      );
 
       this.logger.log(`Updated definition ${definitionId} in place`);
 
@@ -517,20 +351,11 @@ export class BenchmarkDefinitionService {
     projectId: string,
     definitionId: string,
   ): Promise<void> {
-    const definition = await this.prisma.benchmarkDefinition.findFirst({
-      where: {
-        id: definitionId,
+    const definition =
+      await this.definitionDbService.findBenchmarkDefinitionForDeletion(
+        definitionId,
         projectId,
-      },
-      include: {
-        benchmarkRuns: {
-          select: {
-            id: true,
-            status: true,
-          },
-        },
-      },
-    });
+      );
 
     if (!definition) {
       throw new NotFoundException(
@@ -549,9 +374,7 @@ export class BenchmarkDefinitionService {
       );
     }
 
-    await this.prisma.benchmarkDefinition.delete({
-      where: { id: definitionId },
-    });
+    await this.definitionDbService.deleteBenchmarkDefinition(definitionId);
 
     this.logger.log(
       `Deleted benchmark definition "${definition.name}" (${definitionId}) from project ${projectId}`,
@@ -741,25 +564,10 @@ export class BenchmarkDefinitionService {
     );
 
     // Get the definition
-    const definition = await this.prisma.benchmarkDefinition.findFirst({
-      where: {
-        id: definitionId,
-        projectId,
-      },
-      include: {
-        datasetVersion: {
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        split: true,
-        workflow: true,
-      },
-    });
+    const definition = await this.definitionDbService.findBenchmarkDefinition(
+      definitionId,
+      projectId,
+    );
 
     if (!definition) {
       throw new NotFoundException(
@@ -780,7 +588,7 @@ export class BenchmarkDefinitionService {
         await this.temporalService.deleteSchedule(definition.scheduleId);
       } catch (error) {
         this.logger.warn(
-          `Failed to delete existing schedule ${definition.scheduleId}: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to delete existing schedule ${definition.scheduleId}: ${getErrorMessage(error)}`,
         );
       }
     }
@@ -812,33 +620,14 @@ export class BenchmarkDefinitionService {
     }
 
     // Update definition with schedule info
-    const updated = await this.prisma.benchmarkDefinition.update({
-      where: { id: definitionId },
-      data: {
+    const updated = await this.definitionDbService.updateBenchmarkDefinition(
+      definitionId,
+      {
         scheduleEnabled: dto.enabled,
         scheduleCron: dto.cron ?? null,
         scheduleId: scheduleId,
       },
-      include: {
-        datasetVersion: {
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        split: true,
-        workflow: true,
-        benchmarkRuns: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 10,
-        },
-      },
-    });
+    );
 
     return this.mapToDefinitionDetails(updated);
   }
@@ -854,12 +643,10 @@ export class BenchmarkDefinitionService {
   ): Promise<ScheduleInfoDto | null> {
     this.logger.log(`Getting schedule info for definition ${definitionId}`);
 
-    const definition = await this.prisma.benchmarkDefinition.findFirst({
-      where: {
-        id: definitionId,
-        projectId,
-      },
-    });
+    const definition = await this.definitionDbService.findBenchmarkDefinition(
+      definitionId,
+      projectId,
+    );
 
     if (!definition) {
       throw new NotFoundException(
@@ -875,7 +662,7 @@ export class BenchmarkDefinitionService {
       return await this.temporalService.getScheduleInfo(definition.scheduleId);
     } catch (error) {
       this.logger.error(
-        `Failed to get schedule info for ${definition.scheduleId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get schedule info for ${definition.scheduleId}: ${getErrorMessage(error)}`,
       );
       return null;
     }

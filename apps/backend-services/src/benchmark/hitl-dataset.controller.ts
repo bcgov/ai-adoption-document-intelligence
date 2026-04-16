@@ -22,20 +22,21 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { GroupRole } from "@/generated/edge";
 import { DatasetService } from "./dataset.service";
 import {
   AddVersionFromHitlDto,
+  AddVersionFromHitlResponseDto,
   CreateDatasetFromHitlDto,
+  CreateDatasetFromHitlResponseDto,
   EligibleDocumentsFilterDto,
+  EligibleDocumentsResponseDto,
 } from "./dto";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
@@ -45,12 +46,11 @@ export class HitlDatasetController {
   constructor(
     private readonly hitlDatasetService: HitlDatasetService,
     private readonly datasetService: DatasetService,
-    private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("from-hitl/eligible-documents")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "List HITL-verified documents eligible for dataset creation",
   })
@@ -62,44 +62,62 @@ export class HitlDatasetController {
     type: String,
     description: "Filter by filename",
   })
-  @ApiOkResponse({ description: "Paginated list of eligible documents" })
+  @ApiOkResponse({
+    description: "Paginated list of eligible documents",
+    type: EligibleDocumentsResponseDto,
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listEligibleDocuments(
     @Query() filters: EligibleDocumentsFilterDto,
     @Req() req: Request,
   ) {
-    let groupIds: string[];
+    let groupIds: string[] | undefined;
     if (filters.group_id) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        filters.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
-        req.resolvedIdentity,
-        this.databaseService,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
-    if (groupIds.length === 0) {
+    if (!groupIds || groupIds.length === 0) {
       return { documents: [], total: 0, page: 1, limit: 20 };
     }
 
-    return this.hitlDatasetService.listEligibleDocuments(filters, groupIds);
+    const result = await this.hitlDatasetService.listEligibleDocuments(
+      filters,
+      groupIds,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "hitl_eligible",
+      resource_id:
+        filters.group_id ?? (groupIds.length === 1 ? groupIds[0] : "multi"),
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: filters.group_id,
+      payload: {
+        action: "metadata",
+        document_ids: result.documents.map((d) => d.id),
+        count: result.documents.length,
+        group_ids: groupIds,
+      },
+    });
+    return result;
   }
 
   @Post("from-hitl")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "groupId" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @ApiOperation({
     summary: "Create a new dataset from HITL-verified documents",
   })
   @ApiBody({ type: CreateDatasetFromHitlDto })
   @ApiCreatedResponse({
     description: "Dataset and version created from verified documents",
+    type: CreateDatasetFromHitlResponseDto,
   })
   @ApiBadRequestResponse({
     description: "Invalid request or no documents could be processed",
@@ -109,21 +127,15 @@ export class HitlDatasetController {
     @Body() dto: CreateDatasetFromHitlDto,
     @Req() req: Request,
   ) {
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.groupId,
-      this.databaseService,
+    return this.hitlDatasetService.createDatasetFromHitl(
+      dto,
+      req.resolvedIdentity.actorId,
     );
-
-    return this.hitlDatasetService.createDatasetFromHitl(dto, userId);
   }
 
   @Post(":id/versions/from-hitl")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
       "Add a new version to an existing dataset from HITL-verified documents",
@@ -132,6 +144,7 @@ export class HitlDatasetController {
   @ApiBody({ type: AddVersionFromHitlDto })
   @ApiCreatedResponse({
     description: "New version created from verified documents",
+    type: AddVersionFromHitlResponseDto,
   })
   @ApiNotFoundResponse({ description: "Dataset not found" })
   @ApiBadRequestResponse({
@@ -143,15 +156,14 @@ export class HitlDatasetController {
     @Body() dto: AddVersionFromHitlDto,
     @Req() req: Request,
   ) {
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
-    return this.hitlDatasetService.addVersionFromHitl(datasetId, dto, userId);
+    return this.hitlDatasetService.addVersionFromHitl(
+      datasetId,
+      dto,
+      req.resolvedIdentity.actorId,
+      dataset.groupId,
+    );
   }
 }

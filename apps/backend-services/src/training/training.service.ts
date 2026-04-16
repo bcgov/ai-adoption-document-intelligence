@@ -13,21 +13,22 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
-import { ExportFormat } from "../labeling/dto/export.dto";
-import { LabelingService } from "../labeling/labeling.service";
+import { AppLoggerService } from "../logging/app-logger.service";
+import { ExportFormat } from "../template-model/dto/export.dto";
+import { TemplateModelService } from "../template-model/template-model.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
+import { TrainingDbService } from "./training-db.service";
 
 interface LabelsFile {
   filename: string;
@@ -50,16 +51,16 @@ interface ErrorWithRequest {
 
 @Injectable()
 export class TrainingService {
-  private readonly logger = new Logger(TrainingService.name);
-  private adminClient: DocumentIntelligenceClient;
+  private adminClient!: DocumentIntelligenceClient;
   private readonly minDocuments: number;
   private readonly sasExpiryDays: number;
 
   constructor(
-    private readonly db: DatabaseService,
+    private readonly trainingDb: TrainingDbService,
     private readonly azureStorage: AzureStorageService,
-    private readonly labelingService: LabelingService,
+    private readonly templateModelService: TemplateModelService,
     private readonly configService: ConfigService,
+    private readonly logger: AppLoggerService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
   ) {
@@ -98,20 +99,19 @@ export class TrainingService {
     );
   }
 
-  private get prisma() {
-    return this.db.prisma;
-  }
-
   /**
-   * Validate that a project is ready for training
+   * Validate that a template model is ready for training
    */
-  async validateTrainingData(projectId: string): Promise<ValidationResultDto> {
-    const project = await this.db.findLabelingProject(projectId);
-    if (!project) {
-      throw new NotFoundException(`Project with id ${projectId} not found`);
-    }
+  async validateTrainingData(
+    templateModelId: string,
+  ): Promise<ValidationResultDto> {
+    const templateModel =
+      await this.templateModelService.getTemplateModel(templateModelId);
 
-    const documents = await this.db.findLabeledDocuments(projectId);
+    const documents =
+      await this.templateModelService.getTemplateModelDocuments(
+        templateModelId,
+      );
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );
@@ -126,8 +126,11 @@ export class TrainingService {
     }
 
     // Check field schema exists
-    if (!project.field_schema || project.field_schema.length === 0) {
-      issues.push("Project has no field schema defined");
+    if (
+      !templateModel.field_schema ||
+      templateModel.field_schema.length === 0
+    ) {
+      issues.push("Template model has no field schema defined");
     }
 
     // Check each labeled document has labels
@@ -152,15 +155,20 @@ export class TrainingService {
    * Prepare training files (fields.json and labels.json for each document)
    */
   async prepareTrainingFiles(
-    projectId: string,
+    templateModelId: string,
   ): Promise<Array<{ name: string; content: string | Buffer }>> {
-    this.logger.debug(`Preparing training files for project: ${projectId}`);
+    this.logger.debug(
+      `Preparing training files for template model: ${templateModelId}`,
+    );
 
     // Export in Azure format
-    const exportResult = await this.labelingService.exportProject(projectId, {
-      format: ExportFormat.AZURE,
-      labeledOnly: true,
-    });
+    const exportResult = await this.templateModelService.exportTemplateModel(
+      templateModelId,
+      {
+        format: ExportFormat.AZURE,
+        labeledOnly: true,
+      },
+    );
     if (!("fieldsJson" in exportResult) || !("labelsFiles" in exportResult)) {
       throw new Error("Azure export did not return training data");
     }
@@ -178,7 +186,10 @@ export class TrainingService {
     });
 
     // Add document images and their labels/OCR files
-    const documents = await this.db.findLabeledDocuments(projectId);
+    const documents =
+      await this.templateModelService.getTemplateModelDocuments(
+        templateModelId,
+      );
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );
@@ -186,8 +197,15 @@ export class TrainingService {
     for (const doc of labeledDocuments) {
       const filename = doc.labeling_document.original_filename;
 
-      // Add document image
-      const blobKey = doc.labeling_document.file_path;
+      if (!doc.labeling_document.normalized_file_path) {
+        this.logger.warn(
+          `Skipping labeling document ${doc.labeling_document.id}: no normalized PDF`,
+        );
+        continue;
+      }
+      const blobKey = validateBlobFilePath(
+        doc.labeling_document.normalized_file_path,
+      );
       const fileExists = await this.blobStorage.exists(blobKey);
       if (fileExists) {
         files.push({
@@ -226,54 +244,53 @@ export class TrainingService {
    * Start the training process
    */
   async startTraining(
-    projectId: string,
+    templateModelId: string,
     dto: StartTrainingDto,
-    userId: string,
   ): Promise<TrainingJobDto> {
+    const templateModel =
+      await this.templateModelService.getTemplateModel(templateModelId);
+    const modelId = templateModel.model_id;
+
     this.logger.log(
-      `Starting training for project ${projectId} with model ID: ${dto.modelId}`,
+      `Starting training for template model ${templateModelId} with model ID: ${modelId}`,
     );
 
     // Validate training data
-    const validation = await this.validateTrainingData(projectId);
+    const validation = await this.validateTrainingData(templateModelId);
     if (!validation.valid) {
       throw new BadRequestException({
-        message: "Project is not ready for training",
+        message: "Template model is not ready for training",
         issues: validation.issues,
       });
     }
 
     // Remove existing Azure model if present to avoid conflicts
-    await this.deleteModelIfExists(dto.modelId);
+    await this.deleteModelIfExists(modelId);
 
     // Remove any local record with the same model ID
-    const existingModel = await this.prisma.trainedModel.findUnique({
-      where: { model_id: dto.modelId },
-    });
+    const existingModel =
+      await this.trainingDb.findTrainedModelByModelId(modelId);
     if (existingModel) {
-      await this.prisma.trainedModel.delete({
-        where: { model_id: dto.modelId },
-      });
+      await this.trainingDb.deleteTrainedModel(modelId);
     }
 
     // Create training job record
-    const containerName = `training-${projectId}`;
-    const trainingJob = await this.prisma.trainingJob.create({
-      data: {
-        project_id: projectId,
-        status: TrainingStatus.PENDING,
-        container_name: containerName,
-        model_id: dto.modelId,
-      },
+    const containerName = `training-${templateModelId}`;
+    const trainingJob = await this.trainingDb.createTrainingJob({
+      template_model_id: templateModelId,
+      status: TrainingStatus.PENDING,
+      container_name: containerName,
     });
 
     // Start async upload and training process
-    this.uploadAndTrain(trainingJob.id, projectId, dto).catch((error) => {
-      this.logger.error(
-        `Training job ${trainingJob.id} failed: ${error.message}`,
-        error.stack,
-      );
-    });
+    this.uploadAndTrain(trainingJob.id, templateModelId, modelId, dto).catch(
+      (error) => {
+        this.logger.error(
+          `Training job ${trainingJob.id} failed: ${error.message}`,
+          error.stack,
+        );
+      },
+    );
 
     return this.mapTrainingJobToDto(trainingJob);
   }
@@ -284,23 +301,25 @@ export class TrainingService {
    */
   private async uploadAndTrain(
     jobId: string,
-    projectId: string,
+    templateModelId: string,
+    modelId: string,
     dto: StartTrainingDto,
   ): Promise<void> {
     try {
       // Update status to UPLOADING
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: { status: TrainingStatus.UPLOADING },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.UPLOADING,
       });
 
       // Prepare training files
-      const files = await this.prepareTrainingFiles(projectId);
+      const files = await this.prepareTrainingFiles(templateModelId);
 
       // Get job to get container name
-      const job = await this.prisma.trainingJob.findUnique({
-        where: { id: jobId },
-      });
+      const job = await this.trainingDb.findTrainingJob(jobId);
+
+      if (!job) {
+        throw new Error(`Training job ${jobId} not found`);
+      }
 
       // Clear container contents so each training run starts clean
       await this.azureStorage.clearContainerContents(job.container_name);
@@ -324,13 +343,10 @@ export class TrainingService {
       );
 
       // Update status to UPLOADED
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: {
-          status: TrainingStatus.UPLOADED,
-          sas_url: sasUrl,
-          blob_count: uploadResult.uploaded,
-        },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.UPLOADED,
+        sas_url: sasUrl,
+        blob_count: uploadResult.uploaded,
       });
 
       const containerUrl = sasUrl.split("?")[0];
@@ -351,7 +367,7 @@ export class TrainingService {
       }
 
       // Initiate training with Azure
-      this.logger.log(`Initiating Azure training for model: ${dto.modelId}`);
+      this.logger.log(`Initiating Azure training for model: ${modelId}`);
       this.logger.debug(
         `Training container URL: ${containerUrl} (sas: ${hasSasToken ? "present" : "missing"})`,
       );
@@ -377,7 +393,7 @@ export class TrainingService {
         .post({
           contentType: "application/json",
           body: {
-            modelId: dto.modelId,
+            modelId,
             description: dto.description,
             buildMode: "template",
             azureBlobSource: {
@@ -435,12 +451,9 @@ export class TrainingService {
       }
 
       // Update status to TRAINING
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: {
-          status: TrainingStatus.TRAINING,
-          operation_id: operationId,
-        },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.TRAINING,
+        operation_id: operationId,
       });
 
       this.logger.log(
@@ -467,13 +480,10 @@ export class TrainingService {
       }
 
       // Update job status to FAILED
-      await this.prisma.trainingJob.update({
-        where: { id: jobId },
-        data: {
-          status: TrainingStatus.FAILED,
-          error_message: typedError.message,
-          completed_at: new Date(),
-        },
+      await this.trainingDb.updateTrainingJob(jobId, {
+        status: TrainingStatus.FAILED,
+        error_message: typedError.message,
+        completed_at: new Date(),
       });
 
       throw error;
@@ -481,13 +491,10 @@ export class TrainingService {
   }
 
   /**
-   * Get all training jobs for a project
+   * Get all training jobs for a template model
    */
-  async getTrainingJobs(projectId: string): Promise<TrainingJobDto[]> {
-    const jobs = await this.prisma.trainingJob.findMany({
-      where: { project_id: projectId },
-      orderBy: { started_at: "desc" },
-    });
+  async getTrainingJobs(templateModelId: string): Promise<TrainingJobDto[]> {
+    const jobs = await this.trainingDb.findAllTrainingJobs(templateModelId);
 
     return jobs.map((job) => this.mapTrainingJobToDto(job));
   }
@@ -496,9 +503,7 @@ export class TrainingService {
    * Get a specific training job
    */
   async getTrainingJob(jobId: string): Promise<TrainingJobDto> {
-    const job = await this.prisma.trainingJob.findUnique({
-      where: { id: jobId },
-    });
+    const job = await this.trainingDb.findTrainingJob(jobId);
 
     if (!job) {
       throw new NotFoundException(`Training job with id ${jobId} not found`);
@@ -508,24 +513,10 @@ export class TrainingService {
   }
 
   /**
-   * Get all trained models for a project
-   */
-  async getTrainedModels(projectId: string): Promise<TrainedModelDto[]> {
-    const models = await this.prisma.trainedModel.findMany({
-      where: { project_id: projectId },
-      orderBy: { created_at: "desc" },
-    });
-
-    return models.map((model) => this.mapTrainedModelToDto(model));
-  }
-
-  /**
    * Cancel a training job (if still in progress)
    */
   async cancelTrainingJob(jobId: string): Promise<void> {
-    const job = await this.prisma.trainingJob.findUnique({
-      where: { id: jobId },
-    });
+    const job = await this.trainingDb.findTrainingJob(jobId);
 
     if (!job) {
       throw new NotFoundException(`Training job with id ${jobId} not found`);
@@ -542,13 +533,10 @@ export class TrainingService {
       );
     }
 
-    await this.prisma.trainingJob.update({
-      where: { id: jobId },
-      data: {
-        status: TrainingStatus.FAILED,
-        error_message: "Cancelled by user",
-        completed_at: new Date(),
-      },
+    await this.trainingDb.updateTrainingJob(jobId, {
+      status: TrainingStatus.FAILED,
+      error_message: "Cancelled by user",
+      completed_at: new Date(),
     });
 
     this.logger.log(`Training job ${jobId} cancelled`);
@@ -560,16 +548,15 @@ export class TrainingService {
   private mapTrainingJobToDto(job: TrainingJob): TrainingJobDto {
     return {
       id: job.id,
-      projectId: job.project_id,
+      templateModelId: job.template_model_id,
       status: job.status,
       containerName: job.container_name,
-      sasUrl: job.sas_url,
+      sasUrl: job.sas_url ?? undefined,
       blobCount: job.blob_count,
-      modelId: job.model_id,
-      operationId: job.operation_id,
-      errorMessage: job.error_message,
+      operationId: job.operation_id ?? undefined,
+      errorMessage: job.error_message ?? undefined,
       startedAt: job.started_at,
-      completedAt: job.completed_at,
+      completedAt: job.completed_at ?? undefined,
     };
   }
 
@@ -611,15 +598,22 @@ export class TrainingService {
   }
 
   /**
-   * Map database model to DTO
+   * Returns all distinct trained model IDs across all projects.
+   * Used by the OCR module to list available models.
+   *
+   * @returns An array of distinct model ID strings from the database.
    */
-  private mapTrainedModelToDto(model: TrainedModel): TrainedModelDto {
+  async findAllTrainedModelIds(): Promise<string[]> {
+    return this.trainingDb.findAllTrainedModelIds();
+  }
+
+  mapTrainedModelToDto(model: TrainedModel): TrainedModelDto {
     return {
       id: model.id,
-      projectId: model.project_id,
+      templateModelId: model.template_model_id,
       trainingJobId: model.training_job_id,
       modelId: model.model_id,
-      description: model.description,
+      description: model.description ?? undefined,
       docTypes: model.doc_types as Record<string, unknown> | undefined,
       fieldCount: model.field_count,
       createdAt: model.created_at,

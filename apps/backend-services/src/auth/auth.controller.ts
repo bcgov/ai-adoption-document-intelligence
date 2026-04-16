@@ -1,8 +1,8 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   Controller,
   Get,
   HttpStatus,
-  Logger,
   Post,
   Query,
   Req,
@@ -22,8 +22,8 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
-import { DatabaseService } from "../database/database.service";
 import { GroupService } from "../group/group.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import {
   THROTTLE_AUTH_LIMIT,
   THROTTLE_AUTH_REFRESH_LIMIT,
@@ -40,6 +40,8 @@ import {
   setAuthCookies,
 } from "./cookie-auth.utils";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
+import { Identity } from "./identity.decorator";
+import { requireUserId } from "./identity.helpers";
 import { Public } from "./public.decorator";
 import { User } from "./types";
 
@@ -51,11 +53,10 @@ import { User } from "./types";
 @ApiTags("Authorization")
 @Controller("api/auth")
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
   constructor(
     private readonly authService: AuthService,
     private readonly groupService: GroupService,
-    private readonly databaseService: DatabaseService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   /**
@@ -254,7 +255,9 @@ export class AuthController {
       // Redirect to the SPA with a clean URL (no UUID or tokens in query string)
       return res.redirect(this.authService.getFrontendUrl());
     } catch (error) {
-      this.logger.error("OAuth callback handling failed:", error);
+      this.logger.error("OAuth callback handling failed:", {
+        error: getErrorMessage(error),
+      });
       const redirectUrl =
         this.authService.buildErrorRedirect("callback_failed");
       return res.redirect(redirectUrl);
@@ -281,14 +284,19 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
+  @Identity({ allowApiKey: false })
   async getMe(@Req() req: Request): Promise<MeResponseDto> {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);
     const exp = (user.exp as number) || now;
-    const userId = req.resolvedIdentity?.userId ?? "";
 
-    const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
-    const groups = await this.groupService.getUserGroups(userId, userId);
+    const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
+    // Route is JWT-only (allowApiKey: false), so a userId must be present.
+    const userId = requireUserId(req.resolvedIdentity);
+    const groups = await this.groupService.getUserGroups(
+      req.resolvedIdentity,
+      userId,
+    );
 
     return {
       sub: userId,

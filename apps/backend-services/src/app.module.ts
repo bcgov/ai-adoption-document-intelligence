@@ -3,18 +3,22 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { AuditModule } from "@/audit/audit.module";
 import { AzureModule } from "@/azure/azure.module";
-import { ApiKeyModule } from "./api-key/api-key.module";
+import { ActorModule } from "./actor/actor.module";
 import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
+import { BootstrapModule } from "./bootstrap/bootstrap.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
 import { GroupModule } from "./group/group.module";
 import { HitlModule } from "./hitl/hitl.module";
-import { LabelingModule } from "./labeling/labeling.module";
+import { LoggingModule } from "./logging/logging.module";
+import { MetricsModule } from "./metrics/metrics.module";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
+import { TemplateModelModule } from "./template-model/template-model.module";
 import { TemporalModule } from "./temporal/temporal.module";
 import { TrainingModule } from "./training/training.module";
 import { UploadModule } from "./upload/upload.module";
@@ -22,6 +26,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
 
 @Module({
   imports: [
+    LoggingModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ".env",
@@ -41,8 +46,9 @@ import { WorkflowModule } from "./workflow/workflow.module";
         ],
       }),
     }),
+    ActorModule,
     AuthModule,
-    ApiKeyModule,
+    AuditModule,
     BenchmarkModule,
     DatabaseModule,
     DocumentModule,
@@ -50,13 +56,15 @@ import { WorkflowModule } from "./workflow/workflow.module";
     UploadModule,
     TemporalModule,
     OcrModule,
-    LabelingModule,
+    TemplateModelModule,
     HitlModule,
     BlobStorageModule,
     TrainingModule,
     WorkflowModule,
     AzureModule,
+    BootstrapModule,
     GroupModule,
+    MetricsModule,
   ],
   providers: [
     {

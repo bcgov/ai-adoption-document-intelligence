@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "plg.loki.fullname" . }}
+  labels:
+    {{- include "plg.loki.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "plg.loki.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "plg.loki.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "plg.loki.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/loki-configmap.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: loki
+          image: "{{ .Values.loki.image.repository }}:{{ .Values.loki.image.tag }}"
+          imagePullPolicy: {{ .Values.loki.image.pullPolicy }}
+          args:
+            - -config.file=/etc/loki/loki.yaml
+            - -target=all
+          ports:
+            - name: http
+              containerPort: {{ .Values.loki.httpPort }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.loki.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: data
+              mountPath: /loki
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "plg.loki.fullname" . }}-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "plg.loki.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.loki.storageClassName }}
+        storageClassName: {{ .Values.loki.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.loki.pvcSize }}

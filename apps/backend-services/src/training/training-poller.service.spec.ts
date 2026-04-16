@@ -1,7 +1,9 @@
 import { TrainingStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { TrainingDbService } from "./training-db.service";
 import { TrainingPollerService } from "./training-poller.service";
 
 // Mock the Azure Document Intelligence module
@@ -17,42 +19,52 @@ import DocumentIntelligence, {
 
 describe("TrainingPollerService", () => {
   let service: TrainingPollerService;
-  let _mockDbService: jest.Mocked<DatabaseService>;
-  let mockConfigService: jest.Mocked<ConfigService>;
-  let mockAdminClient: any;
-  let mockPrisma: any;
+  let mockTrainingDb: {
+    createTrainingJob: jest.Mock;
+    findTrainingJob: jest.Mock;
+    findAllTrainingJobs: jest.Mock;
+    findAllActiveTrainingJobs: jest.Mock;
+    updateTrainingJob: jest.Mock;
+    createTrainedModel: jest.Mock;
+    findTrainedModelByModelId: jest.Mock;
+    deleteTrainedModel: jest.Mock;
+    findAllTrainedModels: jest.Mock;
+  };
+  let mockAdminClient: Record<string, jest.Mock>;
+
+  const mockTemplateModel = {
+    id: "tm-1",
+    model_id: "model-123",
+  };
 
   const mockTrainingJob = {
     id: "job-1",
-    project_id: "project-1",
-    model_id: "model-123",
+    template_model_id: "tm-1",
+    template_model: mockTemplateModel,
     operation_id: "operation-123",
     status: TrainingStatus.TRAINING,
+    container_name: "training-project-1",
+    sas_url: null,
+    blob_count: null,
     started_at: new Date(),
     completed_at: null,
     error_message: null,
-    dataset_id: "dataset-1",
-    build_mode: "template",
     created_at: new Date(),
     updated_at: new Date(),
   };
 
   beforeEach(async () => {
-    // Mock Prisma client
-    mockPrisma = {
-      trainingJob: {
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      trainedModel: {
-        create: jest.fn(),
-      },
-    };
-
-    // Mock DatabaseService with Prisma access
-    const mockDb = {
-      prisma: mockPrisma,
+    // Mock TrainingDbService
+    mockTrainingDb = {
+      createTrainingJob: jest.fn(),
+      findTrainingJob: jest.fn(),
+      findAllTrainingJobs: jest.fn(),
+      findAllActiveTrainingJobs: jest.fn(),
+      updateTrainingJob: jest.fn(),
+      createTrainedModel: jest.fn(),
+      findTrainedModelByModelId: jest.fn(),
+      deleteTrainedModel: jest.fn(),
+      findAllTrainedModels: jest.fn(),
     };
 
     // Mock Azure client methods
@@ -78,8 +90,8 @@ describe("TrainingPollerService", () => {
     (DocumentIntelligence as jest.Mock).mockReturnValue(mockAdminClient);
 
     const mockConfig = {
-      get: jest.fn((key: string, defaultValue?: any) => {
-        const config: Record<string, any> = {
+      get: jest.fn((key: string, defaultValue?: number) => {
+        const config: Record<string, string | number> = {
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_POLL_INTERVAL_SECONDS: 10,
@@ -92,9 +104,10 @@ describe("TrainingPollerService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrainingPollerService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
-          provide: DatabaseService,
-          useValue: mockDb,
+          provide: TrainingDbService,
+          useValue: mockTrainingDb,
         },
         {
           provide: ConfigService,
@@ -104,8 +117,6 @@ describe("TrainingPollerService", () => {
     }).compile();
 
     service = module.get<TrainingPollerService>(TrainingPollerService);
-    _mockDbService = module.get(DatabaseService);
-    mockConfigService = module.get(ConfigService);
   });
 
   describe("constructor", () => {
@@ -116,8 +127,8 @@ describe("TrainingPollerService", () => {
 
     it("should handle missing Azure credentials", async () => {
       const mockConfigNoCredentials = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          const config: Record<string, any> = {
+        get: jest.fn((key: string, defaultValue?: number) => {
+          const config: Record<string, number> = {
             TRAINING_POLL_INTERVAL_SECONDS: 10,
             TRAINING_MAX_POLL_ATTEMPTS: 60,
           };
@@ -128,10 +139,8 @@ describe("TrainingPollerService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingPollerService,
-          {
-            provide: DatabaseService,
-            useValue: { prisma: mockPrisma },
-          },
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          { provide: TrainingDbService, useValue: mockTrainingDb },
           {
             provide: ConfigService,
             useValue: mockConfigNoCredentials,
@@ -157,9 +166,10 @@ describe("TrainingPollerService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingPollerService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           {
-            provide: DatabaseService,
-            useValue: { prisma: mockPrisma },
+            provide: TrainingDbService,
+            useValue: mockTrainingDb,
           },
           {
             provide: ConfigService,
@@ -174,31 +184,33 @@ describe("TrainingPollerService", () => {
 
       await serviceNoClient.pollActiveJobs();
 
-      expect(mockPrisma.trainingJob.findMany).not.toHaveBeenCalled();
+      expect(mockTrainingDb.findAllActiveTrainingJobs).not.toHaveBeenCalled();
     });
 
     it("should skip polling when no active jobs", async () => {
-      mockPrisma.trainingJob.findMany.mockResolvedValueOnce([]);
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValueOnce([]);
 
       await service.pollActiveJobs();
 
-      expect(mockPrisma.trainingJob.findMany).toHaveBeenCalledWith({
-        where: {
-          status: {
-            in: [TrainingStatus.TRAINING, TrainingStatus.UPLOADED],
-          },
-        },
-      });
+      expect(mockTrainingDb.findAllActiveTrainingJobs).toHaveBeenCalled();
     });
 
     it("should poll all active jobs", async () => {
       const jobs = [
-        { ...mockTrainingJob, id: "job-1", operation_id: "op-1" },
-        { ...mockTrainingJob, id: "job-2", operation_id: "op-2" },
+        {
+          ...mockTrainingJob,
+          id: "job-1",
+          operation_id: "op-1",
+        },
+        {
+          ...mockTrainingJob,
+          id: "job-2",
+          operation_id: "op-2",
+        },
       ];
 
-      mockPrisma.trainingJob.findMany.mockResolvedValueOnce(jobs);
-      mockPrisma.trainingJob.findUnique
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValueOnce(jobs);
+      mockTrainingDb.findTrainingJob
         .mockResolvedValueOnce(jobs[0])
         .mockResolvedValueOnce(jobs[1]);
 
@@ -215,66 +227,39 @@ describe("TrainingPollerService", () => {
 
       await service.pollActiveJobs();
 
-      expect(mockPrisma.trainingJob.findMany).toHaveBeenCalled();
-      expect(mockPrisma.trainingJob.findUnique).toHaveBeenCalledTimes(2);
+      expect(mockTrainingDb.findAllActiveTrainingJobs).toHaveBeenCalled();
+      expect(mockTrainingDb.findTrainingJob).toHaveBeenCalledTimes(2);
     });
 
     it("should handle errors gracefully", async () => {
-      mockPrisma.trainingJob.findMany.mockRejectedValueOnce(
+      mockTrainingDb.findAllActiveTrainingJobs.mockRejectedValueOnce(
         new Error("Database error"),
       );
 
       await service.pollActiveJobs();
 
       // Should not throw
-      expect(mockPrisma.trainingJob.findMany).toHaveBeenCalled();
-    });
-
-    it("should handle missing Prisma client", async () => {
-      // Create service with db that has no prisma
-      const mockDbNoPrisma = {} as any;
-
-      const module = await Test.createTestingModule({
-        providers: [
-          TrainingPollerService,
-          {
-            provide: DatabaseService,
-            useValue: mockDbNoPrisma,
-          },
-          {
-            provide: ConfigService,
-            useValue: mockConfigService,
-          },
-        ],
-      }).compile();
-
-      const serviceNoPrisma = module.get<TrainingPollerService>(
-        TrainingPollerService,
-      );
-
-      await serviceNoPrisma.pollActiveJobs();
-
-      // Should not throw, just log error
+      expect(mockTrainingDb.findAllActiveTrainingJobs).toHaveBeenCalled();
     });
   });
 
   describe("pollTrainingStatus", () => {
     beforeEach(() => {
-      mockPrisma.trainingJob.findUnique.mockResolvedValue(mockTrainingJob);
+      mockTrainingDb.findTrainingJob.mockResolvedValue(mockTrainingJob);
     });
 
     it("should handle job with no operation ID", async () => {
       await service["pollTrainingStatus"]("job-1", "model-1", "");
 
-      expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
+      expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
 
     it("should handle job not found", async () => {
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(null);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(null);
 
       await service["pollTrainingStatus"]("non-existent", "model-1", "op-1");
 
-      expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
+      expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
 
     it("should timeout job after max attempts", async () => {
@@ -283,17 +268,18 @@ describe("TrainingPollerService", () => {
         started_at: new Date(Date.now() - 700 * 1000), // 700 seconds ago
       };
 
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(oldJob);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(oldJob);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: TrainingStatus.FAILED,
-          error_message: "Training timeout - exceeded maximum polling time",
-          completed_at: expect.any(Date),
-        },
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
+        status: TrainingStatus.FAILED,
+        error_message: "Training timeout - exceeded maximum polling time",
+        completed_at: expect.any(Date),
       });
     });
 
@@ -309,9 +295,13 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
+      expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
 
     it("should handle operation error", async () => {
@@ -330,15 +320,16 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: TrainingStatus.FAILED,
-          error_message: expect.stringContaining("Azure error"),
-          completed_at: expect.any(Date),
-        },
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
+        status: TrainingStatus.FAILED,
+        error_message: expect.stringContaining("Azure error"),
+        completed_at: expect.any(Date),
       });
     });
 
@@ -356,9 +347,13 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
+      expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
 
     it("should handle running status", async () => {
@@ -375,9 +370,13 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
+      expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
     });
 
     it("should handle failed status", async () => {
@@ -397,15 +396,16 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: TrainingStatus.FAILED,
-          error_message: "Training failed: Training failed",
-          completed_at: expect.any(Date),
-        },
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
+        status: TrainingStatus.FAILED,
+        error_message: "Training failed: Training failed",
+        completed_at: expect.any(Date),
       });
     });
 
@@ -434,31 +434,30 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      mockPrisma.trainingJob.update.mockResolvedValue(mockTrainingJob);
-      mockPrisma.trainedModel.create.mockResolvedValue({
+      mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
+      mockTrainingDb.createTrainedModel.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: TrainingStatus.SUCCEEDED,
-          completed_at: expect.any(Date),
-        },
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
+        status: TrainingStatus.SUCCEEDED,
+        completed_at: expect.any(Date),
       });
 
-      expect(mockPrisma.trainedModel.create).toHaveBeenCalledWith({
-        data: {
-          project_id: "project-1",
-          training_job_id: "job-1",
-          model_id: "model-1",
-          description: "Test model",
-          doc_types: expect.any(Object),
-          field_count: 2,
-        },
+      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
+        template_model_id: "tm-1",
+        training_job_id: "job-1",
+        model_id: "model-123",
+        description: "Test model",
+        doc_types: expect.any(Object),
+        field_count: 2,
       });
     });
 
@@ -497,24 +496,26 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      mockPrisma.trainingJob.update.mockResolvedValue(mockTrainingJob);
-      mockPrisma.trainedModel.create.mockResolvedValue({
+      mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
+      mockTrainingDb.createTrainedModel.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockGetModel).toHaveBeenCalled();
-      expect(mockPrisma.trainedModel.create).toHaveBeenCalledWith({
-        data: {
-          project_id: "project-1",
-          training_job_id: "job-1",
-          model_id: "model-1",
-          description: "Fetched model",
-          doc_types: expect.any(Object),
-          field_count: 3,
-        },
+      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
+        template_model_id: "tm-1",
+        training_job_id: "job-1",
+        model_id: "model-123",
+        description: "Fetched model",
+        doc_types: expect.any(Object),
+        field_count: 3,
       });
     });
 
@@ -550,15 +551,16 @@ describe("TrainingPollerService", () => {
         return callCount > 1; // First call (operation) = false, second call (model) = true
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: TrainingStatus.FAILED,
-          error_message: expect.stringContaining("Model fetch error"),
-          completed_at: expect.any(Date),
-        },
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
+        status: TrainingStatus.FAILED,
+        error_message: expect.stringContaining("Model fetch error"),
+        completed_at: expect.any(Date),
       });
     });
 
@@ -579,56 +581,32 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      mockPrisma.trainingJob.update.mockResolvedValue(mockTrainingJob);
-      mockPrisma.trainedModel.create.mockResolvedValue({
+      mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
+      mockTrainingDb.createTrainedModel.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
-      expect(mockPrisma.trainedModel.create).toHaveBeenCalledWith({
-        data: {
-          project_id: "project-1",
-          training_job_id: "job-1",
-          model_id: "model-1",
-          description: "Model without docTypes",
-          doc_types: {},
-          field_count: 0,
-        },
+      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
+        template_model_id: "tm-1",
+        training_job_id: "job-1",
+        model_id: "model-123",
+        description: "Model without docTypes",
+        doc_types: {},
+        field_count: 0,
       });
     });
   });
 
   describe("pollJob", () => {
-    it("should throw error when Prisma not available", async () => {
-      const mockDbNoPrisma = {} as any;
-
-      const module = await Test.createTestingModule({
-        providers: [
-          TrainingPollerService,
-          {
-            provide: DatabaseService,
-            useValue: mockDbNoPrisma,
-          },
-          {
-            provide: ConfigService,
-            useValue: mockConfigService,
-          },
-        ],
-      }).compile();
-
-      const serviceNoPrisma = module.get<TrainingPollerService>(
-        TrainingPollerService,
-      );
-
-      await expect(serviceNoPrisma.pollJob("job-1")).rejects.toThrow(
-        "Prisma client not available",
-      );
-    });
-
     it("should throw error when job not found", async () => {
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(null);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(null);
 
       await expect(service.pollJob("non-existent")).rejects.toThrow(
         "Job non-existent not found",
@@ -641,7 +619,7 @@ describe("TrainingPollerService", () => {
         status: TrainingStatus.TRAINING,
       };
 
-      mockPrisma.trainingJob.findUnique
+      mockTrainingDb.findTrainingJob
         .mockResolvedValueOnce(job)
         .mockResolvedValueOnce(job);
 
@@ -658,9 +636,7 @@ describe("TrainingPollerService", () => {
 
       await service.pollJob("job-1");
 
-      expect(mockPrisma.trainingJob.findUnique).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-      });
+      expect(mockTrainingDb.findTrainingJob).toHaveBeenCalledWith("job-1");
       expect(mockGetOperation).toHaveBeenCalled();
     });
 
@@ -670,7 +646,7 @@ describe("TrainingPollerService", () => {
         status: TrainingStatus.UPLOADED,
       };
 
-      mockPrisma.trainingJob.findUnique
+      mockTrainingDb.findTrainingJob
         .mockResolvedValueOnce(job)
         .mockResolvedValueOnce(job);
 
@@ -696,7 +672,7 @@ describe("TrainingPollerService", () => {
         status: TrainingStatus.SUCCEEDED,
       };
 
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(job);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(job);
 
       await service.pollJob("job-1");
 
@@ -709,7 +685,7 @@ describe("TrainingPollerService", () => {
         status: TrainingStatus.FAILED,
       };
 
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(job);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(job);
 
       await service.pollJob("job-1");
 

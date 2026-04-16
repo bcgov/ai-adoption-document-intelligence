@@ -7,12 +7,12 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-025-audit-logging.md
  */
 
-import { AuditAction, BenchmarkAuditLog, Prisma } from "@generated/client";
+import { AuditAction, BenchmarkAuditLog } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
-import { PrismaService } from "@/database/prisma.service";
+import { AuditLogDbService, FindAuditLogsWhere } from "./audit-log-db.service";
 
 export interface LogAuditEventParams {
-  userId: string;
+  actorId: string;
   action: AuditAction;
   entityType: string;
   entityId: string;
@@ -31,22 +31,19 @@ export interface QueryAuditLogsParams {
 @Injectable()
 export class AuditLogService {
   private readonly logger = new Logger(AuditLogService.name);
-  private readonly prisma;
 
-  constructor(private readonly prismaService: PrismaService) {
-    this.prisma = this.prismaService.prisma;
-  }
+  constructor(private readonly auditLogDbService: AuditLogDbService) {}
 
   /**
    * Log a dataset creation event
    */
   async logDatasetCreated(
-    userId: string,
+    actorId: string,
     datasetId: string,
     metadata?: Record<string, unknown>,
   ): Promise<BenchmarkAuditLog> {
     return this.logAuditEvent({
-      userId,
+      actorId,
       action: AuditAction.dataset_created,
       entityType: "Dataset",
       entityId: datasetId,
@@ -58,13 +55,13 @@ export class AuditLogService {
    * Log a version publishing event
    */
   async logVersionPublished(
-    userId: string,
+    actorId: string,
     versionId: string,
     datasetId: string,
     metadata?: Record<string, unknown>,
   ): Promise<BenchmarkAuditLog> {
     return this.logAuditEvent({
-      userId,
+      actorId,
       action: AuditAction.version_published,
       entityType: "DatasetVersion",
       entityId: versionId,
@@ -80,14 +77,14 @@ export class AuditLogService {
    * Log a run start event
    */
   async logRunStarted(
-    userId: string,
+    actorId: string,
     runId: string,
     definitionId: string,
     projectId: string,
     metadata?: Record<string, unknown>,
   ): Promise<BenchmarkAuditLog> {
     return this.logAuditEvent({
-      userId,
+      actorId,
       action: AuditAction.run_started,
       entityType: "BenchmarkRun",
       entityId: runId,
@@ -103,14 +100,14 @@ export class AuditLogService {
    * Log a run completion event
    */
   async logRunCompleted(
-    userId: string,
+    actorId: string,
     runId: string,
     status: string,
     metrics?: Record<string, unknown>,
     metadata?: Record<string, unknown>,
   ): Promise<BenchmarkAuditLog> {
     return this.logAuditEvent({
-      userId,
+      actorId,
       action: AuditAction.run_completed,
       entityType: "BenchmarkRun",
       entityId: runId,
@@ -126,13 +123,13 @@ export class AuditLogService {
    * Log a baseline promotion event
    */
   async logBaselinePromoted(
-    userId: string,
+    actorId: string,
     runId: string,
     projectId: string,
     metadata?: Record<string, unknown>,
   ): Promise<BenchmarkAuditLog> {
     return this.logAuditEvent({
-      userId,
+      actorId,
       action: AuditAction.baseline_promoted,
       entityType: "BenchmarkRun",
       entityId: runId,
@@ -147,20 +144,18 @@ export class AuditLogService {
    * Generic method to log any audit event
    */
   async logAuditEvent(params: LogAuditEventParams): Promise<BenchmarkAuditLog> {
-    const { userId, action, entityType, entityId, metadata } = params;
+    const { actorId, action, entityType, entityId, metadata } = params;
 
     this.logger.log(
-      `Audit log: ${action} | ${entityType}:${entityId} | user:${userId}`,
+      `Audit log: ${action} | ${entityType}:${entityId} | actor:${actorId}`,
     );
 
-    return this.prisma.benchmarkAuditLog.create({
-      data: {
-        userId,
-        action,
-        entityType,
-        entityId,
-        metadata: metadata as Prisma.InputJsonValue,
-      },
+    return this.auditLogDbService.createAuditLog({
+      actorId,
+      action,
+      entityType,
+      entityId,
+      metadata: metadata as Record<string, unknown>,
     });
   }
 
@@ -179,7 +174,7 @@ export class AuditLogService {
       limit = 100,
     } = params;
 
-    const where: Prisma.BenchmarkAuditLogWhereInput = {};
+    const where: FindAuditLogsWhere = {};
 
     if (entityType) {
       where.entityType = entityType;
@@ -203,10 +198,6 @@ export class AuditLogService {
       }
     }
 
-    return this.prisma.benchmarkAuditLog.findMany({
-      where,
-      orderBy: { timestamp: "asc" },
-      take: limit,
-    });
+    return this.auditLogDbService.findAllAuditLogs(where, limit);
   }
 }

@@ -3,34 +3,33 @@ permissions:
   contents: read
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
     branches: [main, develop]
-    paths:
-      - '.github/workflows/temporal-qa.yml'
-      - 'apps/temporal/**'
   workflow_dispatch:
 
 jobs:
   test-and-lint:
-    name: Test and Lint
+    name: Temporal Quality Assurance
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.env.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Get Environment
         id: env
         uses: ./.github/actions/get-environment
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
       - name: Install dependencies (root)
-        run: npm ci
+        run: npm install --ignore-scripts --no-package-lock
+      - name: Build shared packages
+        run: npm run build:packages
       - name: Install dependencies (temporal)
         working-directory: apps/temporal
-        run: npm ci
+        run: npm install --ignore-scripts --no-package-lock
       - name: Generate Prisma
         working-directory: apps/temporal
         run: npm run db:generate

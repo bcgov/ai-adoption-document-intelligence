@@ -1,4 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { getErrorMessage } from "@ai-di/shared-logging";
+import { Injectable } from "@nestjs/common";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { OcrService } from "../ocr/ocr.service";
 
 export interface QueueMessage {
@@ -16,9 +18,10 @@ export interface QueueMessage {
  */
 @Injectable()
 export class QueueService {
-  private readonly logger = new Logger(QueueService.name);
-
-  constructor(private ocrService: OcrService) {}
+  constructor(
+    private ocrService: OcrService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   /**
    * Process OCR for a document using Temporal workflow
@@ -53,7 +56,7 @@ export class QueueService {
       // No need to wait or poll here - Temporal handles it all
     } catch (error) {
       this.logger.error(
-        `Failed to process OCR for document ${message.documentId}: ${error.message}`,
+        `Failed to process OCR for document ${message.documentId}: ${getErrorMessage(error)}`,
       );
       throw error;
     }

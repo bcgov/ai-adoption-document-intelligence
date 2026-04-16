@@ -13,7 +13,7 @@ jest.mock("@/auth/identity.helpers", () => ({
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
+import { AuditService } from "@/audit/audit.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunController } from "./benchmark-run.controller";
 import { BenchmarkRunService } from "./benchmark-run.service";
@@ -39,15 +39,18 @@ describe("BenchmarkRunController", () => {
       .mockResolvedValue({ id: "project-1", groupId: "test-group" }),
   };
 
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-    isUserInGroup: jest.fn().mockResolvedValue(true),
+  const mockAuditService = {
+    recordEvent: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
+    resolvedIdentity: {
+      userId: "user-1",
+      isSystemAdmin: false,
+      groupRoles: {},
+      actorId: "user-1",
+    },
   } as unknown as Request;
 
   const projectId = "project-1";
@@ -58,7 +61,7 @@ describe("BenchmarkRunController", () => {
       providers: [
         { provide: BenchmarkRunService, useValue: mockRunService },
         { provide: BenchmarkProjectService, useValue: mockProjectService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -95,6 +98,7 @@ describe("BenchmarkRunController", () => {
         projectId,
         "def-1",
         createRunDto,
+        mockReq.resolvedIdentity,
       );
       expect(result).toEqual(expected);
     });
@@ -246,7 +250,7 @@ describe("BenchmarkRunController", () => {
   describe("GET /runs/:runId/samples", () => {
     it("returns paginated per-sample results with defaults", async () => {
       const expected = {
-        items: [],
+        results: [],
         total: 0,
         page: 1,
         limit: 20,
@@ -272,7 +276,7 @@ describe("BenchmarkRunController", () => {
     });
 
     it("parses pagination and filter params from query", async () => {
-      const expected = { items: [], total: 5, page: 2, limit: 10 };
+      const expected = { results: [], total: 5, page: 2, limit: 10 };
       mockRunService.getPerSampleResults.mockResolvedValue(expected);
 
       const query = {
@@ -301,7 +305,7 @@ describe("BenchmarkRunController", () => {
 
     it("keeps non-numeric filter values as strings", async () => {
       mockRunService.getPerSampleResults.mockResolvedValue({
-        items: [],
+        results: [],
         total: 0,
         page: 1,
         limit: 20,
@@ -349,6 +353,7 @@ describe("BenchmarkRunController", () => {
         projectId,
         "run-1",
         promoteDto,
+        mockReq.resolvedIdentity,
       );
       expect(result).toEqual(expected);
     });

@@ -60,9 +60,9 @@ export function RootLayout() {
         icon: IconList,
       },
       {
-        path: "/labeling",
-        label: "Training Labels",
-        description: "Create datasets",
+        path: "/template-models",
+        label: "Template Models",
+        description: "Manage template models",
         icon: IconTags,
       },
       {

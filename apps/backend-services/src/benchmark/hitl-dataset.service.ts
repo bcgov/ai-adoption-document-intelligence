@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   CorrectionAction,
   DocumentStatus,
@@ -15,8 +16,13 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
+import { ReviewDbService } from "../hitl/review-db.service";
 import { AuditLogService } from "./audit-log.service";
 import { DatasetService } from "./dataset.service";
 import {
@@ -33,7 +39,9 @@ interface DocumentWithReview {
   id: string;
   original_filename: string;
   file_path: string;
+  normalized_file_path: string | null;
   file_type: string;
+  group_id: string;
   ocr_result: {
     keyValuePairs: unknown;
   } | null;
@@ -56,7 +64,7 @@ export class HitlDatasetService {
   private readonly logger = new Logger(HitlDatasetService.name);
 
   constructor(
-    private readonly db: DatabaseService,
+    private readonly reviewDbService: ReviewDbService,
     private readonly datasetService: DatasetService,
     private readonly auditLogService: AuditLogService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
@@ -74,7 +82,7 @@ export class HitlDatasetService {
     const limit = Math.min(filters.limit ?? 20, 100);
     const offset = (page - 1) * limit;
 
-    const documents = (await this.db.findReviewQueue({
+    const documents = (await this.reviewDbService.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       reviewStatus: "reviewed",
       limit: 1000,
@@ -134,7 +142,7 @@ export class HitlDatasetService {
    */
   async createDatasetFromHitl(
     dto: CreateDatasetFromHitlDto,
-    userId: string,
+    actorId: string,
   ): Promise<{
     dataset: DatasetResponseDto;
     version: VersionResponseDto;
@@ -152,14 +160,15 @@ export class HitlDatasetService {
         metadata: { ...dto.metadata, source: "hitl" },
         groupId: dto.groupId,
       },
-      userId,
+      actorId,
     );
 
     // Create version and package documents
     const { version, skipped } = await this.packageDocumentsIntoVersion(
       dataset.id,
       dto.documentIds,
-      userId,
+      actorId,
+      dto.groupId,
     );
 
     return { dataset, version, skipped };
@@ -171,7 +180,8 @@ export class HitlDatasetService {
   async addVersionFromHitl(
     datasetId: string,
     dto: AddVersionFromHitlDto,
-    userId: string,
+    actorId: string,
+    groupId: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
     this.logger.log(
       `Adding HITL version to dataset ${datasetId} from ${dto.documentIds.length} documents`,
@@ -180,7 +190,8 @@ export class HitlDatasetService {
     return this.packageDocumentsIntoVersion(
       datasetId,
       dto.documentIds,
-      userId,
+      actorId,
+      groupId,
       dto.version,
       dto.name,
     );
@@ -192,15 +203,19 @@ export class HitlDatasetService {
   private async packageDocumentsIntoVersion(
     datasetId: string,
     documentIds: string[],
-    userId: string,
+    actorId: string,
+    groupId: string,
     versionLabel?: string,
     versionName?: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
-    // Fetch all reviewed documents once
-    const allDocuments = (await this.db.findReviewQueue({
+    // Fetch all reviewed documents once, scoped to the dataset's group to
+    // prevent cross-tenant packaging (a caller in group A cannot pull
+    // documents belonging to group B into their dataset).
+    const allDocuments = (await this.reviewDbService.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       reviewStatus: "reviewed",
       limit: 10000,
+      groupIds: [groupId],
     })) as unknown as DocumentWithReview[];
 
     const documentMap = new Map(allDocuments.map((d) => [d.id, d]));
@@ -212,7 +227,7 @@ export class HitlDatasetService {
         version: versionLabel,
         name: versionName,
       },
-      userId,
+      actorId,
     );
 
     const storagePrefix = `datasets/${datasetId}/${version.id}`;
@@ -235,6 +250,15 @@ export class HitlDatasetService {
           throw new Error("Document not found or not in completed_ocr status");
         }
 
+        // Defense-in-depth: the findReviewQueue call above already filters
+        // by groupId, so this should never trigger. If it does, the query
+        // filter was bypassed and we refuse to write cross-tenant blobs.
+        if (doc.group_id !== groupId) {
+          throw new Error(
+            `Document belongs to a different group than the dataset`,
+          );
+        }
+
         const result = await this.processDocument(
           doc,
           storagePrefix,
@@ -245,7 +269,7 @@ export class HitlDatasetService {
           manifestSamples.push(result);
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getErrorMessage(error);
         this.logger.warn(`Skipping document ${documentId}: ${message}`);
         skipped.push({ documentId, reason: message });
       }
@@ -263,7 +287,12 @@ export class HitlDatasetService {
       samples: manifestSamples,
     };
 
-    const manifestKey = `${storagePrefix}/dataset-manifest.json`;
+    const manifestKey = buildBlobFilePath(
+      groupId,
+      OperationCategory.BENCHMARK,
+      [storagePrefix],
+      "dataset-manifest.json",
+    );
     await this.blobStorage.write(
       manifestKey,
       Buffer.from(JSON.stringify(manifest, null, 2)),
@@ -280,7 +309,7 @@ export class HitlDatasetService {
 
     // Audit log
     await this.auditLogService.logVersionPublished(
-      userId,
+      actorId,
       version.id,
       datasetId,
       {
@@ -345,13 +374,25 @@ export class HitlDatasetService {
     }
     usedSampleIds.add(sampleId);
 
-    // Copy the original document file
-    const inputFilename = `${sampleId}${ext}`;
-    const inputRelativePath = `inputs/${inputFilename}`;
-    const inputBlobKey = `${storagePrefix}/${inputRelativePath}`;
+    if (!doc.normalized_file_path) {
+      throw new Error(
+        "Document has no normalized PDF; cannot export to dataset",
+      );
+    }
 
-    const originalFileBuffer = await this.blobStorage.read(doc.file_path);
-    await this.blobStorage.write(inputBlobKey, originalFileBuffer);
+    const inputFilename = `${sampleId}.pdf`;
+    const inputRelativePath = `inputs/${inputFilename}`;
+    const inputBlobKey = buildBlobFilePath(
+      doc.group_id,
+      OperationCategory.BENCHMARK,
+      [storagePrefix, "inputs"],
+      inputFilename,
+    );
+
+    const normalizedPdfBuffer = await this.blobStorage.read(
+      validateBlobFilePath(doc.normalized_file_path),
+    );
+    await this.blobStorage.write(inputBlobKey, normalizedPdfBuffer);
 
     // Build ground truth as flat key-value pairs (same format as uploaded
     // ground truth and as predictions produced by extractPredictionFromCtx
@@ -363,14 +404,18 @@ export class HitlDatasetService {
 
     // Write ground truth file
     const gtRelativePath = `ground-truth/${sampleId}.json`;
-    const gtBlobKey = `${storagePrefix}/${gtRelativePath}`;
+    const gtBlobKey = buildBlobFilePath(
+      doc.group_id,
+      OperationCategory.BENCHMARK,
+      [storagePrefix, "ground-truth"],
+      `${sampleId}.json`,
+    );
     await this.blobStorage.write(
       gtBlobKey,
       Buffer.from(JSON.stringify(groundTruth, null, 2)),
     );
 
-    // Determine MIME type
-    const mimeType = this.getMimeType(ext);
+    const mimeType = "application/pdf";
 
     return {
       id: sampleId,
@@ -444,19 +489,6 @@ export class HitlDatasetService {
     }
 
     return groundTruth;
-  }
-
-  private getMimeType(ext: string): string {
-    const mimeTypes: Record<string, string> = {
-      ".pdf": "application/pdf",
-      ".png": "image/png",
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".tif": "image/tiff",
-      ".tiff": "image/tiff",
-      ".bmp": "image/bmp",
-    };
-    return mimeTypes[ext.toLowerCase()] ?? "application/octet-stream";
   }
 }
 

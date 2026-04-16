@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import {
   BadRequestException,
@@ -9,7 +10,6 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
-  Logger,
   NotFoundException,
   Param,
   Patch,
@@ -27,45 +27,47 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { AuditService } from "@/audit/audit.service";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService, DocumentData } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
+import { type DocumentData, DocumentService } from "./document.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
+import { getContentTypeFromFilename } from "./mime-from-filename";
 
 @ApiTags("Documents")
 @Controller("api/documents")
 export class DocumentController {
-  private readonly logger = new Logger(DocumentController.name);
-
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly documentService: DocumentService,
     private readonly temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("/:documentId")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get a document by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -81,16 +83,22 @@ export class DocumentController {
     this.logger.debug(`=== DocumentController.getDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (!document) {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: { action: "metadata" },
+    });
 
     this.logger.debug("=== DocumentController.getDocument completed ===");
     return document;
@@ -98,8 +106,7 @@ export class DocumentController {
 
   @Patch("/:documentId")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Update a document" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiBody({ type: UpdateDocumentDto })
@@ -118,18 +125,14 @@ export class DocumentController {
     this.logger.debug(`=== DocumentController.updateDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (!document) {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
-    const updated = await this.databaseService.updateDocument(documentId, {
+    const updated = await this.documentService.updateDocument(documentId, {
       ...(body.title !== undefined ? { title: body.title } : {}),
       ...(body.metadata !== undefined
         ? { metadata: body.metadata as Prisma.JsonValue }
@@ -139,14 +142,23 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: { action: "metadata" },
+    });
+
     this.logger.debug("=== DocumentController.updateDocument completed ===");
     return updated;
   }
 
   @Delete("/:documentId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a document" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiNoContentResponse({ description: "Document deleted successfully" })
@@ -159,25 +171,14 @@ export class DocumentController {
     this.logger.debug(`=== DocumentController.deleteDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (!document) {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
-    await this.databaseService.deleteDocument(documentId);
-    try {
-      await this.blobStorage.delete(document.file_path);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to delete blob for document ${documentId}: ${(error as Error).message}`,
-      );
-    }
+    await this.documentService.deleteDocument(documentId);
 
     this.logger.debug("=== DocumentController.deleteDocument completed ===");
   }
@@ -187,8 +188,7 @@ export class DocumentController {
   // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all documents" })
   @ApiQuery({
     name: "group_id",
@@ -212,21 +212,14 @@ export class DocumentController {
     let groupIds: string[] | undefined;
 
     if (groupId !== undefined) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       groupIds = [groupId];
     } else {
-      groupIds = await getIdentityGroupIds(
-        req.resolvedIdentity,
-        this.databaseService,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
     try {
-      const documents = await this.databaseService.findAllDocuments(groupIds);
+      const documents = await this.documentService.findAllDocuments(groupIds);
 
       // Check workflow status for documents that have workflow_execution_id
       const documentsWithWorkflowStatus = await Promise.all(
@@ -255,7 +248,7 @@ export class DocumentController {
                 this.logger.warn(
                   `Document ${doc.id} workflow ended with status ${workflowStatus.status}, updating database`,
                 );
-                await this.databaseService.updateDocument(doc.id, {
+                await this.documentService.updateDocument(doc.id, {
                   status: DocumentStatus.failed,
                 });
                 return {
@@ -287,7 +280,7 @@ export class DocumentController {
                 } catch (queryError) {
                   // Query failed but workflow is running - this is OK, just return current status
                   this.logger.debug(
-                    `Could not query running workflow for document ${doc.id}: ${queryError.message}`,
+                    `Could not query running workflow for document ${doc.id}: ${queryError instanceof Error ? queryError.message : String(queryError)}`,
                   );
                 }
               }
@@ -295,7 +288,7 @@ export class DocumentController {
               // If workflow status check fails, log but don't fail the entire request
               // This can happen if Temporal is unavailable
               this.logger.debug(
-                `Could not get workflow status for document ${doc.id}: ${error.message}`,
+                `Could not get workflow status for document ${doc.id}: ${getErrorMessage(error)}`,
               );
             }
           }
@@ -303,24 +296,42 @@ export class DocumentController {
         }),
       );
 
+      if (req.resolvedIdentity) {
+        await this.auditService.recordEvent({
+          event_type: "document_list_accessed",
+          resource_type: "document_collection",
+          resource_id:
+            groupId ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+          actor_id: req.resolvedIdentity.actorId,
+          group_id: groupId,
+          payload: {
+            action: "metadata",
+            document_ids: documents.map((d) => d.id),
+            count: documents.length,
+            group_ids: groupIds,
+          },
+        });
+      }
+
       this.logger.debug(`Retrieved ${documents.length} documents`);
       this.logger.debug("=== DocumentController.getAllDocuments completed ===");
 
       return documentsWithWorkflowStatus;
     } catch (error) {
-      this.logger.error(`Error retrieving documents: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(
+        `Error retrieving documents: ${getErrorMessage(error)}`,
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       throw new NotFoundException(
-        error.message || "Failed to retrieve documents",
+        getErrorMessage(error) || "Failed to retrieve documents",
       );
     }
   }
 
   @Get("/:documentId/ocr")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get OCR result for a document by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -338,17 +349,13 @@ export class DocumentController {
 
     try {
       // First check if document exists and its status
-      const document = await this.databaseService.findDocument(documentId);
+      const document = await this.documentService.findDocument(documentId);
       if (!document) {
         this.logger.warn(`Document not found: ${documentId}`);
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
@@ -356,7 +363,7 @@ export class DocumentController {
         this.logger.debug(`APIM Request ID: ${document.apim_request_id}`);
       }
 
-      const ocrResult = await this.databaseService.findOcrResult(documentId);
+      const ocrResult = await this.documentService.findOcrResult(documentId);
 
       // Return consistent structure with document info and ocr_result
       const response = {
@@ -383,13 +390,26 @@ export class DocumentController {
           `OCR result retrieved successfully for document: ${documentId}`,
         );
         this.logger.debug(`OCR processed at: ${ocrResult.processed_at}`);
+
+        await this.auditService.recordEvent({
+          event_type: "document_accessed",
+          resource_type: "ocr_result",
+          resource_id: ocrResult.id,
+          actor_id: req.resolvedIdentity.actorId,
+          document_id: documentId,
+          group_id: document.group_id ?? undefined,
+          payload: { action: "ocr" },
+        });
       }
 
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
+
       return response;
     } catch (error) {
-      this.logger.error(`Error retrieving OCR result: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(
+        `Error retrieving OCR result: ${getErrorMessage(error)}`,
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -399,21 +419,87 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message ||
+        getErrorMessage(error) ||
           `Failed to retrieve OCR result for document: ${documentId}`,
       );
     }
   }
 
+  @Get("/:documentId/view")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "View normalized document as PDF",
+    description:
+      "Streams the normalized PDF used for in-app display and OCR. Always application/pdf.",
+  })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiProduces("application/pdf")
+  @ApiOkResponse({
+    description: "Normalized PDF bytes (Content-Type: application/pdf)",
+  })
+  @ApiNotFoundResponse({
+    description: "Document not found or normalized PDF unavailable",
+  })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async viewDocument(
+    @Param("documentId") documentId: string,
+    @Res() res: Response,
+    @Req() req: Request,
+  ): Promise<void> {
+    this.logger.debug(`=== DocumentController.viewDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+
+    const document = await this.documentService.findDocument(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+
+    if (!document.normalized_file_path) {
+      throw new NotFoundException(
+        `Normalized PDF is not available for document: ${documentId}`,
+      );
+    }
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: { action: "view" },
+    });
+
+    const fileBuffer = await this.blobStorage.read(
+      validateBlobFilePath(document.normalized_file_path),
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');
+    res.setHeader("Content-Length", fileBuffer.length);
+    res.send(fileBuffer);
+
+    this.logger.debug("=== DocumentController.viewDocument completed ===");
+  }
+
   @Get("/:documentId/download")
   @HttpCode(HttpStatus.OK)
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Download a document file by ID" })
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Download original uploaded file",
+    description:
+      "Serves the stored original blob (not the normalized PDF). Filename and type follow original_filename.",
+  })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
-    description: "Returns the document file buffer as a download",
+    description: "Returns the original file buffer",
   })
   @ApiNotFoundResponse({ description: "Document not found or file missing" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async downloadDocument(
     @Param("documentId") documentId: string,
@@ -425,28 +511,29 @@ export class DocumentController {
 
     try {
       // Find the document
-      const document = await this.databaseService.findDocument(documentId);
+      const document = await this.documentService.findDocument(documentId);
       if (!document) {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: documentId,
+        group_id: document.group_id,
+        payload: { action: "download" },
+      });
 
       // Read file from blob storage using the blob key
-      const fileBuffer = await this.blobStorage.read(document.file_path);
+      const filePath = validateBlobFilePath(document.file_path);
+      const fileBuffer = await this.blobStorage.read(filePath);
 
-      // Set appropriate headers
       const fileName = document.original_filename || `document-${documentId}`;
-      const mimeType =
-        document.file_type === "pdf"
-          ? "application/pdf"
-          : document.file_type === "image"
-            ? "image/jpeg"
-            : "application/octet-stream";
+      const mimeType = getContentTypeFromFilename(fileName);
 
       res.setHeader("Content-Type", mimeType);
       res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
@@ -459,10 +546,22 @@ export class DocumentController {
         "=== DocumentController.downloadDocument completed ===",
       );
 
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: documentId,
+        group_id: document.group_id,
+        payload: { action: "download" },
+      });
+
       res.send(fileBuffer);
     } catch (error) {
-      this.logger.error(`Error downloading document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(
+        `Error downloading document: ${getErrorMessage(error)}`,
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -472,14 +571,14 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message || `Failed to download document: ${documentId}`,
+        getErrorMessage(error) || `Failed to download document: ${documentId}`,
       );
     }
   }
 
   @Post("/:documentId/approve")
   @HttpCode(HttpStatus.OK)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Approve or reject a document",
     description:
@@ -525,16 +624,12 @@ export class DocumentController {
       }
 
       // Find the document
-      const document = await this.databaseService.findDocument(documentId);
+      const document = await this.documentService.findDocument(documentId);
       if (!document) {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       // Get workflow execution ID from document
       // Use workflow_execution_id (new field) or fallback to workflow_id (legacy)
@@ -554,6 +649,20 @@ export class DocumentController {
         annotations: body.annotations,
       });
 
+      await this.auditService.recordEvent({
+        event_type: "human_approval_signal_sent",
+        resource_type: "workflow_run",
+        resource_id: workflowId,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: documentId,
+        workflow_execution_id: workflowId,
+        group_id: document.group_id,
+        payload: {
+          approved: body.approved,
+          reviewer: body.reviewer ?? undefined,
+        },
+      });
+
       this.logger.log(
         `Human approval signal sent for document ${documentId}: ${body.approved ? "approved" : "rejected"}`,
       );
@@ -567,8 +676,8 @@ export class DocumentController {
         message: `Document ${body.approved ? "approved" : "rejected"} successfully`,
       };
     } catch (error) {
-      this.logger.error(`Error approving document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error approving document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (
         error instanceof NotFoundException ||
@@ -579,7 +688,7 @@ export class DocumentController {
       }
 
       throw new NotFoundException(
-        error.message || `Failed to approve document: ${documentId}`,
+        getErrorMessage(error) || `Failed to approve document: ${documentId}`,
       );
     }
   }

@@ -5,270 +5,223 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-011-benchmark-definition-service-controller.md
  */
 
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import type { MetricThreshold } from "./promote-baseline.dto";
+
 /**
  * Dataset version info embedded in definition response
  */
 export class DatasetVersionInfo {
-  /**
-   * Dataset version ID
-   */
-  id: string;
+  @ApiProperty({ description: "Dataset version ID" })
+  id!: string;
 
-  /**
-   * Dataset name
-   */
-  datasetName: string;
+  @ApiProperty({ description: "Dataset name" })
+  datasetName!: string;
 
-  /**
-   * Version number
-   */
-  version: string;
+  @ApiProperty({ description: "Version number" })
+  version!: string;
 }
 
 /**
  * Workflow info embedded in definition response
  */
 export class WorkflowInfo {
-  /**
-   * Workflow ID
-   */
-  id: string;
+  @ApiProperty({ description: "Workflow ID" })
+  id!: string;
 
-  /**
-   * Workflow name
-   */
-  name: string;
+  @ApiProperty({ description: "Workflow name" })
+  name!: string;
 
-  /**
-   * Workflow version
-   */
-  version: number;
+  @ApiProperty({ description: "Workflow version" })
+  version!: number;
 }
 
 /**
  * Split info embedded in definition response
  */
 export class SplitInfo {
-  /**
-   * Split ID
-   */
-  id: string;
+  @ApiProperty({ description: "Split ID" })
+  id!: string;
 
-  /**
-   * Split name
-   */
-  name: string;
+  @ApiProperty({ description: "Split name" })
+  name!: string;
 
-  /**
-   * Split type (train, val, test, golden)
-   */
-  type: string;
+  @ApiProperty({ description: "Split type (train, val, test, golden)" })
+  type!: string;
 }
 
 /**
  * Run history summary
  */
 export class RunHistorySummary {
-  /**
-   * Run ID
-   */
-  id: string;
+  @ApiProperty({ description: "Run ID" })
+  id!: string;
 
-  /**
-   * Run status
-   */
-  status: string;
+  @ApiProperty({ description: "Run status" })
+  status!: string;
 
-  /**
-   * Start timestamp
-   */
-  startedAt: Date | null;
+  @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
+  startedAt!: Date | null;
 
-  /**
-   * Completion timestamp
-   */
-  completedAt: Date | null;
+  @ApiProperty({
+    description: "Completion timestamp",
+    nullable: true,
+    type: Date,
+  })
+  completedAt!: Date | null;
 }
-
-// Import MetricThreshold from promote-baseline.dto.ts to avoid duplication
-import type { MetricThreshold } from "./promote-baseline.dto";
 
 /**
  * Baseline run summary for definition detail
  */
 export class BaselineRunSummary {
-  /**
-   * Baseline run ID
-   */
-  id: string;
+  @ApiProperty({ description: "Baseline run ID" })
+  id!: string;
 
-  /**
-   * Run status
-   */
-  status: string;
+  @ApiProperty({ description: "Run status" })
+  status!: string;
 
-  /**
-   * Aggregated metrics from the baseline run
-   */
-  metrics: Record<string, number>;
+  @ApiProperty({
+    description: "Aggregated metrics from the baseline run",
+    type: "object",
+    additionalProperties: { type: "number" },
+  })
+  metrics!: Record<string, number>;
 
-  /**
-   * Baseline thresholds for regression detection
-   */
-  baselineThresholds: MetricThreshold[];
+  @ApiProperty({
+    description: "Baseline thresholds for regression detection",
+    isArray: true,
+  })
+  baselineThresholds!: MetricThreshold[];
 
-  /**
-   * Completion timestamp
-   */
-  completedAt: Date | null;
+  @ApiProperty({
+    description: "Completion timestamp",
+    nullable: true,
+    type: Date,
+  })
+  completedAt!: Date | null;
 }
 
 /**
  * Benchmark definition response (list view)
  */
 export class DefinitionSummaryDto {
-  /**
-   * Definition ID
-   */
-  id: string;
+  @ApiProperty({ description: "Definition ID" })
+  id!: string;
 
-  /**
-   * Definition name
-   */
-  name: string;
+  @ApiProperty({ description: "Definition name" })
+  name!: string;
 
-  /**
-   * Dataset version info
-   */
-  datasetVersion: DatasetVersionInfo;
+  @ApiProperty({
+    description: "Dataset version info",
+    type: () => DatasetVersionInfo,
+  })
+  datasetVersion!: DatasetVersionInfo;
 
-  /**
-   * Workflow info
-   */
-  workflow: WorkflowInfo;
+  @ApiProperty({ description: "Workflow info", type: () => WorkflowInfo })
+  workflow!: WorkflowInfo;
 
-  /**
-   * Evaluator type
-   */
-  evaluatorType: string;
+  @ApiProperty({ description: "Evaluator type" })
+  evaluatorType!: string;
 
-  /**
-   * Whether the definition is immutable (has runs)
-   */
-  immutable: boolean;
+  @ApiProperty({
+    description: "Whether the definition is immutable (has runs)",
+  })
+  immutable!: boolean;
 
-  /**
-   * Definition revision number
-   */
-  revision: number;
+  @ApiProperty({ description: "Definition revision number" })
+  revision!: number;
 
-  /**
-   * Creation timestamp
-   */
-  createdAt: Date;
+  @ApiProperty({ description: "Creation timestamp" })
+  createdAt!: Date;
 
-  /**
-   * Last update timestamp
-   */
-  updatedAt: Date;
+  @ApiProperty({ description: "Last update timestamp" })
+  updatedAt!: Date;
 }
 
 /**
  * Full benchmark definition details
  */
 export class DefinitionDetailsDto {
-  /**
-   * Definition ID
-   */
-  id: string;
+  @ApiProperty({ description: "Definition ID" })
+  id!: string;
 
-  /**
-   * Project ID
-   */
-  projectId: string;
+  @ApiProperty({ description: "Project ID" })
+  projectId!: string;
 
-  /**
-   * Definition name
-   */
-  name: string;
+  @ApiProperty({ description: "Definition name" })
+  name!: string;
 
-  /**
-   * Dataset version info
-   */
-  datasetVersion: DatasetVersionInfo;
+  @ApiProperty({
+    description: "Dataset version info",
+    type: () => DatasetVersionInfo,
+  })
+  datasetVersion!: DatasetVersionInfo;
 
-  /**
-   * Split info (optional — definition may use full dataset)
-   */
+  @ApiPropertyOptional({
+    description: "Split info (optional — definition may use full dataset)",
+    type: () => SplitInfo,
+  })
   split?: SplitInfo;
 
-  /**
-   * Workflow info
-   */
-  workflow: WorkflowInfo;
+  @ApiProperty({ description: "Workflow info", type: () => WorkflowInfo })
+  workflow!: WorkflowInfo;
 
-  /**
-   * Workflow config hash (captured at creation time)
-   */
-  workflowConfigHash: string;
+  @ApiProperty({
+    description: "Workflow config hash (captured at creation time)",
+  })
+  workflowConfigHash!: string;
 
-  /**
-   * Evaluator type
-   */
-  evaluatorType: string;
+  @ApiProperty({ description: "Evaluator type" })
+  evaluatorType!: string;
 
-  /**
-   * Evaluator configuration
-   */
-  evaluatorConfig: Record<string, unknown>;
+  @ApiProperty({
+    description: "Evaluator configuration",
+    type: "object",
+    additionalProperties: true,
+  })
+  evaluatorConfig!: Record<string, unknown>;
 
-  /**
-   * Runtime settings
-   */
-  runtimeSettings: Record<string, unknown>;
+  @ApiProperty({
+    description: "Runtime settings",
+    type: "object",
+    additionalProperties: true,
+  })
+  runtimeSettings!: Record<string, unknown>;
 
-  /**
-   * Whether the definition is immutable (has runs)
-   */
-  immutable: boolean;
+  @ApiProperty({
+    description: "Whether the definition is immutable (has runs)",
+  })
+  immutable!: boolean;
 
-  /**
-   * Definition revision number
-   */
-  revision: number;
+  @ApiProperty({ description: "Definition revision number" })
+  revision!: number;
 
-  /**
-   * Schedule configuration
-   */
-  scheduleEnabled: boolean;
+  @ApiProperty({ description: "Whether scheduling is enabled" })
+  scheduleEnabled!: boolean;
 
-  /**
-   * Cron expression for scheduled runs
-   */
+  @ApiPropertyOptional({ description: "Cron expression for scheduled runs" })
   scheduleCron?: string;
 
-  /**
-   * Temporal schedule ID
-   */
+  @ApiPropertyOptional({ description: "Temporal schedule ID" })
   scheduleId?: string;
 
-  /**
-   * Run history
-   */
-  runHistory: RunHistorySummary[];
+  @ApiProperty({
+    description: "Run history",
+    type: () => RunHistorySummary,
+    isArray: true,
+  })
+  runHistory!: RunHistorySummary[];
 
-  /**
-   * Current baseline run for this definition (if any)
-   */
+  @ApiPropertyOptional({
+    description: "Current baseline run for this definition (if any)",
+    type: () => BaselineRunSummary,
+  })
   baselineRun?: BaselineRunSummary;
 
-  /**
-   * Creation timestamp
-   */
-  createdAt: Date;
+  @ApiProperty({ description: "Creation timestamp" })
+  createdAt!: Date;
 
-  /**
-   * Last update timestamp
-   */
-  updatedAt: Date;
+  @ApiProperty({ description: "Last update timestamp" })
+  updatedAt!: Date;
 }

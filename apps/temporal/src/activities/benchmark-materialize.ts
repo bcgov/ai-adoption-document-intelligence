@@ -1,7 +1,14 @@
+import {
+  buildBlobPrefixPath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@ai-di/blob-storage-paths";
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import * as fs from "fs/promises";
 import * as path from "path";
 import type { DatasetManifest } from "../benchmark-types";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
 interface MaterializeDatasetParams {
@@ -26,15 +33,9 @@ export async function materializeDataset(
   const activityName = "materializeDataset";
   const startTime = Date.now();
   const { datasetVersionId } = params;
+  const log = createActivityLogger(activityName, { datasetVersionId });
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      datasetVersionId,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Materialize dataset start", { event: "start" });
 
   try {
     const prisma = getPrismaClient();
@@ -50,7 +51,7 @@ export async function materializeDataset(
     }
 
     const { dataset, storagePrefix } = datasetVersion;
-    const { id: datasetId } = dataset;
+    const { id: datasetId, group_id: groupId } = dataset;
 
     if (!storagePrefix) {
       throw new Error(
@@ -58,21 +59,28 @@ export async function materializeDataset(
       );
     }
 
+    // storagePrefix in the DB is the relative portion
+    // (e.g. "datasets/{datasetId}/{versionId}"). Backend writers prepend
+    // "{groupId}/benchmark/" via buildBlobFilePath, so the real blob keys
+    // live at "{groupId}/benchmark/{storagePrefix}/...". Rebuild the full
+    // canonical prefix here before listing.
+    const fullStoragePrefix = buildBlobPrefixPath(
+      groupId,
+      OperationCategory.BENCHMARK,
+      [storagePrefix],
+    );
+
     // Determine cache directory
     const cacheBaseDir =
       process.env.BENCHMARK_CACHE_DIR || "/tmp/benchmark-cache";
     const cacheKey = `${datasetId}-${datasetVersionId}`;
     const materializedPath = path.join(cacheBaseDir, cacheKey);
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "check_cache",
-        cacheKey,
-        materializedPath,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Check cache", {
+      event: "check_cache",
+      cacheKey,
+      materializedPath,
+    });
 
     // Check if dataset is already cached by looking for the manifest
     const manifestLocalPath = path.join(
@@ -82,28 +90,20 @@ export async function materializeDataset(
     try {
       await fs.access(manifestLocalPath);
 
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "cache_hit",
-          cacheKey,
-          materializedPath,
-          durationMs: Date.now() - startTime,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Cache hit", {
+        event: "cache_hit",
+        cacheKey,
+        materializedPath,
+        durationMs: Date.now() - startTime,
+      });
 
       return { materializedPath };
     } catch {
       // Cache doesn't exist - proceed with materialization
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "cache_miss",
-          cacheKey,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Cache miss", {
+        event: "cache_miss",
+        cacheKey,
+      });
     }
 
     // Ensure cache base directory exists
@@ -113,33 +113,25 @@ export async function materializeDataset(
     // Download all files from object storage
     const blobStorage = getBlobStorageClient();
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "download_start",
-        storagePrefix,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Download start", {
+      event: "download_start",
+      storagePrefix: fullStoragePrefix,
+    });
 
     try {
-      const keys = await blobStorage.list(storagePrefix);
+      const keys = await blobStorage.list(fullStoragePrefix);
 
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "files_listed",
-          fileCount: keys.length,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Files listed", {
+        event: "files_listed",
+        fileCount: keys.length,
+      });
 
       // Download each file to the local cache directory
       for (const key of keys) {
-        // Compute relative path by removing the storage prefix
-        const relativePath = key.startsWith(storagePrefix + "/")
-          ? key.slice(storagePrefix.length + 1)
-          : key.slice(storagePrefix.length);
+        // Compute relative path by removing the full storage prefix
+        const relativePath = key.startsWith(fullStoragePrefix + "/")
+          ? key.slice(fullStoragePrefix.length + 1)
+          : key.slice(fullStoragePrefix.length);
 
         if (!relativePath) continue;
 
@@ -148,29 +140,28 @@ export async function materializeDataset(
 
         await fs.mkdir(localDir, { recursive: true });
 
-        const data = await blobStorage.read(key);
-        await fs.writeFile(localPath, data);
+        const data = await blobStorage.read(validateBlobFilePath(key));
+        // wx flag is exclusive creation. Will fail if already exists.
+        // 0x600 permissions restrict to read/write only for the owner
+        const fileHandle = await fs.open(localPath, "wx", 0o600);
+        try {
+          await fileHandle.writeFile(new Uint8Array(data));
+        } finally {
+          // Close to prevent file handler memory leaks.
+          await fileHandle.close();
+        }
       }
 
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "download_complete",
-          fileCount: keys.length,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Download complete", {
+        event: "download_complete",
+        fileCount: keys.length,
+      });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      console.error(
-        JSON.stringify({
-          activity: activityName,
-          event: "download_failed",
-          error: errorMessage,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      const errorMessage = getErrorMessage(error);
+      log.error("Dataset download failed", {
+        event: "download_failed",
+        error: errorMessage,
+      });
 
       // Clean up on failure
       await fs
@@ -185,33 +176,22 @@ export async function materializeDataset(
     }
 
     const durationMs = Date.now() - startTime;
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "complete",
-        datasetVersionId,
-        materializedPath,
-        durationMs,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Materialize dataset complete", {
+      event: "complete",
+      materializedPath,
+      durationMs,
+    });
 
     return { materializedPath };
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: "error",
-        datasetVersionId,
-        error: errorMessage,
-        durationMs: duration,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    const errorMessage = getErrorMessage(error);
+    log.error("Materialize dataset error", {
+      event: "error",
+      error: errorMessage,
+      durationMs: duration,
+      stack: getErrorStack(error),
+    });
     throw error;
   }
 }
@@ -242,15 +222,12 @@ export async function loadDatasetManifest(
 ): Promise<LoadManifestResult> {
   const activityName = "loadDatasetManifest";
   const { materializedPath, datasetVersionId } = params;
+  const log = createActivityLogger(activityName, {
+    materializedPath,
+    datasetVersionId,
+  });
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      materializedPath,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Load dataset manifest start", { event: "start" });
 
   try {
     // Look up the manifest path from the dataset version record
@@ -271,29 +248,19 @@ export async function loadDatasetManifest(
     const manifestContent = await fs.readFile(manifestPath, "utf-8");
     const manifest: DatasetManifest = JSON.parse(manifestContent);
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "complete",
-        sampleCount: manifest.samples.length,
-        hasSplits: !!manifest.splits,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Load dataset manifest complete", {
+      event: "complete",
+      sampleCount: manifest.samples.length,
+      hasSplits: !!manifest.splits,
+    });
 
     return { manifest };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: "error",
-        materializedPath,
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    const errorMessage = getErrorMessage(error);
+    log.error("Load dataset manifest error", {
+      event: "error",
+      error: errorMessage,
+    });
     throw new Error(`Failed to load manifest: ${errorMessage}`);
   }
 }

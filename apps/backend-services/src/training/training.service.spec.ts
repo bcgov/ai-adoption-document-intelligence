@@ -1,21 +1,18 @@
-import {
-  DocumentStatus,
-  LabelingStatus,
-  ProjectStatus,
-  TrainingStatus,
-} from "@generated/client";
+import { LabelingStatus, TrainingStatus } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
-import { ExportFormat } from "../labeling/dto/export.dto";
-import { LabelingService } from "../labeling/labeling.service";
+import { ExportFormat } from "../template-model/dto/export.dto";
+import { TemplateModelService } from "../template-model/template-model.service";
 import { TrainingService } from "./training.service";
+import { TrainingDbService } from "./training-db.service";
 
 // Mock Azure Document Intelligence
 jest.mock("@azure-rest/ai-document-intelligence", () => ({
@@ -27,42 +24,52 @@ jest.mock("@azure-rest/ai-document-intelligence", () => ({
 
 import DocumentIntelligence, {
   isUnexpected,
-  parseResultIdFromResponse,
 } from "@azure-rest/ai-document-intelligence";
 
 describe("TrainingService", () => {
   let service: TrainingService;
-  let mockDbService: jest.Mocked<DatabaseService>;
   let mockBlobStorage: jest.Mocked<AzureStorageService>;
   let mockPrimaryBlobStorage: jest.Mocked<BlobStorageInterface>;
-  let mockLabelingService: jest.Mocked<LabelingService>;
-  let _mockConfigService: jest.Mocked<ConfigService>;
-  let mockAdminClient: any;
-  let mockPrisma: any;
+  let mockTemplateModelService: jest.Mocked<TemplateModelService>;
+  let mockAdminClient: Record<string, jest.Mock>;
+  let mockTrainingDb: {
+    createTrainingJob: jest.Mock;
+    findTrainingJob: jest.Mock;
+    findAllTrainingJobs: jest.Mock;
+    findAllActiveTrainingJobs: jest.Mock;
+    findAllTrainedModels: jest.Mock;
+    updateTrainingJob: jest.Mock;
+    createTrainedModel: jest.Mock;
+    findTrainedModelByModelId: jest.Mock;
+    deleteTrainedModel: jest.Mock;
+    findAllTrainedModelIds: jest.Mock;
+  };
 
-  const mockProject = {
-    id: "project-1",
-    name: "Test Project",
+  const mockTemplateModel = {
+    id: "tm-1",
+    name: "Test Template Model",
+    model_id: "custom-model-1",
     description: "Test",
     created_by: "user-1",
-    status: ProjectStatus.active,
+    status: "draft" as const,
     created_at: new Date(),
     updated_at: new Date(),
+    group_id: "group-1",
     field_schema: [
       {
         id: "field-1",
+        template_model_id: "tm-1",
         field_key: "field1",
         field_type: "string",
         field_format: null,
         display_order: 0,
-        project_id: "project-1",
       },
     ],
   };
 
   const mockLabeledDocument = {
     id: "labeled-doc-1",
-    project_id: "project-1",
+    template_model_id: "tm-1",
     labeling_document_id: "labeling-doc-1",
     status: LabelingStatus.labeled,
     created_at: new Date(),
@@ -71,12 +78,13 @@ describe("TrainingService", () => {
       id: "labeling-doc-1",
       title: "Test Doc",
       original_filename: "test.pdf",
-      file_path: "labeling-documents/labeling-doc-1/original.pdf",
+      file_path: "cuid/ocr/labeling-doc-1/original.pdf",
+      normalized_file_path: "cuid/training/labeling-doc-1/normalized.pdf",
       file_type: "pdf",
       file_size: 1024,
       metadata: {},
       source: "labeling",
-      status: DocumentStatus.completed_ocr,
+      status: "completed_ocr" as const,
       created_at: new Date(),
       updated_at: new Date(),
       apim_request_id: null,
@@ -100,25 +108,22 @@ describe("TrainingService", () => {
 
   const mockTrainingJob = {
     id: "job-1",
-    project_id: "project-1",
+    template_model_id: "tm-1",
     status: TrainingStatus.PENDING,
-    container_name: "training-project-1",
+    container_name: "training-tm-1",
     sas_url: null,
-    blob_count: null,
-    model_id: "custom-model-1",
+    blob_count: 0,
     operation_id: null,
     error_message: null,
     started_at: new Date(),
     completed_at: null,
-    build_mode: "template",
-    dataset_id: null,
     created_at: new Date(),
     updated_at: new Date(),
   };
 
   const mockTrainedModel = {
     id: "trained-1",
-    project_id: "project-1",
+    template_model_id: "tm-1",
     training_job_id: "job-1",
     model_id: "custom-model-1",
     description: "Test Model",
@@ -128,25 +133,17 @@ describe("TrainingService", () => {
   };
 
   beforeEach(async () => {
-    mockPrisma = {
-      trainingJob: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      trainedModel: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        delete: jest.fn(),
-      },
-    };
-
-    const mockDb = {
-      prisma: mockPrisma,
-      findLabelingProject: jest.fn(),
-      findLabeledDocuments: jest.fn(),
+    mockTrainingDb = {
+      createTrainingJob: jest.fn(),
+      findTrainingJob: jest.fn(),
+      findAllTrainingJobs: jest.fn(),
+      findAllActiveTrainingJobs: jest.fn(),
+      findAllTrainedModels: jest.fn(),
+      updateTrainingJob: jest.fn(),
+      createTrainedModel: jest.fn(),
+      findTrainedModelByModelId: jest.fn(),
+      deleteTrainedModel: jest.fn(),
+      findAllTrainedModelIds: jest.fn(),
     };
 
     const mockBlob = {
@@ -164,8 +161,10 @@ describe("TrainingService", () => {
       deleteByPrefix: jest.fn(),
     };
 
-    const mockLabeling = {
-      exportProject: jest.fn(),
+    const mockTemplateModelSvc = {
+      getTemplateModel: jest.fn(),
+      exportTemplateModel: jest.fn(),
+      getTemplateModelDocuments: jest.fn(),
     };
 
     const mockDeleteModel = jest.fn();
@@ -185,8 +184,8 @@ describe("TrainingService", () => {
     (DocumentIntelligence as jest.Mock).mockReturnValue(mockAdminClient);
 
     const mockConfig = {
-      get: jest.fn((key: string, defaultValue?: any) => {
-        const config: Record<string, any> = {
+      get: jest.fn((key: string, defaultValue?: number) => {
+        const config: Record<string, string | number> = {
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_MIN_DOCUMENTS: 5,
@@ -199,9 +198,10 @@ describe("TrainingService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrainingService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
-          provide: DatabaseService,
-          useValue: mockDb,
+          provide: TrainingDbService,
+          useValue: mockTrainingDb,
         },
         {
           provide: AzureStorageService,
@@ -212,8 +212,8 @@ describe("TrainingService", () => {
           useValue: mockPrimaryBlob,
         },
         {
-          provide: LabelingService,
-          useValue: mockLabeling,
+          provide: TemplateModelService,
+          useValue: mockTemplateModelSvc,
         },
         {
           provide: ConfigService,
@@ -223,11 +223,9 @@ describe("TrainingService", () => {
     }).compile();
 
     service = module.get<TrainingService>(TrainingService);
-    mockDbService = module.get(DatabaseService);
     mockBlobStorage = module.get(AzureStorageService);
     mockPrimaryBlobStorage = module.get(BLOB_STORAGE);
-    mockLabelingService = module.get(LabelingService);
-    _mockConfigService = module.get(ConfigService);
+    mockTemplateModelService = module.get(TemplateModelService);
   });
 
   describe("constructor", () => {
@@ -238,8 +236,8 @@ describe("TrainingService", () => {
 
     it("should handle missing Azure credentials", async () => {
       const mockConfigNoCredentials = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          const config: Record<string, any> = {
+        get: jest.fn((key: string, defaultValue?: number) => {
+          const config: Record<string, number> = {
             TRAINING_MIN_DOCUMENTS: 5,
             TRAINING_SAS_EXPIRY_DAYS: 7,
           };
@@ -250,10 +248,14 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
-          { provide: DatabaseService, useValue: { prisma: mockPrisma } },
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          { provide: TrainingDbService, useValue: mockTrainingDb },
           { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
-          { provide: LabelingService, useValue: mockLabelingService },
+          {
+            provide: TemplateModelService,
+            useValue: mockTemplateModelService,
+          },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],
       }).compile();
@@ -264,14 +266,16 @@ describe("TrainingService", () => {
   });
 
   describe("validateTrainingData", () => {
-    it("should validate project successfully", async () => {
+    it("should validate template model successfully", async () => {
       const documents = Array(5).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        documents,
+      );
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result).toEqual({
         valid: true,
@@ -281,22 +285,16 @@ describe("TrainingService", () => {
       });
     });
 
-    it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
-
-      await expect(
-        service.validateTrainingData("non-existent"),
-      ).rejects.toThrow(NotFoundException);
-    });
-
     it("should return issues for insufficient documents", async () => {
       const documents = Array(3).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        documents,
+      );
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result.valid).toBe(false);
       expect(
@@ -305,14 +303,16 @@ describe("TrainingService", () => {
     });
 
     it("should return issues when no field schema", async () => {
-      const projectNoSchema = { ...mockProject, field_schema: [] };
       const documents = Array(5).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        projectNoSchema as any,
+      const templateModelNoSchema = { ...mockTemplateModel, field_schema: [] };
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        templateModelNoSchema as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        documents,
+      );
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result.valid).toBe(false);
       expect(result.issues.some((i) => i.includes("no field schema"))).toBe(
@@ -323,12 +323,14 @@ describe("TrainingService", () => {
     it("should return issues when documents have no labels", async () => {
       const docWithoutLabels = { ...mockLabeledDocument, labels: [] };
       const documents = Array(5).fill(docWithoutLabels);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        documents,
+      );
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result.valid).toBe(false);
       expect(result.issues.some((i) => i.includes("have no labels"))).toBe(
@@ -349,17 +351,17 @@ describe("TrainingService", () => {
         ],
       };
 
-      mockLabelingService.exportProject.mockResolvedValueOnce(
-        exportResult as any,
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce(
+        exportResult as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
-      const files = await service.prepareTrainingFiles("project-1");
+      const files = await service.prepareTrainingFiles("tm-1");
 
-      expect(mockLabelingService.exportProject).toHaveBeenCalledWith(
-        "project-1",
+      expect(mockTemplateModelService.exportTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
         {
           format: ExportFormat.AZURE,
           labeledOnly: true,
@@ -370,12 +372,12 @@ describe("TrainingService", () => {
     });
 
     it("should throw error when export fails", async () => {
-      mockLabelingService.exportProject.mockResolvedValueOnce({
-        project: {},
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce({
+        templateModel: {},
         documents: [],
-      } as any);
+      } as never);
 
-      await expect(service.prepareTrainingFiles("project-1")).rejects.toThrow(
+      await expect(service.prepareTrainingFiles("tm-1")).rejects.toThrow(
         "Azure export did not return training data",
       );
     });
@@ -388,14 +390,14 @@ describe("TrainingService", () => {
 
       mockPrimaryBlobStorage.exists.mockResolvedValue(false);
 
-      mockLabelingService.exportProject.mockResolvedValueOnce(
-        exportResult as any,
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce(
+        exportResult as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
-      const files = await service.prepareTrainingFiles("project-1");
+      const files = await service.prepareTrainingFiles("tm-1");
 
       expect(files.length).toBeGreaterThanOrEqual(1); // At least fields.json
     });
@@ -404,49 +406,54 @@ describe("TrainingService", () => {
   describe("startTraining", () => {
     it("should start training successfully", async () => {
       const dto = {
-        modelId: "custom-model-1",
         description: "Test model",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(
+      // validateTrainingData calls getTemplateModel + getTemplateModelDocuments
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
         Array(5).fill(mockLabeledDocument),
       );
-      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.trainingJob.create.mockResolvedValueOnce(mockTrainingJob);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      const result = await service.startTraining("project-1", dto, "user-1");
+      const result = await service.startTraining("tm-1", dto);
 
       expect(result).toHaveProperty("id", "job-1");
       expect(result).toHaveProperty("status", TrainingStatus.PENDING);
-      expect(mockPrisma.trainingJob.create).toHaveBeenCalled();
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalled();
     });
 
     it("should throw BadRequestException for invalid training data", async () => {
       const dto = {
-        modelId: "custom-model-1",
         description: "Test model",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      // validateTrainingData
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
-      await expect(
-        service.startTraining("project-1", dto, "user-1"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
-    it("should delete existing model before training", async () => {
+    it("should delete existing trained model before training", async () => {
       const dto = {
-        modelId: "custom-model-1",
         description: "Test model",
       };
 
@@ -460,54 +467,53 @@ describe("TrainingService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(
+      // validateTrainingData
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
         Array(5).fill(mockLabeledDocument),
       );
-      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(
         mockTrainedModel,
       );
-      mockPrisma.trainedModel.delete.mockResolvedValueOnce(mockTrainedModel);
-      mockPrisma.trainingJob.create.mockResolvedValueOnce(mockTrainingJob);
+      mockTrainingDb.deleteTrainedModel.mockResolvedValueOnce(mockTrainedModel);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
-      await service.startTraining("project-1", dto, "user-1");
+      await service.startTraining("tm-1", dto);
 
       expect(mockDelete).toHaveBeenCalled();
-      expect(mockPrisma.trainedModel.delete).toHaveBeenCalled();
+      expect(mockTrainingDb.deleteTrainedModel).toHaveBeenCalled();
     });
   });
 
   describe("getTrainingJobs", () => {
-    it("should return all training jobs for a project", async () => {
+    it("should return all training jobs for a template model", async () => {
       const jobs = [mockTrainingJob, { ...mockTrainingJob, id: "job-2" }];
-      mockPrisma.trainingJob.findMany.mockResolvedValueOnce(jobs);
+      mockTrainingDb.findAllTrainingJobs.mockResolvedValueOnce(jobs);
 
-      const result = await service.getTrainingJobs("project-1");
+      const result = await service.getTrainingJobs("tm-1");
 
       expect(result).toHaveLength(2);
-      expect(mockPrisma.trainingJob.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
-        orderBy: { started_at: "desc" },
-      });
+      expect(mockTrainingDb.findAllTrainingJobs).toHaveBeenCalledWith("tm-1");
     });
   });
 
   describe("getTrainingJob", () => {
     it("should return a specific training job", async () => {
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(mockTrainingJob);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
       const result = await service.getTrainingJob("job-1");
 
       expect(result).toHaveProperty("id", "job-1");
-      expect(mockPrisma.trainingJob.findUnique).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-      });
+      expect(mockTrainingDb.findTrainingJob).toHaveBeenCalledWith("job-1");
     });
 
     it("should throw NotFoundException when job not found", async () => {
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(null);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(null);
 
       await expect(service.getTrainingJob("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -515,43 +521,25 @@ describe("TrainingService", () => {
     });
   });
 
-  describe("getTrainedModels", () => {
-    it("should return all trained models for a project", async () => {
-      const models = [mockTrainedModel, { ...mockTrainedModel, id: "model-2" }];
-      mockPrisma.trainedModel.findMany.mockResolvedValueOnce(models);
-
-      const result = await service.getTrainedModels("project-1");
-
-      expect(result).toHaveLength(2);
-      expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
-        orderBy: { created_at: "desc" },
-      });
-    });
-  });
-
   describe("cancelTrainingJob", () => {
     it("should cancel a pending job", async () => {
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(mockTrainingJob);
-      mockPrisma.trainingJob.update.mockResolvedValueOnce({
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(mockTrainingJob);
+      mockTrainingDb.updateTrainingJob.mockResolvedValueOnce({
         ...mockTrainingJob,
         status: TrainingStatus.FAILED,
       });
 
       await service.cancelTrainingJob("job-1");
 
-      expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
-        where: { id: "job-1" },
-        data: {
-          status: TrainingStatus.FAILED,
-          error_message: "Cancelled by user",
-          completed_at: expect.any(Date),
-        },
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
+        status: TrainingStatus.FAILED,
+        error_message: "Cancelled by user",
+        completed_at: expect.any(Date),
       });
     });
 
     it("should throw NotFoundException when job not found", async () => {
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(null);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(null);
 
       await expect(service.cancelTrainingJob("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -563,7 +551,7 @@ describe("TrainingService", () => {
         ...mockTrainingJob,
         status: TrainingStatus.SUCCEEDED,
       };
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(completedJob);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(completedJob);
 
       await expect(service.cancelTrainingJob("job-1")).rejects.toThrow(
         BadRequestException,
@@ -572,7 +560,7 @@ describe("TrainingService", () => {
 
     it("should throw BadRequestException for failed job", async () => {
       const failedJob = { ...mockTrainingJob, status: TrainingStatus.FAILED };
-      mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(failedJob);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(failedJob);
 
       await expect(service.cancelTrainingJob("job-1")).rejects.toThrow(
         BadRequestException,
@@ -626,10 +614,14 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
-          { provide: DatabaseService, useValue: { prisma: mockPrisma } },
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          { provide: TrainingDbService, useValue: mockTrainingDb },
           { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
-          { provide: LabelingService, useValue: mockLabelingService },
+          {
+            provide: TemplateModelService,
+            useValue: mockTemplateModelService,
+          },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],
       }).compile();
@@ -664,10 +656,9 @@ describe("TrainingService", () => {
       const result = service["mapTrainingJobToDto"](mockTrainingJob);
 
       expect(result).toHaveProperty("id", "job-1");
-      expect(result).toHaveProperty("projectId", "project-1");
+      expect(result).toHaveProperty("templateModelId", "tm-1");
       expect(result).toHaveProperty("status", TrainingStatus.PENDING);
-      expect(result).toHaveProperty("containerName", "training-project-1");
-      expect(result).toHaveProperty("modelId", "custom-model-1");
+      expect(result).toHaveProperty("containerName", "training-tm-1");
     });
   });
 
@@ -676,7 +667,7 @@ describe("TrainingService", () => {
       const result = service["mapTrainedModelToDto"](mockTrainedModel);
 
       expect(result).toHaveProperty("id", "trained-1");
-      expect(result).toHaveProperty("projectId", "project-1");
+      expect(result).toHaveProperty("templateModelId", "tm-1");
       expect(result).toHaveProperty("trainingJobId", "job-1");
       expect(result).toHaveProperty("modelId", "custom-model-1");
       expect(result).toHaveProperty("fieldCount", 1);

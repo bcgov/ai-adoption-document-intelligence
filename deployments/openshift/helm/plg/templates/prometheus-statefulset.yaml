@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "plg.prometheus.fullname" . }}
+  labels:
+    {{- include "plg.prometheus.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "plg.prometheus.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "plg.prometheus.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "plg.prometheus.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/prometheus-configmap.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: prometheus
+          image: "{{ .Values.prometheus.image.repository }}:{{ .Values.prometheus.image.tag }}"
+          imagePullPolicy: {{ .Values.prometheus.image.pullPolicy }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time={{ .Values.prometheus.retentionDays }}d
+            - --web.console.libraries=/etc/prometheus/console_libraries
+            - --web.console.templates=/etc/prometheus/consoles
+            - --web.enable-lifecycle
+          ports:
+            - name: http
+              containerPort: {{ .Values.prometheus.httpPort }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.prometheus.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "plg.prometheus.fullname" . }}-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "plg.prometheus.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.prometheus.storageClassName }}
+        storageClassName: {{ .Values.prometheus.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.prometheus.pvcSize }}

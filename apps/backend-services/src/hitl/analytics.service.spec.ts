@@ -1,11 +1,13 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AnalyticsService } from "./analytics.service";
 import { AnalyticsFilterDto } from "./dto/queue-filter.dto";
+import { ReviewDbService } from "./review-db.service";
 
 describe("AnalyticsService", () => {
   let service: AnalyticsService;
-  let mockDbService: jest.Mocked<DatabaseService>;
+  let mockReviewDbService: jest.Mocked<ReviewDbService>;
 
   beforeEach(async () => {
     const mockDb = {
@@ -15,15 +17,16 @@ describe("AnalyticsService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AnalyticsService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
-          provide: DatabaseService,
+          provide: ReviewDbService,
           useValue: mockDb,
         },
       ],
     }).compile();
 
     service = module.get<AnalyticsService>(AnalyticsService);
-    mockDbService = module.get(DatabaseService);
+    mockReviewDbService = module.get(ReviewDbService);
   });
 
   describe("getAnalytics", () => {
@@ -47,11 +50,13 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.85,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce(
+        mockAnalyticsData,
+      );
 
       const result = await service.getAnalytics(filters);
 
-      expect(mockDbService.getReviewAnalytics).toHaveBeenCalledWith({
+      expect(mockReviewDbService.getReviewAnalytics).toHaveBeenCalledWith({
         startDate: filters.startDate,
         endDate: filters.endDate,
         reviewerId: filters.reviewerId,
@@ -90,7 +95,9 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.9,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce(
+        mockAnalyticsData,
+      );
 
       const result = await service.getAnalytics({});
 
@@ -106,7 +113,9 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.95,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce(
+        mockAnalyticsData,
+      );
 
       const result = await service.getAnalytics({});
 
@@ -129,7 +138,9 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.88,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce(
+        mockAnalyticsData,
+      );
 
       const result = await service.getAnalytics({});
 
@@ -147,7 +158,7 @@ describe("AnalyticsService", () => {
         reviewerId: "user-123",
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce({
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce({
         totalSessions: 0,
         completedSessions: 0,
         totalCorrections: 0,
@@ -157,7 +168,7 @@ describe("AnalyticsService", () => {
 
       await service.getAnalytics(filters);
 
-      expect(mockDbService.getReviewAnalytics).toHaveBeenCalledWith({
+      expect(mockReviewDbService.getReviewAnalytics).toHaveBeenCalledWith({
         startDate: filters.startDate,
         endDate: filters.endDate,
         reviewerId: filters.reviewerId,
@@ -170,7 +181,7 @@ describe("AnalyticsService", () => {
         reviewerId: "reviewer-2",
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce({
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce({
         totalSessions: 5,
         completedSessions: 3,
         totalCorrections: 10,
@@ -180,7 +191,7 @@ describe("AnalyticsService", () => {
 
       await service.getAnalytics(filters);
 
-      expect(mockDbService.getReviewAnalytics).toHaveBeenCalledWith({
+      expect(mockReviewDbService.getReviewAnalytics).toHaveBeenCalledWith({
         startDate: undefined,
         endDate: undefined,
         reviewerId: "reviewer-2",
@@ -200,7 +211,9 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.9,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce(
+        mockAnalyticsData,
+      );
 
       const result = await service.getAnalytics({});
 
@@ -217,7 +230,9 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.7654,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
+      mockReviewDbService.getReviewAnalytics.mockResolvedValueOnce(
+        mockAnalyticsData,
+      );
 
       const result = await service.getAnalytics({});
 

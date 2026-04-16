@@ -1,12 +1,13 @@
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
-  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
+  getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
+import { AuditService } from "@/audit/audit.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { DatasetController } from "./dataset.controller";
 import { DatasetService } from "./dataset.service";
 import {
@@ -41,10 +42,14 @@ const mockDatasetService = {
   deleteDataset: jest.fn(),
 };
 
-const mockDatabaseService = {
-  isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-  getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-  isUserInGroup: jest.fn().mockResolvedValue(true),
+const mockAuditService = {
+  recordEvent: jest.fn().mockResolvedValue(undefined),
+};
+const mockLogger = {
+  debug: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  log: jest.fn(),
 };
 
 describe("DatasetController", () => {
@@ -52,7 +57,12 @@ describe("DatasetController", () => {
 
   const mockReq = {
     user: { sub: "user-123" },
-    resolvedIdentity: { userId: "user-123" },
+    resolvedIdentity: {
+      userId: "user-123",
+      isSystemAdmin: false,
+      groupRoles: {},
+      actorId: "user-123",
+    },
   } as unknown as Request;
 
   beforeEach(async () => {
@@ -62,7 +72,8 @@ describe("DatasetController", () => {
       controllers: [DatasetController],
       providers: [
         { provide: DatasetService, useValue: mockDatasetService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
+        { provide: AppLoggerService, useValue: mockLogger },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -84,8 +95,8 @@ describe("DatasetController", () => {
       const mockResponse: DatasetResponseDto = {
         id: "dataset-123",
         name: createDto.name,
-        description: createDto.description,
-        metadata: createDto.metadata,
+        description: createDto.description ?? null,
+        metadata: createDto.metadata ?? {},
         storagePath: "datasets/dataset-123",
         createdBy: "user-123",
         groupId: "test-group",
@@ -102,20 +113,6 @@ describe("DatasetController", () => {
         "user-123",
       );
       expect(result).toEqual(mockResponse);
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      const mockRequestNoUser = {
-        user: undefined,
-        resolvedIdentity: { userId: undefined },
-      } as unknown as Request;
-
-      await controller.createDataset(createDto, mockRequestNoUser);
-
-      expect(mockDatasetService.createDataset).toHaveBeenCalledWith(
-        createDto,
-        "anonymous",
-      );
     });
 
     it("propagates validation errors from service", async () => {
@@ -283,30 +280,6 @@ describe("DatasetController", () => {
       );
       expect(result).toEqual(mockResponse);
     });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      const mockRequestNoUser = {
-        user: undefined,
-        resolvedIdentity: { userId: undefined },
-      } as unknown as Request;
-
-      mockDatasetService.getDatasetById.mockResolvedValue({
-        id: "dataset-123",
-        groupId: "test-group",
-      });
-
-      await controller.createVersion(
-        "dataset-123",
-        createDto,
-        mockRequestNoUser,
-      );
-
-      expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
-        "dataset-123",
-        createDto,
-        "anonymous",
-      );
-    });
   });
 
   describe("GET /api/benchmark/datasets/:id/versions", () => {
@@ -432,6 +405,7 @@ describe("DatasetController", () => {
         "version-123",
         mockFiles,
         "user-123",
+        "test-group",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -474,31 +448,6 @@ describe("DatasetController", () => {
           mockReq,
         ),
       ).rejects.toThrow(BadRequestException);
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      const mockRequestNoUser = {
-        user: undefined,
-        resolvedIdentity: { userId: undefined },
-      } as unknown as Request;
-      mockDatasetService.getDatasetById.mockResolvedValue({
-        id: "dataset-123",
-        groupId: "test-group",
-      });
-
-      await controller.uploadFilesToVersion(
-        "dataset-123",
-        "version-123",
-        mockFiles,
-        mockRequestNoUser,
-      );
-
-      expect(mockDatasetService.uploadFilesToVersion).toHaveBeenCalledWith(
-        "dataset-123",
-        "version-123",
-        mockFiles,
-        "anonymous",
-      );
     });
   });
 
@@ -632,6 +581,7 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         "sample-1",
+        "test-group",
       );
     });
   });
@@ -769,6 +719,18 @@ describe("DatasetController", () => {
         "Content-Length": fileBuffer.length.toString(),
       });
       expect(mockRes.send).toHaveBeenCalledWith(fileBuffer);
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "dataset_document",
+        resource_id: "inputs/test.pdf",
+        actor_id: "user-123",
+        group_id: "test-group",
+        payload: {
+          action: "download",
+          dataset_id: "dataset-123",
+          dataset_version_id: "version-123",
+        },
+      });
     });
 
     it("throws when path query param is missing", async () => {

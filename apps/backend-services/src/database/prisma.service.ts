@@ -1,22 +1,53 @@
-import { PrismaClient } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Prisma, PrismaClient } from "@generated/client";
+import { Injectable, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { getPrismaPgOptions } from "@/utils/database-url";
 
 @Injectable()
-export class PrismaService {
-  private readonly logger = new Logger(PrismaService.name);
-  public readonly prisma: PrismaClient;
+export class PrismaService implements OnModuleInit {
+  public readonly prisma: PrismaClient<{
+    log: [{ emit: "event"; level: "warn" }, { emit: "event"; level: "error" }];
+  }>;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
     );
     this.prisma = new PrismaClient({
-      log: ["error", "warn"],
+      log: [
+        { emit: "event", level: "warn" },
+        { emit: "event", level: "error" },
+      ],
       adapter: new PrismaPg(dbOptions),
     });
+  }
+
+  onModuleInit(): void {
+    this.prisma.$on("warn", (e) => {
+      this.logger.warn(e.message, { category: "external", target: e.target });
+    });
+    this.prisma.$on("error", (e) => {
+      this.logger.error(e.message, { category: "external", target: e.target });
+    });
     this.logger.log("Prisma client initialized");
+  }
+
+  /**
+   * Executes a function within a Prisma transaction.
+   * Use this in service methods to define atomic operation boundaries
+   * without accessing Prisma directly.
+   *
+   * @param fn - An async function that receives a TransactionClient and performs database operations.
+   * @returns The result of the provided function.
+   */
+  async transaction<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(fn);
   }
 }

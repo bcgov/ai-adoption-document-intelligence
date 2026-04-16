@@ -5,6 +5,8 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-010-benchmark-project-service-controller.md
  */
 
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+
 /**
  * Benchmark project summary (for list views)
  */
@@ -12,47 +14,58 @@ export class ProjectSummaryDto {
   /**
    * Project ID
    */
-  id: string;
+  @ApiProperty({ description: "Project ID" })
+  id!: string;
 
   /**
    * Project name
    */
-  name: string;
+  @ApiProperty({ description: "Project name" })
+  name!: string;
 
   /**
    * Project description
    */
-  description: string | null;
+  @ApiPropertyOptional({ description: "Project description", nullable: true })
+  description!: string | null;
 
   /**
    * User who created the project
    */
-  createdBy: string;
+  @ApiProperty({ description: "User who created the project" })
+  createdBy!: string;
 
   /**
    * Group ID that owns this project
    */
-  groupId: string;
+  @ApiProperty({ description: "Group ID that owns this project" })
+  groupId!: string;
 
   /**
    * Number of benchmark definitions in this project
    */
-  definitionCount: number;
+  @ApiProperty({
+    description: "Number of benchmark definitions in this project",
+  })
+  definitionCount!: number;
 
   /**
    * Number of benchmark runs in this project
    */
-  runCount: number;
+  @ApiProperty({ description: "Number of benchmark runs in this project" })
+  runCount!: number;
 
   /**
    * Creation timestamp
    */
-  createdAt: Date;
+  @ApiProperty({ description: "Creation timestamp" })
+  createdAt!: Date;
 
   /**
    * Last update timestamp
    */
-  updatedAt: Date;
+  @ApiProperty({ description: "Last update timestamp" })
+  updatedAt!: Date;
 }
 
 /**
@@ -62,32 +75,42 @@ export class RecentRunSummary {
   /**
    * Run ID
    */
-  id: string;
+  @ApiProperty({ description: "Run ID" })
+  id!: string;
 
   /**
    * Definition name
    */
-  definitionName: string;
+  @ApiProperty({ description: "Definition name" })
+  definitionName!: string;
 
   /**
    * Run status
    */
-  status: string;
+  @ApiProperty({ description: "Run status" })
+  status!: string;
 
   /**
    * Temporal workflow ID
    */
-  temporalWorkflowId: string | null;
+  @ApiProperty({ description: "Temporal workflow ID", nullable: true })
+  temporalWorkflowId!: string | null;
 
   /**
    * Start timestamp
    */
-  startedAt: Date | null;
+  @ApiProperty({ description: "Start timestamp", nullable: true, type: Date })
+  startedAt!: Date | null;
 
   /**
    * Completion timestamp
    */
-  completedAt: Date | null;
+  @ApiProperty({
+    description: "Completion timestamp",
+    nullable: true,
+    type: Date,
+  })
+  completedAt!: Date | null;
 }
 
 /**
@@ -97,32 +120,38 @@ export class DefinitionSummary {
   /**
    * Definition ID
    */
-  id: string;
+  @ApiProperty({ description: "Definition ID" })
+  id!: string;
 
   /**
    * Definition name
    */
-  name: string;
+  @ApiProperty({ description: "Definition name" })
+  name!: string;
 
   /**
    * Dataset version ID
    */
-  datasetVersionId: string;
+  @ApiProperty({ description: "Dataset version ID" })
+  datasetVersionId!: string;
 
   /**
    * Evaluator type
    */
-  evaluatorType: string;
+  @ApiProperty({ description: "Evaluator type" })
+  evaluatorType!: string;
 
   /**
    * Whether the definition is immutable
    */
-  immutable: boolean;
+  @ApiProperty({ description: "Whether the definition is immutable" })
+  immutable!: boolean;
 
   /**
    * Creation timestamp
    */
-  createdAt: Date;
+  @ApiProperty({ description: "Creation timestamp" })
+  createdAt!: Date;
 }
 
 /**
@@ -132,45 +161,62 @@ export class ProjectDetailsDto {
   /**
    * Project ID
    */
-  id: string;
+  @ApiProperty({ description: "Project ID" })
+  id!: string;
 
   /**
    * Project name
    */
-  name: string;
+  @ApiProperty({ description: "Project name" })
+  name!: string;
 
   /**
    * Project description
    */
-  description: string | null;
+  @ApiPropertyOptional({ description: "Project description", nullable: true })
+  description!: string | null;
 
   /**
    * User who created the project
    */
-  createdBy: string;
+  @ApiProperty({ description: "User who created the project" })
+  createdBy!: string;
 
   /**
    * Group ID that owns this project
    */
-  groupId: string;
+  @ApiProperty({ description: "Group ID that owns this project" })
+  groupId!: string;
 
   /**
    * List of benchmark definitions
    */
-  definitions: DefinitionSummary[];
+  @ApiProperty({
+    description: "List of benchmark definitions",
+    type: () => DefinitionSummary,
+    isArray: true,
+  })
+  definitions!: DefinitionSummary[];
 
   /**
    * Recent benchmark runs
    */
-  recentRuns: RecentRunSummary[];
+  @ApiProperty({
+    description: "Recent benchmark runs",
+    type: () => RecentRunSummary,
+    isArray: true,
+  })
+  recentRuns!: RecentRunSummary[];
 
   /**
    * Creation timestamp
    */
-  createdAt: Date;
+  @ApiProperty({ description: "Creation timestamp" })
+  createdAt!: Date;
 
   /**
    * Last update timestamp
    */
-  updatedAt: Date;
+  @ApiProperty({ description: "Last update timestamp" })
+  updatedAt!: Date;
 }

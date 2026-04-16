@@ -1,10 +1,10 @@
 import {
   BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { validateGraphConfig } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -12,7 +12,7 @@ export interface WorkflowInfo {
   id: string;
   name: string;
   description: string | null;
-  userId: string;
+  actorId: string;
   groupId: string;
   config: GraphWorkflowConfig;
   schemaVersion: string;
@@ -30,9 +30,10 @@ export interface CreateWorkflowDto {
 
 @Injectable()
 export class WorkflowService {
-  private readonly logger = new Logger(WorkflowService.name);
-
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   private get prisma() {
     return this.prismaService.prisma;
@@ -81,9 +82,9 @@ export class WorkflowService {
     return oldStr !== newStr;
   }
 
-  async getUserWorkflows(userId: string): Promise<WorkflowInfo[]> {
+  async getUserWorkflows(actorId: string): Promise<WorkflowInfo[]> {
     const workflows = await this.prisma.workflow.findMany({
-      where: { user_id: userId },
+      where: { actor_id: actorId },
       orderBy: { created_at: "desc" },
     });
 
@@ -91,7 +92,7 @@ export class WorkflowService {
       id: w.id,
       name: w.name,
       description: w.description,
-      userId: w.user_id,
+      actorId: w.actor_id,
       groupId: w.group_id,
       config: this.asGraphConfig(w.config),
       schemaVersion: this.asGraphConfig(w.config).schemaVersion,
@@ -106,9 +107,12 @@ export class WorkflowService {
    * @param groupIds Array of group IDs to filter by
    * @returns List of workflows in those groups
    */
-  async getGroupWorkflows(groupIds: string[]): Promise<WorkflowInfo[]> {
+  async getGroupWorkflows(
+    groupIds: string[] | undefined,
+  ): Promise<WorkflowInfo[]> {
     const workflows = await this.prisma.workflow.findMany({
-      where: { group_id: { in: groupIds } },
+      where:
+        groupIds !== undefined ? { group_id: { in: groupIds } } : undefined,
       orderBy: { created_at: "desc" },
     });
 
@@ -116,7 +120,7 @@ export class WorkflowService {
       id: w.id,
       name: w.name,
       description: w.description,
-      userId: w.user_id,
+      actorId: w.actor_id,
       groupId: w.group_id,
       config: this.asGraphConfig(w.config),
       schemaVersion: this.asGraphConfig(w.config).schemaVersion,
@@ -126,7 +130,10 @@ export class WorkflowService {
     }));
   }
 
-  async getWorkflow(workflowId: string, userId: string): Promise<WorkflowInfo> {
+  async getWorkflow(
+    workflowId: string,
+    actorId: string,
+  ): Promise<WorkflowInfo> {
     const workflow = await this.prisma.workflow.findUnique({
       where: {
         id: workflowId,
@@ -137,13 +144,15 @@ export class WorkflowService {
       throw new NotFoundException(`Workflow not found: ${workflowId}`);
     }
 
-    this.logger.debug(`getWorkflow: ${workflowId} requested by user ${userId}`);
+    this.logger.debug(
+      `getWorkflow: ${workflowId} requested by user ${actorId}`,
+    );
 
     return {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
@@ -173,7 +182,7 @@ export class WorkflowService {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
@@ -184,7 +193,7 @@ export class WorkflowService {
   }
 
   async createWorkflow(
-    userId: string,
+    actorId: string,
     dto: CreateWorkflowDto,
   ): Promise<WorkflowInfo> {
     // Validate workflow configuration
@@ -200,19 +209,19 @@ export class WorkflowService {
       data: {
         name: dto.name,
         description: dto.description || null,
-        user_id: userId,
+        actor_id: actorId,
         config: dto.config as object,
         group_id: dto.groupId,
       },
     });
 
-    this.logger.log(`Workflow created: ${workflow.id} by user ${userId}`);
+    this.logger.log(`Workflow created: ${workflow.id} by user ${actorId}`);
 
     return {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
@@ -224,7 +233,7 @@ export class WorkflowService {
 
   async updateWorkflow(
     workflowId: string,
-    userId: string,
+    actorId: string,
     dto: Partial<CreateWorkflowDto>,
   ): Promise<WorkflowInfo> {
     const existing = await this.prisma.workflow.findUnique({
@@ -289,11 +298,11 @@ export class WorkflowService {
 
     if (configChanged) {
       this.logger.log(
-        `Workflow updated: ${workflow.id} by user ${userId}, version incremented to ${workflow.version}`,
+        `Workflow updated: ${workflow.id} by user ${actorId}, version incremented to ${workflow.version}`,
       );
     } else {
       this.logger.log(
-        `Workflow updated: ${workflow.id} by user ${userId} (no config change, version remains ${workflow.version})`,
+        `Workflow updated: ${workflow.id} by user ${actorId} (no config change, version remains ${workflow.version})`,
       );
     }
 
@@ -301,7 +310,7 @@ export class WorkflowService {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
@@ -311,7 +320,7 @@ export class WorkflowService {
     };
   }
 
-  async deleteWorkflow(workflowId: string, userId: string): Promise<void> {
+  async deleteWorkflow(workflowId: string, actorId: string): Promise<void> {
     const existing = await this.prisma.workflow.findUnique({
       where: {
         id: workflowId,
@@ -326,6 +335,6 @@ export class WorkflowService {
       where: { id: workflowId },
     });
 
-    this.logger.log(`Workflow deleted: ${workflowId} by user ${userId}`);
+    this.logger.log(`Workflow deleted: ${workflowId} by user ${actorId}`);
   }
 }

@@ -1,4 +1,6 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { Prisma } from "@generated/client";
+import { createActivityLogger } from "../logger";
 import type { EnrichmentSummary, OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 
@@ -15,22 +17,18 @@ export async function upsertOcrResult(params: {
 }): Promise<void> {
   const activityName = "upsertOcrResult";
   const { documentId, ocrResult, enrichmentSummary } = params;
+  const log = createActivityLogger(activityName, { documentId });
   const startTime = Date.now();
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      documentId,
-      fileName: ocrResult.fileName,
-      modelId: ocrResult.modelId,
-      status: ocrResult.status,
-      keyValuePairsCount: ocrResult.keyValuePairs?.length || 0,
-      documentsCount: ocrResult.documents?.length || 0,
-      hasEnrichmentSummary: !!enrichmentSummary,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Upsert OCR result start", {
+    event: "start",
+    fileName: ocrResult.fileName,
+    modelId: ocrResult.modelId,
+    status: ocrResult.status,
+    keyValuePairsCount: ocrResult.keyValuePairs?.length || 0,
+    documentsCount: ocrResult.documents?.length || 0,
+    hasEnrichmentSummary: !!enrichmentSummary,
+  });
 
   try {
     const prisma = getPrismaClient();
@@ -45,16 +43,11 @@ export async function upsertOcrResult(params: {
       });
       if (!doc) {
         const duration = Date.now() - startTime;
-        console.log(
-          JSON.stringify({
-            activity: activityName,
-            event: "skipped",
-            reason: "benchmark_mode_no_document",
-            documentId,
-            durationMs: duration,
-            timestamp: new Date().toISOString(),
-          }),
-        );
+        log.info("Upsert OCR result skipped", {
+          event: "skipped",
+          reason: "benchmark_mode_no_document",
+          durationMs: duration,
+        });
         return;
       }
     }
@@ -92,15 +85,11 @@ export async function upsertOcrResult(params: {
       // Custom model: use fields directly from documents[0].fields, ensure valueString set
       const raw = ocrResult.documents[0].fields as Record<string, unknown>;
       extractedFields = withValueString(raw);
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "fields_extracted",
-          source: "custom_model_documents",
-          fieldCount: Object.keys(extractedFields).length,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Upsert OCR result: fields extracted", {
+        event: "fields_extracted",
+        source: "custom_model_documents",
+        fieldCount: Object.keys(extractedFields).length,
+      });
     } else if (ocrResult.keyValuePairs && ocrResult.keyValuePairs.length > 0) {
       // Prebuilt model: convert keyValuePairs to fields format with valueString for UI
       const fields: Record<string, unknown> = {};
@@ -130,16 +119,12 @@ export async function upsertOcrResult(params: {
       }
 
       extractedFields = fields;
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "fields_extracted",
-          source: "prebuilt_model_keyValuePairs",
-          keyValuePairsCount: ocrResult.keyValuePairs.length,
-          fieldCount: Object.keys(extractedFields).length,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Upsert OCR result: fields extracted", {
+        event: "fields_extracted",
+        source: "prebuilt_model_keyValuePairs",
+        keyValuePairsCount: ocrResult.keyValuePairs.length,
+        fieldCount: Object.keys(extractedFields).length,
+      });
     }
 
     // Ensure processedAt is a valid date, fallback to current time if invalid
@@ -176,18 +161,13 @@ export async function upsertOcrResult(params: {
       data: { status: "completed_ocr" as const },
     });
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "complete",
-        documentId,
-        fileName: ocrResult.fileName,
-        modelId: ocrResult.modelId,
-        fieldCount: extractedFields ? Object.keys(extractedFields).length : 0,
-        dataSize: extractedFields ? JSON.stringify(extractedFields).length : 0,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Upsert OCR result complete", {
+      event: "complete",
+      fileName: ocrResult.fileName,
+      modelId: ocrResult.modelId,
+      fieldCount: extractedFields ? Object.keys(extractedFields).length : 0,
+      dataSize: extractedFields ? JSON.stringify(extractedFields).length : 0,
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
 
@@ -199,32 +179,20 @@ export async function upsertOcrResult(params: {
         ? (error as { code: string }).code
         : undefined;
     if (prismaCode === "P2003" || prismaCode === "P2025") {
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "skipped",
-          reason: "document_not_found",
-          documentId,
-          durationMs: duration,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Upsert OCR result skipped", {
+        event: "skipped",
+        reason: "document_not_found",
+        durationMs: duration,
+      });
       return;
     }
 
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: "error",
-        documentId,
-        error: errorMessage,
-        durationMs: duration,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.error("Upsert OCR result error", {
+      event: "error",
+      error: getErrorMessage(error),
+      durationMs: duration,
+      stack: getErrorStack(error),
+    });
     throw error;
   }
 }

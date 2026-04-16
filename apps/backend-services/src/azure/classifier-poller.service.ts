@@ -1,33 +1,33 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { getErrorStack } from "@ai-di/shared-logging";
+import { Inject, Injectable } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
+import { ClassifierDbService } from "@/azure/classifier-db.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
-import { DatabaseService } from "@/database/database.service";
-import { ClassifierService } from "./classifier.service";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
+import {
+  buildBlobPrefixPath,
+  OperationCategory,
+} from "@/blob-storage/storage-path-builder";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 @Injectable()
 export class ClassifierPollerService {
-  private readonly logger = new Logger(ClassifierPollerService.name);
-
   constructor(
-    private readonly db: DatabaseService,
+    private readonly classifierDb: ClassifierDbService,
     private readonly azureService: AzureService,
-    private readonly databaseService: DatabaseService,
     private readonly azureStorage: AzureStorageService,
-    private readonly classifierService: ClassifierService,
+    private readonly logger: AppLoggerService,
+    @Inject(BLOB_STORAGE_CONTAINER_NAME)
+    private readonly containerName: string,
   ) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async pollActiveClassifiers(): Promise<void> {
     try {
       // Find all classifiers that are currently training
-      const classifiers = await this.db["prisma"].classifierModel.findMany({
-        where: {
-          status: ClassifierStatus.TRAINING,
-          operation_location: { not: null },
-        },
-      });
+      const classifiers = await this.classifierDb.findAllTrainingClassifiers();
       if (classifiers.length === 0) return;
       this.logger.debug(`Polling ${classifiers.length} active classifier(s)`);
       for (const classifier of classifiers) {
@@ -38,39 +38,53 @@ export class ClassifierPollerService {
         );
       }
     } catch (error) {
-      this.logger.error("Error polling active classifiers", error.stack);
+      this.logger.error("Error polling active classifiers", {
+        stack: getErrorStack(error),
+      });
     }
   }
 
   private async pollClassifierStatus(
     classifierName: string,
     groupId: string,
-    operationLocation: string,
+    operationLocation: string | null,
   ): Promise<void> {
     try {
+      if (!operationLocation) {
+        this.logger.warn(
+          `Classifier ${classifierName} (group ${groupId}) has no operation location`,
+        );
+        return;
+      }
       const result =
         await this.azureService.checkOperationStatus(operationLocation);
       const data = await result.json();
       const status = data.status || data.modelInfo?.status;
       if (status === "succeeded") {
-        await this.databaseService.updateClassifierModel(
+        await this.classifierDb.systemUpdateClassifierModel(
           classifierName,
           groupId,
-          { status: ClassifierStatus.READY },
+          {
+            status: ClassifierStatus.READY,
+          },
         );
         this.logger.log(
           `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
         );
         // Need to remove the files from blob storage to avoid costs
         await this.azureStorage.deleteFilesWithPrefix(
-          `${groupId}/${classifierName}`,
-          this.classifierService.classifierContainer,
+          buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
+            classifierName,
+          ]),
+          this.containerName,
         );
       } else if (status === "failed") {
-        await this.databaseService.updateClassifierModel(
+        await this.classifierDb.systemUpdateClassifierModel(
           classifierName,
           groupId,
-          { status: ClassifierStatus.FAILED },
+          {
+            status: ClassifierStatus.FAILED,
+          },
         );
         this.logger.warn(
           `Classifier ${classifierName} (group ${groupId}) training failed.`,
@@ -83,7 +97,7 @@ export class ClassifierPollerService {
     } catch (error) {
       this.logger.error(
         `Error polling classifier ${classifierName} (group ${groupId})`,
-        error.stack,
+        { stack: getErrorStack(error) },
       );
     }
   }

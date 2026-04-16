@@ -1,6 +1,17 @@
 import type { PrepareFileDataInput } from "./prepare-file-data";
 import { prepareFileData } from "./prepare-file-data";
 
+const mockWarn = jest.fn();
+jest.mock("../logger", () => ({
+  createActivityLogger: () => ({
+    info: jest.fn(),
+    warn: mockWarn,
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(),
+  }),
+}));
+
 // Mock the blob storage client for non-absolute blob keys
 const mockRead = jest.fn();
 jest.mock("../blob-storage/blob-storage-client", () => ({
@@ -29,6 +40,7 @@ describe("prepareFileData activity", () => {
   beforeEach(() => {
     mockRead.mockReset();
     readFileMock.mockReset();
+    mockWarn.mockClear();
   });
 
   it("prepares PDF file data with defaults", async () => {
@@ -37,7 +49,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-1",
-      blobKey: "documents/doc-1/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
     };
 
     const result = await prepareFileData(input);
@@ -45,9 +57,9 @@ describe("prepareFileData activity", () => {
     expect(result.preparedData.fileName).toBe("test.pdf");
     expect(result.preparedData.fileType).toBe("pdf");
     expect(result.preparedData.contentType).toBe("application/pdf");
-    expect(result.preparedData.blobKey).toBe("documents/doc-1/test.pdf");
+    expect(result.preparedData.blobKey).toBe("atestgroup/ocr/test.pdf");
     expect(result.preparedData.modelId).toBe("prebuilt-layout");
-    expect(mockRead).toHaveBeenCalledWith("documents/doc-1/test.pdf");
+    expect(mockRead).toHaveBeenCalledWith("atestgroup/ocr/test.pdf");
   });
 
   it("prepares image file data", async () => {
@@ -56,7 +68,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-2",
-      blobKey: "documents/doc-2/scan.png",
+      blobKey: "atestgroup/ocr/scan.png",
       fileName: "scan.png",
       fileType: "image",
       contentType: "image/png",
@@ -67,7 +79,7 @@ describe("prepareFileData activity", () => {
     expect(result.preparedData.fileName).toBe("scan.png");
     expect(result.preparedData.fileType).toBe("image");
     expect(result.preparedData.contentType).toBe("image/png");
-    expect(result.preparedData.blobKey).toBe("documents/doc-2/scan.png");
+    expect(result.preparedData.blobKey).toBe("atestgroup/ocr/scan.png");
   });
 
   it("accepts custom modelId", async () => {
@@ -76,7 +88,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-3",
-      blobKey: "documents/doc-3/invoice.pdf",
+      blobKey: "atestgroup/ocr/invoice.pdf",
       modelId: "custom-invoice-model",
     };
 
@@ -91,7 +103,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-4",
-      blobKey: "documents/doc-4/photo.jpg",
+      blobKey: "atestgroup/ocr/photo.jpg",
     };
 
     const result = await prepareFileData(input);
@@ -116,11 +128,11 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-6",
-      blobKey: "documents/doc-6/missing.pdf",
+      blobKey: "atestgroup/ocr/missing.pdf",
     };
 
     await expect(prepareFileData(input)).rejects.toThrow(
-      'Blob not found: "documents/doc-6/missing.pdf"',
+      'Blob not found: "atestgroup/ocr/missing.pdf"',
     );
   });
 
@@ -160,25 +172,26 @@ describe("prepareFileData activity", () => {
   });
 
   it("warns for invalid PDF signature", async () => {
-    const consoleSpy = jest.spyOn(console, "warn").mockImplementation();
     const invalidPdfBuffer = Buffer.from("not a pdf file content");
     mockRead.mockResolvedValue(invalidPdfBuffer);
 
     const input: PrepareFileDataInput = {
       documentId: "doc-8",
-      blobKey: "documents/doc-8/fake.pdf",
+      blobKey: "atestgroup/ocr/fake.pdf",
       fileType: "pdf",
     };
 
     const result = await prepareFileData(input);
 
     expect(result).toBeDefined();
-    expect(consoleSpy).toHaveBeenCalled();
-    const warnCall = consoleSpy.mock.calls.find((call) =>
-      call[0].includes("File does not have valid PDF signature"),
+    expect(mockWarn).toHaveBeenCalledWith(
+      "Prepare file data: invalid PDF signature",
+      expect.objectContaining({
+        event: "warn",
+        fileName: "fake.pdf",
+        warning: "File does not have valid PDF signature",
+        pdfSignature: "not ",
+      }),
     );
-    expect(warnCall).toBeDefined();
-
-    consoleSpy.mockRestore();
   });
 });

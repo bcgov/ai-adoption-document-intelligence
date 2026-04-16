@@ -6,7 +6,7 @@ export class ApproveDocumentDto {
     description: "Whether the document is approved (true) or rejected (false)",
   })
   @IsBoolean()
-  approved: boolean;
+  approved!: boolean;
 
   @ApiProperty({
     description: "Identifier of the reviewer",

@@ -1,12 +1,30 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
-import { DatabaseService } from "@/database/database.service";
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { GroupRole } from "@/generated";
+import { ROLE_ORDER } from "./role-order";
 import { ResolvedIdentity } from "./types";
+
+/**
+ * Returns the JWT-authenticated userId from the resolved identity, throwing
+ * 401 Unauthorized if the identity represents a non-user actor (e.g. API key).
+ * Use in routes/services that require a logged-in user.
+ */
+export function requireUserId(identity: ResolvedIdentity): string {
+  if (!identity.userId) {
+    throw new UnauthorizedException("Authenticated user required");
+  }
+  return identity.userId;
+}
 
 /**
  * Resolves the set of group IDs the resolved identity has access to, or
  * `undefined` when the identity has unrestricted access (system-admin).
  *
- * - **API key path** (`identity.groupId` is set): returns `[identity.groupId]`.
+ * - **API key path** (`identity.groupRoles` is set): returns the keys of
+ *   `identity.groupRoles` as the accessible group IDs.
  * - **JWT / system-admin path** (`identity.userId` is set): checks the database
  *   for the `system-admin` role. If the user is a system-admin, returns
  *   `undefined` so the caller applies no group filter and all records are
@@ -18,31 +36,24 @@ import { ResolvedIdentity } from "./types";
  *
  * @param identity - The resolved identity from `request.resolvedIdentity`, or
  *   `undefined` for unauthenticated requests.
- * @param db - The database service used to check admin role and group membership.
  * @returns An array of accessible group IDs, or `undefined` for unrestricted access.
  */
-export async function getIdentityGroupIds(
+export function getIdentityGroupIds(
   identity: ResolvedIdentity | undefined,
-  db: DatabaseService,
-): Promise<string[] | undefined> {
+): string[] | undefined {
   if (!identity) {
     return [];
   }
 
-  if (identity.groupId !== undefined) {
-    return [identity.groupId];
+  // Fast path: isSystemAdmin was pre-populated by IdentityGuard (via @Identity decorator).
+  // Admin users can see all records across all groups.
+  if (identity.isSystemAdmin === true) {
+    return undefined;
   }
 
-  if (identity.userId !== undefined) {
-    const isAdmin = await db.isUserSystemAdmin(identity.userId);
-    if (isAdmin) {
-      // What undefined means:
-      // - Caller should not apply any group filter (e.g. `where: { group_id: { in: ... } }`)
-      // - Admin users can see all records across all groups
-      return undefined;
-    }
-    const userGroups = await db.getUsersGroups(identity.userId);
-    return userGroups.map((ug) => ug.group_id);
+  if (identity.groupRoles !== undefined) {
+    // API key path: groupRoles encodes the single scoped group.
+    return Object.keys(identity.groupRoles);
   }
 
   return [];
@@ -54,8 +65,8 @@ export async function getIdentityGroupIds(
  *
  * - **Null groupId**: throws `404 Not Found` to prevent leaking the existence
  *   of orphaned records that have no group assignment.
- * - **API key path** (`identity.groupId` is set): throws `403 Forbidden` when
- *   the identity's group does not match the requested `groupId`.
+ * - **API key path** (`identity.groupRoles` is set): throws `403 Forbidden` when
+ *   the requested `groupId` is not present in `identity.groupRoles`.
  * - **JWT path** (`identity.userId` is set): throws `403 Forbidden` when the
  *   user is not a member of the group, verified via a database lookup.
  * - **Unauthenticated / no identity**: always throws `403 Forbidden`.
@@ -64,17 +75,16 @@ export async function getIdentityGroupIds(
  *   `undefined` for unauthenticated requests.
  * @param groupId - The group ID to validate access against, or `null` for
  *   orphaned records with no group assignment.
- * @param db - The database service used to check user group membership on the
- *   JWT path.
+ * @param minimumRole - The minimum required role within the group (default: "MEMBER").
  * @throws {NotFoundException} When the resource has no group (`groupId` is null),
  *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.
  */
-export async function identityCanAccessGroup(
+export function identityCanAccessGroup(
   identity: ResolvedIdentity | undefined,
   groupId: string | null,
-  db: DatabaseService,
-): Promise<void> {
+  minimumRole: GroupRole = GroupRole.MEMBER,
+): void {
   if (groupId === null) {
     throw new NotFoundException("Resource not found.");
   }
@@ -83,22 +93,23 @@ export async function identityCanAccessGroup(
     throw new ForbiddenException("User does not belong to requested group.");
   }
 
-  if (identity.groupId !== undefined) {
-    if (identity.groupId !== groupId) {
-      throw new ForbiddenException("User does not belong to requested group.");
-    }
+  // Fast path: isSystemAdmin was pre-populated by IdentityGuard (via @Identity decorator).
+  if (identity.isSystemAdmin === true) {
     return;
   }
 
-  if (identity.userId !== undefined) {
-    const isUserSystemAdmin = await db.isUserSystemAdmin(identity.userId);
-    if (isUserSystemAdmin) {
-      return;
-    }
-    // TODO: Check role permissions here once the roles & claims system is implemented
-    const isMember = await db.isUserInGroup(identity.userId, groupId);
-    if (!isMember) {
+  if (identity.groupRoles !== undefined) {
+    // API key path: groupRoles encodes the single scoped group.
+    // Use Object.hasOwn instead of `in` to avoid prototype chain traversal.
+    // The `in` operator returns true for inherited properties like "__proto__"
+    // or "constructor", which would bypass the membership check.
+    if (!Object.hasOwn(identity.groupRoles, groupId)) {
       throw new ForbiddenException("User does not belong to requested group.");
+    }
+    // Is their role for the group sufficient?
+    const role = identity.groupRoles[groupId];
+    if (ROLE_ORDER[role] < ROLE_ORDER[minimumRole]) {
+      throw new ForbiddenException("Insufficient role within the group");
     }
     return;
   }
