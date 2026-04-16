@@ -1,10 +1,13 @@
 name: Deploy Feature Branch Instance
 
+# To re-enable this workflow, replace the 'on' trigger below with:
+#   on:
+#     push:
+#       branches-ignore:
+#         - main
+#         - develop
 on:
-  push:
-    branches-ignore:
-      - main
-      - develop
+  workflow_dispatch: {}
 
 env:
   DEPLOY_PLG: "true"
