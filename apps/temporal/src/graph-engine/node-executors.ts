@@ -15,6 +15,10 @@ import {
   sleep,
   workflowInfo,
 } from "@temporalio/workflow";
+import type {
+  ExecuteTransformNodeParams,
+  ExecuteTransformNodeResult,
+} from "../activities/data-transform/execute";
 import { isRegisteredActivityType } from "../activity-types";
 import { evaluateCondition } from "../expression-evaluator";
 import type {
@@ -27,6 +31,7 @@ import type {
   MapNode,
   PollUntilNode,
   SwitchNode,
+  TransformNode,
 } from "../graph-workflow-types";
 import { resolvePortBinding, writeToCtx } from "./context-utils";
 import { handleNodeError, throwPollTimeout } from "./error-handling";
@@ -69,6 +74,10 @@ export async function executeNode(
 
     case "childWorkflow":
       await executeChildWorkflowNode(node as ChildWorkflowNode, state);
+      break;
+
+    case "transform":
+      await executeTransformNode(node as TransformNode, state);
       break;
 
     default:
@@ -480,6 +489,60 @@ async function executeChildWorkflowNode(
     for (const mapping of node.outputMappings) {
       const value = resolvePortBinding(mapping.port, childResult.ctx);
       writeToCtx(mapping.ctxKey, value, state.ctx);
+    }
+  }
+}
+
+/**
+ * Execute a transform node
+ *
+ * US-009: Transform node handler with unresolved binding error propagation.
+ *
+ * Builds the raw input context from the node's `inputs` port bindings, then
+ * delegates the full parse → resolve → render pipeline to the
+ * `executeTransformNode` activity.  Any unresolved binding error is surfaced
+ * from the activity as a non-retryable `ApplicationFailure` with type
+ * `TRANSFORM_BINDING_ERROR`, halting the workflow at this node.
+ */
+async function executeTransformNode(
+  node: TransformNode,
+  state: ExecutionState,
+): Promise<void> {
+  // Step 1: Build the raw input context from the node's input port bindings.
+  // Values are passed to the activity as-is; the activity handles parsing.
+  const rawInputContext: Record<string, unknown> = {};
+  if (node.inputs) {
+    for (const binding of node.inputs) {
+      rawInputContext[binding.port] = resolvePortBinding(
+        binding.ctxKey,
+        state.ctx,
+      );
+    }
+  }
+
+  // Step 2: Call the transform activity — it handles parse, resolve, render.
+  // Non-workflow-safe modules (csv, fast-xml-parser) live only in activity code.
+  const activityProxy = proxyActivities<{
+    executeTransformNode: (
+      params: ExecuteTransformNodeParams,
+    ) => Promise<ExecuteTransformNodeResult>;
+  }>({
+    startToCloseTimeout: "2m" as Duration,
+    retry: { maximumAttempts: 1 } as RetryPolicy,
+  });
+
+  const { output } = await activityProxy.executeTransformNode({
+    inputFormat: node.inputFormat,
+    outputFormat: node.outputFormat,
+    fieldMapping: node.fieldMapping,
+    xmlEnvelope: node.xmlEnvelope,
+    rawInputContext,
+  });
+
+  // Step 3: Write the rendered output string to ctx via output port bindings.
+  if (node.outputs) {
+    for (const binding of node.outputs) {
+      writeToCtx(binding.ctxKey, output, state.ctx);
     }
   }
 }

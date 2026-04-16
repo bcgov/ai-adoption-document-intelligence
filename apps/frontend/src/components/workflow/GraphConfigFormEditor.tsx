@@ -13,9 +13,12 @@ import {
   Stack,
   Switch,
   Text,
+  Textarea,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useRef } from "react";
 import type {
   ActivityNode,
   CtxDeclaration,
@@ -25,6 +28,7 @@ import type {
   GraphWorkflowConfig,
   NodeType,
   PortBinding,
+  TransformNode,
 } from "../../types/graph-workflow";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
@@ -35,6 +39,7 @@ const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "childWorkflow", label: "Child workflow" },
   { value: "pollUntil", label: "Poll until" },
   { value: "humanGate", label: "Human gate" },
+  { value: "transform", label: "Data Transformation" },
 ];
 
 const CTX_TYPES = [
@@ -52,6 +57,12 @@ const EDGE_TYPES = [
 ];
 
 const OCR_ENRICH_ACTIVITY_TYPE = "ocr.enrich";
+
+const FORMAT_OPTIONS = [
+  { value: "json", label: "JSON" },
+  { value: "xml", label: "XML" },
+  { value: "csv", label: "CSV" },
+] as const;
 
 export interface GraphConfigFormEditorProps {
   value: GraphWorkflowConfig;
@@ -114,6 +125,14 @@ function defaultNodeForType(type: NodeType, id: string): GraphNode {
         timeout: "24h",
         onTimeout: "fail",
       };
+    case "transform":
+      return {
+        ...base,
+        type: "transform",
+        inputFormat: "json",
+        outputFormat: "json",
+        fieldMapping: "{}",
+      } as TransformNode;
     default:
       return { ...base, type: "activity", activityType: "" } as ActivityNode;
   }
@@ -408,6 +427,12 @@ export function GraphConfigFormEditor({
                           onChange={(n) => updateNode(nodeId, n)}
                         />
                       )}
+                      {node.type === "transform" && (
+                        <TransformNodeForm
+                          node={node as TransformNode}
+                          onChange={(n) => updateNode(nodeId, n)}
+                        />
+                      )}
                     </Stack>
                   </Paper>
                 );
@@ -498,6 +523,199 @@ export function GraphConfigFormEditor({
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>
+    </Stack>
+  );
+}
+
+interface TransformNodeFormProps {
+  node: TransformNode;
+  onChange: (node: TransformNode) => void;
+}
+
+/**
+ * Configuration form for transform nodes. Provides format selectors,
+ * a field mapping editor, upload/download helpers, and an optional XML
+ * envelope editor (visible only when outputFormat is "xml").
+ */
+function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const envelopeFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === "string") {
+        onChange({ ...node, fieldMapping: content });
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-uploaded
+    e.target.value = "";
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([node.fieldMapping], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "mapping.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEnvelopeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === "string") {
+        onChange({
+          ...node,
+          xmlEnvelope: content || undefined,
+        });
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-uploaded
+    e.target.value = "";
+  };
+
+  const handleEnvelopeDownload = () => {
+    const blob = new Blob([node.xmlEnvelope ?? ""], {
+      type: "application/xml",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "envelope.xml";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Stack gap="xs">
+      <Group gap="sm" wrap="wrap">
+        <Select
+          label="Input format"
+          data={[...FORMAT_OPTIONS]}
+          value={node.inputFormat}
+          onChange={(v) =>
+            onChange({
+              ...node,
+              inputFormat: (v as TransformNode["inputFormat"]) ?? "json",
+            })
+          }
+          style={{ minWidth: 120 }}
+        />
+        <Select
+          label="Output format"
+          data={[...FORMAT_OPTIONS]}
+          value={node.outputFormat}
+          onChange={(v) =>
+            onChange({
+              ...node,
+              outputFormat: (v as TransformNode["outputFormat"]) ?? "json",
+            })
+          }
+          style={{ minWidth: 120 }}
+        />
+      </Group>
+      <Tooltip
+        label="Use {{nodeName.fieldName}} to reference output fields from other nodes. Nested paths (e.g. {{nodeName.a.b}}) are supported."
+        multiline
+        w={320}
+        position="top-start"
+        withArrow
+      >
+        <Textarea
+          label="Field mapping"
+          description="JSON object mapping output keys to binding expressions (e.g. {{nodeName.fieldName}}). Invalid JSON is caught at execution time."
+          placeholder='{\n  "outputKey": "{{nodeName.fieldName}}"\n}'
+          value={node.fieldMapping}
+          onChange={(e) =>
+            onChange({ ...node, fieldMapping: e.currentTarget.value })
+          }
+          minRows={4}
+          maxRows={16}
+          autosize
+          spellCheck={false}
+          styles={{ input: { fontFamily: "monospace" } }}
+        />
+      </Tooltip>
+      <Group gap="xs">
+        <Button
+          variant="light"
+          size="xs"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Upload mapping
+        </Button>
+        <Button
+          variant="light"
+          size="xs"
+          onClick={handleDownload}
+          disabled={!node.fieldMapping.trim()}
+        >
+          Download mapping
+        </Button>
+      </Group>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        style={{ display: "none" }}
+        onChange={handleFileUpload}
+      />
+      {node.outputFormat === "xml" && (
+        <>
+          <Textarea
+            label="XML Envelope (optional)"
+            description="Wrap the rendered XML payload in a caller-defined envelope. Use {{payload}} where the rendered XML should be injected."
+            placeholder="<envelope>{{payload}}</envelope>"
+            value={node.xmlEnvelope ?? ""}
+            onChange={(e) => {
+              const val = e.currentTarget.value;
+              onChange({
+                ...node,
+                xmlEnvelope: val || undefined,
+              });
+            }}
+            minRows={4}
+            maxRows={16}
+            autosize
+            spellCheck={false}
+            styles={{ input: { fontFamily: "monospace" } }}
+          />
+          <Group gap="xs">
+            <Button
+              variant="light"
+              size="xs"
+              onClick={() => envelopeFileInputRef.current?.click()}
+            >
+              Upload envelope
+            </Button>
+            <Button
+              variant="light"
+              size="xs"
+              onClick={handleEnvelopeDownload}
+              disabled={!node.xmlEnvelope?.trim()}
+            >
+              Download envelope
+            </Button>
+          </Group>
+          <input
+            ref={envelopeFileInputRef}
+            type="file"
+            accept=".xml"
+            style={{ display: "none" }}
+            onChange={handleEnvelopeFileUpload}
+          />
+        </>
+      )}
     </Stack>
   );
 }

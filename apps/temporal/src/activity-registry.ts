@@ -31,6 +31,7 @@ import {
 } from "./activities";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
+import { executeTransformNode } from "./activities/data-transform/execute";
 import { validateDocumentFields } from "./activities/document-validate-fields";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
@@ -268,6 +269,17 @@ register({
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Load dataset manifest from materialized data",
+});
+
+// -- Data transform activities ----------------------------------------------
+
+register({
+  activityType: "executeTransformNode",
+  activityFn: executeTransformNode as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 1 },
+  description:
+    "Execute data transformation node: parse input, resolve bindings, render output",
 });
 
 // ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@
 	"author": "",
 	"license": "MIT",
 	"dependencies": {
-    "@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
+		"@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
 		"@ai-di/shared-logging": "file:../../packages/logging",
 		"@aws-sdk/client-s3": "3.1000.0",
 		"@azure-rest/ai-document-intelligence": "1.0.0",
@@ -38,7 +38,9 @@
 		"@temporalio/worker": "1.10.0",
 		"@temporalio/workflow": "1.10.0",
 		"axios": "1.13.2",
+		"csv": "6.5.1",
 		"dotenv": "16.3.1",
+		"fast-xml-parser": "5.5.8",
 		"json-rules-engine": "4.0.0"
 	},
 	"devDependencies": {

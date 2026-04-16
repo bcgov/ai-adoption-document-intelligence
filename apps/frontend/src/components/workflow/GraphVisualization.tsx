@@ -14,6 +14,7 @@ import {
   IconShieldCheck,
   IconSparkles,
   IconSwitch3,
+  IconTransform,
   IconUser,
   IconUserCheck,
 } from "@tabler/icons-react";
@@ -40,6 +41,7 @@ import type {
   GraphWorkflowConfig,
   MapNode,
   SwitchNode,
+  TransformNode,
 } from "../../types/workflow";
 
 export interface GraphVisualizationError {
@@ -58,6 +60,9 @@ interface GraphNodeData {
   type: GraphNode["type"];
   hasError: boolean;
   workflowRef?: ChildWorkflowNode["workflowRef"];
+  inputFormat?: TransformNode["inputFormat"];
+  outputFormat?: TransformNode["outputFormat"];
+  fieldMapping?: string;
 }
 
 interface GroupNodeData {
@@ -87,6 +92,7 @@ const NODE_DIMENSIONS: Record<
   childWorkflow: { width: 200, height: 80 },
   pollUntil: { width: 190, height: 80 },
   humanGate: { width: 190, height: 80 },
+  transform: { width: 190, height: 110 },
 };
 
 const LAYER_GAP = 120; // Vertical spacing between layers in map containers
@@ -99,6 +105,7 @@ const NODE_COLORS: Record<GraphNode["type"], string> = {
   childWorkflow: "#a855f7",
   pollUntil: "#fb923c",
   humanGate: "#ef4444",
+  transform: "#44efe6",
 };
 
 const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
@@ -109,7 +116,29 @@ const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
   childWorkflow: <IconFolder size={18} />,
   pollUntil: <IconRefresh size={18} />,
   humanGate: <IconUserCheck size={18} />,
+  transform: <IconTransform size={18} />,
 };
+
+const TRANSFORM_TRUNCATION_THRESHOLD = 300;
+const TRANSFORM_DISPLAY_CHARS = 60;
+
+/**
+ * Extracts summary data from a graph node for transform nodes.
+ */
+function transformNodeSummaryData(node: GraphNode): {
+  inputFormat?: TransformNode["inputFormat"];
+  outputFormat?: TransformNode["outputFormat"];
+  fieldMapping?: string;
+} {
+  if (node.type === "transform") {
+    return {
+      inputFormat: node.inputFormat,
+      outputFormat: node.outputFormat,
+      fieldMapping: node.fieldMapping,
+    };
+  }
+  return {};
+}
 
 const GraphNodeRenderer = memo(function GraphNodeRenderer({
   data,
@@ -119,6 +148,7 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
   const color = NODE_COLORS[data.type];
   const isDiamond = data.type === "switch";
   const isChildWorkflow = data.type === "childWorkflow";
+  const isTransform = data.type === "transform";
   const workflowId =
     isChildWorkflow && data.workflowRef?.type === "library"
       ? data.workflowRef.workflowId
@@ -188,6 +218,38 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
           >
             <IconCornerDownRight size={12} />
             <span>{workflowId}</span>
+          </div>
+        ) : isTransform && data.inputFormat && data.outputFormat ? (
+          <div
+            style={{
+              fontSize: 10,
+              color: "#6b7280",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              alignItems: "center",
+            }}
+          >
+            <div>
+              {data.inputFormat.toUpperCase()} →{" "}
+              {data.outputFormat.toUpperCase()}
+            </div>
+            {data.fieldMapping ? (
+              <div
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 9,
+                  maxWidth: 156,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {data.fieldMapping.length > TRANSFORM_TRUNCATION_THRESHOLD
+                  ? data.fieldMapping.slice(0, TRANSFORM_DISPLAY_CHARS) + "…"
+                  : data.fieldMapping}
+              </div>
+            ) : null}
           </div>
         ) : (
           <div style={{ fontSize: 11, color: "#6b7280" }}>{data.type}</div>
@@ -852,6 +914,7 @@ function buildDetailedViewWithMapContainers(
           type: node.type,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     } else {
@@ -873,6 +936,7 @@ function buildDetailedViewWithMapContainers(
           type: node.type,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     }
@@ -1226,6 +1290,7 @@ function buildHybridView(
             type: bodyNode.type,
             hasError: errorNodeIds.has(bodyNode.id),
             workflowRef,
+            ...transformNodeSummaryData(bodyNode),
           } as unknown as Record<string, unknown>,
         });
       }
@@ -1242,6 +1307,7 @@ function buildHybridView(
           label: node.label,
           type: node.type,
           hasError: errorNodeIds.has(node.id),
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     }
@@ -1386,6 +1452,7 @@ function buildSimplifiedView(
         label: node.label,
         type: node.type,
         hasError: errorNodeIds.has(node.id),
+        ...transformNodeSummaryData(node),
       } as unknown as Record<string, unknown>,
     });
   }
@@ -1505,6 +1572,7 @@ export function GraphVisualization({
           type: node.type,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       };
     });
