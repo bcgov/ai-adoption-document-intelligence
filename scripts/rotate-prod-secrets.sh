@@ -44,6 +44,11 @@ INSTANCE_NAME="bcgov-di"
 BACKEND_SECRET="${INSTANCE_NAME}-backend-services-secrets"
 WORKER_SECRET="${INSTANCE_NAME}-temporal-worker-secrets"
 
+ARTIFACTORY_REGISTRY="artifacts.developer.gov.bc.ca"
+# Deployments that pull images from ARTIFACTORY_REGISTRY — all need a restart
+# when the pull secret changes, so new/scaled pods pull successfully.
+ARTIFACTORY_DEPLOYMENTS=(backend-services frontend temporal temporal-ui temporal-worker)
+
 OC_TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy/token-${NAMESPACE}"
 OC_TOKEN_DEFAULT="${PROJECT_ROOT}/.oc-deploy/token"
 
@@ -383,29 +388,97 @@ if [[ "${WORKER_TOUCHED}" == "true" ]]; then
   fi
 fi
 
+# ---------- patch Artifactory pull secret ----------
+#
+# Cross-namespace copy of the Archeobot-managed credential. Archeobot maintains
+# the canonical secret in -tools but does NOT propagate to fd34fb-prod (the
+# copy here was seeded manually when the platform pull flow was set up). So
+# whenever the Artifactory SA is rotated (delete + recreate), we must refresh
+# the dockerconfigjson here ourselves. Requires both USERNAME and PASSWORD.
+
+ARTIFACTORY_TOUCHED=false
+PULL_SECRET_PATCHED=false
+PULL_SECRET_FAIL=false
+
+if [[ -v "SECRETS[ARTIFACTORY_SA_USERNAME]" && -v "SECRETS[ARTIFACTORY_SA_PASSWORD]" ]]; then
+  declare -A _PROCESS_SET=()
+  for _k in "${KEYS_ORDERED[@]}"; do _PROCESS_SET["${_k}"]=1; done
+  if [[ -v "_PROCESS_SET[ARTIFACTORY_SA_USERNAME]" && -v "_PROCESS_SET[ARTIFACTORY_SA_PASSWORD]" && \
+        -n "${SECRETS[ARTIFACTORY_SA_USERNAME]}" && -n "${SECRETS[ARTIFACTORY_SA_PASSWORD]}" ]]; then
+    ARTIFACTORY_TOUCHED=true
+  fi
+  unset _PROCESS_SET
+elif [[ -v "SECRETS[ARTIFACTORY_SA_USERNAME]" || -v "SECRETS[ARTIFACTORY_SA_PASSWORD]" ]]; then
+  log_warn "Only one of ARTIFACTORY_SA_USERNAME/PASSWORD present — skipping prod pull-secret patch (need both)"
+fi
+
+if [[ "${ARTIFACTORY_TOUCHED}" == "true" ]]; then
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    log_info "[DRY RUN] would patch Artifactory pull secret in ${NAMESPACE}"
+  else
+    # Find the pull secret dynamically (name includes the rotating plate suffix)
+    PULL_SECRET_NAME=$(oc get secret -n "${NAMESPACE}" --no-headers \
+      -o custom-columns=NAME:.metadata.name,TYPE:.type 2>/dev/null \
+      | awk '$1 ~ /^artifacts-pull-default-/ && $2 == "kubernetes.io/dockerconfigjson" {print $1; exit}')
+
+    if [[ -z "${PULL_SECRET_NAME}" ]]; then
+      log_error "No artifacts-pull-default-* dockerconfigjson secret found in ${NAMESPACE}"
+      PULL_SECRET_FAIL=true
+    else
+      # Build dockerconfigjson via jq (stdin-safe), base64, then patch.
+      _U="${SECRETS[ARTIFACTORY_SA_USERNAME]}"
+      _P="${SECRETS[ARTIFACTORY_SA_PASSWORD]}"
+      _DOCKERCFG=$(jq -nc --arg r "${ARTIFACTORY_REGISTRY}" --arg u "${_U}" --arg p "${_P}" \
+        '{"auths": {($r): {"username": $u, "password": $p, "auth": ($u+":"+$p|@base64)}}}')
+      _DOCKERCFG_B64=$(printf '%s' "${_DOCKERCFG}" | base64 -w0)
+      _PATCH=$(jq -nc --arg v "${_DOCKERCFG_B64}" '{data: {".dockerconfigjson": $v}}')
+
+      if printf '%s' "${_PATCH}" | oc patch secret "${PULL_SECRET_NAME}" \
+          -n "${NAMESPACE}" --type=merge --patch-file=/dev/stdin &>/dev/null; then
+        PULL_SECRET_PATCHED=true
+      else
+        log_error "Failed to patch pull secret: ${PULL_SECRET_NAME}"
+        PULL_SECRET_FAIL=true
+      fi
+      unset _U _P _DOCKERCFG _DOCKERCFG_B64 _PATCH
+    fi
+  fi
+fi
+
 # ---------- rollout restart ----------
 
 RESTARTED=0
+declare -A _RESTARTED_SET=()
+
+restart_deployment() {
+  local svc="$1"
+  local deploy="${INSTANCE_NAME}-${svc}"
+  [[ -v "_RESTARTED_SET[${deploy}]" ]] && return 0
+  if oc rollout restart "deployment/${deploy}" -n "${NAMESPACE}" &>/dev/null; then
+    _RESTARTED_SET["${deploy}"]=1
+    RESTARTED=$((RESTARTED + 1))
+  else
+    log_error "Failed to restart ${deploy}"
+  fi
+}
 
 if [[ "${DRY_RUN}" != "true" && "${NO_RESTART}" != "true" ]]; then
   log_step "Restarting affected deployments"
 
   if [[ "${BACKEND_TOUCHED}" == "true" ]]; then
-    if oc rollout restart "deployment/${INSTANCE_NAME}-backend-services" \
-        -n "${NAMESPACE}" &>/dev/null; then
-      RESTARTED=$((RESTARTED + 1))
-    else
-      log_error "Failed to restart ${INSTANCE_NAME}-backend-services"
-    fi
+    restart_deployment "backend-services"
   fi
 
   if [[ "${WORKER_TOUCHED}" == "true" ]]; then
-    if oc rollout restart "deployment/${INSTANCE_NAME}-temporal-worker" \
-        -n "${NAMESPACE}" &>/dev/null; then
-      RESTARTED=$((RESTARTED + 1))
-    else
-      log_error "Failed to restart ${INSTANCE_NAME}-temporal-worker"
-    fi
+    restart_deployment "temporal-worker"
+  fi
+
+  # Artifactory pull-secret change: restart every deployment that pulls from
+  # the registry so new/scaled pods don't hit stale creds cached in the API.
+  if [[ "${ARTIFACTORY_TOUCHED}" == "true" ]]; then
+    for svc in "${ARTIFACTORY_DEPLOYMENTS[@]}"; do
+      restart_deployment "${svc}"
+    done
   fi
 fi
 
@@ -426,6 +499,13 @@ else
   echo "GitHub secrets failed:        ${GH_FAIL}"
   echo "OpenShift secrets patched:    ${OS_PATCH_SUCCESS}"
   echo "OpenShift secrets failed:     ${OS_PATCH_FAIL}"
+  if [[ "${ARTIFACTORY_TOUCHED}" == "true" ]]; then
+    if [[ "${PULL_SECRET_PATCHED}" == "true" ]]; then
+      echo "Pull secret patched:          yes"
+    else
+      echo "Pull secret patched:          no (FAILED)"
+    fi
+  fi
   if [[ "${NO_RESTART}" == "true" ]]; then
     echo "Deployment restarts:          skipped (--no-restart)"
   else
@@ -435,7 +515,8 @@ fi
 
 # Non-zero exit code if any failures occurred
 if [[ "${DRY_RUN}" != "true" ]] && \
-   (( GH_FAIL > 0 || OS_PATCH_FAIL > 0 )); then
+   (( GH_FAIL > 0 || OS_PATCH_FAIL > 0 )) || \
+   [[ "${PULL_SECRET_FAIL}" == "true" ]]; then
   exit 1
 fi
 

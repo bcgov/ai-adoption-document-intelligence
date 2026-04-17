@@ -30,8 +30,8 @@ names or values.
 | `AZURE_STORAGE_ACCOUNT_NAME`          | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `AZURE_STORAGE_ACCOUNT_KEY`           | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `AZURE_OPENAI_API_KEY`                | ✓                                     |                                               | ✓                                            |                                     |
-| `ARTIFACTORY_SA_USERNAME`             | ✓                                     |                                               |                                              |                                     |
-| `ARTIFACTORY_SA_PASSWORD`             | ✓                                     |                                               |                                              |                                     |
+| `ARTIFACTORY_SA_USERNAME`             | ✓                                     |                                               |                                              | `artifacts-pull-default-*` in prod  |
+| `ARTIFACTORY_SA_PASSWORD`             | ✓                                     |                                               |                                              | `artifacts-pull-default-*` in prod  |
 | `OPENSHIFT_TOKEN`                     | ✓ (also sets `OPENSHIFT_API_TOKEN`)   |                                               |                                              | `.oc-deploy/token-fd34fb-prod`      |
 
 Unrecognized keys in the file are skipped with a warning. Empty values are
@@ -124,6 +124,12 @@ manage these. There's no "change password" action — you rotate by destroying
 and recreating the `ArtifactoryServiceAccount` CR in your `-tools` namespace.
 The username changes each time (random suffix is regenerated).
 
+**Gotcha:** Archeobot maintains the canonical credential secret in `-tools`
+only. The `artifacts-pull-default-*` dockerconfigjson in `fd34fb-prod` is a
+manually-seeded copy (done once when the direct-pull flow was set up) — it
+does **not** auto-propagate on rotation. This script patches that prod copy
+for you whenever both `ARTIFACTORY_SA_*` keys are present.
+
 ```bash
 # As your own IDIR user (NOT the deploy SA)
 oc login --web --server=https://api.silver.devops.gov.bc.ca:6443
@@ -131,20 +137,46 @@ oc login --web --server=https://api.silver.devops.gov.bc.ca:6443
 # List the ASA(s) — find the one you want to rotate
 oc get artsvcacct -n fd34fb-tools
 
-# Delete it; Archeobot auto-recreates the "default" ASA within ~5 min
+# Delete it; Archeobot auto-recreates the "default" ASA within a few minutes
 oc delete artsvcacct default -n fd34fb-tools
 
-# Once the new artifacts-* secret appears, pipe the values directly into the
-# rotation file (no stdout — values never hit the terminal):
-oc get secret -n fd34fb-tools -l serviceaccount.archeobot.devops.gov.bc.ca/name=default \
-  -o json | jq -r '.items[0].data |
-    "ARTIFACTORY_SA_USERNAME=" + (.username | @base64d) +
-    "\nARTIFACTORY_SA_PASSWORD=" + (.password | @base64d)' \
+# Get the new plate (suffix) from the ASA status once it comes back
+oc get artsvcacct default -n fd34fb-tools -o jsonpath='{.spec.current_plate}'
+
+# Pipe the values directly into the rotation file (stdout never carries them):
+NEW_PLATE="<from above>"
+oc get secret "artifacts-default-${NEW_PLATE}" -n fd34fb-tools -o json \
+  | jq -r '.data | "ARTIFACTORY_SA_USERNAME=" + (.username | @base64d) +
+                  "\nARTIFACTORY_SA_PASSWORD=" + (.password | @base64d)' \
   >> ~/.config/bcgov-di/prod-secrets.env
+# Remove any stale ARTIFACTORY_SA_* lines that were above this append, if needed.
 ```
 
-Then run `./scripts/rotate-prod-secrets.sh` — the script pushes both keys to
-the GH `prod` env (no OpenShift secret to update).
+Then run `./scripts/rotate-prod-secrets.sh`. The script will:
+1. Push both keys to GH `prod` env.
+2. Find `artifacts-pull-default-*` in `fd34fb-prod` and patch its
+   `.dockerconfigjson` with the new creds.
+3. Roll restart **all five** Artifactory-pulling deployments (backend-services,
+   frontend, temporal, temporal-ui, temporal-worker) so future pod creations
+   pick up the new pull secret cleanly.
+
+**⚠️ Manual step still required — Artifactory UI Project Member:**
+Because the SA **username** changes on every rotation, the new account must be
+added as a **Member** to the Artifactory Project that owns the
+`kfd3-fd34fb-local` repo, with the same roles the old account had (typically
+`reader` + `deployer`). Without this, pod pulls fail with *"The client does
+not have permission for manifest"* even though auth succeeds.
+
+1. Log in to `artifacts.developer.gov.bc.ca` with your IDIR.
+2. Find the project (gear → Identity and Access → Projects, or via Projects
+   direct navigation).
+3. Members → Add Member → Users → search for the new SA name
+   (`default-fd34fb-<new-suffix>`) → grant the required roles.
+4. Optionally remove the previous SA name from Members.
+
+If you rotated but forgot this step, the script's patch + restart leaves pods
+in `ErrImagePull` with the manifest-permission error — add the member, then
+`oc delete pod -n fd34fb-prod <failing-pod>` to reset the backoff.
 
 ### OPENSHIFT_TOKEN
 
