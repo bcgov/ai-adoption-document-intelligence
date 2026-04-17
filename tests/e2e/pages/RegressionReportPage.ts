@@ -150,8 +150,7 @@ export class RegressionReportPage {
   async exportJson(): Promise<void> {
     const downloadPromise = this.page.waitForEvent('download');
     await this.exportJsonBtn.click();
-    const download = await downloadPromise;
-    return;
+    await downloadPromise;
   }
 
   /**
@@ -160,8 +159,7 @@ export class RegressionReportPage {
   async exportHtml(): Promise<void> {
     const downloadPromise = this.page.waitForEvent('download');
     await this.exportHtmlBtn.click();
-    const download = await downloadPromise;
-    return;
+    await downloadPromise;
   }
 
   /**

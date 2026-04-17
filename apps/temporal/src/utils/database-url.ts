@@ -6,7 +6,7 @@
  * self-signed certs used by Crunchy Postgres in-cluster.
  */
 export function getDatabaseConnectionString(url: string | undefined): string {
-  if (!url) return url ?? "";
+  if (!url) return "";
   const sslMode = process.env.PGSSLMODE;
   if (!sslMode) return url;
   try {

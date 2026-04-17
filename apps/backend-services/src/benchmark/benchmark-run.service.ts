@@ -871,15 +871,40 @@ export class BenchmarkRunService {
   }
 
   /**
+   * Builds filter map from raw query strings, keeping only keys present on the run
+   * (metadata dimensions and `pass`). Coerces numeric strings like the HTTP layer.
+   */
+  private sanitizePerSampleQueryFilters(
+    query: Record<string, string>,
+    allowedKeys: ReadonlySet<string>,
+  ): Map<string, string | number> {
+    const out = new Map<string, string | number>();
+    for (const [key, value] of Object.entries(query)) {
+      if (key === "page" || key === "limit") {
+        continue;
+      }
+      if (!allowedKeys.has(key)) {
+        continue;
+      }
+      const numValue = Number(value);
+      out.set(key, isNaN(numValue) ? value : numValue);
+    }
+    return out;
+  }
+
+  /**
    * Get per-sample results with filtering and pagination
    *
    * Allows filtering by metadata dimensions and fetching individual sample results.
    * Used for slicing, filtering, and drill-down UI.
+   *
+   * @param queryParams Raw query key/value strings from the controller. Only keys
+   * that exist as dimensions on this run are applied; others are ignored.
    */
   async getPerSampleResults(
     projectId: string,
     runId: string,
-    filters: Record<string, string | number> = {},
+    queryParams: Record<string, string> = {},
     page = 1,
     limit = 20,
   ): Promise<PerSampleResultsResponseDto> {
@@ -940,11 +965,17 @@ export class BenchmarkRunService {
       dimensionValues[key] = Array.from(values).sort();
     }
 
+    const allowedFilterKeys = new Set(dimensionValuesMap.keys());
+    const filters = this.sanitizePerSampleQueryFilters(
+      queryParams,
+      allowedFilterKeys,
+    );
+
     // Apply filters (supports metadata keys and the synthetic "pass" dimension)
     let filteredResults = allResults;
-    if (Object.keys(filters).length > 0) {
+    if (filters.size > 0) {
       filteredResults = allResults.filter((result) => {
-        for (const [key, value] of Object.entries(filters)) {
+        for (const [key, value] of filters) {
           if (key === "pass") {
             const passBool = value === "true";
             if (result.pass !== passBool) return false;

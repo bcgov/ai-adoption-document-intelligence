@@ -1,5 +1,8 @@
 name: Database Backup
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -26,6 +29,8 @@ on:
 jobs:
   backup-database:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment:
       name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || github.ref_name == 'stage' && 'test' || 'dev') }}
     outputs:

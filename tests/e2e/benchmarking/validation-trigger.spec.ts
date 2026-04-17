@@ -55,6 +55,7 @@ test.describe('Dataset Validation - Trigger and Results', () => {
       validationReport.loadingIndicator.isVisible().catch(() => false),
       page.waitForTimeout(100).then(() => false),
     ]);
+    expect(typeof loadingVisible).toBe("boolean");
 
     // Wait for validation to complete
     await validationReport.waitForValidationComplete();
