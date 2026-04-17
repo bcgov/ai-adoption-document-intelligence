@@ -21,3 +21,10 @@ apps/backend-services/backend.log
 .oc-deploy/
 backups/
 deployments/openshift/config/*.env
+
+# Terraform
+infra/terraform.tfvars
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/.terraform.lock.hcl

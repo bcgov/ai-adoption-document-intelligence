@@ -1,9 +1,15 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
 import {
   PdfNormalizationError,
@@ -14,7 +20,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
+import type { AnalysisResponse } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import type { LabelingDocumentData } from "./labeling-document-db.types";
@@ -41,10 +47,10 @@ export class TemplateModelOcrService {
   ) {
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    );
+    )!;
     this.azureApiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    );
+    )!;
   }
 
   async createLabelingDocument(
@@ -61,11 +67,21 @@ export class TemplateModelOcrService {
 
     const documentId = uuidv4();
     const extension = extensionForOriginalBlob(originalFilename, dto.file_type);
-    const blobKey = `labeling-documents/${documentId}/original.${extension}`;
+    const blobKey = buildBlobFilePath(
+      dto.group_id,
+      OperationCategory.TRAINING,
+      ["labeling-documents", documentId],
+      `original.${extension}`,
+    );
 
     await this.blobStorage.write(blobKey, fileBuffer);
 
-    const normalizedKey = `labeling-documents/${documentId}/normalized.pdf`;
+    const normalizedKey = buildBlobFilePath(
+      dto.group_id,
+      OperationCategory.TRAINING,
+      ["labeling-documents", documentId],
+      "normalized.pdf",
+    );
     try {
       const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
         fileBuffer,
@@ -159,7 +175,7 @@ export class TemplateModelOcrService {
       });
     } catch (error) {
       this.logger.error(
-        `Labeling OCR failed for ${labelingDocumentId}: ${error.message}`,
+        `Labeling OCR failed for ${labelingDocumentId}: ${getErrorMessage(error)}`,
       );
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.failed,
@@ -168,7 +184,9 @@ export class TemplateModelOcrService {
   }
 
   private async requestOcr(blobKey: string): Promise<string> {
-    const fileBuffer = await this.blobStorage.read(blobKey);
+    const fileBuffer = await this.blobStorage.read(
+      validateBlobFilePath(blobKey),
+    );
 
     const url = `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
 

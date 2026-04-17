@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
@@ -11,14 +12,11 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { DocumentService } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import {
-  AnalysisResponse,
-  AnalysisResult,
-  KeyValuePair,
-} from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -48,6 +46,7 @@ export class OcrService {
   async requestOcr(
     documentId: string,
     ctxOverrides?: Record<string, unknown>,
+    graphOverride?: GraphWorkflowConfig,
   ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
@@ -65,7 +64,7 @@ export class OcrService {
       }
 
       const fileBuffer = await this.blobStorage.read(
-        document.normalized_file_path,
+        validateBlobFilePath(document.normalized_file_path),
       );
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
@@ -107,6 +106,7 @@ export class OcrService {
           documentId,
           workflowConfigId,
           initialCtx,
+          graphOverride,
         );
 
       // Update document with workflow configuration ID and Temporal workflow execution ID
@@ -139,13 +139,13 @@ export class OcrService {
       // Status is set by workflow pre-execution hook
       return {
         apimRequestId:
-          updateResult.workflow_execution_id || workflowExecutionId,
+          updateResult?.workflow_execution_id || workflowExecutionId,
         workflowId: workflowExecutionId,
         status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
-      this.logger.error(`Error processing document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
 
       if (document != null) {
         await this.documentService.updateDocument(documentId, {
@@ -154,8 +154,7 @@ export class OcrService {
       }
 
       // Ensure error is a string for the response
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       return {
         status: DocumentStatus.failed,
         error: errorMessage,

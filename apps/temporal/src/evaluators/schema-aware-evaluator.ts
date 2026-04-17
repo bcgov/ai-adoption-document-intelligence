@@ -14,6 +14,15 @@ import {
   EvaluationInput,
   EvaluationResult,
 } from "../benchmark-types";
+import { parseToCalendarParts } from "../form-field-normalization";
+
+/**
+ * Check if a value represents "no value" — null, undefined, empty string, or the string "null"
+ * are all treated as semantically equivalent.
+ */
+export function isNullLike(v: unknown): boolean {
+  return v === null || v === undefined || v === "" || v === "null";
+}
 
 /**
  * Matching rule configuration for a field
@@ -77,6 +86,7 @@ interface FieldComparisonResult {
   similarity?: number;
   absoluteError?: number;
   relativeError?: number;
+  confidence?: number | null;
 }
 
 /**
@@ -122,6 +132,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     const prediction = await this.loadJson(predictionPath);
     const groundTruth = await this.loadJson(groundTruthPath);
 
+    const confidenceMap: Record<string, number | null> =
+      input.predictionConfidences ?? {};
+
     // Compare all fields
     const comparisonResults: FieldComparisonResult[] = [];
 
@@ -133,34 +146,32 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         groundTruth[field],
         config,
       );
+      result.confidence = field in confidenceMap ? confidenceMap[field] : null;
       comparisonResults.push(result);
     }
 
     // Identify extra fields in prediction (for precision calculation)
+    // Null-like prediction values are not meaningful extra fields
     const extraFields = Object.keys(prediction).filter(
-      (field) => !(field in groundTruth),
+      (field) => !(field in groundTruth) && !isNullLike(prediction[field]),
     );
-    for (const field of extraFields) {
-      comparisonResults.push({
-        field,
-        matched: false,
-        predicted: prediction[field],
-        expected: undefined,
-      });
-    }
 
-    // Calculate metrics
-    const metrics = this.calculateMetrics(comparisonResults, groundTruth);
+    // Calculate metrics (extra fields count as false positives for precision)
+    const metrics = this.calculateMetrics(
+      comparisonResults,
+      groundTruth,
+      extraFields.length,
+    );
 
     // Build diagnostics
     const missingFields = comparisonResults
-      .filter((r) => r.expected !== undefined && r.predicted === undefined)
+      .filter((r) => !isNullLike(r.expected) && isNullLike(r.predicted))
       .map((r) => r.field);
 
     const mismatchedFields = comparisonResults
       .filter(
         (r) =>
-          !r.matched && r.expected !== undefined && r.predicted !== undefined,
+          !r.matched && !isNullLike(r.expected) && !isNullLike(r.predicted),
       )
       .map((r) => ({
         field: r.field,
@@ -214,8 +225,17 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         rule: "exact" as const,
       };
 
-    // Handle missing prediction
-    if (predicted === undefined || predicted === null) {
+    if (isNullLike(predicted) && isNullLike(expected)) {
+      return {
+        field,
+        matched: true,
+        predicted,
+        expected,
+      };
+    }
+
+    // Handle missing prediction (only predicted is null-like, expected has a real value)
+    if (isNullLike(predicted)) {
       return {
         field,
         matched: false,
@@ -260,13 +280,11 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     predicted: unknown,
     expected: unknown,
   ): FieldComparisonResult {
-    const matched = String(predicted) === String(expected);
-    return {
-      field,
-      matched,
-      predicted,
-      expected,
-    };
+    const predictedStr = String(predicted);
+    const expectedStr = String(expected);
+
+    const matched = predictedStr === expectedStr;
+    return { field, matched, predicted, expected };
   }
 
   /**
@@ -383,11 +401,11 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   }
 
   /**
-   * Parse numeric value (handle commas)
+   * Parse numeric value (handle commas and spaces so "6 191.12" and "6,191.12" parse)
    */
   private parseNumeric(value: string): number | null {
-    // Remove commas and parse
-    const cleaned = value.replace(/,/g, "");
+    const cleaned = value.replace(/,/g, "").replace(/\s/g, "");
+    if (cleaned === "") return null;
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
   }
@@ -401,17 +419,15 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     expected: unknown,
     _formats?: string[],
   ): FieldComparisonResult {
-    const predictedDate = this.parseDate(String(predicted));
-    const expectedDate = this.parseDate(String(expected));
+    const pCal = parseToCalendarParts(String(predicted));
+    const eCal = parseToCalendarParts(String(expected));
 
-    if (predictedDate === null || expectedDate === null) {
-      // Fall back to exact match if not parseable as dates
+    if (pCal === null || eCal === null) {
       return this.exactMatch(field, predicted, expected);
     }
 
-    // Compare normalized dates (YYYY-MM-DD)
     const matched =
-      this.formatDate(predictedDate) === this.formatDate(expectedDate);
+      pCal.y === eCal.y && pCal.m === eCal.m && pCal.day === eCal.day;
 
     return {
       field,
@@ -419,21 +435,6 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       predicted,
       expected,
     };
-  }
-
-  /**
-   * Parse date string to Date object
-   */
-  private parseDate(value: string): Date | null {
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date;
-  }
-
-  /**
-   * Format date to YYYY-MM-DD
-   */
-  private formatDate(date: Date): string {
-    return date.toISOString().split("T")[0];
   }
 
   /**
@@ -475,17 +476,12 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   private calculateMetrics(
     results: FieldComparisonResult[],
     groundTruth: Record<string, unknown>,
+    extraFieldCount: number,
   ): Record<string, number> {
     const groundTruthFields = Object.keys(groundTruth);
-    const truePositives = results.filter(
-      (r) => r.matched && r.expected !== undefined,
-    ).length;
-    const falsePositives = results.filter(
-      (r) => !r.matched && r.expected === undefined,
-    ).length;
-    const falseNegatives = results.filter(
-      (r) => !r.matched && r.expected !== undefined,
-    ).length;
+    const truePositives = results.filter((r) => r.matched).length;
+    const falsePositives = extraFieldCount;
+    const falseNegatives = results.filter((r) => !r.matched).length;
 
     const precision =
       truePositives + falsePositives > 0

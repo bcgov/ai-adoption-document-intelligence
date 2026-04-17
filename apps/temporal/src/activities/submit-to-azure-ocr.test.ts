@@ -59,6 +59,24 @@ describe("submitToAzureOCR activity", () => {
     process.env = originalEnv;
   });
 
+  it("short-circuits when benchmark OCR cache replay payload is present", async () => {
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: "/tmp/benchmark/x.pdf",
+      modelId: "prebuilt-layout",
+    };
+
+    const result = await submitToAzureOCR({
+      fileData,
+      __benchmarkOcrCache: { ocrResponse: { status: "succeeded" } },
+    });
+
+    expect(result.apimRequestId).toBe("benchmark-ocr-cache");
+    expect(documentIntelligenceMock).not.toHaveBeenCalled();
+  });
+
   it("submits document successfully with prebuilt model", async () => {
     const mockResponse = {
       status: 202,
@@ -73,7 +91,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "test.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-1/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
       modelId: "prebuilt-layout",
     };
 
@@ -119,7 +137,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "invoice.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-2/invoice.pdf",
+      blobKey: "atestgroup/ocr/invoice.pdf",
       modelId: "custom-invoice-model",
     };
 
@@ -154,7 +172,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "test.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-3/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
       modelId: "prebuilt-layout",
     };
 
@@ -171,7 +189,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "test.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-4/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
       modelId: "prebuilt-layout",
     };
 
@@ -192,7 +210,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "test.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-5/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
       modelId: "prebuilt-layout",
     };
 
@@ -213,7 +231,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "test.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-6/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
       modelId: "prebuilt-layout",
     };
 
@@ -230,7 +248,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "test.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-7/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
       modelId: "prebuilt-layout",
     };
 
@@ -256,7 +274,7 @@ describe("submitToAzureOCR activity", () => {
       fileName: "test.pdf",
       fileType: "pdf",
       contentType: "application/pdf",
-      blobKey: "documents/doc-8/test.pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
       modelId: "prebuilt-layout",
     };
 

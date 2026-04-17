@@ -8,6 +8,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatasetService } from "./dataset.service";
@@ -28,14 +29,16 @@ export class GroundTruthGenerationController {
   constructor(
     private readonly groundTruthGenerationService: GroundTruthGenerationService,
     private readonly datasetService: DatasetService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async assertDatasetGroupAccess(
     datasetId: string,
     req: Request,
-  ): Promise<void> {
+  ): Promise<string> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
     identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    return dataset.groupId;
   }
 
   @Post()
@@ -59,10 +62,15 @@ export class GroundTruthGenerationController {
     @Req() req: Request,
   ) {
     await this.assertDatasetGroupAccess(datasetId, req);
+    const userId =
+      (req.user as Record<string, unknown> | undefined)?.sub?.toString() ??
+      "anonymous";
     return this.groundTruthGenerationService.startGeneration(
       datasetId,
       versionId,
-      dto.workflowConfigId,
+      dto.workflowVersionId,
+      userId,
+      dto.workflowConfigOverrides,
     );
   }
 
@@ -126,8 +134,8 @@ export class GroundTruthGenerationController {
     @Query("offset") offset?: number,
     @Query("reviewStatus") reviewStatus?: "pending" | "reviewed" | "all",
   ) {
-    await this.assertDatasetGroupAccess(datasetId, req);
-    return this.groundTruthGenerationService.getReviewQueue(
+    const groupId = await this.assertDatasetGroupAccess(datasetId, req);
+    const result = await this.groundTruthGenerationService.getReviewQueue(
       datasetId,
       versionId,
       {
@@ -136,6 +144,20 @@ export class GroundTruthGenerationController {
         reviewStatus,
       },
     );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "ocr",
+        document_ids: result.documents.map((d) => d.id),
+        count: result.documents.length,
+        dataset_id: datasetId,
+      },
+    });
+    return result;
   }
 
   @Get("review/stats")

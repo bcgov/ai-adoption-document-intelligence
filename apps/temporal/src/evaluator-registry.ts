@@ -10,6 +10,7 @@
 
 import { BenchmarkEvaluator } from "./benchmark-types";
 import { BlackBoxEvaluator } from "./evaluators/black-box-evaluator";
+import { OcrCorrectionEvaluator } from "./evaluators/ocr-correction-evaluator";
 import { SchemaAwareEvaluator } from "./evaluators/schema-aware-evaluator";
 
 /**
@@ -68,3 +69,4 @@ export function getEvaluatorCount(): number {
 // Register built-in evaluators
 registerEvaluator(new SchemaAwareEvaluator());
 registerEvaluator(new BlackBoxEvaluator());
+registerEvaluator(new OcrCorrectionEvaluator());

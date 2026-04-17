@@ -2,28 +2,28 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class VersionResponseDto {
   @ApiProperty({ description: "Version ID" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: "Dataset ID" })
-  datasetId: string;
+  datasetId!: string;
 
   @ApiProperty({ description: "Version label" })
-  version: string;
+  version!: string;
 
   @ApiProperty({ description: "Version name", nullable: true })
-  name: string | null;
+  name!: string | null;
 
   @ApiProperty({
     description: "Storage prefix for this version",
     nullable: true,
   })
-  storagePrefix: string | null;
+  storagePrefix!: string | null;
 
   @ApiProperty({ description: "Path to the dataset manifest file" })
-  manifestPath: string;
+  manifestPath!: string;
 
   @ApiProperty({ description: "Number of documents in this version" })
-  documentCount: number;
+  documentCount!: number;
 
   @ApiProperty({
     description: "JSON schema for ground truth validation",
@@ -31,13 +31,13 @@ export class VersionResponseDto {
     type: "object",
     additionalProperties: true,
   })
-  groundTruthSchema: Record<string, unknown> | null;
+  groundTruthSchema!: Record<string, unknown> | null;
 
   @ApiProperty({ description: "Whether this version is frozen" })
-  frozen: boolean;
+  frozen!: boolean;
 
   @ApiProperty({ description: "Creation timestamp" })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiPropertyOptional({
     description: "Splits associated with this version",

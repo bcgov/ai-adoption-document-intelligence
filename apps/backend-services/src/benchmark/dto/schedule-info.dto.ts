@@ -6,10 +6,10 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
  */
 export class ScheduleInfoDto {
   @ApiProperty({ description: "Temporal schedule ID" })
-  scheduleId: string;
+  scheduleId!: string;
 
   @ApiProperty({ description: "Cron expression for the schedule" })
-  cron: string;
+  cron!: string;
 
   @ApiPropertyOptional({ description: "Next scheduled run time", type: Date })
   nextRunTime?: Date;
@@ -18,5 +18,5 @@ export class ScheduleInfoDto {
   lastRunTime?: Date;
 
   @ApiProperty({ description: "Whether the schedule is paused" })
-  paused: boolean;
+  paused!: boolean;
 }

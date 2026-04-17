@@ -96,11 +96,11 @@ describe("DocumentService", () => {
       expect(result.document.title).toBe("Test");
       expect(documentDbService.createDocument).toHaveBeenCalled();
       expect(blobStorage.write).toHaveBeenCalledWith(
-        expect.stringMatching(/^documents\/.+\/original\.pdf$/),
+        expect.stringMatching(/^group-1\/ocr\/.+\/original\.pdf$/),
         expect.any(Buffer),
       );
       expect(blobStorage.write).toHaveBeenCalledWith(
-        expect.stringMatching(/^documents\/.+\/normalized\.pdf$/),
+        expect.stringMatching(/^group-1\/ocr\/.+\/normalized\.pdf$/),
         expect.any(Buffer),
       );
     });
@@ -280,8 +280,9 @@ describe("DocumentService", () => {
     it("should delete the document and its blob", async () => {
       const mockDoc = {
         id: "1",
-        file_path: "documents/1/original.pdf",
-        group_id: "group-1",
+        file_path: "testgroup1/ocr/documents/1/original.pdf",
+        group_id: "testgroup1",
+        status: DocumentStatus.completed_ocr,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
@@ -289,7 +290,9 @@ describe("DocumentService", () => {
       const result = await service.deleteDocument("1");
       expect(result).toBe(true);
       expect(documentDbService.deleteDocument).toHaveBeenCalledWith("1");
-      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith("documents/1/");
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "testgroup1/ocr/1",
+      );
     });
 
     it("should return false if document not found", async () => {
@@ -299,11 +302,30 @@ describe("DocumentService", () => {
       expect(documentDbService.deleteDocument).not.toHaveBeenCalled();
     });
 
-    it("should still return true if blob deletion fails", async () => {
+    it.each([
+      DocumentStatus.pre_ocr,
+      DocumentStatus.ongoing_ocr,
+    ])("should refuse to delete a document with status %s", async (status) => {
       const mockDoc = {
         id: "1",
         file_path: "documents/1/original.pdf",
         group_id: "group-1",
+        status,
+      };
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
+      await expect(service.deleteDocument("1")).rejects.toThrow(
+        /currently being processed/,
+      );
+      expect(documentDbService.deleteDocument).not.toHaveBeenCalled();
+      expect(blobStorage.delete).not.toHaveBeenCalled();
+    });
+
+    it("should still return true if blob deletion fails", async () => {
+      const mockDoc = {
+        id: "1",
+        file_path: "testgroup1/ocr/documents/1/original.pdf",
+        group_id: "testgroup1",
+        status: DocumentStatus.completed_ocr,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);

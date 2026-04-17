@@ -179,21 +179,21 @@ log_info "Found PostgreSQL pod: ${PG_POD}"
 # ============================================================
 log_step "Step 4: Reading database credentials"
 
-# Crunchy PostgreSQL operator stores credentials in a secret named <instance>-pguser-<instance>
-# The database name and user can be read from the secret.
-PG_SECRET_NAME="${INSTANCE_NAME}-pguser-${INSTANCE_NAME}"
+# Crunchy PostgreSQL operator stores credentials in a secret named <instance>-app-pg-pguser-admin.
+# The database name is read from the secret. For the user, we always use "postgres" because
+# pg_dump runs via local socket inside the pod, and Crunchy pg_hba.conf only allows the
+# postgres superuser for local (non-TCP) connections.
+PG_SECRET_NAME="${INSTANCE_NAME}-app-pg-pguser-admin"
 
 DB_NAME=$(oc get secret "${PG_SECRET_NAME}" -n "${NAMESPACE}" \
   -o jsonpath='{.data.dbname}' 2>/dev/null | base64 -d) || true
 
-DB_USER=$(oc get secret "${PG_SECRET_NAME}" -n "${NAMESPACE}" \
-  -o jsonpath='{.data.user}' 2>/dev/null | base64 -d) || true
+DB_USER="postgres"
 
-if [[ -z "${DB_NAME}" || -z "${DB_USER}" ]]; then
-  # Fallback: use the postgres superuser and default database name
-  log_info "Could not read credentials from secret '${PG_SECRET_NAME}'. Falling back to defaults."
-  DB_NAME="${INSTANCE_NAME}"
-  DB_USER="postgres"
+if [[ -z "${DB_NAME}" ]]; then
+  log_error "Could not read database name from secret '${PG_SECRET_NAME}'."
+  log_error "Ensure the instance is deployed and the Crunchy PostgreSQL cluster is running."
+  exit 1
 fi
 
 log_info "Database name: ${DB_NAME}"
@@ -213,22 +213,32 @@ log_info "Backups directory: ${BACKUPS_DIR}"
 log_step "Step 6: Running pg_dump"
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-BACKUP_FILENAME="${INSTANCE_NAME}-${TIMESTAMP}.sql"
+BACKUP_FILENAME="${INSTANCE_NAME}-${TIMESTAMP}.pgc"
 BACKUP_PATH="${BACKUPS_DIR}/${BACKUP_FILENAME}"
 
 log_info "Executing pg_dump on pod '${PG_POD}' for database '${DB_NAME}'..."
 log_info "Output file: ${BACKUP_PATH}"
 
-# Run pg_dump inside the pod and stream the output to a local file.
-# The Crunchy PostgreSQL container has pg_dump available and the database
-# container uses the 'database' container name.
+# Run pg_dump inside the pod writing to a temp file, then copy it out.
+# Uses custom format (-Fc) which is binary-safe and robust against JSON/text
+# content that can break plain SQL COPY streams when piped through oc exec.
+REMOTE_DUMP="/tmp/oc-backup-${TIMESTAMP}.pgc"
+
 oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- \
-  pg_dump -U "${DB_USER}" -d "${DB_NAME}" --clean --if-exists > "${BACKUP_PATH}" || {
+  pg_dump -U "${DB_USER}" -d "${DB_NAME}" -Fc --clean --if-exists -f "${REMOTE_DUMP}" || {
   log_error "pg_dump failed."
-  # Clean up partial dump file
+  oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
+  exit 1
+}
+
+oc cp "${NAMESPACE}/${PG_POD}:${REMOTE_DUMP}" "${BACKUP_PATH}" -c database || {
+  log_error "Failed to copy dump file out of pod."
+  oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
   rm -f "${BACKUP_PATH}"
   exit 1
 }
+
+oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
 
 # Verify the backup file is not empty
 if [[ ! -s "${BACKUP_PATH}" ]]; then

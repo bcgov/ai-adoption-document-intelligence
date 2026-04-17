@@ -53,7 +53,7 @@ export const AZURE_STORAGE = Symbol("AZURE_STORAGE");
 
 @Injectable()
 export class AzureStorageService {
-  private blobServiceClient: BlobServiceClient;
+  private blobServiceClient!: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
   private readonly deleteRetryDelayMs = 5000;
@@ -68,10 +68,10 @@ export class AzureStorageService {
     );
     this.accountName = this.configService.get<string>(
       "AZURE_STORAGE_ACCOUNT_NAME",
-    );
+    )!;
     this.accountKey = this.configService.get<string>(
       "AZURE_STORAGE_ACCOUNT_KEY",
-    );
+    )!;
 
     if (!connectionString) {
       this.logger.warn(
@@ -504,6 +504,19 @@ export class AzureStorageService {
    */
   getContainerClient(containerName: string): ContainerClient {
     return this.blobServiceClient.getContainerClient(containerName);
+  }
+
+  /**
+   * Checks if a blob object already exists in the Azure Blob Storage.
+   * @param containerName The name of the storage container
+   * @param filePath The file path of the blob
+   * @returns A boolean indicating it exists or not.
+   */
+  async fileExists(containerName: string, filePath: string): Promise<boolean> {
+    const containerClient =
+      this.blobServiceClient.getContainerClient(containerName);
+    const blobClient = containerClient.getBlobClient(filePath);
+    return await blobClient.exists();
   }
 
   private async delay(ms: number): Promise<void> {

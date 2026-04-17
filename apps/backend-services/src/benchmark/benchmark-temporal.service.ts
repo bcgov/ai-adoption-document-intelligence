@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Temporal Service
  *
@@ -65,7 +66,7 @@ export class BenchmarkTemporalService {
       this.logger.log("Temporal client connected successfully");
     } catch (error) {
       this.logger.error(
-        `Failed to connect to Temporal: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to connect to Temporal: ${getErrorMessage(error)}`,
       );
       throw error;
     }
@@ -86,7 +87,7 @@ export class BenchmarkTemporalService {
       datasetVersionId: string;
       splitId?: string;
       sampleIds?: string[];
-      workflowId: string;
+      workflowVersionId: string;
       workflowConfig: Record<string, unknown>;
       workflowConfigHash: string;
       evaluatorType: string;
@@ -95,6 +96,8 @@ export class BenchmarkTemporalService {
       runtimeSettings: Record<string, unknown>;
       workerGitSha: string;
       workerImageDigest?: string;
+      persistOcrCache?: boolean;
+      ocrCacheBaselineRunId?: string;
     },
   ): Promise<string> {
     await this.ensureClient();
@@ -117,7 +120,7 @@ export class BenchmarkTemporalService {
               datasetVersionId: benchmarkDefinition.datasetVersionId,
               splitId: benchmarkDefinition.splitId,
               sampleIds: benchmarkDefinition.sampleIds,
-              workflowId: benchmarkDefinition.workflowId,
+              workflowVersionId: benchmarkDefinition.workflowVersionId,
               workflowConfig: benchmarkDefinition.workflowConfig,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,
               evaluatorType: benchmarkDefinition.evaluatorType,
@@ -126,6 +129,8 @@ export class BenchmarkTemporalService {
               runtimeSettings: benchmarkDefinition.runtimeSettings,
               workerGitSha: benchmarkDefinition.workerGitSha,
               workerImageDigest: benchmarkDefinition.workerImageDigest,
+              persistOcrCache: benchmarkDefinition.persistOcrCache,
+              ocrCacheBaselineRunId: benchmarkDefinition.ocrCacheBaselineRunId,
             },
           ],
           taskQueue: this.taskQueue,
@@ -144,8 +149,7 @@ export class BenchmarkTemporalService {
       );
       return handle.workflowId;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(
         `Failed to start benchmark run workflow: ${errorMessage}`,
       );
@@ -171,8 +175,7 @@ export class BenchmarkTemporalService {
 
       this.logger.log(`Benchmark run workflow cancelled: ${workflowId}`);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(
         `Failed to cancel benchmark run workflow: ${errorMessage}`,
       );
@@ -206,8 +209,7 @@ export class BenchmarkTemporalService {
             : undefined,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to get workflow status: ${errorMessage}`);
       throw new Error(`Failed to get workflow status: ${errorMessage}`);
     }
@@ -227,8 +229,8 @@ export class BenchmarkTemporalService {
     benchmarkDefinition: {
       definitionId: string;
       datasetVersionId: string;
-      splitId: string;
-      workflowId: string;
+      splitId: string | null;
+      workflowVersionId: string;
       workflowConfigHash: string;
       evaluatorType: string;
       evaluatorConfig: Record<string, unknown>;
@@ -262,7 +264,7 @@ export class BenchmarkTemporalService {
               definitionId: benchmarkDefinition.definitionId,
               datasetVersionId: benchmarkDefinition.datasetVersionId,
               splitId: benchmarkDefinition.splitId,
-              workflowId: benchmarkDefinition.workflowId,
+              workflowVersionId: benchmarkDefinition.workflowVersionId,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,
               evaluatorType: benchmarkDefinition.evaluatorType,
               evaluatorConfig: benchmarkDefinition.evaluatorConfig,
@@ -282,8 +284,7 @@ export class BenchmarkTemporalService {
       this.logger.log(`Schedule created: ${scheduleId}`);
       return scheduleId;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to create schedule: ${errorMessage}`);
       throw new Error(`Failed to create schedule: ${errorMessage}`);
     }
@@ -308,8 +309,7 @@ export class BenchmarkTemporalService {
 
       this.logger.log(`Schedule deleted: ${scheduleId}`);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to delete schedule: ${errorMessage}`);
       throw new Error(`Failed to delete schedule: ${errorMessage}`);
     }
@@ -339,8 +339,7 @@ export class BenchmarkTemporalService {
         paused: description.state.paused,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       this.logger.error(`Failed to get schedule info: ${errorMessage}`);
       throw new Error(`Failed to get schedule info: ${errorMessage}`);
     }

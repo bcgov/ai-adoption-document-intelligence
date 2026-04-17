@@ -8,6 +8,8 @@
  * All operations use flat string keys (e.g. "documents/{id}/original.pdf").
  */
 
+import { BlobFilePath, BlobPrefixPath } from "./storage-path-builder";
+
 /**
  * Configuration for MinIO blob storage provider.
  */
@@ -43,7 +45,7 @@ export interface BlobStorageInterface {
    * @param key - The blob key (e.g. "documents/{id}/original.pdf")
    * @param data - The file content as a Buffer
    */
-  write(key: string, data: Buffer): Promise<void>;
+  write(key: BlobFilePath, data: Buffer): Promise<void>;
 
   /**
    * Read data from a blob key.
@@ -51,33 +53,33 @@ export interface BlobStorageInterface {
    * @returns The file content as a Buffer
    * @throws Error if the key does not exist
    */
-  read(key: string): Promise<Buffer>;
+  read(key: BlobFilePath): Promise<Buffer>;
 
   /**
    * Check whether a blob key exists.
    * @param key - The blob key
    * @returns true if the key exists, false otherwise
    */
-  exists(key: string): Promise<boolean>;
+  exists(key: BlobFilePath): Promise<boolean>;
 
   /**
    * Delete a blob key. No error if the key does not exist.
    * @param key - The blob key
    */
-  delete(key: string): Promise<void>;
+  delete(key: BlobFilePath): Promise<void>;
 
   /**
    * List all blob keys matching a given prefix.
    * @param prefix - The key prefix to filter by (e.g. "documents/{id}/")
    * @returns Array of matching blob keys
    */
-  list(prefix: string): Promise<string[]>;
+  list(prefix: BlobPrefixPath): Promise<string[]>;
 
   /**
    * Delete all blobs matching a given prefix.
    * @param prefix - The key prefix to match for deletion
    */
-  deleteByPrefix(prefix: string): Promise<void>;
+  deleteByPrefix(prefix: BlobPrefixPath): Promise<void>;
 }
 
 /**

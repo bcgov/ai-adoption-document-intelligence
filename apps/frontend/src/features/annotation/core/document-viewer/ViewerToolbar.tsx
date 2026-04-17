@@ -12,19 +12,19 @@ import { FC } from "react";
 interface ViewerToolbarProps {
   currentPage: number;
   totalPages: number;
-  zoom: number;
   onPageChange: (page: number) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onZoomReset: () => void;
+  zoom?: number;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onZoomReset?: () => void;
   onRotate?: () => void;
 }
 
 export const ViewerToolbar: FC<ViewerToolbarProps> = ({
   currentPage,
   totalPages,
-  zoom,
   onPageChange,
+  zoom,
   onZoomIn,
   onZoomOut,
   onZoomReset,
@@ -36,6 +36,8 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
       onPageChange(page);
     }
   };
+
+  const showZoom = zoom != null && onZoomIn && onZoomOut && onZoomReset;
 
   return (
     <Group
@@ -75,24 +77,27 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
         <IconChevronRight size={18} />
       </ActionIcon>
 
-      <Divider orientation="vertical" />
+      {showZoom && (
+        <>
+          <Divider orientation="vertical" />
 
-      {/* Zoom Controls */}
-      <ActionIcon variant="subtle" onClick={onZoomOut}>
-        <IconZoomOut size={18} />
-      </ActionIcon>
+          <ActionIcon variant="subtle" onClick={onZoomOut}>
+            <IconZoomOut size={18} />
+          </ActionIcon>
 
-      <Text size="sm" style={{ minWidth: 50, textAlign: "center" }}>
-        {Math.round(zoom * 100)}%
-      </Text>
+          <Text size="sm" style={{ minWidth: 50, textAlign: "center" }}>
+            {Math.round(zoom * 100)}%
+          </Text>
 
-      <ActionIcon variant="subtle" onClick={onZoomIn}>
-        <IconZoomIn size={18} />
-      </ActionIcon>
+          <ActionIcon variant="subtle" onClick={onZoomIn}>
+            <IconZoomIn size={18} />
+          </ActionIcon>
 
-      <ActionIcon variant="subtle" onClick={onZoomReset}>
-        <IconZoomReset size={18} />
-      </ActionIcon>
+          <ActionIcon variant="subtle" onClick={onZoomReset}>
+            <IconZoomReset size={18} />
+          </ActionIcon>
+        </>
+      )}
 
       {onRotate && (
         <>

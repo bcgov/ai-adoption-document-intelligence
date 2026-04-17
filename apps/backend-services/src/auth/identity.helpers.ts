@@ -1,7 +1,23 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { GroupRole } from "@/generated";
 import { ROLE_ORDER } from "./role-order";
 import { ResolvedIdentity } from "./types";
+
+/**
+ * Returns the JWT-authenticated userId from the resolved identity, throwing
+ * 401 Unauthorized if the identity represents a non-user actor (e.g. API key).
+ * Use in routes/services that require a logged-in user.
+ */
+export function requireUserId(identity: ResolvedIdentity): string {
+  if (!identity.userId) {
+    throw new UnauthorizedException("Authenticated user required");
+  }
+  return identity.userId;
+}
 
 /**
  * Resolves the set of group IDs the resolved identity has access to, or
@@ -59,7 +75,8 @@ export function getIdentityGroupIds(
  *   `undefined` for unauthenticated requests.
  * @param groupId - The group ID to validate access against, or `null` for
  *   orphaned records with no group assignment.
- * @param minimumRole - The minimum required role within the group (default: "MEMBER").
+ * @param minimumRole - The minimum required role within the group (default
+ *   `GroupRole.MEMBER`). Same floor as `IdentityGuard` when `minimumRole` was set on `@Identity`.
  * @throws {NotFoundException} When the resource has no group (`groupId` is null),
  *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.

@@ -30,7 +30,7 @@ export class MetricThreshold {
    */
   @ApiProperty({ description: "Metric name" })
   @IsString()
-  metricName: string;
+  metricName!: string;
 
   /**
    * Threshold type (absolute or relative/percentage)
@@ -40,7 +40,7 @@ export class MetricThreshold {
     enum: ["absolute", "relative"],
   })
   @IsIn(["absolute", "relative"])
-  type: ThresholdType;
+  type!: ThresholdType;
 
   /**
    * Threshold value
@@ -51,7 +51,7 @@ export class MetricThreshold {
     description: "Threshold value (absolute min or relative ratio)",
   })
   @IsNumber()
-  value: number;
+  value!: number;
 }
 
 /**
@@ -146,19 +146,19 @@ export class PromoteBaselineResponseDto {
    * Run ID that was promoted
    */
   @ApiProperty({ description: "Run ID that was promoted to baseline" })
-  runId: string;
+  runId!: string;
 
   /**
    * Whether this run is now the baseline
    */
   @ApiProperty({ description: "Whether this run is now the baseline" })
-  isBaseline: boolean;
+  isBaseline!: boolean;
 
   /**
    * Previous baseline run ID (if any)
    */
   @ApiProperty({ description: "Previous baseline run ID", nullable: true })
-  previousBaselineId: string | null;
+  previousBaselineId!: string | null;
 
   /**
    * Configured thresholds
@@ -169,5 +169,5 @@ export class PromoteBaselineResponseDto {
     type: () => MetricThreshold,
     isArray: true,
   })
-  thresholds: MetricThreshold[] | null;
+  thresholds!: MetricThreshold[] | null;
 }

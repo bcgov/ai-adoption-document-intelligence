@@ -8,7 +8,11 @@ import type { LogContext } from "@ai-di/shared-logging";
 import { getLogLevel } from "@ai-di/shared-logging";
 import type { LogLevel as TemporalLogLevel } from "@temporalio/common";
 import type { LogEntry } from "@temporalio/worker";
-import { DefaultLogger, Runtime } from "@temporalio/worker";
+import {
+  DefaultLogger,
+  makeTelemetryFilterString,
+  Runtime,
+} from "@temporalio/worker";
 import { workerLogger } from "./logger";
 
 const SHARED_TO_TEMPORAL_LEVEL: Record<string, TemporalLogLevel> = {
@@ -87,7 +91,7 @@ export function installTemporalRuntimeLogger(): void {
     logger,
     telemetryOptions: {
       logging: {
-        filter: { core: "WARN", other: "ERROR" },
+        filter: makeTelemetryFilterString({ core: "WARN", other: "ERROR" }),
         forward: {},
       },
     },

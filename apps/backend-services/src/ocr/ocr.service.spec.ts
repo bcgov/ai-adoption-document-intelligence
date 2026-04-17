@@ -16,10 +16,10 @@ import { OcrService } from "./ocr.service";
 const defaultDocument = {
   id: "id",
   title: "hi",
-  file_path: "path/goes/here",
-  normalized_file_path: "path/goes/here/normalized.pdf",
+  file_path: "testgroup1/ocr/test-file.pdf",
+  normalized_file_path: "testgroup1/ocr/testid/normalized.pdf",
   file_size: 1223,
-  file_type: "image/png",
+  file_type: "cuid/ocr/test-file.png",
   original_filename: "test-file.png",
   source: "test",
   status: DocumentStatus.pre_ocr,
@@ -60,7 +60,7 @@ describe("OcrService", () => {
           useValue: {
             findDocument: jest
               .fn()
-              .mockImplementation(async (id: String) => defaultDocument),
+              .mockImplementation(async (_id: string) => defaultDocument),
             updateDocument: jest.fn().mockResolvedValue({
               ...defaultDocument,
               status: DocumentStatus.ongoing_ocr,

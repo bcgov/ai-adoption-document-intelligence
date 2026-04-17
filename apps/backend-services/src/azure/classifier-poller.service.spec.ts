@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import { AzureService } from "./azure.service";
@@ -40,6 +41,7 @@ describe("ClassifierPollerService", () => {
         { provide: AzureService, useValue: mockAzureService },
         { provide: AzureStorageService, useValue: mockBlobService },
         { provide: ClassifierService, useValue: mockClassifierService },
+        { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
       ],
     }).compile();
 
@@ -100,8 +102,8 @@ describe("ClassifierPollerService", () => {
         mockClassifierDbService.systemUpdateClassifierModel,
       ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
       expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalledWith(
-        "gid/clf",
-        "classification",
+        "gid/classification/clf",
+        "document-blobs",
       );
     });
 

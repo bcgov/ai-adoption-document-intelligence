@@ -1,6 +1,17 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+} from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
+import {
+  buildBlobFilePath,
+  buildBlobPrefixPath,
+  OperationCategory,
+} from "@/blob-storage/storage-path-builder";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -105,7 +116,9 @@ export class DocumentService {
           : fileBase64;
         fileBuffer = Buffer.from(base64Data, "base64");
       } catch (error) {
-        this.logger.error(`Failed to decode base64 file: ${error.message}`);
+        this.logger.error(
+          `Failed to decode base64 file: ${getErrorMessage(error)}`,
+        );
         throw new BadRequestException("Invalid base64 file data");
       }
 
@@ -116,12 +129,22 @@ export class DocumentService {
 
       const documentId = uuidv4();
       const extension = extensionForOriginalBlob(originalFilename, fileType);
-      const blobKey = `documents/${documentId}/original.${extension}`;
+      const blobKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.OCR,
+        [documentId],
+        `original.${extension}`,
+      );
 
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);
 
-      const normalizedKey = `documents/${documentId}/normalized.pdf`;
+      const normalizedKey = buildBlobFilePath(
+        groupId,
+        OperationCategory.OCR,
+        [documentId],
+        "normalized.pdf",
+      );
       try {
         const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
           fileBuffer,
@@ -195,8 +218,8 @@ export class DocumentService {
         document: this.toUploadedDocument(savedDocument),
       };
     } catch (error) {
-      this.logger.error(`Error uploading document: ${error.message}`);
-      this.logger.error(`Stack: ${error.stack}`);
+      this.logger.error(`Error uploading document: ${getErrorMessage(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
       throw error;
     }
   }
@@ -221,8 +244,13 @@ export class DocumentService {
   /**
    * Deletes a document and its associated blob storage file.
    *
+   * Refuses to delete documents whose OCR pipeline is still in flight
+   * (`pre_ocr` or `ongoing_ocr`) to avoid orphaning Temporal workflows. The
+   * caller must wait for processing to settle before retrying.
+   *
    * @param id - The document ID.
    * @returns `true` if deleted, `false` if not found.
+   * @throws ConflictException if the document is currently being processed.
    */
   async deleteDocument(id: string): Promise<boolean> {
     this.logger.debug(`DocumentService.deleteDocument: ${id}`);
@@ -230,9 +258,22 @@ export class DocumentService {
     if (!document) {
       return false;
     }
+    if (
+      document.status === DocumentStatus.pre_ocr ||
+      document.status === DocumentStatus.ongoing_ocr
+    ) {
+      throw new ConflictException(
+        "Document is currently being processed; try again once OCR completes",
+      );
+    }
     await this.documentDb.deleteDocument(id);
     try {
-      await this.blobStorage.deleteByPrefix(`documents/${id}/`);
+      const documentPath = buildBlobPrefixPath(
+        document.group_id,
+        OperationCategory.OCR,
+        [id],
+      );
+      await this.blobStorage.deleteByPrefix(documentPath);
     } catch (error) {
       this.logger.warn(
         `Failed to delete blobs for document ${id}: ${(error as Error).message}`,

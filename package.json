@@ -6,6 +6,7 @@
 	"workspaces": [
 		"apps/backend-services",
 		"apps/frontend",
+		"apps/temporal",
 		"packages/*"
 	],
 	"scripts": {
@@ -14,8 +15,9 @@
 		"dev": "mkdir -p logs && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
 		"build:backend-services": "cd apps/backend-services && npm run build",
 		"build:frontend": "cd apps/frontend && npm run build",
+		"build:packages": "npm run build -w packages",
 		"build": "npm run build:backend-services && npm run build:frontend",
-		"install:all": "npm install && cd apps/backend-services && npm install && cd ../frontend && npm install",
+		"install:all": "npm install",
 		"prepare": "lefthook install",
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
@@ -29,14 +31,21 @@
 		"docs:build": "npm run generate:openapi && cd docs && bash build.sh"
 	},
 	"devDependencies": {
-		"lefthook": "^2.1.4",
-		"concurrently": "^9.2.1"
+		"concurrently": "9.2.1",
+		"dotenv": "17.2.3",
+		"lefthook": "2.1.4"
 	},
 	"engines": {
 		"node": ">=24.0.0",
 		"npm": ">=10.0.0"
 	},
 	"dependencies": {
-		"@playwright/test": "^1.58.2"
+		"@playwright/test": "1.58.2"
+	},
+	"overrides": {
+		"axios": "1.15.0",
+		"fast-xml-parser": "5.5.9",
+		"multer": "2.1.1",
+		"serialize-javascript": "7.0.5"
 	}
 }

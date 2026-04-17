@@ -16,6 +16,7 @@ export interface FieldDef {
   field_key: string;
   field_type: string;
   field_format?: string | null;
+  format_spec?: string | null;
 }
 
 export type FieldMap = Record<string, { type: string; format?: string }>;
@@ -28,7 +29,7 @@ export function buildFieldMap(fieldDefinitions: FieldDef[]): FieldMap {
   for (const fd of fieldDefinitions) {
     map[fd.field_key] = {
       type: fd.field_type,
-      format: fd.field_format ?? undefined,
+      format: fd.format_spec ?? undefined,
     };
   }
   return map;

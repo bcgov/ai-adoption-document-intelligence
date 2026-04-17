@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../logger";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
@@ -65,10 +66,11 @@ export async function checkOcrConfidence(params: {
       wordCount,
     });
 
-    // Update document status if review is required
+    // Update document status if review is required (skip in benchmark: no DB row exists)
     // Note: We keep status as 'ongoing_ocr' since the workflow is still in progress
     // The workflow itself tracks the 'awaiting_review' state separately
-    if (requiresReview) {
+    const isBenchmark = documentId.startsWith("benchmark-");
+    if (requiresReview && !isBenchmark) {
       const prisma = getPrismaClient();
       await prisma.document.update({
         where: { id: documentId },
@@ -82,6 +84,12 @@ export async function checkOcrConfidence(params: {
         status: "ongoing_ocr",
         requiresReview: true,
       });
+    } else if (requiresReview && isBenchmark) {
+      log.debug("Skipping document status update for benchmark run", {
+        event: "status_update_skipped",
+        documentId,
+        reason: "benchmark",
+      });
     }
 
     return {
@@ -89,12 +97,11 @@ export async function checkOcrConfidence(params: {
       requiresReview,
     };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = getErrorMessage(error);
     log.error("Check OCR confidence error", {
       event: "error",
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: getErrorStack(error),
     });
     // Default to requiring review if we can't calculate confidence
     return {

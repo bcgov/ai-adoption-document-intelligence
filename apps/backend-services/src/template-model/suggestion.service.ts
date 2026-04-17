@@ -320,7 +320,7 @@ export class SuggestionService {
 
       const matchedWords = valueSpan
         ? this.matchWordsBySpan(words, valueSpan, usedWordIds)
-        : this.matchWordsInRegion(words, valueRegion, usedWordIds);
+        : this.matchWordsInRegion(words, valueRegion!, usedWordIds);
       if (!matchedWords.length) {
         this.logger.debug(
           `[suggestFromKeyValuePairs] Skipping field "${field.field_key}": no matched words in region`,

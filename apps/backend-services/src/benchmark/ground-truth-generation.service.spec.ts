@@ -2,73 +2,7 @@ import {
   CorrectionAction,
   DocumentStatus,
   GroundTruthJobStatus,
-  ReviewStatus,
 } from "@generated/client";
-
-const mockGroundTruthJobDbService = {
-  findVersionForValidation: jest.fn(),
-  findWorkflow: jest.fn(),
-  findExistingJobs: jest.fn(),
-  createManyJobs: jest.fn(),
-  findVersionForProcessing: jest.fn(),
-  findPendingJobs: jest.fn(),
-  findJob: jest.fn(),
-  findJobByDocumentId: jest.fn(),
-  findJobWithVersionAndDocument: jest.fn(),
-  findWorkflowConfig: jest.fn(),
-  updateJob: jest.fn(),
-  updateManyJobs: jest.fn(),
-  findJobs: jest.fn(),
-  countJobs: jest.fn(),
-  findJobsForReviewQueue: jest.fn(),
-  findProcessingJobsWithDocumentStatus: jest.fn(),
-  syncProcessingJobStatuses: jest.fn(),
-};
-
-jest.mock("@prisma/adapter-pg", () => ({
-  PrismaPg: jest.fn(),
-}));
-
-jest.mock("@generated/client", () => {
-  return {
-    PrismaClient: jest.fn(() => ({})),
-    GroundTruthJobStatus: {
-      pending: "pending",
-      processing: "processing",
-      awaiting_review: "awaiting_review",
-      completed: "completed",
-      failed: "failed",
-    },
-    DocumentStatus: {
-      pre_ocr: "pre_ocr",
-      ongoing_ocr: "ongoing_ocr",
-      completed_ocr: "completed_ocr",
-      failed: "failed",
-    },
-    ReviewStatus: {
-      in_progress: "in_progress",
-      approved: "approved",
-      escalated: "escalated",
-      skipped: "skipped",
-    },
-    CorrectionAction: {
-      confirmed: "confirmed",
-      corrected: "corrected",
-      flagged: "flagged",
-      deleted: "deleted",
-    },
-    Prisma: {
-      PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
-        code: string;
-        constructor(message: string, args: { code: string }) {
-          super(message);
-          this.code = args.code;
-        }
-      },
-    },
-  };
-});
-
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import {
@@ -77,10 +11,35 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import { DocumentService } from "@/document/document.service";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
+import { ReviewDbService } from "@/hitl/review-db.service";
 import { OcrService } from "@/ocr/ocr.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
 import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
+
+const mockJobDb = {
+  findVersionForValidation: jest.fn(),
+  findVersionForProcessing: jest.fn(),
+  findWorkflow: jest.fn(),
+  findWorkflowConfig: jest.fn(),
+  findStaleJobs: jest.fn(),
+  deleteJobsByIds: jest.fn(),
+  findCompletedJobSampleIds: jest.fn(),
+  createManyJobs: jest.fn(),
+  findPendingJobs: jest.fn(),
+  findJob: jest.fn(),
+  findJobByDocumentId: jest.fn(),
+  findJobWithVersionAndDocument: jest.fn(),
+  findJobs: jest.fn(),
+  findJobsForReviewQueue: jest.fn(),
+  countJobs: jest.fn(),
+  updateJob: jest.fn(),
+  updateManyJobs: jest.fn(),
+  findProcessingJobsWithDocumentStatus: jest.fn(),
+  syncProcessingJobStatuses: jest.fn(),
+  findExistingJobs: jest.fn(),
+};
 
 const mockBlobStorage: BlobStorageInterface = {
   write: jest.fn().mockResolvedValue(undefined),
@@ -95,12 +54,21 @@ const mockDocumentService = {
   createDocument: jest.fn(),
 };
 
+const mockReviewDb = {
+  findReviewSession: jest.fn(),
+};
+
 const mockOcrService = {
   requestOcr: jest.fn(),
 };
 
 const mockHitlDatasetService = {
   buildGroundTruth: jest.fn(),
+};
+
+const mockTemporalClient = {
+  getWorkflowStatus: jest.fn(),
+  cancelWorkflow: jest.fn(),
 };
 
 const mockPdfNormalizationService = {
@@ -140,13 +108,18 @@ describe("GroundTruthGenerationService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GroundTruthGenerationService,
+        GroundTruthJobDbService,
         {
           provide: GroundTruthJobDbService,
-          useValue: mockGroundTruthJobDbService,
+          useValue: mockJobDb,
         },
         {
           provide: DocumentService,
           useValue: mockDocumentService,
+        },
+        {
+          provide: ReviewDbService,
+          useValue: mockReviewDb,
         },
         {
           provide: OcrService,
@@ -155,6 +128,10 @@ describe("GroundTruthGenerationService", () => {
         {
           provide: HitlDatasetService,
           useValue: mockHitlDatasetService,
+        },
+        {
+          provide: TemporalClientService,
+          useValue: mockTemporalClient,
         },
         {
           provide: PdfNormalizationService,
@@ -175,105 +152,122 @@ describe("GroundTruthGenerationService", () => {
   describe("startGeneration", () => {
     const datasetId = "dataset-1";
     const versionId = "version-1";
-    const workflowConfigId = "workflow-1";
+    const workflowVersionId = "wv-workflow-1";
 
     it("should throw NotFoundException if version not found", async () => {
-      mockGroundTruthJobDbService.findVersionForValidation.mockResolvedValue(
-        null,
-      );
+      mockJobDb.findVersionForValidation.mockResolvedValue(null);
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          "user-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
     it("should throw BadRequestException if version is frozen", async () => {
-      mockGroundTruthJobDbService.findVersionForValidation.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         frozen: true,
         storagePrefix: "datasets/dataset-1/version-1",
       });
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          "user-1",
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it("should throw BadRequestException if version has no files uploaded", async () => {
-      mockGroundTruthJobDbService.findVersionForValidation.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         frozen: false,
         storagePrefix: null,
       });
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          "user-1",
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it("should throw NotFoundException if workflow config not found", async () => {
-      mockGroundTruthJobDbService.findVersionForValidation.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
       });
-      mockGroundTruthJobDbService.findWorkflow.mockResolvedValue(null);
+      mockJobDb.findWorkflow.mockResolvedValue(null);
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          "user-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
     it("should create jobs only for samples without ground truth", async () => {
-      mockGroundTruthJobDbService.findVersionForValidation.mockResolvedValue({
+      mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         datasetId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
-        dataset: { group_id: "test-group" },
       });
-      mockGroundTruthJobDbService.findWorkflow.mockResolvedValue({
-        id: workflowConfigId,
+      mockJobDb.findWorkflow.mockResolvedValue({
+        id: workflowVersionId,
+        lineage: { group_id: "testgroup" },
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
         Buffer.from(JSON.stringify(sampleManifest)),
       );
-      mockGroundTruthJobDbService.findExistingJobs.mockResolvedValue([]);
+      mockJobDb.findStaleJobs.mockResolvedValue([]);
+      mockJobDb.findCompletedJobSampleIds.mockResolvedValue([]);
 
-      const createdJob1 = {
-        id: "job-1",
-        sampleId: "doc-001",
-        status: GroundTruthJobStatus.pending,
-      };
-      const createdJob2 = {
-        id: "job-2",
-        sampleId: "doc-003",
-        status: GroundTruthJobStatus.pending,
-      };
-      mockGroundTruthJobDbService.createManyJobs.mockResolvedValue([
-        createdJob1,
-        createdJob2,
-      ]);
+      const createdJobs = [
+        {
+          id: "job-1",
+          sampleId: "doc-001",
+          status: GroundTruthJobStatus.pending,
+        },
+        {
+          id: "job-2",
+          sampleId: "doc-003",
+          status: GroundTruthJobStatus.pending,
+        },
+      ];
+      mockJobDb.createManyJobs.mockResolvedValue(createdJobs);
 
-      // Short-circuit background processing
-      mockGroundTruthJobDbService.findVersionForProcessing.mockResolvedValue(
-        null,
-      );
+      // Background processing mocks
+      mockJobDb.findVersionForProcessing.mockResolvedValue({
+        storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "test-group" },
+      });
+      mockJobDb.findPendingJobs.mockResolvedValue([]);
 
       const result = await service.startGeneration(
         datasetId,
         versionId,
-        workflowConfigId,
+        workflowVersionId,
+        "user-1",
       );
 
       expect(result.jobCount).toBe(2);
       expect(result.message).toContain("2 samples");
-      expect(mockGroundTruthJobDbService.createManyJobs).toHaveBeenCalledTimes(
-        1,
-      );
-      const createArg =
-        mockGroundTruthJobDbService.createManyJobs.mock.calls[0][0];
-      expect(createArg).toHaveLength(2);
+      expect(mockJobDb.createManyJobs).toHaveBeenCalledTimes(1);
+      expect(mockJobDb.createManyJobs.mock.calls[0][0]).toHaveLength(2);
     });
 
     it("should throw BadRequestException if all samples have ground truth", async () => {
@@ -292,20 +286,26 @@ describe("GroundTruthGenerationService", () => {
         ],
       };
 
-      mockGroundTruthJobDbService.findVersionForValidation.mockResolvedValue({
-        id: versionId,
+      mockJobDb.findVersionForValidation.mockResolvedValue({
+        id: "version-1",
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
       });
-      mockGroundTruthJobDbService.findWorkflow.mockResolvedValue({
-        id: workflowConfigId,
+      mockJobDb.findWorkflow.mockResolvedValue({
+        id: workflowVersionId,
+        lineage: { group_id: "testgroup" },
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
         Buffer.from(JSON.stringify(allWithGt)),
       );
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          "user-1",
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -318,7 +318,7 @@ describe("GroundTruthGenerationService", () => {
           datasetVersionId: "v-1",
           sampleId: "doc-001",
           documentId: "doc-id-1",
-          workflowConfigId: "wf-1",
+          workflowVersionId: "wf-1",
           temporalWorkflowId: "temporal-1",
           status: GroundTruthJobStatus.processing,
           groundTruthPath: null,
@@ -329,12 +329,9 @@ describe("GroundTruthGenerationService", () => {
       ];
 
       // syncJobStatuses - no processing jobs
-      mockGroundTruthJobDbService.syncProcessingJobStatuses.mockResolvedValue(
-        undefined,
-      );
-      mockGroundTruthJobDbService.findJobs.mockResolvedValue(mockJobs);
-
-      mockGroundTruthJobDbService.countJobs.mockResolvedValue(1);
+      mockJobDb.findProcessingJobsWithDocumentStatus.mockResolvedValue([]);
+      mockJobDb.findJobs.mockResolvedValue(mockJobs);
+      mockJobDb.countJobs.mockResolvedValue(1);
 
       const result = await service.getJobs("dataset-1", "v-1", 1, 50);
 
@@ -365,19 +362,15 @@ describe("GroundTruthGenerationService", () => {
               },
             },
             review_sessions: [],
+            group_id: "cuid",
           },
         },
       ];
 
       // syncJobStatuses
-      mockGroundTruthJobDbService.syncProcessingJobStatuses.mockResolvedValue(
-        undefined,
-      );
-      mockGroundTruthJobDbService.findJobsForReviewQueue.mockResolvedValue(
-        mockJobsWithDocs,
-      );
-
-      mockGroundTruthJobDbService.countJobs.mockResolvedValue(1);
+      mockJobDb.findProcessingJobsWithDocumentStatus.mockResolvedValue([]);
+      mockJobDb.findJobsForReviewQueue.mockResolvedValue(mockJobsWithDocs);
+      mockJobDb.countJobs.mockResolvedValue(1);
 
       const result = await service.getReviewQueue("dataset-1", "v-1", {});
 
@@ -391,11 +384,9 @@ describe("GroundTruthGenerationService", () => {
   describe("getReviewStats", () => {
     it("should return correct stats", async () => {
       // syncJobStatuses
-      mockGroundTruthJobDbService.syncProcessingJobStatuses.mockResolvedValue(
-        undefined,
-      );
+      mockJobDb.findProcessingJobsWithDocumentStatus.mockResolvedValue([]);
 
-      mockGroundTruthJobDbService.countJobs
+      mockJobDb.countJobs
         .mockResolvedValueOnce(10) // total
         .mockResolvedValueOnce(3) // awaiting_review
         .mockResolvedValueOnce(5) // completed
@@ -417,7 +408,7 @@ describe("GroundTruthGenerationService", () => {
         datasetVersionId: "v-1",
         sampleId: "doc-001",
         documentId: "doc-id-1",
-        workflowConfigId: "wf-1",
+        workflowVersionId: "wf-1",
         status: GroundTruthJobStatus.awaiting_review,
         datasetVersion: {
           datasetId: "dataset-1",
@@ -430,21 +421,25 @@ describe("GroundTruthGenerationService", () => {
               Date: { content: "2026-01-01", confidence: 0.8, type: "date" },
             },
           },
+          group_id: "cuid",
         },
       };
 
-      const corrections = [
-        {
-          field_key: "Date",
-          original_value: "2026-01-01",
-          corrected_value: "2026-01-15",
-          action: CorrectionAction.corrected,
-        },
-      ];
+      const session = {
+        id: "session-1",
+        document_id: "doc-id-1",
+        corrections: [
+          {
+            field_key: "Date",
+            original_value: "2026-01-01",
+            corrected_value: "2026-01-15",
+            action: CorrectionAction.corrected,
+          },
+        ],
+      };
 
-      mockGroundTruthJobDbService.findJobWithVersionAndDocument.mockResolvedValue(
-        job,
-      );
+      mockJobDb.findJobWithVersionAndDocument.mockResolvedValue(job);
+      mockReviewDb.findReviewSession.mockResolvedValue(session);
       mockHitlDatasetService.buildGroundTruth.mockReturnValue({
         Name: "John",
         Date: "2026-01-15",
@@ -468,48 +463,44 @@ describe("GroundTruthGenerationService", () => {
         ),
       );
 
-      mockGroundTruthJobDbService.updateJob.mockResolvedValue({
+      mockJobDb.updateJob.mockResolvedValue({
         ...job,
         status: GroundTruthJobStatus.completed,
       });
 
-      await service.completeJob("job-1", "session-1", corrections as any);
+      await service.completeJob("job-1", "session-1");
 
       // Should build ground truth
       expect(mockHitlDatasetService.buildGroundTruth).toHaveBeenCalledWith(
         job.document.ocr_result.keyValuePairs,
-        corrections,
+        session.corrections,
       );
 
       // Should write ground truth JSON
       expect(mockBlobStorage.write).toHaveBeenCalledWith(
-        "datasets/dataset-1/v-1/ground-truth/doc-001.json",
+        "cuid/benchmark/datasets/dataset-1/v-1/ground-truth/doc-001.json",
         expect.any(Buffer),
       );
 
       // Should update manifest
       expect(mockBlobStorage.write).toHaveBeenCalledWith(
-        "datasets/dataset-1/v-1/dataset-manifest.json",
+        "cuid/benchmark/datasets/dataset-1/v-1/dataset-manifest.json",
         expect.any(Buffer),
       );
 
       // Should update job status to completed
-      expect(mockGroundTruthJobDbService.updateJob).toHaveBeenCalledWith(
-        "job-1",
-        {
-          status: GroundTruthJobStatus.completed,
-          groundTruthPath: "datasets/dataset-1/v-1/ground-truth/doc-001.json",
-        },
-      );
+      expect(mockJobDb.updateJob).toHaveBeenCalledWith("job-1", {
+        status: GroundTruthJobStatus.completed,
+        groundTruthPath:
+          "cuid/benchmark/datasets/dataset-1/v-1/ground-truth/doc-001.json",
+      });
     });
 
     it("should throw NotFoundException if job not found", async () => {
-      mockGroundTruthJobDbService.findJobWithVersionAndDocument.mockResolvedValue(
-        null,
-      );
+      mockJobDb.findJobWithVersionAndDocument.mockResolvedValue(null);
 
       await expect(
-        service.completeJob("nonexistent", "session-1", []),
+        service.completeJob("nonexistent", "session-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -521,24 +512,33 @@ describe("GroundTruthGenerationService", () => {
         documentId: "doc-id-1",
         sampleId: "doc-001",
       };
-      mockGroundTruthJobDbService.findJobByDocumentId.mockResolvedValue(
-        mockJob,
-      );
+      mockJobDb.findJobByDocumentId.mockResolvedValue(mockJob);
 
       const result = await service.getJobByDocumentId("doc-id-1");
 
       expect(result).toEqual(mockJob);
-      expect(
-        mockGroundTruthJobDbService.findJobByDocumentId,
-      ).toHaveBeenCalledWith("doc-id-1");
+      expect(mockJobDb.findJobByDocumentId).toHaveBeenCalledWith("doc-id-1");
     });
 
     it("should return null if no job found", async () => {
-      mockGroundTruthJobDbService.findJobByDocumentId.mockResolvedValue(null);
+      mockJobDb.findJobByDocumentId.mockResolvedValue(null);
 
       const result = await service.getJobByDocumentId("nonexistent");
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("reopenJob", () => {
+    it("should revert job status to awaiting_review and clear groundTruthPath", async () => {
+      mockJobDb.updateJob.mockResolvedValue(undefined);
+
+      await service.reopenJob("job-1");
+
+      expect(mockJobDb.updateJob).toHaveBeenCalledWith("job-1", {
+        status: GroundTruthJobStatus.awaiting_review,
+        groundTruthPath: null,
+      });
     });
   });
 });

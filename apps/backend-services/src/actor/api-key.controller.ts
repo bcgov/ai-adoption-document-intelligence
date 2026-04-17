@@ -54,7 +54,6 @@ export class ApiKeyController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async getApiKey(
-    @Req() req: Request,
     @Query("groupId") groupId: string,
   ): Promise<{ apiKey: ApiKeyInfoDto | null }> {
     if (!groupId) {

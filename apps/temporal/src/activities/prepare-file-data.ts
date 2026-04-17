@@ -1,3 +1,4 @@
+import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import * as fs from "fs";
 import * as path from "path";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
@@ -27,9 +28,9 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
 
   const client = getBlobStorageClient();
   try {
-    return await client.read(blobKey);
-  } catch (_error) {
-    throw new Error(`Blob not found: "${blobKey}"`);
+    return await client.read(validateBlobFilePath(blobKey));
+  } catch (error) {
+    throw new Error(`Blob not found: "${blobKey}" — ${error}`);
   }
 }
 
@@ -65,7 +66,7 @@ export async function prepareFileData(
   const fileSize = fileBuffer.length;
 
   const fileName = input.fileName || path.basename(blobKey) || "document";
-  let fileType: "pdf" | "image" = input.fileType || "pdf";
+  let fileType: "pdf" | "image";
   let contentType = input.contentType;
 
   // Determine file type from filename or content type

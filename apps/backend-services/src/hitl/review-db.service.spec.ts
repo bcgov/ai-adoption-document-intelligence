@@ -18,16 +18,26 @@ const mockReviewSession = {
 const mockFieldCorrection = {
   create: jest.fn(),
   findMany: jest.fn(),
+  deleteMany: jest.fn(),
 };
 
 const mockDocument = {
   findMany: jest.fn(),
 };
 
+const mockDocumentLock = {
+  create: jest.fn(),
+  upsert: jest.fn(),
+  deleteMany: jest.fn(),
+  updateMany: jest.fn(),
+  findFirst: jest.fn(),
+};
+
 const mockPrismaClient = {
   reviewSession: mockReviewSession,
   fieldCorrection: mockFieldCorrection,
   document: mockDocument,
+  documentLock: mockDocumentLock,
 };
 
 const mockPrismaService = {
@@ -107,7 +117,16 @@ describe("ReviewDbService", () => {
           status: ReviewStatus.in_progress,
         },
         include: {
-          document: { include: { ocr_result: true } },
+          document: {
+            include: {
+              ocr_result: true,
+              groundTruthJob: {
+                include: {
+                  datasetVersion: { select: { frozen: true } },
+                },
+              },
+            },
+          },
           corrections: true,
         },
       });
@@ -132,7 +151,16 @@ describe("ReviewDbService", () => {
       expect(mockReviewSession.findUnique).toHaveBeenCalledWith({
         where: { id: "session-1" },
         include: {
-          document: { include: { ocr_result: true } },
+          document: {
+            include: {
+              ocr_result: true,
+              groundTruthJob: {
+                include: {
+                  datasetVersion: { select: { frozen: true } },
+                },
+              },
+            },
+          },
           corrections: true,
         },
       });
@@ -162,6 +190,21 @@ describe("ReviewDbService", () => {
           }),
           take: 50,
           skip: 0,
+        }),
+      );
+    });
+
+    it("should restrict the queue to api-sourced documents and exclude ground truth jobs", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({});
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            source: "api",
+            groundTruthJob: { is: null },
+          }),
         }),
       );
     });
@@ -227,6 +270,24 @@ describe("ReviewDbService", () => {
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 10, skip: 5 }),
+      );
+    });
+
+    it("should exclude documents with active locks", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({});
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            NOT: {
+              lock: {
+                expires_at: { gt: expect.any(Date) },
+              },
+            },
+          }),
+        }),
       );
     });
   });
@@ -400,6 +461,149 @@ describe("ReviewDbService", () => {
     });
   });
 
+  describe("acquireDocumentLock", () => {
+    it("should upsert and return a document lock, reclaiming stale rows", async () => {
+      const lockData = {
+        document_id: "doc-1",
+        reviewer_id: "reviewer-1",
+        session_id: "session-1",
+        expires_at: new Date("2024-01-01T01:00:00Z"),
+      };
+      const upsertedLock = { id: "lock-1", ...lockData };
+      mockDocumentLock.upsert.mockResolvedValue(upsertedLock);
+
+      const result = await service.acquireDocumentLock(lockData);
+
+      expect(result).toEqual(upsertedLock);
+      expect(mockDocumentLock.upsert).toHaveBeenCalledWith({
+        where: { document_id: "doc-1" },
+        update: expect.objectContaining({
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: lockData.expires_at,
+        }),
+        create: lockData,
+      });
+    });
+
+    it("should throw if prisma upsert fails", async () => {
+      mockDocumentLock.upsert.mockRejectedValue(new Error("DB error"));
+
+      await expect(
+        service.acquireDocumentLock({
+          document_id: "doc-1",
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: new Date(),
+        }),
+      ).rejects.toThrow("DB error");
+    });
+  });
+
+  describe("releaseDocumentLock", () => {
+    it("should delete locks by session ID", async () => {
+      mockDocumentLock.deleteMany.mockResolvedValue({ count: 1 });
+
+      await service.releaseDocumentLock("session-1");
+
+      expect(mockDocumentLock.deleteMany).toHaveBeenCalledWith({
+        where: { session_id: "session-1" },
+      });
+    });
+
+    it("should not throw when no lock exists", async () => {
+      mockDocumentLock.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.releaseDocumentLock("no-lock-session"),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("refreshLockHeartbeat", () => {
+    it("should return true when lock is updated", async () => {
+      mockDocumentLock.updateMany.mockResolvedValue({ count: 1 });
+      const expiresAt = new Date("2024-01-01T02:00:00Z");
+
+      const result = await service.refreshLockHeartbeat("session-1", expiresAt);
+
+      expect(result).toBe(true);
+      expect(mockDocumentLock.updateMany).toHaveBeenCalledWith({
+        where: { session_id: "session-1" },
+        data: {
+          last_heartbeat: expect.any(Date),
+          expires_at: expiresAt,
+        },
+      });
+    });
+
+    it("should return false when no lock is found", async () => {
+      mockDocumentLock.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.refreshLockHeartbeat(
+        "missing-session",
+        new Date(),
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("findActiveLock", () => {
+    it("should return an active lock when found", async () => {
+      const lock = {
+        id: "lock-1",
+        document_id: "doc-1",
+        reviewer_id: "reviewer-1",
+        session_id: "session-1",
+        expires_at: new Date("2099-01-01"),
+      };
+      mockDocumentLock.findFirst.mockResolvedValue(lock);
+
+      const result = await service.findActiveLock("doc-1");
+
+      expect(result).toEqual(lock);
+      expect(mockDocumentLock.findFirst).toHaveBeenCalledWith({
+        where: {
+          document_id: "doc-1",
+          expires_at: { gt: expect.any(Date) },
+        },
+      });
+    });
+
+    it("should return null when no active lock exists", async () => {
+      mockDocumentLock.findFirst.mockResolvedValue(null);
+
+      const result = await service.findActiveLock("doc-no-lock");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("deleteCorrection", () => {
+    it("should return true when correction is deleted", async () => {
+      mockFieldCorrection.deleteMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.deleteCorrection(
+        "correction-1",
+        "session-1",
+      );
+
+      expect(result).toBe(true);
+      expect(mockFieldCorrection.deleteMany).toHaveBeenCalledWith({
+        where: { id: "correction-1", session_id: "session-1" },
+      });
+    });
+
+    it("should return false when correction is not found", async () => {
+      mockFieldCorrection.deleteMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.deleteCorrection("missing", "session-1");
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe("transaction support", () => {
     it("should use provided tx client instead of this.prisma for createReviewSession", async () => {
       const session = makeReviewSession();
@@ -419,7 +623,7 @@ describe("ReviewDbService", () => {
       expect(mockReviewSession.create).not.toHaveBeenCalled();
     });
 
-    it("should use provided tx client instead of this.prisma for findReviewSession", async () => {
+    it("should use provided tx client for findReviewSession", async () => {
       const session = makeReviewSession();
       const mockTxReviewSession = {
         findUnique: jest.fn().mockResolvedValue(session),
@@ -467,6 +671,87 @@ describe("ReviewDbService", () => {
       expect(result).toEqual(correction);
       expect(mockTxFieldCorrection.create).toHaveBeenCalled();
       expect(mockFieldCorrection.create).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for acquireDocumentLock", async () => {
+      const lock = { id: "lock-1", document_id: "doc-1" };
+      const mockTxDocumentLock = {
+        upsert: jest.fn().mockResolvedValue(lock),
+      };
+      const mockTx = { documentLock: mockTxDocumentLock } as never;
+
+      const result = await service.acquireDocumentLock(
+        {
+          document_id: "doc-1",
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: new Date(),
+        },
+        mockTx,
+      );
+
+      expect(result).toEqual(lock);
+      expect(mockTxDocumentLock.upsert).toHaveBeenCalled();
+      expect(mockDocumentLock.upsert).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for releaseDocumentLock", async () => {
+      const mockTxDocumentLock = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      };
+      const mockTx = { documentLock: mockTxDocumentLock } as never;
+
+      await service.releaseDocumentLock("session-1", mockTx);
+
+      expect(mockTxDocumentLock.deleteMany).toHaveBeenCalled();
+      expect(mockDocumentLock.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for refreshLockHeartbeat", async () => {
+      const mockTxDocumentLock = {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      };
+      const mockTx = { documentLock: mockTxDocumentLock } as never;
+
+      const result = await service.refreshLockHeartbeat(
+        "session-1",
+        new Date(),
+        mockTx,
+      );
+
+      expect(result).toBe(true);
+      expect(mockTxDocumentLock.updateMany).toHaveBeenCalled();
+      expect(mockDocumentLock.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for findActiveLock", async () => {
+      const mockTxDocumentLock = {
+        findFirst: jest.fn().mockResolvedValue(null),
+      };
+      const mockTx = { documentLock: mockTxDocumentLock } as never;
+
+      const result = await service.findActiveLock("doc-1", mockTx);
+
+      expect(result).toBeNull();
+      expect(mockTxDocumentLock.findFirst).toHaveBeenCalled();
+      expect(mockDocumentLock.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for deleteCorrection", async () => {
+      const mockTxFieldCorrection = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      };
+      const mockTx = { fieldCorrection: mockTxFieldCorrection } as never;
+
+      const result = await service.deleteCorrection(
+        "correction-1",
+        "session-1",
+        mockTx,
+      );
+
+      expect(result).toBe(true);
+      expect(mockTxFieldCorrection.deleteMany).toHaveBeenCalled();
+      expect(mockFieldCorrection.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

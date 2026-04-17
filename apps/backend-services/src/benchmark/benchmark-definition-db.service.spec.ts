@@ -13,8 +13,13 @@ const mockPrismaClient = {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
   },
-  workflow: {
+  workflowVersion: {
     findUnique: jest.fn(),
+  },
+  workflowLineage: {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
   },
   benchmarkDefinition: {
     create: jest.fn(),
@@ -22,11 +27,16 @@ const mockPrismaClient = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     delete: jest.fn(),
   },
   benchmarkRun: {
     findFirst: jest.fn(),
   },
+  $transaction: jest.fn(
+    async (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+      fn(mockPrismaClient),
+  ),
 };
 
 describe("BenchmarkDefinitionDbService", () => {
@@ -88,7 +98,7 @@ describe("BenchmarkDefinitionDbService", () => {
         projectId: "p-1",
         datasetVersionId: "v-1",
         splitId: "s-1",
-        workflowId: "w-1",
+        workflowVersionId: "w-1",
         immutable: false,
         isBaseline: false,
         description: null,
@@ -110,7 +120,7 @@ describe("BenchmarkDefinitionDbService", () => {
         projectId: "p-1",
         datasetVersionId: "v-1",
         splitId: "s-1",
-        workflowId: "w-1",
+        workflowVersionId: "w-1",
         evaluatorType: "schema-aware",
         evaluatorConfig: {},
         runtimeSettings: {},
@@ -284,21 +294,26 @@ describe("BenchmarkDefinitionDbService", () => {
     });
   });
 
-  describe("findWorkflow", () => {
-    it("finds a workflow (no tx)", async () => {
-      mockPrismaClient.workflow.findUnique.mockResolvedValue({ id: "w-1" });
-      const result = await service.findWorkflow("w-1");
-      expect(result).toEqual({ id: "w-1" });
+  describe("findWorkflowVersion", () => {
+    it("finds a workflow version (no tx)", async () => {
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+        id: "w-1",
+        config: {},
+      });
+      const result = await service.findWorkflowVersion("w-1");
+      expect(result).toEqual({ id: "w-1", config: {} });
     });
 
     it("uses provided tx client", async () => {
       const txWf = { findUnique: jest.fn().mockResolvedValue(null) };
       const tx = {
-        workflow: txWf,
+        workflowVersion: txWf,
       } as unknown as import("@generated/client").Prisma.TransactionClient;
-      await service.findWorkflow("w-1", tx);
+      await service.findWorkflowVersion("w-1", tx);
       expect(txWf.findUnique).toHaveBeenCalled();
-      expect(mockPrismaClient.workflow.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.workflowVersion.findUnique,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -314,7 +329,7 @@ describe("BenchmarkDefinitionDbService", () => {
           projectId: "p-1",
           datasetVersionId: "v-1",
           splitId: "s-1",
-          workflowId: "w-1",
+          workflowVersionId: "w-1",
           evaluatorType: "t",
           evaluatorConfig: {},
           runtimeSettings: {},
@@ -345,6 +360,28 @@ describe("BenchmarkDefinitionDbService", () => {
     });
   });
 
+  describe("updatePipelineDebugLog", () => {
+    it("should update the pipelineDebugLog column", async () => {
+      const entries = [
+        {
+          step: "baseline_mismatch_extraction",
+          timestamp: "2026-04-03T00:00:00Z",
+          data: { totalMismatches: 5 },
+        },
+      ];
+      mockPrismaClient.benchmarkDefinition.update.mockResolvedValue({
+        id: "def-1",
+        pipelineDebugLog: entries,
+      });
+      await service.updatePipelineDebugLog("def-1", entries);
+      expect(mockPrismaClient.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: { pipelineDebugLog: entries },
+        select: { id: true },
+      });
+    });
+  });
+
   describe("findAllBenchmarkDefinitions tx support", () => {
     it("uses provided tx client", async () => {
       const txDef = { findMany: jest.fn().mockResolvedValue([]) };
@@ -356,6 +393,148 @@ describe("BenchmarkDefinitionDbService", () => {
       expect(
         mockPrismaClient.benchmarkDefinition.findMany,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("transaction", () => {
+    it("delegates to prisma.$transaction", async () => {
+      const fn = jest.fn().mockResolvedValue("ok");
+      const result = await service.transaction(fn);
+      expect(result).toBe("ok");
+      expect(mockPrismaClient.$transaction).toHaveBeenCalledWith(fn);
+    });
+  });
+
+  describe("deleteWorkflowLineage", () => {
+    it("deletes by id", async () => {
+      mockPrismaClient.workflowLineage.delete.mockResolvedValue({} as never);
+      await service.deleteWorkflowLineage("lin-1");
+      expect(mockPrismaClient.workflowLineage.delete).toHaveBeenCalledWith({
+        where: { id: "lin-1" },
+      });
+    });
+  });
+
+  describe("findWorkflowVersionWithLineage", () => {
+    it("loads lineage include", async () => {
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+        id: "w-1",
+        lineage: { id: "lin-1" },
+      } as never);
+      const result = await service.findWorkflowVersionWithLineage("w-1");
+      expect(result).toEqual({ id: "w-1", lineage: { id: "lin-1" } });
+      expect(mockPrismaClient.workflowVersion.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "w-1" },
+          include: { lineage: true },
+        }),
+      );
+    });
+  });
+
+  describe("findWorkflowLineageHead", () => {
+    it("selects head pointer fields", async () => {
+      mockPrismaClient.workflowLineage.findUnique.mockResolvedValue({
+        id: "lin-1",
+        group_id: "g-1",
+        head_version_id: "w-1",
+      } as never);
+      const result = await service.findWorkflowLineageHead("lin-1");
+      expect(result).toEqual({
+        id: "lin-1",
+        group_id: "g-1",
+        head_version_id: "w-1",
+      });
+    });
+  });
+
+  describe("findBenchmarkDefinitionForPromote", () => {
+    it("scopes by project and definition id", async () => {
+      mockPrismaClient.benchmarkDefinition.findFirst.mockResolvedValue({
+        id: "def-1",
+      } as never);
+      await service.findBenchmarkDefinitionForPromote("p-1", "def-1");
+      expect(
+        mockPrismaClient.benchmarkDefinition.findFirst,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "def-1", projectId: "p-1" },
+          include: {
+            workflowVersion: { include: { lineage: true } },
+          },
+        }),
+      );
+    });
+  });
+
+  describe("findDefinitionScheduleMeta", () => {
+    it("selects schedule id only", async () => {
+      mockPrismaClient.benchmarkDefinition.findFirst.mockResolvedValue({
+        id: "def-1",
+        scheduleId: "sched-1",
+      } as never);
+      const result = await service.findDefinitionScheduleMeta("p-1", "def-1");
+      expect(result).toEqual({ id: "def-1", scheduleId: "sched-1" });
+      expect(
+        mockPrismaClient.benchmarkDefinition.findFirst,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "def-1", projectId: "p-1" },
+          select: { id: true, scheduleId: true },
+        }),
+      );
+    });
+  });
+
+  describe("findBenchmarkDefinitionForScheduleConfig", () => {
+    it("loads dataset, split, and workflow for schedule setup", async () => {
+      mockPrismaClient.benchmarkDefinition.findFirst.mockResolvedValue({
+        id: "def-1",
+      } as never);
+      await service.findBenchmarkDefinitionForScheduleConfig("p-1", "def-1");
+      expect(
+        mockPrismaClient.benchmarkDefinition.findFirst,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "def-1", projectId: "p-1" },
+        }),
+      );
+    });
+  });
+
+  describe("updateBenchmarkDefinitionScheduleFields", () => {
+    it("persists schedule fields with limited run history", async () => {
+      mockPrismaClient.benchmarkDefinition.update.mockResolvedValue({
+        id: "def-1",
+      } as never);
+      await service.updateBenchmarkDefinitionScheduleFields("def-1", {
+        scheduleEnabled: true,
+        scheduleCron: "0 1 * * *",
+        scheduleId: "s-1",
+      });
+      expect(mockPrismaClient.benchmarkDefinition.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "def-1" },
+          data: {
+            scheduleEnabled: true,
+            scheduleCron: "0 1 * * *",
+            scheduleId: "s-1",
+          },
+        }),
+      );
+    });
+  });
+
+  describe("setBenchmarkDefinitionImmutable", () => {
+    it("updates immutable flag only", async () => {
+      mockPrismaClient.benchmarkDefinition.update.mockResolvedValue(
+        {} as never,
+      );
+      await service.setBenchmarkDefinitionImmutable("def-1");
+      expect(mockPrismaClient.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: { immutable: true },
+      });
     });
   });
 });

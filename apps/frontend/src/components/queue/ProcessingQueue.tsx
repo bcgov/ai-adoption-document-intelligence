@@ -1,9 +1,11 @@
 import {
   ActionIcon,
   Badge,
+  Button,
   Center,
   Group,
   Loader,
+  Modal,
   Paper,
   Select,
   SimpleGrid,
@@ -14,8 +16,15 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconEye, IconRefresh, IconSearch } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
+import {
+  IconEye,
+  IconRefresh,
+  IconSearch,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMemo, useState } from "react";
+import { useDeleteDocument } from "../../data/hooks/useDeleteDocument";
 import { useDocuments } from "../../data/hooks/useDocuments";
 import type { Document, DocumentStatus } from "../../shared/types";
 import { formatDate, formatFileSize } from "../../shared/utils";
@@ -54,6 +63,38 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
     isFetching,
     refetch,
   } = useDocuments({ refetchInterval: 10000 });
+  const deleteDocument = useDeleteDocument();
+  const [docPendingDelete, setDocPendingDelete] = useState<Document | null>(
+    null,
+  );
+
+  const isInFlight = (status: Document["status"]) =>
+    status === "pre_ocr" || status === "ongoing_ocr";
+
+  const handleConfirmDelete = () => {
+    if (!docPendingDelete) return;
+    const target = docPendingDelete;
+    deleteDocument.mutate(target.id, {
+      onSuccess: () => {
+        notifications.show({
+          title: "Document deleted",
+          message: `${target.original_filename} was removed.`,
+          color: "green",
+          autoClose: 3000,
+        });
+        setDocPendingDelete(null);
+      },
+      onError: (error) => {
+        notifications.show({
+          title: "Cannot delete document",
+          message: error.message,
+          color: "red",
+          autoClose: 5000,
+        });
+        setDocPendingDelete(null);
+      },
+    });
+  };
 
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];
@@ -233,27 +274,50 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                     <Table.Td>{doc.source ?? "—"}</Table.Td>
                     <Table.Td>{formatDate(new Date(doc.created_at))}</Table.Td>
                     <Table.Td>
-                      <Tooltip label="Open details">
-                        <ActionIcon
-                          variant="subtle"
-                          color="blue"
-                          disabled={
-                            doc.status !== "completed_ocr" &&
-                            doc.status !== "needs_validation"
-                          }
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (
-                              doc.status === "completed_ocr" ||
-                              doc.status === "needs_validation"
-                            ) {
-                              onSelectDocument?.(doc);
+                      <Group gap="xs" wrap="nowrap">
+                        <Tooltip label="Open details">
+                          <ActionIcon
+                            variant="subtle"
+                            color="blue"
+                            disabled={
+                              doc.status !== "completed_ocr" &&
+                              doc.status !== "needs_validation"
                             }
-                          }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (
+                                doc.status === "completed_ocr" ||
+                                doc.status === "needs_validation"
+                              ) {
+                                onSelectDocument?.(doc);
+                              }
+                            }}
+                          >
+                            <IconEye size={18} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip
+                          label={
+                            isInFlight(doc.status)
+                              ? "Cannot delete while processing"
+                              : "Delete document"
+                          }
                         >
-                          <IconEye size={18} />
-                        </ActionIcon>
-                      </Tooltip>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            disabled={isInFlight(doc.status)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!isInFlight(doc.status)) {
+                                setDocPendingDelete(doc);
+                              }
+                            }}
+                          >
+                            <IconTrash size={18} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 );
@@ -262,6 +326,43 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
           </Table>
         )}
       </Stack>
+
+      <Modal
+        opened={docPendingDelete !== null}
+        onClose={() => {
+          if (!deleteDocument.isPending) setDocPendingDelete(null);
+        }}
+        title="Delete document?"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            This will permanently delete{" "}
+            <Text component="span" fw={600}>
+              {docPendingDelete?.original_filename}
+            </Text>
+            , its OCR results, any review sessions and corrections, and the
+            stored file. This cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="default"
+              onClick={() => setDocPendingDelete(null)}
+              disabled={deleteDocument.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              leftSection={<IconTrash size={16} />}
+              onClick={handleConfirmDelete}
+              loading={deleteDocument.isPending}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Paper>
   );
 }

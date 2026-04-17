@@ -13,12 +13,18 @@ COPY apps/temporal/prisma.config.ts ./
 COPY apps/shared/prisma ./shared/prisma
 COPY apps/shared/prisma.config.ts /shared/prisma.config.ts
 
-# Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
+# Copy workspace packages referenced as file: dependencies (file:../../packages/* resolves to /packages/*)
 COPY packages/logging /packages/logging
-RUN cd /packages/logging && npm install && npm run build
+RUN cd /packages/logging && npm install --ignore-scripts && npm run build
+
+COPY packages/graph-insertion-slots /packages/graph-insertion-slots
+RUN cd /packages/graph-insertion-slots && npm install && npm run build
+
+COPY packages/blob-storage-paths /packages/blob-storage-paths
+RUN cd /packages/blob-storage-paths && npm install --ignore-scripts && npm run build
 
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
-RUN npm install
+RUN npm install --ignore-scripts
 
 # Generate Prisma client: patch schema to set output; url comes from prisma.config via DATABASE_URL.
 # The shared generate-prisma.js expects monorepo layout; we use a direct generate.
@@ -53,8 +59,10 @@ RUN mkdir -p /.npm && \
     chgrp -R 0 /.npm && \
     chmod -R g=u /.npm
 
-# Copy pre-built logging package from builder (avoids needing tsc in production stage)
+# Copy pre-built workspace packages from builder (avoids needing tsc in production stage)
 COPY --from=builder /packages/logging /packages/logging
+COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
+COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
 
 # Package files and production deps
 COPY apps/temporal/package.json ./

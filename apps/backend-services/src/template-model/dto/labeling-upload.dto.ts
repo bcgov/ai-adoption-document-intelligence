@@ -17,17 +17,17 @@ export class LabelingUploadDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  title: string;
+  title!: string;
 
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  file: string; // base64-encoded file
+  file!: string; // base64-encoded file
 
   @IsEnum(LabelingFileType)
   @IsNotEmpty()
   @ApiProperty({ enum: LabelingFileType })
-  file_type: LabelingFileType;
+  file_type!: LabelingFileType;
 
   @IsString()
   @IsOptional()
@@ -42,5 +42,5 @@ export class LabelingUploadDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  group_id: string;
+  group_id!: string;
 }

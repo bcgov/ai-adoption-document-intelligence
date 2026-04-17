@@ -107,7 +107,7 @@ export function DocumentViewerModal({
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  const [showOverlays, setShowOverlays] = useState(true);
+  const showOverlays = true;
 
   useEffect(() => {
     // OCR result and error are handled by the component state
@@ -133,35 +133,29 @@ export function DocumentViewerModal({
     setError("");
 
     try {
-      const response = await fetch(`/api/documents/${doc.id}/view`, {
+      // Try normalized PDF first; fall back to original for pre-normalization documents
+      let response = await fetch(`/api/documents/${doc.id}/view`, {
         credentials: "include",
       });
+      if (!response.ok) {
+        response = await fetch(`/api/documents/${doc.id}/download`, {
+          credentials: "include",
+        });
+      }
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
         throw new Error(
-          `Failed to load document: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ""}`,
+          `Failed to load document: ${response.status} ${response.statusText}`,
         );
       }
 
       const blob = await response.blob();
-
-      // Create object URL for the blob
       const url = URL.createObjectURL(blob);
       setImageUrl(url);
-
-      // Clean up URL when component unmounts or modal closes
-      return () => {
-        URL.revokeObjectURL(url);
-      };
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to load document";
       setError(errorMessage);
-
-      if (doc.file_url) {
-        setImageUrl(doc.file_url);
-      }
     } finally {
       setLoading(false);
     }
@@ -238,7 +232,14 @@ export function DocumentViewerModal({
           </Alert>
         </div>
       ) : (
-        <div className="flex flex-col h-full">
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+            minHeight: 0,
+          }}
+        >
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
             <div>
               <h3 className="font-semibold text-lg">{document.title}</h3>
@@ -266,7 +267,13 @@ export function DocumentViewerModal({
                 ? "review"
                 : "viewer"
             }
-            className="flex-1 min-h-0 flex flex-col"
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
           >
             <Tabs.List className="flex-shrink-0 px-4 pt-2">
               <Tabs.Tab
@@ -295,23 +302,23 @@ export function DocumentViewerModal({
                 )}
             </Tabs.List>
 
-            <Tabs.Panel value="viewer" className="flex-1 min-h-0">
+            <Tabs.Panel
+              value="viewer"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: "hidden",
+                position: "relative",
+              }}
+            >
               {imageUrl && document ? (
                 <DocumentViewer
                   imageUrl={imageUrl}
                   extractedFields={ocrResult?.ocr_result?.keyValuePairs}
                   pageNumber={1}
                   showOverlays={showOverlays}
-                  onToggleOverlays={() => setShowOverlays(!showOverlays)}
                 />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-                    Document file is not available for preview. The backend may
-                    not expose the raw file stream.
-                  </Alert>
-                </div>
-              )}
+              ) : null}
             </Tabs.Panel>
 
             {ocrResult?.ocr_result?.keyValuePairs && (

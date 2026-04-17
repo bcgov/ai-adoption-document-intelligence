@@ -15,7 +15,7 @@ export class CreateProjectDto {
   @ApiProperty({ description: "Project name" })
   @IsNotEmpty()
   @IsString()
-  name: string;
+  name!: string;
 
   /**
    * Project description (optional)
@@ -31,5 +31,5 @@ export class CreateProjectDto {
   @ApiProperty({ description: "Group ID for the project" })
   @IsNotEmpty()
   @IsString()
-  groupId: string;
+  groupId!: string;
 }

@@ -17,17 +17,17 @@ export class UploadDocumentDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  title: string;
+  title!: string;
 
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  file: string; // base64-encoded file
+  file!: string; // base64-encoded file
 
   @IsEnum(FileType)
   @IsNotEmpty()
   @ApiProperty({ enum: FileType })
-  file_type: FileType;
+  file_type!: FileType;
 
   @IsString()
   @IsOptional()
@@ -42,18 +42,19 @@ export class UploadDocumentDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  model_id: string;
+  model_id!: string;
 
   @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  group_id: string;
+  group_id!: string;
 
   @IsString()
   @IsOptional()
-  workflow_id?: string; // @deprecated Use workflow_config_id instead
+  workflow_id?: string; // @deprecated Use workflow_config_id; resolved server-side if lineage id
 
   @IsString()
   @IsOptional()
-  workflow_config_id?: string; // Reference to Workflow.id (workflow configuration)
+  /** WorkflowVersion.id, or WorkflowLineage.id (resolved to head version server-side). */
+  workflow_config_id?: string;
 }

@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Black-Box Evaluator
  *
@@ -101,7 +102,7 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
           field_overlap: 0,
         },
         diagnostics: {
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
         },
         pass: false,
       };
@@ -380,9 +381,11 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
     sampleId: string,
     diff: DiffEntry[],
   ): Promise<EvaluationArtifact> {
-    // Create temp file for diff
-    const tempDir = os.tmpdir();
-    const diffPath = path.join(tempDir, `diff-${sampleId}-${Date.now()}.json`);
+    // Create temp file for diff in a secure unique directory
+    const tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `diff-${sampleId}-`),
+    );
+    const diffPath = path.join(tempDir, "diff.json");
 
     const diffReport = {
       sampleId,

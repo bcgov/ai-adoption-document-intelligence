@@ -22,6 +22,17 @@
       "Bash(docker compose:*)",
       "Bash(kustomize build:*)"
     ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(~/.config/bcgov-di/**)",
+      "Bash(cat *.env*)",
+      "Bash(cat **/.env*)",
+      "Bash(cat ~/.config/bcgov-di/**)",
+      "Bash(env)",
+      "Bash(printenv*)"
+    ],
+    "disableBypassPermissionsMode": "disable",
     "defaultMode": "acceptEdits",
     "model": "sonnet"
   }

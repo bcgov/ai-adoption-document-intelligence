@@ -4,6 +4,8 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+import { Request } from "express";
+import type { AuditService } from "@/audit/audit.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
@@ -16,17 +18,18 @@ describe("AzureController", () => {
   let classifierService: any;
   let storageService: any;
   let azureService: any;
-  const createMockReq = (sub = "user1", groups: string[] = []) => ({
-    user: { sub },
-    resolvedIdentity: {
-      userId: sub,
-      groupRoles: Object.fromEntries(
-        groups.map((g) => [g, GroupRole.MEMBER]),
-      ) as Record<string, GroupRole>,
-      actorId: "actor-1",
-      isSystemAdmin: false,
-    },
-  });
+  const createMockReq = (sub = "user1", groups: string[] = []): Request =>
+    ({
+      user: { sub },
+      resolvedIdentity: {
+        userId: sub,
+        groupRoles: Object.fromEntries(
+          groups.map((g) => [g, GroupRole.MEMBER]),
+        ) as Record<string, GroupRole>,
+        actorId: "actor-1",
+        isSystemAdmin: false,
+      },
+    }) as unknown as Request;
 
   beforeEach(() => {
     classifierService = {
@@ -55,6 +58,7 @@ describe("AzureController", () => {
       storageService,
       azureService,
       mockAppLogger,
+      { recordEvent: jest.fn() } as unknown as AuditService,
     );
   });
 
@@ -143,11 +147,9 @@ describe("AzureController", () => {
     it("should upload files if user in group and classifier exists", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.write.mockResolvedValue(undefined);
-      const req = createMockReq("user1", ["g1"]);
       const files = [mockFile];
       const body = { name: "c1", label: "l1" };
       const result = await controller.uploadClassifierDocuments(
-        req,
         files,
         body,
         "g1",
@@ -155,19 +157,17 @@ describe("AzureController", () => {
       expect(result).toEqual({
         message: "Received files and data.",
         fileCount: 1,
-        results: ["classifier/g1/c1/l1/f1"],
+        results: ["g1/classification/c1/l1/f1"],
       });
       expect(storageService.write).toHaveBeenCalledWith(
-        "classifier/g1/c1/l1/f1",
+        "g1/classification/c1/l1/f1",
         expect.any(Buffer),
       );
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
-      const req = createMockReq("user1", ["g1"]);
       await expect(
         controller.uploadClassifierDocuments(
-          req,
           [],
           { name: "c1", label: "l1" },
           "g1",
@@ -179,20 +179,18 @@ describe("AzureController", () => {
   describe("deleteClassifierDocuments", () => {
     it("should delete folders if user in group and classifier exists", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
-      const req = createMockReq("user1", ["g1"]);
       const body = { name: "c1", group_id: "g1", folders: ["f1"] };
       await expect(
-        controller.deleteClassifierDocuments(req, body),
+        controller.deleteClassifierDocuments(body),
       ).resolves.toBeUndefined();
       expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
-        "classifier/g1/c1/",
+        "g1/classification/c1",
       );
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
-      const req = createMockReq("user1", ["g1"]);
       await expect(
-        controller.deleteClassifierDocuments(req, {
+        controller.deleteClassifierDocuments({
           name: "c1",
           group_id: "g1",
         }),
@@ -331,8 +329,8 @@ describe("AzureController", () => {
       const req = createMockReq();
       await expect(
         controller.getTrainingResult(req, {
-          name: null,
-          group_id: null,
+          name: null as unknown as string,
+          group_id: null as unknown as string,
         }),
       ).rejects.toThrow();
     });
@@ -387,7 +385,10 @@ describe("AzureController", () => {
     it("should throw BadRequestException if name or group_id is missing", async () => {
       const req = createMockReq();
       await expect(
-        controller.getTrainingResult(req, { name: null, group_id: null }),
+        controller.getTrainingResult(req, {
+          name: null as unknown as string,
+          group_id: null as unknown as string,
+        }),
       ).rejects.toThrow();
     });
     it("should throw NotFoundException if classifier not found", async () => {
@@ -412,8 +413,11 @@ describe("AzureController", () => {
       });
       const req = createMockReq("user1", ["g1"]);
       azureService.pollOperationUntilResolved.mockImplementation(
-        async (_loc, _onSuccess, onFailure) =>
-          onFailure({ error: { code: "fail", message: "fail" } }),
+        async (
+          _loc: string,
+          _onSuccess: unknown,
+          onFailure: (r: { error: { code: string; message: string } }) => void,
+        ) => onFailure({ error: { code: "fail", message: "fail" } }),
       );
       await expect(
         controller.getTrainingResult(req, { name: "c1", group_id: "g1" }),
@@ -428,24 +432,22 @@ describe("AzureController", () => {
       storageService.deleteByPrefix.mockImplementation(() => {
         throw new Error("fail");
       });
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1", folder: "f1" };
-      await expect(
-        controller.deleteClassifierDocuments(req, query),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(controller.deleteClassifierDocuments(query)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
   describe("deleteClassifierDocuments", () => {
     it("should delete a specific folder if folder param is provided", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.deleteByPrefix.mockResolvedValue(undefined);
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1", folder: "f1" };
       await expect(
-        controller.deleteClassifierDocuments(req, query),
+        controller.deleteClassifierDocuments(query),
       ).resolves.toBeUndefined();
       expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
-        "classifier/g1/c1/f1/",
+        "g1/classification/c1/f1",
       );
     });
   });
@@ -453,21 +455,25 @@ describe("AzureController", () => {
     it("should return documents if user in group and classifier exists", async () => {
       classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.list.mockResolvedValue([
-        "classifier/g1/c1/labelA/doc1",
-        "classifier/g1/c1/labelB/doc2",
+        "g1/classification/c1/labelA/doc1",
+        "g1/classification/c1/labelB/doc2",
       ]);
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1" };
-      const result = await controller.getClassifierDocuments(req, query);
-      expect(result).toEqual(["labelA/doc1", "labelB/doc2"]);
-      expect(storageService.list).toHaveBeenCalledWith("classifier/g1/c1/");
+      const result = await controller.getClassifierDocuments(
+        createMockReq("user1", ["g1"]),
+        query,
+      );
+      expect(result).toEqual(["/labelA/doc1", "/labelB/doc2"]);
+      expect(storageService.list).toHaveBeenCalledWith("g1/classification/c1");
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       classifierService.findClassifierModel.mockResolvedValue(null);
-      const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1" };
       await expect(
-        controller.getClassifierDocuments(req, query),
+        controller.getClassifierDocuments(
+          createMockReq("user1", ["g1"]),
+          query,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });

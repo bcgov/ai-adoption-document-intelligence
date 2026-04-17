@@ -35,6 +35,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { GroupRole } from "@/generated/edge";
 import {
   BLOB_STORAGE,
@@ -51,6 +52,10 @@ import {
   CreateFieldDefinitionDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
+import {
+  FormatSuggestionResponseDto,
+  SuggestFormatsDto,
+} from "./dto/format-suggestion.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingConversionFailedResponseDto } from "./dto/labeling-conversion-failed-response.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
@@ -64,6 +69,7 @@ import {
   TemplateModelResponseDto,
   UploadLabelingResponseDto,
 } from "./dto/template-model-responses.dto";
+import { FormatSuggestionService } from "./format-suggestion.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelService } from "./template-model.service";
 
@@ -75,6 +81,7 @@ export class TemplateModelController {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly labelingDocumentDbService: LabelingDocumentDbService,
+    private readonly formatSuggestionService: FormatSuggestionService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -278,7 +285,21 @@ export class TemplateModelController {
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.templateModelService.getTemplateModelDocuments(id);
+    const documents =
+      await this.templateModelService.getTemplateModelDocuments(id);
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "template_model",
+      resource_id: id,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: templateModel.group_id ?? undefined,
+      payload: {
+        action: "metadata",
+        document_ids: documents.map((d) => d.labeling_document_id),
+        count: documents.length,
+      },
+    });
+    return documents;
   }
 
   @Post(":id/documents")
@@ -369,6 +390,15 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "metadata", template_model_id: id },
+    });
     return labeledDoc;
   }
 
@@ -410,7 +440,7 @@ export class TemplateModelController {
 
     await this.auditService.recordEvent({
       event_type: "document_accessed",
-      resource_type: "labeling_document",
+      resource_type: "template_model_document",
       resource_id: documentId,
       actor_id: req.resolvedIdentity.actorId,
       document_id: documentId,
@@ -419,7 +449,7 @@ export class TemplateModelController {
     });
 
     const fileBuffer = await this.blobStorage.read(
-      labelingDocument.normalized_file_path,
+      validateBlobFilePath(labelingDocument.normalized_file_path),
     );
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');
@@ -456,11 +486,23 @@ export class TemplateModelController {
       labeledDoc.labeling_document.group_id,
     );
     const labelingDocument = labeledDoc.labeling_document;
-    const fileBuffer = await this.blobStorage.read(labelingDocument.file_path);
+    const fileBuffer = await this.blobStorage.read(
+      validateBlobFilePath(labelingDocument.file_path),
+    );
 
     const fileName =
       labelingDocument.original_filename || `document-${documentId}`;
     const mimeType = getContentTypeFromFilename(fileName);
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "download", template_model_id: id },
+    });
 
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
@@ -524,7 +566,20 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
-    return this.templateModelService.getDocumentLabels(id, documentId);
+    const labels = await this.templateModelService.getDocumentLabels(
+      id,
+      documentId,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "template_model_document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "metadata", template_model_id: id },
+    });
+    return labels;
   }
 
   @Post(":id/documents/:docId/labels")
@@ -609,7 +664,17 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
-    return this.templateModelService.getDocumentOcr(id, documentId);
+    const ocr = await this.templateModelService.getDocumentOcr(id, documentId);
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: labeledDoc.labeling_document.group_id ?? undefined,
+      payload: { action: "ocr", template_model_id: id },
+    });
+    return ocr;
   }
 
   @Post(":id/documents/:docId/suggestions")
@@ -636,6 +701,32 @@ export class TemplateModelController {
       documentId,
       req.resolvedIdentity,
     );
+  }
+
+  // ========== FORMAT SUGGESTION ENDPOINTS ==========
+
+  @Post(":id/suggest-formats")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Analyze HITL corrections and benchmark mismatches, then suggest field format specifications via AI",
+  })
+  @ApiParam({ name: "id", description: "Template Model ID" })
+  @ApiOkResponse({
+    description: "Array of format suggestions for fields without format specs",
+    type: [FormatSuggestionResponseDto],
+  })
+  @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async suggestFormats(
+    @Param("id") id: string,
+    @Body() dto: SuggestFormatsDto,
+    @Req() req: Request,
+  ): Promise<FormatSuggestionResponseDto[]> {
+    const templateModel = await this.templateModelService.getTemplateModel(id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    return this.formatSuggestionService.suggestFormats(id, dto.benchmarkRunIds);
   }
 
   // ========== EXPORT ENDPOINTS ==========

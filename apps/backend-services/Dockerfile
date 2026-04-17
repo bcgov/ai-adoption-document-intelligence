@@ -10,12 +10,18 @@ COPY apps/backend-services/nest-cli.json ./
 COPY apps/backend-services/tsconfig*.json ./
 COPY apps/backend-services/.swcrc ./
 
-# Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
+# Copy workspace packages referenced as file: dependencies (file:../../packages/* resolves to /packages/*)
 COPY packages/logging /packages/logging
-RUN cd /packages/logging && npm install && npm run build
+RUN cd /packages/logging && npm install --ignore-scripts && npm run build
+
+COPY packages/graph-insertion-slots /packages/graph-insertion-slots
+RUN cd /packages/graph-insertion-slots && npm install && npm run build
+
+COPY packages/blob-storage-paths /packages/blob-storage-paths
+RUN cd /packages/blob-storage-paths && npm install --ignore-scripts && npm run build
 
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
-RUN npm install
+RUN npm install --ignore-scripts
 
 # Copy source and shared Prisma schema
 COPY apps/backend-services/src ./src
@@ -46,8 +52,10 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
-# Copy pre-built logging package from builder (avoids needing tsc in production stage)
+# Copy pre-built workspace packages from builder (avoids needing tsc in production stage)
 COPY --from=builder /packages/logging /packages/logging
+COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
+COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
 
 # Copy package files
 COPY apps/backend-services/package.json ./
@@ -73,6 +81,10 @@ RUN node -e "const fs=require('fs'); let s=fs.readFileSync('prisma.config.ts','u
 
 # Copy built application from builder stage (includes generated client in dist)
 COPY --from=builder /app/dist ./dist
+
+# Copy Prisma engines from builder (needed by migrate-db init container at runtime)
+COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Create storage directory and set permissions
 RUN mkdir -p /app/storage/documents && \

@@ -1,14 +1,16 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 /**
  * Benchmark Run Service
  *
  * Manages benchmark run lifecycle: creation, execution, cancellation, and results retrieval.
- * Orchestrates interactions between Prisma and Temporal.
+ * Uses {@link BenchmarkRunDbService} for run lifecycle and cross-entity updates (Temporal orchestration);
+ * audit events go through {@link AuditLogService}.
  *
  * See feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.6, 4.2, 4.5, 11.2
  */
 
-import { AuditAction, Prisma } from "@generated/client";
+import { Prisma } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
@@ -17,8 +19,9 @@ import {
 } from "@nestjs/common";
 import { execSync } from "child_process";
 import { createHash } from "crypto";
-import { ResolvedIdentity } from "@/auth/types";
-import { AuditLogDbService } from "./audit-log-db.service";
+import { computeConfigHash } from "@/workflow/config-hash";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
+import { AuditLogService } from "./audit-log.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
@@ -29,6 +32,7 @@ import {
   FieldErrorBreakdownDto,
   MetricComparison,
   MetricThreshold,
+  OcrCacheSourceDto,
   PerSampleResultDto,
   PerSampleResultsResponseDto,
   PromoteBaselineDto,
@@ -37,16 +41,17 @@ import {
   RunSummaryDto,
   SampleFailureDto,
 } from "./dto";
+import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 
 @Injectable()
 export class BenchmarkRunService {
   private readonly logger = new Logger(BenchmarkRunService.name);
 
   constructor(
-    private readonly runDbService: BenchmarkRunDbService,
-    private readonly auditLogDbService: AuditLogDbService,
+    private readonly runDb: BenchmarkRunDbService,
     private benchmarkTemporal: BenchmarkTemporalService,
     private datasetService: DatasetService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   /**
@@ -56,9 +61,7 @@ export class BenchmarkRunService {
     try {
       return execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
     } catch (error) {
-      this.logger.warn(
-        `Failed to get git SHA: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn(`Failed to get git SHA: ${getErrorMessage(error)}`);
       return "unknown";
     }
   }
@@ -76,30 +79,39 @@ export class BenchmarkRunService {
   }
 
   /**
-   * Create audit log entry
+   * Same canonical hash as benchmark definitions and Temporal graph runs
+   * ({@link computeConfigHash}): defaults + key order normalization so an
+   * in-memory config matches JSON loaded from `workflow_version.config`.
    */
-  private async createAuditLog(
-    runId: string,
-    action: "run_started" | "run_completed" | "baseline_promoted",
-    metadata: Record<string, unknown>,
-    identity: ResolvedIdentity,
+  private hashWorkflowConfigJson(config: unknown): string {
+    return computeConfigHash(config as GraphWorkflowConfig);
+  }
+
+  private async assertOcrCacheBaselineRun(
+    projectId: string,
+    datasetVersionId: string,
+    baselineRunId: string,
   ): Promise<void> {
-    try {
-      await this.auditLogDbService.createAuditLog({
-        actorId: identity.actorId,
-        action: action as AuditAction,
-        entityType: "BenchmarkRun",
-        entityId: runId,
-        metadata: metadata,
-        timestamp: new Date(),
-      });
-      this.logger.debug(`Audit log created: ${action} for run ${runId}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to create audit log: ${error instanceof Error ? error.message : String(error)}`,
+    const run = await this.runDb.findRunForOcrCacheValidation(
+      projectId,
+      datasetVersionId,
+      baselineRunId,
+    );
+    if (!run) {
+      throw new BadRequestException(
+        `ocrCacheBaselineRunId "${baselineRunId}" not found, not completed, or does not share the same dataset version`,
       );
-      // Don't throw - audit logging failures shouldn't block operations
     }
+  }
+
+  /**
+   * Latest completed baseline run for a definition (used to replay cached OCR for candidate runs).
+   */
+  async getLatestCompletedBaselineRunId(
+    projectId: string,
+    definitionId: string,
+  ): Promise<string | null> {
+    return this.runDb.findLatestCompletedBaselineRunId(projectId, definitionId);
   }
 
   /**
@@ -112,14 +124,14 @@ export class BenchmarkRunService {
     projectId: string,
     definitionId: string,
     dto: CreateRunDto,
-    identity: ResolvedIdentity,
+    actorId: string,
   ): Promise<RunDetailsDto> {
     this.logger.log(
       `Starting benchmark run for project ${projectId}, definition ${definitionId}`,
     );
 
     // Validate that the definition exists and belongs to the project
-    const definition = await this.runDbService.findBenchmarkDefinitionForRun(
+    const definition = await this.runDb.findBenchmarkDefinitionForStartRun(
       definitionId,
       projectId,
     );
@@ -127,6 +139,25 @@ export class BenchmarkRunService {
     if (!definition) {
       throw new NotFoundException(
         `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
+      );
+    }
+
+    if (dto.persistOcrCache === true && dto.ocrCacheBaselineRunId) {
+      throw new BadRequestException(
+        "Specify at most one of persistOcrCache or ocrCacheBaselineRunId",
+      );
+    }
+
+    /** Default false when omitted; set persistOcrCache true to store OCR replay rows. */
+    const effectivePersistOcrCache = dto.ocrCacheBaselineRunId
+      ? false
+      : dto.persistOcrCache === true;
+
+    if (dto.ocrCacheBaselineRunId) {
+      await this.assertOcrCacheBaselineRun(
+        projectId,
+        definition.datasetVersionId,
+        dto.ocrCacheBaselineRunId,
       );
     }
 
@@ -170,20 +201,69 @@ export class BenchmarkRunService {
 
     const runTags = dto.tags || {};
 
+    let workflowConfigUsed: Record<string, unknown>;
+    let workflowConfigHashUsed: string;
+
+    // Apply workflow config overrides from the definition
+    const workflowConfigOverrides = (definition.workflowConfigOverrides ??
+      {}) as Record<string, unknown>;
+
+    if (dto.candidateWorkflowVersionId) {
+      const candidateRow = await this.runDb.findWorkflowVersionConfig(
+        dto.candidateWorkflowVersionId,
+      );
+      if (!candidateRow) {
+        throw new BadRequestException(
+          `candidateWorkflowVersionId "${dto.candidateWorkflowVersionId}" not found`,
+        );
+      }
+      workflowConfigUsed = candidateRow.config as Record<string, unknown>;
+      workflowConfigHashUsed = this.hashWorkflowConfigJson(candidateRow.config);
+    } else {
+      const baseConfig = definition.workflowVersion.config as Record<
+        string,
+        unknown
+      >;
+      if (Object.keys(workflowConfigOverrides).length > 0) {
+        workflowConfigUsed = applyWorkflowConfigOverrides(
+          baseConfig as unknown as GraphWorkflowConfig,
+          workflowConfigOverrides,
+        ) as unknown as Record<string, unknown>;
+      } else {
+        workflowConfigUsed = baseConfig;
+      }
+      workflowConfigHashUsed = definition.workflowConfigHash;
+    }
+
+    const runParams: Record<string, unknown> = {
+      runtimeSettings: {
+        ...(definition.runtimeSettings as Record<string, unknown>),
+        ...(dto.runtimeSettingsOverride || {}),
+      },
+    };
+    if (dto.candidateWorkflowVersionId) {
+      runParams.candidateWorkflowVersionId = dto.candidateWorkflowVersionId;
+      runParams.workflowConfigHash = workflowConfigHashUsed;
+    }
+    if (Object.keys(workflowConfigOverrides).length > 0) {
+      runParams.workflowConfigOverrides = workflowConfigOverrides;
+    }
+    if (effectivePersistOcrCache) {
+      runParams.persistOcrCache = true;
+    }
+    if (dto.ocrCacheBaselineRunId) {
+      runParams.ocrCacheBaselineRunId = dto.ocrCacheBaselineRunId;
+    }
+
     // Create BenchmarkRun record with status 'pending'
-    const run = await this.runDbService.createBenchmarkRun({
+    const run = await this.runDb.createBenchmarkRun({
       definitionId,
       projectId,
       status: "pending",
       temporalWorkflowId: "", // Will be updated after starting workflow
       workerGitSha,
       workerImageDigest,
-      params: {
-        runtimeSettings: {
-          ...(definition.runtimeSettings as Record<string, unknown>),
-          ...(dto.runtimeSettingsOverride || {}),
-        },
-      } as Prisma.InputJsonValue,
+      params: runParams as Prisma.InputJsonValue,
       tags: runTags as Prisma.InputJsonValue,
     });
 
@@ -205,9 +285,10 @@ export class BenchmarkRunService {
           sampleIds: definition.split
             ? (definition.split.sampleIds as string[])
             : undefined,
-          workflowId: definition.workflowId,
-          workflowConfig: definition.workflow.config as Record<string, unknown>,
-          workflowConfigHash: definition.workflowConfigHash,
+          workflowVersionId:
+            dto.candidateWorkflowVersionId ?? definition.workflowVersionId,
+          workflowConfig: workflowConfigUsed,
+          workflowConfigHash: workflowConfigHashUsed,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<
             string,
@@ -220,50 +301,46 @@ export class BenchmarkRunService {
           } as Record<string, unknown>,
           workerGitSha,
           workerImageDigest: workerImageDigest ?? undefined,
+          persistOcrCache: effectivePersistOcrCache,
+          ocrCacheBaselineRunId: dto.ocrCacheBaselineRunId,
         });
 
-      // Update run with temporal workflow ID and status
-      await this.runDbService.updateBenchmarkRun(run.id, {
+      await this.runDb.postTemporalStartTransaction(
+        run.id,
+        definitionId,
+        definition.datasetVersionId,
+        definition.splitId,
         temporalWorkflowId,
-        status: "running",
-        startedAt: new Date(),
-      });
+      );
 
       this.logger.log(
         `Started Temporal workflow ${temporalWorkflowId} for run ${run.id}`,
       );
     } catch (error) {
       // If workflow start fails, mark run as failed
-      await this.runDbService.updateBenchmarkRun(run.id, {
+      await this.runDb.updateBenchmarkRun(run.id, {
         status: "failed",
-        error: `Failed to start Temporal workflow: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Failed to start Temporal workflow: ${getErrorMessage(error)}`,
       });
 
       throw new Error(
-        `Failed to start benchmark run workflow: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to start benchmark run workflow: ${getErrorMessage(error)}`,
       );
     }
 
-    // Mark definition as immutable and freeze the dataset version
-    await this.runDbService.markBenchmarkDefinitionImmutable(definitionId);
-
-    await this.runDbService.freezeDatasetVersion(definition.datasetVersionId);
-
-    // Freeze the referenced split if one is set
-    if (definition.splitId) {
-      await this.runDbService.freezeSplit(definition.splitId);
-    }
-
-    // Create audit log
-    await this.createAuditLog(
-      run.id,
-      "run_started",
-      {
+    try {
+      await this.auditLogService.logRunStarted(
+        actorId,
+        run.id,
         definitionId,
-        temporalWorkflowId,
-      },
-      identity,
-    );
+        projectId,
+        { temporalWorkflowId },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to create audit log: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     // Return the updated run
     return this.getRunById(projectId, run.id);
@@ -276,7 +353,7 @@ export class BenchmarkRunService {
     this.logger.log(`Cancelling benchmark run ${runId}`);
 
     // Get the run
-    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
+    const run = await this.runDb.findBenchmarkRunBare(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -298,13 +375,12 @@ export class BenchmarkRunService {
       );
     } catch (error) {
       this.logger.error(
-        `Failed to cancel Temporal workflow: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to cancel Temporal workflow: ${getErrorMessage(error)}`,
       );
       // Continue anyway to update the database status
     }
 
-    // Update run status to cancelled
-    await this.runDbService.updateBenchmarkRun(runId, {
+    await this.runDb.updateBenchmarkRun(runId, {
       status: "cancelled",
       completedAt: new Date(),
     });
@@ -319,13 +395,14 @@ export class BenchmarkRunService {
    *
    * Only completed, failed or cancelled runs can be deleted.
    * Running/pending runs must be cancelled first.
+   * Associated `benchmark_ocr_cache` rows (same `sourceRunId`) are removed with the run.
    * @param projectId - The project this run belongs to
    * @param runId - The run ID to delete
    * @throws NotFoundException if the run does not exist
    * @throws BadRequestException if the run is still active
    */
   async deleteRun(projectId: string, runId: string): Promise<void> {
-    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
+    const run = await this.runDb.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -339,7 +416,43 @@ export class BenchmarkRunService {
       );
     }
 
-    await this.runDbService.deleteBenchmarkRun(runId);
+    await this.runDb.deleteBenchmarkRun(runId);
+
+    // If no runs remain for this definition, reset immutability
+    const remainingRuns = await this.runDb.countRunsByDefinition(
+      run.definitionId,
+    );
+
+    if (remainingRuns === 0) {
+      await this.runDb.resetDefinitionImmutability(run.definitionId);
+      this.logger.log(
+        `Reset immutability for definition ${run.definitionId} (no remaining runs)`,
+      );
+
+      // Unfreeze dataset version if no other definitions with runs reference it
+      const { datasetVersionId, splitId } = run.definition;
+      const otherDefsUsingVersion =
+        await this.runDb.countRunsByDatasetVersion(datasetVersionId);
+
+      if (otherDefsUsingVersion === 0) {
+        await this.runDb.unfreezeDatasetVersion(datasetVersionId);
+        this.logger.log(
+          `Unfroze dataset version ${datasetVersionId} (no remaining runs reference it)`,
+        );
+      }
+
+      // Unfreeze split if no other definitions with runs reference it
+      if (splitId) {
+        const otherDefsUsingSplit = await this.runDb.countRunsBySplit(splitId);
+
+        if (otherDefsUsingSplit === 0) {
+          await this.runDb.unfreezeSplit(splitId);
+          this.logger.log(
+            `Unfroze split ${splitId} (no remaining runs reference it)`,
+          );
+        }
+      }
+    }
 
     this.logger.log(`Deleted benchmark run ${runId} from project ${projectId}`);
   }
@@ -348,7 +461,7 @@ export class BenchmarkRunService {
    * Get run details by ID
    */
   async getRunById(projectId: string, runId: string): Promise<RunDetailsDto> {
-    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
+    const run = await this.runDb.findBenchmarkRun(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -401,7 +514,7 @@ export class BenchmarkRunService {
    */
   async listRuns(projectId: string): Promise<RunSummaryDto[]> {
     // Verify project exists
-    const project = await this.runDbService.findBenchmarkProject(projectId);
+    const project = await this.runDb.findBenchmarkProject(projectId);
 
     if (!project) {
       throw new NotFoundException(
@@ -409,7 +522,7 @@ export class BenchmarkRunService {
       );
     }
 
-    const runs = await this.runDbService.findAllBenchmarkRuns(projectId);
+    const runs = await this.runDb.findAllBenchmarkRuns(projectId);
 
     return runs.map((run) => {
       const durationMs =
@@ -468,7 +581,7 @@ export class BenchmarkRunService {
     this.logger.log(`Getting drill-down for run ${runId}`);
 
     // Get the run
-    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
+    const run = await this.runDb.findBenchmarkRunBare(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -585,12 +698,12 @@ export class BenchmarkRunService {
     projectId: string,
     runId: string,
     dto: PromoteBaselineDto,
-    identity: ResolvedIdentity,
+    actorId: string,
   ): Promise<PromoteBaselineResponseDto> {
     this.logger.log(`Promoting run ${runId} to baseline`);
 
     // Get the run
-    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
+    const run = await this.runDb.findBenchmarkRunBare(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -605,48 +718,43 @@ export class BenchmarkRunService {
       );
     }
 
-    // Find the previous baseline for this definition
-    const previousBaseline = await this.runDbService.findBaselineBenchmarkRun(
+    const { previousBaselineId } = await this.runDb.promoteRunToBaseline(
+      runId,
       run.definitionId,
+      dto.thresholds
+        ? (dto.thresholds as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
     );
 
-    // Update previous baseline to clear its baseline flag
-    if (previousBaseline) {
-      await this.runDbService.updateBenchmarkRun(previousBaseline.id, {
-        isBaseline: false,
-      });
+    if (previousBaselineId) {
       this.logger.log(
-        `Cleared baseline flag from previous baseline run ${previousBaseline.id}`,
+        `Cleared baseline flag from previous baseline run ${previousBaselineId}`,
       );
     }
 
-    // Promote the run to baseline
-    await this.runDbService.updateBenchmarkRun(runId, {
-      isBaseline: true,
-      baselineThresholds: dto.thresholds
-        ? (dto.thresholds as unknown as Prisma.InputJsonValue)
-        : Prisma.JsonNull,
-    });
-
-    // Create audit log
-    await this.createAuditLog(
-      runId,
-      "baseline_promoted",
-      {
-        definitionId: run.definitionId,
-        projectId: run.projectId,
-        previousBaselineId: previousBaseline?.id || null,
-        thresholds: dto.thresholds || null,
-      },
-      identity,
-    );
+    try {
+      await this.auditLogService.logBaselinePromoted(
+        actorId,
+        runId,
+        run.projectId,
+        {
+          definitionId: run.definitionId,
+          previousBaselineId,
+          thresholds: dto.thresholds ?? null,
+        },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to create audit log: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     this.logger.log(`Run ${runId} promoted to baseline`);
 
     return {
       runId,
       isBaseline: true,
-      previousBaselineId: previousBaseline?.id || null,
+      previousBaselineId,
       thresholds: dto.thresholds || null,
     };
   }
@@ -662,14 +770,13 @@ export class BenchmarkRunService {
     this.logger.log(`Comparing run ${runId} against baseline`);
 
     // Get the run
-    const run = await this.runDbService.findBenchmarkRunUnique(runId);
+    const run = await this.runDb.findBenchmarkRunUnique(runId);
 
     if (!run) {
       throw new NotFoundException(`Run with ID "${runId}" not found`);
     }
 
-    // Find the baseline run for this definition
-    const baseline = await this.runDbService.findBaselineBenchmarkRun(
+    const baseline = await this.runDb.findBaselineBenchmarkRun(
       run.definitionId,
     );
 
@@ -748,7 +855,7 @@ export class BenchmarkRunService {
     };
 
     // Update the run with comparison results
-    await this.runDbService.updateBenchmarkRun(runId, {
+    await this.runDb.updateBenchmarkRun(runId, {
       baselineComparison: comparison as unknown as Prisma.InputJsonValue,
       tags: {
         ...(run.tags as Record<string, unknown>),
@@ -779,7 +886,7 @@ export class BenchmarkRunService {
     this.logger.log(`Getting per-sample results for run ${runId}`);
 
     // Get the run
-    const run = await this.runDbService.findBenchmarkRun(runId, projectId);
+    const run = await this.runDb.findBenchmarkRunBare(runId, projectId);
 
     if (!run) {
       throw new NotFoundException(
@@ -878,5 +985,27 @@ export class BenchmarkRunService {
       availableDimensions,
       dimensionValues,
     };
+  }
+
+  /**
+   * List completed runs that have cached OCR rows for a given dataset version.
+   * Returns runs across all definitions in the project that share the dataset version.
+   */
+  async listOcrCacheSources(
+    projectId: string,
+    datasetVersionId: string,
+  ): Promise<OcrCacheSourceDto[]> {
+    const runs = await this.runDb.findOcrCacheSources(
+      projectId,
+      datasetVersionId,
+    );
+
+    return runs.map((run) => ({
+      id: run.id,
+      definitionId: run.definition.id,
+      definitionName: run.definition.name,
+      completedAt: run.completedAt!.toISOString(),
+      sampleCount: run._count.ocrCacheRows,
+    }));
   }
 }

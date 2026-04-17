@@ -29,6 +29,11 @@ const EXPECTED_ACTIVITY_TYPES = [
   "benchmark.writePrediction",
   "benchmark.materializeDataset",
   "benchmark.loadDatasetManifest",
+  "benchmark.loadOcrCache",
+  "benchmark.persistOcrCache",
+  "ocr.spellcheck",
+  "ocr.characterConfusion",
+  "ocr.normalizeFields",
 ];
 
 describe("activity-registry", () => {
