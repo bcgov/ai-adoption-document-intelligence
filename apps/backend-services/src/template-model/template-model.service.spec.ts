@@ -52,6 +52,7 @@ describe("TemplateModelService", () => {
         field_key: "invoice_number",
         field_type: PrismaFieldType.string,
         field_format: null,
+        format_spec: null,
         display_order: 0,
         template_model_id: "tm-1",
       },
@@ -430,6 +431,7 @@ describe("TemplateModelService", () => {
         field_key: "total_amount",
         field_type: PrismaFieldType.number,
         field_format: null,
+        format_spec: null,
         display_order: 1,
         template_model_id: "tm-1",
       };
@@ -504,7 +506,11 @@ describe("TemplateModelService", () => {
 
       expect(
         mockTemplateModelDbService.updateFieldDefinition,
-      ).toHaveBeenCalledWith("field-1", dto);
+      ).toHaveBeenCalledWith("field-1", {
+        field_format: "currency",
+        format_spec: undefined,
+        display_order: undefined,
+      });
       expect(result).toEqual(updatedField);
     });
 
@@ -1086,6 +1092,7 @@ describe("TemplateModelService", () => {
             field_key: "invoice_date",
             field_type: PrismaFieldType.date,
             field_format: "ymd",
+            format_spec: null,
             display_order: 1,
             template_model_id: "tm-1",
           },
@@ -1132,6 +1139,7 @@ describe("TemplateModelService", () => {
             field_key: "terms_accepted",
             field_type: PrismaFieldType.selectionMark,
             field_format: null,
+            format_spec: null,
             display_order: 0,
             template_model_id: "tm-1",
           },

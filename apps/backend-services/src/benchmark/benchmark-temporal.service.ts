@@ -87,7 +87,7 @@ export class BenchmarkTemporalService {
       datasetVersionId: string;
       splitId?: string;
       sampleIds?: string[];
-      workflowId: string;
+      workflowVersionId: string;
       workflowConfig: Record<string, unknown>;
       workflowConfigHash: string;
       evaluatorType: string;
@@ -96,6 +96,8 @@ export class BenchmarkTemporalService {
       runtimeSettings: Record<string, unknown>;
       workerGitSha: string;
       workerImageDigest?: string;
+      persistOcrCache?: boolean;
+      ocrCacheBaselineRunId?: string;
     },
   ): Promise<string> {
     await this.ensureClient();
@@ -118,7 +120,7 @@ export class BenchmarkTemporalService {
               datasetVersionId: benchmarkDefinition.datasetVersionId,
               splitId: benchmarkDefinition.splitId,
               sampleIds: benchmarkDefinition.sampleIds,
-              workflowId: benchmarkDefinition.workflowId,
+              workflowVersionId: benchmarkDefinition.workflowVersionId,
               workflowConfig: benchmarkDefinition.workflowConfig,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,
               evaluatorType: benchmarkDefinition.evaluatorType,
@@ -127,6 +129,8 @@ export class BenchmarkTemporalService {
               runtimeSettings: benchmarkDefinition.runtimeSettings,
               workerGitSha: benchmarkDefinition.workerGitSha,
               workerImageDigest: benchmarkDefinition.workerImageDigest,
+              persistOcrCache: benchmarkDefinition.persistOcrCache,
+              ocrCacheBaselineRunId: benchmarkDefinition.ocrCacheBaselineRunId,
             },
           ],
           taskQueue: this.taskQueue,
@@ -226,7 +230,7 @@ export class BenchmarkTemporalService {
       definitionId: string;
       datasetVersionId: string;
       splitId: string | null;
-      workflowId: string;
+      workflowVersionId: string;
       workflowConfigHash: string;
       evaluatorType: string;
       evaluatorConfig: Record<string, unknown>;
@@ -260,7 +264,7 @@ export class BenchmarkTemporalService {
               definitionId: benchmarkDefinition.definitionId,
               datasetVersionId: benchmarkDefinition.datasetVersionId,
               splitId: benchmarkDefinition.splitId,
-              workflowId: benchmarkDefinition.workflowId,
+              workflowVersionId: benchmarkDefinition.workflowVersionId,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,
               evaluatorType: benchmarkDefinition.evaluatorType,
               evaluatorConfig: benchmarkDefinition.evaluatorConfig,

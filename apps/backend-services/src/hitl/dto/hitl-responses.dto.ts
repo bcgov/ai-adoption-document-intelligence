@@ -115,6 +115,13 @@ export class ReviewSessionResponseDto {
     type: "array",
   })
   corrections?: unknown[];
+
+  @ApiPropertyOptional({
+    description:
+      "Field format definitions from the template model for client-side validation",
+    type: "array",
+  })
+  fieldDefinitions?: Array<{ field_key: string; format_spec?: string | null }>;
 }
 
 export class CorrectionRecordDto {
@@ -201,4 +208,15 @@ export class AnalyticsResponseDto {
   @ApiProperty({ type: AnalyticsCorrectionsByActionDto })
   correctionsByAction!: AnalyticsCorrectionsByActionDto;
   @ApiProperty({ type: AnalyticsSummaryDto }) summary!: AnalyticsSummaryDto;
+}
+
+export class ReopenSessionResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiProperty()
+  message!: string;
 }

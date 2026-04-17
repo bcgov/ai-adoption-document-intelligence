@@ -6,11 +6,13 @@ interface CreateFieldDefinitionDto {
   field_key: string;
   field_type: string;
   field_format?: string;
+  format_spec?: string;
   display_order?: number;
 }
 
 interface UpdateFieldDefinitionDto {
   field_format?: string;
+  format_spec?: string;
   display_order?: number;
 }
 
@@ -22,6 +24,8 @@ interface ApiFieldDefinition {
   field_type?: string;
   fieldFormat?: string;
   field_format?: string;
+  formatSpec?: string;
+  format_spec?: string;
   displayOrder?: number;
   display_order?: number;
 }
@@ -37,6 +41,7 @@ export const useFieldSchema = (templateModelId?: string) => {
         field.field_type ??
         FieldType.STRING) as FieldType,
       fieldFormat: field.fieldFormat ?? field.field_format,
+      formatSpec: field.formatSpec ?? field.format_spec,
       displayOrder: field.displayOrder ?? field.display_order ?? 0,
     }));
 

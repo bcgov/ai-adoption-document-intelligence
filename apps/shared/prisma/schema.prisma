@@ -16,6 +16,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum WorkflowKind {
+  primary
+  benchmark_candidate
+}
+
 model Document {
   id                    String                 @id @default(cuid())
   title                 String
@@ -32,16 +37,19 @@ model Document {
   updated_at            DateTime               @updatedAt
   apim_request_id       String?
   workflow_id           String? // @deprecated: Use workflow_config_id and workflow_execution_id instead
-  workflow_config_id    String? // Reference to Workflow.id (workflow configuration)
+  workflow_config_id    String? // Reference to WorkflowVersion.id (pinned graph config)
   workflow_execution_id String?                @unique // Temporal workflow execution ID
   model_id              String                 @default("prebuilt-layout")
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
+  lock                  DocumentLock?
   groundTruthJob        DatasetGroundTruthJob?
   group_id              String
   group                 Group                  @relation(fields: [group_id], references: [id])
+  workflowVersion       WorkflowVersion?       @relation(fields: [workflow_config_id], references: [id], onDelete: SetNull)
 
   @@index([group_id])
+  @@index([workflow_config_id])
   @@map("documents")
 }
 
@@ -113,7 +121,6 @@ model User {
   apiKeys            ApiKey[]
   userGroups         UserGroup[]
   membershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
-
   @@map("user")
 }
 
@@ -122,7 +129,6 @@ model Actor {
   apiKey ApiKey?
   user   User?
 
-  workflows                 Workflow[]
   templateModels            TemplateModel[]
   classifierModelsCreated   ClassifierModel[]        @relation(name: "ClassifierCreatedByActor")
   classifierModelsUpdated   ClassifierModel[]        @relation(name: "ClassifierUpdatedByActor")
@@ -135,26 +141,50 @@ model Actor {
   benchmarkAuditLogs        BenchmarkAuditLog[]
   createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
   updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
+  workflowLineages          WorkflowLineage[]
 
   @@map("actor")
 }
 
-model Workflow {
-  id                   String                @id @default(cuid())
+/// Stable workflow identity (list in UI). Config lives on WorkflowVersion rows.
+model WorkflowLineage {
+  id                   String            @id @default(cuid())
   name                 String
   description          String?
   actor_id             String
-  actor                Actor                 @relation(fields: [actor_id], references: [id])
-  config               Json // GraphWorkflowConfig stored as JSON
-  version              Int                   @default(1)
-  created_at           DateTime              @default(now())
-  updated_at           DateTime              @updatedAt
-  benchmarkDefinitions BenchmarkDefinition[]
+  actor                Actor             @relation(fields: [actor_id], references: [id])
   group_id             String
-  group                Group                 @relation(fields: [group_id], references: [id])
+  group                Group             @relation(fields: [group_id], references: [id])
+  workflow_kind        WorkflowKind      @default(primary)
+  source_workflow_id   String? // Source/base lineage id (only for benchmark candidates)
+  sourceWorkflow       WorkflowLineage?  @relation("LineageSource", fields: [source_workflow_id], references: [id], onDelete: SetNull)
+  head_version_id      String?           @unique
+  headVersion          WorkflowVersion?  @relation("LineageHead", fields: [head_version_id], references: [id], onDelete: SetNull)
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  versions             WorkflowVersion[] @relation("LineageVersions")
+  benchmarkCandidateLineages WorkflowLineage[] @relation("LineageSource")
 
   @@index([group_id])
-  @@map("workflows")
+  @@map("workflow_lineages")
+}
+
+/// Immutable graph config revision; revert = change pin to an older version id.
+model WorkflowVersion {
+  id                   String                  @id @default(cuid())
+  lineage_id           String
+  lineage              WorkflowLineage         @relation("LineageVersions", fields: [lineage_id], references: [id], onDelete: Cascade)
+  version_number       Int
+  config               Json // GraphWorkflowConfig
+  created_at           DateTime                @default(now())
+  headOfLineage        WorkflowLineage?        @relation("LineageHead")
+  benchmarkDefinitions BenchmarkDefinition[]
+  documents            Document[]
+  groundTruthJobs      DatasetGroundTruthJob[]
+
+  @@unique([lineage_id, version_number])
+  @@index([lineage_id])
+  @@map("workflow_versions")
 }
 
 // ========== TEMPLATE MODELS ==========
@@ -187,6 +217,7 @@ model FieldDefinition {
   field_key         String
   field_type        FieldType     @default(string)
   field_format      String?
+  format_spec       String?       // JSON format spec for normalization/validation
   display_order     Int           @default(0)
 
   @@unique([template_model_id, field_key])
@@ -305,14 +336,30 @@ model Group {
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]
   documents           Document[]
-  workflows           Workflow[]
+  workflowLineages    WorkflowLineage[]
   template_models     TemplateModel[]
   labeling_documents  LabelingDocument[]
   api_keys            ApiKey[]
   datasets            Dataset[]
   benchmark_projects  BenchmarkProject[]
+  confusionProfiles   ConfusionProfile[]
 
   @@map("group")
+}
+
+model ConfusionProfile {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  matrix      Json
+  metadata    Json?
+  group_id    String
+  group       Group    @relation(fields: [group_id], references: [id])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@index([group_id])
+  @@map("confusion_profiles")
 }
 
 model UserGroup {
@@ -385,8 +432,24 @@ model ReviewSession {
   started_at   DateTime          @default(now())
   completed_at DateTime?
   corrections  FieldCorrection[]
+  lock         DocumentLock?
 
   @@map("review_sessions")
+}
+
+model DocumentLock {
+  id             String        @id @default(cuid())
+  document_id    String        @unique
+  document       Document      @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  reviewer_id    String
+  session_id     String        @unique
+  session        ReviewSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  acquired_at    DateTime      @default(now())
+  last_heartbeat DateTime      @default(now())
+  expires_at     DateTime
+
+  @@index([expires_at])
+  @@map("document_locks")
 }
 
 model FieldCorrection {
@@ -548,60 +611,78 @@ model BenchmarkProject {
 }
 
 model BenchmarkDefinition {
-  id                 String           @id @default(uuid())
-  projectId          String
-  project            BenchmarkProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name               String
-  datasetVersionId   String
-  datasetVersion     DatasetVersion   @relation(fields: [datasetVersionId], references: [id])
-  splitId            String?
-  split              Split?           @relation(fields: [splitId], references: [id])
-  workflowId         String
-  workflow           Workflow         @relation(fields: [workflowId], references: [id])
-  workflowConfigHash String
-  evaluatorType      String
-  evaluatorConfig    Json
-  runtimeSettings    Json
-  immutable          Boolean          @default(false)
-  revision           Int              @default(1)
-  scheduleEnabled    Boolean          @default(false)
-  scheduleCron       String?
-  scheduleId         String?          @unique
-  createdAt          DateTime         @default(now()) // TODO: created_by?
-  updatedAt          DateTime         @updatedAt // TODO: updated_by?
-  benchmarkRuns      BenchmarkRun[]
+  id                      String             @id @default(uuid())
+  projectId               String
+  project                 BenchmarkProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                    String
+  datasetVersionId        String
+  datasetVersion          DatasetVersion     @relation(fields: [datasetVersionId], references: [id])
+  splitId                 String?
+  split                   Split?             @relation(fields: [splitId], references: [id])
+  workflowVersionId       String
+  workflowVersion         WorkflowVersion    @relation(fields: [workflowVersionId], references: [id])
+  workflowConfigHash      String
+  workflowConfigOverrides Json?              @default("{}") @map("workflow_config_overrides")
+  evaluatorType           String
+  evaluatorConfig         Json
+  runtimeSettings         Json
+  immutable               Boolean            @default(false)
+  revision                Int                @default(1)
+  /// Structured debug log from the last OCR improvement pipeline run (overwritten each run)
+  pipelineDebugLog        Json?              @map("pipeline_debug_log")
+  scheduleEnabled         Boolean            @default(false)
+  scheduleCron            String?
+  scheduleId              String?            @unique
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  benchmarkRuns           BenchmarkRun[]
 
   @@index([projectId])
   @@index([datasetVersionId])
   @@index([splitId])
-  @@index([workflowId])
+  @@index([workflowVersionId])
   @@map("benchmark_definitions")
 }
 
 model BenchmarkRun {
-  id                 String              @id @default(uuid())
-  definitionId       String
-  definition         BenchmarkDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
-  projectId          String
-  project            BenchmarkProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status             BenchmarkRunStatus  @default(pending)
-  temporalWorkflowId String
-  workerImageDigest  String?
-  workerGitSha       String
-  startedAt          DateTime?
-  completedAt        DateTime?
-  metrics            Json                @default("{}")
-  params             Json                @default("{}")
-  tags               Json                @default("{}")
-  error              String?
-  isBaseline         Boolean             @default(false)
-  baselineThresholds Json?
-  baselineComparison Json?
-  createdAt          DateTime            @default(now()) // TODO:  created_by
+  id                   String                @id @default(uuid())
+  definitionId         String
+  definition           BenchmarkDefinition   @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  projectId            String
+  project              BenchmarkProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status               BenchmarkRunStatus    @default(pending)
+  temporalWorkflowId   String
+  workerImageDigest    String?
+  workerGitSha         String
+  startedAt            DateTime?
+  completedAt          DateTime?
+  metrics              Json                  @default("{}")
+  params               Json                  @default("{}")
+  tags                 Json                  @default("{}")
+  error                String?
+  isBaseline           Boolean               @default(false)
+  baselineThresholds   Json?
+  baselineComparison   Json?
+  createdAt            DateTime              @default(now())
+  ocrCacheRows         BenchmarkOcrCache[]
 
   @@index([definitionId])
   @@index([projectId])
   @@map("benchmark_runs")
+}
+
+/// Cached Azure OCR poll response per benchmark run sample (for replay without re-calling Azure).
+model BenchmarkOcrCache {
+  id           String       @id @default(uuid())
+  sourceRunId  String
+  sourceRun    BenchmarkRun @relation(fields: [sourceRunId], references: [id], onDelete: Cascade)
+  sampleId     String
+  ocrResponse  Json
+  createdAt    DateTime     @default(now())
+
+  @@unique([sourceRunId, sampleId])
+  @@index([sourceRunId])
+  @@map("benchmark_ocr_cache")
 }
 
 model BenchmarkAuditLog {
@@ -662,9 +743,11 @@ model DatasetGroundTruthJob {
   sampleId           String
   documentId         String?              @unique
   document           Document?            @relation(fields: [documentId], references: [id])
-  workflowConfigId   String
+  workflowVersionId  String
+  workflowVersion    WorkflowVersion      @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
   temporalWorkflowId String?
   status             GroundTruthJobStatus @default(pending)
+  workflowConfigOverrides Json?
   groundTruthPath    String?
   error              String?
   createdAt          DateTime             @default(now())
@@ -674,6 +757,7 @@ model DatasetGroundTruthJob {
   @@index([datasetVersionId])
   @@index([documentId])
   @@index([status])
+  @@index([workflowVersionId])
   @@map("dataset_ground_truth_jobs")
 }
 

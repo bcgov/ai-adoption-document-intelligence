@@ -11,8 +11,15 @@ import {
   Stack,
   Table,
   Text,
+  Textarea,
+  Tooltip,
 } from "@mantine/core";
-import { IconAlertCircle, IconEye, IconPlayerPlay } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconEye,
+  IconInfoCircle,
+  IconPlayerPlay,
+} from "@tabler/icons-react";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -46,11 +53,49 @@ export const GroundTruthGenerationPanel: FC<
   GroundTruthGenerationPanelProps
 > = ({ datasetId, versionId }) => {
   const navigate = useNavigate();
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
-    null,
-  );
+  const [selectedWorkflowVersionId, setSelectedWorkflowVersionId] = useState<
+    string | null
+  >(null);
+  const [workflowConfigOverridesJson, setWorkflowConfigOverridesJson] =
+    useState("");
+  const [workflowConfigOverridesError, setWorkflowConfigOverridesError] =
+    useState("");
 
   const { workflows, isLoading: isLoadingWorkflows } = useWorkflows();
+
+  const getExposedParamDefaults = (wfId: string): Record<string, unknown> => {
+    const workflow = workflows.find((w) => w.workflowVersionId === wfId);
+    if (!workflow?.config) return {};
+    const nodeGroups = workflow.config.nodeGroups as
+      | Record<string, { exposedParams?: Array<{ path: string }> }>
+      | undefined;
+    if (!nodeGroups) return {};
+
+    const resolvePathValue = (path: string): unknown => {
+      const parts = path.split(".");
+      let current: unknown = workflow.config;
+      for (const part of parts) {
+        if (
+          current === undefined ||
+          current === null ||
+          typeof current !== "object"
+        ) {
+          return undefined;
+        }
+        current = (current as Record<string, unknown>)[part];
+      }
+      return current;
+    };
+
+    const defaults: Record<string, unknown> = {};
+    for (const group of Object.values(nodeGroups)) {
+      if (!group.exposedParams) continue;
+      for (const param of group.exposedParams) {
+        defaults[param.path] = resolvePathValue(param.path);
+      }
+    }
+    return defaults;
+  };
   const {
     jobs,
     total,
@@ -68,17 +113,46 @@ export const GroundTruthGenerationPanel: FC<
   ).length;
   const progressPercent = total > 0 ? (completedCount / total) * 100 : 0;
 
+  const handleWorkflowChange = (value: string | null) => {
+    setSelectedWorkflowVersionId(value);
+    setWorkflowConfigOverridesError("");
+    if (value) {
+      const defaults = getExposedParamDefaults(value);
+      if (Object.keys(defaults).length > 0) {
+        setWorkflowConfigOverridesJson(JSON.stringify(defaults, null, 2));
+      } else {
+        setWorkflowConfigOverridesJson("");
+      }
+    } else {
+      setWorkflowConfigOverridesJson("");
+    }
+  };
+
   const handleStartGeneration = async () => {
-    if (!selectedWorkflowId) return;
+    if (!selectedWorkflowVersionId) return;
+
+    let workflowConfigOverrides: Record<string, unknown> | undefined;
+    if (workflowConfigOverridesJson.trim()) {
+      try {
+        workflowConfigOverrides = JSON.parse(workflowConfigOverridesJson);
+      } catch {
+        setWorkflowConfigOverridesError("Invalid JSON");
+        return;
+      }
+    }
+
     try {
-      await startGeneration(selectedWorkflowId);
+      await startGeneration({
+        workflowVersionId: selectedWorkflowVersionId,
+        workflowConfigOverrides,
+      });
     } catch {
       // Error handled by mutation state
     }
   };
 
   const workflowOptions = workflows.map((w) => ({
-    value: w.id,
+    value: w.workflowVersionId,
     label: `${w.name} (v${w.version})`,
   }));
 
@@ -102,11 +176,11 @@ export const GroundTruthGenerationPanel: FC<
 
           <Group align="end">
             <Select
-              label="Workflow Template"
+              label="Workflow"
               placeholder="Select a workflow"
               data={workflowOptions}
-              value={selectedWorkflowId}
-              onChange={setSelectedWorkflowId}
+              value={selectedWorkflowVersionId}
+              onChange={handleWorkflowChange}
               disabled={isLoadingWorkflows || isStarting}
               style={{ flex: 1 }}
               searchable
@@ -115,16 +189,49 @@ export const GroundTruthGenerationPanel: FC<
               leftSection={<IconPlayerPlay size={16} />}
               onClick={handleStartGeneration}
               loading={isStarting}
-              disabled={!selectedWorkflowId || hasActiveJobs}
+              disabled={!selectedWorkflowVersionId}
             >
               Start Generation
             </Button>
           </Group>
 
+          {workflowConfigOverridesJson && (
+            <Textarea
+              label={
+                <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
+                  <Text size="sm" fw={500}>
+                    Workflow Config Overrides (JSON)
+                  </Text>
+                  <Tooltip
+                    label="Override workflow parameters like OCR model, confidence threshold, etc. Keys are parameter paths from the workflow's exposed parameters."
+                    multiline
+                    w={300}
+                  >
+                    <IconInfoCircle
+                      size={14}
+                      style={{ opacity: 0.6, cursor: "help" }}
+                    />
+                  </Tooltip>
+                </Group>
+              }
+              placeholder="{}"
+              value={workflowConfigOverridesJson}
+              onChange={(e) => {
+                setWorkflowConfigOverridesJson(e.target.value);
+                setWorkflowConfigOverridesError("");
+              }}
+              error={workflowConfigOverridesError}
+              minRows={4}
+              autosize
+              disabled={isStarting}
+              styles={{ input: { fontFamily: "monospace", fontSize: 13 } }}
+            />
+          )}
+
           {hasActiveJobs && (
-            <Text size="xs" c="dimmed">
-              Jobs are currently running. Wait for them to complete before
-              starting a new batch.
+            <Text size="xs" c="orange">
+              Jobs are currently in flight. Starting a new batch will cancel and
+              discard them, then re-run all samples without ground truth.
             </Text>
           )}
 
@@ -168,20 +275,19 @@ export const GroundTruthGenerationPanel: FC<
                 <Text size="sm" c="dimmed">
                   {completedCount} of {total} samples completed
                 </Text>
-                {awaitingCount > 0 && (
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconEye size={14} />}
-                    onClick={() =>
-                      navigate(
-                        `/benchmarking/datasets/${datasetId}/versions/${versionId}/review`,
-                      )
-                    }
-                  >
-                    Open Review Queue ({awaitingCount})
-                  </Button>
-                )}
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconEye size={14} />}
+                  onClick={() =>
+                    navigate(
+                      `/benchmarking/datasets/${datasetId}/versions/${versionId}/review`,
+                    )
+                  }
+                >
+                  Open Review Queue
+                  {awaitingCount > 0 ? ` (${awaitingCount} pending)` : ""}
+                </Button>
               </Group>
             </Stack>
           </Card>

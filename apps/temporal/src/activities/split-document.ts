@@ -311,9 +311,7 @@ function hasLayoutChange(
   }
 
   const lengthDelta =
-    previousLength > 0
-      ? Math.abs(currentText.length - previousLength) / previousLength
-      : 0;
+    Math.abs(currentText.length - previousLength) / previousLength;
 
   return (
     previousFirstLine.toLowerCase() !== currentFirstLine.toLowerCase() &&

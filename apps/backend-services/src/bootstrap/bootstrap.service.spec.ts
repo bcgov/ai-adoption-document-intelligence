@@ -25,10 +25,10 @@ function createMockPrisma(adminCount = 0) {
       update: jest.fn().mockResolvedValue(user),
     },
     group: {
-      create: jest.fn().mockResolvedValue(group),
+      upsert: jest.fn().mockResolvedValue(group),
     },
     userGroup: {
-      create: jest.fn().mockResolvedValue(undefined),
+      upsert: jest.fn().mockResolvedValue(undefined),
     },
   };
   return {
@@ -115,15 +115,21 @@ describe("BootstrapService", () => {
         where: { id: "user-1" },
         data: { is_system_admin: true },
       });
-      expect(mockPrisma.prisma.group.create).toHaveBeenCalledWith({
-        data: {
+      expect(mockPrisma.prisma.group.upsert).toHaveBeenCalledWith({
+        where: { name: "Default" },
+        update: {},
+        create: {
           name: "Default",
           description: "Initial group created during system setup",
           created_by: "actor-1",
         },
       });
-      expect(mockPrisma.prisma.userGroup.create).toHaveBeenCalledWith({
-        data: {
+      expect(mockPrisma.prisma.userGroup.upsert).toHaveBeenCalledWith({
+        where: {
+          user_id_group_id: { user_id: "user-1", group_id: "group-1" },
+        },
+        update: { role: "ADMIN" },
+        create: {
           user_id: "user-1",
           group_id: "group-1",
           role: "ADMIN",

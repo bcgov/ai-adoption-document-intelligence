@@ -13,6 +13,7 @@ import type { OCRResponse, PollResult } from "../types";
 export async function pollOCRResults(params: {
   apimRequestId: string;
   modelId: string;
+  __benchmarkOcrCache?: { ocrResponse?: OCRResponse };
 }): Promise<PollResult> {
   const activityName = "pollOCRResults";
   const { apimRequestId, modelId } = params;
@@ -20,6 +21,25 @@ export async function pollOCRResults(params: {
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
   const useMock = process.env.MOCK_AZURE_OCR === "true";
+
+  const cache = params.__benchmarkOcrCache;
+  if (cache?.ocrResponse) {
+    const body = cache.ocrResponse;
+    const status = body.status || "unknown";
+    log.info("Poll OCR results skipped (benchmark OCR cache replay)", {
+      event: "benchmark_cache_skip",
+      status,
+    });
+    return {
+      status:
+        status === "failed"
+          ? "failed"
+          : status === "running"
+            ? "running"
+            : "succeeded",
+      response: body,
+    };
+  }
 
   log.info("Poll OCR results start", {
     event: "start",

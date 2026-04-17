@@ -4,6 +4,10 @@
  * Supports multiple task queues for isolation between production and benchmarking
  */
 
+// MUST be first import: populates process.env (external override + repo .env)
+// before any module below reads env at import time.
+import "./env-loader";
+
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { getActivityRegistry } from "./activity-registry";
 import { workerLogger } from "./logger";
@@ -12,9 +16,7 @@ import { installTemporalRuntimeLogger } from "./temporal-runtime-logger";
 // Workflows are automatically discovered via workflowsPath in Worker.create()
 
 async function run() {
-  // Load environment variables
-  const dotenv = await import("dotenv");
-  dotenv.config();
+  // Env already loaded via top-of-file `import "./env-loader"`.
 
   // Route Temporal SDK logs through shared logger (pretty in dev, NDJSON in prod).
   installTemporalRuntimeLogger();

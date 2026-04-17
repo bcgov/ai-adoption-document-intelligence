@@ -209,21 +209,21 @@ log_info "Found PostgreSQL pod: ${PG_POD}"
 # ============================================================
 log_step "Step 4: Reading database credentials"
 
-# Crunchy PostgreSQL operator stores credentials in a secret named <instance>-pguser-<instance>
-# The database name and user can be read from the secret.
-PG_SECRET_NAME="${INSTANCE_NAME}-pguser-${INSTANCE_NAME}"
+# Crunchy PostgreSQL operator stores credentials in a secret named <instance>-app-pg-pguser-admin.
+# The database name is read from the secret. For the user, we always use "postgres" because
+# psql runs via local socket inside the pod, and Crunchy pg_hba.conf only allows the
+# postgres superuser for local (non-TCP) connections.
+PG_SECRET_NAME="${INSTANCE_NAME}-app-pg-pguser-admin"
 
 DB_NAME=$(oc get secret "${PG_SECRET_NAME}" -n "${NAMESPACE}" \
   -o jsonpath='{.data.dbname}' 2>/dev/null | base64 -d) || true
 
-DB_USER=$(oc get secret "${PG_SECRET_NAME}" -n "${NAMESPACE}" \
-  -o jsonpath='{.data.user}' 2>/dev/null | base64 -d) || true
+DB_USER="postgres"
 
-if [[ -z "${DB_NAME}" || -z "${DB_USER}" ]]; then
-  # Fallback: use the postgres superuser and default database name
-  log_info "Could not read credentials from secret '${PG_SECRET_NAME}'. Falling back to defaults."
-  DB_NAME="${INSTANCE_NAME}"
-  DB_USER="postgres"
+if [[ -z "${DB_NAME}" ]]; then
+  log_error "Could not read database name from secret '${PG_SECRET_NAME}'."
+  log_error "Ensure the instance is deployed and the Crunchy PostgreSQL cluster is running."
+  exit 1
 fi
 
 log_info "Database name: ${DB_NAME}"
@@ -237,15 +237,25 @@ log_step "Step 5: Restoring database from backup"
 log_info "Restoring backup file '${BACKUP_FILE}' into database '${DB_NAME}' on pod '${PG_POD}'..."
 log_info "This may take a while depending on the backup size."
 
-# Pipe the local SQL dump into psql running inside the pod.
-# The backup was created with pg_dump --clean --if-exists, so it includes DROP/CREATE
-# statements that will replace existing data.
-oc exec -i "${PG_POD}" -n "${NAMESPACE}" -c database -- \
-  psql -U "${DB_USER}" -d "${DB_NAME}" -v ON_ERROR_STOP=1 < "${BACKUP_FILE}" || {
-  log_error "Database restore failed."
-  log_error "Check that the backup file is a valid SQL dump and the target database is accessible."
+# Copy the dump into the pod and run pg_restore there. The backup is expected to be
+# a custom-format dump (-Fc) produced by oc-backup-db.sh, which is binary-safe and
+# handles JSON/text content that can break plain SQL COPY streams via oc exec stdin.
+REMOTE_DUMP="/tmp/oc-restore-$(date +%s).pgc"
+
+oc cp "${BACKUP_FILE}" "${NAMESPACE}/${PG_POD}:${REMOTE_DUMP}" -c database || {
+  log_error "Failed to copy backup file into pod."
   exit 1
 }
+
+oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- \
+  pg_restore -U "${DB_USER}" -d "${DB_NAME}" --clean --if-exists --no-owner --no-privileges "${REMOTE_DUMP}" || {
+  log_error "Database restore failed."
+  log_error "Check that the backup file is a valid custom-format dump (-Fc) and the target database is accessible."
+  oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
+  exit 1
+}
+
+oc exec "${PG_POD}" -n "${NAMESPACE}" -c database -- rm -f "${REMOTE_DUMP}" 2>/dev/null || true
 
 log_info "Database restore completed successfully."
 

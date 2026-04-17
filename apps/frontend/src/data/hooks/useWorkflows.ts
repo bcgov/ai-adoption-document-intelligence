@@ -5,6 +5,7 @@ import { apiService } from "../services/api.service";
 
 export interface WorkflowInfo {
   id: string;
+  workflowVersionId: string;
   name: string;
   description: string | null;
   actorId: string;
@@ -29,15 +30,28 @@ interface WorkflowResponse {
   workflow: WorkflowInfo;
 }
 
-export function useWorkflows() {
+export function useWorkflows(options?: {
+  includeBenchmarkCandidates?: boolean;
+}) {
   const { activeGroup } = useGroup();
+  const includeBenchmarkCandidates = Boolean(
+    options?.includeBenchmarkCandidates,
+  );
 
   return useQuery({
-    queryKey: ["workflows", activeGroup?.id],
+    queryKey: includeBenchmarkCandidates
+      ? ["workflows", activeGroup?.id, true]
+      : ["workflows", activeGroup?.id],
     queryFn: async (): Promise<WorkflowInfo[]> => {
-      const url = activeGroup?.id
+      let url = activeGroup?.id
         ? `/workflows?groupId=${activeGroup.id}`
         : "/workflows";
+
+      if (includeBenchmarkCandidates) {
+        url += activeGroup?.id
+          ? "&includeBenchmarkCandidates=true"
+          : "?includeBenchmarkCandidates=true";
+      }
       const response = await apiService.get<WorkflowsResponse>(url);
       if (!response.success) {
         throw new Error(response.message || "Failed to fetch workflows");
@@ -124,8 +138,64 @@ export function useDeleteWorkflow() {
         throw new Error(response.message || "Failed to delete workflow");
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workflows"] });
+    },
+  });
+}
+
+export interface WorkflowVersionSummary {
+  id: string;
+  versionNumber: number;
+  createdAt: string;
+}
+
+export function useWorkflowVersions(lineageId: string | undefined) {
+  return useQuery({
+    queryKey: ["workflow-versions", lineageId],
+    queryFn: async (): Promise<WorkflowVersionSummary[]> => {
+      const response = await apiService.get<{
+        versions: WorkflowVersionSummary[];
+      }>(`/workflows/${lineageId}/versions`);
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || "Failed to fetch workflow versions",
+        );
+      }
+      return response.data.versions || [];
+    },
+    enabled: !!lineageId,
+  });
+}
+
+export function useRevertWorkflowHead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      lineageId,
+      workflowVersionId,
+    }: {
+      lineageId: string;
+      workflowVersionId: string;
+    }): Promise<WorkflowInfo> => {
+      const response = await apiService.post<WorkflowResponse>(
+        `/workflows/${lineageId}/revert-head`,
+        { workflowVersionId },
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to update workflow head");
+      }
+      return response.data.workflow;
+    },
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({
+        queryKey: ["workflow", variables.lineageId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["workflow-versions", variables.lineageId],
+      });
     },
   });
 }

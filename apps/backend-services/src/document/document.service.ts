@@ -1,6 +1,11 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+} from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import {
   buildBlobFilePath,
@@ -114,7 +119,7 @@ export class DocumentService {
         this.logger.error(
           `Failed to decode base64 file: ${getErrorMessage(error)}`,
         );
-        throw new Error("Invalid base64 file data");
+        throw new BadRequestException("Invalid base64 file data");
       }
 
       const fileSize = fileBuffer.length;
@@ -239,14 +244,27 @@ export class DocumentService {
   /**
    * Deletes a document and its associated blob storage file.
    *
+   * Refuses to delete documents whose OCR pipeline is still in flight
+   * (`pre_ocr` or `ongoing_ocr`) to avoid orphaning Temporal workflows. The
+   * caller must wait for processing to settle before retrying.
+   *
    * @param id - The document ID.
    * @returns `true` if deleted, `false` if not found.
+   * @throws ConflictException if the document is currently being processed.
    */
   async deleteDocument(id: string): Promise<boolean> {
     this.logger.debug(`DocumentService.deleteDocument: ${id}`);
     const document = await this.documentDb.findDocument(id);
     if (!document) {
       return false;
+    }
+    if (
+      document.status === DocumentStatus.pre_ocr ||
+      document.status === DocumentStatus.ongoing_ocr
+    ) {
+      throw new ConflictException(
+        "Document is currently being processed; try again once OCR completes",
+      );
     }
     await this.documentDb.deleteDocument(id);
     try {

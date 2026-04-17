@@ -1,0 +1,38 @@
+app_name = "doc-intel"
+app_env  = "prod"
+location = "Canada Central"
+
+subscription_id = ""                                     # Your Azure subscription ID
+tenant_id       = "6fdb5200-3d0d-4a8a-b036-d3685e359adc" # bcgov
+
+# Existing VNet
+vnet_name           = "" # e.g., "dbc1c3-prod-vwan-spoke"
+vnet_resource_group = "" # e.g., "dbc1c3-prod-networking"
+
+# Subnet CIDRs - allocate from your VNet address space
+pe_subnet_cidr   = "" # e.g., "10.x.x.0/27"
+apim_subnet_cidr = "" # e.g., "10.x.x.32/27"
+
+# Source/tools VNet for NSG rules (optional)
+source_vnet_address_space = ""
+
+# AI Foundry model deployments
+model_deployments = [
+  { name = "gpt-4o", version = "2024-11-20", capacity = 10 },
+  { name = "text-embedding-3-small", version = "1", capacity = 10 },
+  # { name = "Mistral-Large-3", version = "1", capacity = 10 },
+  # { name = "cohere-command-a", version = "1", capacity = 10 },
+]
+
+# Storage
+storage_container = "document-blobs"
+
+# APIM
+apim_publisher_name  = "Document Intelligence"
+apim_publisher_email = "" # Your email
+
+tags = {
+  environment = "prod"
+  project     = "document-intelligence"
+  managed_by  = "terraform"
+}

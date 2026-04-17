@@ -35,6 +35,7 @@ export const DatasetReviewQueuePage: FC = () => {
   }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
+  const [startingDocId, setStartingDocId] = useState<string | null>(null);
 
   const { dataset } = useDataset(datasetId || "");
 
@@ -98,6 +99,7 @@ export const DatasetReviewQueuePage: FC = () => {
           `/benchmarking/datasets/${datasetId}/versions/${versionId}/review/${documentId}?readOnly=true`,
         );
       } else {
+        setStartingDocId(documentId);
         const session = await activeQueue.startSessionAsync(documentId);
         if (session?.id) {
           navigate(
@@ -107,6 +109,8 @@ export const DatasetReviewQueuePage: FC = () => {
       }
     } catch {
       // Session start failed
+    } finally {
+      setStartingDocId(null);
     }
   };
 
@@ -254,7 +258,10 @@ export const DatasetReviewQueuePage: FC = () => {
                             variant="light"
                             leftSection={<IconEye size={14} />}
                             onClick={() => handleStartSession(doc.id, false)}
-                            loading={pendingQueue.isStartingSession}
+                            loading={startingDocId === doc.id}
+                            disabled={
+                              startingDocId !== null && startingDocId !== doc.id
+                            }
                           >
                             Review
                           </Button>

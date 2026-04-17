@@ -110,6 +110,7 @@ export async function benchmarkExecuteWorkflow(
   } = params;
 
   const parentWorkflowId = workflowInfo().workflowId;
+  const childWorkflowId = `benchmark-${parentWorkflowId}-${sampleId}`;
 
   console.log(
     JSON.stringify({
@@ -118,6 +119,8 @@ export async function benchmarkExecuteWorkflow(
       sampleId,
       parentWorkflowId,
       taskQueue,
+      childWorkflowId,
+      timeoutMs,
       timestamp: new Date().toISOString(),
     }),
   );
@@ -162,7 +165,7 @@ export async function benchmarkExecuteWorkflow(
     const childResult = (await executeChild("graphWorkflow", {
       args: [childWorkflowInput],
       taskQueue,
-      workflowId: `benchmark-${parentWorkflowId}-${sampleId}`,
+      workflowId: childWorkflowId,
       workflowExecutionTimeout: timeoutMs,
     })) as GraphWorkflowResult;
 
@@ -210,13 +213,30 @@ export async function benchmarkExecuteWorkflow(
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     const errorType = extractErrorType(error);
+    const errorName = error instanceof Error ? error.name : undefined;
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorCauseRaw =
+      error && typeof error === "object" && "cause" in error
+        ? (error as { cause?: unknown }).cause
+        : undefined;
+    const errorCause =
+      errorCauseRaw instanceof Error
+        ? { name: errorCauseRaw.name, message: errorCauseRaw.message }
+        : errorCauseRaw;
 
     console.log(
       JSON.stringify({
         activity: "benchmarkExecuteWorkflow",
         event: "error",
         sampleId,
+        parentWorkflowId,
+        childWorkflowId,
+        taskQueue,
+        timeoutMs,
         error: errorMessage,
+        errorName,
+        errorStack,
+        errorCause,
         errorType,
         durationMs,
         timestamp: new Date().toISOString(),

@@ -47,6 +47,18 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Combine segment metadata with OCR result for join collection",
     },
+    "ocr.spellcheck": {
+      description:
+        "Spellcheck correction on full OCR result using local dictionary",
+    },
+    "ocr.characterConfusion": {
+      description:
+        "Character confusion; optional documentType for schema-aware rules; enabledRules/disabledRules or confusionMapOverride",
+    },
+    "ocr.normalizeFields": {
+      description:
+        "Field normalization; optional documentType (LabelingProject id) for schema-aware rules per field_type",
+    },
   } as const;
 
 /**

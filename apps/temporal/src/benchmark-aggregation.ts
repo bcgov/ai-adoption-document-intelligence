@@ -9,6 +9,7 @@
  */
 
 import { EvaluationResult } from "./benchmark-types";
+import { isNullLike } from "./evaluators/schema-aware-evaluator";
 
 /**
  * Statistical metrics for a single metric across all samples
@@ -533,13 +534,13 @@ export function computePerFieldErrors(
 
       const stats = fieldStats.get(field)!;
 
-      // Count total occurrences (only if field is in ground truth)
-      if (expected !== undefined) {
+      // Count total occurrences (only if field has a real expected value)
+      if (!isNullLike(expected)) {
         stats.total++;
 
         if (matched) {
           stats.matched++;
-        } else if (predicted === undefined) {
+        } else if (isNullLike(predicted)) {
           stats.missing++;
         } else {
           stats.mismatched++;
@@ -548,11 +549,12 @@ export function computePerFieldErrors(
     }
   }
 
-  // Convert to array and compute error rates
+  // Convert to array and compute error rates (skip fields with no real occurrences)
   const fieldErrors: FieldErrorStats[] = [];
   for (const [field, stats] of fieldStats) {
-    const errorRate =
-      stats.total > 0 ? (stats.missing + stats.mismatched) / stats.total : 0;
+    if (stats.total === 0) continue;
+
+    const errorRate = (stats.missing + stats.mismatched) / stats.total;
 
     fieldErrors.push({
       field,
