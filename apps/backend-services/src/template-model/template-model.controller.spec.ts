@@ -11,6 +11,7 @@ import {
 } from "./dto/create-template-model.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { FormatSuggestionService } from "./format-suggestion.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelController } from "./template-model.controller";
 import { TemplateModelService } from "./template-model.service";
@@ -114,6 +115,10 @@ describe("TemplateModelController", () => {
         {
           provide: LabelingDocumentDbService,
           useValue: labelingDocumentDbService,
+        },
+        {
+          provide: FormatSuggestionService,
+          useValue: { suggestFormats: jest.fn().mockResolvedValue([]) },
         },
         {
           provide: AuditService,

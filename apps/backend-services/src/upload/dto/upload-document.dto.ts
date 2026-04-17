@@ -51,9 +51,10 @@ export class UploadDocumentDto {
 
   @IsString()
   @IsOptional()
-  workflow_id?: string; // @deprecated Use workflow_config_id instead
+  workflow_id?: string; // @deprecated Use workflow_config_id; resolved server-side if lineage id
 
   @IsString()
   @IsOptional()
-  workflow_config_id?: string; // Reference to Workflow.id (workflow configuration)
+  /** WorkflowVersion.id, or WorkflowLineage.id (resolved to head version server-side). */
+  workflow_config_id?: string;
 }

@@ -8,6 +8,7 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  Req,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
@@ -18,6 +19,7 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
+import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
@@ -61,6 +63,7 @@ export class UploadController {
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
+    @Req() _req: Request,
   ): Promise<UploadDocumentResponseDto> {
     this.logger.debug("=== UploadController.uploadDocument ===");
     this.logger.debug(

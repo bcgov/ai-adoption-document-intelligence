@@ -35,7 +35,10 @@ export function useDocuments(
         : "/documents";
       const response = await apiService.get<Document[]>(endpoint);
       if (response.success && response.data) {
-        return response.data;
+        // Exclude documents created by ground-truth dataset generation. They
+        // run through the OCR pipeline but are not part of the regular
+        // processing queue the user monitors here.
+        return response.data.filter((doc) => doc.source === "api");
       }
       throw new Error(response.message || "Failed to fetch documents");
     },

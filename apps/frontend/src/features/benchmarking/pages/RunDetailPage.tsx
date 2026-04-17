@@ -10,11 +10,14 @@ import {
   Drawer,
   Group,
   Loader,
+  Modal,
   ScrollArea,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -25,18 +28,24 @@ import {
   IconCheck,
   IconChevronRight,
   IconExternalLink,
+  IconSparkles,
   IconTrophy,
   IconX,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTemplateModels } from "@/features/annotation/template-models/hooks/useTemplateModels";
 import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
-import { useDefinition } from "../hooks/useDefinitions";
+import { ErrorDetectionAnalysis } from "../components/ErrorDetectionAnalysis";
+import { useDeriveProfile } from "../hooks/useConfusionProfiles";
+import { useApplyToBaseWorkflow, useDefinition } from "../hooks/useDefinitions";
+import { useProject } from "../hooks/useProjects";
 import {
   useArtifacts,
   useDrillDown,
+  useOcrCacheSources,
   usePerSampleResults,
   usePromoteBaseline,
   useRun,
@@ -61,6 +70,81 @@ interface SampleResult {
   groundTruth?: unknown;
   prediction?: unknown;
   evaluationDetails?: unknown;
+}
+
+/**
+ * Renders a string with invisible characters shown as visible symbols.
+ * Trailing/leading whitespace and control characters are highlighted.
+ */
+function VisibleWhitespace({ value }: { value: string }) {
+  const replacements: Array<{ char: string; label: string }> = [
+    { char: "\n", label: "\\n" },
+    { char: "\r", label: "\\r" },
+    { char: "\t", label: "\\t" },
+    { char: "\u00A0", label: "\\u00A0" },
+    { char: "\u200B", label: "\\u200B" },
+    { char: "\uFEFF", label: "\\uFEFF" },
+  ];
+
+  // Check for trailing/leading spaces
+  const leadingSpaces = value.length - value.trimStart().length;
+  const trailingSpaces = value.length - value.trimEnd().length;
+  const hasSpecialChars = replacements.some((r) => value.includes(r.char));
+
+  if (leadingSpaces === 0 && trailingSpaces === 0 && !hasSpecialChars) {
+    return <>{value}</>;
+  }
+
+  const parts: React.ReactNode[] = [];
+  let key = 0;
+
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    const replacement = replacements.find((r) => r.char === ch);
+    const isLeadingSpace = ch === " " && i < leadingSpaces;
+    const isTrailingSpace = ch === " " && i >= value.length - trailingSpaces;
+
+    if (replacement) {
+      parts.push(
+        <Badge
+          key={key++}
+          size="xs"
+          color="red"
+          variant="filled"
+          style={{ fontFamily: "monospace", verticalAlign: "text-bottom" }}
+        >
+          {replacement.label}
+        </Badge>,
+      );
+    } else if (isLeadingSpace || isTrailingSpace) {
+      parts.push(
+        <Badge
+          key={key++}
+          size="xs"
+          color="orange"
+          variant="light"
+          style={{ fontFamily: "monospace", verticalAlign: "text-bottom" }}
+        >
+          &#x2423;
+        </Badge>,
+      );
+    } else {
+      let end = i + 1;
+      while (end < value.length) {
+        const nextCh = value[end];
+        const nextIsSpecial = replacements.some((r) => r.char === nextCh);
+        const nextIsLeading = nextCh === " " && end < leadingSpaces;
+        const nextIsTrailing =
+          nextCh === " " && end >= value.length - trailingSpaces;
+        if (nextIsSpecial || nextIsLeading || nextIsTrailing) break;
+        end++;
+      }
+      parts.push(<span key={key++}>{value.slice(i, end)}</span>);
+      i = end - 1;
+    }
+  }
+
+  return <>{parts}</>;
 }
 
 function FieldErrorDetails({
@@ -88,15 +172,19 @@ function FieldErrorDetails({
     );
     if (fieldResult) {
       // Determine error type
+      // Null-like values: null, undefined, empty string, "null" string
+      const isNullLike = (v: unknown): boolean =>
+        v === null || v === undefined || v === "" || v === "null";
+
       let errorType = "mismatch";
       if (
-        fieldResult.expected !== undefined &&
-        fieldResult.predicted === undefined
+        !isNullLike(fieldResult.expected) &&
+        isNullLike(fieldResult.predicted)
       ) {
         errorType = "missing";
       } else if (
-        fieldResult.expected === undefined &&
-        fieldResult.predicted !== undefined
+        isNullLike(fieldResult.expected) &&
+        !isNullLike(fieldResult.predicted)
       ) {
         errorType = "extra";
       }
@@ -156,20 +244,28 @@ function FieldErrorDetails({
               </Table.Td>
               <Table.Td>
                 <Code>
-                  {s.expected !== undefined
-                    ? typeof s.expected === "string"
-                      ? s.expected
-                      : JSON.stringify(s.expected)
-                    : "-"}
+                  {s.expected !== undefined ? (
+                    typeof s.expected === "string" ? (
+                      <VisibleWhitespace value={s.expected} />
+                    ) : (
+                      JSON.stringify(s.expected)
+                    )
+                  ) : (
+                    "-"
+                  )}
                 </Code>
               </Table.Td>
               <Table.Td>
                 <Code>
-                  {s.predicted !== undefined
-                    ? typeof s.predicted === "string"
-                      ? s.predicted
-                      : JSON.stringify(s.predicted)
-                    : "-"}
+                  {s.predicted !== undefined ? (
+                    typeof s.predicted === "string" ? (
+                      <VisibleWhitespace value={s.predicted} />
+                    ) : (
+                      JSON.stringify(s.predicted)
+                    )
+                  ) : (
+                    "-"
+                  )}
                 </Code>
               </Table.Td>
             </Table.Tr>
@@ -201,6 +297,20 @@ export function RunDetailPage() {
   const [thresholdDialogOpened, setThresholdDialogOpened] = useState(false);
   const [isEditingThresholds, setIsEditingThresholds] = useState(false);
   const [drawerField, setDrawerField] = useState<string | null>(null);
+  const [persistOcrCacheOnRerun, setPersistOcrCacheOnRerun] = useState(true);
+  const [ocrCacheBaselineRunId, setOcrCacheBaselineRunId] = useState<
+    string | null
+  >(null);
+  const [applyCandidateModalOpen, setApplyCandidateModalOpen] = useState(false);
+  const [cleanupArtifacts, setCleanupArtifacts] = useState(true);
+  const [confusionModalOpen, setConfusionModalOpen] = useState(false);
+  const [confusionName, setConfusionName] = useState("");
+  const [confusionDescription, setConfusionDescription] = useState("");
+  const [confusionError, setConfusionError] = useState<string | null>(null);
+  const [suggestFormatsModalOpen, setSuggestFormatsModalOpen] = useState(false);
+  const [selectedTemplateModelId, setSelectedTemplateModelId] = useState<
+    string | null
+  >(null);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -210,6 +320,15 @@ export function RunDetailPage() {
   );
 
   const { definition } = useDefinition(projectId, run?.definitionId || "");
+  const { cacheSources } = useOcrCacheSources(
+    projectId,
+    definition?.datasetVersion?.id ?? "",
+  );
+  const { project } = useProject(projectId);
+  const deriveMutation = useDeriveProfile(project?.groupId ?? "");
+  const { templateModels } = useTemplateModels();
+  const applyToBaseMutation = useApplyToBaseWorkflow(projectId ?? "");
+  const isApplyingToBase = applyToBaseMutation.isPending;
   const { drillDown } = useDrillDown(projectId, runId || "");
   const { artifacts, total: totalArtifacts } = useArtifacts(
     projectId,
@@ -236,9 +355,65 @@ export function RunDetailPage() {
     runId || "",
   );
 
+  const handleConfusionOpen = () => {
+    setConfusionName("");
+    setConfusionDescription("");
+    setConfusionError(null);
+    setConfusionModalOpen(true);
+  };
+
+  const handleConfusionSubmit = () => {
+    if (!confusionName.trim()) {
+      setConfusionError("Name is required.");
+      return;
+    }
+    setConfusionError(null);
+    deriveMutation.mutate(
+      {
+        name: confusionName.trim(),
+        description: confusionDescription.trim() || undefined,
+        sources: { benchmarkRunIds: [runId || ""] },
+      },
+      {
+        onSuccess: () => {
+          setConfusionModalOpen(false);
+          notifications.show({
+            title: "Confusion Profile Created",
+            message:
+              "Confusion profile has been derived from this benchmark run.",
+            color: "green",
+          });
+        },
+        onError: (err) => {
+          setConfusionError(
+            err instanceof Error
+              ? err.message
+              : "Failed to derive confusion profile.",
+          );
+        },
+      },
+    );
+  };
+
+  const handleSuggestFormatsOpen = () => {
+    setSelectedTemplateModelId(null);
+    setSuggestFormatsModalOpen(true);
+  };
+
+  const handleSuggestFormatsNavigate = () => {
+    if (!selectedTemplateModelId || !runId) return;
+    setSuggestFormatsModalOpen(false);
+    navigate(
+      `/template-models/${selectedTemplateModelId}?suggestFromRun=${runId}`,
+    );
+  };
+
   const handleRerun = async () => {
     if (!run) return;
-    const newRun = await startRun({});
+    const newRun = await startRun({
+      persistOcrCache: persistOcrCacheOnRerun,
+      ...(ocrCacheBaselineRunId ? { ocrCacheBaselineRunId } : {}),
+    });
     navigate(`/benchmarking/projects/${projectId}/runs/${newRun.id}`);
   };
 
@@ -311,6 +486,13 @@ export function RunDetailPage() {
     run.baselineThresholds.length > 0;
   const temporalUrl = `${TEMPORAL_UI_URL}/namespaces/default/workflows/${run.temporalWorkflowId}`;
 
+  const canApplyCandidateWorkflow =
+    run.status === "completed" &&
+    definition?.workflow?.workflowKind === "benchmark_candidate" &&
+    !!definition?.workflow?.sourceWorkflowId;
+
+  const candidateWorkflowVersionId = definition?.workflow?.workflowVersionId;
+
   // All possible artifact types (from schema) - should always be available in filter dropdown
   const allArtifactTypes = [
     "per_doc_output",
@@ -361,6 +543,22 @@ export function RunDetailPage() {
             <Text c="dimmed" size="sm" data-testid="run-id-text">
               Run ID: {run.id}
             </Text>
+            {Boolean(
+              (run.params as Record<string, unknown>)?.ocrCacheBaselineRunId,
+            ) && (
+              <Badge
+                color="cyan"
+                variant="light"
+                size="lg"
+                data-testid="ocr-cache-source-badge"
+              >
+                OCR cached from run{" "}
+                {String(
+                  (run.params as Record<string, unknown>).ocrCacheBaselineRunId,
+                ).slice(0, 8)}
+                ...
+              </Badge>
+            )}
           </div>
           <Group>
             {canCancel && (
@@ -408,14 +606,116 @@ export function RunDetailPage() {
                 Edit Thresholds
               </Button>
             )}
+            {canApplyCandidateWorkflow && candidateWorkflowVersionId && (
+              <>
+                <Button
+                  variant="light"
+                  color="gray"
+                  leftSection={<IconSparkles size={16} />}
+                  loading={isApplyingToBase}
+                  disabled={isApplyingToBase}
+                  onClick={() => setApplyCandidateModalOpen(true)}
+                  data-testid="apply-candidate-btn"
+                >
+                  Apply to base workflow
+                </Button>
+                <Modal
+                  opened={applyCandidateModalOpen}
+                  onClose={() => setApplyCandidateModalOpen(false)}
+                  title="Apply candidate to base workflow"
+                  data-testid="apply-candidate-confirm-modal"
+                >
+                  <Stack gap="md">
+                    <Text size="sm">
+                      Copy this candidate workflow config as a new version on
+                      the base workflow lineage.
+                    </Text>
+                    <Switch
+                      checked={cleanupArtifacts}
+                      onChange={(e) =>
+                        setCleanupArtifacts(e.currentTarget.checked)
+                      }
+                      label="Clean up candidate artifacts"
+                      description="Delete the candidate lineage, test definitions, and their runs"
+                      size="sm"
+                      data-testid="cleanup-artifacts-switch"
+                    />
+                    <Group justify="flex-end" gap="xs">
+                      <Button
+                        variant="subtle"
+                        onClick={() => setApplyCandidateModalOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await applyToBaseMutation.mutateAsync({
+                              candidateWorkflowVersionId,
+                              cleanupCandidateArtifacts: cleanupArtifacts,
+                            });
+                            setApplyCandidateModalOpen(false);
+                            notifications.show({
+                              title: "Success",
+                              message: "Candidate applied to base workflow",
+                              color: "green",
+                            });
+                          } catch (error) {
+                            notifications.show({
+                              title: "Error",
+                              message:
+                                error instanceof Error
+                                  ? error.message
+                                  : "Failed to apply candidate",
+                              color: "red",
+                            });
+                          }
+                        }}
+                        data-testid="apply-candidate-confirm-btn"
+                      >
+                        Apply
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Modal>
+              </>
+            )}
             {canRerun && (
-              <Button
-                onClick={handleRerun}
-                loading={isStarting}
-                data-testid="rerun-btn"
-              >
-                Re-run
-              </Button>
+              <Group gap="sm" wrap="nowrap" align="flex-end">
+                <Switch
+                  checked={persistOcrCacheOnRerun}
+                  onChange={(e) =>
+                    setPersistOcrCacheOnRerun(e.currentTarget.checked)
+                  }
+                  label="Persist OCR cache"
+                  description="For replay on later runs"
+                  size="sm"
+                  data-testid="rerun-persist-ocr-cache-switch"
+                />
+                {cacheSources.length > 0 && (
+                  <Select
+                    label="Use cached OCR from"
+                    placeholder="None (fresh OCR)"
+                    clearable
+                    data={cacheSources.map((s) => ({
+                      value: s.id,
+                      label: `${s.definitionName} — ${new Date(s.completedAt).toLocaleDateString()} (${s.sampleCount} samples)`,
+                    }))}
+                    value={ocrCacheBaselineRunId}
+                    onChange={setOcrCacheBaselineRunId}
+                    size="sm"
+                    styles={{ root: { minWidth: 300 } }}
+                    data-testid="rerun-ocr-cache-source-select"
+                  />
+                )}
+                <Button
+                  onClick={handleRerun}
+                  loading={isStarting}
+                  data-testid="rerun-btn"
+                >
+                  Re-run
+                </Button>
+              </Group>
             )}
             {run.baselineComparison && (
               <Button
@@ -441,6 +741,25 @@ export function RunDetailPage() {
                 data-testid="view-all-samples-btn"
               >
                 View All Samples
+              </Button>
+            )}
+            {run.status === "completed" && project?.groupId && (
+              <Button
+                variant="light"
+                onClick={handleConfusionOpen}
+                data-testid="create-confusion-profile-btn"
+              >
+                Create Confusion Profile
+              </Button>
+            )}
+            {run.status === "completed" && project?.groupId && (
+              <Button
+                variant="light"
+                leftSection={<IconSparkles size={16} />}
+                onClick={handleSuggestFormatsOpen}
+                data-testid="suggest-formats-btn"
+              >
+                Suggest Formats
               </Button>
             )}
           </Group>
@@ -618,79 +937,90 @@ export function RunDetailPage() {
       </Card>
 
       {run.status === "completed" && run.baselineComparison && (
-        <Card>
-          <Stack gap="md">
-            <Title order={3} data-testid="baseline-comparison-heading">
-              Baseline Comparison
-            </Title>
-            <Text c="dimmed" size="sm">
-              Comparing against baseline run:{" "}
-              <Code>{run.baselineComparison.baselineRunId}</Code>
-            </Text>
-            <Table
-              striped
-              highlightOnHover
-              data-testid="baseline-comparison-table"
-            >
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Metric</Table.Th>
-                  <Table.Th>Current</Table.Th>
-                  <Table.Th>Baseline</Table.Th>
-                  <Table.Th>Delta</Table.Th>
-                  <Table.Th>Delta %</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {run.baselineComparison.metricComparisons.map((comparison) => (
-                  <Table.Tr key={comparison.metricName}>
-                    <Table.Td fw={500}>{comparison.metricName}</Table.Td>
-                    <Table.Td>
-                      <Code>{comparison.currentValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Code
-                        c={
-                          comparison.delta > 0
-                            ? "green"
-                            : comparison.delta < 0
-                              ? "red"
-                              : undefined
-                        }
-                      >
-                        {comparison.delta > 0 ? "+" : ""}
-                        {comparison.delta.toFixed(4)}
-                      </Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Code
-                        c={
-                          comparison.deltaPercent > 0
-                            ? "green"
-                            : comparison.deltaPercent < 0
-                              ? "red"
-                              : undefined
-                        }
-                      >
-                        {comparison.deltaPercent > 0 ? "+" : ""}
-                        {comparison.deltaPercent.toFixed(2)}%
-                      </Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={comparison.passed ? "green" : "red"}>
-                        {comparison.passed ? "PASS" : "FAIL"}
-                      </Badge>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Stack>
-        </Card>
+        <Accordion
+          variant="contained"
+          data-testid="baseline-comparison-accordion"
+        >
+          <Accordion.Item value="baseline-comparison">
+            <Accordion.Control>
+              <Title order={3} data-testid="baseline-comparison-heading">
+                Baseline Comparison
+              </Title>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <Stack gap="md">
+                <Text c="dimmed" size="sm">
+                  Comparing against baseline run:{" "}
+                  <Code>{run.baselineComparison.baselineRunId}</Code>
+                </Text>
+                <Table
+                  striped
+                  highlightOnHover
+                  data-testid="baseline-comparison-table"
+                >
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Metric</Table.Th>
+                      <Table.Th>Current</Table.Th>
+                      <Table.Th>Baseline</Table.Th>
+                      <Table.Th>Delta</Table.Th>
+                      <Table.Th>Delta %</Table.Th>
+                      <Table.Th>Status</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {run.baselineComparison.metricComparisons.map(
+                      (comparison) => (
+                        <Table.Tr key={comparison.metricName}>
+                          <Table.Td fw={500}>{comparison.metricName}</Table.Td>
+                          <Table.Td>
+                            <Code>{comparison.currentValue.toFixed(4)}</Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Code>{comparison.baselineValue.toFixed(4)}</Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Code
+                              c={
+                                comparison.delta > 0
+                                  ? "green"
+                                  : comparison.delta < 0
+                                    ? "red"
+                                    : undefined
+                              }
+                            >
+                              {comparison.delta > 0 ? "+" : ""}
+                              {comparison.delta.toFixed(4)}
+                            </Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Code
+                              c={
+                                comparison.deltaPercent > 0
+                                  ? "green"
+                                  : comparison.deltaPercent < 0
+                                    ? "red"
+                                    : undefined
+                              }
+                            >
+                              {comparison.deltaPercent > 0 ? "+" : ""}
+                              {comparison.deltaPercent.toFixed(2)}%
+                            </Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge color={comparison.passed ? "green" : "red"}>
+                              {comparison.passed ? "PASS" : "FAIL"}
+                            </Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                      ),
+                    )}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       )}
 
       {run.status === "completed" && run.metrics && (
@@ -749,9 +1079,26 @@ export function RunDetailPage() {
                   <Table.Tbody>
                     {Object.entries(run.params).map(([key, value]) => (
                       <Table.Tr key={key}>
-                        <Table.Td fw={500}>{key}</Table.Td>
+                        <Table.Td fw={500}>
+                          {key === "ocrCacheBaselineRunId"
+                            ? "OCR Cache Source Run"
+                            : key}
+                        </Table.Td>
                         <Table.Td>
-                          <Code>{JSON.stringify(value)}</Code>
+                          {key === "ocrCacheBaselineRunId" ? (
+                            <Anchor
+                              component="button"
+                              onClick={() =>
+                                navigate(
+                                  `/benchmarking/projects/${projectId}/runs/${String(value)}`,
+                                )
+                              }
+                            >
+                              {String(value)}
+                            </Anchor>
+                          ) : (
+                            <Code>{JSON.stringify(value)}</Code>
+                          )}
                         </Table.Td>
                       </Table.Tr>
                     ))}
@@ -759,6 +1106,27 @@ export function RunDetailPage() {
                 </Table>
               </Stack>
             )}
+            {(() => {
+              if (!run.params || typeof run.params !== "object") return null;
+              const params = run.params as Record<string, unknown>;
+              const overrides = params.workflowConfigOverrides;
+              if (
+                !overrides ||
+                typeof overrides !== "object" ||
+                Object.keys(overrides as Record<string, unknown>).length === 0
+              )
+                return null;
+              return (
+                <Stack gap={4}>
+                  <Text size="sm" fw={500}>
+                    Workflow Config Overrides
+                  </Text>
+                  <Code block style={{ fontSize: 13 }}>
+                    {JSON.stringify(overrides, null, 2)}
+                  </Code>
+                </Stack>
+              );
+            })()}
             {run.tags && Object.keys(run.tags).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Tags</Text>
@@ -898,6 +1266,10 @@ export function RunDetailPage() {
         </Card>
       )}
 
+      {run.status === "completed" && (
+        <ErrorDetectionAnalysis projectId={projectId} runId={runId || ""} />
+      )}
+
       {/* Artifact Viewer */}
       <ArtifactViewer
         artifact={selectedArtifact}
@@ -932,6 +1304,97 @@ export function RunDetailPage() {
           isEditing={isEditingThresholds}
         />
       )}
+
+      {/* Create Confusion Profile Modal */}
+      <Modal
+        opened={confusionModalOpen}
+        onClose={() => setConfusionModalOpen(false)}
+        title="Create Confusion Profile"
+        data-testid="create-confusion-profile-modal"
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="Name"
+            required
+            value={confusionName}
+            onChange={(e) => setConfusionName(e.currentTarget.value)}
+            data-testid="confusion-profile-name-input"
+          />
+          <TextInput
+            label="Description"
+            value={confusionDescription}
+            onChange={(e) => setConfusionDescription(e.currentTarget.value)}
+            data-testid="confusion-profile-description-input"
+          />
+          <Text size="sm" c="dimmed">
+            Derives a character-level confusion matrix from mismatches in this
+            benchmark run.
+          </Text>
+          {confusionError && (
+            <Text c="red" size="sm">
+              {confusionError}
+            </Text>
+          )}
+          <Group justify="flex-end" mt="xs">
+            <Button
+              variant="default"
+              onClick={() => setConfusionModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              loading={deriveMutation.isPending}
+              onClick={handleConfusionSubmit}
+              data-testid="confusion-profile-submit-btn"
+            >
+              Create
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Suggest Formats Modal */}
+      <Modal
+        opened={suggestFormatsModalOpen}
+        onClose={() => setSuggestFormatsModalOpen(false)}
+        title="Suggest Formats"
+        data-testid="suggest-formats-modal"
+      >
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            Select a template model to open its field schema page and
+            automatically suggest format specifications using data from this
+            benchmark run.
+          </Text>
+          <Select
+            label="Template Model"
+            placeholder="Select a template model"
+            data={templateModels.map((tm) => ({
+              value: tm.id,
+              label: tm.name,
+            }))}
+            value={selectedTemplateModelId}
+            onChange={setSelectedTemplateModelId}
+            data-testid="suggest-formats-template-model-select"
+          />
+          <Group justify="flex-end" mt="xs">
+            <Button
+              variant="default"
+              onClick={() => setSuggestFormatsModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!selectedTemplateModelId}
+              leftSection={<IconSparkles size={16} />}
+              onClick={handleSuggestFormatsNavigate}
+              data-testid="suggest-formats-navigate-btn"
+            >
+              Open Template Model
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* Field Error Detail Drawer */}
       <Drawer

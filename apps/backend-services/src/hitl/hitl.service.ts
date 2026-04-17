@@ -8,7 +8,12 @@ import {
   ReviewSession,
   ReviewStatus,
 } from "@generated/client";
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import { AuditService } from "@/audit/audit.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
@@ -52,7 +57,11 @@ export class HitlService {
     private readonly moduleRef: ModuleRef,
   ) {}
 
-  async getQueue(filters: QueueFilterDto, groupIds?: string[]) {
+  async getQueue(
+    filters: QueueFilterDto,
+    groupIds?: string[],
+    currentReviewerId?: string,
+  ) {
     this.logger.debug("Getting review queue with filters", { ...filters });
 
     const maxConfidence = filters.maxConfidence ?? 0.9;
@@ -77,6 +86,7 @@ export class HitlService {
       offset: filters.offset ?? 0,
       reviewStatus: reviewStatusFilter,
       groupIds,
+      currentReviewerId,
     })) as DocumentWithOcrResult[];
 
     // Filter by confidence if OCR results exist
@@ -178,11 +188,32 @@ export class HitlService {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
 
+    // Check for existing lock
+    const existingLock = await this.reviewDb.findActiveLock(dto.documentId);
+    if (existingLock) {
+      if (existingLock.reviewer_id === reviewerId) {
+        // Same reviewer — return existing session
+        return this.getSession(existingLock.session_id);
+      }
+      throw new ConflictException(
+        "Document is currently locked by another reviewer",
+      );
+    }
+
     // Create review session
     const session = await this.reviewDb.createReviewSession(
       dto.documentId,
       reviewerId,
     );
+
+    // Acquire document lock with 10-minute TTL
+    const lockTtlMs = 10 * 60 * 1000;
+    await this.reviewDb.acquireDocumentLock({
+      document_id: dto.documentId,
+      reviewer_id: reviewerId,
+      session_id: session.id,
+      expires_at: new Date(Date.now() + lockTtlMs),
+    });
 
     const doc = session.document as {
       group_id?: string;
@@ -262,6 +293,14 @@ export class HitlService {
     }
 
     const doc = session.document as ReviewSessionWithDocument["document"];
+
+    // Fetch field definitions for format-aware HITL validation
+    const fieldDefinitions = session.document.group_id
+      ? await this.reviewDb.findFieldDefinitionsByGroupId(
+          session.document.group_id,
+        )
+      : [];
+
     return {
       id: session.id,
       documentId: session.document_id,
@@ -279,6 +318,7 @@ export class HitlService {
         },
       },
       corrections: session.corrections,
+      fieldDefinitions,
     };
   }
 
@@ -337,6 +377,8 @@ export class HitlService {
       completed_at: new Date(),
     });
 
+    await this.reviewDb.releaseDocumentLock(sessionId);
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -366,7 +408,7 @@ export class HitlService {
       if (gtService) {
         const job = await gtService.getJobByDocumentId(session.document_id);
         if (job) {
-          await gtService.completeJob(job.id, sessionId, session.corrections);
+          await gtService.completeJob(job.id, sessionId);
           this.logger.log(
             `Ground truth generated for job ${job.id} via session ${sessionId}`,
           );
@@ -411,6 +453,8 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
+    await this.reviewDb.releaseDocumentLock(sessionId);
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -449,6 +493,8 @@ export class HitlService {
     if (!updated) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
+
+    await this.reviewDb.releaseDocumentLock(sessionId);
 
     const doc = session.document as {
       group_id?: string;
@@ -498,5 +544,176 @@ export class HitlService {
   async getAnalytics(filters: AnalyticsFilterDto, groupIds?: string[]) {
     this.logger.debug("Getting analytics");
     return this.analyticsService.getAnalytics(filters, groupIds);
+  }
+
+  async heartbeat(sessionId: string) {
+    const lockTtlMs = 10 * 60 * 1000;
+    const newExpiry = new Date(Date.now() + lockTtlMs);
+    const refreshed = await this.reviewDb.refreshLockHeartbeat(
+      sessionId,
+      newExpiry,
+    );
+    if (!refreshed) {
+      throw new ConflictException("Lock expired or session not found");
+    }
+    return { ok: true, expiresAt: newExpiry };
+  }
+
+  async deleteCorrection(sessionId: string, correctionId: string) {
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    const deleted = await this.reviewDb.deleteCorrection(
+      correctionId,
+      sessionId,
+    );
+    if (!deleted) {
+      throw new NotFoundException(`Correction ${correctionId} not found`);
+    }
+    return { deleted: true };
+  }
+
+  async reopenSession(sessionId: string, reviewerId: string) {
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    if (session.actor_id !== reviewerId) {
+      throw new ForbiddenException(
+        "Only the original reviewer can reopen this session",
+      );
+    }
+
+    if (session.status === ReviewStatus.in_progress) {
+      throw new ConflictException("Session is already in progress");
+    }
+
+    // Determine reopen eligibility based on workflow type
+    const groundTruthJob = session.document.groundTruthJob;
+    if (groundTruthJob) {
+      // Dataset labeling workflow: block if dataset version is frozen
+      if (groundTruthJob.datasetVersion.frozen) {
+        throw new ConflictException("Cannot reopen: dataset version is frozen");
+      }
+    } else {
+      // Regular workflow: allow within 5 minutes of completion
+      const fiveMinutesMs = 5 * 60 * 1000;
+      if (
+        !session.completed_at ||
+        Date.now() - session.completed_at.getTime() > fiveMinutesMs
+      ) {
+        throw new ConflictException("Cannot reopen: reopen window has expired");
+      }
+    }
+
+    // Update session to in_progress
+    await this.reviewDb.updateReviewSession(sessionId, {
+      status: ReviewStatus.in_progress,
+      completed_at: null,
+    });
+
+    // Re-acquire document lock
+    const lockTtlMs = 10 * 60 * 1000;
+    await this.reviewDb.acquireDocumentLock({
+      document_id: session.document_id,
+      reviewer_id: reviewerId,
+      session_id: sessionId,
+      expires_at: new Date(Date.now() + lockTtlMs),
+    });
+
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+    await this.auditService.recordEvent({
+      event_type: "review_session_reopened",
+      resource_type: "review_session",
+      resource_id: sessionId,
+      actor_id: reviewerId,
+      document_id: session.document_id,
+      workflow_execution_id: doc.workflow_execution_id ?? undefined,
+      group_id: doc.group_id ?? undefined,
+      payload: { document_id: session.document_id },
+    });
+
+    // Revert ground truth job to awaiting_review if this document is part of GT generation
+    let gtService: GroundTruthGenerationService | undefined;
+    try {
+      gtService = this.moduleRef.get(GroundTruthGenerationService, {
+        strict: false,
+      });
+    } catch {
+      // Service not available (e.g. test environment)
+    }
+    if (gtService) {
+      const job = await gtService.getJobByDocumentId(session.document_id);
+      if (job) {
+        await gtService.reopenJob(job.id);
+        this.logger.log(
+          `Ground truth job ${job.id} reverted for reopened session ${sessionId}`,
+        );
+      }
+    }
+
+    return {
+      id: sessionId,
+      status: ReviewStatus.in_progress,
+      message: "Review session reopened",
+    };
+  }
+
+  async getNextSession(
+    filters: {
+      modelId?: string;
+      maxConfidence?: number;
+      reviewStatus?: ReviewStatusFilter;
+      group_id?: string;
+    },
+    reviewerId: string,
+    groupIds: string[],
+  ) {
+    const maxConfidence = filters.maxConfidence ?? 0.9;
+
+    const reviewStatusFilter =
+      filters.reviewStatus === ReviewStatusFilter.ALL
+        ? "all"
+        : filters.reviewStatus === ReviewStatusFilter.REVIEWED
+          ? "reviewed"
+          : "pending";
+
+    const documents = (await this.reviewDb.findReviewQueue({
+      status: DocumentStatus.completed_ocr,
+      modelId: filters.modelId,
+      maxConfidence,
+      limit: 10,
+      reviewStatus: reviewStatusFilter,
+      groupIds,
+    })) as DocumentWithOcrResult[];
+
+    // Filter by confidence — same logic as getQueue
+    const eligible = documents.filter((doc: DocumentWithOcrResult) => {
+      if (!doc.ocr_result) return false;
+
+      const fields = doc.ocr_result
+        .keyValuePairs as unknown as ExtractedFields | null;
+      if (!fields) return false;
+      if (typeof fields !== "object") return false;
+
+      return Object.values(fields).some((field: DocumentField) => {
+        if (field?.confidence !== undefined) {
+          return field.confidence < maxConfidence;
+        }
+        return false;
+      });
+    });
+
+    if (eligible.length === 0) {
+      return null;
+    }
+
+    const firstDoc = eligible[0];
+    return this.startSession({ documentId: firstDoc.id }, reviewerId);
   }
 }

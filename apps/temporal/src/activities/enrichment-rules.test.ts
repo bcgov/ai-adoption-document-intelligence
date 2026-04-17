@@ -33,7 +33,7 @@ function kvp(key: string, value: string, confidence: number): KeyValuePair {
 describe("buildFieldMap", () => {
   it("builds map from field definitions", () => {
     const defs: FieldDef[] = [
-      { field_key: "Date", field_type: "date", field_format: "YYYY-MM-DD" },
+      { field_key: "Date", field_type: "date", format_spec: "YYYY-MM-DD" },
       { field_key: "Amount", field_type: "number" },
       { field_key: "Name", field_type: "string" },
     ];

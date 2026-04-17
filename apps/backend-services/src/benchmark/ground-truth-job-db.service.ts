@@ -20,10 +20,12 @@ type JobWithDocumentAndReview = Prisma.DatasetGroundTruthJobGetPayload<{
         ocr_result: true;
         review_sessions: {
           where: {
-            status: { in: [ReviewStatus, ReviewStatus, ReviewStatus] };
+            status: {
+              in: [ReviewStatus, ReviewStatus, ReviewStatus, ReviewStatus];
+            };
           };
           include: { corrections: true };
-          orderBy: { completed_at: "desc" };
+          orderBy: { started_at: "desc" };
           take: 1;
         };
       };
@@ -40,12 +42,15 @@ type JobWithVersionAndDocument = Prisma.DatasetGroundTruthJobGetPayload<{
   };
 }>;
 
-export interface CreateGroundTruthJobData {
-  datasetVersionId: string;
-  sampleId: string;
-  workflowConfigId: string;
-  status: GroundTruthJobStatus;
-}
+/** Programmatic job creates always set an explicit status (never rely on DB default). */
+export type CreateGroundTruthJobData = Pick<
+  Prisma.DatasetGroundTruthJobUncheckedCreateInput,
+  | "datasetVersionId"
+  | "sampleId"
+  | "workflowVersionId"
+  | "status"
+  | "workflowConfigOverrides"
+>;
 
 @Injectable()
 export class GroundTruthJobDbService {
@@ -191,19 +196,19 @@ export class GroundTruthJobDbService {
   }
 
   /**
-   * Reads the workflow config for a job's workflowConfigId.
+   * Reads the workflow config for a job's workflowVersionId.
    *
-   * @param workflowConfigId - The workflow config ID.
+   * @param workflowVersionId - The workflow version ID.
    * @param tx - Optional transaction client.
-   * @returns The workflow record with config, or `null`.
+   * @returns The workflow version record with config, or `null`.
    */
   async findWorkflowConfig(
-    workflowConfigId: string,
+    workflowVersionId: string,
     tx?: Prisma.TransactionClient,
   ) {
     const client = tx ?? this.prisma;
-    return client.workflow.findUnique({
-      where: { id: workflowConfigId },
+    return client.workflowVersion.findUnique({
+      where: { id: workflowVersionId },
       select: { config: true },
     });
   }
@@ -308,6 +313,7 @@ export class GroundTruthJobDbService {
               where: {
                 status: {
                   in: [
+                    ReviewStatus.in_progress,
                     ReviewStatus.approved,
                     ReviewStatus.escalated,
                     ReviewStatus.skipped,
@@ -315,7 +321,7 @@ export class GroundTruthJobDbService {
                 },
               },
               include: { corrections: true },
-              orderBy: { completed_at: "desc" },
+              orderBy: { started_at: "desc" },
               take: 1,
             },
           },
@@ -368,14 +374,17 @@ export class GroundTruthJobDbService {
   }
 
   /**
-   * Validates that a workflow config exists.
+   * Validates that a workflow version exists.
    *
-   * @param workflowConfigId - The workflow config ID.
+   * @param workflowVersionId - The workflow version ID.
    * @param tx - Optional transaction client.
    */
-  async findWorkflow(workflowConfigId: string, tx?: Prisma.TransactionClient) {
+  async findWorkflow(workflowVersionId: string, tx?: Prisma.TransactionClient) {
     const client = tx ?? this.prisma;
-    return client.workflow.findUnique({ where: { id: workflowConfigId } });
+    return client.workflowVersion.findUnique({
+      where: { id: workflowVersionId },
+      include: { lineage: { select: { group_id: true } } },
+    });
   }
 
   /**
@@ -417,5 +426,61 @@ export class GroundTruthJobDbService {
         tx,
       );
     }
+  }
+
+  /**
+   * Finds non-completed ground truth jobs for cleanup, returning id and temporalWorkflowId.
+   *
+   * @param versionId - The dataset version ID.
+   * @param tx - Optional transaction client.
+   */
+  async findStaleJobs(
+    versionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Array<{ id: string; temporalWorkflowId: string | null }>> {
+    const client = tx ?? this.prisma;
+    return client.datasetGroundTruthJob.findMany({
+      where: {
+        datasetVersionId: versionId,
+        status: { not: GroundTruthJobStatus.completed },
+      },
+      select: { id: true, temporalWorkflowId: true },
+    });
+  }
+
+  /**
+   * Deletes ground truth jobs by their IDs.
+   *
+   * @param ids - Array of job IDs.
+   * @param tx - Optional transaction client.
+   */
+  async deleteJobsByIds(
+    ids: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.datasetGroundTruthJob.deleteMany({
+      where: { id: { in: ids } },
+    });
+  }
+
+  /**
+   * Finds completed jobs for a version, returning only sampleId.
+   *
+   * @param versionId - The dataset version ID.
+   * @param tx - Optional transaction client.
+   */
+  async findCompletedJobSampleIds(
+    versionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Array<{ sampleId: string }>> {
+    const client = tx ?? this.prisma;
+    return client.datasetGroundTruthJob.findMany({
+      where: {
+        datasetVersionId: versionId,
+        status: GroundTruthJobStatus.completed,
+      },
+      select: { sampleId: true },
+    });
   }
 }

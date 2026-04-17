@@ -9,8 +9,11 @@ interface DatasetVersionInfo {
 
 interface WorkflowInfo {
   id: string;
+  workflowVersionId: string;
   name: string;
   version: number;
+  workflowKind?: string;
+  sourceWorkflowId?: string | null;
 }
 
 interface SplitInfo {
@@ -60,6 +63,7 @@ interface DefinitionDetails {
   split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
+  workflowConfigOverrides?: Record<string, unknown>;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -78,20 +82,29 @@ interface CreateDefinitionDto {
   name: string;
   datasetVersionId: string;
   splitId: string;
-  workflowId: string;
+  workflowVersionId: string;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 interface UpdateDefinitionDto {
   name?: string;
   datasetVersionId?: string;
   splitId?: string;
-  workflowId?: string;
+  workflowVersionId?: string;
   evaluatorType?: string;
   evaluatorConfig?: Record<string, unknown>;
   runtimeSettings?: Record<string, unknown>;
+  workflowConfigOverrides?: Record<string, unknown>;
+}
+
+interface ApplyToBaseResult {
+  newBaseWorkflowVersionId: string;
+  baseLineageId: string;
+  newVersionNumber: number;
+  cleanedUp: boolean;
 }
 
 export const useDefinitions = (projectId: string) => {
@@ -195,6 +208,38 @@ export const useDefinition = (projectId: string, definitionId: string) => {
     updateDefinition: updateDefinitionMutation.mutate,
     isUpdating: updateDefinitionMutation.isPending,
   };
+};
+
+export const useApplyToBaseWorkflow = (projectId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (dto: {
+      candidateWorkflowVersionId: string;
+      cleanupCandidateArtifacts?: boolean;
+    }) => {
+      const response = await apiService.post<ApplyToBaseResult>(
+        `/benchmark/projects/${projectId}/apply-candidate-to-base`,
+        dto,
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || "Failed to apply candidate to base",
+        );
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definitions", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-runs", projectId],
+      });
+    },
+  });
 };
 
 export interface BaselinePromotionHistory {

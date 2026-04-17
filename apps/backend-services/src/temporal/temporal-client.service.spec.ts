@@ -125,7 +125,7 @@ describe("TemporalClientService", () => {
     service = module.get<TemporalClientService>(TemporalClientService);
     configService = module.get<ConfigService>(ConfigService);
 
-    mockWorkflowService.getWorkflowById = jest.fn().mockResolvedValue({
+    mockWorkflowService.getWorkflowVersionById = jest.fn().mockResolvedValue({
       id: "workflow-123",
       name: "Graph Workflow",
       description: "Test graph",

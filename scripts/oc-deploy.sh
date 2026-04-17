@@ -42,6 +42,7 @@ Deploys the full application stack as an isolated instance on OpenShift.
 Options:
   --env, -e         Environment profile: dev or prod (required)
   --instance, -i    Instance name override (default: derived from git branch)
+  --image-tag, -t   Image tag override (default: derived from git branch)
   --build-local     Build and push images locally with Docker instead of via GitHub Actions
   --rebuild         Force rebuild of images even if they already exist in the registry
   --help, -h        Show this help message
@@ -67,6 +68,7 @@ log_step() {
 
 ENV_PROFILE=""
 INSTANCE_OVERRIDE=""
+IMAGE_TAG_OVERRIDE=""
 BUILD_LOCAL=false
 FORCE_REBUILD=false
 PASS_THROUGH_ARGS=()
@@ -88,6 +90,14 @@ while [[ $# -gt 0 ]]; do
       fi
       INSTANCE_OVERRIDE="$2"
       PASS_THROUGH_ARGS+=(--instance "$2")
+      shift 2
+      ;;
+    --image-tag|-t)
+      if [[ -z "${2:-}" ]]; then
+        log_error "--image-tag requires a value"
+        exit 1
+      fi
+      IMAGE_TAG_OVERRIDE="$2"
       shift 2
       ;;
     --build-local)
@@ -244,15 +254,21 @@ COMMIT_SHA=$(git rev-parse HEAD 2>/dev/null) || {
   exit 1
 }
 
-# The image tag matches the sanitized branch name (same logic as the GitHub Actions workflow).
+# The image tag defaults to the sanitized branch name (same logic as the GitHub Actions workflow).
 # Uses the same sanitization as the GHA workflow (128-char OCI tag limit), NOT the instance
 # name truncation (20 chars) which is shorter to avoid Kubernetes label limits.
-IMAGE_TAG=$(echo "${CURRENT_BRANCH}" \
-  | tr '[:upper:]' '[:lower:]' \
-  | sed 's/[^a-z0-9._-]/-/g' \
-  | sed 's/--*/-/g' \
-  | sed 's/^-//;s/-$//' \
-  | cut -c1-128)
+# Can be overridden with --image-tag to deploy images built from a different branch.
+if [[ -n "${IMAGE_TAG_OVERRIDE}" ]]; then
+  IMAGE_TAG="${IMAGE_TAG_OVERRIDE}"
+  log_info "Using image tag override: ${IMAGE_TAG}"
+else
+  IMAGE_TAG=$(echo "${CURRENT_BRANCH}" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed 's/[^a-z0-9._-]/-/g' \
+    | sed 's/--*/-/g' \
+    | sed 's/^-//;s/-$//' \
+    | cut -c1-128)
+fi
 
 SERVICES=("backend-services" "frontend" "temporal")
 IMAGES_EXIST=true
@@ -311,8 +327,7 @@ if [[ "${IMAGES_EXIST}" == "false" ]]; then
       log_info "  Image:      ${IMAGE_REF}"
 
       BUILD_START=$(date +%s)
-      docker build \
-        --progress=plain \
+      DOCKER_BUILDKIT=0 docker build \
         -f "${BUILD_DOCKERFILES[${service}]}" \
         -t "${IMAGE_REF}" \
         "${BUILD_CONTEXTS[${service}]}" || {
@@ -399,6 +414,18 @@ else
 fi
 
 # ============================================================
+# Step 4b: Clean up orphaned Artifactory manifests
+# ============================================================
+log_info "Cleaning up orphaned Artifactory manifests..."
+CLEANUP_SCRIPT="${SCRIPT_DIR}/artifactory-cleanup.sh"
+if [[ -f "${CLEANUP_SCRIPT}" ]]; then
+  bash "${CLEANUP_SCRIPT}" --env "${ENV_PROFILE}" --delete 2>&1 | tail -5 || \
+    log_info "Artifactory cleanup encountered errors (non-fatal, continuing)."
+else
+  log_info "Cleanup script not found, skipping."
+fi
+
+# ============================================================
 # Step 5: Generate Kustomize overlay
 # ============================================================
 log_step "Step 5: Generating Kustomize overlay"
@@ -424,6 +451,8 @@ THROTTLE_AUTH_TTL_MS=$(get_config "THROTTLE_AUTH_TTL_MS" 2>/dev/null || echo "60
 THROTTLE_AUTH_LIMIT=$(get_config "THROTTLE_AUTH_LIMIT" 2>/dev/null || echo "10")
 THROTTLE_AUTH_REFRESH_TTL_MS=$(get_config "THROTTLE_AUTH_REFRESH_TTL_MS" 2>/dev/null || echo "60000")
 THROTTLE_AUTH_REFRESH_LIMIT=$(get_config "THROTTLE_AUTH_REFRESH_LIMIT" 2>/dev/null || echo "5")
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=$(get_config "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT" 2>/dev/null || echo "")
+AZURE_DOC_INTELLIGENCE_MODELS=$(get_config "AZURE_DOC_INTELLIGENCE_MODELS" 2>/dev/null || echo "prebuilt-layout")
 AZURE_OPENAI_ENDPOINT=$(get_config "AZURE_OPENAI_ENDPOINT" 2>/dev/null || echo "")
 AZURE_OPENAI_DEPLOYMENT=$(get_config "AZURE_OPENAI_DEPLOYMENT" 2>/dev/null || echo "")
 AZURE_OPENAI_API_VERSION=$(get_config "AZURE_OPENAI_API_VERSION" 2>/dev/null || echo "2024-02-15-preview")
@@ -453,6 +482,8 @@ OVERLAY_DIR=$(generate_instance_overlay \
   --throttle-auth-limit "${THROTTLE_AUTH_LIMIT}" \
   --throttle-auth-refresh-ttl-ms "${THROTTLE_AUTH_REFRESH_TTL_MS}" \
   --throttle-auth-refresh-limit "${THROTTLE_AUTH_REFRESH_LIMIT}" \
+  --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}" \
+  --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS}" \
   --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT}" \
   --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT}" \
   --azure-openai-api-version "${AZURE_OPENAI_API_VERSION}" \
@@ -583,11 +614,19 @@ oc label secret "${WORKER_SECRET_NAME}" \
 log_info "Instance secrets created successfully."
 
 # ============================================================
-# Step 9: Wait for rollout completion
+# Step 9: Restart and wait for rollout completion
 # ============================================================
-log_step "Step 9: Waiting for rollout completion"
+log_step "Step 9: Restarting deployments and waiting for rollout"
 
 DEPLOYMENT_SERVICES=("backend-services" "frontend" "temporal" "temporal-ui" "temporal-worker")
+
+# Force a rollout restart so pods pick up new images even when the tag is unchanged.
+for service in "${DEPLOYMENT_SERVICES[@]}"; do
+  DEPLOY_NAME=$(get_resource_name "${INSTANCE_NAME}" "${service}")
+  if oc get deployment "${DEPLOY_NAME}" -n "${NAMESPACE}" &>/dev/null; then
+    oc rollout restart "deployment/${DEPLOY_NAME}" -n "${NAMESPACE}" 2>/dev/null || true
+  fi
+done
 
 for service in "${DEPLOYMENT_SERVICES[@]}"; do
   DEPLOY_NAME=$(get_resource_name "${INSTANCE_NAME}" "${service}")

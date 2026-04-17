@@ -66,6 +66,9 @@ export interface AnalyzeResult {
 export interface AzureDocumentFieldValue {
   content?: string;
   valueString?: string;
+  /** Present on numeric fields; extractAzureFieldDisplayValue prefers this over `content` when set. */
+  valueNumber?: number;
+  valueInteger?: number;
   confidence?: number;
   boundingRegions?: BoundingRegion[];
   spans?: Span[];

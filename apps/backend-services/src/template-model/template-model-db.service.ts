@@ -207,6 +207,7 @@ export class TemplateModelDbService {
       field_key: string;
       field_type: FieldType;
       field_format?: string;
+      format_spec?: string;
       display_order?: number;
     },
     tx?: Prisma.TransactionClient,
@@ -229,6 +230,7 @@ export class TemplateModelDbService {
         field_key: data.field_key,
         field_type: data.field_type,
         field_format: data.field_format,
+        format_spec: data.format_spec,
         display_order: data.display_order,
       },
     });
@@ -243,7 +245,11 @@ export class TemplateModelDbService {
    */
   async updateFieldDefinition(
     id: string,
-    data: { field_format?: string; display_order?: number },
+    data: {
+      field_format?: string;
+      format_spec?: string;
+      display_order?: number;
+    },
     tx?: Prisma.TransactionClient,
   ): Promise<FieldDefinition | null> {
     const client = tx ?? this.prisma;
