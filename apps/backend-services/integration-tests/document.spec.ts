@@ -3,7 +3,6 @@ import * as path from "path";
 import TestAgent from "supertest/lib/agent";
 import { DocumentStatus, PrismaClient } from "../src/generated/client";
 import { closeDb, openDb } from "./helpers/db-conn";
-import { CompositeMockGuard } from "./helpers/test-app.module";
 import setupTestModule from "./helpers/test-app-setup";
 
 const testModule = setupTestModule();

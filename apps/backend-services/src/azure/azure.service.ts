@@ -49,7 +49,19 @@ export class AzureService {
    * @returns A respnose from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
-    const pollResp = await fetch(operationLocation, {
+    let parsed: URL;
+    try {
+      parsed = new URL(operationLocation);
+    } catch {
+      throw new Error(`Invalid operationLocation URL: ${operationLocation}`);
+    }
+    const expectedOrigin = new URL(this.endpoint).origin;
+    if (parsed.origin !== expectedOrigin) {
+      throw new Error(
+        `operationLocation origin "${parsed.origin}" does not match expected Azure endpoint origin "${expectedOrigin}"`,
+      );
+    }
+    const pollResp = await fetch(parsed.toString(), {
       headers: { "api-key": this.apiKey },
     });
     return pollResp;
@@ -110,7 +122,7 @@ export class AzureService {
       );
     };
 
-    let status: string | undefined = "notStarted";
+    let status: string | undefined;
     let result:
       | PagedDocumentIntelligenceOperationDetailsOutput
       | DocumentIntelligenceErrorResponseOutput;

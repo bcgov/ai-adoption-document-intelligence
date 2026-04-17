@@ -59,6 +59,20 @@ describe("AzureService", () => {
         headers: { "api-key": "secret-key" },
       });
     });
+
+    it("rejects invalid operationLocation URL", async () => {
+      await expect(service.checkOperationStatus("not-a-url")).rejects.toThrow(
+        "Invalid operationLocation URL: not-a-url",
+      );
+    });
+
+    it("rejects operationLocation when origin does not match endpoint", async () => {
+      await expect(
+        service.checkOperationStatus("https://evil.com/op"),
+      ).rejects.toThrow(
+        `operationLocation origin "https://evil.com" does not match expected Azure endpoint origin "https://test.com"`,
+      );
+    });
   });
 
   describe("pollOperationUntilResolved", () => {

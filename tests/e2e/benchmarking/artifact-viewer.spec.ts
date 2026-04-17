@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { setupAuthenticatedTest } from '../helpers/auth';
 import { RunDetailPage } from '../pages/RunDetailPage';
 import { ArtifactViewerDrawer } from '../pages/ArtifactViewerDrawer';
