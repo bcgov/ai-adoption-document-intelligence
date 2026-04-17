@@ -47,8 +47,8 @@ const activeGroup: Group = { id: "group-abc", name: "Test Group" };
 const idleModels = () => ({ data: ["model-a", "model-b"], isLoading: false });
 const idleWorkflows = () => ({ data: [], isLoading: false });
 
-const createTestFile = (name = "test.png") =>
-  new File(["hello"], name, { type: "image/png" });
+const createTestFile = (name = "test.pdf") =>
+  new File(["hello"], name, { type: "application/pdf" });
 
 /**
  * Renders the component inside required providers.
@@ -93,9 +93,9 @@ describe("DocumentUploadPanel", () => {
           document: {
             id: "doc-1",
             title: "test",
-            original_filename: "test.png",
+            original_filename: "test.pdf",
             file_path: "/path",
-            file_type: "png",
+            file_type: "pdf",
             file_size: 100,
             source: "upload",
             status: "pre_ocr",
