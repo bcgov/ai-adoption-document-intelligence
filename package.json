@@ -40,7 +40,6 @@
 		"npm": ">=10.0.0"
 	},
 	"dependencies": {
-		"@esbuild/linux-x64": "0.28.0",
 		"@playwright/test": "1.58.2"
 	},
 	"overrides": {
