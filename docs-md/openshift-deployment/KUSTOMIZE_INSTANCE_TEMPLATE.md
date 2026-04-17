@@ -31,6 +31,10 @@ The template uses placeholder tokens that the deploy script replaces with actual
 - **`patches`**: Updates hardcoded in-cluster service references, sets route hostnames, fixes operator-managed secret references, and configures SSO settings.
 - **`configurations`**: References `kustomize-config.yml` which defines `nameReference` rules so Kustomize auto-updates Route `spec.to.name` when `namePrefix` is applied.
 
+### Route IP restrictions
+
+Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_whitelist` so the OpenShift router (HAProxy) only allows traffic whose source IP is in `142.16.0.0/11` (approximate VPN range). Other clients receive HTTP 403 at the router. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see `docs-md/PROMETHEUS_METRICS.md`). Multiple CIDRs or IPs use a space-separated annotation value if needed later.
+
 ### What Gets Patched
 
 Kustomize's `namePrefix` handles most cross-references automatically, but several categories of references require explicit patches:
