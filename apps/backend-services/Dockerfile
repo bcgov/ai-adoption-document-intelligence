@@ -17,6 +17,9 @@ RUN cd /packages/logging && npm install --ignore-scripts && npm run build
 COPY packages/graph-insertion-slots /packages/graph-insertion-slots
 RUN cd /packages/graph-insertion-slots && npm install && npm run build
 
+COPY packages/blob-storage-paths /packages/blob-storage-paths
+RUN cd /packages/blob-storage-paths && npm install --ignore-scripts && npm run build
+
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install --ignore-scripts
 
@@ -52,6 +55,7 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy pre-built workspace packages from builder (avoids needing tsc in production stage)
 COPY --from=builder /packages/logging /packages/logging
 COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
+COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
 
 # Copy package files
 COPY apps/backend-services/package.json ./

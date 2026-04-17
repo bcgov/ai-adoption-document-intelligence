@@ -48,7 +48,6 @@
 		"@nestjs/throttler": "6.5.0",
 		"@prisma/adapter-pg": "7.2.0",
 		"@prisma/client": "7.2.0",
-		"@swc/core-linux-x64-gnu": "1.15.24",
 		"@temporalio/client": "1.10.0",
 		"ajv": "8.17.1",
 		"axios": "1.15.0",
