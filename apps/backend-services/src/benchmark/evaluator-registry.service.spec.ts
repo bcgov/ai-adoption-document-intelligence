@@ -44,7 +44,9 @@ describe("EvaluatorRegistryService", () => {
       service.registerType("schema-aware");
       service.registerType("schema-aware");
 
-      expect(loggerWarnSpy).toHaveBeenCalled();
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        'Evaluator type "schema-aware" is already registered. Skipping.',
+      );
       expect(service.getCount()).toBe(1);
     });
 

@@ -22,7 +22,7 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
 
 // Mock fs for absolute-path reads (benchmark materialized files)
 jest.mock("node:fs", () => {
-  const actual = jest.requireActual("fs");
+  const actual = jest.requireActual("node:fs");
   return {
     ...actual,
     promises: {
