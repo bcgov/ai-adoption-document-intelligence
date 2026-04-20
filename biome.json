@@ -98,7 +98,8 @@
         "useNamespaceKeyword": "error",
         "useIterableCallbackReturn": "error",
         "noDoubleEquals": "error",
-        "noImplicitAnyLet":"error"
+        "noImplicitAnyLet":"error",
+        "noGlobalIsNan": "error"
       },
       "a11y": "off"
     }

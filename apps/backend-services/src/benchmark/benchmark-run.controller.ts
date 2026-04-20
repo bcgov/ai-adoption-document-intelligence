@@ -445,7 +445,7 @@ export class BenchmarkRunController {
       if (key !== "page" && key !== "limit") {
         // Try to parse as number, otherwise keep as string
         const numValue = Number(value);
-        filters[key] = isNaN(numValue) ? value : numValue;
+        filters[key] = Number.isNaN(numValue) ? value : numValue;
       }
     }
 
