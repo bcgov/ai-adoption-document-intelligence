@@ -15,5 +15,5 @@ export const openDb = () => {
 };
 
 export const closeDb = async (db: PrismaClient) => {
-  if (db != undefined) await db.$disconnect();
+  if (db !== undefined) await db.$disconnect();
 };

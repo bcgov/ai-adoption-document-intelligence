@@ -96,7 +96,7 @@
         "useGetterReturn": "error",
         "useNamespaceKeyword": "error",
         "useIterableCallbackReturn": "error",
-        "noDoubleEquals": "off",
+        "noDoubleEquals": "error",
         "noImplicitAnyLet":"error"
       },
       "a11y": "off"

@@ -93,7 +93,7 @@ export class ClassifierService {
             queryParameters: { "api-version": "2024-11-30" },
           });
 
-        if (analyzeResponse.status == "202") {
+        if (analyzeResponse.status === "202") {
           // Poll operation-location until succeeded or failed
           const operationLocation =
             analyzeResponse.headers["operation-location"] ||
@@ -121,7 +121,7 @@ export class ClassifierService {
               this.logger.error("Analyze operation failed", { result });
             },
           );
-        } else if (analyzeResponse.status == "404") {
+        } else if (analyzeResponse.status === "404") {
           // Possible fallback if the url doesn't work. Download and analyze via upload.
           // I haven't had to rely on this so far.
           this.logger.warn(
@@ -148,7 +148,7 @@ export class ClassifierService {
               pathParameters: { modelId: "prebuilt-layout" },
               headers: { "Content-Type": "application/json" },
             });
-          if (uploadResponse.status == "200") {
+          if (uploadResponse.status === "200") {
             await this.azureStorage.uploadFile(
               this.containerName,
               jsonBlobName,
@@ -324,7 +324,7 @@ export class ClassifierService {
     let operationLocation =
       response.headers["operation-location"] ||
       response.headers["Operation-Location"];
-    if (response.status == "202" && operationLocation) {
+    if (response.status === "202" && operationLocation) {
       // Returned operation-location header uses wrong domain.
       // Must replace with our actual Azure endpoint
       const docIntelligenceEndpoint = this.azureService.getEndpoint();
@@ -387,7 +387,7 @@ export class ClassifierService {
           _overload: "classifyDocument",
         },
       });
-    if (response.status == "202") {
+    if (response.status === "202") {
       const operationLocation =
         response.headers["operation-location"] ||
         response.headers["Operation-Location"];
@@ -427,7 +427,7 @@ export class ClassifierService {
           _overload: "classifyDocument",
         },
       });
-    if (response.status == "202") {
+    if (response.status === "202") {
       const operationLocation =
         response.headers["operation-location"] ||
         response.headers["Operation-Location"];
