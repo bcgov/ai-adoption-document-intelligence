@@ -8,7 +8,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": false,
+      "recommended": true,
       "complexity": {
         "noAdjacentSpacesInRegex": "error",
         "noExtraBooleanCast": "error",
@@ -16,7 +16,10 @@
         "noUselessContinue": "error",
         "noUselessEscapeInRegex": "error",
         "noUselessTypeConstraint": "error",
-        "useOptionalChain": "error"
+        "useOptionalChain": "error",
+        "noUselessSwitchCase": "off",
+        "useLiteralKeys": "off",
+        "noBannedTypes": "off"
       },
       "correctness": {
         "noConstAssign": "error",
@@ -59,7 +62,9 @@
         "useBlockStatements": "off",
         "useConst": "error",
         "noNonNullAssertion": "off",
-        "useImportType": "off"
+        "useImportType": "off",
+        "useNodejsImportProtocol": "error",
+        "useTemplate": "off"
       },
       "suspicious": {
         "noAlert": "error",

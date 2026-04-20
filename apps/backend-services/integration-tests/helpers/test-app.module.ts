@@ -19,7 +19,7 @@ export class CompositeMockGuard {
     roles: ["user", "admin"],
   };
   canActivate(context: {
-    switchToHttp: () => { (): Function; getRequest: { (): { user: Object } } };
+    switchToHttp: () => { (): Function; getRequest: () => { user: object } };
   }) {
     const req = context.switchToHttp().getRequest();
     req.user = { ...CompositeMockGuard.mockUser };

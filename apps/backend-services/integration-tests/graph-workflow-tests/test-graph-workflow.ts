@@ -7,6 +7,9 @@
  * This test will run until it encounters the current error to help debug the issue.
  */
 
+import { ChildProcess, spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Logger } from "@nestjs/common";
 import {
   Client,
@@ -14,10 +17,7 @@ import {
   WorkflowExecutionStatusName,
 } from "@temporalio/client";
 import axios, { AxiosInstance } from "axios";
-import { ChildProcess, spawn } from "child_process";
 import * as dotenv from "dotenv";
-import * as fs from "fs";
-import * as path from "path";
 
 // Load environment variables from .env file
 dotenv.config();

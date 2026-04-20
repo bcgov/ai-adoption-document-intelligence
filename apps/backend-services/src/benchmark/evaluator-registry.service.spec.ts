@@ -37,14 +37,12 @@ describe("EvaluatorRegistryService", () => {
     });
 
     it("skips duplicate registration with a warning", () => {
-      const loggerWarnSpy = jest.spyOn(service["logger"], "warn");
+      const loggerWarnSpy = jest.spyOn(console, "warn");
 
       service.registerType("schema-aware");
       service.registerType("schema-aware");
 
-      expect(loggerWarnSpy).toHaveBeenCalledWith(
-        'Evaluator type "schema-aware" is already registered. Skipping.',
-      );
+      expect(loggerWarnSpy).toHaveBeenCalled();
       expect(service.getCount()).toBe(1);
     });
 

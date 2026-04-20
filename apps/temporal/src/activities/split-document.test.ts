@@ -1,5 +1,5 @@
-import { execFile } from "child_process";
-import * as fs from "fs/promises";
+import { execFile } from "node:child_process";
+import * as fs from "node:fs/promises";
 import type { SplitDocumentInput } from "./split-document";
 import { splitDocument } from "./split-document";
 

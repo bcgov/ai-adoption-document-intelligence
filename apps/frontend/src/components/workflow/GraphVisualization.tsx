@@ -975,105 +975,103 @@ function layoutGraphWithMapContainers(
   const { nodes: layoutedTopLevel } = layoutGraph(topLevelNodes, topLevelEdges);
 
   // Pass 2: Position body nodes inside their parent containers using layers
-  const finalNodes = layoutedTopLevel
-    .map((node) => {
-      if (node.type === "mapContainer") {
-        // Position body nodes inside this container based on layers
-        const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
-        const PADDING = 24;
-        const HEADER_HEIGHT = 50;
-        const NODE_GAP = 40;
-        const TOP_PADDING = 40; // Increased for more visible spacing
+  const finalNodes = layoutedTopLevel.flatMap((node) => {
+    if (node.type === "mapContainer") {
+      // Position body nodes inside this container based on layers
+      const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
+      const PADDING = 24;
+      const HEADER_HEIGHT = 50;
+      const NODE_GAP = 40;
+      const TOP_PADDING = 40; // Increased for more visible spacing
 
-        // Find the map node from config
-        const mapNodeConfig = Object.values(config.nodes).find(
-          (n) => n.id === node.id && n.type === "map",
-        ) as MapNode | undefined;
+      // Find the map node from config
+      const mapNodeConfig = Object.values(config.nodes).find(
+        (n) => n.id === node.id && n.type === "map",
+      ) as MapNode | undefined;
 
-        if (!mapNodeConfig) {
-          // Fallback to old horizontal layout if map node not found
-          let currentX = PADDING;
-          const positionedBodyNodes = bodyNodeIds.map((bodyNodeId) => {
-            const bodyNode = nodes.find((n) => n.id === bodyNodeId)!;
-            const positionedBody = {
-              ...bodyNode,
-              position: {
-                x: currentX,
-                y: HEADER_HEIGHT + TOP_PADDING,
-              },
-            };
-            currentX += (bodyNode.width ?? 0) + NODE_GAP;
-            return positionedBody;
-          });
-          return [node, ...positionedBodyNodes];
-        }
-
-        // Compute layers for body nodes
-        const layersMap = computeBodyNodeLayers(
-          bodyNodeIds,
-          config.edges,
-          mapNodeConfig.bodyEntryNodeId,
-        );
-
-        // Calculate actual max height per layer for precise positioning
-        const layerHeights = Array.from(layersMap.values()).map(
-          (layerNodeIds) => {
-            return Math.max(
-              ...layerNodeIds.map((nodeId) => {
-                const bodyNode = nodes.find((n) => n.id === nodeId)!;
-                return bodyNode.height ?? 80;
-              }),
-            );
-          },
-        );
-
-        // Position nodes layer by layer
-        const positionedBodyNodes: Node[] = [];
-        let cumulativeY = HEADER_HEIGHT + TOP_PADDING;
-
-        layersMap.forEach((layerNodeIds, layerNumber) => {
-          // Calculate layer dimensions
-          const layerNodesWithDims = layerNodeIds.map((nodeId) => {
-            const bodyNode = nodes.find((n) => n.id === nodeId)!;
-            return {
-              nodeId,
-              node: bodyNode,
-              width: bodyNode.width ?? 180,
-              height: bodyNode.height ?? 80,
-            };
-          });
-
-          const totalLayerWidth =
-            layerNodesWithDims.reduce((sum, n) => sum + n.width, 0) +
-            Math.max(0, layerNodeIds.length - 1) * NODE_GAP;
-
-          // Center the layer horizontally
-          let currentX = (node.width! - totalLayerWidth) / 2;
-
-          // Use cumulative Y position for this layer
-          const currentY = cumulativeY;
-
-          // Position each node in the layer
-          layerNodesWithDims.forEach(({ node: bodyNode }) => {
-            positionedBodyNodes.push({
-              ...bodyNode,
-              position: {
-                x: currentX,
-                y: currentY,
-              },
-            });
-            currentX += bodyNode.width! + NODE_GAP;
-          });
-
-          // Update cumulative Y for next layer
-          cumulativeY += layerHeights[layerNumber] + LAYER_GAP;
+      if (!mapNodeConfig) {
+        // Fallback to old horizontal layout if map node not found
+        let currentX = PADDING;
+        const positionedBodyNodes = bodyNodeIds.map((bodyNodeId) => {
+          const bodyNode = nodes.find((n) => n.id === bodyNodeId)!;
+          const positionedBody = {
+            ...bodyNode,
+            position: {
+              x: currentX,
+              y: HEADER_HEIGHT + TOP_PADDING,
+            },
+          };
+          currentX += (bodyNode.width ?? 0) + NODE_GAP;
+          return positionedBody;
         });
-
         return [node, ...positionedBodyNodes];
       }
-      return [node];
-    })
-    .flat();
+
+      // Compute layers for body nodes
+      const layersMap = computeBodyNodeLayers(
+        bodyNodeIds,
+        config.edges,
+        mapNodeConfig.bodyEntryNodeId,
+      );
+
+      // Calculate actual max height per layer for precise positioning
+      const layerHeights = Array.from(layersMap.values()).map(
+        (layerNodeIds) => {
+          return Math.max(
+            ...layerNodeIds.map((nodeId) => {
+              const bodyNode = nodes.find((n) => n.id === nodeId)!;
+              return bodyNode.height ?? 80;
+            }),
+          );
+        },
+      );
+
+      // Position nodes layer by layer
+      const positionedBodyNodes: Node[] = [];
+      let cumulativeY = HEADER_HEIGHT + TOP_PADDING;
+
+      layersMap.forEach((layerNodeIds, layerNumber) => {
+        // Calculate layer dimensions
+        const layerNodesWithDims = layerNodeIds.map((nodeId) => {
+          const bodyNode = nodes.find((n) => n.id === nodeId)!;
+          return {
+            nodeId,
+            node: bodyNode,
+            width: bodyNode.width ?? 180,
+            height: bodyNode.height ?? 80,
+          };
+        });
+
+        const totalLayerWidth =
+          layerNodesWithDims.reduce((sum, n) => sum + n.width, 0) +
+          Math.max(0, layerNodeIds.length - 1) * NODE_GAP;
+
+        // Center the layer horizontally
+        let currentX = (node.width! - totalLayerWidth) / 2;
+
+        // Use cumulative Y position for this layer
+        const currentY = cumulativeY;
+
+        // Position each node in the layer
+        layerNodesWithDims.forEach(({ node: bodyNode }) => {
+          positionedBodyNodes.push({
+            ...bodyNode,
+            position: {
+              x: currentX,
+              y: currentY,
+            },
+          });
+          currentX += bodyNode.width! + NODE_GAP;
+        });
+
+        // Update cumulative Y for next layer
+        cumulativeY += layerHeights[layerNumber] + LAYER_GAP;
+      });
+
+      return [node, ...positionedBodyNodes];
+    }
+    return [node];
+  });
 
   return { nodes: finalNodes, edges };
 }

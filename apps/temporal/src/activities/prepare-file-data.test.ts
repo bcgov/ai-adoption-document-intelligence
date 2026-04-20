@@ -32,7 +32,7 @@ jest.mock("fs", () => {
   };
 });
 
-import * as fs from "fs";
+import * as fs from "node:fs";
 
 const readFileMock = fs.promises.readFile as jest.Mock;
 

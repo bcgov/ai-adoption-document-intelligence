@@ -1,5 +1,5 @@
+import type { Socket } from "node:net";
 import type { NextFunction, Request, Response } from "express";
-import type { Socket } from "net";
 import { AppLoggerService } from "./app-logger.service";
 import { LoggingMiddleware } from "./logging.middleware";
 import { requestContext } from "./request-context";

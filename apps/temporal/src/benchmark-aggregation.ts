@@ -352,7 +352,7 @@ export function computeStatistics(
 
   // Standard deviation
   const variance =
-    values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+    values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
   const stdDev = Math.sqrt(variance);
 
   // Percentiles

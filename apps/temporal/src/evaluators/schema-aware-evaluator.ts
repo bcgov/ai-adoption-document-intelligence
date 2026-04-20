@@ -8,7 +8,7 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 5.2
  */
 
-import * as fs from "fs/promises";
+import * as fs from "node:fs/promises";
 import {
   BenchmarkEvaluator,
   EvaluationInput,

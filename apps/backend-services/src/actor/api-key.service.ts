@@ -1,6 +1,6 @@
+import * as crypto from "node:crypto";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
-import * as crypto from "crypto";
 import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,

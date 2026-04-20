@@ -2,7 +2,7 @@ import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence
 import type { ClassifierModel } from "@generated/client";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import "multer";
-import * as path from "path";
+import * as path from "node:path";
 import { AzureService } from "@/azure/azure.service";
 import {
   type ClassifierConfig,
