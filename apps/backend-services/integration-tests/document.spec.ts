@@ -50,6 +50,7 @@ describe("/document endpoints", () => {
           file_size: 12345,
           source: "integration-test",
           status: "pre_ocr",
+          group_id: "1",
         },
       });
       // Then retrieve it
@@ -62,7 +63,6 @@ describe("/document endpoints", () => {
 
   describe("GET /api/documents/:documentId/ocr", () => {
     let db: PrismaClient;
-    let documentId;
     beforeAll(() => {
       db = openDb();
     });
@@ -84,9 +84,10 @@ describe("/document endpoints", () => {
           file_size: 12345,
           source: "integration-test",
           status: DocumentStatus.completed_ocr,
+          group_id: "1",
         },
       });
-      documentId = doc.id;
+      const documentId = doc.id;
       // Create an OCR result for the document
       const ocrResult = await db.ocrResult.create({
         data: {
@@ -119,9 +120,10 @@ describe("/document endpoints", () => {
           file_size: 12345,
           source: "integration-test",
           status: "pre_ocr",
+          group_id: "1",
         },
       });
-      documentId = doc.id;
+      const documentId = doc.id;
       // Test the endpoint
       const res = await agent
         .get(`/api/documents/${documentId}/ocr`)
@@ -139,7 +141,6 @@ describe("/document endpoints", () => {
 
   describe("GET /api/documents/:documentId/download", () => {
     let db: PrismaClient;
-    let documentId;
     const storageDir = path.join(__dirname, "../storage/documents");
     const testFilePath = path.join(storageDir, "test-download.pdf");
     const testFileContent = Buffer.from("This is a test PDF file.");
@@ -175,9 +176,10 @@ describe("/document endpoints", () => {
           file_size: testFileContent.length,
           source: "integration-test",
           status: "pre_ocr",
+          group_id: "1",
         },
       });
-      documentId = doc.id;
+      const documentId = doc.id;
       // Test the endpoint
       const res = await agent
         .get(`/api/documents/${documentId}/download`)

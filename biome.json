@@ -95,7 +95,9 @@
         "noWith": "error",
         "useGetterReturn": "error",
         "useNamespaceKeyword": "error",
-        "useIterableCallbackReturn": "error"
+        "useIterableCallbackReturn": "error",
+        "noDoubleEquals": "off",
+        "noImplicitAnyLet":"error"
       }
     }
   },
