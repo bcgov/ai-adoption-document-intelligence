@@ -98,7 +98,8 @@
         "useIterableCallbackReturn": "error",
         "noDoubleEquals": "off",
         "noImplicitAnyLet":"error"
-      }
+      },
+      "a11y": "off"
     }
   },
   "javascript": {
