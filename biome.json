@@ -15,7 +15,8 @@
         "noUselessCatch": "error",
         "noUselessContinue": "error",
         "noUselessEscapeInRegex": "error",
-        "noUselessTypeConstraint": "error"
+        "noUselessTypeConstraint": "error",
+        "useOptionalChain": "error"
       },
       "correctness": {
         "noConstAssign": "error",

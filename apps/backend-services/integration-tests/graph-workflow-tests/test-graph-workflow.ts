@@ -661,7 +661,7 @@ async function monitorWorkflow(): Promise<void> {
       } else if (status.status === "FAILED") {
         log(`Workflow failed after ${(elapsed / 1000).toFixed(1)}s`, "error");
 
-        if (progress && progress.error) {
+        if (progress?.error) {
           log(`Last error: ${progress.error}`, "error");
         }
 
