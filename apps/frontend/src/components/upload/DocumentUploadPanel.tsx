@@ -98,7 +98,9 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
 
   useEffect(
     () => () => {
-      queue.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      queue.forEach((item) => {
+        URL.revokeObjectURL(item.previewUrl);
+      });
     },
     [queue],
   );
