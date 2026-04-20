@@ -94,7 +94,8 @@
         "noVar": "error",
         "noWith": "error",
         "useGetterReturn": "error",
-        "useNamespaceKeyword": "error"
+        "useNamespaceKeyword": "error",
+        "useIterableCallbackReturn": "error"
       }
     }
   },

@@ -21,7 +21,9 @@ describe("ApiKeyService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    Object.values(mockApiKeyDbService).forEach((fn) => fn.mockReset());
+    Object.values(mockApiKeyDbService).forEach((fn) => {
+      fn.mockReset();
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

@@ -487,7 +487,9 @@ async function displayWorkflowHistory(): Promise<void> {
             if (attrs.failure.stackTrace) {
               log(`      Stack Trace:`, "error");
               const lines = attrs.failure.stackTrace.split("\n").slice(0, 15);
-              lines.forEach((line: string) => log(`        ${line}`, "error"));
+              lines.forEach((line: string) => {
+                log(`        ${line}`, "error");
+              });
             }
           }
         }
@@ -501,7 +503,9 @@ async function displayWorkflowHistory(): Promise<void> {
             if (attrs.failure.stackTrace) {
               log(`      Stack Trace:`, "error");
               const lines = attrs.failure.stackTrace.split("\n").slice(0, 15);
-              lines.forEach((line: string) => log(`        ${line}`, "error"));
+              lines.forEach((line: string) => {
+                log(`        ${line}`, "error");
+              });
             }
           }
         }

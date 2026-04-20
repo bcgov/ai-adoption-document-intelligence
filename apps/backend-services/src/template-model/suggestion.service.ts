@@ -336,7 +336,9 @@ export class SuggestionService {
         continue;
       }
 
-      matchedWords.forEach((word) => usedWordIds.add(word.id));
+      matchedWords.forEach((word) => {
+        usedWordIds.add(word.id);
+      });
       assignedFields.add(field.field_key);
       const valueText =
         pair.value?.content ??
@@ -537,7 +539,9 @@ export class SuggestionService {
         continue;
       }
 
-      matchedWords.forEach((word) => usedWordIds.add(word.id));
+      matchedWords.forEach((word) => {
+        usedWordIds.add(word.id);
+      });
       const valueText = matchedWords
         .map((word) => word.content)
         .join(" ")
