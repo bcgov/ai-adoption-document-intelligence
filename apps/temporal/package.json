@@ -4,18 +4,19 @@
 	"description": "Temporal workflow for Azure OCR document processing using TypeScript",
 	"main": "dist/worker.js",
 	"scripts": {
-		"build": "npm run db:generate && tsc",
+		"build": "npm run db:generate && npm run build:graph-insertion-slots && tsc",
+		"build:logging": "cd ../../packages/logging && npm run build",
 		"start": "node dist/worker.js",
 		"start:worker": "node dist/worker.js",
-		"dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only --rs --watch src src/worker.ts",
+		"dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only --rs --watch src --ignore-watch ../../packages src/worker.ts",
 		"type-check": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"db:generate": "node ../shared/scripts/generate-prisma.js",
-		"build:logging": "cd ../../packages/logging && npm run build",
 		"lint": "npx @biomejs/biome check",
 		"lint:fix": "npm run lint -- --write",
-		"pretest": "npm run build:logging",
-		"test": "jest"
+		"pretest": "npm run build:logging && npm run build:graph-insertion-slots",
+		"test": "jest",
+		"build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build"
 	},
 	"keywords": [
 		"temporal",
@@ -28,6 +29,7 @@
 	"license": "MIT",
 	"dependencies": {
 		"@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
+		"@ai-di/graph-insertion-slots": "file:../../packages/graph-insertion-slots",
 		"@ai-di/shared-logging": "file:../../packages/logging",
 		"@aws-sdk/client-s3": "3.1000.0",
 		"@azure-rest/ai-document-intelligence": "1.0.0",
@@ -37,11 +39,13 @@
 		"@temporalio/client": "1.10.0",
 		"@temporalio/worker": "1.10.0",
 		"@temporalio/workflow": "1.10.0",
-		"axios": "1.13.2",
-		"csv": "6.5.1",
-		"dotenv": "16.3.1",
-		"fast-xml-parser": "5.5.8",
-		"json-rules-engine": "4.0.0"
+		"axios": "1.15.0",
+    "csv": "6.5.1",
+		"dictionary-en": "4.0.0",
+		"dotenv": "17.2.3",
+    "fast-xml-parser": "5.5.8",
+		"json-rules-engine": "4.0.0",
+		"nspell": "2.1.5"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",

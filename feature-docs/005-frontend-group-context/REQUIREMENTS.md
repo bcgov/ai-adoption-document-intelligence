@@ -1,4 +1,4 @@
-# Feature 005 — Frontend Group Context & Active Group Selector
+# Feature 008A — Frontend Group Context & Active Group Selector
 
 ## Overview
 

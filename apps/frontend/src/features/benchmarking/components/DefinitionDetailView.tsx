@@ -1,19 +1,40 @@
 import {
+  Accordion,
+  Alert,
   Badge,
   Button,
   Card,
   Code,
   Group,
   Loader,
+  Select,
   Stack,
+  Switch,
   Table,
   Text,
   Title,
 } from "@mantine/core";
-import { IconEdit, IconHistory, IconPlayerPlay } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
+import {
+  IconBug,
+  IconEdit,
+  IconHistory,
+  IconPlayerPlay,
+  IconSparkles,
+} from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useBaselineHistory } from "../hooks/useDefinitions";
-import { useStartRun } from "../hooks/useRuns";
+import {
+  useRevertWorkflowHead,
+  useWorkflowVersions,
+} from "@/data/hooks/useWorkflows";
+import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
+import {
+  useGenerateCandidate,
+  useOcrCacheSources,
+  usePipelineDebugLog,
+  useStartRun,
+} from "../hooks/useRuns";
 import { ScheduleConfig } from "./ScheduleConfig";
 
 interface DatasetVersionInfo {
@@ -24,8 +45,11 @@ interface DatasetVersionInfo {
 
 interface WorkflowInfo {
   id: string;
+  workflowVersionId: string;
   name: string;
   version: number;
+  workflowKind?: string;
+  sourceWorkflowId?: string | null;
 }
 
 interface SplitInfo {
@@ -63,6 +87,7 @@ interface DefinitionDetails {
   split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
+  workflowConfigOverrides?: Record<string, unknown>;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
@@ -87,17 +112,89 @@ export function DefinitionDetailView({
   onEdit,
 }: DefinitionDetailViewProps) {
   const navigate = useNavigate();
+  const { updateDefinition, isUpdating } = useDefinition(
+    definition.projectId,
+    definition.id,
+  );
+  const { data: workflowVersions = [], isLoading: versionsLoading } =
+    useWorkflowVersions(definition.workflow.id);
+  const revertHead = useRevertWorkflowHead();
+  const [pinVersionId, setPinVersionId] = useState(
+    definition.workflow.workflowVersionId,
+  );
+  useEffect(() => {
+    setPinVersionId(definition.workflow.workflowVersionId);
+  }, [definition.workflow.workflowVersionId]);
+
   const { startRun, isStarting } = useStartRun(
     definition.projectId,
     definition.id,
   );
+  const {
+    generateCandidate,
+    isGenerating: isOcrImprovementRunning,
+    result: generateResult,
+  } = useGenerateCandidate(definition.projectId, definition.id);
 
   const { history: baselineHistory, isLoading: isLoadingHistory } =
     useBaselineHistory(definition.projectId, definition.id);
 
+  const [persistOcrCache, setPersistOcrCache] = useState(true);
+  const [ocrCacheBaselineRunId, setOcrCacheBaselineRunId] = useState<
+    string | null
+  >(null);
+  const { cacheSources } = useOcrCacheSources(
+    definition.projectId,
+    definition.datasetVersion.id,
+  );
+
+  // Pipeline debug log: only fetches when the user expands the section
+  const [showDebugLog, setShowDebugLog] = useState(false);
+  const { entries: debugLogEntries, isLoading: isLoadingDebugLog } =
+    usePipelineDebugLog(definition.projectId, definition.id, showDebugLog);
+
   const handleStartRun = async () => {
-    const run = await startRun({});
+    const run = await startRun({
+      persistOcrCache,
+      ...(ocrCacheBaselineRunId ? { ocrCacheBaselineRunId } : {}),
+    });
     navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
+  };
+
+  const handleGenerateCandidate = async () => {
+    try {
+      const result = await generateCandidate({});
+      if (result?.status === "candidate_created") {
+        notifications.show({
+          title: "Candidate workflow created",
+          message:
+            "Candidate created. Review it in the workflow editor, then create a definition and benchmark it.",
+          color: "green",
+          autoClose: 8000,
+        });
+      } else if (result?.status === "no_recommendations") {
+        notifications.show({
+          title: "No recommendations",
+          message: result.pipelineMessage || "No tools recommended",
+          color: "yellow",
+        });
+      } else {
+        notifications.show({
+          title: "Error",
+          message: result?.error || "Pipeline failed",
+          color: "red",
+        });
+      }
+    } catch (error) {
+      notifications.show({
+        title: "Error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate candidate",
+        color: "red",
+      });
+    }
   };
 
   const getStatusBadgeColor = (status: string) => {
@@ -113,6 +210,23 @@ export function DefinitionDetailView({
       default:
         return "yellow";
     }
+  };
+
+  /** Map step identifiers to human-readable labels for the accordion headers */
+  const stepLabel = (step: string): string => {
+    const labels: Record<string, string> = {
+      baseline_mismatch_extraction: "Baseline Mismatch Extraction",
+      tool_manifest: "Tool Manifest",
+      workflow_load: "Workflow Load",
+      prompt_build: "LLM Prompt",
+      llm_request: "LLM Request Metadata",
+      llm_response: "LLM Response",
+      recommendation_parse: "Recommendation Parsing",
+      apply_recommendations: "Apply Recommendations",
+      candidate_creation: "Candidate Creation",
+      error: "Error",
+    };
+    return labels[step] ?? step;
   };
 
   return (
@@ -133,6 +247,30 @@ export function DefinitionDetailView({
                 >
                   Edit
                 </Button>
+              )}
+              <Switch
+                checked={persistOcrCache}
+                onChange={(e) => setPersistOcrCache(e.currentTarget.checked)}
+                label="Persist OCR cache"
+                description="Store Azure OCR per sample for replay (recommended for improvement pipeline)"
+                size="sm"
+                data-testid="persist-ocr-cache-switch"
+              />
+              {cacheSources.length > 0 && (
+                <Select
+                  label="Use cached OCR from"
+                  placeholder="None (fresh OCR)"
+                  clearable
+                  data={cacheSources.map((s) => ({
+                    value: s.id,
+                    label: `${s.definitionName} — ${new Date(s.completedAt).toLocaleDateString()} (${s.sampleCount} samples)`,
+                  }))}
+                  value={ocrCacheBaselineRunId}
+                  onChange={setOcrCacheBaselineRunId}
+                  size="sm"
+                  styles={{ root: { minWidth: 300 } }}
+                  data-testid="ocr-cache-source-select"
+                />
               )}
               <Button
                 leftSection={<IconPlayerPlay size={16} />}
@@ -174,6 +312,10 @@ export function DefinitionDetailView({
                 <Table.Td fw={500}>Workflow</Table.Td>
                 <Table.Td>
                   {definition.workflow.name} v{definition.workflow.version}
+                  <Text size="xs" c="dimmed" mt={4}>
+                    Lineage <Code>{definition.workflow.id}</Code> · Pinned
+                    version <Code>{definition.workflow.workflowVersionId}</Code>
+                  </Text>
                 </Table.Td>
               </Table.Tr>
               <Table.Tr>
@@ -188,6 +330,322 @@ export function DefinitionDetailView({
               </Table.Tr>
             </Table.Tbody>
           </Table>
+
+          {!definition.immutable && (
+            <Stack gap="sm" mt="md">
+              <Select
+                label="Pinned workflow version"
+                description="Which graph revision this definition uses for benchmark runs."
+                placeholder="Select version"
+                data={workflowVersions.map((v) => ({
+                  value: v.id,
+                  label: `v${v.versionNumber} · ${new Date(v.createdAt).toLocaleString()}`,
+                }))}
+                value={pinVersionId}
+                onChange={(v) => setPinVersionId(v || pinVersionId)}
+                disabled={versionsLoading}
+                searchable
+              />
+              <Group>
+                <Button
+                  size="xs"
+                  variant="light"
+                  loading={isUpdating}
+                  disabled={
+                    pinVersionId === definition.workflow.workflowVersionId
+                  }
+                  onClick={() =>
+                    updateDefinition({ workflowVersionId: pinVersionId })
+                  }
+                >
+                  Apply pin
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  loading={revertHead.isPending}
+                  onClick={() =>
+                    revertHead.mutate({
+                      lineageId: definition.workflow.id,
+                      workflowVersionId: pinVersionId,
+                    })
+                  }
+                >
+                  Set as default head (new uploads / editor)
+                </Button>
+              </Group>
+            </Stack>
+          )}
+        </Stack>
+      </Card>
+
+      <Card data-testid="ocr-improvement-card">
+        <Stack gap="md">
+          <Group justify="space-between">
+            <Group gap="xs">
+              <IconSparkles size={20} />
+              <Title order={4} data-testid="ocr-improvement-heading">
+                OCR improvement pipeline
+              </Title>
+            </Group>
+            <Button
+              variant="light"
+              leftSection={<IconSparkles size={16} />}
+              onClick={handleGenerateCandidate}
+              loading={isOcrImprovementRunning}
+              data-testid="run-ocr-improvement-btn"
+            >
+              Generate candidate workflow
+            </Button>
+          </Group>
+          <Text size="sm" c="dimmed" data-testid="ocr-improvement-description">
+            Extract field mismatches from the baseline run and get AI tool
+            recommendations to generate a candidate workflow. Requires a
+            promoted baseline run. Review the candidate in the workflow editor,
+            then create a definition and benchmark it. When the benchmark run
+            completes, apply the candidate workflow to the base lineage from the
+            run page.
+          </Text>
+          {generateResult && (
+            <Stack gap="xs">
+              <Badge
+                color={
+                  generateResult.status === "candidate_created"
+                    ? "green"
+                    : generateResult.status === "no_recommendations"
+                      ? "blue"
+                      : "red"
+                }
+                data-testid="ocr-improvement-status-badge"
+              >
+                {generateResult.status}
+              </Badge>
+              {generateResult.status === "candidate_created" && (
+                <>
+                  <Group gap="lg">
+                    <Text size="sm">
+                      <Text span fw={500}>
+                        Candidate workflow:
+                      </Text>{" "}
+                      <Code>{generateResult.candidateWorkflowVersionId}</Code>
+                    </Text>
+                    <Text size="sm">
+                      Applied {generateResult.recommendationsSummary.applied}{" "}
+                      tools
+                      {generateResult.recommendationsSummary.rejected > 0 &&
+                        `, rejected ${generateResult.recommendationsSummary.rejected}`}
+                      :{" "}
+                      {generateResult.recommendationsSummary.toolIds.join(
+                        ", ",
+                      ) || "—"}
+                    </Text>
+                  </Group>
+                </>
+              )}
+              {generateResult.analysis && (
+                <Alert
+                  color="blue"
+                  title="AI analysis"
+                  data-testid="ocr-improvement-analysis"
+                >
+                  {generateResult.analysis}
+                </Alert>
+              )}
+              {generateResult.status === "no_recommendations" &&
+                generateResult.pipelineMessage && (
+                  <Alert
+                    color="yellow"
+                    title="Why no candidate was created"
+                    data-testid="ocr-improvement-pipeline-message"
+                  >
+                    {generateResult.pipelineMessage}
+                  </Alert>
+                )}
+              {generateResult.status === "no_recommendations" &&
+                generateResult.rejectionDetails &&
+                generateResult.rejectionDetails.length > 0 && (
+                  <Alert
+                    color="orange"
+                    title="Could not apply recommendations to this workflow graph"
+                    data-testid="ocr-improvement-rejection-details"
+                  >
+                    <Stack gap="xs">
+                      {generateResult.rejectionDetails.map((line, idx) => (
+                        <Text size="sm" key={idx}>
+                          {line}
+                        </Text>
+                      ))}
+                    </Stack>
+                  </Alert>
+                )}
+              {generateResult.status === "error" && generateResult.error && (
+                <Alert
+                  color="red"
+                  title="Error"
+                  data-testid="ocr-improvement-error"
+                >
+                  {generateResult.error}
+                </Alert>
+              )}
+            </Stack>
+          )}
+
+          {/* Pipeline debug log — only shown after pipeline has been run, fetched on demand */}
+          {generateResult && (
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconBug size={14} />}
+              onClick={() => setShowDebugLog((prev) => !prev)}
+              data-testid="toggle-debug-log-btn"
+            >
+              {showDebugLog ? "Hide debug log" : "View debug log"}
+            </Button>
+          )}
+
+          {showDebugLog && (
+            <Stack gap="xs">
+              {isLoadingDebugLog ? (
+                <Loader size="sm" />
+              ) : debugLogEntries.length === 0 ? (
+                <Text size="sm" c="dimmed" data-testid="no-debug-log-message">
+                  No debug log available. Run the pipeline to generate one.
+                </Text>
+              ) : (
+                <Accordion
+                  variant="separated"
+                  multiple
+                  data-testid="pipeline-debug-log-accordion"
+                >
+                  {debugLogEntries.map((entry, idx) => (
+                    <Accordion.Item
+                      key={`${entry.step}-${idx}`}
+                      value={`${entry.step}-${idx}`}
+                    >
+                      <Accordion.Control>
+                        <Group gap="sm">
+                          <Text size="sm" fw={500}>
+                            {stepLabel(entry.step)}
+                          </Text>
+                          {entry.durationMs != null && (
+                            <Badge size="xs" variant="light" color="gray">
+                              {entry.durationMs < 1000
+                                ? `${entry.durationMs}ms`
+                                : `${(entry.durationMs / 1000).toFixed(1)}s`}
+                            </Badge>
+                          )}
+                          <Text size="xs" c="dimmed">
+                            {new Date(entry.timestamp).toLocaleTimeString()}
+                          </Text>
+                        </Group>
+                      </Accordion.Control>
+                      <Accordion.Panel>
+                        {entry.step === "prompt_build" ? (
+                          <Stack gap="xs">
+                            <Accordion variant="contained" multiple>
+                              <Accordion.Item value="system">
+                                <Accordion.Control>
+                                  <Text size="sm" fw={500}>
+                                    System Message
+                                  </Text>
+                                </Accordion.Control>
+                                <Accordion.Panel>
+                                  <Code
+                                    block
+                                    style={{
+                                      fontSize: 12,
+                                      maxHeight: 400,
+                                      overflow: "auto",
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {typeof entry.data.systemMessage ===
+                                    "string"
+                                      ? entry.data.systemMessage
+                                      : JSON.stringify(
+                                          entry.data.systemMessage,
+                                          null,
+                                          2,
+                                        )}
+                                  </Code>
+                                </Accordion.Panel>
+                              </Accordion.Item>
+                              <Accordion.Item value="user">
+                                <Accordion.Control>
+                                  <Text size="sm" fw={500}>
+                                    User Message
+                                  </Text>
+                                </Accordion.Control>
+                                <Accordion.Panel>
+                                  <Code
+                                    block
+                                    style={{
+                                      fontSize: 12,
+                                      maxHeight: 400,
+                                      overflow: "auto",
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {typeof entry.data.userMessage === "string"
+                                      ? entry.data.userMessage
+                                      : JSON.stringify(
+                                          entry.data.userMessage,
+                                          null,
+                                          2,
+                                        )}
+                                  </Code>
+                                </Accordion.Panel>
+                              </Accordion.Item>
+                            </Accordion>
+                          </Stack>
+                        ) : (
+                          <Code
+                            block
+                            style={{
+                              fontSize: 12,
+                              maxHeight: 400,
+                              overflow: "auto",
+                              whiteSpace: "pre-wrap",
+                            }}
+                          >
+                            {JSON.stringify(
+                              entry.data,
+                              (_key, value) => {
+                                if (
+                                  typeof value === "string" &&
+                                  value.startsWith("{")
+                                ) {
+                                  try {
+                                    return JSON.parse(value);
+                                  } catch {
+                                    return value;
+                                  }
+                                }
+                                return value;
+                              },
+                              2,
+                            )}
+                          </Code>
+                        )}
+                      </Accordion.Panel>
+                    </Accordion.Item>
+                  ))}
+                </Accordion>
+              )}
+            </Stack>
+          )}
+
+          {definition.workflowConfigOverrides &&
+            Object.keys(definition.workflowConfigOverrides).length > 0 && (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Workflow Config Overrides
+                </Text>
+                <Code block style={{ fontSize: 13 }}>
+                  {JSON.stringify(definition.workflowConfigOverrides, null, 2)}
+                </Code>
+              </Stack>
+            )}
         </Stack>
       </Card>
 

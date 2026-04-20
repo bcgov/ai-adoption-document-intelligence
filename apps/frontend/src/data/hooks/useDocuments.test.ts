@@ -28,8 +28,8 @@ vi.mock("../services/api.service", () => ({
 const activeGroup = { id: "group-1", name: "Group One" };
 
 const mockDocuments = [
-  { id: "doc-1", title: "Document 1" },
-  { id: "doc-2", title: "Document 2" },
+  { id: "doc-1", title: "Document 1", source: "api" },
+  { id: "doc-2", title: "Document 2", source: "api" },
 ];
 
 /**
@@ -158,6 +158,37 @@ describe("useDocuments", () => {
 
       expect(result.current.data).toEqual([]);
       expect(result.current.isError).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Source filtering
+  // -------------------------------------------------------------------------
+  describe("Source filtering – excludes ground-truth-generation documents", () => {
+    it("filters out documents whose source is not 'api'", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      vi.mocked(apiService.get).mockResolvedValue({
+        success: true,
+        data: [
+          { id: "doc-1", title: "Regular", source: "api" },
+          { id: "doc-2", title: "GT", source: "ground-truth-generation" },
+          { id: "doc-3", title: "Regular 2", source: "api" },
+        ],
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useDocuments(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data).toEqual([
+        { id: "doc-1", title: "Regular", source: "api" },
+        { id: "doc-3", title: "Regular 2", source: "api" },
+      ]);
     });
   });
 

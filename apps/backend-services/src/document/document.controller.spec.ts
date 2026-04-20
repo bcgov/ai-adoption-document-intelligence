@@ -605,6 +605,20 @@ describe("DocumentController", () => {
       expect(documentService.deleteDocument).toHaveBeenCalledWith("1");
     });
 
+    it("should record a document_deleted audit event after a successful delete", async () => {
+      documentService.findDocument.mockResolvedValue(mockDocument as any);
+      documentService.deleteDocument.mockResolvedValue(true);
+      await controller.deleteDocument("1", mockReq as any);
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "document_deleted",
+          resource_type: "document",
+          resource_id: "1",
+          document_id: "1",
+        }),
+      );
+    });
+
     it("should throw NotFoundException if document not found", async () => {
       documentService.findDocument.mockResolvedValue(null);
       await expect(

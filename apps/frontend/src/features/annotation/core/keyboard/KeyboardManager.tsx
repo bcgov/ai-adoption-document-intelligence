@@ -1,5 +1,18 @@
-import { FC } from "react";
+import { FC, ReactNode } from "react";
+import {
+  ShortcutDefinition,
+  useKeyboardShortcuts,
+} from "./useKeyboardShortcuts";
 
-export const KeyboardManager: FC = () => {
-  return <div>KeyboardManager</div>;
+interface KeyboardManagerProps {
+  shortcuts: ShortcutDefinition[];
+  children: ReactNode;
+}
+
+export const KeyboardManager: FC<KeyboardManagerProps> = ({
+  shortcuts,
+  children,
+}) => {
+  useKeyboardShortcuts(shortcuts);
+  return <>{children}</>;
 };

@@ -6,7 +6,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import type { MetricThreshold } from "./promote-baseline.dto";
+import { MetricThreshold } from "./promote-baseline.dto";
 
 /**
  * Dataset version info embedded in definition response
@@ -26,14 +26,38 @@ export class DatasetVersionInfo {
  * Workflow info embedded in definition response
  */
 export class WorkflowInfo {
-  @ApiProperty({ description: "Workflow ID" })
+  @ApiProperty({
+    description: "Stable workflow lineage ID (WorkflowLineage.id)",
+  })
   id!: string;
 
-  @ApiProperty({ description: "Workflow name" })
+  @ApiProperty({
+    description: "Pinned graph config version (WorkflowVersion.id)",
+  })
+  workflowVersionId!: string;
+
+  @ApiProperty({ description: "Workflow name (from lineage)" })
   name!: string;
 
-  @ApiProperty({ description: "Workflow version" })
+  @ApiProperty({ description: "Immutable config revision number" })
   version!: number;
+
+  /**
+   * Workflow lineage kind ("primary" or "benchmark_candidate")
+   */
+  @ApiPropertyOptional({
+    description: 'Workflow lineage kind ("primary" or "benchmark_candidate")',
+  })
+  workflowKind?: string;
+
+  /**
+   * Source workflow lineage ID (set when workflowKind is "benchmark_candidate")
+   */
+  @ApiPropertyOptional({
+    description: "Source workflow lineage ID for candidate workflows",
+    nullable: true,
+  })
+  sourceWorkflowId?: string | null;
 }
 
 /**
@@ -90,6 +114,7 @@ export class BaselineRunSummary {
 
   @ApiProperty({
     description: "Baseline thresholds for regression detection",
+    type: () => MetricThreshold,
     isArray: true,
   })
   baselineThresholds!: MetricThreshold[];
@@ -172,6 +197,12 @@ export class DefinitionDetailsDto {
   })
   workflowConfigHash!: string;
 
+  @ApiPropertyOptional({
+    description:
+      "Per-definition overrides for exposed workflow config parameters",
+  })
+  workflowConfigOverrides?: Record<string, unknown>;
+
   @ApiProperty({ description: "Evaluator type" })
   evaluatorType!: string;
 
@@ -200,7 +231,9 @@ export class DefinitionDetailsDto {
   @ApiProperty({ description: "Whether scheduling is enabled" })
   scheduleEnabled!: boolean;
 
-  @ApiPropertyOptional({ description: "Cron expression for scheduled runs" })
+  @ApiPropertyOptional({
+    description: "Cron expression for scheduled runs",
+  })
   scheduleCron?: string;
 
   @ApiPropertyOptional({ description: "Temporal schedule ID" })

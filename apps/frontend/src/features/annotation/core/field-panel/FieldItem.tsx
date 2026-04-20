@@ -1,4 +1,5 @@
-import { Badge, Card, Group, Stack, Text } from "@mantine/core";
+import { ActionIcon, Badge, Card, Group, Stack, Text } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import { FC } from "react";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import type { FieldDefinition } from "../types/field";
@@ -11,6 +12,7 @@ interface FieldItemProps {
   isActive?: boolean;
   onSelect?: () => void;
   onValueChange?: (value: string) => void;
+  onClear?: () => void;
   readOnly?: boolean;
 }
 
@@ -28,6 +30,7 @@ export const FieldItem: FC<FieldItemProps> = ({
   isActive,
   onSelect,
   onValueChange,
+  onClear,
   readOnly,
 }) => {
   // Generate deterministic color based on field key
@@ -47,18 +50,34 @@ export const FieldItem: FC<FieldItemProps> = ({
     >
       <Stack gap="xs">
         <Group justify="space-between" gap="xs">
-          <Text fw={600} size="sm">
+          <Text fw={600} size="sm" style={{ flex: 1, minWidth: 0 }}>
             {field.fieldKey}
           </Text>
-          {confidence !== undefined && (
-            <Badge
-              size="xs"
-              color={getConfidenceColor(confidence)}
-              variant="light"
-            >
-              {Math.round(confidence * 100)}%
-            </Badge>
-          )}
+          <Group gap={4} wrap="nowrap">
+            {confidence !== undefined && (
+              <Badge
+                size="xs"
+                color={getConfidenceColor(confidence)}
+                variant="light"
+              >
+                {Math.round(confidence * 100)}%
+              </Badge>
+            )}
+            {value && onClear && (
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                color="gray"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClear();
+                }}
+                title="Clear field value"
+              >
+                <IconX size={12} />
+              </ActionIcon>
+            )}
+          </Group>
         </Group>
 
         <FieldEditor

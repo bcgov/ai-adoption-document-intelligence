@@ -395,8 +395,8 @@ export class HitlDatasetService {
     await this.blobStorage.write(inputBlobKey, normalizedPdfBuffer);
 
     // Build ground truth as flat key-value pairs (same format as uploaded
-    // ground truth and as predictions produced by extractPredictionFromCtx
-    // in the benchmark workflow).
+    // ground truth and as predictions produced by buildFlatPredictionMapFromCtx
+    // in the Temporal benchmark workflow).
     const groundTruth = this.buildGroundTruth(
       ocrFields,
       approvedSession.corrections,
@@ -434,7 +434,7 @@ export class HitlDatasetService {
   /**
    * Build ground truth as flat key-value pairs by applying corrections to OCR
    * fields. Output matches the format of manually uploaded ground truth and
-   * predictions produced by extractPredictionFromCtx in benchmark-workflow.ts.
+   * predictions produced by buildFlatPredictionMapFromCtx (benchmark-workflow.ts).
    */
   buildGroundTruth(
     ocrFields: ExtractedFields,
@@ -456,7 +456,7 @@ export class HitlDatasetService {
           if (fields[correction.field_key]) {
             const field = fields[correction.field_key];
             field.content = correction.corrected_value ?? null;
-            // Clear all typed values so extractFieldValue resolves to content
+            // Clear all typed values so flattening resolves to content
             delete field.valueString;
             delete field.valueNumber;
             delete field.valueDate;
@@ -482,7 +482,7 @@ export class HitlDatasetService {
     }
 
     // Flatten to simple key-value pairs using the same resolution logic as
-    // extractFieldValue in apps/temporal/src/benchmark-workflow.ts
+    // extractAzureFieldDisplayValue (apps/temporal/src/azure-ocr-field-display-value.ts)
     const groundTruth: Record<string, unknown> = {};
     for (const [key, field] of Object.entries(fields)) {
       groundTruth[key] = extractFieldValue(field);
@@ -495,7 +495,7 @@ export class HitlDatasetService {
 /**
  * Extract the display value from a DocumentField.
  *
- * Mirrors extractFieldValue in apps/temporal/src/benchmark-workflow.ts so that
+ * Mirrors extractAzureFieldDisplayValue (temporal azure-ocr-field-display-value.ts) so that
  * HITL-generated ground truth uses the same field resolution as predictions.
  */
 function extractFieldValue(field: DocumentField): unknown {

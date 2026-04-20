@@ -183,6 +183,7 @@ export class TemplateModelService {
       field_key: dto.field_key,
       field_type: dto.field_type as unknown as FieldType,
       field_format: dto.field_format,
+      format_spec: dto.format_spec,
       display_order: dto.display_order,
     });
   }
@@ -197,6 +198,7 @@ export class TemplateModelService {
     );
     const field = await this.templateModelDb.updateFieldDefinition(fieldId, {
       field_format: dto.field_format,
+      format_spec: dto.format_spec,
       display_order: dto.display_order,
     });
     if (!field) {

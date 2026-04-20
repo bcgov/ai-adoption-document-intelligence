@@ -121,10 +121,11 @@ export function ProjectDetailPage() {
       name: definition.name,
       datasetVersionId: definition.datasetVersion.id,
       splitId: definition.split?.id,
-      workflowId: definition.workflow.id,
+      workflowVersionId: definition.workflow.workflowVersionId,
       evaluatorType: definition.evaluatorType,
       evaluatorConfig: definition.evaluatorConfig,
       runtimeSettings: definition.runtimeSettings,
+      workflowConfigOverrides: definition.workflowConfigOverrides,
     });
     setDetailDialogOpened(false);
     setEditDialogOpened(true);

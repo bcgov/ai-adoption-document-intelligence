@@ -16,6 +16,7 @@ import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { DocumentService } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -45,6 +46,7 @@ export class OcrService {
   async requestOcr(
     documentId: string,
     ctxOverrides?: Record<string, unknown>,
+    graphOverride?: GraphWorkflowConfig,
   ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
@@ -104,6 +106,7 @@ export class OcrService {
           documentId,
           workflowConfigId,
           initialCtx,
+          graphOverride,
         );
 
       // Update document with workflow configuration ID and Temporal workflow execution ID

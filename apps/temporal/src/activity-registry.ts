@@ -13,6 +13,8 @@ import {
   benchmarkCleanup,
   benchmarkCompareAgainstBaseline,
   benchmarkEvaluate,
+  benchmarkLoadOcrCache,
+  benchmarkPersistOcrCache,
   benchmarkUpdateRunStatus,
   benchmarkWritePrediction,
   checkOcrConfidence,
@@ -33,6 +35,9 @@ import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
 import { executeTransformNode } from "./activities/data-transform/execute";
 import { validateDocumentFields } from "./activities/document-validate-fields";
+import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
+import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
+import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
 import type { RetryPolicy } from "./graph-workflow-types";
@@ -199,6 +204,37 @@ register({
   description: "Combine segment metadata with OCR result for join collection",
 });
 
+// -- OCR correction activities (Feature 008) --------------------------------
+
+register({
+  activityType: "ocr.spellcheck",
+  activityFn: spellcheckOcrResult as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "3m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Spellcheck correction on full OCR result using local dictionary",
+});
+
+register({
+  activityType: "ocr.characterConfusion",
+  activityFn: characterConfusionCorrection as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Character confusion (O→0, l→1, …); optional documentType for schema-aware rules; enabledRules/disabledRules or confusionMapOverride",
+});
+
+register({
+  activityType: "ocr.normalizeFields",
+  activityFn: normalizeOcrFields as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Field normalization (whitespace, digit grouping, dates); optional documentType for schema-aware rules",
+});
+
 // -- Benchmark activities ---------------------------------------------------
 
 register({
@@ -269,6 +305,24 @@ register({
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Load dataset manifest from materialized data",
+});
+
+register({
+  activityType: "benchmark.loadOcrCache",
+  activityFn: benchmarkLoadOcrCache as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Load cached Azure OCR poll JSON for a benchmark sample",
+});
+
+register({
+  activityType: "benchmark.persistOcrCache",
+  activityFn: benchmarkPersistOcrCache as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Persist Azure OCR poll JSON for a benchmark sample",
 });
 
 // -- Data transform activities ----------------------------------------------

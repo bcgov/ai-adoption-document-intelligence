@@ -192,6 +192,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     documentId: string,
     workflowConfigId: string,
     initialCtx: Record<string, unknown>,
+    graphOverride?: GraphWorkflowConfig,
   ): Promise<string> {
     this.ensureClientInitialized();
 
@@ -202,14 +203,15 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         `[Temporal] Looking up graph workflow configuration: ${workflowConfigId}`,
       );
       const workflowConfig =
-        await this.workflowService.getWorkflowById(workflowConfigId);
+        await this.workflowService.getWorkflowVersionById(workflowConfigId);
       if (!workflowConfig) {
         throw new Error(
           `Workflow configuration not found: ${workflowConfigId}`,
         );
       }
 
-      const graph = workflowConfig.config as GraphWorkflowConfig;
+      const graph = (graphOverride ??
+        workflowConfig.config) as GraphWorkflowConfig;
       const configHash = computeConfigHash(graph);
       const runnerVersion = "1.0.0";
 

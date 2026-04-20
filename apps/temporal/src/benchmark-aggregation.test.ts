@@ -350,6 +350,71 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       );
     });
 
+    it("excludes null-like values from error counts", () => {
+      const results: EvaluationResult[] = [
+        {
+          sampleId: "sample-001",
+          metrics: { f1: 1.0 },
+          diagnostics: {
+            comparisonResults: [
+              // Both null-like: matched, should not count as error
+              {
+                field: "spouse_date",
+                matched: true,
+                predicted: null,
+                expected: null,
+              },
+              // Real value matched
+              {
+                field: "name",
+                matched: true,
+                predicted: "John",
+                expected: "John",
+              },
+            ],
+          },
+          pass: true,
+        },
+        {
+          sampleId: "sample-002",
+          metrics: { f1: 0.5 },
+          diagnostics: {
+            comparisonResults: [
+              // Null expected with null predicted: matched, not an error
+              {
+                field: "spouse_date",
+                matched: true,
+                predicted: undefined,
+                expected: null,
+              },
+              // Real field mismatched
+              {
+                field: "name",
+                matched: false,
+                predicted: "Jane",
+                expected: "Jon",
+              },
+            ],
+          },
+          pass: false,
+        },
+      ];
+
+      const perFieldErrors = computePerFieldErrors(results);
+
+      // spouse_date: both samples have null-like expected, so totalOccurrences = 0
+      const spouseField = perFieldErrors.find((f) => f.field === "spouse_date");
+      expect(spouseField).toBeUndefined(); // no real occurrences → not in output
+
+      // name: 2 occurrences, 1 matched, 1 mismatched
+      const nameField = perFieldErrors.find((f) => f.field === "name");
+      expect(nameField).toBeDefined();
+      expect(nameField!.totalOccurrences).toBe(2);
+      expect(nameField!.matchCount).toBe(1);
+      expect(nameField!.mismatchCount).toBe(1);
+      expect(nameField!.errorRate).toBe(0.5);
+    });
+
     it("returns empty array for non-schema-aware results", () => {
       const results: EvaluationResult[] = [
         {

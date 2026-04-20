@@ -64,6 +64,13 @@ export interface EvaluationInput {
    * Evaluator-specific configuration
    */
   evaluatorConfig: Record<string, unknown>;
+
+  /**
+   * Optional per-field confidence map keyed by field name.
+   * Carried in-memory from the workflow alongside the prediction; not loaded from disk.
+   * `null` indicates Azure DI did not return a confidence score for that field.
+   */
+  predictionConfidences?: Record<string, number | null>;
 }
 
 /**
