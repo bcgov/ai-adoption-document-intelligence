@@ -14,7 +14,7 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   getBlobStorageClient: jest.fn(),
 }));
 
-jest.mock("fs/promises", () => ({
+jest.mock("node:fs/promises", () => ({
   access: jest.fn(),
   mkdir: jest.fn(),
   rm: jest.fn(),

@@ -3,11 +3,11 @@ import * as fs from "node:fs/promises";
 import type { SplitDocumentInput } from "./split-document";
 import { splitDocument } from "./split-document";
 
-jest.mock("child_process", () => ({
+jest.mock("node:child_process", () => ({
   execFile: jest.fn(),
 }));
 
-jest.mock("fs/promises", () => ({
+jest.mock("node:fs/promises", () => ({
   access: jest.fn(),
   mkdir: jest.fn(),
   mkdtemp: jest.fn(),
