@@ -47,7 +47,7 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
         name: model.name,
         group_id: model.group_id,
       });
-      if (response && response.content) {
+      if (response?.content) {
         setOperationLocation(response.content);
         setPolling(true);
       } else {
