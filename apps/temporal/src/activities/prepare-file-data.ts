@@ -74,7 +74,7 @@ export async function prepareFileData(
 
   // Check for image files first by extension
   if (
-    (contentType && contentType.includes("image")) ||
+    contentType?.includes("image") ||
     lowerFileName.match(/\.(jpg|jpeg|png|gif|bmp|tiff|webp)$/i)
   ) {
     fileType = "image";
@@ -89,10 +89,7 @@ export async function prepareFileData(
         contentType = "image/jpeg";
       }
     }
-  } else if (
-    (contentType && contentType.includes("pdf")) ||
-    lowerFileName.endsWith(".pdf")
-  ) {
+  } else if (contentType?.includes("pdf") || lowerFileName.endsWith(".pdf")) {
     fileType = "pdf";
     contentType = "application/pdf";
   } else {

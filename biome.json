@@ -99,7 +99,8 @@
         "useIterableCallbackReturn": "error",
         "noDoubleEquals": "error",
         "noImplicitAnyLet":"error",
-        "noGlobalIsNan": "error"
+        "noGlobalIsNan": "error",
+        "noTsIgnore": "error"
       },
       "a11y": "off"
     }

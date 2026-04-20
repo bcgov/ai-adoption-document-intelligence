@@ -303,7 +303,7 @@ export function computeAggregatedMetrics(
   for (const metricName of metricNames) {
     const values = results
       .map((r) => r.metrics[metricName])
-      .filter((v) => v !== undefined && !isNaN(v));
+      .filter((v) => v !== undefined && !Number.isNaN(v));
 
     if (values.length > 0) {
       metrics[metricName] = computeStatistics(metricName, values);
