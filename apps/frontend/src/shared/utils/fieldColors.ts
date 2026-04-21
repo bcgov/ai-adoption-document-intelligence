@@ -52,7 +52,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
  */
 function srgbToLinear(c: number): number {
   const v = c / 255;
-  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
 }
 
 /**

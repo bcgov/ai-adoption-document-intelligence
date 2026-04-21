@@ -1,5 +1,6 @@
 import axios, {
   AxiosError,
+  AxiosHeaderValue,
   AxiosInstance,
   AxiosResponse,
   InternalAxiosRequestConfig,
@@ -107,13 +108,13 @@ class ApiService {
     _config?: Record<string, unknown>,
   ): Promise<ApiResponse<T>> {
     try {
-      let headers = undefined;
+      let headers: Record<string, AxiosHeaderValue | undefined> | undefined;
       const payload = data;
       // If data is FormData, remove Content-Type so browser/axios sets it correctly
       if (typeof FormData !== "undefined" && data instanceof FormData) {
         headers = { ...this.axiosInstance.defaults.headers.common };
         // Remove Content-Type so axios/browser sets it with boundary
-        if (headers["Content-Type"]) delete headers["Content-Type"];
+        if (headers?.["Content-Type"]) delete headers["Content-Type"];
       }
       const response: AxiosResponse<T> = await this.axiosInstance({
         method,

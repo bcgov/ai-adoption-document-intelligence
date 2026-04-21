@@ -8,7 +8,7 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 5.2
  */
 
-import * as fs from "fs/promises";
+import * as fs from "node:fs/promises";
 import {
   BenchmarkEvaluator,
   EvaluationInput,
@@ -367,8 +367,8 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     if (
       predictedNum === null ||
       expectedNum === null ||
-      isNaN(predictedNum) ||
-      isNaN(expectedNum)
+      Number.isNaN(predictedNum) ||
+      Number.isNaN(expectedNum)
     ) {
       // Fall back to exact match if not numeric
       return this.exactMatch(field, predicted, expected);
@@ -407,7 +407,7 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     const cleaned = value.replace(/,/g, "").replace(/\s/g, "");
     if (cleaned === "") return null;
     const num = parseFloat(cleaned);
-    return isNaN(num) ? null : num;
+    return Number.isNaN(num) ? null : num;
   }
 
   /**

@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   DocumentStatus,
@@ -11,7 +12,6 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import * as path from "path";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,

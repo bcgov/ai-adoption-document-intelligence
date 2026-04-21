@@ -134,7 +134,9 @@ export const UploadClassifierFilesModal = ({
               } else {
                 // Convert File[] to FileList using DataTransfer
                 const dt = new DataTransfer();
-                files.forEach((file) => dt.items.add(file));
+                files.forEach((file) => {
+                  dt.items.add(file);
+                });
                 form.setFieldValue("files", dt.files);
               }
             }}

@@ -253,7 +253,7 @@ export function TrendChart({
     active?: boolean;
     payload?: Array<{ name: string; value: number; color: string }>;
   }) => {
-    if (active && payload && payload.length) {
+    if (active && payload?.length) {
       return (
         <Card
           data-testid="chart-tooltip"

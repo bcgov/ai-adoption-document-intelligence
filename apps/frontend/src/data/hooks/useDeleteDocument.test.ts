@@ -50,7 +50,7 @@ describe("useDeleteDocument", () => {
   it("calls DELETE /documents/:id and invalidates the documents query on success", async () => {
     vi.mocked(apiService.delete).mockResolvedValue({
       success: true,
-      data: undefined as unknown as void,
+      data: undefined as unknown as undefined,
       message: undefined,
     });
 
@@ -80,7 +80,7 @@ describe("useDeleteDocument", () => {
   it("propagates the backend error message when delete fails", async () => {
     vi.mocked(apiService.delete).mockResolvedValue({
       success: false,
-      data: null as unknown as void,
+      data: null as unknown as undefined,
       message:
         "Document is currently being processed; try again once OCR completes",
     });
@@ -103,7 +103,7 @@ describe("useDeleteDocument", () => {
     mockUseGroup.mockReturnValue({ activeGroup: null });
     vi.mocked(apiService.delete).mockResolvedValue({
       success: true,
-      data: undefined as unknown as void,
+      data: undefined as unknown as undefined,
       message: undefined,
     });
 

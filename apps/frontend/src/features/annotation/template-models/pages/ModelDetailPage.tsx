@@ -195,7 +195,9 @@ export const ModelDetailPage: FC = () => {
 
   useEffect(
     () => () => {
-      queue.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      queue.forEach((item) => {
+        URL.revokeObjectURL(item.previewUrl);
+      });
     },
     [queue],
   );

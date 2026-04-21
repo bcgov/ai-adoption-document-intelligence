@@ -47,5 +47,11 @@
 		"fast-xml-parser": "5.5.9",
 		"multer": "2.1.1",
 		"serialize-javascript": "7.0.5"
+	},
+	"optionalDependencies": {
+		"@biomejs/cli-darwin-arm64": "2.4.12",
+		"@esbuild/darwin-arm64": "0.25.12",
+		"@rollup/rollup-darwin-arm64": "4.60.0",
+		"@swc/core-darwin-arm64": "1.15.26"
 	}
 }
