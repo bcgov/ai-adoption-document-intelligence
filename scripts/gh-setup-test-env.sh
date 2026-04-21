@@ -58,11 +58,9 @@ fi
 # ---------- create environment ----------
 
 log_info "Ensuring GitHub environment '${ENV_NAME}' exists in ${REPO}..."
-gh api --silent -X PUT "/repos/${REPO}/environments/${ENV_NAME}" \
-  -f "wait_timer=0" \
-  -F "reviewers=[]" \
-  -f "deployment_branch_policy=null" \
-  >/dev/null
+# PUT with no body creates the environment with defaults (no protection rules,
+# no reviewers, no deployment branch policy) — which is what we want for test.
+gh api --silent -X PUT "/repos/${REPO}/environments/${ENV_NAME}" >/dev/null
 log_ok "Environment '${ENV_NAME}' ready."
 
 # ---------- bulk-load from dev.env ----------
