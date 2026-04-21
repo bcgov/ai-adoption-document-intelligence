@@ -65,6 +65,4 @@ class MockDataTransfer {
  * highlighted item into view. jsdom does not implement it, so we provide a
  * no-op stub to prevent unhandled TypeError exceptions during tests.
  */
-Element.prototype.scrollIntoView = function () {
-  return undefined;
-};
+Element.prototype.scrollIntoView = () => undefined;
