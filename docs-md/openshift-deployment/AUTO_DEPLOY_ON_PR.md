@@ -8,7 +8,7 @@ This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag p
 
 ## What happens on a PR
 
-1. **Trigger**: `pull_request` events with action `opened`, `synchronize`, `reopened`, or `ready_for_review` on PRs targeting `develop`. Drafts and PRs from forks are skipped.
+1. **Trigger**: `pull_request` events with action `opened`, `synchronize`, `reopened`, or `ready_for_review` on PRs targeting `develop`. Drafts deploy too (so you can iterate without marking ready-for-review). PRs from forks are skipped.
 2. **Metadata job** fixes the deployment target:
    - Instance: `bcgov-di-test`
    - Namespace: `fd34fb-test`
