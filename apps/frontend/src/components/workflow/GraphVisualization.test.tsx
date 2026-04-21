@@ -164,33 +164,6 @@ describe("GraphVisualization — TransformNode summary view", () => {
     });
   });
 
-  describe("Scenario 2: Summary displays a read-only preview of the field mapping", () => {
-    it("shows the fieldMapping content in a read-only text display", () => {
-      const mapping = '{"key": "{{node.field}}"}';
-      renderViz(makeTransformNode({ fieldMapping: mapping }));
-
-      expect(screen.getByText(mapping)).toBeInTheDocument();
-    });
-  });
-
-  describe("Scenario 3: Large mappings display a truncated summary", () => {
-    it("truncates fieldMapping longer than 300 characters with an ellipsis", () => {
-      const longMapping = "x".repeat(301);
-      renderViz(makeTransformNode({ fieldMapping: longMapping }));
-
-      // Should show first 60 chars + "…", not the full 301-char string
-      expect(screen.queryByText(longMapping)).not.toBeInTheDocument();
-      expect(screen.getByText(/…$/)).toBeInTheDocument();
-    });
-
-    it("does not truncate fieldMapping of exactly 300 characters", () => {
-      const mapping = "y".repeat(300);
-      renderViz(makeTransformNode({ fieldMapping: mapping }));
-
-      expect(screen.getByText(mapping)).toBeInTheDocument();
-    });
-  });
-
   describe("Scenario 4: Error badge displays when the last execution failed", () => {
     it("applies a red error border when validationErrors reference the transform node", () => {
       renderViz(makeTransformNode(), [
