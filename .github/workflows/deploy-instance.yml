@@ -1,12 +1,9 @@
-name: Deploy Feature Branch Instance
+name: Deploy Instance
 
-# To re-enable this workflow, replace the 'on' trigger below with:
-#   on:
-#     push:
-#       branches-ignore:
-#         - main
-#         - develop
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [develop]
   workflow_dispatch: {}
 
 env:
@@ -16,43 +13,64 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && 'pr-to-develop' || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   metadata:
     name: Prepare Metadata
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     outputs:
       instance-name: ${{ steps.meta.outputs.instance }}
       image-tag: ${{ steps.meta.outputs.image-tag }}
+      environment: ${{ steps.meta.outputs.environment }}
+      checkout-ref: ${{ steps.meta.outputs.checkout-ref }}
     steps:
-      - name: Compute instance name and image tag
+      - name: Compute instance, image tag, environment
         id: meta
         run: |
-          RAW_BRANCH="${{ github.ref_name }}"
+          set -euo pipefail
 
-          # Image tag: sanitize for OCI tag (128 chars, same as build-instance-images.yml)
-          IMAGE_TAG=$(echo "$RAW_BRANCH" \
-            | tr '[:upper:]' '[:lower:]' \
-            | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//' \
-            | cut -c1-128)
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # PR-to-develop → shared test instance, single floating tag
+            INSTANCE="bcgov-di-test"
+            IMAGE_TAG="bcgov-di-test"
+            ENV="test"
+            CHECKOUT_REF="${{ github.event.pull_request.head.sha }}"
+          else
+            # workflow_dispatch: derive from branch, deploy to dev
+            RAW_BRANCH="${{ github.ref_name }}"
+            IMAGE_TAG=$(echo "$RAW_BRANCH" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//' \
+              | cut -c1-128)
+            INSTANCE=$(echo "$RAW_BRANCH" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed 's/[^a-z0-9-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' \
+              | cut -c1-20 \
+              | sed 's/-$//')
+            ENV="dev"
+            CHECKOUT_REF="${{ github.sha }}"
+          fi
 
-          # Instance name: sanitize for Kubernetes (20 chars, same as instance-name.sh)
-          INSTANCE=$(echo "$RAW_BRANCH" \
-            | tr '[:upper:]' '[:lower:]' \
-            | sed 's/[^a-z0-9-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' \
-            | cut -c1-20 \
-            | sed 's/-$//')
-
-          echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "instance=$INSTANCE" >> "$GITHUB_OUTPUT"
-          echo "Branch: $RAW_BRANCH"
-          echo "Image tag: $IMAGE_TAG"
-          echo "Instance name: $INSTANCE"
+          echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "environment=$ENV" >> "$GITHUB_OUTPUT"
+          echo "checkout-ref=$CHECKOUT_REF" >> "$GITHUB_OUTPUT"
+
+          echo "Event:        ${{ github.event_name }}"
+          echo "Instance:     $INSTANCE"
+          echo "Image tag:    $IMAGE_TAG"
+          echo "Environment:  $ENV"
+          echo "Checkout ref: $CHECKOUT_REF"
 
   build:
     name: Build ${{ matrix.service }}
     needs: [metadata]
     runs-on: ubuntu-latest
-    environment: dev
+    environment: ${{ needs.metadata.outputs.environment }}
     strategy:
       fail-fast: false
       matrix:
@@ -70,7 +88,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -112,18 +130,18 @@ jobs:
         if: always()
         run: |
           rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
 
   deploy:
     name: Deploy to OpenShift
     needs: [metadata, build]
     runs-on: ubuntu-latest
-    environment: dev
+    environment: ${{ needs.metadata.outputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
 
       - name: Install oc CLI
         uses: redhat-actions/openshift-tools-installer@v1
@@ -226,7 +244,6 @@ jobs:
           kustomize build "$OVERLAY_DIR" | oc apply -f - -n "$OC_NAMESPACE"
           echo "::endgroup::"
 
-          # Clean up overlay
           rm -rf "$(echo "$OVERLAY_DIR" | sed 's|/overlays/instance$||')"
 
           echo "frontend_url=$FRONTEND_URL" >> "$GITHUB_ENV"
@@ -321,19 +338,30 @@ jobs:
             DEPLOY="${INSTANCE_NAME}-${svc}"
             if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
               echo "Waiting for $DEPLOY..."
-              oc rollout status "deployment/$DEPLOY" -n "$OC_NAMESPACE" --timeout=180s || \
+              oc rollout status "deployment/$DEPLOY" -n "$OC_NAMESPACE" --timeout=300s || \
                 echo "::warning::Rollout timed out for $DEPLOY"
             fi
           done
 
-      - name: Comment on PR with deployment URLs
+      - name: Artifactory cleanup (reclaim storage)
         if: success()
+        continue-on-error: true
+        env:
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+        run: |
+          ./scripts/artifactory-cleanup.sh --delete
+
+      - name: Comment on PR with deployment URLs
+        if: ${{ success() && github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
         with:
           script: |
             const instance = '${{ needs.metadata.outputs.instance-name }}';
             const frontendUrl = process.env.frontend_url;
             const backendUrl = process.env.backend_url;
+            const prNumber = context.issue.number;
 
             const body = [
               `### Deployment Successful`,
@@ -346,34 +374,16 @@ jobs:
               `**Instance:** \`${instance}\``,
               `**Namespace:** \`${{ secrets.OPENSHIFT_NAMESPACE }}\``,
               `**Image tag:** \`${{ needs.metadata.outputs.image-tag }}\``,
-              ``,
-              `To tear down: \`./scripts/oc-teardown.sh --instance ${instance}\``,
+              `**Commit:** \`${{ needs.metadata.outputs.checkout-ref }}\``,
             ].join('\n');
 
-            // Find open PR for this branch
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:${context.ref.replace('refs/heads/', '')}`,
-              state: 'open',
-            });
-
-            if (prs.length === 0) {
-              console.log('No open PR found for this branch, skipping comment.');
-              return;
-            }
-
-            const prNumber = prs[0].number;
-
-            // Find and update existing deploy comment, or create new one
+            const marker = '### Deployment Successful';
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
             });
-
-            const marker = '### Deployment Successful';
-            const existing = comments.find(c => c.body.startsWith(marker));
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
 
             if (existing) {
               await github.rest.issues.updateComment({

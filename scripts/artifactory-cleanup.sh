@@ -30,14 +30,18 @@ log_ok()    { echo -e "\033[0;32m[OK]\033[0m    $*"; }
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") --env <dev|prod> [--delete]
+Usage: $(basename "$0") [--env <dev|prod>] [--delete]
 
 Remove unused SHA-tagged image manifests from Artifactory.
 
 By default runs in dry-run mode (shows what would be deleted without deleting).
 
+Credentials are taken from these environment variables when set:
+  ARTIFACTORY_URL, ARTIFACTORY_SA_USERNAME, ARTIFACTORY_SA_PASSWORD
+Otherwise loaded from the --env config file (e.g., dev.env).
+
 Options:
-  --env, -e    Environment profile (required, for Artifactory credentials)
+  --env, -e    Environment profile (optional if env vars are set)
   --delete     Actually delete the manifests (default: dry run)
   --help, -h   Show this help message
 EOF
@@ -57,19 +61,27 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${ENV_PROFILE}" ]]; then
-  log_error "--env is required (dev or prod)"
-  usage
-  exit 1
+# ---------- load credentials ----------
+# Prefer env vars (set by CI); fall back to config file for local usage.
+
+if [[ -z "${ARTIFACTORY_URL:-}" || -z "${ARTIFACTORY_SA_USERNAME:-}" || -z "${ARTIFACTORY_SA_PASSWORD:-}" ]]; then
+  if [[ -z "${ENV_PROFILE}" ]]; then
+    log_error "Artifactory credentials not set in env and --env not provided."
+    usage
+    exit 1
+  fi
+
+  load_config --env "${ENV_PROFILE}" || { log_error "Failed to load config."; exit 1; }
+
+  ARTIFACTORY_URL="${ARTIFACTORY_URL:-$(get_config "ARTIFACTORY_URL" 2>/dev/null || true)}"
+  ARTIFACTORY_SA_USERNAME="${ARTIFACTORY_SA_USERNAME:-$(get_config "ARTIFACTORY_SA_USERNAME" 2>/dev/null || true)}"
+  ARTIFACTORY_SA_PASSWORD="${ARTIFACTORY_SA_PASSWORD:-$(get_config "ARTIFACTORY_SA_PASSWORD" 2>/dev/null || true)}"
 fi
 
-# ---------- load credentials ----------
-
-load_config --env "${ENV_PROFILE}" || { log_error "Failed to load config."; exit 1; }
-
-ARTIFACTORY_URL=$(get_config "ARTIFACTORY_URL") || { log_error "ARTIFACTORY_URL not found in config."; exit 1; }
-ARTIFACTORY_SA_USERNAME=$(get_config "ARTIFACTORY_SA_USERNAME") || { log_error "ARTIFACTORY_SA_USERNAME not found in config."; exit 1; }
-ARTIFACTORY_SA_PASSWORD=$(get_config "ARTIFACTORY_SA_PASSWORD") || { log_error "ARTIFACTORY_SA_PASSWORD not found in config."; exit 1; }
+if [[ -z "${ARTIFACTORY_URL}" || -z "${ARTIFACTORY_SA_USERNAME}" || -z "${ARTIFACTORY_SA_PASSWORD}" ]]; then
+  log_error "Artifactory credentials could not be resolved from env or config."
+  exit 1
+fi
 
 AUTH="${ARTIFACTORY_SA_USERNAME}:${ARTIFACTORY_SA_PASSWORD}"
 BASE_URL="https://${ARTIFACTORY_URL}/artifactory"
