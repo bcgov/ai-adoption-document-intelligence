@@ -9,7 +9,7 @@ The `Deploy Instance` workflow automatically builds images and deploys them to t
 | `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` (floating) |
 | `main` | `bcgov-di` | `fd34fb-prod` | `prod` | `bcgov-di` (floating) + `bcgov-di-<sha12>` (immutable, for rollback) |
 
-This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag pushes via `build-apps.yml`) for test and production deployments.
+This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag pushes via the now-retired `build-apps.yml`) for test and production deployments.
 
 ## What happens on a push
 
