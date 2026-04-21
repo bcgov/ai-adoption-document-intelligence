@@ -188,3 +188,60 @@ describe("renderCsv - iteration support", () => {
     expect(() => renderCsv(mapping)).toThrow("Failed to render CSV output:");
   });
 });
+
+describe("renderCsv - mixed mapping validation", () => {
+  it("throws CsvRenderError when an iteration block is mixed with a single flat key", () => {
+    const mapping: Record<string, unknown> = {
+      reportName: "Daily",
+      rows: new IterationResult([{ sku: "A1", qty: "10" }]),
+    };
+
+    expect(() => renderCsv(mapping)).toThrow(CsvRenderError);
+    expect(() => renderCsv(mapping)).toThrow('"reportName"');
+  });
+
+  it("throws CsvRenderError listing all dropped keys when multiple flat keys are mixed with an iteration", () => {
+    const mapping: Record<string, unknown> = {
+      reportName: "Daily",
+      generatedAt: "2026-01-01",
+      rows: new IterationResult([{ sku: "A1", qty: "10" }]),
+    };
+
+    const run = () => renderCsv(mapping);
+    expect(run).toThrow(CsvRenderError);
+    expect(run).toThrow('"reportName"');
+    expect(run).toThrow('"generatedAt"');
+  });
+
+  it("throws CsvRenderError when the mapping contains multiple iteration blocks", () => {
+    const mapping: Record<string, unknown> = {
+      orders: new IterationResult([{ id: "1" }]),
+      returns: new IterationResult([{ id: "2" }]),
+    };
+
+    expect(() => renderCsv(mapping)).toThrow(CsvRenderError);
+    expect(() => renderCsv(mapping)).toThrow('"orders"');
+    expect(() => renderCsv(mapping)).toThrow('"returns"');
+  });
+
+  it("still succeeds with only an iteration block and no flat keys", () => {
+    const mapping = {
+      rows: new IterationResult([
+        { name: "Alice", score: "95" },
+        { name: "Bob", score: "88" },
+      ]),
+    };
+
+    expect(() => renderCsv(mapping)).not.toThrow();
+    const result = renderCsv(mapping);
+    expect(result).toContain("name,score");
+  });
+
+  it("still succeeds with only flat keys and no iteration", () => {
+    const mapping = { name: "Alice", score: "95" };
+
+    expect(() => renderCsv(mapping)).not.toThrow();
+    const result = renderCsv(mapping);
+    expect(result).toContain("name,score");
+  });
+});

@@ -119,6 +119,10 @@ The primary driver for this feature is enabling conversion of OCR-extracted JSON
 - For CSV output, each iteration produces an additional data row.
 - For JSON output, each iteration adds an entry to an array.
 - If the resolved array is empty, the iteration block produces no output (no error).
+- **CSV mapping shape constraint**: For CSV output, a mapping must contain either (a) exactly one iteration block and no other top-level keys, or (b) only flat top-level keys. Any other shape is a configuration error that is thrown at render time — it is not silently dropped. Specifically:
+  - A mapping with one iteration block **and** additional flat keys will throw an error listing the keys that would have been dropped.
+  - A mapping with two or more iteration blocks will throw an error identifying all iteration keys.
+  - JSON and XML output have no such restriction because both formats can natively represent mixed, nested, and multi-iteration shapes.
 
 ### FR-6: Missing Field Handling
 

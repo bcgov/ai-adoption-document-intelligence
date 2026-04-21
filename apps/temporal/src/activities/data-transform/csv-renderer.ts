@@ -49,12 +49,35 @@ function isCsvPrimitive(value: unknown): value is CsvPrimitive {
  *   underlying serializer fails for any reason.
  */
 export function renderCsv(resolvedMapping: Record<string, unknown>): string {
-  const iterationEntry = Object.entries(resolvedMapping).find(
+  const entries = Object.entries(resolvedMapping);
+  const iterationEntries = entries.filter(
     ([, value]) => value instanceof IterationResult,
   );
+  const flatEntries = entries.filter(
+    ([, value]) => !(value instanceof IterationResult),
+  );
 
-  if (iterationEntry) {
-    const [, iterValue] = iterationEntry;
+  if (iterationEntries.length > 1) {
+    const keys = iterationEntries.map(([k]) => `"${k}"`).join(", ");
+    throw new CsvRenderError(
+      `CSV output cannot represent multiple iteration blocks in one mapping ` +
+        `(found ${iterationEntries.length}: ${keys}). ` +
+        `Use separate transform nodes, one per iteration.`,
+    );
+  }
+
+  if (iterationEntries.length === 1 && flatEntries.length > 0) {
+    const dropped = flatEntries.map(([k]) => `"${k}"`).join(", ");
+    throw new CsvRenderError(
+      `CSV output cannot mix an iteration block with flat keys ` +
+        `(${dropped} would be silently dropped). ` +
+        `Move the flat values into the iteration template, ` +
+        `or split into separate transform nodes.`,
+    );
+  }
+
+  if (iterationEntries.length === 1) {
+    const [, iterValue] = iterationEntries[0];
     const iteration = iterValue as IterationResult;
 
     if (iteration.items.length === 0) {
