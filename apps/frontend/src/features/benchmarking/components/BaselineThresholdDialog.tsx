@@ -69,7 +69,7 @@ export function BaselineThresholdDialog({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateThreshold = (type: string, value: number): string | null => {
-    if (isNaN(value)) {
+    if (Number.isNaN(value)) {
       return "Must be a valid number";
     }
 

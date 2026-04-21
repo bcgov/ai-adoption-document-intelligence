@@ -1,3 +1,4 @@
+import { URL } from "node:url";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import {
   HttpException,
@@ -7,7 +8,6 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
-import { URL } from "url";
 import { UserService } from "@/actor/user.service";
 import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
 import { AppLoggerService } from "../logging/app-logger.service";

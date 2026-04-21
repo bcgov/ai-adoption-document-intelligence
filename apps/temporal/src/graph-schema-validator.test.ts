@@ -307,7 +307,7 @@ describe("graph-schema-validator (temporal)", () => {
   describe("nodeGroups validation", () => {
     it("valid nodeGroups pass validation", () => {
       const config = makeMinimalGraph();
-      config.nodes["b"] = {
+      config.nodes.b = {
         id: "b",
         type: "activity",
         label: "Step B",
@@ -360,7 +360,7 @@ describe("graph-schema-validator (temporal)", () => {
 
     it("nodes in multiple groups produce warnings", () => {
       const config = makeMinimalGraph();
-      config.nodes["b"] = {
+      config.nodes.b = {
         id: "b",
         type: "activity",
         label: "Step B",

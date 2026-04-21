@@ -1,11 +1,11 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import * as fs from "fs";
-import * as path from "path";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData, SubmissionResult } from "../types";

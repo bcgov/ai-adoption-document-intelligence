@@ -9,8 +9,8 @@
  * the gap by serializing the prediction fields to a JSON file.
  */
 
-import * as fs from "fs/promises";
-import * as path from "path";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 
 export interface BenchmarkWritePredictionInput {
   /** Extracted prediction fields to write (flat key-value object) */

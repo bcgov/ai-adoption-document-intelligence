@@ -421,26 +421,23 @@ export function DefinitionDetailView({
                 {generateResult.status}
               </Badge>
               {generateResult.status === "candidate_created" && (
-                <>
-                  <Group gap="lg">
-                    <Text size="sm">
-                      <Text span fw={500}>
-                        Candidate workflow:
-                      </Text>{" "}
-                      <Code>{generateResult.candidateWorkflowVersionId}</Code>
-                    </Text>
-                    <Text size="sm">
-                      Applied {generateResult.recommendationsSummary.applied}{" "}
-                      tools
-                      {generateResult.recommendationsSummary.rejected > 0 &&
-                        `, rejected ${generateResult.recommendationsSummary.rejected}`}
-                      :{" "}
-                      {generateResult.recommendationsSummary.toolIds.join(
-                        ", ",
-                      ) || "—"}
-                    </Text>
-                  </Group>
-                </>
+                <Group gap="lg">
+                  <Text size="sm">
+                    <Text span fw={500}>
+                      Candidate workflow:
+                    </Text>{" "}
+                    <Code>{generateResult.candidateWorkflowVersionId}</Code>
+                  </Text>
+                  <Text size="sm">
+                    Applied {generateResult.recommendationsSummary.applied}{" "}
+                    tools
+                    {generateResult.recommendationsSummary.rejected > 0 &&
+                      `, rejected ${generateResult.recommendationsSummary.rejected}`}
+                    :{" "}
+                    {generateResult.recommendationsSummary.toolIds.join(", ") ||
+                      "—"}
+                  </Text>
+                </Group>
               )}
               {generateResult.analysis && (
                 <Alert

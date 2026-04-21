@@ -102,14 +102,18 @@ export function CreateDatasetFromHitlDialog({
       // Deselect all on current page
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        documents.forEach((d) => next.delete(d.id));
+        documents.forEach((d) => {
+          next.delete(d.id);
+        });
         return next;
       });
     } else {
       // Select all on current page
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        documents.forEach((d) => next.add(d.id));
+        documents.forEach((d) => {
+          next.add(d.id);
+        });
         return next;
       });
     }

@@ -9,9 +9,9 @@ import { getErrorMessage } from "@ai-di/shared-logging";
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 5.3
  */
 
-import * as fs from "fs/promises";
-import * as os from "os";
-import * as path from "path";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import {
   BenchmarkEvaluator,
   EvaluationArtifact,
