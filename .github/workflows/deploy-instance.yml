@@ -1,8 +1,7 @@
 name: Deploy Instance
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  push:
     branches: [develop]
   workflow_dispatch: {}
 
@@ -11,16 +10,14 @@ env:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && 'pr-to-develop' || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   metadata:
     name: Prepare Metadata
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     outputs:
       instance-name: ${{ steps.meta.outputs.instance }}
@@ -33,12 +30,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # PR-to-develop → shared test instance, single floating tag
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "develop" ]]; then
+            # push to develop → shared test instance, single floating tag
             INSTANCE="bcgov-di-test"
             IMAGE_TAG="bcgov-di-test"
             ENV="test"
-            CHECKOUT_REF="${{ github.event.pull_request.head.sha }}"
           else
             # workflow_dispatch: derive from branch, deploy to dev
             RAW_BRANCH="${{ github.ref_name }}"
@@ -52,8 +48,9 @@ jobs:
               | cut -c1-20 \
               | sed 's/-$//')
             ENV="dev"
-            CHECKOUT_REF="${{ github.sha }}"
           fi
+
+          CHECKOUT_REF="${{ github.sha }}"
 
           echo "instance=$INSTANCE" >> "$GITHUB_OUTPUT"
           echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
@@ -379,51 +376,3 @@ jobs:
           ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
         run: |
           ./scripts/artifactory-cleanup.sh --delete
-
-      - name: Comment on PR with deployment URLs
-        if: ${{ success() && github.event_name == 'pull_request' }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const instance = '${{ needs.metadata.outputs.instance-name }}';
-            const frontendUrl = process.env.frontend_url;
-            const backendUrl = process.env.backend_url;
-            const prNumber = context.issue.number;
-
-            const body = [
-              `### Deployment Successful`,
-              ``,
-              `| Resource | URL |`,
-              `|----------|-----|`,
-              `| Frontend | ${frontendUrl} |`,
-              `| Backend  | ${backendUrl} |`,
-              ``,
-              `**Instance:** \`${instance}\``,
-              `**Namespace:** \`${{ secrets.OPENSHIFT_NAMESPACE }}\``,
-              `**Image tag:** \`${{ needs.metadata.outputs.image-tag }}\``,
-              `**Commit:** \`${{ needs.metadata.outputs.checkout-ref }}\``,
-            ].join('\n');
-
-            const marker = '### Deployment Successful';
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-            const existing = comments.find(c => c.body && c.body.startsWith(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body,
-              });
-            }
