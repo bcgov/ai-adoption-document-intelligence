@@ -253,6 +253,9 @@ jobs:
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
           OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
           SSO_CLIENT_SECRET: ${{ secrets.SSO_CLIENT_SECRET }}
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_API_KEY }}
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
@@ -261,6 +264,30 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+
+          echo "::group::Artifactory image pull secret"
+          # Create an instance-owned docker-registry pull secret with the same
+          # Artifactory creds the workflow used to push. This avoids relying on
+          # the namespace's default pull secret, which may have stale credentials.
+          PULL_SECRET="${INSTANCE_NAME}-artifactory-pull"
+          oc create secret docker-registry "$PULL_SECRET" \
+            --docker-server="${ARTIFACTORY_URL}" \
+            --docker-username="${ARTIFACTORY_SA_USERNAME}" \
+            --docker-password="${ARTIFACTORY_SA_PASSWORD}" \
+            --dry-run=client -o yaml | oc apply -f - -n "$OC_NAMESPACE"
+
+          oc label secret "$PULL_SECRET" \
+            "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite -n "$OC_NAMESPACE" || true
+
+          # Patch each deployment to use the instance pull secret.
+          for dep in backend-services frontend temporal temporal-ui temporal-worker; do
+            DEPLOY="${INSTANCE_NAME}-${dep}"
+            if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
+              oc patch deployment "$DEPLOY" -n "$OC_NAMESPACE" --type=merge -p \
+                "{\"spec\":{\"template\":{\"spec\":{\"imagePullSecrets\":[{\"name\":\"${PULL_SECRET}\"}]}}}}" || true
+            fi
+          done
+          echo "::endgroup::"
 
           echo "::group::Backend secrets"
           BACKEND_SECRET="${INSTANCE_NAME}-backend-services-secrets"

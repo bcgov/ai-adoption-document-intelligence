@@ -75,7 +75,13 @@ log_ok "Loaded ${DEV_KEY_COUNT} secrets from dev.env."
 # ---------- override OpenShift-specific secrets ----------
 
 log_info "Setting OPENSHIFT_TOKEN from ${TEST_SA_TOKEN_FILE} (piped, not echoed)..."
-gh secret set OPENSHIFT_TOKEN --env "${ENV_NAME}" --repo "${REPO}" < "${TEST_SA_TOKEN_FILE}" >/dev/null
+# The .oc-deploy/token-* files are env-style with NAMESPACE= / SERVER= / TOKEN=
+# lines — extract only the TOKEN= value and strip quotes/whitespace. Piping the
+# whole file would store the comment header + NAMESPACE/SERVER lines as the
+# secret value, corrupting the Authorization header.
+awk -F= '/^TOKEN=/ {sub(/^TOKEN=/,""); gsub(/^"|"$/,""); print; exit}' "${TEST_SA_TOKEN_FILE}" \
+  | tr -d '[:space:]' \
+  | gh secret set OPENSHIFT_TOKEN --env "${ENV_NAME}" --repo "${REPO}" >/dev/null
 log_ok "OPENSHIFT_TOKEN set."
 
 log_info "Setting OPENSHIFT_NAMESPACE=${OPENSHIFT_NAMESPACE_VALUE}..."
