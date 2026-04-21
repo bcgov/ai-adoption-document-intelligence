@@ -48,7 +48,6 @@ function buildParams(
     inputFormat: "json",
     outputFormat: "json",
     fieldMapping: JSON.stringify({ field: "static value" }),
-    rawInputContext: {},
     ...overrides,
   };
 }

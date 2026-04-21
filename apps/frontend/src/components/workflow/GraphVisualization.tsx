@@ -14,7 +14,6 @@ import {
   IconShieldCheck,
   IconSparkles,
   IconSwitch3,
-  IconTransform,
   IconUser,
   IconUserCheck,
 } from "@tabler/icons-react";
@@ -35,13 +34,13 @@ import {
 import dagre from "dagre-esm";
 import { memo, useEffect, useMemo, useRef } from "react";
 import type {
+  ActivityNode,
   ChildWorkflowNode,
   GraphEdge,
   GraphNode,
   GraphWorkflowConfig,
   MapNode,
   SwitchNode,
-  TransformNode,
 } from "../../types/workflow";
 
 export interface GraphVisualizationError {
@@ -58,10 +57,11 @@ interface GraphVisualizationProps {
 interface GraphNodeData {
   label: string;
   type: GraphNode["type"];
+  activityType?: string;
   hasError: boolean;
   workflowRef?: ChildWorkflowNode["workflowRef"];
-  inputFormat?: TransformNode["inputFormat"];
-  outputFormat?: TransformNode["outputFormat"];
+  inputFormat?: string;
+  outputFormat?: string;
   fieldMapping?: string;
 }
 
@@ -92,7 +92,6 @@ const NODE_DIMENSIONS: Record<
   childWorkflow: { width: 200, height: 80 },
   pollUntil: { width: 190, height: 80 },
   humanGate: { width: 190, height: 80 },
-  transform: { width: 190, height: 110 },
 };
 
 const LAYER_GAP = 120; // Vertical spacing between layers in map containers
@@ -105,7 +104,6 @@ const NODE_COLORS: Record<GraphNode["type"], string> = {
   childWorkflow: "#a855f7",
   pollUntil: "#fb923c",
   humanGate: "#ef4444",
-  transform: "#44efe6",
 };
 
 const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
@@ -116,25 +114,30 @@ const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
   childWorkflow: <IconFolder size={18} />,
   pollUntil: <IconRefresh size={18} />,
   humanGate: <IconUserCheck size={18} />,
-  transform: <IconTransform size={18} />,
 };
 
 const TRANSFORM_TRUNCATION_THRESHOLD = 300;
 const TRANSFORM_DISPLAY_CHARS = 60;
 
 /**
- * Extracts summary data from a graph node for transform nodes.
+ * Extracts transform summary data from an activity node with activityType "data.transform".
  */
 function transformNodeSummaryData(node: GraphNode): {
-  inputFormat?: TransformNode["inputFormat"];
-  outputFormat?: TransformNode["outputFormat"];
+  activityType?: string;
+  inputFormat?: string;
+  outputFormat?: string;
   fieldMapping?: string;
 } {
-  if (node.type === "transform") {
+  if (
+    node.type === "activity" &&
+    (node as ActivityNode).activityType === "data.transform"
+  ) {
+    const params = (node as ActivityNode).parameters ?? {};
     return {
-      inputFormat: node.inputFormat,
-      outputFormat: node.outputFormat,
-      fieldMapping: node.fieldMapping,
+      activityType: "data.transform",
+      inputFormat: params.inputFormat as string | undefined,
+      outputFormat: params.outputFormat as string | undefined,
+      fieldMapping: params.fieldMapping as string | undefined,
     };
   }
   return {};
@@ -148,7 +151,8 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
   const color = NODE_COLORS[data.type];
   const isDiamond = data.type === "switch";
   const isChildWorkflow = data.type === "childWorkflow";
-  const isTransform = data.type === "transform";
+  const isTransform =
+    data.type === "activity" && data.activityType === "data.transform";
   const workflowId =
     isChildWorkflow && data.workflowRef?.type === "library"
       ? data.workflowRef.workflowId
@@ -912,6 +916,10 @@ function buildDetailedViewWithMapContainers(
         data: {
           label: node.label,
           type: node.type,
+          activityType:
+            node.type === "activity"
+              ? (node as ActivityNode).activityType
+              : undefined,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
           ...transformNodeSummaryData(node),
@@ -934,6 +942,10 @@ function buildDetailedViewWithMapContainers(
         data: {
           label: node.label,
           type: node.type,
+          activityType:
+            node.type === "activity"
+              ? (node as ActivityNode).activityType
+              : undefined,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
           ...transformNodeSummaryData(node),

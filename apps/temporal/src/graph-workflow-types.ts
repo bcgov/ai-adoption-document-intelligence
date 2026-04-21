@@ -61,8 +61,7 @@ export type NodeType =
   | "join"
   | "childWorkflow"
   | "pollUntil"
-  | "humanGate"
-  | "transform";
+  | "humanGate";
 
 export interface GraphNodeBase {
   id: string;
@@ -179,16 +178,6 @@ export interface HumanGateNode extends GraphNodeBase {
   fallbackEdgeId?: string;
 }
 
-// -- Transform Node --------------------------------------------------------
-
-export interface TransformNode extends GraphNodeBase {
-  type: "transform";
-  inputFormat: "json" | "xml" | "csv";
-  outputFormat: "json" | "xml" | "csv";
-  fieldMapping: string;
-  xmlEnvelope?: string;
-}
-
 // -- Discriminated Union ----------------------------------------------------
 
 export type GraphNode =
@@ -198,8 +187,7 @@ export type GraphNode =
   | JoinNode
   | ChildWorkflowNode
   | PollUntilNode
-  | HumanGateNode
-  | TransformNode;
+  | HumanGateNode;
 
 // ---------------------------------------------------------------------------
 // Edges

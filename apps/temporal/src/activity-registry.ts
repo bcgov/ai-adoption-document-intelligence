@@ -328,12 +328,12 @@ register({
 // -- Data transform activities ----------------------------------------------
 
 register({
-  activityType: "executeTransformNode",
+  activityType: "data.transform",
   activityFn: executeTransformNode as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 1 },
   description:
-    "Execute data transformation node: parse input, resolve bindings, render output",
+    "Execute data transformation: parse input, resolve field-mapping bindings, render output",
 });
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,6 @@ import type {
   JoinNode,
   MapNode,
   SwitchNode,
-  TransformNode,
 } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
@@ -1353,10 +1352,10 @@ describe("graph-schema-validator", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Transform Node Validation
+  // data.transform Activity Parameter Validation
   // -----------------------------------------------------------------------
-  describe("transform node validation", () => {
-    it("valid transform node passes validation", () => {
+  describe("data.transform activity parameter validation", () => {
+    it("valid data.transform activity node passes validation", () => {
       const config: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {},
@@ -1365,13 +1364,16 @@ describe("graph-schema-validator", () => {
         nodes: {
           t: {
             id: "t",
-            type: "transform",
+            type: "activity",
             label: "Transform",
-            inputFormat: "json",
-            outputFormat: "xml",
-            fieldMapping: "{}",
+            activityType: "data.transform",
+            parameters: {
+              inputFormat: "json",
+              outputFormat: "xml",
+              fieldMapping: "{}",
+            },
             outputs: [{ port: "output", ctxKey: "transformedOutput" }],
-          } as TransformNode,
+          } as ActivityNode,
         },
         edges: [],
       };
@@ -1389,12 +1391,14 @@ describe("graph-schema-validator", () => {
         nodes: {
           t: {
             id: "t",
-            type: "transform",
+            type: "activity",
             label: "Transform",
-            inputFormat: "" as "json",
-            outputFormat: "xml",
-            fieldMapping: "{}",
-          } as TransformNode,
+            activityType: "data.transform",
+            parameters: {
+              outputFormat: "xml",
+              fieldMapping: "{}",
+            },
+          } as ActivityNode,
         },
         edges: [],
       };
@@ -1403,7 +1407,40 @@ describe("graph-schema-validator", () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            path: "nodes.t.inputFormat",
+            path: "nodes.t.parameters.inputFormat",
+            message: expect.stringContaining("inputFormat"),
+          }),
+        ]),
+      );
+    });
+
+    it("fails when inputFormat is not a valid enum value", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: {},
+        nodes: {
+          t: {
+            id: "t",
+            type: "activity",
+            label: "Transform",
+            activityType: "data.transform",
+            parameters: {
+              inputFormat: "yaml",
+              outputFormat: "xml",
+              fieldMapping: "{}",
+            },
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: "nodes.t.parameters.inputFormat",
             message: expect.stringContaining("inputFormat"),
           }),
         ]),
@@ -1419,12 +1456,14 @@ describe("graph-schema-validator", () => {
         nodes: {
           t: {
             id: "t",
-            type: "transform",
+            type: "activity",
             label: "Transform",
-            inputFormat: "json",
-            outputFormat: "" as "xml",
-            fieldMapping: "{}",
-          } as TransformNode,
+            activityType: "data.transform",
+            parameters: {
+              inputFormat: "json",
+              fieldMapping: "{}",
+            },
+          } as ActivityNode,
         },
         edges: [],
       };
@@ -1433,7 +1472,7 @@ describe("graph-schema-validator", () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            path: "nodes.t.outputFormat",
+            path: "nodes.t.parameters.outputFormat",
             message: expect.stringContaining("outputFormat"),
           }),
         ]),
@@ -1449,12 +1488,14 @@ describe("graph-schema-validator", () => {
         nodes: {
           t: {
             id: "t",
-            type: "transform",
+            type: "activity",
             label: "Transform",
-            inputFormat: "json",
-            outputFormat: "xml",
-            fieldMapping: "",
-          } as TransformNode,
+            activityType: "data.transform",
+            parameters: {
+              inputFormat: "json",
+              outputFormat: "xml",
+            },
+          } as ActivityNode,
         },
         edges: [],
       };
@@ -1463,14 +1504,14 @@ describe("graph-schema-validator", () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            path: "nodes.t.fieldMapping",
+            path: "nodes.t.parameters.fieldMapping",
             message: expect.stringContaining("fieldMapping"),
           }),
         ]),
       );
     });
 
-    it("fails when all required fields are missing", () => {
+    it("fails when fieldMapping is not valid JSON", () => {
       const config: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {},
@@ -1479,21 +1520,115 @@ describe("graph-schema-validator", () => {
         nodes: {
           t: {
             id: "t",
-            type: "transform",
+            type: "activity",
             label: "Transform",
-            inputFormat: "" as "json",
-            outputFormat: "" as "xml",
-            fieldMapping: "",
-          } as TransformNode,
+            activityType: "data.transform",
+            parameters: {
+              inputFormat: "json",
+              outputFormat: "json",
+              fieldMapping: "not-json",
+            },
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: "nodes.t.parameters.fieldMapping",
+            message: expect.stringContaining("valid JSON"),
+          }),
+        ]),
+      );
+    });
+
+    it("fails when xmlEnvelope is missing {{payload}} placeholder for xml output", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: {},
+        nodes: {
+          t: {
+            id: "t",
+            type: "activity",
+            label: "Transform",
+            activityType: "data.transform",
+            parameters: {
+              inputFormat: "json",
+              outputFormat: "xml",
+              fieldMapping: "{}",
+              xmlEnvelope: "<root></root>",
+            },
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: "nodes.t.parameters.xmlEnvelope",
+            message: expect.stringContaining("{{payload}}"),
+          }),
+        ]),
+      );
+    });
+
+    it("passes when xmlEnvelope contains exactly one {{payload}} for xml output", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: { out: { type: "string" } },
+        nodes: {
+          t: {
+            id: "t",
+            type: "activity",
+            label: "Transform",
+            activityType: "data.transform",
+            parameters: {
+              inputFormat: "json",
+              outputFormat: "xml",
+              fieldMapping: "{}",
+              xmlEnvelope: "<root>{{payload}}</root>",
+            },
+            outputs: [{ port: "output", ctxKey: "out" }],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("fails when all required parameters are missing", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "t",
+        ctx: {},
+        nodes: {
+          t: {
+            id: "t",
+            type: "activity",
+            label: "Transform",
+            activityType: "data.transform",
+            parameters: {},
+          } as ActivityNode,
         },
         edges: [],
       };
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(false);
       const paths = result.errors.map((e) => e.path);
-      expect(paths).toContain("nodes.t.inputFormat");
-      expect(paths).toContain("nodes.t.outputFormat");
-      expect(paths).toContain("nodes.t.fieldMapping");
+      expect(paths).toContain("nodes.t.parameters.inputFormat");
+      expect(paths).toContain("nodes.t.parameters.outputFormat");
+      expect(paths).toContain("nodes.t.parameters.fieldMapping");
     });
   });
 });

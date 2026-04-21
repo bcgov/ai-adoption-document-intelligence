@@ -40,6 +40,7 @@
 		"npm": ">=10.0.0"
 	},
 	"dependencies": {
+		"@nestjs/platform-express": "11.1.17",
 		"@playwright/test": "1.58.2"
 	},
 	"overrides": {
@@ -50,6 +51,9 @@
 	},
 	"optionalDependencies": {
 		"@biomejs/cli-darwin-arm64": "2.4.12",
+		"@esbuild/darwin-arm64": "0.25.12",
+		"@img/sharp-darwin-arm64": "0.34.5",
+		"@rollup/rollup-darwin-arm64": "4.60.2",
 		"@swc/core-darwin-arm64": "1.15.26"
 	}
 }

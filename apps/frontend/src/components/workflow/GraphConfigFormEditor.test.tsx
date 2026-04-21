@@ -2,8 +2,8 @@ import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
+  ActivityNode,
   GraphWorkflowConfig,
-  TransformNode,
 } from "../../types/graph-workflow";
 import { GraphConfigFormEditor } from "./GraphConfigFormEditor";
 
@@ -12,18 +12,28 @@ import { GraphConfigFormEditor } from "./GraphConfigFormEditor";
 // ---------------------------------------------------------------------------
 
 const makeTransformNode = (
-  overrides: Partial<TransformNode> = {},
-): TransformNode => ({
+  overrides: Partial<{
+    inputFormat: string;
+    outputFormat: string;
+    fieldMapping: string;
+    xmlEnvelope: string | undefined;
+  }> = {},
+): ActivityNode => ({
   id: "t1",
-  type: "transform",
+  type: "activity",
   label: "My transform",
-  inputFormat: "json",
-  outputFormat: "json",
-  fieldMapping: '{"outputKey": "{{source.field}}"}',
-  ...overrides,
+  activityType: "data.transform",
+  parameters: {
+    inputFormat: overrides.inputFormat ?? "json",
+    outputFormat: overrides.outputFormat ?? "json",
+    fieldMapping: overrides.fieldMapping ?? '{"outputKey": "{{source.field}}"}',
+    ...(overrides.xmlEnvelope !== undefined
+      ? { xmlEnvelope: overrides.xmlEnvelope }
+      : {}),
+  },
 });
 
-const makeConfig = (node: TransformNode): GraphWorkflowConfig => ({
+const makeConfig = (node: ActivityNode): GraphWorkflowConfig => ({
   schemaVersion: "1.0",
   metadata: {},
   entryNodeId: node.id,
@@ -35,7 +45,7 @@ const makeConfig = (node: TransformNode): GraphWorkflowConfig => ({
 /**
  * Renders GraphConfigFormEditor inside MantineProvider with a transform node.
  */
-function renderEditor(node: TransformNode, onChange = vi.fn()) {
+function renderEditor(node: ActivityNode, onChange = vi.fn()) {
   const config = makeConfig(node);
   return render(
     <MantineProvider>
@@ -87,8 +97,8 @@ describe("GraphConfigFormEditor — TransformNodeForm", () => {
 
       expect(onChange).toHaveBeenCalled();
       const updatedConfig: GraphWorkflowConfig = onChange.mock.calls[0][0];
-      const updatedNode = updatedConfig.nodes.t1 as TransformNode;
-      expect(updatedNode.inputFormat).toBe("csv");
+      const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
+      expect(updatedNode.parameters?.inputFormat).toBe("csv");
     });
 
     it("calls onChange with updated outputFormat when a new format is selected", async () => {
@@ -105,8 +115,8 @@ describe("GraphConfigFormEditor — TransformNodeForm", () => {
 
       expect(onChange).toHaveBeenCalled();
       const updatedConfig: GraphWorkflowConfig = onChange.mock.calls[0][0];
-      const updatedNode = updatedConfig.nodes.t1 as TransformNode;
-      expect(updatedNode.outputFormat).toBe("xml");
+      const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
+      expect(updatedNode.parameters?.outputFormat).toBe("xml");
     });
   });
 
@@ -129,8 +139,8 @@ describe("GraphConfigFormEditor — TransformNodeForm", () => {
       expect(onChange).toHaveBeenCalled();
       const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
       const updatedConfig: GraphWorkflowConfig = lastCall[0];
-      const updatedNode = updatedConfig.nodes.t1 as TransformNode;
-      expect(updatedNode.fieldMapping).toBe('{"a":"b"}');
+      const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
+      expect(updatedNode.parameters?.fieldMapping).toBe('{"a":"b"}');
     });
   });
 
@@ -172,8 +182,8 @@ describe("GraphConfigFormEditor — TransformNodeForm", () => {
         expect(onChange).toHaveBeenCalled();
         const updatedConfig: GraphWorkflowConfig =
           onChange.mock.calls[onChange.mock.calls.length - 1][0];
-        const updatedNode = updatedConfig.nodes.t1 as TransformNode;
-        expect(updatedNode.fieldMapping).toBe(newMapping);
+        const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
+        expect(updatedNode.parameters?.fieldMapping).toBe(newMapping);
       });
     });
   });
@@ -289,8 +299,10 @@ describe("GraphConfigFormEditor — TransformNodeForm XML Envelope", () => {
       expect(onChange).toHaveBeenCalled();
       const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
       const updatedConfig: GraphWorkflowConfig = lastCall[0];
-      const updatedNode = updatedConfig.nodes.t1 as TransformNode;
-      expect(updatedNode.xmlEnvelope).toBe("<wrap>{{payload}}</wrap>");
+      const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
+      expect(updatedNode.parameters?.xmlEnvelope).toBe(
+        "<wrap>{{payload}}</wrap>",
+      );
     });
 
     it("sets xmlEnvelope to undefined when the textarea is cleared", () => {
@@ -309,8 +321,8 @@ describe("GraphConfigFormEditor — TransformNodeForm XML Envelope", () => {
       expect(onChange).toHaveBeenCalled();
       const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
       const updatedConfig: GraphWorkflowConfig = lastCall[0];
-      const updatedNode = updatedConfig.nodes.t1 as TransformNode;
-      expect(updatedNode.xmlEnvelope).toBeUndefined();
+      const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
+      expect(updatedNode.parameters?.xmlEnvelope).toBeUndefined();
     });
   });
 
@@ -351,8 +363,8 @@ describe("GraphConfigFormEditor — TransformNodeForm XML Envelope", () => {
         expect(onChange).toHaveBeenCalled();
         const updatedConfig: GraphWorkflowConfig =
           onChange.mock.calls[onChange.mock.calls.length - 1][0];
-        const updatedNode = updatedConfig.nodes.t1 as TransformNode;
-        expect(updatedNode.xmlEnvelope).toBe(envelopeContent);
+        const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
+        expect(updatedNode.parameters?.xmlEnvelope).toBe(envelopeContent);
       });
     });
   });

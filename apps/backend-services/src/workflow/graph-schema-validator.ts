@@ -9,6 +9,7 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.2
  */
 
+import { validateActivityParameters } from "./activity-parameter-schema-registry";
 import { isRegisteredActivityType } from "./activity-registry";
 import type {
   ActivityNode,
@@ -19,7 +20,6 @@ import type {
   MapNode,
   PollUntilNode,
   SwitchNode,
-  TransformNode,
   ValueRef,
 } from "./graph-workflow-types";
 
@@ -80,7 +80,6 @@ export function validateGraphConfig(config: GraphWorkflowConfig): {
   validateActivityTypes(config, errors);
   validateSwitchNodes(config, errors);
   validateMapJoinNodes(config, errors);
-  validateTransformNodes(config, errors);
   validatePortBindings(config, errors);
   validateExpressions(config, errors);
   validateDagStructure(config, errors);
@@ -288,6 +287,13 @@ function validateActivityTypes(
           message: `Unknown activity type: "${activityNode.activityType}"`,
           severity: "error",
         });
+      } else {
+        validateActivityParameters(
+          activityNode.activityType,
+          nodeId,
+          activityNode.parameters,
+          errors,
+        );
       }
     }
 
@@ -390,40 +396,6 @@ function validateMapJoinNodes(
           });
         }
       }
-    }
-  }
-}
-
-function validateTransformNodes(
-  config: GraphWorkflowConfig,
-  errors: GraphValidationError[],
-): void {
-  for (const [nodeId, node] of Object.entries(config.nodes)) {
-    if (node.type !== "transform") continue;
-    const transformNode = node as TransformNode;
-
-    if (!transformNode.inputFormat) {
-      errors.push({
-        path: `nodes.${nodeId}.inputFormat`,
-        message: `Transform node "${nodeId}" is missing required field: inputFormat`,
-        severity: "error",
-      });
-    }
-
-    if (!transformNode.outputFormat) {
-      errors.push({
-        path: `nodes.${nodeId}.outputFormat`,
-        message: `Transform node "${nodeId}" is missing required field: outputFormat`,
-        severity: "error",
-      });
-    }
-
-    if (!transformNode.fieldMapping) {
-      errors.push({
-        path: `nodes.${nodeId}.fieldMapping`,
-        message: `Transform node "${nodeId}" is missing required field: fieldMapping`,
-        severity: "error",
-      });
     }
   }
 }

@@ -5,8 +5,8 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
+  ActivityNode,
   GraphWorkflowConfig,
-  TransformNode,
 } from "../../types/graph-workflow";
 import { GraphVisualization } from "./GraphVisualization";
 
@@ -93,18 +93,24 @@ vi.mock("dagre-esm", () => ({
 // ---------------------------------------------------------------------------
 
 const makeTransformNode = (
-  overrides: Partial<TransformNode> = {},
-): TransformNode => ({
+  overrides: Partial<{
+    inputFormat: string;
+    outputFormat: string;
+    fieldMapping: string;
+  }> = {},
+): ActivityNode => ({
   id: "t1",
-  type: "transform",
+  type: "activity",
   label: "My Transform",
-  inputFormat: "xml",
-  outputFormat: "json",
-  fieldMapping: '{"outputKey": "{{source.field}}"}',
-  ...overrides,
+  activityType: "data.transform",
+  parameters: {
+    inputFormat: overrides.inputFormat ?? "xml",
+    outputFormat: overrides.outputFormat ?? "json",
+    fieldMapping: overrides.fieldMapping ?? '{"outputKey": "{{source.field}}"}',
+  },
 });
 
-const makeConfig = (node: TransformNode): GraphWorkflowConfig => ({
+const makeConfig = (node: ActivityNode): GraphWorkflowConfig => ({
   schemaVersion: "1.0",
   metadata: {},
   entryNodeId: node.id,
@@ -118,7 +124,7 @@ const makeConfig = (node: TransformNode): GraphWorkflowConfig => ({
  * optional validationErrors.
  */
 function renderViz(
-  node: TransformNode,
+  node: ActivityNode,
   validationErrors?: { path: string; message: string }[],
 ) {
   const config = makeConfig(node);

@@ -26,7 +26,6 @@ function buildParams(
     inputFormat: "json",
     outputFormat: "json",
     fieldMapping: JSON.stringify({ field: "{{upstream.value}}" }),
-    rawInputContext: {},
     ...overrides,
   };
 }
@@ -40,9 +39,7 @@ describe("executeTransformNode activity — unresolved binding halts workflow", 
       fieldMapping: JSON.stringify({
         name: "{{extractionNode.MissingField}}",
       }),
-      rawInputContext: {
-        extractionNode: JSON.stringify({ FirstName: "Alice" }),
-      },
+      extractionNode: JSON.stringify({ FirstName: "Alice" }),
     });
 
     await expect(executeTransformNode(params)).rejects.toBeInstanceOf(
@@ -55,9 +52,7 @@ describe("executeTransformNode activity — unresolved binding halts workflow", 
       fieldMapping: JSON.stringify({
         name: "{{extractionNode.MissingField}}",
       }),
-      rawInputContext: {
-        extractionNode: JSON.stringify({ FirstName: "Alice" }),
-      },
+      extractionNode: JSON.stringify({ FirstName: "Alice" }),
     });
 
     let caught: unknown;
@@ -82,9 +77,7 @@ describe("executeTransformNode activity — error message includes the unresolve
       fieldMapping: JSON.stringify({
         name: "{{extractionNode.MissingField}}",
       }),
-      rawInputContext: {
-        extractionNode: JSON.stringify({ FirstName: "Alice" }),
-      },
+      extractionNode: JSON.stringify({ FirstName: "Alice" }),
     });
 
     let caught: unknown;
@@ -104,9 +97,7 @@ describe("executeTransformNode activity — error message includes the unresolve
       fieldMapping: JSON.stringify({
         name: "{{extractionNode.MissingField}}",
       }),
-      rawInputContext: {
-        extractionNode: JSON.stringify({ FirstName: "Alice" }),
-      },
+      extractionNode: JSON.stringify({ FirstName: "Alice" }),
     });
 
     let caught: unknown;
@@ -131,9 +122,7 @@ describe("executeTransformNode activity — successful execution", () => {
       inputFormat: "json",
       outputFormat: "json",
       fieldMapping: JSON.stringify({ FirstName: "{{upstream.FirstName}}" }),
-      rawInputContext: {
-        upstream: JSON.stringify({ FirstName: "Alice" }),
-      },
+      upstream: JSON.stringify({ FirstName: "Alice" }),
     });
 
     const result = await executeTransformNode(params);
@@ -146,9 +135,7 @@ describe("executeTransformNode activity — successful execution", () => {
       inputFormat: "json",
       outputFormat: "json",
       fieldMapping: JSON.stringify({ value: "{{src.count}}" }),
-      rawInputContext: {
-        src: JSON.stringify({ count: 42 }),
-      },
+      src: JSON.stringify({ count: 42 }),
     });
 
     await expect(executeTransformNode(params)).resolves.not.toThrow();
@@ -159,9 +146,7 @@ describe("executeTransformNode activity — successful execution", () => {
       inputFormat: "json",
       outputFormat: "json",
       fieldMapping: JSON.stringify({ name: "{{node.name}}" }),
-      rawInputContext: {
-        node: { name: "Alice" },
-      },
+      node: { name: "Alice" },
     });
 
     const result = await executeTransformNode(params);

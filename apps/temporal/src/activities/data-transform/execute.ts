@@ -10,16 +10,29 @@ import { injectXmlEnvelope } from "./xml-envelope-injector";
 import { renderXml } from "./xml-renderer";
 
 /**
+ * Known parameter keys that are not port bindings.
+ * All other keys in the params object are treated as port-binding inputs
+ * and will be added to the binding context.
+ */
+const KNOWN_PARAM_KEYS = new Set([
+  "inputFormat",
+  "outputFormat",
+  "fieldMapping",
+  "xmlEnvelope",
+  "requestId",
+]);
+
+/**
  * Input parameters for the executeTransformNode activity.
  *
- * `rawInputContext` is a map of port name → raw value (string or already-
- * parsed JS value) sourced from the workflow context via the node's `inputs`
- * port bindings.  String values will be parsed according to `inputFormat`
- * before binding resolution; non-string values (already-parsed objects) are
- * used directly as the binding target for that port name.
+ * When called through the graph activity node handler, `inputFormat`,
+ * `outputFormat`, `fieldMapping`, and `xmlEnvelope` come from the node's
+ * `parameters` field. Any additional keys (port names from the node's
+ * `inputs` bindings) are treated as the binding context and will be parsed
+ * according to `inputFormat` if they are strings.
  */
 export interface ExecuteTransformNodeParams {
-  /** The format of string values in `rawInputContext`. */
+  /** The format of port-binding input values. */
   inputFormat: InputFormat;
   /** The format to render the resolved mapping into. */
   outputFormat: "json" | "xml" | "csv";
@@ -30,11 +43,10 @@ export interface ExecuteTransformNodeParams {
   fieldMapping: string;
   /** Optional XML envelope template (XML output only). */
   xmlEnvelope?: string;
-  /**
-   * Map of port name → raw value from the workflow context.
-   * String values are parsed according to `inputFormat`.
-   */
-  rawInputContext: Record<string, unknown>;
+  /** Optional request correlation ID (injected by the workflow runner). */
+  requestId?: string;
+  /** Port-binding inputs from the workflow context (any additional keys). */
+  [key: string]: unknown;
 }
 
 /**
@@ -63,13 +75,17 @@ export interface ExecuteTransformNodeResult {
 export async function executeTransformNode(
   params: ExecuteTransformNodeParams,
 ): Promise<ExecuteTransformNodeResult> {
-  const {
-    inputFormat,
-    outputFormat,
-    fieldMapping,
-    xmlEnvelope,
-    rawInputContext,
-  } = params;
+  const { inputFormat, outputFormat, fieldMapping, xmlEnvelope } = params;
+
+  // Build the binding context from port-binding keys (all non-standard params).
+  // String values are parsed according to inputFormat; non-string values are
+  // used as-is (already-parsed upstream activity outputs).
+  const rawInputContext: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (!KNOWN_PARAM_KEYS.has(key)) {
+      rawInputContext[key] = value;
+    }
+  }
 
   // Step 1: Build the binding context.
   // String values are parsed according to inputFormat; non-string values are

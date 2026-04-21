@@ -41,40 +41,50 @@
   "nodes": {
     "parseCustomer": {
       "id": "parseCustomer",
-      "type": "transform",
+      "type": "activity",
+      "activityType": "data.transform",
       "label": "CSV → JSON: parse customer",
-      "inputFormat": "csv",
-      "outputFormat": "json",
+      "parameters": {
+        "inputFormat": "csv",
+        "outputFormat": "json",
+        "fieldMapping": "{\n  \"customerId\": \"{{src.0.id}}\",\n  \"firstName\": \"{{src.0.first_name}}\",\n  \"lastName\": \"{{src.0.last_name}}\",\n  \"email\": \"{{src.0.email}}\"\n}"
+      },
       "inputs": [
         { "port": "src", "ctxKey": "customerCsv" }
       ],
       "outputs": [
         { "port": "result", "ctxKey": "customerJson" }
-      ],
-      "fieldMapping": "{\n  \"customerId\": \"{{src.0.id}}\",\n  \"firstName\": \"{{src.0.first_name}}\",\n  \"lastName\": \"{{src.0.last_name}}\",\n  \"email\": \"{{src.0.email}}\"\n}"
+      ]
     },
 
     "parseOrder": {
       "id": "parseOrder",
-      "type": "transform",
+      "type": "activity",
+      "activityType": "data.transform",
       "label": "XML → JSON: extract order with line items",
-      "inputFormat": "xml",
-      "outputFormat": "json",
+      "parameters": {
+        "inputFormat": "xml",
+        "outputFormat": "json",
+        "fieldMapping": "{\n  \"orderId\": \"{{src.Order.OrderId}}\",\n  \"orderDate\": \"{{src.Order.Date}}\",\n  \"currency\": \"{{src.Order.Currency}}\",\n  \"lineItems\": {\n    \"{{#each src.Order.LineItems.Item}}\": {\n      \"sku\": \"{{this.sku}}\",\n      \"qty\": \"{{this.qty}}\",\n      \"price\": \"{{this.price}}\"\n    }\n  }\n}"
+      },
       "inputs": [
         { "port": "src", "ctxKey": "orderXml" }
       ],
       "outputs": [
         { "port": "result", "ctxKey": "orderJson" }
-      ],
-      "fieldMapping": "{\n  \"orderId\": \"{{src.Order.OrderId}}\",\n  \"orderDate\": \"{{src.Order.Date}}\",\n  \"currency\": \"{{src.Order.Currency}}\",\n  \"lineItems\": {\n    \"{{#each src.Order.LineItems.Item}}\": {\n      \"sku\": \"{{this.sku}}\",\n      \"qty\": \"{{this.qty}}\",\n      \"price\": \"{{this.price}}\"\n    }\n  }\n}"
+      ]
     },
 
     "buildPayload": {
       "id": "buildPayload",
-      "type": "transform",
+      "type": "activity",
+      "activityType": "data.transform",
       "label": "JSON → JSON: merge customer and order header",
-      "inputFormat": "json",
-      "outputFormat": "json",
+      "parameters": {
+        "inputFormat": "json",
+        "outputFormat": "json",
+        "fieldMapping": "{\n  \"customerId\": \"{{customer.customerId}}\",\n  \"fullName\": \"{{customer.firstName}} {{customer.lastName}}\",\n  \"email\": \"{{customer.email}}\",\n  \"tier\": \"{{meta.tier}}\",\n  \"shippingCity\": \"{{meta.shippingAddress.city}}\",\n  \"orderId\": \"{{order.orderId}}\",\n  \"orderDate\": \"{{order.orderDate}}\",\n  \"currency\": \"{{order.currency}}\"\n}"
+      },
       "inputs": [
         { "port": "customer", "ctxKey": "customerJson" },
         { "port": "order", "ctxKey": "orderJson" },
@@ -82,25 +92,27 @@
       ],
       "outputs": [
         { "port": "result", "ctxKey": "payloadJson" }
-      ],
-      "fieldMapping": "{\n  \"customerId\": \"{{customer.customerId}}\",\n  \"fullName\": \"{{customer.firstName}} {{customer.lastName}}\",\n  \"email\": \"{{customer.email}}\",\n  \"tier\": \"{{meta.tier}}\",\n  \"shippingCity\": \"{{meta.shippingAddress.city}}\",\n  \"orderId\": \"{{order.orderId}}\",\n  \"orderDate\": \"{{order.orderDate}}\",\n  \"currency\": \"{{order.currency}}\"\n}"
+      ]
     },
 
     "renderSoap": {
       "id": "renderSoap",
-      "type": "transform",
+      "type": "activity",
+      "activityType": "data.transform",
       "label": "JSON → XML: build SOAP submission with line items",
-      "inputFormat": "json",
-      "outputFormat": "xml",
+      "parameters": {
+        "inputFormat": "json",
+        "outputFormat": "xml",
+        "fieldMapping": "{\n  \"SubmitOrderRequest\": {\n    \"CustomerId\": \"{{payload.customerId}}\",\n    \"FullName\": \"{{payload.fullName}}\",\n    \"Email\": \"{{payload.email}}\",\n    \"Tier\": \"{{payload.tier}}\",\n    \"ShippingCity\": \"{{payload.shippingCity}}\",\n    \"OrderId\": \"{{payload.orderId}}\",\n    \"OrderDate\": \"{{payload.orderDate}}\",\n    \"Currency\": \"{{payload.currency}}\",\n    \"LineItems\": {\n      \"{{#each order.lineItems}}\": {\n        \"Item\": {\n          \"Sku\": \"{{this.sku}}\",\n          \"Qty\": \"{{this.qty}}\",\n          \"Price\": \"{{this.price}}\"\n        }\n      }\n    }\n  }\n}",
+        "xmlEnvelope": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:tns=\"http://example.com/orders\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <tns:SubmitOrder>\n      {{payload}}\n    </tns:SubmitOrder>\n  </soapenv:Body>\n</soapenv:Envelope>"
+      },
       "inputs": [
         { "port": "payload", "ctxKey": "payloadJson" },
         { "port": "order", "ctxKey": "orderJson" }
       ],
       "outputs": [
         { "port": "result", "ctxKey": "soapOutput" }
-      ],
-      "fieldMapping": "{\n  \"SubmitOrderRequest\": {\n    \"CustomerId\": \"{{payload.customerId}}\",\n    \"FullName\": \"{{payload.fullName}}\",\n    \"Email\": \"{{payload.email}}\",\n    \"Tier\": \"{{payload.tier}}\",\n    \"ShippingCity\": \"{{payload.shippingCity}}\",\n    \"OrderId\": \"{{payload.orderId}}\",\n    \"OrderDate\": \"{{payload.orderDate}}\",\n    \"Currency\": \"{{payload.currency}}\",\n    \"LineItems\": {\n      \"{{#each order.lineItems}}\": {\n        \"Item\": {\n          \"Sku\": \"{{this.sku}}\",\n          \"Qty\": \"{{this.qty}}\",\n          \"Price\": \"{{this.price}}\"\n        }\n      }\n    }\n  }\n}",
-      "xmlEnvelope": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:tns=\"http://example.com/orders\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <tns:SubmitOrder>\n      {{payload}}\n    </tns:SubmitOrder>\n  </soapenv:Body>\n</soapenv:Envelope>"
+      ]
     }
   },
   "edges": [
