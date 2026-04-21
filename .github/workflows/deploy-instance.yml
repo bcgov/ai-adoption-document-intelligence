@@ -114,6 +114,8 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}:${{ needs.metadata.outputs.image-tag }}
           build-args: |
