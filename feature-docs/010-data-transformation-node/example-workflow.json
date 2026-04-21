@@ -53,7 +53,7 @@
         { "port": "src", "ctxKey": "customerCsv" }
       ],
       "outputs": [
-        { "port": "result", "ctxKey": "customerJson" }
+        { "port": "output", "ctxKey": "customerJson" }
       ]
     },
 
@@ -71,7 +71,7 @@
         { "port": "src", "ctxKey": "orderXml" }
       ],
       "outputs": [
-        { "port": "result", "ctxKey": "orderJson" }
+        { "port": "output", "ctxKey": "orderJson" }
       ]
     },
 
@@ -91,7 +91,7 @@
         { "port": "meta", "ctxKey": "customerMetaJson" }
       ],
       "outputs": [
-        { "port": "result", "ctxKey": "payloadJson" }
+        { "port": "output", "ctxKey": "payloadJson" }
       ]
     },
 
@@ -111,7 +111,7 @@
         { "port": "order", "ctxKey": "orderJson" }
       ],
       "outputs": [
-        { "port": "result", "ctxKey": "soapOutput" }
+        { "port": "output", "ctxKey": "soapOutput" }
       ]
     }
   },
