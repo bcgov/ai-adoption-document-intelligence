@@ -62,7 +62,6 @@ interface GraphNodeData {
   workflowRef?: ChildWorkflowNode["workflowRef"];
   inputFormat?: string;
   outputFormat?: string;
-  fieldMapping?: string;
 }
 
 interface GroupNodeData {
@@ -116,9 +115,6 @@ const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
   humanGate: <IconUserCheck size={18} />,
 };
 
-const TRANSFORM_TRUNCATION_THRESHOLD = 300;
-const TRANSFORM_DISPLAY_CHARS = 60;
-
 /**
  * Extracts transform summary data from an activity node with activityType "data.transform".
  */
@@ -126,7 +122,6 @@ function transformNodeSummaryData(node: GraphNode): {
   activityType?: string;
   inputFormat?: string;
   outputFormat?: string;
-  fieldMapping?: string;
 } {
   if (
     node.type === "activity" &&
@@ -137,7 +132,6 @@ function transformNodeSummaryData(node: GraphNode): {
       activityType: "data.transform",
       inputFormat: params.inputFormat as string | undefined,
       outputFormat: params.outputFormat as string | undefined,
-      fieldMapping: params.fieldMapping as string | undefined,
     };
   }
   return {};
@@ -238,22 +232,6 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
               {data.inputFormat.toUpperCase()} →{" "}
               {data.outputFormat.toUpperCase()}
             </div>
-            {data.fieldMapping ? (
-              <div
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: 9,
-                  maxWidth: 156,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {data.fieldMapping.length > TRANSFORM_TRUNCATION_THRESHOLD
-                  ? data.fieldMapping.slice(0, TRANSFORM_DISPLAY_CHARS) + "…"
-                  : data.fieldMapping}
-              </div>
-            ) : null}
           </div>
         ) : (
           <div style={{ fontSize: 11, color: "#6b7280" }}>{data.type}</div>
