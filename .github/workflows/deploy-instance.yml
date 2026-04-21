@@ -2,7 +2,7 @@ name: Deploy Instance
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, main]
   workflow_dispatch: {}
 
 env:
@@ -22,6 +22,7 @@ jobs:
     outputs:
       instance-name: ${{ steps.meta.outputs.instance }}
       image-tag: ${{ steps.meta.outputs.image-tag }}
+      sha-tag: ${{ steps.meta.outputs.sha-tag }}
       environment: ${{ steps.meta.outputs.environment }}
       checkout-ref: ${{ steps.meta.outputs.checkout-ref }}
     steps:
@@ -30,11 +31,19 @@ jobs:
         run: |
           set -euo pipefail
 
+          SHA_TAG=""
+
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "develop" ]]; then
             # push to develop → shared test instance, single floating tag
             INSTANCE="bcgov-di-test"
             IMAGE_TAG="bcgov-di-test"
             ENV="test"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "main" ]]; then
+            # push to main → prod instance; floating tag + immutable SHA tag for rollback
+            INSTANCE="bcgov-di"
+            IMAGE_TAG="bcgov-di"
+            SHA_TAG="bcgov-di-${GITHUB_SHA::12}"
+            ENV="prod"
           else
             # workflow_dispatch: derive from branch, deploy to dev
             RAW_BRANCH="${{ github.ref_name }}"
@@ -54,12 +63,14 @@ jobs:
 
           echo "instance=$INSTANCE" >> "$GITHUB_OUTPUT"
           echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "sha-tag=$SHA_TAG" >> "$GITHUB_OUTPUT"
           echo "environment=$ENV" >> "$GITHUB_OUTPUT"
           echo "checkout-ref=$CHECKOUT_REF" >> "$GITHUB_OUTPUT"
 
           echo "Event:        ${{ github.event_name }}"
           echo "Instance:     $INSTANCE"
           echo "Image tag:    $IMAGE_TAG"
+          echo "SHA tag:      ${SHA_TAG:-(none)}"
           echo "Environment:  $ENV"
           echo "Checkout ref: $CHECKOUT_REF"
 
@@ -105,14 +116,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-instance-${{ matrix.service }}-
 
+      - name: Compute image tags
+        id: tags
+        run: |
+          BASE="${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}"
+          {
+            echo "tags<<EOF"
+            echo "${BASE}:${{ needs.metadata.outputs.image-tag }}"
+            if [[ -n "${{ needs.metadata.outputs.sha-tag }}" ]]; then
+              echo "${BASE}:${{ needs.metadata.outputs.sha-tag }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and push image
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: |
-            ${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}:${{ needs.metadata.outputs.image-tag }}
+          tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             VITE_API_BASE_URL=/api
             VITE_SSO_AUTH_SERVER_URL=${{ secrets.VITE_SSO_AUTH_SERVER_URL }}

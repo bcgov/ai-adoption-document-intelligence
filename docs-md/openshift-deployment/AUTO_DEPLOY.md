@@ -1,21 +1,21 @@
-# Auto-Deploy on push to `develop`
+# Auto-Deploy on push to `develop` and `main`
 
 ## Overview
 
-When a commit lands on `develop` (typically via PR merge), the `Deploy Instance` workflow automatically builds images and deploys them to the shared `bcgov-di-test` instance in the `fd34fb-test` OpenShift namespace.
+The `Deploy Instance` workflow automatically builds images and deploys them to the appropriate OpenShift instance whenever a commit lands on `develop` or `main`:
 
-This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag pushes via `build-apps.yml`) for test-namespace deployments.
+| Branch | Instance | Namespace | GH environment | Image tags |
+|---|---|---|---|---|
+| `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` (floating) |
+| `main` | `bcgov-di` | `fd34fb-prod` | `prod` | `bcgov-di` (floating) + `bcgov-di-<sha12>` (immutable, for rollback) |
 
-## What happens on a push to `develop`
+This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag pushes via `build-apps.yml`) for test and production deployments.
 
-1. **Trigger**: `push` to `develop`.
-2. **Metadata job** fixes the deployment target:
-   - Instance: `bcgov-di-test`
-   - Namespace: `fd34fb-test`
-   - Image tag: `bcgov-di-test` (single floating tag — no SHA accumulation)
-   - GitHub environment: `test`
-   - Checkout ref: the merge commit SHA on `develop`
-3. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`. Each image is pushed to `<artifactory>/kfd3-fd34fb-local/<service>:bcgov-di-test`, overwriting the prior manifest.
+## What happens on a push
+
+1. **Trigger**: `push` to `develop` or `main`.
+2. **Metadata job** resolves instance name, namespace, image tag(s), and GH environment based on which branch was pushed (see table above).
+3. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`. Each image is pushed to `<artifactory>/kfd3-fd34fb-local/<service>:<tag>` for every tag resolved by metadata — so prod builds push to both the floating tag and the SHA tag in one buildx invocation.
 4. **Deploy job**:
    - Generates a Kustomize overlay from `deployments/openshift/kustomize/overlays/instance-template`, substituting instance/namespace/cluster-domain/image tags.
    - `oc apply`s the rendered manifests.
@@ -26,25 +26,28 @@ This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag p
 
 ## Concurrency
 
-The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. If two commits land on `develop` in rapid succession, the older run is cancelled and the newer commit is deployed. This prevents races on the shared `bcgov-di-test` instance.
+The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. If two commits land on the same branch in rapid succession, the older run is cancelled and the newer commit is deployed. Pushes to `develop` and `main` run independently.
 
 ## Image tagging strategy
 
-| Target | Tag pattern | Rotation |
-|---|---|---|
-| Test (push to `develop`) | `bcgov-di-test` (floating, single tag) | Overwritten on every push; orphan manifests garbage-collected by cleanup step |
-| Production (future, on push to `main`) | `bcgov-di` (floating) + `bcgov-di-<sha>` (immutable) | Rollback via the SHA-pinned tag; rotation of old SHA tags handled by scheduled cleanup |
+| Target | Tag pattern | Rollback | Rotation |
+|---|---|---|---|
+| Test (push to `develop`) | `bcgov-di-test` (floating, single tag) | Re-deploy a previous commit by rebuilding it | Overwritten on every push; orphan manifests garbage-collected post-deploy |
+| Prod (push to `main`) | `bcgov-di` (floating) + `bcgov-di-<sha12>` (immutable) | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Scheduled cleanup keeps the N most recent `bcgov-di-*` SHA tags and deletes the rest |
 
 ## Pre-requisites
 
-### GitHub `test` environment
+### GitHub environments
 
-Must exist with the following secrets (populate with `scripts/gh-setup-test-env.sh` — see below):
+- `test` — populated by `scripts/gh-setup-test-env.sh` (see below). All shared secrets mirror `dev`, with `OPENSHIFT_*` overridden for `fd34fb-test`.
+- `prod` — already configured with production OpenShift and Azure/SSO secrets. Secrets sourced from `deployments/openshift/config/prod.env` + the `fd34fb-prod` SA token.
 
-- All keys from `deployments/openshift/config/dev.env` (bulk-loaded): Artifactory, Azure, SSO, throttles, etc.
-- `OPENSHIFT_TOKEN` — service-account token for `fd34fb-test` (extracted from `.oc-deploy/token-fd34fb-test`)
-- `OPENSHIFT_NAMESPACE` — literal `fd34fb-test`
-- `OPENSHIFT_SERVER` — `https://api.silver.devops.gov.bc.ca:6443`
+Both environments should have:
+- `OPENSHIFT_TOKEN` — service-account token for the matching namespace
+- `OPENSHIFT_NAMESPACE` — literal namespace name (`fd34fb-test` or `fd34fb-prod`)
+- `OPENSHIFT_SERVER` — cluster API URL (`https://api.silver.devops.gov.bc.ca:6443`)
+- `ARTIFACTORY_URL`, `ARTIFACTORY_SA_USERNAME`, `ARTIFACTORY_SA_PASSWORD`
+- Azure, SSO, and app-config secrets as referenced in the workflow
 
 ### OpenShift service account in `fd34fb-test`
 
