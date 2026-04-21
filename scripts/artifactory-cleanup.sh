@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
 #
-# artifactory-cleanup.sh — Remove unused SHA-tagged image manifests from Artifactory.
+# artifactory-cleanup.sh — Reclaim storage in the Artifactory container repo.
 #
-# Identifies SHA-tagged manifests (stored as sha256__* folders) that are not
-# referenced by any named tag and deletes them to reclaim storage.
+# Two phases (both optional and composable):
+#   1. Tag rotation — for each image, keep only the N most-recent named tags
+#      matching a glob pattern; delete the rest. Use for immutable SHA tags like
+#      `bcgov-di-<sha>` so they don't accumulate unbounded.
+#   2. Orphan manifest reclamation — identifies SHA-tagged manifests (stored as
+#      sha256__* folders) that are not referenced by any named tag and deletes
+#      them. Always runs.
 #
 # Usage:
-#   ./scripts/artifactory-cleanup.sh --env dev              # Dry run (default)
-#   ./scripts/artifactory-cleanup.sh --env dev --delete      # Actually delete
+#   ./scripts/artifactory-cleanup.sh --env dev                        # Orphan cleanup, dry run
+#   ./scripts/artifactory-cleanup.sh --env dev --delete                # Orphan cleanup, real
+#   ./scripts/artifactory-cleanup.sh --keep 10 --match 'bcgov-di-*' --delete
+#                                                                      # Rotation + orphan cleanup
 #
 # Prerequisites:
 #   - Artifactory credentials configured in deployments/openshift/config/<env>.env
+#     OR set via env vars ARTIFACTORY_URL / ARTIFACTORY_SA_USERNAME / ARTIFACTORY_SA_PASSWORD
 #   - curl and python3 installed
 #
 
@@ -30,9 +38,15 @@ log_ok()    { echo -e "\033[0;32m[OK]\033[0m    $*"; }
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--env <dev|prod>] [--delete]
+Usage: $(basename "$0") [--env <dev|prod>] [--keep N --match GLOB] [--delete]
 
-Remove unused SHA-tagged image manifests from Artifactory.
+Reclaim storage in the Artifactory container repo.
+
+Phases:
+  - Tag rotation (optional): pass --keep N AND --match GLOB to delete named
+    tags matching GLOB beyond the N most recent per image (by created time).
+  - Orphan cleanup (always): delete SHA-tagged manifests not referenced by any
+    named tag.
 
 By default runs in dry-run mode (shows what would be deleted without deleting).
 
@@ -41,9 +55,11 @@ Credentials are taken from these environment variables when set:
 Otherwise loaded from the --env config file (e.g., dev.env).
 
 Options:
-  --env, -e    Environment profile (optional if env vars are set)
-  --delete     Actually delete the manifests (default: dry run)
-  --help, -h   Show this help message
+  --env, -e        Environment profile (optional if env vars are set)
+  --keep, -k N     Keep the N most recent named tags matching --match per image
+  --match, -m GLOB Glob pattern for named tags to rotate (e.g. 'bcgov-di-*')
+  --delete         Actually delete (default: dry run)
+  --help, -h       Show this help message
 EOF
 }
 
@@ -51,15 +67,30 @@ EOF
 
 ENV_PROFILE=""
 DO_DELETE=false
+KEEP_N=""
+MATCH_GLOB=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env|-e) ENV_PROFILE="$2"; shift 2 ;;
+    --keep|-k) KEEP_N="$2"; shift 2 ;;
+    --match|-m) MATCH_GLOB="$2"; shift 2 ;;
     --delete) DO_DELETE=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) log_error "Unknown option: $1"; usage; exit 1 ;;
   esac
 done
+
+# Rotation requires both or neither
+if [[ -n "${KEEP_N}" && -z "${MATCH_GLOB}" ]] || [[ -z "${KEEP_N}" && -n "${MATCH_GLOB}" ]]; then
+  log_error "--keep and --match must be used together."
+  usage
+  exit 1
+fi
+if [[ -n "${KEEP_N}" ]] && ! [[ "${KEEP_N}" =~ ^[0-9]+$ ]]; then
+  log_error "--keep must be a non-negative integer."
+  exit 1
+fi
 
 # ---------- load credentials ----------
 # Prefer env vars (set by CI); fall back to config file for local usage.
@@ -100,6 +131,70 @@ IMAGES=$(curl -sf -u "${AUTH}" "${DOCKER_API}/_catalog" \
 if [[ -z "${IMAGES}" ]]; then
   log_info "No images found."
   exit 0
+fi
+
+# ---------- phase 1: tag rotation (optional) ----------
+# When --keep N --match GLOB are provided, for each image delete named tags
+# matching the glob beyond the N most-recently-created. The underlying layer
+# manifests become orphans, which phase 2 then reclaims.
+
+if [[ -n "${KEEP_N}" ]]; then
+  log_info "Rotation: keeping ${KEEP_N} most-recent '${MATCH_GLOB}' tags per image..."
+
+  ROTATION_AQL=$(curl -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
+    -H "Content-Type: text/plain" \
+    -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\",\"name\":\"manifest.json\"}).include(\"repo\",\"path\",\"name\",\"created\")" 2>&1) || {
+    log_error "Rotation AQL query failed."
+    exit 1
+  }
+
+  ROTATION_TAGS=$(echo "${ROTATION_AQL}" | python3 -c "
+import sys, json, fnmatch
+data = json.load(sys.stdin)
+keep = int('${KEEP_N}')
+glob = '${MATCH_GLOB}'
+
+# Each result has path like 'backend-services/bcgov-di-abc123' (the tag dir)
+# plus name='manifest.json'. Extract (image, tag, created).
+by_image = {}
+for r in data['results']:
+    parts = r['path'].split('/')
+    if len(parts) < 2:
+        continue
+    image = parts[0]
+    tag = parts[1]
+    if tag.startswith('sha256__') or tag.startswith('sha256:') or tag == '_uploads':
+        continue
+    if not fnmatch.fnmatch(tag, glob):
+        continue
+    by_image.setdefault(image, []).append({'tag': tag, 'created': r.get('created', '')})
+
+for image, tags in by_image.items():
+    tags.sort(key=lambda t: t['created'], reverse=True)
+    for t in tags[keep:]:
+        print(f\"{image}\t{t['tag']}\")
+" 2>/dev/null) || true
+
+  ROT_COUNT=0
+  while IFS=$'\t' read -r image tag; do
+    [[ -z "${image}" || -z "${tag}" ]] && continue
+    ROT_COUNT=$((ROT_COUNT + 1))
+    if [[ "${DO_DELETE}" == "true" ]]; then
+      log_info "  Deleting named tag ${image}:${tag}..."
+      http_code=$(curl -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
+        "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${tag}" 2>/dev/null || echo "000")
+      if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
+        log_ok "  Deleted ${image}:${tag}"
+      else
+        log_warn "  Failed to delete ${image}:${tag} (HTTP ${http_code})"
+      fi
+    else
+      echo "    [DRY RUN] Would delete named tag ${image}:${tag}"
+    fi
+  done <<< "${ROTATION_TAGS}"
+
+  log_info "Rotation: ${ROT_COUNT} tag(s) flagged for deletion."
+  echo ""
 fi
 
 # ---------- use AQL to find all folder paths, then classify ----------

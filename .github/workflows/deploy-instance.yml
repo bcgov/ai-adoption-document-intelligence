@@ -397,5 +397,16 @@ jobs:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
           ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
+          INSTANCE: ${{ needs.metadata.outputs.instance-name }}
         run: |
-          ./scripts/artifactory-cleanup.sh --delete
+          set -euo pipefail
+          # For prod, rotate the SHA-tagged rollback handles: keep the 10 most
+          # recent `<instance>-*` named tags per image, delete the rest. Then
+          # orphan cleanup reclaims underlying layers.
+          # For test/dev, just orphan cleanup — no SHA tags accumulate.
+          if [[ "${ENVIRONMENT}" == "prod" ]]; then
+            ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-*"
+          else
+            ./scripts/artifactory-cleanup.sh --delete
+          fi
