@@ -725,6 +725,41 @@ describe("ClassifierService", () => {
       );
     });
 
+    it("should skip Azure DI deletion entirely when status is PRETRAINING", async () => {
+      (
+        mockClassifierDbService.findClassifierModel as jest.Mock
+      ).mockResolvedValue({
+        name: "clf1",
+        group_id: "g1",
+        status: "PRETRAINING",
+        operation_location: null,
+      });
+      const getAzureMock = jest.fn();
+      (service as any).client = {
+        path: () => ({
+          get: getAzureMock,
+          delete: jest.fn(),
+        }),
+      };
+      const logLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          log: logLogger,
+        },
+      });
+
+      const result = await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(result).toBeNull();
+      expect(getAzureMock).not.toHaveBeenCalled();
+      expect(logLogger).toHaveBeenCalledWith(
+        expect.stringContaining("skipping Azure DI model deletion"),
+        expect.any(Object),
+      );
+    });
+
     it("should log warning if Azure blob delete fails but continue", async () => {
       mockDeleteClient();
       mockBlobService.deleteFilesWithPrefix.mockRejectedValueOnce(

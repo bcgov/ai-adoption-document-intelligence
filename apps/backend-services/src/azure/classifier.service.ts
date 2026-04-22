@@ -601,33 +601,46 @@ export class ClassifierService {
       }
     }
 
-    // Delete Azure DI model if it exists
-    try {
-      const azureClassifiers = await this.listAzureClassifiers();
-      if (azureClassifiers.includes(constructedName)) {
-        await (
-          this.client as unknown as {
-            path: (p: string) => {
-              delete: (opts: object) => Promise<{ status: string }>;
-            };
-          }
-        )
-          .path(`/documentClassifiers/${constructedName}`)
-          .delete({ queryParameters: { "api-version": "2024-11-30" } });
-        this.logger.log(
-          `Deleted Azure DI classifier model ${constructedName}`,
-          { groupId, classifierName, actorId },
-        );
-      } else {
+    // Delete Azure DI model if it exists.
+    // PRETRAINING classifiers have never been submitted to Azure DI, so skip the
+    // remote call entirely to avoid unnecessary network timeouts.
+    if (
+      classifier.status === ClassifierStatus.READY ||
+      classifier.status === ClassifierStatus.TRAINING ||
+      classifier.status === ClassifierStatus.FAILED
+    ) {
+      try {
+        const azureClassifiers = await this.listAzureClassifiers();
+        if (azureClassifiers.includes(constructedName)) {
+          await (
+            this.client as unknown as {
+              path: (p: string) => {
+                delete: (opts: object) => Promise<{ status: string }>;
+              };
+            }
+          )
+            .path(`/documentClassifiers/${constructedName}`)
+            .delete({ queryParameters: { "api-version": "2024-11-30" } });
+          this.logger.log(
+            `Deleted Azure DI classifier model ${constructedName}`,
+            { groupId, classifierName, actorId },
+          );
+        } else {
+          this.logger.warn(
+            `Azure DI classifier model ${constructedName} not found, skipping Azure DI deletion`,
+            { groupId, classifierName, actorId },
+          );
+        }
+      } catch (err) {
         this.logger.warn(
-          `Azure DI classifier model ${constructedName} not found, skipping Azure DI deletion`,
-          { groupId, classifierName, actorId },
+          `Failed to delete Azure DI classifier model ${constructedName}, continuing deletion`,
+          { groupId, classifierName, actorId, error: String(err) },
         );
       }
-    } catch (err) {
-      this.logger.warn(
-        `Failed to delete Azure DI classifier model ${constructedName}, continuing deletion`,
-        { groupId, classifierName, actorId, error: String(err) },
+    } else {
+      this.logger.log(
+        `Classifier ${classifierName} is in ${classifier.status} status — skipping Azure DI model deletion`,
+        { groupId, classifierName, actorId },
       );
     }
 
