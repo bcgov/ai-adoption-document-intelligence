@@ -318,7 +318,7 @@ describe("AzureController", () => {
         status: "READY",
       });
       azureService.pollOperationUntilResolved.mockImplementation(
-        async (_loc: any, onSuccess: (arg0: {}) => any) => onSuccess({}),
+        async (_loc: any, onSuccess: (arg0: object) => any) => onSuccess({}),
       );
       const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1" };

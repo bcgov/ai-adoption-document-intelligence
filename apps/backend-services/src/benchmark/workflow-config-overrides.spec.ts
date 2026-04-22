@@ -243,14 +243,12 @@ describe("applyWorkflowConfigOverrides", () => {
     const result = applyWorkflowConfigOverrides(config, {
       "nodes.node1.parameters.model": "gpt-4o",
     });
-    expect(
-      (result as unknown as Record<string, unknown>)["nodes"],
-    ).toBeDefined();
+    expect((result as unknown as Record<string, unknown>).nodes).toBeDefined();
     const nodes = (
       result as unknown as Record<string, Record<string, unknown>>
     )["nodes"];
     expect(
-      (nodes["node1"] as Record<string, Record<string, unknown>>)["parameters"][
+      (nodes.node1 as Record<string, Record<string, unknown>>)["parameters"][
         "model"
       ],
     ).toBe("gpt-4o");

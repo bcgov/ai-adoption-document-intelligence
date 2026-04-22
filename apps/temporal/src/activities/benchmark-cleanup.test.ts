@@ -4,9 +4,9 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 11.4
  */
 
-import * as fs from "fs/promises";
-import * as os from "os";
-import * as path from "path";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { BenchmarkCleanupInput, benchmarkCleanup } from "./benchmark-cleanup";
 
 describe("Benchmark Cleanup Activities", () => {

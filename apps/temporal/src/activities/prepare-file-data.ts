@@ -1,6 +1,6 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
-import * as fs from "fs";
-import * as path from "path";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData } from "../types";
@@ -74,7 +74,7 @@ export async function prepareFileData(
 
   // Check for image files first by extension
   if (
-    (contentType && contentType.includes("image")) ||
+    contentType?.includes("image") ||
     lowerFileName.match(/\.(jpg|jpeg|png|gif|bmp|tiff|webp)$/i)
   ) {
     fileType = "image";
@@ -89,10 +89,7 @@ export async function prepareFileData(
         contentType = "image/jpeg";
       }
     }
-  } else if (
-    (contentType && contentType.includes("pdf")) ||
-    lowerFileName.endsWith(".pdf")
-  ) {
+  } else if (contentType?.includes("pdf") || lowerFileName.endsWith(".pdf")) {
     fileType = "pdf";
     contentType = "application/pdf";
   } else {

@@ -119,7 +119,7 @@ export function DocumentViewerModal({
       void loadDocumentImage(document);
     } else if (!opened) {
       // Clean up object URL when modal closes
-      if (imageUrl && imageUrl.startsWith("blob:")) {
+      if (imageUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(imageUrl);
       }
       setImageUrl("");
@@ -190,7 +190,7 @@ export function DocumentViewerModal({
   };
 
   const handleClose = () => {
-    if (imageUrl && imageUrl.startsWith("blob:")) {
+    if (imageUrl?.startsWith("blob:")) {
       URL.revokeObjectURL(imageUrl);
     }
     setImageUrl("");
@@ -349,8 +349,8 @@ export function DocumentViewerModal({
                   />
                 ) : (
                   <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-                    OCR results are not available yet. Please wait for processing
-                    to complete.
+                    OCR results are not available yet. Please wait for
+                    processing to complete.
                   </Alert>
                 )}
               </Tabs.Panel>

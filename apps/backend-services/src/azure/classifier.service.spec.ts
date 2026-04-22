@@ -209,7 +209,7 @@ describe("ClassifierService", () => {
       (service as any).client = {
         path: (_url: string) => ({
           post: jest.fn().mockImplementation(({ body }) => {
-            if (body && body.base64Source) {
+            if (body?.base64Source) {
               return Promise.resolve({
                 status: "200",
                 body: { fallback: true },
@@ -286,7 +286,7 @@ describe("ClassifierService", () => {
       (service as any).client = {
         path: (_url: string) => ({
           post: jest.fn().mockImplementation(({ body }) => {
-            if (body && body.base64Source) {
+            if (body?.base64Source) {
               return Promise.resolve({
                 status: "500",
                 body: "fail",

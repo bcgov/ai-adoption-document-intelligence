@@ -1,4 +1,5 @@
 import { getErrorMessage } from "@ai-di/shared-logging";
+
 /**
  * Benchmark Run Service
  *
@@ -10,6 +11,8 @@ import { getErrorMessage } from "@ai-di/shared-logging";
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.6, 4.2, 4.5, 11.2
  */
 
+import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { Prisma } from "@generated/client";
 import {
   BadRequestException,
@@ -17,8 +20,6 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { execSync } from "child_process";
-import { createHash } from "crypto";
 import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { AuditLogService } from "./audit-log.service";
@@ -887,7 +888,7 @@ export class BenchmarkRunService {
         continue;
       }
       const numValue = Number(value);
-      out.set(key, isNaN(numValue) ? value : numValue);
+      out.set(key, Number.isNaN(numValue) ? value : numValue);
     }
     return out;
   }

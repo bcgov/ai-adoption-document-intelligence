@@ -38,7 +38,6 @@ describe("AzureService", () => {
 
   it("should initialize with correct endpoint and apiKey", () => {
     expect(service.getEndpoint()).toBe("https://test.com");
-    // @ts-ignore
     expect(service["apiKey"]).toBe("secret-key");
   });
 
@@ -51,7 +50,6 @@ describe("AzureService", () => {
       const mockFetch = jest.fn().mockResolvedValue({
         json: jest.fn().mockResolvedValue({ status: "succeeded" }),
       });
-      // @ts-ignore
       global.fetch = mockFetch;
       const url = "https://test.com/operation";
       await service.checkOperationStatus(url);
@@ -82,7 +80,6 @@ describe("AzureService", () => {
         json: jest.fn().mockResolvedValue({ status: "succeeded" }),
       };
       const mockFetch = jest.fn().mockResolvedValue(pollResp);
-      // @ts-ignore
       service.checkOperationStatus = mockFetch;
       const onSuccess = jest.fn();
       await service.pollOperationUntilResolved(url, onSuccess, undefined, {
@@ -98,7 +95,6 @@ describe("AzureService", () => {
         json: jest.fn().mockResolvedValue({ status: "failed" }),
       };
       const mockFetch = jest.fn().mockResolvedValue(pollResp);
-      // @ts-ignore
       service.checkOperationStatus = mockFetch;
       const onFailure = jest.fn();
       await service.pollOperationUntilResolved(url, jest.fn(), onFailure, {
@@ -114,7 +110,6 @@ describe("AzureService", () => {
         json: jest.fn().mockResolvedValue({ status: "notStarted" }),
       };
       const mockFetch = jest.fn().mockResolvedValue(pollResp);
-      // @ts-ignore
       service.checkOperationStatus = mockFetch;
       const onSuccess = jest.fn();
       const onFailure = jest.fn();

@@ -4,6 +4,9 @@ metadata:
   name: temporal-ui
   labels:
     app: temporal-ui
+  annotations:
+    # 142.16.0.0/11 is the approximate VPN address range.
+    haproxy.router.openshift.io/ip_whitelist: 142.16.0.0/11
 spec:
   to:
     kind: Service
