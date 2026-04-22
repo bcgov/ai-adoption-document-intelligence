@@ -92,32 +92,12 @@ describe("ClassifierOrphanCleanupService", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // cleanupOrphanClassifiers — disabled state
+  // cleanupOrphanClassifiers
   // ---------------------------------------------------------------------------
+  // Note: the `disabled` option on @Cron is evaluated at NestJS module startup
+  // by the scheduler. It cannot be tested by calling the method directly.
 
-  describe("cleanupOrphanClassifiers — disabled", () => {
-    it("should return immediately without calling Azure when disabled", async () => {
-      delete process.env.ENABLE_CLASSIFIER_ORPHAN_CLEANUP;
-      await service.cleanupOrphanClassifiers();
-      expect(mockClassifierService.listAzureClassifiers).not.toHaveBeenCalled();
-    });
-
-    it("should return immediately when ENABLE_CLASSIFIER_ORPHAN_CLEANUP=false", async () => {
-      process.env.ENABLE_CLASSIFIER_ORPHAN_CLEANUP = "false";
-      await service.cleanupOrphanClassifiers();
-      expect(mockClassifierService.listAzureClassifiers).not.toHaveBeenCalled();
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // cleanupOrphanClassifiers — enabled
-  // ---------------------------------------------------------------------------
-
-  describe("cleanupOrphanClassifiers — enabled", () => {
-    beforeEach(() => {
-      process.env.ENABLE_CLASSIFIER_ORPHAN_CLEANUP = "true";
-    });
-
+  describe("cleanupOrphanClassifiers", () => {
     it("should log summary after run with no classifiers", async () => {
       mockClassifierService.listAzureClassifiers.mockResolvedValue([]);
       mockClassifierDb.findAllClassifierNameGroupPairs.mockResolvedValue([]);
