@@ -32,7 +32,7 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
 }) => {
   const handlePageInputChange = (value: number | string) => {
     const page = typeof value === "number" ? value : parseInt(value, 10);
-    if (!isNaN(page) && page >= 1 && page <= totalPages) {
+    if (!Number.isNaN(page) && page >= 1 && page <= totalPages) {
       onPageChange(page);
     }
   };

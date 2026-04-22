@@ -7,6 +7,9 @@
  * This test will run until it encounters the current error to help debug the issue.
  */
 
+import { ChildProcess, spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Logger } from "@nestjs/common";
 import {
   Client,
@@ -14,10 +17,7 @@ import {
   WorkflowExecutionStatusName,
 } from "@temporalio/client";
 import axios, { AxiosInstance } from "axios";
-import { ChildProcess, spawn } from "child_process";
 import * as dotenv from "dotenv";
-import * as fs from "fs";
-import * as path from "path";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -487,7 +487,9 @@ async function displayWorkflowHistory(): Promise<void> {
             if (attrs.failure.stackTrace) {
               log(`      Stack Trace:`, "error");
               const lines = attrs.failure.stackTrace.split("\n").slice(0, 15);
-              lines.forEach((line: string) => log(`        ${line}`, "error"));
+              lines.forEach((line: string) => {
+                log(`        ${line}`, "error");
+              });
             }
           }
         }
@@ -501,7 +503,9 @@ async function displayWorkflowHistory(): Promise<void> {
             if (attrs.failure.stackTrace) {
               log(`      Stack Trace:`, "error");
               const lines = attrs.failure.stackTrace.split("\n").slice(0, 15);
-              lines.forEach((line: string) => log(`        ${line}`, "error"));
+              lines.forEach((line: string) => {
+                log(`        ${line}`, "error");
+              });
             }
           }
         }
@@ -657,7 +661,7 @@ async function monitorWorkflow(): Promise<void> {
       } else if (status.status === "FAILED") {
         log(`Workflow failed after ${(elapsed / 1000).toFixed(1)}s`, "error");
 
-        if (progress && progress.error) {
+        if (progress?.error) {
           log(`Last error: ${progress.error}`, "error");
         }
 

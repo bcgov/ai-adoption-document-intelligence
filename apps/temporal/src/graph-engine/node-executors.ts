@@ -469,7 +469,7 @@ async function executeHumanGateNode(
     writeToCtx(`${node.id}Payload`, payloadValue, state.ctx);
   }
 
-  if (payloadValue["approved"] === false) {
+  if (payloadValue.approved === false) {
     throw ApplicationFailure.create({
       type: "HUMAN_GATE_REJECTED",
       message: `HumanGate node ${node.id} rejected by signal ${node.signal.name}`,

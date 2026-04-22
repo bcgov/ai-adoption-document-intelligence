@@ -129,7 +129,7 @@ export async function upsertOcrResult(params: {
 
     // Ensure processedAt is a valid date, fallback to current time if invalid
     const processedDate = new Date(ocrResult.processedAt);
-    const validProcessedDate = isNaN(processedDate.getTime())
+    const validProcessedDate = Number.isNaN(processedDate.getTime())
       ? new Date()
       : processedDate;
 

@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 import { CookieOptions, Request, Response } from "express";
 import { ExtractJwt } from "passport-jwt";
 import { TokenResponseDto } from "@/auth/dto/token-response.dto";

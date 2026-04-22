@@ -143,9 +143,9 @@ function extractKeywordMarkers(
     for (const pattern of compiledPatterns) {
       const match = pattern.regex.exec(line);
 
-      if (match && match[1]) {
+      if (match?.[1]) {
         const pageNum = parseInt(match[1], 10);
-        if (!isNaN(pageNum) && pageNum > 0) {
+        if (!Number.isNaN(pageNum) && pageNum > 0) {
           // Check if we already have a marker for this page
           const existing = markers.find((m) => m.pageNumber === pageNum);
           if (!existing) {

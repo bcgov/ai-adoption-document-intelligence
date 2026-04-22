@@ -6,7 +6,7 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 11.4
  */
 
-import * as fs from "fs/promises";
+import * as fs from "node:fs/promises";
 
 /**
  * Input for benchmark.cleanup activity
