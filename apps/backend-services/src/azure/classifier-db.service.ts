@@ -152,6 +152,19 @@ export class ClassifierDbService {
   }
 
   /**
+   * Finds all classifier model name/group_id pairs in the database.
+   * Used for bulk lookups (e.g. orphan cleanup) to avoid N+1 queries.
+   * @returns An array of `{ name, group_id }` objects for every classifier record.
+   */
+  async findAllClassifierNameGroupPairs(): Promise<
+    { name: string; group_id: string }[]
+  > {
+    return this.prisma.classifierModel.findMany({
+      select: { name: true, group_id: true },
+    });
+  }
+
+  /**
    * Finds all classifier models belonging to the specified groups, including group details.
    * @param groupIds The list of group IDs to filter by.
    * @returns An array of ClassifierModel records with their associated group.

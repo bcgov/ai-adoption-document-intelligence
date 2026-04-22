@@ -33,4 +33,4 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] US-003-workflow-usage-check-on-deletion.md
 - [x] US-004-delete-button-confirmation-ui.md
 - [x] US-005-display-workflow-conflict-ui.md
-- [ ] US-006-orphan-classifier-cleanup-cron.md
+- [x] US-006-orphan-classifier-cleanup-cron.md
