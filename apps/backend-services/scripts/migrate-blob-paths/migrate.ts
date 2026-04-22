@@ -29,6 +29,8 @@
 
 import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
 import { PrismaClient } from "@generated/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { getPrismaPgOptions } from "@/utils/database-url";
 
 interface Args {
   phase: "copy" | "cleanup";
@@ -114,14 +116,13 @@ async function runWithLimit<T, R>(
 
 async function collectLabelingDocumentWork(
   prisma: PrismaClient,
+  container: ContainerClient,
 ): Promise<WorkUnit[]> {
+  // We index DB rows by the `labeling-documents/{uuid}/{filename}` suffix
+  // that both the old-prefix and new-prefix forms of file_path share. This
+  // lets cleanup runs (where the DB has already been rewritten) still
+  // resolve each legacy blob back to its owning row.
   const rows = await prisma.labelingDocument.findMany({
-    where: {
-      OR: [
-        { file_path: { startsWith: LABELING_OLD_PREFIX } },
-        { normalized_file_path: { startsWith: LABELING_OLD_PREFIX } },
-      ],
-    },
     select: {
       id: true,
       group_id: true,
@@ -130,40 +131,87 @@ async function collectLabelingDocumentWork(
     },
   });
 
-  const units: WorkUnit[] = [];
+  interface PathMatch {
+    rowId: string;
+    groupId: string;
+    field: "file_path" | "normalized_file_path";
+    currentValue: string;
+  }
+  const bySuffix = new Map<string, PathMatch>();
+  const suffixOf = (p: string | null | undefined): string | null => {
+    if (!p) return null;
+    const idx = p.indexOf(LABELING_OLD_PREFIX);
+    return idx === -1 ? null : p.slice(idx);
+  };
   for (const row of rows) {
-    const blobs: WorkUnit["blobs"] = [];
-    const updates: {
-      file_path?: string;
-      normalized_file_path?: string;
-    } = {};
-
-    if (row.file_path.startsWith(LABELING_OLD_PREFIX)) {
-      const newKey = `${row.group_id}/${TRAINING_CATEGORY}/${row.file_path}`;
-      blobs.push({ oldKey: row.file_path, newKey });
-      updates.file_path = newKey;
-    }
-    if (row.normalized_file_path?.startsWith(LABELING_OLD_PREFIX)) {
-      const newKey = `${row.group_id}/${TRAINING_CATEGORY}/${row.normalized_file_path}`;
-      blobs.push({ oldKey: row.normalized_file_path, newKey });
-      updates.normalized_file_path = newKey;
-    }
-
-    if (blobs.length === 0) continue;
-
-    units.push({
-      label: `labeling-document ${row.id}`,
-      blobs,
-      finalize: async () => {
-        await prisma.labelingDocument.update({
-          where: { id: row.id },
-          data: updates,
-        });
-      },
-    });
+    const fp = suffixOf(row.file_path);
+    if (fp)
+      bySuffix.set(fp, {
+        rowId: row.id,
+        groupId: row.group_id,
+        field: "file_path",
+        currentValue: row.file_path,
+      });
+    const nfp = suffixOf(row.normalized_file_path);
+    if (nfp && row.normalized_file_path)
+      bySuffix.set(nfp, {
+        rowId: row.id,
+        groupId: row.group_id,
+        field: "normalized_file_path",
+        currentValue: row.normalized_file_path,
+      });
   }
 
-  return units;
+  interface RowUnit {
+    rowId: string;
+    blobs: WorkUnit["blobs"];
+    updates: { file_path?: string; normalized_file_path?: string };
+  }
+  const byRow = new Map<string, RowUnit>();
+  const orphaned: string[] = [];
+
+  for await (const blob of container.listBlobsFlat({
+    prefix: LABELING_OLD_PREFIX,
+  })) {
+    const oldKey = blob.name;
+    const match = bySuffix.get(oldKey);
+    if (!match) {
+      orphaned.push(oldKey);
+      continue;
+    }
+    const newKey = `${match.groupId}/${TRAINING_CATEGORY}/${oldKey}`;
+    let unit = byRow.get(match.rowId);
+    if (!unit) {
+      unit = { rowId: match.rowId, blobs: [], updates: {} };
+      byRow.set(match.rowId, unit);
+    }
+    unit.blobs.push({ oldKey, newKey });
+    // Stage a DB update only if this field is still pointing at the old prefix.
+    if (match.currentValue.startsWith(LABELING_OLD_PREFIX)) {
+      unit.updates[match.field] = newKey;
+    }
+  }
+
+  if (orphaned.length > 0) {
+    console.warn(
+      `⚠ ${orphaned.length} labeling-document blob(s) reference unknown document IDs — skipped. ` +
+        `Examples: ${orphaned.slice(0, 3).join(", ")}`,
+    );
+  }
+
+  return Array.from(byRow.values()).map((u) => ({
+    label: `labeling-document ${u.rowId}`,
+    blobs: u.blobs,
+    finalize:
+      Object.keys(u.updates).length > 0
+        ? async () => {
+            await prisma.labelingDocument.update({
+              where: { id: u.rowId },
+              data: u.updates,
+            });
+          }
+        : undefined,
+  }));
 }
 
 async function collectDatasetWork(
@@ -381,7 +429,7 @@ async function main(): Promise<void> {
 
   const connectionString = requireEnv("AZURE_STORAGE_CONNECTION_STRING");
   const containerName = requireEnv("AZURE_STORAGE_CONTAINER_NAME");
-  requireEnv("DATABASE_URL");
+  const databaseUrl = requireEnv("DATABASE_URL");
 
   const serviceClient =
     BlobServiceClient.fromConnectionString(connectionString);
@@ -390,7 +438,9 @@ async function main(): Promise<void> {
     throw new Error(`Container "${containerName}" does not exist.`);
   }
 
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg(getPrismaPgOptions(databaseUrl)),
+  });
   try {
     await prisma.$queryRaw`SELECT 1`;
 
@@ -401,7 +451,7 @@ async function main(): Promise<void> {
     if (args.category === "labeling-documents" || args.category === "all") {
       targets.push({
         name: "labeling-documents",
-        collect: () => collectLabelingDocumentWork(prisma),
+        collect: () => collectLabelingDocumentWork(prisma, container),
       });
     }
     if (args.category === "datasets" || args.category === "all") {

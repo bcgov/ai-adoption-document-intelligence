@@ -261,7 +261,7 @@ if [[ "${DO_RESTART}" == "true" ]]; then
 
   if [[ -z "${NAMESPACE}" ]]; then
     # Try reading from token file first (SA login doesn't set oc project)
-    local token_file="${PROJECT_ROOT}/.oc-deploy/token"
+    token_file="${PROJECT_ROOT}/.oc-deploy/token"
     if [[ -f "${token_file}" ]]; then
       NAMESPACE=$(grep '^NAMESPACE=' "${token_file}" | cut -d= -f2-)
     fi
