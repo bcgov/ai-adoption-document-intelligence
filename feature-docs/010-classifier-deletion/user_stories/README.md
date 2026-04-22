@@ -28,9 +28,9 @@ After implementing a user story, check it off at the bottom of this file.
 | `US-006-orphan-classifier-cleanup-cron.md` | Automated orphan classifier cleanup cron job |
 
 ## Acceptance Checklist
-- [ ] US-001-list-azure-classifiers-service.md
-- [ ] US-002-delete-classifier-api-endpoint.md
-- [ ] US-003-workflow-usage-check-on-deletion.md
+- [x] US-001-list-azure-classifiers-service.md
+- [x] US-002-delete-classifier-api-endpoint.md
+- [x] US-003-workflow-usage-check-on-deletion.md
 - [ ] US-004-delete-button-confirmation-ui.md
 - [ ] US-005-display-workflow-conflict-ui.md
 - [ ] US-006-orphan-classifier-cleanup-cron.md

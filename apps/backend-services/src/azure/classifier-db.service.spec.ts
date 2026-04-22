@@ -15,6 +15,10 @@ describe("ClassifierDbService", () => {
       update: jest.Mock;
       findUnique: jest.Mock;
       findMany: jest.Mock;
+      delete: jest.Mock;
+    };
+    workflowVersion: {
+      findMany: jest.Mock;
     };
   };
 
@@ -24,6 +28,10 @@ describe("ClassifierDbService", () => {
         create: jest.fn(),
         update: jest.fn(),
         findUnique: jest.fn(),
+        findMany: jest.fn(),
+        delete: jest.fn(),
+      },
+      workflowVersion: {
         findMany: jest.fn(),
       },
     };
@@ -360,6 +368,141 @@ describe("ClassifierDbService", () => {
       expect(result).toEqual(expected);
       expect(mockTxClassifierModel.update).toHaveBeenCalled();
       expect(mockPrisma.classifierModel.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteClassifierModel
+  // ---------------------------------------------------------------------------
+
+  describe("deleteClassifierModel", () => {
+    it("should hard-delete a classifier model and return the deleted record", async () => {
+      const expected = { id: "1", name: "clf1", group_id: "g1" };
+      mockPrisma.classifierModel.delete.mockResolvedValueOnce(expected);
+
+      const result = await service.deleteClassifierModel("clf1", "g1");
+
+      expect(result).toEqual(expected);
+      expect(mockPrisma.classifierModel.delete).toHaveBeenCalledWith({
+        where: {
+          name_group_id: { name: "clf1", group_id: "g1" },
+        },
+      });
+    });
+
+    it("should use provided tx client", async () => {
+      const expected = { id: "1", name: "clf1", group_id: "g1" };
+      const mockTxClassifierModel = {
+        delete: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { classifierModel: mockTxClassifierModel } as any;
+
+      const result = await service.deleteClassifierModel("clf1", "g1", mockTx);
+
+      expect(result).toEqual(expected);
+      expect(mockTxClassifierModel.delete).toHaveBeenCalled();
+      expect(mockPrisma.classifierModel.delete).not.toHaveBeenCalled();
+    });
+
+    it("should re-throw errors from Prisma", async () => {
+      mockPrisma.classifierModel.delete.mockRejectedValueOnce(
+        new Error("Prisma error"),
+      );
+
+      await expect(service.deleteClassifierModel("clf1", "g1")).rejects.toThrow(
+        "Prisma error",
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // findWorkflowVersionsReferencingClassifier
+  // ---------------------------------------------------------------------------
+
+  describe("findWorkflowVersionsReferencingClassifier", () => {
+    it("should return lineages whose versions reference the classifier name", async () => {
+      mockPrisma.workflowVersion.findMany.mockResolvedValueOnce([
+        {
+          config: { steps: [{ classifierName: "my-classifier" }] },
+          lineage: { id: "wl-1", name: "Workflow 1" },
+        },
+        {
+          config: { steps: [{ classifierName: "other-classifier" }] },
+          lineage: { id: "wl-2", name: "Workflow 2" },
+        },
+      ]);
+
+      const result = await service.findWorkflowVersionsReferencingClassifier(
+        "my-classifier",
+        "g1",
+      );
+
+      expect(result).toEqual([{ id: "wl-1", name: "Workflow 1" }]);
+      expect(mockPrisma.workflowVersion.findMany).toHaveBeenCalledWith({
+        where: { lineage: { group_id: "g1" } },
+        select: {
+          config: true,
+          lineage: { select: { id: true, name: true } },
+        },
+      });
+    });
+
+    it("should deduplicate lineages referenced by multiple versions", async () => {
+      mockPrisma.workflowVersion.findMany.mockResolvedValueOnce([
+        {
+          config: { classifierName: "clf1" },
+          lineage: { id: "wl-1", name: "Workflow 1" },
+        },
+        {
+          config: { classifierName: "clf1" },
+          lineage: { id: "wl-1", name: "Workflow 1" },
+        },
+      ]);
+
+      const result = await service.findWorkflowVersionsReferencingClassifier(
+        "clf1",
+        "g1",
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe("wl-1");
+    });
+
+    it("should return empty array when no versions reference the classifier", async () => {
+      mockPrisma.workflowVersion.findMany.mockResolvedValueOnce([
+        {
+          config: { steps: [] },
+          lineage: { id: "wl-1", name: "Workflow 1" },
+        },
+      ]);
+
+      const result = await service.findWorkflowVersionsReferencingClassifier(
+        "my-classifier",
+        "g1",
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return empty array when there are no workflow versions for the group", async () => {
+      mockPrisma.workflowVersion.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.findWorkflowVersionsReferencingClassifier(
+        "my-classifier",
+        "g1",
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it("should re-throw errors from Prisma", async () => {
+      mockPrisma.workflowVersion.findMany.mockRejectedValueOnce(
+        new Error("Prisma error"),
+      );
+
+      await expect(
+        service.findWorkflowVersionsReferencingClassifier("clf1", "g1"),
+      ).rejects.toThrow("Prisma error");
     });
   });
 });

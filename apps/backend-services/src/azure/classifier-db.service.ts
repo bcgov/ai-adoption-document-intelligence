@@ -186,4 +186,68 @@ export class ClassifierDbService {
       },
     });
   }
+
+  /**
+   * Hard-deletes a classifier model record by name and group ID.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @param tx Optional Prisma transaction client.
+   * @returns The deleted ClassifierModel record.
+   */
+  async deleteClassifierModel(
+    classifierName: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ClassifierModel> {
+    const client = tx ?? this.prisma;
+    return client.classifierModel.delete({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+    });
+  }
+
+  /**
+   * Finds all workflow lineages within a group whose versions reference the given classifier name.
+   * Searches the config JSON blob of every WorkflowVersion for the classifier name string.
+   * @param classifierName The name of the classifier to search for.
+   * @param groupId The group ID to scope the search to.
+   * @returns An array of objects containing workflow lineage id and name.
+   */
+  async findWorkflowVersionsReferencingClassifier(
+    classifierName: string,
+    groupId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    const versions = await this.prisma.workflowVersion.findMany({
+      where: {
+        lineage: {
+          group_id: groupId,
+        },
+      },
+      select: {
+        config: true,
+        lineage: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    const referencedLineages = new Map<string, string>();
+    for (const version of versions) {
+      if (JSON.stringify(version.config).includes(classifierName)) {
+        referencedLineages.set(version.lineage.id, version.lineage.name);
+      }
+    }
+
+    return Array.from(referencedLineages.entries()).map(([id, name]) => ({
+      id,
+      name,
+    }));
+  }
 }

@@ -504,4 +504,173 @@ export class ClassifierService {
       actorId,
     );
   }
+
+  /**
+   * Lists all classifier models registered in Azure Document Intelligence.
+   * @returns An array of Azure DI classifier model IDs.
+   */
+  async listAzureClassifiers(): Promise<string[]> {
+    const response = await (
+      this.client as unknown as {
+        path: (p: string) => {
+          get: (opts: object) => Promise<{ status: string; body: unknown }>;
+        };
+      }
+    )
+      .path("/documentClassifiers")
+      .get({ queryParameters: { "api-version": "2024-11-30" } });
+
+    if (response.status !== "200") {
+      this.logger.error("Failed to list Azure DI classifiers", {
+        status: response.status,
+        body: response.body,
+      });
+      throw new Error(
+        `Failed to list Azure DI classifiers: ${response.status}`,
+      );
+    }
+
+    const body = response.body as {
+      value?: Array<{ classifierId: string }>;
+    };
+    return (body.value ?? []).map((item) => item.classifierId);
+  }
+
+  /**
+   * Deletes a classifier and all its associated resources.
+   * Steps: cancel training (if applicable), delete Azure DI model, delete Azure blob files,
+   * delete primary blob files, hard-delete DB record.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @param actorId The ID of the actor requesting deletion.
+   * @returns An object listing conflicting workflow names/IDs if deletion is blocked, or null on success.
+   */
+  async deleteClassifier(
+    classifierName: string,
+    groupId: string,
+    actorId: string,
+  ): Promise<{ conflictingWorkflows: { id: string; name: string }[] } | null> {
+    const conflictingWorkflows =
+      await this.classifierDb.findWorkflowVersionsReferencingClassifier(
+        classifierName,
+        groupId,
+      );
+    if (conflictingWorkflows.length > 0) {
+      return { conflictingWorkflows };
+    }
+
+    const classifier = await this.classifierDb.findClassifierModel(
+      classifierName,
+      groupId,
+    );
+    if (!classifier) {
+      return null;
+    }
+
+    const constructedName = this.getConstructedClassifierName(
+      groupId,
+      classifierName,
+    );
+    const blobPrefix = buildBlobPrefixPath(
+      groupId,
+      OperationCategory.CLASSIFICATION,
+      [classifierName],
+    );
+
+    // Cancel training if in progress
+    if (classifier.status === ClassifierStatus.TRAINING) {
+      try {
+        await (
+          this.client as unknown as {
+            path: (p: string) => {
+              delete: (opts: object) => Promise<{ status: string }>;
+            };
+          }
+        )
+          .path(`/documentClassifiers/${constructedName}`)
+          .delete({ queryParameters: { "api-version": "2024-11-30" } });
+        this.logger.warn(
+          `Cancelled in-progress training for classifier ${classifierName} (group ${groupId})`,
+          { actorId },
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to cancel training for classifier ${classifierName} (group ${groupId}), continuing deletion`,
+          { actorId, error: String(err) },
+        );
+      }
+    }
+
+    // Delete Azure DI model if it exists
+    try {
+      const azureClassifiers = await this.listAzureClassifiers();
+      if (azureClassifiers.includes(constructedName)) {
+        await (
+          this.client as unknown as {
+            path: (p: string) => {
+              delete: (opts: object) => Promise<{ status: string }>;
+            };
+          }
+        )
+          .path(`/documentClassifiers/${constructedName}`)
+          .delete({ queryParameters: { "api-version": "2024-11-30" } });
+        this.logger.log(
+          `Deleted Azure DI classifier model ${constructedName}`,
+          { groupId, classifierName, actorId },
+        );
+      } else {
+        this.logger.warn(
+          `Azure DI classifier model ${constructedName} not found, skipping Azure DI deletion`,
+          { groupId, classifierName, actorId },
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to delete Azure DI classifier model ${constructedName}, continuing deletion`,
+        { groupId, classifierName, actorId, error: String(err) },
+      );
+    }
+
+    // Delete Azure blob storage files
+    try {
+      await this.azureStorage.deleteFilesWithPrefix(
+        blobPrefix,
+        this.containerName,
+      );
+      this.logger.log(
+        `Deleted Azure blob storage files for classifier ${classifierName}`,
+        { groupId, classifierName, actorId },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to delete Azure blob storage files for classifier ${classifierName}, continuing deletion`,
+        { groupId, classifierName, actorId, error: String(err) },
+      );
+    }
+
+    // Delete primary blob storage files
+    // Depending on deployment, this may also be the Azure blob storage
+    try {
+      await this.blobStorage.deleteByPrefix(blobPrefix);
+      this.logger.log(
+        `Deleted primary blob storage files for classifier ${classifierName}`,
+        { groupId, classifierName, actorId },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to delete primary blob storage files for classifier ${classifierName}, continuing deletion`,
+        { groupId, classifierName, actorId, error: String(err) },
+      );
+    }
+
+    // Hard-delete DB record
+    await this.classifierDb.deleteClassifierModel(classifierName, groupId);
+    this.logger.log(`Deleted classifier DB record for ${classifierName}`, {
+      groupId,
+      classifierName,
+      actorId,
+    });
+
+    return null;
+  }
 }
