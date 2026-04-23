@@ -72,8 +72,10 @@ export class AzureService {
     }
 
     // Rebuild URL from trusted origin so request host cannot be user-controlled.
-    return new URL(`${parsed.pathname}${parsed.search}`, endpointUrl.origin)
-      .toString();
+    return new URL(
+      `${parsed.pathname}${parsed.search}`,
+      endpointUrl.origin,
+    ).toString();
   }
 
   /**
@@ -82,7 +84,8 @@ export class AzureService {
    * @returns A respnose from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
-    const validatedUrl = this.buildValidatedOperationLocation(operationLocation);
+    const validatedUrl =
+      this.buildValidatedOperationLocation(operationLocation);
     const pollResp = await fetch(validatedUrl, {
       headers: { "api-key": this.apiKey },
     });
@@ -139,8 +142,9 @@ export class AzureService {
       | DocumentIntelligenceErrorResponseOutput;
 
     // Fetch initial result before entering the loop
-    const pollResp =
-      await this.checkOperationStatus(validatedOperationLocation);
+    const pollResp = await this.checkOperationStatus(
+      validatedOperationLocation,
+    );
     result = await pollResp.json();
     status = getStatus(result);
     this.logger.debug(`Operation status: ${status}`);
