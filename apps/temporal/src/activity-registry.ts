@@ -37,9 +37,11 @@ import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
 import { validateDocumentFields } from "./activities/document-validate-fields";
 import { extractPageRange } from "./activities/extract-page-range";
+import { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
+import { selectClassifiedPages } from "./activities/select-classified-pages";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
 import type { RetryPolicy } from "./graph-workflow-types";
@@ -344,6 +346,28 @@ register({
   defaultRetry: { maximumAttempts: 20 },
   description:
     "Poll Azure Document Intelligence classifier results and split document into labelled segments",
+});
+
+// -- Azure Classifier segment utilities ------------------------------------
+
+register({
+  activityType: "document.selectClassifiedPages",
+  activityFn: selectClassifiedPages as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 1 },
+  description:
+    "Select all page range segments for a specific classifier label from azureClassify.poll output",
+});
+
+register({
+  activityType: "document.flattenClassifiedDocuments",
+  activityFn: flattenClassifiedDocuments as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 1 },
+  description:
+    "Flatten all (or filtered) classifier labels into a single sorted ClassifiedSegment array for map node iteration",
 });
 
 // -- Page range extraction --------------------------------------------------

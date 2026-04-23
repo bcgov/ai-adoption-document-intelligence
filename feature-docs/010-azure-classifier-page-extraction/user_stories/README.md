@@ -39,5 +39,5 @@ These activities bridge the gap between `azureClassify.poll` output and downstre
 - US-08 covers the **single-label, single-segment** case (pick the best-matching page range for one label).
 - US-09 covers the **multi-segment fan-out** case (flatten all results into an array for a `map` node).
 
-- [ ] [US-08: Implement document.selectClassifiedPages Activity](./US-08-implement-select-classified-pages-activity.md)
-- [ ] [US-09: Implement document.flattenClassifiedDocuments Activity](./US-09-implement-flatten-classified-documents-activity.md)
+- [x] [US-08: Implement document.selectClassifiedPages Activity](./US-08-implement-select-classified-pages-activity.md)
+- [x] [US-09: Implement document.flattenClassifiedDocuments Activity](./US-09-implement-flatten-classified-documents-activity.md)

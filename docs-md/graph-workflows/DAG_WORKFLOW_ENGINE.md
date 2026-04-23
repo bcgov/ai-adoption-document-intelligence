@@ -576,7 +576,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
       "activityType": "document.split",
       "inputs": [{ "port": "blobKey", "ctxKey": "blobKey" }],
       "outputs": [{ "port": "segments", "ctxKey": "segments" }],
-      "parameters": { "strategy": "boundary-detection" },
+      "parameters": { "strategy": "per-page" },
       "timeout": { "startToClose": "5m" }
     },
     "processSegments": {
@@ -844,7 +844,7 @@ A new `document.split` activity handles PDF splitting:
 ```typescript
 interface SplitDocumentInput {
   blobKey: string;              // Reference to the source PDF
-  strategy: "per-page" | "boundary-detection" | "fixed-range";
+  strategy: "per-page" | "fixed-range" | "custom-ranges";
   fixedRangeSize?: number;      // Pages per segment (for "fixed-range" strategy)
 }
 
@@ -860,27 +860,29 @@ interface DocumentSegment {
 }
 ```
 
-**Implementation**: Use `qpdf` (installed as a system dependency) for PDF splitting. The activity:
+**Implementation**: Uses `pdf-lib` (pure JS, no system dependencies) for all splitting strategies. The activity:
 
-1. Reads the source PDF from the local filesystem via `blobKey`
+1. Reads the source PDF from blob storage via `blobKey`
 2. Determines split points based on the strategy
-3. Uses `qpdf` CLI to extract page ranges into separate files
-4. Returns segment metadata with blob keys for each split file
-
-**Boundary detection note**: The two-pass boundary detection uses `pdftotext` to extract per-page text for heuristics (page 1 indicators, blank pages, layout changes). Ensure `pdftotext` is available alongside `qpdf` in the worker runtime.
+3. Uses `pdf-lib` to extract page ranges into separate in-memory buffers
+4. Writes each segment to blob storage and returns segment metadata
 
 **Engineering upper bound**: Must handle documents with at least 2,000 pages.
 
-### 6.2 Boundary Detection (Rule-Based)
+### 6.2 Boundary Detection (Not Implemented)
 
-For `"boundary-detection"` strategy, the activity performs a two-pass approach:
+The `boundary-detection` strategy was removed because:
 
-1. **First pass**: Quick OCR on every page (or sampled pages) to extract text/layout
-2. **Second pass**: Apply rule-based heuristics to detect document boundaries:
-   - Page 1 indicators: headers, letterheads, "Page 1 of N" markers
-   - Common separators: blank pages, barcode sheets
-   - Format/layout changes between consecutive pages
-   - Configurable custom rules via the `parameters` field
+- No workflow configuration was actually using it
+- It required `pdftotext` (poppler-utils) as a system binary, adding a runtime dependency to the Temporal worker container
+- The other strategies (`per-page`, `fixed-range`, `custom-ranges`) cover all current use cases
+
+**If boundary detection is needed in the future**, the recommended approach is:
+
+1. Add `pdf-parse` (pure JS) as a dependency — it can extract text from a PDF buffer directly with no system binaries: `const data = await pdfParse(pageBuffer); const text = data.text;`
+2. Re-add `"boundary-detection"` to the `SplitDocumentInput.strategy` union type
+3. Implement `detectBoundaries(sourceData: Buffer, totalPages: number)` using `extractRange` (already in place) to get per-page buffers, then `pdf-parse` to get text — eliminating all temp files
+4. Re-add the `poppler-utils` apt package to the Temporal Dockerfile only if `pdf-parse` text quality is insufficient for the heuristics
 
 ### 6.3 Document Classification
 

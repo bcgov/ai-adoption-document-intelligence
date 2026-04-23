@@ -43,7 +43,8 @@
 		"dictionary-en": "4.0.0",
 		"dotenv": "17.2.3",
 		"json-rules-engine": "4.0.0",
-		"nspell": "2.1.5"
+		"nspell": "2.1.5",
+		"pdf-lib": "1.17.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",

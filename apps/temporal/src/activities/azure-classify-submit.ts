@@ -141,8 +141,10 @@ export async function azureClassifySubmit(
       );
     }
 
-    // Extract resultId as the last path segment of the operation-location URL
-    const resultId = operationLocation.split("/").pop();
+    // Extract resultId as the last path segment of the operation-location URL.
+    // Strip any query parameters (e.g. ?api-version=...) that Azure appends.
+    const rawSegment = operationLocation.split("/").pop();
+    const resultId = rawSegment?.split("?")[0];
     if (!resultId) {
       throw new Error(
         `Azure classifier submit: could not extract resultId from operation-location: ${operationLocation}`,
@@ -165,6 +167,7 @@ export async function azureClassifySubmit(
   } catch (error) {
     log.error("azureClassifySubmit error", {
       event: "error",
+      constructedClassifierName,
       error: getErrorMessage(error),
       stack: getErrorStack(error),
     });

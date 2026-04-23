@@ -66,6 +66,12 @@ export type {
   ExtractPageRangeOutput,
 } from "./activities/extract-page-range";
 export { extractPageRange } from "./activities/extract-page-range";
+export type {
+  ClassifiedSegment,
+  FlattenClassifiedDocumentsInput,
+  FlattenClassifiedDocumentsOutput,
+} from "./activities/flatten-classified-documents";
+export { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
@@ -76,6 +82,12 @@ export { postOcrCleanup } from "./activities/post-ocr-cleanup";
 export type { PrepareFileDataInput } from "./activities/prepare-file-data";
 // Re-export all activities
 export { prepareFileData } from "./activities/prepare-file-data";
+export type {
+  ClassifiedPageSegment,
+  SelectClassifiedPagesInput,
+  SelectClassifiedPagesOutput,
+} from "./activities/select-classified-pages";
+export { selectClassifiedPages } from "./activities/select-classified-pages";
 export { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 // Re-export existing activities from activities folder
 export { splitDocument } from "./activities/split-document";

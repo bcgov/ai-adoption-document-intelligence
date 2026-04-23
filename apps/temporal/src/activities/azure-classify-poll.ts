@@ -39,8 +39,10 @@ export async function azureClassifyPoll(
   input: AzureClassifySubmitOutput,
 ): Promise<AzureClassifyPollOutput> {
   const activityName = "azureClassifyPoll";
-  const { resultId, constructedClassifierName, blobKey, groupId, documentId } =
-    input;
+  const { constructedClassifierName, blobKey, groupId, documentId } = input;
+  // Strip any query parameters that may have been accidentally included in the
+  // resultId (e.g. "?api-version=2024-11-30" appended by Azure's operation-location header).
+  const resultId = input.resultId.split("?")[0];
   const log = createActivityLogger(activityName, {
     resultId,
     constructedClassifierName,

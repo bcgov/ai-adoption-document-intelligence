@@ -198,6 +198,24 @@ describe("azureClassifyPoll activity", () => {
       );
     });
 
+    it("strips query parameters from resultId before calling .path()", async () => {
+      mockGet.mockResolvedValue({
+        status: "200",
+        body: makeSucceededBody([]),
+      });
+
+      await azureClassifyPoll({
+        ...BASE_INPUT,
+        resultId: "result-123?api-version=2024-11-30",
+      });
+
+      expect(mockPath).toHaveBeenCalledWith(
+        "/documentClassifiers/{classifierId}/analyzeResults/{resultId}",
+        "atestgroup__myclassifier",
+        "result-123",
+      );
+    });
+
     it("builds client from the configured endpoint", async () => {
       mockGet.mockResolvedValue({
         status: "200",

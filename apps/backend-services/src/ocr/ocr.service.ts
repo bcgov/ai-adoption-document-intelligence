@@ -97,6 +97,7 @@ export class OcrService {
         fileType,
         contentType,
         modelId,
+        groupId: document.group_id,
         ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold: 0 to skip human review)
       };
 

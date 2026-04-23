@@ -38,6 +38,8 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "ocr.normalizeFields",
   "azureClassify.submit",
   "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
 ] as const;
 
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];

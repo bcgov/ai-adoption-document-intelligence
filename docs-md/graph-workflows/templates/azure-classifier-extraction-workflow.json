@@ -2,8 +2,8 @@
   "schemaVersion": "1.0",
   "metadata": {
     "name": "Azure Classifier-Based Page Extraction",
-    "description": "Classifies a multi-page document with Azure Document Intelligence to identify page ranges for each document type, then extracts a single segment as a blob. This linear template demonstrates the submit → poll → extract pattern. For multi-segment production use, replace the extractSegment node with a map node that iterates over a flattened array derived from labeledDocuments (see README).",
-    "tags": ["azure-classifier", "page-extraction", "classification", "demo"]
+    "description": "Classifies a multi-page document with Azure Document Intelligence to identify page ranges for each document type, then selects all segments for a target label and extracts each one as a separate blob in parallel. Demonstrates the submit → poll → selectClassifiedPages → map(extractPageRange) pattern.",
+    "tags": ["azure-classifier", "page-extraction", "classification"]
   },
   "entryNodeId": "submitClassify",
   "ctx": {
@@ -17,11 +17,11 @@
     },
     "groupId": {
       "type": "string",
-      "description": "Group ID — must own the classifier specified by classifierName"
+      "description": "Group ID — must own the classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
     },
     "classifierName": {
       "type": "string",
-      "description": "Name of the READY Azure Document Intelligence classifier to use"
+      "description": "Name of the READY Azure Document Intelligence classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
     },
     "resultId": {
       "type": "string",
@@ -35,9 +35,17 @@
       "type": "object",
       "description": "Classification result: Record<label, ClassifiedDocument[]> where ClassifiedDocument = { confidence: number, pageRange: { start: number, end: number } }"
     },
+    "invoiceSegments": {
+      "type": "array",
+      "description": "All detected invoice segments from the classifier, sorted by pageRange.start. Produced by document.selectClassifiedPages."
+    },
+    "currentSegment": {
+      "type": "object",
+      "description": "The current segment being processed inside the map node. Has shape { pageRange: { start, end }, confidence }."
+    },
     "extractedSegmentBlobKey": {
       "type": "string",
-      "description": "Blob key of the page-range segment extracted by document.extractPageRange"
+      "description": "Blob key of the extracted page-range segment produced by document.extractPageRange inside the map body."
     }
   },
   "nodes": {
@@ -56,6 +64,9 @@
         { "port": "resultId", "ctxKey": "resultId" },
         { "port": "constructedClassifierName", "ctxKey": "constructedClassifierName" }
       ],
+      "parameters": {
+        "classifierName": "<SELECT_IN_UI>"
+      },
       "timeout": { "startToClose": "2m" },
       "retry": { "maximumAttempts": 3 }
     },
@@ -82,6 +93,32 @@
         "maximumInterval": "5s"
       }
     },
+    "selectInvoicePages": {
+      "id": "selectInvoicePages",
+      "type": "activity",
+      "label": "Select Invoice Page Segments",
+      "activityType": "document.selectClassifiedPages",
+      "inputs": [
+        { "port": "labeledDocuments", "ctxKey": "labeledDocuments" }
+      ],
+      "outputs": [
+        { "port": "segments", "ctxKey": "invoiceSegments" }
+      ],
+      "parameters": {
+        "targetLabel": "invoice"
+      },
+      "timeout": { "startToClose": "30s" },
+      "retry": { "maximumAttempts": 1 }
+    },
+    "extractInvoiceSegments": {
+      "id": "extractInvoiceSegments",
+      "type": "map",
+      "label": "Extract Each Invoice Segment",
+      "collectionCtxKey": "invoiceSegments",
+      "itemCtxKey": "currentSegment",
+      "bodyEntryNodeId": "extractSegment",
+      "bodyExitNodeId": "extractSegment"
+    },
     "extractSegment": {
       "id": "extractSegment",
       "type": "activity",
@@ -90,23 +127,19 @@
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
         { "port": "groupId", "ctxKey": "groupId" },
-        { "port": "documentId", "ctxKey": "documentId" }
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "pageRange", "ctxKey": "currentSegment.pageRange" }
       ],
       "outputs": [
         { "port": "segmentBlobKey", "ctxKey": "extractedSegmentBlobKey" }
       ],
-      "parameters": {
-        "pageRange": { "start": 1, "end": 1 }
-      },
-      "metadata": {
-        "note": "Demo uses a static pageRange. In production, derive pageRange from ctx.labeledDocuments entries. For documents with multiple detected segments, replace this node with a map node — see README for the multi-segment pattern."
-      },
       "timeout": { "startToClose": "5m" },
       "retry": { "maximumAttempts": 3 }
     }
   },
   "edges": [
     { "id": "e1", "source": "submitClassify", "target": "pollClassify", "type": "normal" },
-    { "id": "e2", "source": "pollClassify", "target": "extractSegment", "type": "normal" }
+    { "id": "e2", "source": "pollClassify", "target": "selectInvoicePages", "type": "normal" },
+    { "id": "e3", "source": "selectInvoicePages", "target": "extractInvoiceSegments", "type": "normal" }
   ]
 }

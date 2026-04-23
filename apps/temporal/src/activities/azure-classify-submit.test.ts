@@ -177,6 +177,24 @@ describe("azureClassifySubmit activity", () => {
         "atestgroup__my-classifier",
       );
     });
+
+    it("strips query parameters from resultId when operation-location includes them", async () => {
+      mockPost.mockResolvedValue({
+        status: "202",
+        headers: {
+          "operation-location":
+            "https://endpoint.com/documentClassifiers/atestgroup__myclf/analyzeResults/the-result-id?api-version=2024-11-30",
+        },
+      });
+
+      const result = await azureClassifySubmit({
+        blobKey: "atestgroup/ocr/doc.pdf",
+        groupId: "atestgroup",
+        classifierName: "my-classifier",
+      });
+
+      expect(result.resultId).toBe("the-result-id");
+    });
   });
 
   describe("Scenario 5: Azure returns non-202 status", () => {

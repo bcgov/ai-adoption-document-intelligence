@@ -1,21 +1,15 @@
-import { execFile } from "node:child_process";
-import * as fs from "node:fs/promises";
-import * as os from "node:os";
-import * as path from "node:path";
-import { promisify } from "node:util";
 import {
   buildBlobFilePath,
   OperationCategory,
   validateBlobFilePath,
 } from "@ai-di/blob-storage-paths";
+import { PDFDocument } from "pdf-lib";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
-
-const execFileAsync = promisify(execFile);
 
 export interface SplitDocumentInput {
   blobKey: string;
   groupId: string;
-  strategy: "per-page" | "fixed-range" | "boundary-detection" | "custom-ranges";
+  strategy: "per-page" | "fixed-range" | "custom-ranges";
   fixedRangeSize?: number;
   customRanges?: Array<{ start: number; end: number }>;
   documentId?: string;
@@ -36,79 +30,72 @@ export async function splitDocument(
   input: SplitDocumentInput,
 ): Promise<SplitDocumentOutput> {
   const blobStorage = getBlobStorageClient();
+  const sourceData = await blobStorage.read(
+    validateBlobFilePath(input.blobKey),
+  );
 
-  // Download source blob to a temp file (qpdf needs a local path)
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "split-src-"));
-  const sourcePath = path.join(tempDir, path.basename(input.blobKey));
+  const srcDoc = await PDFDocument.load(new Uint8Array(sourceData));
+  const totalPages = srcDoc.getPageCount();
+  const ranges = await buildRanges(input, totalPages);
 
-  try {
-    const sourceData = await blobStorage.read(
-      validateBlobFilePath(input.blobKey),
+  const documentId = input.documentId ?? extractDocumentId(input.blobKey);
+  if (!documentId) {
+    throw new Error(
+      `documentId is required to build segment keys (blobKey=${input.blobKey})`,
     );
-    const fileHandle = await fs.open(sourcePath, "wx", 0o600);
-    try {
-      await fileHandle.writeFile(new Uint8Array(sourceData));
-    } finally {
-      await fileHandle.close();
-    }
-
-    const totalPages = await getTotalPages(sourcePath);
-    const ranges = await buildRanges(input, sourcePath, totalPages);
-
-    const documentId = input.documentId ?? extractDocumentId(input.blobKey);
-    if (!documentId) {
-      throw new Error(
-        `documentId is required to build segment keys (blobKey=${input.blobKey})`,
-      );
-    }
-
-    const segments: DocumentSegment[] = [];
-    for (let i = 0; i < ranges.length; i += 1) {
-      const range = ranges[i];
-      const segmentIndex = i + 1;
-      const segmentKey = buildBlobFilePath(
-        input.groupId,
-        OperationCategory.OCR,
-        [documentId, "segments"],
-        `segment-${padIndex(segmentIndex)}-pages-${range.start}-${range.end}.pdf`,
-      );
-
-      // Write split segment to temp file, then upload to blob storage
-      const segmentPath = path.join(
-        tempDir,
-        `segment-${padIndex(segmentIndex)}.pdf`,
-      );
-      await extractRange(sourcePath, segmentPath, range.start, range.end);
-
-      const segmentData = await fs.readFile(segmentPath);
-      await blobStorage.write(segmentKey, segmentData);
-
-      segments.push({
-        segmentIndex,
-        pageRange: { start: range.start, end: range.end },
-        blobKey: segmentKey,
-        pageCount: range.end - range.start + 1,
-      });
-    }
-
-    return { segments };
-  } finally {
-    await fs.rm(tempDir, { recursive: true, force: true });
   }
+
+  const segments: DocumentSegment[] = [];
+  for (let i = 0; i < ranges.length; i += 1) {
+    const range = ranges[i];
+    const segmentIndex = i + 1;
+    const segmentKey = buildBlobFilePath(
+      input.groupId,
+      OperationCategory.OCR,
+      [documentId, "segments"],
+      `segment-${padIndex(segmentIndex)}-pages-${range.start}-${range.end}.pdf`,
+    );
+
+    const segmentData = await extractRange(sourceData, range.start, range.end);
+    await blobStorage.write(segmentKey, segmentData);
+
+    segments.push({
+      segmentIndex,
+      pageRange: { start: range.start, end: range.end },
+      blobKey: segmentKey,
+      pageCount: range.end - range.start + 1,
+    });
+  }
+
+  return { segments };
 }
 
-async function getTotalPages(filePath: string): Promise<number> {
-  const { stdout } = await execFileAsync("qpdf", ["--show-npages", filePath]);
-  const count = Number(stdout.trim());
-  if (!Number.isFinite(count) || count <= 0) {
-    throw new Error(`Unable to read page count for ${filePath}`);
-  }
-  return count;
+/**
+ * Extracts a page range from a PDF buffer and returns the result as a new Buffer.
+ * Uses pdf-lib — operates entirely in memory with no temporary files or system binaries.
+ * Pages are 1-based and inclusive.
+ */
+async function extractRange(
+  sourceData: Buffer,
+  start: number,
+  end: number,
+): Promise<Buffer> {
+  const srcDoc = await PDFDocument.load(new Uint8Array(sourceData));
+  const newDoc = await PDFDocument.create();
+  // pdf-lib uses 0-based page indices; start/end are 1-based
+  const indices = Array.from(
+    { length: end - start + 1 },
+    (_, i) => start - 1 + i,
+  );
+  const pages = await newDoc.copyPages(srcDoc, indices);
+  pages.forEach((page) => {
+    newDoc.addPage(page);
+  });
+  return Buffer.from(await newDoc.save());
 }
 
 async function buildRanges(
   input: SplitDocumentInput,
-  sourcePath: string,
   totalPages: number,
 ): Promise<Array<{ start: number; end: number }>> {
   if (input.strategy === "per-page") {
@@ -139,7 +126,7 @@ async function buildRanges(
     return input.customRanges;
   }
 
-  return detectBoundaries(sourcePath, totalPages);
+  throw new Error(`Unknown strategy: ${input.strategy}`);
 }
 
 function validateCustomRanges(
@@ -180,88 +167,6 @@ function validateCustomRanges(
   }
 }
 
-async function detectBoundaries(
-  sourcePath: string,
-  totalPages: number,
-): Promise<Array<{ start: number; end: number }>> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "split-document-"));
-  try {
-    const boundaries = new Set<number>([1]);
-    let previousFirstLine = "";
-    let previousLength = 0;
-
-    for (let page = 1; page <= totalPages; page += 1) {
-      const pagePath = path.join(tempDir, `page-${page}.pdf`);
-      await extractRange(sourcePath, pagePath, page, page);
-      const text = await extractText(pagePath);
-      const normalized = normalizeText(text);
-      const isBlank = normalized.length < 10;
-      const pageOneIndicator = isPageOneIndicator(normalized);
-      const barcodeIndicator = hasBarcodeIndicator(normalized);
-      const layoutChange = hasLayoutChange(
-        previousFirstLine,
-        previousLength,
-        normalized,
-      );
-
-      if (page > 1 && (pageOneIndicator || barcodeIndicator || layoutChange)) {
-        boundaries.add(page);
-      }
-
-      if (isBlank && page < totalPages) {
-        boundaries.add(page + 1);
-      }
-
-      if (!isBlank) {
-        previousFirstLine = firstNonEmptyLine(normalized);
-        previousLength = normalized.length;
-      }
-    }
-
-    const sorted = Array.from(boundaries).filter((b) => b <= totalPages);
-    sorted.sort((a, b) => a - b);
-
-    const ranges: Array<{ start: number; end: number }> = [];
-    for (let i = 0; i < sorted.length; i += 1) {
-      const start = sorted[i];
-      const end = i + 1 < sorted.length ? sorted[i + 1] - 1 : totalPages;
-      if (start <= end) {
-        ranges.push({ start, end });
-      }
-    }
-    return ranges;
-  } finally {
-    await fs.rm(tempDir, { recursive: true, force: true });
-  }
-}
-
-async function extractText(filePath: string): Promise<string> {
-  const { stdout } = await execFileAsync("pdftotext", [
-    "-layout",
-    "-q",
-    filePath,
-    "-",
-  ]);
-  return stdout;
-}
-
-async function extractRange(
-  sourcePath: string,
-  outputPath: string,
-  start: number,
-  end: number,
-): Promise<void> {
-  const range = start === end ? `${start}` : `${start}-${end}`;
-  await execFileAsync("qpdf", [
-    "--empty",
-    "--pages",
-    sourcePath,
-    range,
-    "--",
-    outputPath,
-  ]);
-}
-
 export function extractDocumentId(blobKey: string): string | undefined {
   const match = blobKey.match(/^documents\/([^/]+)\//);
   return match?.[1];
@@ -269,52 +174,4 @@ export function extractDocumentId(blobKey: string): string | undefined {
 
 function padIndex(index: number): string {
   return String(index).padStart(3, "0");
-}
-
-function normalizeText(text: string): string {
-  return text.replace(/\r/g, "").trim();
-}
-
-function firstNonEmptyLine(text: string): string {
-  return (
-    text
-      .split("\n")
-      .map((line) => line.trim())
-      .find((line) => line.length > 0) ?? ""
-  );
-}
-
-function isPageOneIndicator(text: string): boolean {
-  return /page\s*1(\b|[^0-9])/.test(text.toLowerCase());
-}
-
-function hasBarcodeIndicator(text: string): boolean {
-  return /(barcode|qr\s*code)/i.test(text);
-}
-
-function hasLayoutChange(
-  previousFirstLine: string,
-  previousLength: number,
-  currentText: string,
-): boolean {
-  if (!previousFirstLine || !currentText) {
-    return false;
-  }
-
-  const currentFirstLine = firstNonEmptyLine(currentText);
-  if (!currentFirstLine) {
-    return false;
-  }
-
-  if (previousLength < 200 || currentText.length < 200) {
-    return false;
-  }
-
-  const lengthDelta =
-    Math.abs(currentText.length - previousLength) / previousLength;
-
-  return (
-    previousFirstLine.toLowerCase() !== currentFirstLine.toLowerCase() &&
-    lengthDelta > 0.6
-  );
 }
