@@ -1,11 +1,17 @@
 import DocumentIntelligence, {
   DocumentIntelligenceClient,
   DocumentIntelligenceErrorResponseOutput,
-  PagedDocumentIntelligenceOperationDetailsOutput,
 } from "@azure-rest/ai-document-intelligence";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AppLoggerService } from "@/logging/app-logger.service";
+
+type PollOperationResult = {
+  status?: string;
+  analyzeResult?: { status?: string };
+  modelInfo?: { status?: string };
+  [key: string]: unknown;
+};
 
 @Injectable()
 export class AzureService {
@@ -43,7 +49,11 @@ export class AzureService {
     return this.endpoint;
   }
 
-  private buildValidatedOperationLocation(operationLocation: string): string {
+  private asPollResult(value: unknown): PollOperationResult {
+    return value as PollOperationResult;
+  }
+
+  private validateOperationLocationUrl(operationLocation: string): URL {
     let parsed: URL;
     try {
       parsed = new URL(operationLocation);
@@ -70,12 +80,20 @@ export class AzureService {
         `operationLocation origin "${parsed.origin}" does not match expected Azure endpoint origin "${endpointUrl.origin}"`,
       );
     }
+    return parsed;
+  }
 
-    // Rebuild URL from trusted origin so request host cannot be user-controlled.
-    return new URL(
-      `${parsed.pathname}${parsed.search}`,
-      endpointUrl.origin,
-    ).toString();
+  private extractOperationId(operationLocation: string): string {
+    const parsed = this.validateOperationLocationUrl(operationLocation);
+    const match = parsed.pathname.match(
+      /\/(?:operations|analyzeResults)\/([A-Za-z0-9-]+)$/,
+    );
+    if (!match) {
+      throw new Error(
+        `operationLocation path "${parsed.pathname}" does not contain a supported operation identifier`,
+      );
+    }
+    return match[1];
   }
 
   /**
@@ -84,12 +102,11 @@ export class AzureService {
    * @returns A respnose from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
-    const validatedUrl =
-      this.buildValidatedOperationLocation(operationLocation);
-    const pollResp = await fetch(validatedUrl, {
-      headers: { "api-key": this.apiKey },
-    });
-    return pollResp;
+    const operationId = this.extractOperationId(operationLocation);
+    const pollResp = await this.client
+      .path("/operations/{operationId}", operationId)
+      .get();
+    return this.asPollResult(pollResp.body);
   }
 
   /**
@@ -102,9 +119,7 @@ export class AzureService {
    */
   async pollOperationUntilResolved(
     operationLocation: string,
-    onSuccess: (
-      result: PagedDocumentIntelligenceOperationDetailsOutput,
-    ) => Promise<void> | void,
+    onSuccess: (result: PollOperationResult) => Promise<void> | void,
     onFailure?: (
       result: DocumentIntelligenceErrorResponseOutput,
     ) => Promise<void> | void,
@@ -113,39 +128,24 @@ export class AzureService {
       maxRetries?: number;
     },
   ): Promise<void> {
-    const validatedOperationLocation =
-      this.buildValidatedOperationLocation(operationLocation);
+    const validatedOperationLocation = operationLocation;
 
     const maxRetries = options?.maxRetries ?? 5;
     const interval = options?.intervalMs ?? 5000;
-    const getStatus = (
-      result:
-        | PagedDocumentIntelligenceOperationDetailsOutput
-        | DocumentIntelligenceErrorResponseOutput,
-    ): string | undefined => {
+    const getStatus = (result: PollOperationResult): string | undefined => {
       if (!result) return undefined;
-      const withStatus = result as { status?: string };
-      const withAnalyzeResult = result as {
-        analyzeResult?: { status?: string };
-      };
-      const withModelInfo = result as { modelInfo?: { status?: string } };
       return (
-        withStatus.status ??
-        withAnalyzeResult.analyzeResult?.status ??
-        withModelInfo.modelInfo?.status
+        result.status ??
+        result.analyzeResult?.status ??
+        result.modelInfo?.status
       );
     };
 
     let status: string | undefined;
-    let result:
-      | PagedDocumentIntelligenceOperationDetailsOutput
-      | DocumentIntelligenceErrorResponseOutput;
+    let result: PollOperationResult;
 
     // Fetch initial result before entering the loop
-    const pollResp = await this.checkOperationStatus(
-      validatedOperationLocation,
-    );
-    result = await pollResp.json();
+    result = await this.checkOperationStatus(validatedOperationLocation);
     status = getStatus(result);
     this.logger.debug(`Operation status: ${status}`);
     let retryCount = 0;
@@ -156,19 +156,16 @@ export class AzureService {
     ) {
       retryCount++;
       await new Promise((res) => setTimeout(res, interval));
-      const retryResp = await this.checkOperationStatus(
-        validatedOperationLocation,
-      );
-      result = await retryResp.json();
+      result = await this.checkOperationStatus(validatedOperationLocation);
       status = getStatus(result);
       this.logger.debug(`Operation status: ${status}`);
     }
     if (status === "succeeded") {
-      await onSuccess(
-        result as PagedDocumentIntelligenceOperationDetailsOutput,
-      );
+      await onSuccess(result);
     } else if (onFailure) {
-      await onFailure(result as DocumentIntelligenceErrorResponseOutput);
+      await onFailure(
+        result as unknown as DocumentIntelligenceErrorResponseOutput,
+      );
     } else {
       this.logger.warn("Operation failed:");
       this.logger.warn(JSON.stringify(result, null, 2));
