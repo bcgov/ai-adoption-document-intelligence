@@ -262,7 +262,7 @@ async function extractRange(
   ]);
 }
 
-function extractDocumentId(blobKey: string): string | undefined {
+export function extractDocumentId(blobKey: string): string | undefined {
   const match = blobKey.match(/^documents\/([^/]+)\//);
   return match?.[1];
 }

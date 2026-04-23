@@ -5,32 +5,32 @@
 **So that** the classifier can determine the type and boundaries of each document within a multi-page file.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Classifier not found or not READY
+- [x] **Scenario 1**: Classifier not found or not READY
     - **Given** a `classifierName` and `groupId` are provided
     - **When** no `ClassifierModel` with `status = READY` exists for that name/group combination
     - **Then** a descriptive error is thrown and no Azure API call is made
 
-- [ ] **Scenario 2**: Successful submission on Azure storage provider
+- [x] **Scenario 2**: Successful submission on Azure storage provider
     - **Given** `BLOB_STORAGE_PROVIDER` is `azure` and the classifier is `READY`
     - **When** the activity is invoked
     - **Then** a SAS URL is generated for the blob key and passed as `urlSource` in the Azure DI request body
 
-- [ ] **Scenario 3**: Successful submission on Minio storage provider
+- [x] **Scenario 3**: Successful submission on Minio storage provider
     - **Given** `BLOB_STORAGE_PROVIDER` is `minio` (or unset) and the classifier is `READY`
     - **When** the activity is invoked
     - **Then** the file bytes are read and passed as `base64Source` in the Azure DI request body
 
-- [ ] **Scenario 4**: Azure returns 202 Accepted
+- [x] **Scenario 4**: Azure returns 202 Accepted
     - **Given** Azure DI returns a `202` response with an `operation-location` header
     - **When** the activity processes the response
     - **Then** the output contains `resultId` (last path segment of the operation-location URL) and `constructedClassifierName` (e.g. `{groupId}__{classifierName}`)
 
-- [ ] **Scenario 5**: Azure returns non-202 status
+- [x] **Scenario 5**: Azure returns non-202 status
     - **Given** Azure DI returns any status other than `202`
     - **When** the activity processes the response
     - **Then** an error is thrown containing the response status and body
 
-- [ ] **Scenario 6**: `documentId` and `blobKey` are forwarded
+- [x] **Scenario 6**: `documentId` and `blobKey` are forwarded
     - **Given** a successful `202` response
     - **When** the activity returns its output
     - **Then** `blobKey`, `groupId`, and `documentId` (if provided) are included unchanged in the output

@@ -31,6 +31,8 @@ import {
   updateDocumentStatus,
   upsertOcrResult,
 } from "./activities";
+import { azureClassifyPoll } from "./activities/azure-classify-poll";
+import { azureClassifySubmit } from "./activities/azure-classify-submit";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
 import { validateDocumentFields } from "./activities/document-validate-fields";
@@ -322,6 +324,25 @@ register({
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 3 },
   description: "Persist Azure OCR poll JSON for a benchmark sample",
+});
+
+// -- Azure Classifier activities -------------------------------------------
+
+register({
+  activityType: "azureClassify.submit",
+  activityFn: azureClassifySubmit as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Submit document to Azure Document Intelligence classifier",
+});
+
+register({
+  activityType: "azureClassify.poll",
+  activityFn: azureClassifyPoll as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 20 },
+  description:
+    "Poll Azure Document Intelligence classifier results and split document into labelled segments",
 });
 
 // ---------------------------------------------------------------------------

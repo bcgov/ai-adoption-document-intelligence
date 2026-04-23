@@ -2,9 +2,9 @@
 
 ## Overview
 
-A new pair of Temporal activities that classifies each page of a multi-page document using an Azure Document Intelligence (DI) classifier, then splits the document into separate files grouped by the classifier-assigned label. A companion frontend form component lets users configure this activity inside the existing workflow builder.
+A new pair of Temporal activities that classifies each page of a multi-page document using an Azure Document Intelligence (DI) classifier and returns the detected document boundaries grouped by classifier label. A companion frontend form component lets users configure this activity inside the existing workflow builder.
 
-This feature is an alternative to the existing `document.splitAndClassify` activity (which is keyword/OCR-text based). The two activities coexist; the new Azure-based variant has a clearly distinct activity type string.
+The poll activity returns page ranges only — it does not split the source document. Downstream workflow nodes that need a physically extracted segment call a dedicated `document.extractPageRange` activity (US-07) on demand, avoiding unnecessary blob I/O for segments that are never consumed.
 
 ---
 
@@ -118,7 +118,7 @@ interface AzureClassifyPollInput {
 1. Construct the poll URL using the Azure DI SDK client (same credential/endpoint env vars as OCR: `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`, `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`) via:
    ```ts
    client.path(
-     "/documentClassifiers/{classifierName}/analyzeResults/{resultId}",
+     "/documentClassifiers/{classifierId}/analyzeResults/{resultId}",
      constructedClassifierName,
      resultId,
    ).get()
@@ -131,34 +131,44 @@ interface AzureClassifyPollInput {
    - `confidence`: number (0–1).
    - `boundingRegions`: array of `{ pageNumber, polygon }` — the pages this document spans.
 5. Derive a page range for each detected document from its `boundingRegions` (min pageNumber → max pageNumber within that entry).
-6. For each detected document, call the existing `splitDocument` activity helper with `strategy: "custom-ranges"` and the derived `{ start, end }` range to produce a per-document blob key.
-   - `documentId` for the `splitDocument` call: use the value forwarded from the submit output if present; otherwise derive it from the `blobKey` using the same `extractDocumentId` helper already used in `splitDocument` itself.
-7. Group the resulting blob keys by `docType` into a `Record<string, ClassifiedDocument[]>`.
-8. Pass through the original `blobKey` unchanged.
+6. Group results by `docType` into a `Record<string, ClassifiedDocument[]>`. No splitting is performed — downstream activities receive the page ranges and call `document.extractPageRange` on demand.
+7. Pass through `originalBlobKey`, `groupId`, and `documentId` unchanged so the downstream activity has full context to perform the split.
 
 #### Output
 
 ```ts
 interface ClassifiedDocument {
-  /** Blob key of the extracted sub-document in storage. */
-  blobKey: string;
-  /** Confidence score returned by the Azure DI classifier for this document. */
+  /** Classifier confidence score for this document. */
   confidence: number;
-  /** Page range from the original document (1-based). */
+  /** Page range from the original document (1-based, inclusive). */
   pageRange: { start: number; end: number };
 }
 
 interface AzureClassifyPollOutput {
   /** Unmodified blob key of the source document. */
   originalBlobKey: string;
+  /** Forwarded for use by downstream extract-segment activities. */
+  groupId: string;
+  /** Forwarded from submit input; undefined if not originally provided. */
+  documentId?: string;
   /**
-   * Map of classifier label → list of extracted documents.
-   * Confidence score is included on each entry so downstream nodes can
-   * apply their own filtering logic.
+   * Map of classifier label → list of detected documents with page ranges.
+   * Confidence score is included so downstream nodes can apply their own
+   * filtering logic before deciding whether to extract a segment.
    */
   labeledDocuments: Record<string, ClassifiedDocument[]>;
 }
 ```
+
+---
+
+### Activity 3 — `document.extractPageRange`
+
+**File:** `apps/temporal/src/activities/extract-page-range.ts`
+
+This activity is the on-demand counterpart to `azureClassify.poll`. It extracts a single page range from a source document and writes the segment to blob storage. A downstream workflow node calls it once per `ClassifiedDocument` entry it wishes to process further.
+
+See [US-07](./user_stories/US-07-implement-extract-page-range-activity.md) for full input/output specification and acceptance criteria.
 
 ---
 

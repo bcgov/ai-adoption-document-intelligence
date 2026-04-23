@@ -34,6 +34,8 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "azureClassify.submit",
+  "azureClassify.poll",
 ];
 
 describe("activity-registry", () => {

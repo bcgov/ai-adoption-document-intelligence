@@ -10,17 +10,17 @@
     - **When** it is inspected
     - **Then** it contains both `"azureClassify.submit"` and `"azureClassify.poll"`
 
-- [ ] **Scenario 2**: Activity functions are registered in the registry
+- [x] **Scenario 2**: Activity functions are registered in the registry
     - **Given** the activity registry in `activity-registry.ts`
     - **When** a graph workflow node with `activityType: "azureClassify.submit"` is executed
     - **Then** the `azureClassifySubmit` function is invoked
 
-- [ ] **Scenario 3**: Activity functions are exported from the activities barrel
+- [x] **Scenario 3**: Activity functions are exported from the activities barrel
     - **Given** `apps/temporal/src/activities.ts`
     - **When** it is inspected
     - **Then** both `azureClassifySubmit` and `azureClassifyPoll` are exported
 
-- [ ] **Scenario 4**: Existing activity registry test still passes
+- [x] **Scenario 4**: Existing activity registry test still passes
     - **Given** the `activity-registry.test.ts` file
     - **When** tests are run
     - **Then** both new activity types appear in the registry test assertions and all tests pass

@@ -10,6 +10,17 @@
 // then repo-local .env for non-sensitive defaults. MUST remain first import.
 import "./env-loader";
 
+export type {
+  AzureClassifyPollOutput,
+  ClassifiedDocument,
+} from "./activities/azure-classify-poll";
+export { azureClassifyPoll } from "./activities/azure-classify-poll";
+// Azure Classifier activities (Feature 010)
+export type {
+  AzureClassifySubmitInput,
+  AzureClassifySubmitOutput,
+} from "./activities/azure-classify-submit";
+export { azureClassifySubmit } from "./activities/azure-classify-submit";
 export type { BenchmarkBaselineComparisonInput } from "./activities/benchmark-baseline-comparison";
 export { benchmarkCompareAgainstBaseline } from "./activities/benchmark-baseline-comparison";
 export type { BenchmarkCleanupInput } from "./activities/benchmark-cleanup";

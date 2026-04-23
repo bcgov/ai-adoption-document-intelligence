@@ -9,7 +9,7 @@ Feature folder: `feature-docs/010-azure-classifier-page-extraction`
 These stories establish the foundational pieces that the Temporal activities depend on.
 
 - [x] [US-01: Extend BlobStorageClient with SAS URL Generation](./US-01-extend-blob-storage-sas-url.md)
-- [ ] [US-02: Register azureClassify Activity Types](./US-02-register-activity-types.md)
+- [x] [US-02: Register azureClassify Activity Types](./US-02-register-activity-types.md)
 
 ---
 
@@ -17,8 +17,9 @@ These stories establish the foundational pieces that the Temporal activities dep
 
 Core activity implementations. US-03 and US-04 depend on Phase 1 being complete. US-04 depends on US-03's output types.
 
-- [ ] [US-03: Implement azureClassify.submit Activity](./US-03-implement-submit-activity.md)
-- [ ] [US-04: Implement azureClassify.poll Activity](./US-04-implement-poll-activity.md)
+- [x] [US-03: Implement azureClassify.submit Activity](./US-03-implement-submit-activity.md)
+- [x] [US-04: Implement azureClassify.poll Activity](./US-04-implement-poll-activity.md)
+- [ ] [US-07: Implement document.extractPageRange Activity](./US-07-implement-extract-page-range-activity.md)
 
 ---
 
