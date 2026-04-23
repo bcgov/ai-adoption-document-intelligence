@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { setupAuthenticatedTest } from '../helpers/auth';
 import { RunDetailPage } from '../pages/RunDetailPage';
 import { BaselineThresholdDialog } from '../pages/BaselineThresholdDialog';
-import { ProjectDetailPage } from '../pages/ProjectDetailPage';
 
 /**
  * Test Plan: US-034 - Baseline Management - Promotion Scenarios

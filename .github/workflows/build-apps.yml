@@ -210,6 +210,8 @@ jobs:
     needs: [build-apps, get-environment]
     if: ${{ always() && (needs.build-apps.result == 'success' || needs.build-apps.result == 'skipped') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment:
       name: ${{ needs.get-environment.outputs.environment }}
     env:
@@ -219,17 +221,17 @@ jobs:
       GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.ref }}
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
         with:
           version: v3.17.0
 
       - name: Install oc CLI
-        uses: redhat-actions/openshift-tools-installer@v1
+        uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1
         with:
           oc: "4"
 

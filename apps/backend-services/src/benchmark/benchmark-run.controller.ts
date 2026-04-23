@@ -439,21 +439,10 @@ export class BenchmarkRunController {
     const page = query.page ? parseInt(query.page, 10) : 1;
     const limit = query.limit ? parseInt(query.limit, 10) : 20;
 
-    // Extract filter params (everything except page and limit).
-    // Use a null-prototype object to prevent prototype pollution.
-    const filters = Object.create(null) as Record<string, string | number>;
-    for (const [key, value] of Object.entries(query)) {
-      if (key !== "page" && key !== "limit") {
-        // Try to parse as number, otherwise keep as string
-        const numValue = Number(value);
-        filters[key] = Number.isNaN(numValue) ? value : numValue;
-      }
-    }
-
     const result = await this.benchmarkRunService.getPerSampleResults(
       projectId,
       runId,
-      filters,
+      query,
       page,
       limit,
     );

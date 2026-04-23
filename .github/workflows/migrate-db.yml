@@ -1,13 +1,17 @@
 name: Migrate DB Schema
+
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
       sha:
-        description: 'Git SHA'
+        description: "Git SHA"
         required: true
         type: string
       changed_apps:
-        description: 'Changed apps'
+        description: "Changed apps"
         required: true
         type: string
 
@@ -15,17 +19,21 @@ jobs:
   get-environment:
     name: Get Environment
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       environment: ${{ steps.env.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Get Environment
         id: env
         uses: ./.github/actions/get-environment
   metadata:
     name: Get Metadata
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     outputs:
       needs-migration: ${{ steps.get-migrations.outputs.changes }}
@@ -37,31 +45,33 @@ jobs:
           echo "SHA: ${{ inputs.sha }}"
           echo "Full Ref: ${{ github.ref }}"
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.ref }}
       - name: Get Migrations
         id: get-migrations
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         with:
           base: ${{ github.ref }}
           ref: ${{ github.ref }}
           filters: |
             migration:
-              - 'apps/backend/prisma/migrations/**'
+              - 'apps/shared/prisma/migrations/**'
   migrate:
     name: Migrate DB Schema
     needs: [get-environment, metadata]
     if: ${{ contains(needs.metadata.outputs.needs-migration, 'migration') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     environment:
       name: ${{ needs.get-environment.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.ref }}
-      - name: 'migrate db'
+      - name: "migrate db"
         uses: ./.github/actions/migrate-db
         with:
           environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'stage' && 'test' || 'dev' }}
@@ -73,14 +83,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Commit Version
         if: ${{ github.ref_name == 'stage' }}
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@3ea6ae190baf489ba007f7c92608f33ce20ef04a # v4
         with:
-          commit_message: 'Update version [skip ci]'
+          commit_message: "Update version [skip ci]"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   validate-inputs:
     name: Validate Inputs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Validate changed_apps input
         run: |
@@ -88,32 +100,34 @@ jobs:
             echo "Error: changed_apps input is required"
             exit 1
           fi
-          
+
           # Validate JSON format
           if ! echo '${{ inputs.changed_apps }}' | jq empty 2>/dev/null; then
             echo "Error: changed_apps must be valid JSON array"
             exit 1
           fi
-          
+
           # Check if array is empty
           ARRAY_LENGTH=$(echo '${{ inputs.changed_apps }}' | jq 'length')
           if [ "$ARRAY_LENGTH" -eq 0 ]; then
             echo "Info: changed_apps is empty array, skipping deployment"
             exit 0
           fi
-          
+
           echo "Validation passed: changed_apps contains $ARRAY_LENGTH item(s)"
-          
+
   deploy:
     name: Deploy
     needs: [get-environment, metadata, validate-inputs]
     if: ${{ needs.validate-inputs.result == 'success' && inputs.changed_apps != '[]' && inputs.changed_apps != '' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment:
       name: ${{ needs.get-environment.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.ref }}
       - name: Trigger Deployments
@@ -123,4 +137,3 @@ jobs:
           api-token: ${{ secrets.OPENSHIFT_API_TOKEN }}
           project: ${{ inputs.changed_apps }}
           environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'stage' && 'test' || 'dev' }}
-
