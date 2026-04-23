@@ -229,7 +229,7 @@ describe("createLogger", () => {
         const log = createLogger(SERVICE);
         const ctx: Record<string, unknown> = { safeKey: "ok" };
         Object.defineProperty(ctx, "__proto__", {
-          value: "polluted",
+          value: { polluted: true },
           enumerable: true,
           configurable: true,
         });
