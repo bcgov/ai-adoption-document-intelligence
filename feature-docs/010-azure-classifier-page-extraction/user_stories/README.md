@@ -8,7 +8,7 @@ Feature folder: `feature-docs/010-azure-classifier-page-extraction`
 
 These stories establish the foundational pieces that the Temporal activities depend on.
 
-- [ ] [US-01: Extend BlobStorageClient with SAS URL Generation](./US-01-extend-blob-storage-sas-url.md)
+- [x] [US-01: Extend BlobStorageClient with SAS URL Generation](./US-01-extend-blob-storage-sas-url.md)
 - [ ] [US-02: Register azureClassify Activity Types](./US-02-register-activity-types.md)
 
 ---

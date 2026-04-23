@@ -5,7 +5,7 @@
 **So that** graph workflow nodes can reference these activity type strings and the worker can dispatch them correctly.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Activity types appear in the registered list
+- [x] **Scenario 1**: Activity types appear in the registered list
     - **Given** the `REGISTERED_ACTIVITY_TYPES` array in `activity-types.ts`
     - **When** it is inspected
     - **Then** it contains both `"azureClassify.submit"` and `"azureClassify.poll"`

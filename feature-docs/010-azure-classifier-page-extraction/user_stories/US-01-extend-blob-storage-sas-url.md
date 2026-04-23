@@ -5,17 +5,17 @@
 **So that** Azure Document Intelligence can fetch the document directly from storage without the worker downloading and re-encoding the file.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: SAS URL generated on Azure provider
+- [x] **Scenario 1**: SAS URL generated on Azure provider
     - **Given** `BLOB_STORAGE_PROVIDER` is set to `azure`
     - **When** `generateSasUrl(key, expiryMinutes)` is called on the `BlobStorageClient`
     - **Then** a read-only SAS URL is returned that is valid for the specified number of minutes
 
-- [ ] **Scenario 2**: Minio provider throws unsupported error
+- [x] **Scenario 2**: Minio provider throws unsupported error
     - **Given** `BLOB_STORAGE_PROVIDER` is `minio` (or unset)
     - **When** `generateSasUrl` is called on the `BlobStorageClient`
     - **Then** an error is thrown with the message `"SAS URLs not supported for Minio storage"`
 
-- [ ] **Scenario 3**: Interface is typed correctly
+- [x] **Scenario 3**: Interface is typed correctly
     - **Given** the `BlobStorageClient` interface in `blob-storage-client.ts`
     - **When** the interface is reviewed
     - **Then** it includes `generateSasUrl(key: BlobFilePath, expiryMinutes: number): Promise<string>`
