@@ -5,27 +5,27 @@
 **So that** I can select a trained classifier and wire up the source document without editing raw JSON.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Classifier dropdown shows only READY classifiers for the current group
+- [x] **Scenario 1**: Classifier dropdown shows only READY classifiers for the current group
     - **Given** the form is rendered for an `azureClassify.submit` node
     - **When** the classifier dropdown is displayed
     - **Then** it lists only classifiers with `status === "READY"` scoped to the current group, fetched via `GET /api/azure/classifier?group_id={groupId}`
 
-- [ ] **Scenario 2**: Loading state
+- [x] **Scenario 2**: Loading state
     - **Given** the classifier list is being fetched
     - **When** the dropdown is rendered
     - **Then** it is disabled and shows a loading indicator
 
-- [ ] **Scenario 3**: Error state
+- [x] **Scenario 3**: Error state
     - **Given** the classifier fetch fails
     - **When** the dropdown is rendered
     - **Then** an error message is shown and the dropdown is disabled
 
-- [ ] **Scenario 4**: Classifier selection updates node parameters
+- [x] **Scenario 4**: Classifier selection updates node parameters
     - **Given** the user selects a classifier from the dropdown
     - **When** the selection changes
     - **Then** `node.parameters.classifierName` is updated to the selected classifier's `name`
 
-- [ ] **Scenario 5**: Component is standalone and receives node/onChange props
+- [x] **Scenario 5**: Component is standalone and receives node/onChange props
     - **Given** the component definition
     - **When** it is inspected
     - **Then** it accepts `(node: ActivityNode, onChange: (node: ActivityNode) => void)` as props and does not inline-mutate anything in `GraphConfigFormEditor.tsx`

@@ -27,5 +27,5 @@ Core activity implementations. US-03 and US-04 depend on Phase 1 being complete.
 
 Frontend stories are independent of Phase 2 but logically follow once the activity types are defined (US-02).
 
-- [ ] [US-05: Create AzureClassifySubmitForm Frontend Component](./US-05-create-frontend-form-component.md)
-- [ ] [US-06: Integrate AzureClassifySubmitForm into Workflow Builder](./US-06-integrate-form-into-workflow-builder.md)
+- [x] [US-05: Create AzureClassifySubmitForm Frontend Component](./US-05-create-frontend-form-component.md)
+- [x] [US-06: Integrate AzureClassifySubmitForm into Workflow Builder](./US-06-integrate-form-into-workflow-builder.md)

@@ -26,6 +26,7 @@ import type {
   NodeType,
   PortBinding,
 } from "../../types/graph-workflow";
+import { AzureClassifySubmitForm } from "./AzureClassifySubmitForm";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "activity", label: "Activity" },
@@ -52,6 +53,7 @@ const EDGE_TYPES = [
 ];
 
 const OCR_ENRICH_ACTIVITY_TYPE = "ocr.enrich";
+const AZURE_CLASSIFY_SUBMIT_ACTIVITY_TYPE = "azureClassify.submit";
 
 export interface GraphConfigFormEditorProps {
   value: GraphWorkflowConfig;
@@ -547,6 +549,10 @@ function ActivityNodeForm({ node, onChange }: ActivityNodeFormProps) {
       parameters: { ...(node.parameters ?? {}), [key]: value },
     });
   };
+
+  if (node.activityType === AZURE_CLASSIFY_SUBMIT_ACTIVITY_TYPE) {
+    return <AzureClassifySubmitForm node={node} onChange={onChange} />;
+  }
 
   return (
     <Stack gap="xs">
