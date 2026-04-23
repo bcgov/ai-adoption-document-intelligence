@@ -71,6 +71,20 @@ describe("AzureService", () => {
         `operationLocation origin "https://evil.com" does not match expected Azure endpoint origin "https://test.com"`,
       );
     });
+
+    it("rejects operationLocation when protocol is not https", async () => {
+      await expect(
+        service.checkOperationStatus("http://test.com/op"),
+      ).rejects.toThrow(
+        'operationLocation protocol "http:" is not allowed. Expected "https:"',
+      );
+    });
+
+    it("rejects operationLocation when credentials are present", async () => {
+      await expect(
+        service.checkOperationStatus("https://user:pass@test.com/op"),
+      ).rejects.toThrow("operationLocation must not include credentials");
+    });
   });
 
   describe("pollOperationUntilResolved", () => {

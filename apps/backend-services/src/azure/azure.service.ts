@@ -43,25 +43,47 @@ export class AzureService {
     return this.endpoint;
   }
 
-  /**
-   * Retrieves current operation information.
-   * @param operationLocation The url of the operation to check.
-   * @returns A respnose from Azure on your operation.
-   */
-  async checkOperationStatus(operationLocation: string) {
+  private buildValidatedOperationLocation(operationLocation: string): string {
     let parsed: URL;
     try {
       parsed = new URL(operationLocation);
     } catch {
       throw new Error(`Invalid operationLocation URL: ${operationLocation}`);
     }
-    const expectedOrigin = new URL(this.endpoint).origin;
-    if (parsed.origin !== expectedOrigin) {
+
+    const endpointUrl = new URL(this.endpoint);
+    if (endpointUrl.protocol !== "https:") {
       throw new Error(
-        `operationLocation origin "${parsed.origin}" does not match expected Azure endpoint origin "${expectedOrigin}"`,
+        `Invalid Azure endpoint protocol "${endpointUrl.protocol}". Expected "https:"`,
       );
     }
-    const pollResp = await fetch(parsed.toString(), {
+    if (parsed.protocol !== "https:") {
+      throw new Error(
+        `operationLocation protocol "${parsed.protocol}" is not allowed. Expected "https:"`,
+      );
+    }
+    if (parsed.username || parsed.password) {
+      throw new Error("operationLocation must not include credentials");
+    }
+    if (parsed.origin !== endpointUrl.origin) {
+      throw new Error(
+        `operationLocation origin "${parsed.origin}" does not match expected Azure endpoint origin "${endpointUrl.origin}"`,
+      );
+    }
+
+    // Rebuild URL from trusted origin so request host cannot be user-controlled.
+    return new URL(`${parsed.pathname}${parsed.search}`, endpointUrl.origin)
+      .toString();
+  }
+
+  /**
+   * Retrieves current operation information.
+   * @param operationLocation The url of the operation to check.
+   * @returns A respnose from Azure on your operation.
+   */
+  async checkOperationStatus(operationLocation: string) {
+    const validatedUrl = this.buildValidatedOperationLocation(operationLocation);
+    const pollResp = await fetch(validatedUrl, {
       headers: { "api-key": this.apiKey },
     });
     return pollResp;
@@ -88,19 +110,8 @@ export class AzureService {
       maxRetries?: number;
     },
   ): Promise<void> {
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(operationLocation);
-    } catch {
-      throw new Error(`Invalid operationLocation URL: ${operationLocation}`);
-    }
-
-    const expectedOrigin = new URL(this.endpoint).origin;
-    if (parsedUrl.origin !== expectedOrigin) {
-      throw new Error(
-        `operationLocation origin "${parsedUrl.origin}" does not match expected Azure endpoint origin "${expectedOrigin}"`,
-      );
-    }
+    const validatedOperationLocation =
+      this.buildValidatedOperationLocation(operationLocation);
 
     const maxRetries = options?.maxRetries ?? 5;
     const interval = options?.intervalMs ?? 5000;
@@ -128,7 +139,8 @@ export class AzureService {
       | DocumentIntelligenceErrorResponseOutput;
 
     // Fetch initial result before entering the loop
-    const pollResp = await this.checkOperationStatus(parsedUrl.toString());
+    const pollResp =
+      await this.checkOperationStatus(validatedOperationLocation);
     result = await pollResp.json();
     status = getStatus(result);
     this.logger.debug(`Operation status: ${status}`);
@@ -140,7 +152,9 @@ export class AzureService {
     ) {
       retryCount++;
       await new Promise((res) => setTimeout(res, interval));
-      const retryResp = await this.checkOperationStatus(parsedUrl.toString());
+      const retryResp = await this.checkOperationStatus(
+        validatedOperationLocation,
+      );
       result = await retryResp.json();
       status = getStatus(result);
       this.logger.debug(`Operation status: ${status}`);
