@@ -36,6 +36,8 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.normalizeFields",
   "azureClassify.submit",
   "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
   "document.extractPageRange",
 ];
 
