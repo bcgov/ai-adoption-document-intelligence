@@ -21,6 +21,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "document.classify",
   "document.splitAndClassify",
   "document.validateFields",
+  "document.extractPageRange",
   "segment.combineResult",
   "benchmark.evaluate",
   "benchmark.aggregate",

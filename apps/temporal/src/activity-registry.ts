@@ -36,6 +36,7 @@ import { azureClassifySubmit } from "./activities/azure-classify-submit";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
 import { validateDocumentFields } from "./activities/document-validate-fields";
+import { extractPageRange } from "./activities/extract-page-range";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
@@ -343,6 +344,17 @@ register({
   defaultRetry: { maximumAttempts: 20 },
   description:
     "Poll Azure Document Intelligence classifier results and split document into labelled segments",
+});
+
+// -- Page range extraction --------------------------------------------------
+
+register({
+  activityType: "document.extractPageRange",
+  activityFn: extractPageRange as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "5m",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Extract a specific page range from a source document and write it as a new blob segment",
 });
 
 // ---------------------------------------------------------------------------

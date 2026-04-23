@@ -19,7 +19,7 @@ Core activity implementations. US-03 and US-04 depend on Phase 1 being complete.
 
 - [x] [US-03: Implement azureClassify.submit Activity](./US-03-implement-submit-activity.md)
 - [x] [US-04: Implement azureClassify.poll Activity](./US-04-implement-poll-activity.md)
-- [ ] [US-07: Implement document.extractPageRange Activity](./US-07-implement-extract-page-range-activity.md)
+- [x] [US-07: Implement document.extractPageRange Activity](./US-07-implement-extract-page-range-activity.md)
 
 ---
 

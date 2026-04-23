@@ -61,6 +61,11 @@ export { validateDocumentFields } from "./activities/document-validate-fields";
 export type { EnrichResultsParams } from "./activities/enrich-results";
 export { enrichResults } from "./activities/enrich-results";
 export { extractOCRResults } from "./activities/extract-ocr-results";
+export type {
+  ExtractPageRangeInput,
+  ExtractPageRangeOutput,
+} from "./activities/extract-page-range";
+export { extractPageRange } from "./activities/extract-page-range";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";

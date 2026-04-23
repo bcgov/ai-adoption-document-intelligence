@@ -36,6 +36,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.normalizeFields",
   "azureClassify.submit",
   "azureClassify.poll",
+  "document.extractPageRange",
 ];
 
 describe("activity-registry", () => {

@@ -12,33 +12,33 @@ This keeps the split I/O out of the poll activity and only incurs the cost when 
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Successful extraction
+- [x] **Scenario 1**: Successful extraction
     - **Given** a valid `blobKey`, `groupId`, and `pageRange`
     - **When** the activity is invoked
     - **Then** `splitDocument` is called with `strategy: "custom-ranges"` and `customRanges: [pageRange]`, and the resulting segment blob key is returned
 
-- [ ] **Scenario 2**: `documentId` forwarded when provided
+- [x] **Scenario 2**: `documentId` forwarded when provided
     - **Given** a `documentId` is included in the input
     - **When** `splitDocument` is called
     - **Then** the same `documentId` is passed through
 
-- [ ] **Scenario 3**: `documentId` derived from `blobKey` when absent
+- [x] **Scenario 3**: `documentId` derived from `blobKey` when absent
     - **Given** `documentId` is not in the input
     - **When** `splitDocument` is called
     - **Then** `documentId` is derived via `extractDocumentId(blobKey)` (the same fallback `splitDocument` itself uses)
 
-- [ ] **Scenario 4**: Output contains segment blob key and page range
+- [x] **Scenario 4**: Output contains segment blob key and page range
     - **Given** a successful extraction
     - **When** the activity returns its output
     - **Then** `segmentBlobKey` is the blob key of the extracted segment and `pageRange` echoes the input range
 
-- [ ] **Scenario 5**: Activity is registered and exported
+- [x] **Scenario 5**: Activity is registered and exported
     - **Given** the activity registry and barrel
     - **When** they are inspected
     - **Then** `document.extractPageRange` resolves to the `extractPageRange` function
 
 ## Priority
-- [ ] High (Must Have)
+- [x] High (Must Have)
 
 ## Technical Notes / Assumptions
 
