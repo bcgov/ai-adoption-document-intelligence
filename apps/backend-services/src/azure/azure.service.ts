@@ -80,7 +80,27 @@ export class AzureService {
         `operationLocation origin "${parsed.origin}" does not match expected Azure endpoint origin "${endpointUrl.origin}"`,
       );
     }
+    if (!parsed.pathname.includes("/documentintelligence/")) {
+      throw new Error(
+        `operationLocation path "${parsed.pathname}" is not an allowed Azure Document Intelligence endpoint path`,
+      );
+    }
     return parsed;
+  }
+
+  /**
+   * Rebuilds the operation URL from the trusted endpoint origin plus only the
+   * validated path and query string from the supplied location. This ensures
+   * the outgoing request always targets the configured Azure endpoint, even if
+   * `validateOperationLocationUrl` were somehow bypassed.
+   */
+  private buildSafeOperationStatusUrl(operationLocation: string): string {
+    const parsed = this.validateOperationLocationUrl(operationLocation);
+    const endpointUrl = new URL(this.endpoint);
+    const safeUrl = new URL(endpointUrl.origin);
+    safeUrl.pathname = parsed.pathname;
+    safeUrl.search = parsed.search;
+    return safeUrl.toString();
   }
 
   /**
@@ -89,9 +109,9 @@ export class AzureService {
    * @returns A response from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
-    const parsed = this.validateOperationLocationUrl(operationLocation);
-    // Use the parsed (normalized) href and disable redirects to prevent SSRF.
-    const response = await fetch(parsed.href, {
+    const safeUrl = this.buildSafeOperationStatusUrl(operationLocation);
+    // Reconstruct URL from trusted endpoint origin + validated path/query and disable redirects.
+    const response = await fetch(safeUrl, {
       headers: { "api-key": this.apiKey },
       redirect: "error",
     });

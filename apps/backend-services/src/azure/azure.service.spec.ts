@@ -98,6 +98,14 @@ describe("AzureService", () => {
       );
     });
 
+    it("rejects operationLocation when path is not a Document Intelligence path", async () => {
+      await expect(
+        service.checkOperationStatus("https://test.com/other/path/result"),
+      ).rejects.toThrow(
+        `operationLocation path "/other/path/result" is not an allowed Azure Document Intelligence endpoint path`,
+      );
+    });
+
     it("rejects invalid operationLocation URL", async () => {
       await expect(service.checkOperationStatus("not-a-url")).rejects.toThrow(
         "Invalid operationLocation URL: not-a-url",
