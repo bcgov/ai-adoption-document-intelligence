@@ -1,3 +1,4 @@
+import { GroupRole } from "@generated/client";
 import { ApiProperty } from "@nestjs/swagger";
 
 /**
@@ -12,4 +13,7 @@ export class GroupMemberDto {
 
   @ApiProperty({ description: "The date the user joined the group" })
   joinedAt!: Date;
+
+  @ApiProperty({ description: "The user's role in the group", enum: GroupRole })
+  role!: GroupRole;
 }

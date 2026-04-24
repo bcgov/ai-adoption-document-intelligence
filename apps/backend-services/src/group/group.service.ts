@@ -547,6 +547,7 @@ export class GroupService {
       userId: m.user_id,
       email: m.user?.email ?? "",
       joinedAt: m.created_at,
+      role: m.role,
     }));
   }
 
@@ -624,6 +625,51 @@ export class GroupService {
       reason: r.reason ?? undefined,
       createdAt: r.created_at,
     }));
+  }
+
+  /**
+   * Updates the role of a member in a group.
+   * Throws NotFoundException if the group does not exist.
+   * Throws NotFoundException if the target user is not a member of the group.
+   * @param groupId - The ID of the group.
+   * @param userId - The ID of the user whose role to update.
+   * @param role - The new role to assign.
+   * @param identity - The resolved identity of the caller.
+   */
+  async updateGroupMemberRole(
+    groupId: string,
+    userId: string,
+    role: GroupRole,
+    identity: ResolvedIdentity,
+  ): Promise<void> {
+    const group = await this.groupDb.findGroup(groupId);
+    if (!group) {
+      throw new NotFoundException("Group not found");
+    }
+
+    const targetMembership = await this.groupDb.findUserGroupMembership(
+      userId,
+      groupId,
+    );
+    if (!targetMembership) {
+      throw new NotFoundException("User is not a member of this group");
+    }
+
+    await this.groupDb.updateUserGroupRole(userId, groupId, role);
+    await this.auditService.recordEvent({
+      event_type: "member_role_updated",
+      resource_type: "user_group",
+      resource_id: `${userId}:${groupId}`,
+      actor_id: identity.userId,
+      group_id: groupId,
+      payload: { user_id: userId, new_role: role },
+    });
+    this.logger.log("Member role updated", {
+      groupId,
+      userId,
+      role,
+      actorId: identity.userId,
+    });
   }
 
   /**

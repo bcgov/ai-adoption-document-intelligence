@@ -31,6 +31,7 @@ import { MembershipRequestActionDto } from "./dto/membership-request-action.dto"
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { UpdateGroupDto } from "./dto/update-group.dto";
+import { UpdateMemberRoleDto } from "./dto/update-member-role.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupService } from "./group.service";
 
@@ -479,6 +480,44 @@ export class GroupController {
     await this.groupService.removeGroupMember(
       groupId,
       userId,
+      req.resolvedIdentity,
+    );
+    return { success: true };
+  }
+
+  /**
+   * Update a group member's role
+   * PATCH /api/groups/:groupId/members/:userId/role
+   */
+  @ApiOperation({
+    summary: "Update a group member's role (group admin or system admin only)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Member role updated successfully.",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a group admin or system admin.",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Group not found or user is not a member.",
+  })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @ApiParam({ name: "userId", description: "User ID to update", type: String })
+  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Patch(":groupId/members/:userId/role")
+  async updateGroupMemberRole(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
+    @Param("userId") userId: string,
+    @Body() body: UpdateMemberRoleDto,
+  ): Promise<{ success: boolean }> {
+    await this.groupService.updateGroupMemberRole(
+      groupId,
+      userId,
+      body.role,
       req.resolvedIdentity,
     );
     return { success: true };

@@ -34,6 +34,7 @@ const stubGroupDbService: GroupDbService = {
   isUserInGroup: jest.fn().mockResolvedValue(false),
   findUserGroupMembership: jest.fn().mockResolvedValue(null),
   upsertUserGroup: jest.fn().mockResolvedValue(undefined),
+  updateUserGroupRole: jest.fn().mockResolvedValue(undefined),
   deleteUserGroup: jest.fn().mockResolvedValue(undefined),
   findGroupMembersWithUser: jest.fn().mockResolvedValue([]),
   isUserSystemAdmin: jest.fn().mockResolvedValue(false),
@@ -926,6 +927,63 @@ describe("getGroupMembers", () => {
 });
 
 // ---------------------------------------------------------------------------
+// updateGroupMemberRole
+// ---------------------------------------------------------------------------
+
+describe("updateGroupMemberRole", () => {
+  const groupId = "group-1";
+  const userId = "user-1";
+  const mockGroup = { id: groupId };
+  const targetMembership = {
+    user_id: userId,
+    group_id: groupId,
+    role: "MEMBER",
+  };
+
+  it("should update the target user's role", async () => {
+    const updateUserGroupRole = jest.fn().mockResolvedValue(undefined);
+    const groupDb = makeGroupDb({
+      findGroup: jest.fn().mockResolvedValue(mockGroup),
+      findUserGroupMembership: jest.fn().mockResolvedValue(targetMembership),
+      updateUserGroupRole,
+    });
+    const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
+    await svc.updateGroupMemberRole(groupId, userId, GroupRole.ADMIN, {
+      userId: "caller-id",
+    } as ResolvedIdentity);
+    expect(updateUserGroupRole).toHaveBeenCalledWith(
+      userId,
+      groupId,
+      GroupRole.ADMIN,
+    );
+  });
+
+  it("should throw NotFoundException when group does not exist", async () => {
+    const groupDb = makeGroupDb({
+      findGroup: jest.fn().mockResolvedValue(null),
+    });
+    const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
+    await expect(
+      svc.updateGroupMemberRole(groupId, userId, GroupRole.ADMIN, {
+        userId: "caller-id",
+      } as ResolvedIdentity),
+    ).rejects.toThrow("Group not found");
+  });
+
+  it("should throw NotFoundException when target user is not a member", async () => {
+    const groupDb = makeGroupDb({
+      findGroup: jest.fn().mockResolvedValue(mockGroup),
+      findUserGroupMembership: jest.fn().mockResolvedValue(null),
+    });
+    const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
+    await expect(
+      svc.updateGroupMemberRole(groupId, userId, GroupRole.ADMIN, {
+        userId: "caller-id",
+      } as ResolvedIdentity),
+    ).rejects.toThrow("User is not a member of this group");
+  });
+});
+
 // removeGroupMember
 // ---------------------------------------------------------------------------
 
