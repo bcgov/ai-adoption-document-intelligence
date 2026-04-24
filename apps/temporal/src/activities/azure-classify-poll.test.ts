@@ -102,7 +102,7 @@ describe("azureClassifyPoll activity", () => {
     });
   });
 
-  describe("Scenario 3: Page range derived correctly", () => {
+  describe("Scenario 3: Contiguous page range derived correctly", () => {
     it("computes min/max pageNumber from boundingRegions", async () => {
       mockGet.mockResolvedValue({
         status: "200",
@@ -125,6 +125,94 @@ describe("azureClassifyPoll activity", () => {
         start: 2,
         end: 4,
       });
+    });
+  });
+
+  describe("Scenario 3b: Non-contiguous bounding regions produce separate entries", () => {
+    it("splits interleaved pages into one ClassifiedDocument per contiguous run", async () => {
+      // Azure DI returns one document entry for monthly-reports spanning pages 1 and 3
+      // (pages 2 and 4 belong to another label). Expect two separate entries.
+      mockGet.mockResolvedValue({
+        status: "200",
+        body: makeSucceededBody([
+          {
+            docType: "monthly-reports",
+            confidence: 0.55,
+            boundingRegions: [
+              { pageNumber: 1, polygon: [] },
+              { pageNumber: 3, polygon: [] },
+            ],
+          },
+          {
+            docType: "other",
+            confidence: 0.6,
+            boundingRegions: [
+              { pageNumber: 2, polygon: [] },
+              { pageNumber: 4, polygon: [] },
+            ],
+          },
+        ]),
+      });
+
+      const result = await azureClassifyPoll(BASE_INPUT);
+
+      expect(result.labeledDocuments["monthly-reports"]).toEqual([
+        { confidence: 0.55, pageRange: { start: 1, end: 1 } },
+        { confidence: 0.55, pageRange: { start: 3, end: 3 } },
+      ]);
+      expect(result.labeledDocuments["other"]).toEqual([
+        { confidence: 0.6, pageRange: { start: 2, end: 2 } },
+        { confidence: 0.6, pageRange: { start: 4, end: 4 } },
+      ]);
+    });
+
+    it("keeps contiguous multi-page spans intact", async () => {
+      mockGet.mockResolvedValue({
+        status: "200",
+        body: makeSucceededBody([
+          {
+            docType: "invoice",
+            confidence: 0.95,
+            boundingRegions: [
+              { pageNumber: 2, polygon: [] },
+              { pageNumber: 3, polygon: [] },
+              { pageNumber: 4, polygon: [] },
+            ],
+          },
+        ]),
+      });
+
+      const result = await azureClassifyPoll(BASE_INPUT);
+
+      expect(result.labeledDocuments["invoice"]).toEqual([
+        { confidence: 0.95, pageRange: { start: 2, end: 4 } },
+      ]);
+    });
+
+    it("splits a single entry with a mix of contiguous and non-contiguous pages", async () => {
+      // e.g. pages 1-2 contiguous, then gap, then pages 5-6 contiguous
+      mockGet.mockResolvedValue({
+        status: "200",
+        body: makeSucceededBody([
+          {
+            docType: "report",
+            confidence: 0.8,
+            boundingRegions: [
+              { pageNumber: 1, polygon: [] },
+              { pageNumber: 2, polygon: [] },
+              { pageNumber: 5, polygon: [] },
+              { pageNumber: 6, polygon: [] },
+            ],
+          },
+        ]),
+      });
+
+      const result = await azureClassifyPoll(BASE_INPUT);
+
+      expect(result.labeledDocuments["report"]).toEqual([
+        { confidence: 0.8, pageRange: { start: 1, end: 2 } },
+        { confidence: 0.8, pageRange: { start: 5, end: 6 } },
+      ]);
     });
   });
 

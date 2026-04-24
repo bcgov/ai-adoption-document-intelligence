@@ -127,6 +127,7 @@ describe("azureClassifySubmit activity", () => {
       expect(mockBlobRead).not.toHaveBeenCalled();
       const postArgs = mockPost.mock.calls[0][0];
       expect(postArgs.body).toEqual({ urlSource: sasUrl });
+      expect(postArgs.queryParameters.split).toBe("perPage");
     });
   });
 
@@ -153,6 +154,7 @@ describe("azureClassifySubmit activity", () => {
       expect(postArgs.body).toEqual({
         base64Source: Buffer.from("pdf-content").toString("base64"),
       });
+      expect(postArgs.queryParameters.split).toBe("perPage");
     });
   });
 

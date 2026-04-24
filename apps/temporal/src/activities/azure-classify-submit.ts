@@ -115,7 +115,7 @@ export async function azureClassifySubmit(
         queryParameters: {
           "api-version": "2024-11-30",
           _overload: "classifyDocument",
-          splitMode: "auto",
+          split: "perPage",
         },
       });
 

@@ -26,6 +26,27 @@ export interface AzureClassifyPollOutput {
 }
 
 /**
+ * Group a sorted list of page numbers into contiguous runs.
+ *
+ * @example groupContiguousPages([1, 3, 4]) → [[1], [3, 4]]
+ */
+function groupContiguousPages(sortedPages: number[]): number[][] {
+  if (sortedPages.length === 0) return [];
+  const runs: number[][] = [];
+  let current = [sortedPages[0]];
+  for (let i = 1; i < sortedPages.length; i++) {
+    if (sortedPages[i] === sortedPages[i - 1] + 1) {
+      current.push(sortedPages[i]);
+    } else {
+      runs.push(current);
+      current = [sortedPages[i]];
+    }
+  }
+  runs.push(current);
+  return runs;
+}
+
+/**
  * Temporal activity: poll Azure Document Intelligence for classifier results.
  *
  * Throws a retryable error when the operation is still in progress so that
@@ -127,25 +148,30 @@ export async function azureClassifyPoll(
       documentCount: documents.length,
     });
 
-    // Derive the page range for each detected document and group by label.
-    // No splitting is performed here — downstream activities receive the page
-    // ranges and call the split activity on demand.
+    // Derive the page range(s) for each detected document and group by label.
+    // A single document entry may have non-contiguous bounding regions (e.g.
+    // pages 1 and 3 interleaved with another label on pages 2 and 4). We split
+    // each document into one ClassifiedDocument per contiguous page run so that
+    // downstream extraction activities receive the correct page ranges.
     const labeledDocuments: Record<string, ClassifiedDocument[]> = {};
 
     for (const doc of documents) {
-      const pageNumbers = doc.boundingRegions.map((r) => r.pageNumber);
-      const startPage = Math.min(...pageNumbers);
-      const endPage = Math.max(...pageNumbers);
+      const pageNumbers = doc.boundingRegions
+        .map((r) => r.pageNumber)
+        .sort((a, b) => a - b);
 
-      const classifiedDoc: ClassifiedDocument = {
-        confidence: doc.confidence,
-        pageRange: { start: startPage, end: endPage },
-      };
+      const runs = groupContiguousPages(pageNumbers);
 
       if (!labeledDocuments[doc.docType]) {
         labeledDocuments[doc.docType] = [];
       }
-      labeledDocuments[doc.docType].push(classifiedDoc);
+
+      for (const run of runs) {
+        labeledDocuments[doc.docType].push({
+          confidence: doc.confidence,
+          pageRange: { start: run[0], end: run[run.length - 1] },
+        });
+      }
     }
 
     return {
