@@ -40,6 +40,7 @@ import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
 import {
+  CLASSIFIER_OTHER_AZURE_PREFIX,
   ClassifierSource,
   ClassifierStatus,
 } from "@/azure/dto/classifier-constants.dto";
@@ -421,9 +422,19 @@ export class AzureController {
             name,
           );
 
-        // Create the layout json for them
+        // Create the layout json for user-uploaded files
         const filePaths = uploadResults.map((r) => r.blobPath);
         await this.classifierService.createLayoutJson(filePaths);
+
+        // Also ensure layout json exists for the shared "other" files.
+        // createLayoutJson skips files that already have a .ocr.json, so this
+        // is only expensive on the first training run.
+        const otherBlobs = await this.classifierService.listAzureBlobs(
+          CLASSIFIER_OTHER_AZURE_PREFIX,
+        );
+        await this.classifierService.createLayoutJson(
+          otherBlobs.map((b) => b.name),
+        );
 
         // Start the training process
         await this.classifierService.requestClassifierTraining(

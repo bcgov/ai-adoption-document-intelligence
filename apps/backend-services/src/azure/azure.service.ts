@@ -83,30 +83,18 @@ export class AzureService {
     return parsed;
   }
 
-  private extractOperationId(operationLocation: string): string {
-    const parsed = this.validateOperationLocationUrl(operationLocation);
-    const match = parsed.pathname.match(
-      /\/(?:operations|analyzeResults)\/([A-Za-z0-9-]+)$/,
-    );
-    if (!match) {
-      throw new Error(
-        `operationLocation path "${parsed.pathname}" does not contain a supported operation identifier`,
-      );
-    }
-    return match[1];
-  }
-
   /**
    * Retrieves current operation information.
    * @param operationLocation The url of the operation to check.
-   * @returns A respnose from Azure on your operation.
+   * @returns A response from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
-    const operationId = this.extractOperationId(operationLocation);
-    const pollResp = await this.client
-      .path("/operations/{operationId}", operationId)
-      .get();
-    return this.asPollResult(pollResp.body);
+    this.validateOperationLocationUrl(operationLocation);
+    const response = await fetch(operationLocation, {
+      headers: { "api-key": this.apiKey },
+    });
+    const body: unknown = await response.json();
+    return this.asPollResult(body);
   }
 
   /**

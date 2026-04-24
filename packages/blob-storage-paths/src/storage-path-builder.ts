@@ -38,6 +38,22 @@ export const buildBlobFilePath = (groupId: string, category: OperationCategory, 
 }
 
 /**
+ * Builds a shared blob prefix path in the form:
+ * `_shared/{category}/{...prefixComponents}`
+ *
+ * Use this for resources that are not scoped to a specific group,
+ * such as shared training data used across all classifiers.
+ *
+ * @param category - The operation category (e.g. classification).
+ * @param prefixComponents - Additional path segments appended after the category.
+ * @returns A branded `BlobPrefixPath` string.
+ */
+export const buildSharedBlobPrefixPath = (category: OperationCategory, prefixComponents: string[]): BlobPrefixPath => {
+  const prefix = buildPrefix(prefixComponents);
+  return path.posix.join("_shared", category, prefix) as BlobPrefixPath;
+}
+
+/**
  * Builds a blob prefix path in the form:
  * `{groupId}/{category}/{...prefixComponents}`
  *

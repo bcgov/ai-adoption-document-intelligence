@@ -1,6 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEnum, IsOptional, IsString } from "class-validator";
-import { ClassifierSource } from "@/azure/dto/classifier-constants.dto";
+import { Transform } from "class-transformer";
+import { IsEnum, IsNotIn, IsOptional, IsString } from "class-validator";
+import {
+  ClassifierSource,
+  RESERVED_CLASSIFIER_LABELS,
+} from "@/azure/dto/classifier-constants.dto";
 
 export class ClassifierCreationDto {
   @ApiProperty()
@@ -45,8 +49,16 @@ export class UploadClassifierDocumentsDto {
   @IsString()
   name!: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: `Label name. The following labels are reserved and cannot be used: ${RESERVED_CLASSIFIER_LABELS.join(", ")}.`,
+  })
+  @Transform(({ value }: { value: string }) =>
+    typeof value === "string" ? value.toLowerCase() : value,
+  )
   @IsString()
+  @IsNotIn([...RESERVED_CLASSIFIER_LABELS], {
+    message: `Label must not be a reserved name (${RESERVED_CLASSIFIER_LABELS.join(", ")})`,
+  })
   label!: string;
 
   @ApiProperty({ required: false })
