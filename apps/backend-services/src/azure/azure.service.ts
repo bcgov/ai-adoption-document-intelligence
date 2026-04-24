@@ -89,9 +89,11 @@ export class AzureService {
    * @returns A response from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
-    this.validateOperationLocationUrl(operationLocation);
-    const response = await fetch(operationLocation, {
+    const parsed = this.validateOperationLocationUrl(operationLocation);
+    // Use the parsed (normalized) href and disable redirects to prevent SSRF.
+    const response = await fetch(parsed.href, {
       headers: { "api-key": this.apiKey },
+      redirect: "error",
     });
     const body: unknown = await response.json();
     return this.asPollResult(body);
@@ -116,8 +118,6 @@ export class AzureService {
       maxRetries?: number;
     },
   ): Promise<void> {
-    const validatedOperationLocation = operationLocation;
-
     const maxRetries = options?.maxRetries ?? 5;
     const interval = options?.intervalMs ?? 5000;
     const getStatus = (result: PollOperationResult): string | undefined => {
@@ -133,7 +133,7 @@ export class AzureService {
     let result: PollOperationResult;
 
     // Fetch initial result before entering the loop
-    result = await this.checkOperationStatus(validatedOperationLocation);
+    result = await this.checkOperationStatus(operationLocation);
     status = getStatus(result);
     this.logger.debug(`Operation status: ${status}`);
     let retryCount = 0;
@@ -144,7 +144,7 @@ export class AzureService {
     ) {
       retryCount++;
       await new Promise((res) => setTimeout(res, interval));
-      result = await this.checkOperationStatus(validatedOperationLocation);
+      result = await this.checkOperationStatus(operationLocation);
       status = getStatus(result);
       this.logger.debug(`Operation status: ${status}`);
     }

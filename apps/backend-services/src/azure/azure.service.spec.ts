@@ -61,6 +61,7 @@ describe("AzureService", () => {
       const result = await service.checkOperationStatus(url);
       expect(mockFetch).toHaveBeenCalledWith(url, {
         headers: { "api-key": expect.any(String) },
+        redirect: "error",
       });
       expect(result).toEqual({ status: "succeeded" });
     });
@@ -74,7 +75,10 @@ describe("AzureService", () => {
       const analyzeUrl =
         "https://test.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/abc-123";
       await service.checkOperationStatus(analyzeUrl);
-      expect(mockFetch).toHaveBeenCalledWith(analyzeUrl, expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith(
+        analyzeUrl,
+        expect.objectContaining({ redirect: "error" }),
+      );
     });
 
     it("should fetch training operation URLs with underscore IDs directly", async () => {
@@ -88,7 +92,10 @@ describe("AzureService", () => {
       const url =
         "https://test.com/sdpr-invoice-automation/documentintelligence/operations/31389396645_e6860cb5-768d-4509-ae59-890faaadb2d9";
       await service.checkOperationStatus(url);
-      expect(mockFetch).toHaveBeenCalledWith(url, expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith(
+        url,
+        expect.objectContaining({ redirect: "error" }),
+      );
     });
 
     it("rejects invalid operationLocation URL", async () => {
