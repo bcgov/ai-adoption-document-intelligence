@@ -10,6 +10,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "azureOcr.submit",
   "azureOcr.poll",
   "azureOcr.extract",
+  "mistralOcr.process",
   "ocr.cleanup",
   "ocr.enrich",
   "ocr.checkConfidence",
@@ -27,9 +28,9 @@ const EXPECTED_ACTIVITY_TYPES = [
 
 describe("activity-registry (backend)", () => {
   describe("REGISTERED_ACTIVITY_TYPES", () => {
-    it("contains all 18 expected activity types", () => {
+    it("contains all 19 expected activity types", () => {
       const keys = Object.keys(REGISTERED_ACTIVITY_TYPES);
-      expect(keys).toHaveLength(18);
+      expect(keys).toHaveLength(19);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(activityType in REGISTERED_ACTIVITY_TYPES).toBe(true);
       }
@@ -60,9 +61,9 @@ describe("activity-registry (backend)", () => {
   });
 
   describe("getRegisteredActivityTypeKeys", () => {
-    it("returns all 18 activity type strings", () => {
+    it("returns all 19 activity type strings", () => {
       const keys = getRegisteredActivityTypeKeys();
-      expect(keys).toHaveLength(18);
+      expect(keys).toHaveLength(19);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(keys).toContain(activityType);
       }

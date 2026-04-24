@@ -51,6 +51,11 @@ export type { EnrichResultsParams } from "./activities/enrich-results";
 export { enrichResults } from "./activities/enrich-results";
 export { extractOCRResults } from "./activities/extract-ocr-results";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
+export type { MistralOcrProcessParams } from "./activities/mistral-ocr-process";
+export {
+  mistralOcrProcess,
+  resolveMistralOcrModelId,
+} from "./activities/mistral-ocr-process";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 // OCR correction tools (Feature 008)

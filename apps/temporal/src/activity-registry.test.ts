@@ -12,6 +12,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "azureOcr.extract",
   "ocr.cleanup",
   "ocr.checkConfidence",
+  "mistralOcr.process",
   "ocr.storeResults",
   "document.storeRejection",
   "getWorkflowGraphConfig",

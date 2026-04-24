@@ -35,10 +35,13 @@ function getFieldDisplayValue(field: ExtractedFields[string]): string {
 
 export function DocumentViewer({
   imageUrl,
-  extractedFields = {},
+  extractedFields,
   pageNumber = 1,
   showOverlays = true,
 }: DocumentViewerProps) {
+  /** API may send null; default `{}` does not apply when null is passed explicitly. */
+  const fields = extractedFields ?? {};
+
   const {
     ref: canvasRef,
     width: canvasWidth,
@@ -64,7 +67,7 @@ export function DocumentViewer({
 
   const boxes = useMemo(() => {
     if (!showOverlays) return [];
-    return Object.entries(extractedFields)
+    return Object.entries(fields)
       .filter(([, field]) => {
         const br = field.boundingRegions?.find(
           (r) => r.pageNumber === pageNumber,
@@ -97,7 +100,7 @@ export function DocumentViewer({
           confidence: field.confidence,
         };
       });
-  }, [extractedFields, pageNumber, showOverlays, isPdf]);
+  }, [fields, pageNumber, showOverlays, isPdf]);
 
   // Tooltip state — positioned relative to the canvas container
   const [tooltip, setTooltip] = useState<{
@@ -117,7 +120,7 @@ export function DocumentViewer({
     [],
   );
 
-  const tooltipField = tooltip ? extractedFields[tooltip.fieldName] : undefined;
+  const tooltipField = tooltip ? fields[tooltip.fieldName] : undefined;
 
   return (
     <div

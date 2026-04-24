@@ -25,6 +25,25 @@ export interface OcrRequestResponse {
   error?: string; // Error message as string for serialization
 }
 
+function readTemplateModelIdFromDocumentMetadata(
+  metadata: unknown,
+): string | undefined {
+  if (
+    metadata === null ||
+    metadata === undefined ||
+    typeof metadata !== "object" ||
+    Array.isArray(metadata)
+  ) {
+    return undefined;
+  }
+  const raw = (metadata as Record<string, unknown>).templateModelId;
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 @Injectable()
 export class OcrService {
   constructor(
@@ -90,6 +109,10 @@ export class OcrService {
         );
       }
 
+      const templateModelId = readTemplateModelIdFromDocumentMetadata(
+        document.metadata,
+      );
+
       const initialCtx: Record<string, unknown> = {
         documentId,
         blobKey: document.normalized_file_path,
@@ -97,7 +120,8 @@ export class OcrService {
         fileType,
         contentType,
         modelId,
-        ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold: 0 to skip human review)
+        ...(templateModelId !== undefined && { templateModelId }),
+        ...ctxOverrides, // Overrides document metadata (e.g. confidenceThreshold, templateModelId)
       };
 
       // Start Temporal graph workflow
