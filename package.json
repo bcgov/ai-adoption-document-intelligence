@@ -31,17 +31,16 @@
 		"docs:build": "npm run generate:openapi && cd docs && bash build.sh"
 	},
 	"devDependencies": {
+		"@playwright/test": "1.58.2",
 		"concurrently": "9.2.1",
 		"dotenv": "17.2.3",
 		"lefthook": "2.1.4",
-		"picomatch": "4.0.4"
+		"picomatch": "4.0.4",
+    "prisma": "7.2.0"
 	},
 	"engines": {
 		"node": ">=24.0.0",
 		"npm": ">=10.0.0"
-	},
-	"dependencies": {
-		"@playwright/test": "1.58.2"
 	},
 	"overrides": {
 		"@hono/node-server": "1.19.13",
@@ -64,7 +63,8 @@
 	"optionalDependencies": {
 		"@biomejs/cli-darwin-arm64": "2.4.12",
 		"@esbuild/darwin-arm64": "0.25.12",
-		"@rollup/rollup-darwin-arm64": "4.60.0",
+		"@img/sharp-darwin-arm64": "0.34.5",
+		"@rollup/rollup-darwin-arm64": "4.60.2",
 		"@swc/core-darwin-arm64": "1.15.26"
 	}
 }

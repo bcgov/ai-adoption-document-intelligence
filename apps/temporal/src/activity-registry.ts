@@ -33,6 +33,7 @@ import {
 } from "./activities";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
+import { executeTransformNode } from "./activities/data-transform/execute";
 import { validateDocumentFields } from "./activities/document-validate-fields";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
@@ -322,6 +323,17 @@ register({
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 3 },
   description: "Persist Azure OCR poll JSON for a benchmark sample",
+});
+
+// -- Data transform activities ----------------------------------------------
+
+register({
+  activityType: "data.transform",
+  activityFn: executeTransformNode as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 1 },
+  description:
+    "Execute data transformation: parse input, resolve field-mapping bindings, render output",
 });
 
 // ---------------------------------------------------------------------------
