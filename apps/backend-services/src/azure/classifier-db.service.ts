@@ -225,7 +225,8 @@ export class ClassifierDbService {
 
   /**
    * Finds all workflow lineages within a group whose versions reference the given classifier name.
-   * Searches the config JSON blob of every WorkflowVersion for the classifier name string.
+   * Walks the config JSON tree and checks for exact "classifierName" property matches to avoid
+   * false positives from substring matches against descriptions, labels, or superstring names.
    * @param classifierName The name of the classifier to search for.
    * @param groupId The group ID to scope the search to.
    * @returns An array of objects containing workflow lineage id and name.
@@ -253,7 +254,7 @@ export class ClassifierDbService {
 
     const referencedLineages = new Map<string, string>();
     for (const version of versions) {
-      if (JSON.stringify(version.config).includes(classifierName)) {
+      if (configReferencesClassifier(version.config, classifierName)) {
         referencedLineages.set(version.lineage.id, version.lineage.name);
       }
     }
@@ -263,4 +264,35 @@ export class ClassifierDbService {
       name,
     }));
   }
+}
+
+/**
+ * Recursively walks a JSON value and returns true if any object node has a
+ * "classifierName" property whose value is an exact match for the given name.
+ * This prevents false positives from substring matches (e.g. "inv" matching
+ * "invoice-classifier") or name occurrences in unrelated fields such as
+ * descriptions or labels.
+ * @param value The JSON value to traverse.
+ * @param classifierName The exact classifier name to match.
+ * @returns true if a matching classifierName property is found, false otherwise.
+ */
+export function configReferencesClassifier(
+  value: unknown,
+  classifierName: string,
+): boolean {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) =>
+      configReferencesClassifier(item, classifierName),
+    );
+  }
+  const obj = value as Record<string, unknown>;
+  if ("classifierName" in obj && obj["classifierName"] === classifierName) {
+    return true;
+  }
+  return Object.values(obj).some((v) =>
+    configReferencesClassifier(v, classifierName),
+  );
 }

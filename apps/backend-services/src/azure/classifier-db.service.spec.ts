@@ -5,7 +5,10 @@ import {
 } from "@/azure/dto/classifier-constants.dto";
 import { PrismaService } from "../database/prisma.service";
 import type { ClassifierEditableProperties } from "./classifier-db.service";
-import { ClassifierDbService } from "./classifier-db.service";
+import {
+  ClassifierDbService,
+  configReferencesClassifier,
+} from "./classifier-db.service";
 
 describe("ClassifierDbService", () => {
   let service: ClassifierDbService;
@@ -503,6 +506,126 @@ describe("ClassifierDbService", () => {
       await expect(
         service.findWorkflowVersionsReferencingClassifier("clf1", "g1"),
       ).rejects.toThrow("Prisma error");
+    });
+
+    it("should not match a workflow whose classifierName is a superstring of the target", async () => {
+      mockPrisma.workflowVersion.findMany.mockResolvedValueOnce([
+        {
+          config: {
+            nodes: {
+              classifyNode: {
+                type: "activity",
+                parameters: { classifierName: "invoice-classifier" },
+              },
+            },
+          },
+          lineage: { id: "wl-1", name: "Workflow 1" },
+        },
+      ]);
+
+      const result = await service.findWorkflowVersionsReferencingClassifier(
+        "inv",
+        "g1",
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it("should not match a workflow where the name appears only in a description field", async () => {
+      mockPrisma.workflowVersion.findMany.mockResolvedValueOnce([
+        {
+          config: {
+            metadata: {
+              description: "Uses the clf1 classifier for routing",
+            },
+            nodes: {
+              classifyNode: {
+                type: "activity",
+                parameters: { classifierName: "other-clf" },
+              },
+            },
+          },
+          lineage: { id: "wl-1", name: "Workflow 1" },
+        },
+      ]);
+
+      const result = await service.findWorkflowVersionsReferencingClassifier(
+        "clf1",
+        "g1",
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it("should match when classifierName is nested inside a node parameters object", async () => {
+      mockPrisma.workflowVersion.findMany.mockResolvedValueOnce([
+        {
+          config: {
+            nodes: {
+              classifyNode: {
+                type: "activity",
+                parameters: { classifierName: "clf1" },
+              },
+            },
+          },
+          lineage: { id: "wl-1", name: "Workflow 1" },
+        },
+      ]);
+
+      const result = await service.findWorkflowVersionsReferencingClassifier(
+        "clf1",
+        "g1",
+      );
+
+      expect(result).toEqual([{ id: "wl-1", name: "Workflow 1" }]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // configReferencesClassifier
+  // ---------------------------------------------------------------------------
+
+  describe("configReferencesClassifier", () => {
+    it("returns true for a direct classifierName match", () => {
+      expect(
+        configReferencesClassifier({ classifierName: "clf1" }, "clf1"),
+      ).toBe(true);
+    });
+
+    it("returns true for a classifierName match nested in an array", () => {
+      expect(
+        configReferencesClassifier(
+          { steps: [{ classifierName: "clf1" }] },
+          "clf1",
+        ),
+      ).toBe(true);
+    });
+
+    it("returns false when classifierName is a substring of another classifierName value", () => {
+      expect(
+        configReferencesClassifier({ classifierName: "invoice-clf1" }, "clf1"),
+      ).toBe(false);
+    });
+
+    it("returns false when the name appears only in an unrelated string field", () => {
+      expect(
+        configReferencesClassifier(
+          { metadata: { description: "uses clf1 for routing" } },
+          "clf1",
+        ),
+      ).toBe(false);
+    });
+
+    it("returns false for null input", () => {
+      expect(configReferencesClassifier(null, "clf1")).toBe(false);
+    });
+
+    it("returns false for a primitive input", () => {
+      expect(configReferencesClassifier("clf1", "clf1")).toBe(false);
+    });
+
+    it("returns false for an empty object", () => {
+      expect(configReferencesClassifier({}, "clf1")).toBe(false);
     });
   });
 });
