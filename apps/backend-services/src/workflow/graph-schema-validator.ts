@@ -9,6 +9,7 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.2
  */
 
+import { validateActivityParameters } from "./activity-parameter-schema-registry";
 import { isRegisteredActivityType } from "./activity-registry";
 import type {
   ActivityNode,
@@ -286,6 +287,13 @@ function validateActivityTypes(
           message: `Unknown activity type: "${activityNode.activityType}"`,
           severity: "error",
         });
+      } else {
+        validateActivityParameters(
+          activityNode.activityType,
+          nodeId,
+          activityNode.parameters,
+          errors,
+        );
       }
     }
 

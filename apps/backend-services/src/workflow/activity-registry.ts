@@ -63,6 +63,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Field normalization; optional documentType (LabelingProject id) for schema-aware rules per field_type",
     },
+    "data.transform": {
+      description:
+        "Execute data transformation: parse input, resolve field-mapping bindings, render output",
+    },
   } as const;
 
 /**

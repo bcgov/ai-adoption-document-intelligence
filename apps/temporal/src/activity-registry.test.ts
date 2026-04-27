@@ -35,6 +35,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "data.transform",
 ];
 
 describe("activity-registry", () => {
