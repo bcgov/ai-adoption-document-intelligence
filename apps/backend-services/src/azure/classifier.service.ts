@@ -577,6 +577,18 @@ export class ClassifierService {
       [classifierName],
     );
 
+    // Hard-delete DB record first. Removing the row before touching external
+    // resources means the classifier immediately disappears from the user's
+    // perspective and a stale READY row can never be left pointing at nothing.
+    // All subsequent external-resource deletions are best-effort; any leftovers
+    // will be collected by the orphan cleaner.
+    await this.classifierDb.deleteClassifierModel(classifierName, groupId);
+    this.logger.log(`Deleted classifier DB record for ${classifierName}`, {
+      groupId,
+      classifierName,
+      actorId,
+    });
+
     // Cancel training if in progress
     if (classifier.status === ClassifierStatus.TRAINING) {
       try {
@@ -675,14 +687,6 @@ export class ClassifierService {
         { groupId, classifierName, actorId, error: String(err) },
       );
     }
-
-    // Hard-delete DB record
-    await this.classifierDb.deleteClassifierModel(classifierName, groupId);
-    this.logger.log(`Deleted classifier DB record for ${classifierName}`, {
-      groupId,
-      classifierName,
-      actorId,
-    });
 
     return null;
   }
