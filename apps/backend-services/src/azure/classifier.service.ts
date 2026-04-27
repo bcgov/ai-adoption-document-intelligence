@@ -616,9 +616,10 @@ export class ClassifierService {
     // Delete Azure DI model if it exists.
     // PRETRAINING classifiers have never been submitted to Azure DI, so skip the
     // remote call entirely to avoid unnecessary network timeouts.
+    // TRAINING classifiers were already deleted by the cancel block above, so
+    // skip here to avoid a redundant call that would produce a misleading 404 warning.
     if (
       classifier.status === ClassifierStatus.READY ||
-      classifier.status === ClassifierStatus.TRAINING ||
       classifier.status === ClassifierStatus.FAILED
     ) {
       try {
