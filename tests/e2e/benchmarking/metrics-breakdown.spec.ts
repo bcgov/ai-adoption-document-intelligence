@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 import { setupAuthenticatedTest } from '../helpers/auth';
 import { RunDrillDownPage } from '../pages/RunDrillDownPage';
 

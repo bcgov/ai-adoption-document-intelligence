@@ -95,7 +95,7 @@ describe("ClassifierPollerService", () => {
   describe("pollClassifierStatus", () => {
     it("should update status to READY if succeeded and delete files for classifier", async () => {
       mockAzureService.checkOperationStatus.mockResolvedValue({
-        json: async () => ({ status: "succeeded" }),
+        status: "succeeded",
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
@@ -109,7 +109,7 @@ describe("ClassifierPollerService", () => {
 
     it("should update status to FAILED if failed", async () => {
       mockAzureService.checkOperationStatus.mockResolvedValue({
-        json: async () => ({ status: "failed" }),
+        status: "failed",
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
@@ -119,7 +119,7 @@ describe("ClassifierPollerService", () => {
 
     it("should not update if still training", async () => {
       mockAzureService.checkOperationStatus.mockResolvedValue({
-        json: async () => ({ status: "running" }),
+        status: "running",
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(

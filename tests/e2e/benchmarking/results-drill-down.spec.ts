@@ -59,6 +59,7 @@ test.describe('US-031 - Results Summary: Drill-Down', () => {
     // Note: Implementation may show these in tabs, cards, or sections
 
     const drillDownSection = page.locator('[data-testid="drill-down-heading"]').locator('..');
+    await expect(drillDownSection).toBeAttached();
 
     // Check for worst samples (conditional on implementation)
     const worstSamplesVisible = await runDetailPage.worstSamplesTable.isVisible().catch(() => false);

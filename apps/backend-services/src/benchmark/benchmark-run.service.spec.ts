@@ -1453,6 +1453,46 @@ describe("BenchmarkRunService", () => {
       ).toBe(true);
     });
 
+    it("ignores query keys that are not dimensions on the run", async () => {
+      const runId = "run-1";
+      const projectId = "project-1";
+
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue({
+        id: runId,
+        projectId,
+        status: "completed",
+        metrics: {
+          perSampleResults: [
+            {
+              sampleId: "sample-001",
+              metadata: { docType: "invoice" },
+              metrics: {},
+            },
+            {
+              sampleId: "sample-002",
+              metadata: { docType: "receipt" },
+              metrics: {},
+            },
+          ],
+        },
+      });
+
+      const withUnknownKeys = await service.getPerSampleResults(
+        projectId,
+        runId,
+        {
+          docType: "invoice",
+          notADimension: "x",
+        },
+        1,
+        10,
+      );
+
+      expect(withUnknownKeys.total).toBe(1);
+      expect(withUnknownKeys.results).toHaveLength(1);
+      expect(withUnknownKeys.results[0].sampleId).toBe("sample-001");
+    });
+
     it("should throw NotFoundException if run not found", async () => {
       prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue(null);
 

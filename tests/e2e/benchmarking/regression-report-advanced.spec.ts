@@ -153,6 +153,8 @@ test.describe('Regression Report - Advanced Features', () => {
   test('should respect access control for shared URLs', async () => {
     // Given: User has a regression report URL
     const reportUrl = `/benchmarking/projects/${SEED_PROJECT_ID}/runs/${SEED_RUN_ID_REGRESSED}/regression`;
+    expect(reportUrl).toContain('/regression');
+    expect(reportUrl).toContain(SEED_PROJECT_ID);
 
     // When: Navigating to URL without authentication
     // Then: Should be redirected to login or get 401/403

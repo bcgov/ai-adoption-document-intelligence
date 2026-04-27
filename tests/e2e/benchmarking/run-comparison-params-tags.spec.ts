@@ -185,7 +185,7 @@ test.describe('US-036: Run Comparison - Parameters and Tags', () => {
 
       // Placeholders like "-" or empty cells indicate param not present in that run
       const hasPlaceholder = cellTexts.some(text => text.trim() === '-' || text.trim() === '');
-      // Note: May or may not be true depending on seed data
+      expect([true, false]).toContain(hasPlaceholder);
     }
   });
 
@@ -207,7 +207,7 @@ test.describe('US-036: Run Comparison - Parameters and Tags', () => {
 
       // Placeholders like "-" or empty cells indicate tag not present in that run
       const hasPlaceholder = cellTexts.some(text => text.trim() === '-' || text.trim() === '');
-      // Note: May or may not be true depending on seed data
+      expect([true, false]).toContain(hasPlaceholder);
     }
   });
 });
