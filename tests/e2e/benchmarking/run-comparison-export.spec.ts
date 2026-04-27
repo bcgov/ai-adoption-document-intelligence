@@ -179,7 +179,8 @@ test.describe('US-036: Run Comparison - Export Functionality', () => {
     const prettyJson = JSON.stringify(jsonData, null, 2);
 
     // If JSON is pretty-printed, it should have multiple lines
-    expect(jsonContent.split('\n').length).toBeGreaterThan(1);
+    expect(jsonContent.split("\n").length).toBeGreaterThan(1);
+    expect(prettyJson.length).toBeGreaterThan(0);
 
     // Cleanup
     fs.unlinkSync(downloadPath);

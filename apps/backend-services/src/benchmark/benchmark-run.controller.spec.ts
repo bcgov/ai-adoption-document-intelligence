@@ -469,7 +469,7 @@ describe("BenchmarkRunController", () => {
         page: "2",
         limit: "10",
         docType: "invoice",
-        pass: "1",
+        pass: "true",
       };
 
       const result = await controller.getPerSampleResults(
@@ -482,7 +482,7 @@ describe("BenchmarkRunController", () => {
       expect(mockRunService.getPerSampleResults).toHaveBeenCalledWith(
         projectId,
         "run-1",
-        { docType: "invoice", pass: 1 },
+        query,
         2,
         10,
       );

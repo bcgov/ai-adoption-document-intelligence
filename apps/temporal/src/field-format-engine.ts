@@ -28,17 +28,17 @@ export function parseFormatSpec(raw: string | null): FormatSpec | null {
   if (
     typeof parsed !== "object" ||
     parsed === null ||
-    typeof (parsed as Record<string, unknown>)["canonicalize"] !== "string"
+    typeof (parsed as Record<string, unknown>).canonicalize !== "string"
   ) {
     return null;
   }
   const obj = parsed as Record<string, unknown>;
-  const spec: FormatSpec = { canonicalize: obj["canonicalize"] as string };
-  if (typeof obj["pattern"] === "string") {
-    spec.pattern = obj["pattern"];
+  const spec: FormatSpec = { canonicalize: obj.canonicalize as string };
+  if (typeof obj.pattern === "string") {
+    spec.pattern = obj.pattern;
   }
-  if (typeof obj["displayTemplate"] === "string") {
-    spec.displayTemplate = obj["displayTemplate"];
+  if (typeof obj.displayTemplate === "string") {
+    spec.displayTemplate = obj.displayTemplate;
   }
   return spec;
 }

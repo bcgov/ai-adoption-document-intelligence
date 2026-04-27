@@ -6,9 +6,9 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-020-evaluation-aggregation-activities.md
  */
 
-import * as fs from "fs/promises";
-import * as os from "os";
-import * as path from "path";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { EvaluationResult } from "../benchmark-types";
 import {
   BenchmarkAggregateInput,

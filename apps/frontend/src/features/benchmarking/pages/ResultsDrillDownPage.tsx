@@ -285,7 +285,7 @@ export function ResultsDrillDownPage() {
       const numValue = Number(value);
       setFilters({
         ...filters,
-        [dimension]: isNaN(numValue) ? value : numValue,
+        [dimension]: Number.isNaN(numValue) ? value : numValue,
       });
     }
     setPage(1); // Reset to page 1 when filters change

@@ -80,7 +80,7 @@ describe("applyRecommendations", () => {
     const nodeIds = Object.keys(result.newConfig.nodes);
     expect(nodeIds).toContain("correction_ocr_spellcheck_0");
 
-    const newNode = result.newConfig.nodes["correction_ocr_spellcheck_0"];
+    const newNode = result.newConfig.nodes.correction_ocr_spellcheck_0;
     expect(newNode.type).toBe("activity");
     expect((newNode as { activityType: string }).activityType).toBe(
       "ocr.spellcheck",

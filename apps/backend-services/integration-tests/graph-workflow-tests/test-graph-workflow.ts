@@ -7,6 +7,9 @@
  * This test will run until it encounters the current error to help debug the issue.
  */
 
+import { ChildProcess, spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Logger } from "@nestjs/common";
 import {
   Client,
@@ -14,10 +17,7 @@ import {
   WorkflowExecutionStatusName,
 } from "@temporalio/client";
 import axios, { AxiosInstance } from "axios";
-import { ChildProcess, spawn } from "child_process";
 import * as dotenv from "dotenv";
-import * as fs from "fs";
-import * as path from "path";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -40,6 +40,19 @@ const CONFIG = {
     10,
   ), // 5 seconds
 };
+
+/** Ensures resolved file paths stay under an allowed root (CodeQL file-access-to-http guard). */
+function assertResolvedPathUnderRoot(
+  resolvedPath: string,
+  allowedRoot: string,
+): void {
+  const norm = path.normalize(resolvedPath);
+  const root = path.normalize(allowedRoot);
+  const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  if (norm !== root && !norm.startsWith(prefix)) {
+    throw new Error(`Resolved path left allowed directory: ${resolvedPath}`);
+  }
+}
 
 // --- Types ---
 interface GraphWorkflowConfig {
@@ -292,6 +305,10 @@ async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
     __dirname,
     `../../../docs-md/templates/${CONFIG.WORKFLOW_TEMPLATE}.json`,
   );
+  assertResolvedPathUnderRoot(
+    path.resolve(templatePath),
+    path.resolve(__dirname, "../../../docs-md/templates"),
+  );
 
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Workflow template not found at ${templatePath}`);
@@ -311,6 +328,10 @@ async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
 async function loadTestFile(): Promise<string> {
   log("Loading test document...");
   const testFilePath = path.join(__dirname, CONFIG.TEST_FILE);
+  assertResolvedPathUnderRoot(
+    path.resolve(testFilePath),
+    path.resolve(__dirname),
+  );
 
   if (!fs.existsSync(testFilePath)) {
     throw new Error(`Test file not found at ${testFilePath}`);
@@ -487,7 +508,9 @@ async function displayWorkflowHistory(): Promise<void> {
             if (attrs.failure.stackTrace) {
               log(`      Stack Trace:`, "error");
               const lines = attrs.failure.stackTrace.split("\n").slice(0, 15);
-              lines.forEach((line: string) => log(`        ${line}`, "error"));
+              lines.forEach((line: string) => {
+                log(`        ${line}`, "error");
+              });
             }
           }
         }
@@ -501,7 +524,9 @@ async function displayWorkflowHistory(): Promise<void> {
             if (attrs.failure.stackTrace) {
               log(`      Stack Trace:`, "error");
               const lines = attrs.failure.stackTrace.split("\n").slice(0, 15);
-              lines.forEach((line: string) => log(`        ${line}`, "error"));
+              lines.forEach((line: string) => {
+                log(`        ${line}`, "error");
+              });
             }
           }
         }
@@ -657,7 +682,7 @@ async function monitorWorkflow(): Promise<void> {
       } else if (status.status === "FAILED") {
         log(`Workflow failed after ${(elapsed / 1000).toFixed(1)}s`, "error");
 
-        if (progress && progress.error) {
+        if (progress?.error) {
           log(`Last error: ${progress.error}`, "error");
         }
 

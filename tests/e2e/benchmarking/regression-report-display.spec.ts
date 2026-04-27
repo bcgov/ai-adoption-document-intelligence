@@ -13,7 +13,6 @@ test.describe('Regression Report - Display', () => {
 
   const SEED_PROJECT_ID = 'seed-project-invoice-extraction';
   const SEED_RUN_ID_REGRESSED = 'seed-run-regressed-005'; // Run with regressions
-  const SEED_RUN_ID_PASSING = 'seed-run-passing-004'; // Run that passes baseline
 
   let regressionPage: RegressionReportPage;
 

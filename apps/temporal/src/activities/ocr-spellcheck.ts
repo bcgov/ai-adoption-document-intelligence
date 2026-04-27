@@ -7,9 +7,9 @@
  * See feature-docs/008-ocr-correction-agentic-sdlc/step-02-ocr-correction-tools-and-nodes.md
  */
 
-import * as fs from "fs";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import nspell from "nspell";
-import * as path from "path";
 import type {
   CorrectionResult,
   CorrectionToolParams,

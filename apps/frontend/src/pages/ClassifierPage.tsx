@@ -53,7 +53,7 @@ const ClassifierPage = () => {
               placeholder="Choose a model"
               value={selectedModel}
               data={(getClassifiers.data || [])
-                .filter((model) => model && model.name && model.group_id)
+                .filter((model) => model?.name && model?.group_id)
                 .map((model) => ({
                   value: `${model.name}::${model.group_id}`,
                   label: model.name,

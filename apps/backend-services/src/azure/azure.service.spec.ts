@@ -38,7 +38,6 @@ describe("AzureService", () => {
 
   it("should initialize with correct endpoint and apiKey", () => {
     expect(service.getEndpoint()).toBe("https://test.com");
-    // @ts-ignore
     expect(service["apiKey"]).toBe("secret-key");
   });
 
@@ -47,29 +46,70 @@ describe("AzureService", () => {
   });
 
   describe("checkOperationStatus", () => {
-    it("should call fetch with correct headers", async () => {
-      const mockFetch = jest.fn().mockResolvedValue({
-        json: jest.fn().mockResolvedValue({ status: "succeeded" }),
+    it("should poll Azure operation status using extracted operation id", async () => {
+      const mockGet = jest.fn().mockResolvedValue({
+        status: "200",
+        headers: { "x-ms-original-url": "https://test.com/operations/12345" },
+        body: { status: "succeeded" },
       });
-      // @ts-ignore
-      global.fetch = mockFetch;
-      const url = "https://test.com/operation";
+      const mockPath = jest.fn().mockReturnValue({ get: mockGet });
+      const clientPathSpy = jest.spyOn(service.getClient(), "path");
+      clientPathSpy.mockImplementation(mockPath as never);
+
+      const url =
+        "https://test.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/12345?api-version=2024-11-30";
       await service.checkOperationStatus(url);
-      expect(mockFetch).toHaveBeenCalledWith(url, {
-        headers: { "api-key": "secret-key" },
-      });
+      expect(mockPath).toHaveBeenCalledWith(
+        "/operations/{operationId}",
+        "12345",
+      );
+      expect(mockGet).toHaveBeenCalled();
+    });
+
+    it("rejects invalid operationLocation URL", async () => {
+      await expect(service.checkOperationStatus("not-a-url")).rejects.toThrow(
+        "Invalid operationLocation URL: not-a-url",
+      );
+    });
+
+    it("rejects operationLocation when origin does not match endpoint", async () => {
+      await expect(
+        service.checkOperationStatus("https://evil.com/op"),
+      ).rejects.toThrow(
+        `operationLocation origin "https://evil.com" does not match expected Azure endpoint origin "https://test.com"`,
+      );
+    });
+
+    it("rejects operationLocation when protocol is not https", async () => {
+      await expect(
+        service.checkOperationStatus("http://test.com/op"),
+      ).rejects.toThrow(
+        'operationLocation protocol "http:" is not allowed. Expected "https:"',
+      );
+    });
+
+    it("rejects operationLocation when credentials are present", async () => {
+      await expect(
+        service.checkOperationStatus("https://user:pass@test.com/op"),
+      ).rejects.toThrow("operationLocation must not include credentials");
+    });
+
+    it("rejects operationLocation path without supported operation id", async () => {
+      await expect(
+        service.checkOperationStatus("https://test.com/invalid/path"),
+      ).rejects.toThrow(
+        'operationLocation path "/invalid/path" does not contain a supported operation identifier',
+      );
     });
   });
 
   describe("pollOperationUntilResolved", () => {
     it("should call onSuccess when status is succeeded", async () => {
       const url = "https://test.com/operation";
-      const pollResp = {
-        json: jest.fn().mockResolvedValue({ status: "succeeded" }),
-      };
-      const mockFetch = jest.fn().mockResolvedValue(pollResp);
-      // @ts-ignore
-      service.checkOperationStatus = mockFetch;
+      const mockFetch = jest
+        .fn()
+        .mockResolvedValue({ status: "succeeded" } as never);
+      service.checkOperationStatus = mockFetch as never;
       const onSuccess = jest.fn();
       await service.pollOperationUntilResolved(url, onSuccess, undefined, {
         maxRetries: 2,
@@ -80,12 +120,10 @@ describe("AzureService", () => {
 
     it("should call onFailure when status is failed", async () => {
       const url = "https://test.com/operation";
-      const pollResp = {
-        json: jest.fn().mockResolvedValue({ status: "failed" }),
-      };
-      const mockFetch = jest.fn().mockResolvedValue(pollResp);
-      // @ts-ignore
-      service.checkOperationStatus = mockFetch;
+      const mockFetch = jest
+        .fn()
+        .mockResolvedValue({ status: "failed" } as never);
+      service.checkOperationStatus = mockFetch as never;
       const onFailure = jest.fn();
       await service.pollOperationUntilResolved(url, jest.fn(), onFailure, {
         maxRetries: 2,
@@ -96,12 +134,10 @@ describe("AzureService", () => {
 
     it("should retry until maxRetries if status is not succeeded or failed", async () => {
       const url = "https://test.com/operation";
-      const pollResp = {
-        json: jest.fn().mockResolvedValue({ status: "notStarted" }),
-      };
-      const mockFetch = jest.fn().mockResolvedValue(pollResp);
-      // @ts-ignore
-      service.checkOperationStatus = mockFetch;
+      const mockFetch = jest
+        .fn()
+        .mockResolvedValue({ status: "notStarted" } as never);
+      service.checkOperationStatus = mockFetch as never;
       const onSuccess = jest.fn();
       const onFailure = jest.fn();
       await service.pollOperationUntilResolved(url, onSuccess, onFailure, {

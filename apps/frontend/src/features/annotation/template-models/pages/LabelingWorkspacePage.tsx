@@ -170,7 +170,12 @@ export const LabelingWorkspacePage: FC = () => {
         .map((label) => label.bounding_box?.polygon)
         .filter(Boolean) as number[][];
 
-      let combinedBoundingBox;
+      let combinedBoundingBox:
+        | {
+            polygon: number[];
+          }
+        | undefined;
+
       if (allPolygons.length > 0) {
         const minX = Math.min(
           ...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)),
