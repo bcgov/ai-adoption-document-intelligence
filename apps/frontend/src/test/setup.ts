@@ -59,3 +59,10 @@ class MockDataTransfer {
     return undefined;
   }
 };
+
+/**
+ * Mantine's Combobox calls scrollIntoView on option elements to scroll the
+ * highlighted item into view. jsdom does not implement it, so we provide a
+ * no-op stub to prevent unhandled TypeError exceptions during tests.
+ */
+Element.prototype.scrollIntoView = () => undefined;

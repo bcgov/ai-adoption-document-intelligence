@@ -58,8 +58,7 @@ export class ClassifierPollerService {
       }
       const result =
         await this.azureService.checkOperationStatus(operationLocation);
-      const data = await result.json();
-      const status = data.status || data.modelInfo?.status;
+      const status = result.status || result.modelInfo?.status;
       if (status === "succeeded") {
         await this.classifierDb.systemUpdateClassifierModel(
           classifierName,

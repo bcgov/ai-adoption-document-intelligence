@@ -152,7 +152,7 @@ function resolveField(
 }
 
 function parseCurrency(value: unknown): number | undefined {
-  if (value === null || value === undefined) {
+  if (value == null) {
     return undefined;
   }
 

@@ -7,9 +7,7 @@ import { getPrismaPgOptions } from "@/utils/database-url";
 
 @Injectable()
 export class PrismaService implements OnModuleInit {
-  public readonly prisma: PrismaClient<{
-    log: Array<{ emit: "event"; level: "warn" | "error" | "query" }>;
-  }>;
+  public readonly prisma: PrismaClient;
   private readonly shouldLogQueries: boolean;
 
   constructor(
@@ -21,21 +19,25 @@ export class PrismaService implements OnModuleInit {
       this.configService.get("DATABASE_URL"),
     );
 
-    const prismaLog: Array<{
-      emit: "event";
-      level: "warn" | "error" | "query";
-    }> = [
-      { emit: "event", level: "warn" },
-      { emit: "event", level: "error" },
-    ];
+    const adapter = new PrismaPg(dbOptions);
     if (this.shouldLogQueries) {
-      prismaLog.push({ emit: "event", level: "query" });
+      this.prisma = new PrismaClient({
+        log: [
+          { emit: "event", level: "warn" },
+          { emit: "event", level: "error" },
+          { emit: "event", level: "query" },
+        ] as const,
+        adapter,
+      });
+    } else {
+      this.prisma = new PrismaClient({
+        log: [
+          { emit: "event", level: "warn" },
+          { emit: "event", level: "error" },
+        ] as const,
+        adapter,
+      });
     }
-
-    this.prisma = new PrismaClient({
-      log: prismaLog,
-      adapter: new PrismaPg(dbOptions),
-    });
 
     if (this.shouldLogQueries) {
       this.logger.log("Prisma query logging enabled", { category: "prisma" });
@@ -43,10 +45,17 @@ export class PrismaService implements OnModuleInit {
   }
 
   onModuleInit(): void {
-    this.prisma.$on("warn", (e) => {
+    const prismaForBaseLogs = this.prisma as PrismaClient<{
+      log: [
+        { emit: "event"; level: "warn" },
+        { emit: "event"; level: "error" },
+      ];
+    }>;
+
+    prismaForBaseLogs.$on("warn", (e) => {
       this.logger.warn(e.message, { category: "external", target: e.target });
     });
-    this.prisma.$on("error", (e) => {
+    prismaForBaseLogs.$on("error", (e) => {
       this.logger.error(e.message, { category: "external", target: e.target });
     });
     const url = this.configService.get<string>("DATABASE_URL");
@@ -56,15 +65,20 @@ export class PrismaService implements OnModuleInit {
     });
 
     if (this.shouldLogQueries) {
-      this.prisma.$on(
-        "query",
-        (e: { query: string; params: string; duration: number }) => {
-          this.logger.debug(
-            `Prisma query (${e.duration}ms): ${e.query} | params: ${e.params}`,
-            { category: "prisma" },
-          );
-        },
-      );
+      const prismaForQueryLogs = this.prisma as PrismaClient<{
+        log: [
+          { emit: "event"; level: "warn" },
+          { emit: "event"; level: "error" },
+          { emit: "event"; level: "query" },
+        ];
+      }>;
+
+      prismaForQueryLogs.$on("query", (e: Prisma.QueryEvent) => {
+        this.logger.debug(
+          `Prisma query (${e.duration}ms): ${e.query} | params: ${e.params}`,
+          { category: "prisma" },
+        );
+      });
     }
   }
 

@@ -64,8 +64,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Filtering', () => {
     const match = sampleCountText.match(/Showing (\d+) of (\d+)/);
     expect(match).toBeTruthy();
     const [, showing, total] = match!;
-    expect(parseInt(total)).toBeLessThan(50);
-    expect(parseInt(total)).toBeGreaterThan(0);
+    expect(parseInt(showing, 10)).toBeLessThanOrEqual(parseInt(total, 10));
+    expect(parseInt(total, 10)).toBeLessThan(50);
+    expect(parseInt(total, 10)).toBeGreaterThan(0);
 
     // And: Filter is visually indicated as active
     await expect(drillDownPage.activeFilterCount).toBeVisible();

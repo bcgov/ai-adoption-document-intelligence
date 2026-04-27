@@ -41,6 +41,19 @@ const CONFIG = {
   ), // 5 seconds
 };
 
+/** Ensures resolved file paths stay under an allowed root (CodeQL file-access-to-http guard). */
+function assertResolvedPathUnderRoot(
+  resolvedPath: string,
+  allowedRoot: string,
+): void {
+  const norm = path.normalize(resolvedPath);
+  const root = path.normalize(allowedRoot);
+  const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  if (norm !== root && !norm.startsWith(prefix)) {
+    throw new Error(`Resolved path left allowed directory: ${resolvedPath}`);
+  }
+}
+
 // --- Types ---
 interface GraphWorkflowConfig {
   schemaVersion: string;
@@ -292,6 +305,10 @@ async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
     __dirname,
     `../../../docs-md/templates/${CONFIG.WORKFLOW_TEMPLATE}.json`,
   );
+  assertResolvedPathUnderRoot(
+    path.resolve(templatePath),
+    path.resolve(__dirname, "../../../docs-md/templates"),
+  );
 
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Workflow template not found at ${templatePath}`);
@@ -311,6 +328,10 @@ async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
 async function loadTestFile(): Promise<string> {
   log("Loading test document...");
   const testFilePath = path.join(__dirname, CONFIG.TEST_FILE);
+  assertResolvedPathUnderRoot(
+    path.resolve(testFilePath),
+    path.resolve(__dirname),
+  );
 
   if (!fs.existsSync(testFilePath)) {
     throw new Error(`Test file not found at ${testFilePath}`);

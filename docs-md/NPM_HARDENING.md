@@ -18,6 +18,10 @@ QA workflows use `npm install --ignore-scripts --no-package-lock`. `npm ci` is a
 
 Workflows that do not run platform-specific optional tools use `npm install --ignore-scripts` without `--no-package-lock` and benefit from lockfile-based reproducibility.
 
+### Min-release-age compatibility note
+
+Because QA workflows install with `--no-package-lock`, dependency pins must also satisfy `min-release-age` from `.npmrc` at CI runtime. If a dependency version was published too recently, `npm install` fails with `ETARGET` even when the version exists on npm. For this reason, backend-services currently pins `@nestjs/swagger` to `11.3.2` instead of newer `11.4.x` until it ages past the policy threshold.
+
 | Workflow | Command |
 |---|---|
 | `backend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |

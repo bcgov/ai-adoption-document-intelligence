@@ -4,7 +4,7 @@
  * Generates once and copies to both backend-services and temporal apps
  */
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -84,10 +84,14 @@ try {
   console.log('Generating Prisma client from shared schema...');
   
   // Generate Prisma client to temporary location
-  execSync(`npx prisma generate --schema=${tempSchemaPath}`, {
-    stdio: 'inherit',
-    cwd: sharedDir,
-  });
+  execFileSync(
+    'npx',
+    ['prisma', 'generate', `--schema=${tempSchemaPath}`],
+    {
+      stdio: 'inherit',
+      cwd: sharedDir,
+    },
+  );
   
   // Remove source map references from generated files
   console.log('Removing source map references from generated files...');

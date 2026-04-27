@@ -369,7 +369,7 @@ export class TrainingService {
       // Initiate training with Azure
       this.logger.log(`Initiating Azure training for model: ${modelId}`);
       this.logger.debug(
-        `Training container URL: ${containerUrl} (sas: ${hasSasToken ? "present" : "missing"})`,
+        `Training container URL: ${containerUrl} (sas: present)`,
       );
       this.logger.debug(`Training container SAS URL: ${sasUrl}`);
       this.logger.debug(`Training SAS summary: ${JSON.stringify(sasSummary)}`);

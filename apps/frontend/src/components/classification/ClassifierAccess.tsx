@@ -78,7 +78,7 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
         } else if (res.status === "failed") {
           setError("Classification failed");
           setPolling(false);
-        } else if (polling && attemptsRef.current < 20) {
+        } else if (attemptsRef.current < 20) {
           attemptsRef.current++;
           timeout = setTimeout(poll, 5000);
         } else if (attemptsRef.current >= 20) {

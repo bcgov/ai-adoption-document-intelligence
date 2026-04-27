@@ -4,6 +4,7 @@
  */
 
 import { createLogger, getLogLevel } from "./logger";
+import type { LogContext } from "./types";
 
 const SERVICE = "test-service";
 
@@ -217,6 +218,27 @@ describe("createLogger", () => {
         expect(entry.Authorization).toBe("[REDACTED]");
         expect(entry.password).toBe("[REDACTED]");
         expect(entry.requestId).toBe("r1");
+      } finally {
+        out.restore();
+      }
+    });
+
+    it("does not emit reserved prototype-style keys from context", () => {
+      const out = captureStdout();
+      try {
+        const log = createLogger(SERVICE);
+        const ctx: Record<string, unknown> = { safeKey: "ok" };
+        Object.defineProperty(ctx, "__proto__", {
+          value: { polluted: true },
+          enumerable: true,
+          configurable: true,
+        });
+        log.info("ctx", ctx as LogContext);
+        const entry = parseLastLine(out.lines);
+        expect(entry.safeKey).toBe("ok");
+        expect(Object.prototype.hasOwnProperty.call(entry, "__proto__")).toBe(
+          false,
+        );
       } finally {
         out.restore();
       }

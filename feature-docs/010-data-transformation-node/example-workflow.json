@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Transform Node Examples",
+    "description": "Self-contained example demonstrating all transform node conversion types: CSV→JSON, XML→JSON (with array iteration), JSON→JSON remap, and JSON→XML with a SOAP envelope. Initial data is seeded via ctx defaultValue — no upstream activities are required."
+  },
+  "entryNodeId": "parseCustomer",
+  "ctx": {
+    "customerCsv": {
+      "type": "string",
+      "description": "Raw customer CSV seeded at workflow start",
+      "defaultValue": "id,first_name,last_name,email\nC001,Alice,Smith,alice@example.com"
+    },
+    "orderXml": {
+      "type": "string",
+      "description": "Raw order XML seeded at workflow start (includes a LineItems array)",
+      "defaultValue": "<Order><OrderId>ORD-9001</OrderId><Date>2026-04-16</Date><Currency>CAD</Currency><LineItems><Item><sku>WIDGET-A</sku><qty>3</qty><price>12.50</price></Item><Item><sku>GADGET-B</sku><qty>1</qty><price>79.99</price></Item></LineItems></Order>"
+    },
+    "customerMetaJson": {
+      "type": "string",
+      "description": "Customer metadata (tier, shipping address) seeded at workflow start as JSON",
+      "defaultValue": "{\"tier\":\"premium\",\"shippingAddress\":{\"street\":\"123 Main St\",\"city\":\"Vancouver\",\"province\":\"BC\"}}"
+    },
+    "customerJson": {
+      "type": "string",
+      "description": "Normalised customer fields produced by parseCustomer"
+    },
+    "orderJson": {
+      "type": "string",
+      "description": "Normalised order fields (including lineItems array) produced by parseOrder"
+    },
+    "payloadJson": {
+      "type": "string",
+      "description": "Merged customer + order header fields produced by buildPayload"
+    },
+    "soapOutput": {
+      "type": "string",
+      "description": "Final SOAP-wrapped XML produced by renderSoap"
+    }
+  },
+  "nodes": {
+    "parseCustomer": {
+      "id": "parseCustomer",
+      "type": "activity",
+      "activityType": "data.transform",
+      "label": "CSV → JSON: parse customer",
+      "parameters": {
+        "inputFormat": "csv",
+        "outputFormat": "json",
+        "fieldMapping": "{\n  \"customerId\": \"{{src.0.id}}\",\n  \"firstName\": \"{{src.0.first_name}}\",\n  \"lastName\": \"{{src.0.last_name}}\",\n  \"email\": \"{{src.0.email}}\"\n}"
+      },
+      "inputs": [
+        { "port": "src", "ctxKey": "customerCsv" }
+      ],
+      "outputs": [
+        { "port": "output", "ctxKey": "customerJson" }
+      ]
+    },
+
+    "parseOrder": {
+      "id": "parseOrder",
+      "type": "activity",
+      "activityType": "data.transform",
+      "label": "XML → JSON: extract order with line items",
+      "parameters": {
+        "inputFormat": "xml",
+        "outputFormat": "json",
+        "fieldMapping": "{\n  \"orderId\": \"{{src.Order.OrderId}}\",\n  \"orderDate\": \"{{src.Order.Date}}\",\n  \"currency\": \"{{src.Order.Currency}}\",\n  \"lineItems\": {\n    \"{{#each src.Order.LineItems.Item}}\": {\n      \"sku\": \"{{this.sku}}\",\n      \"qty\": \"{{this.qty}}\",\n      \"price\": \"{{this.price}}\"\n    }\n  }\n}"
+      },
+      "inputs": [
+        { "port": "src", "ctxKey": "orderXml" }
+      ],
+      "outputs": [
+        { "port": "output", "ctxKey": "orderJson" }
+      ]
+    },
+
+    "buildPayload": {
+      "id": "buildPayload",
+      "type": "activity",
+      "activityType": "data.transform",
+      "label": "JSON → JSON: merge customer and order header",
+      "parameters": {
+        "inputFormat": "json",
+        "outputFormat": "json",
+        "fieldMapping": "{\n  \"customerId\": \"{{customer.customerId}}\",\n  \"fullName\": \"{{customer.firstName}} {{customer.lastName}}\",\n  \"email\": \"{{customer.email}}\",\n  \"tier\": \"{{meta.tier}}\",\n  \"shippingCity\": \"{{meta.shippingAddress.city}}\",\n  \"orderId\": \"{{order.orderId}}\",\n  \"orderDate\": \"{{order.orderDate}}\",\n  \"currency\": \"{{order.currency}}\"\n}"
+      },
+      "inputs": [
+        { "port": "customer", "ctxKey": "customerJson" },
+        { "port": "order", "ctxKey": "orderJson" },
+        { "port": "meta", "ctxKey": "customerMetaJson" }
+      ],
+      "outputs": [
+        { "port": "output", "ctxKey": "payloadJson" }
+      ]
+    },
+
+    "renderSoap": {
+      "id": "renderSoap",
+      "type": "activity",
+      "activityType": "data.transform",
+      "label": "JSON → XML: build SOAP submission with line items",
+      "parameters": {
+        "inputFormat": "json",
+        "outputFormat": "xml",
+        "fieldMapping": "{\n  \"SubmitOrderRequest\": {\n    \"CustomerId\": \"{{payload.customerId}}\",\n    \"FullName\": \"{{payload.fullName}}\",\n    \"Email\": \"{{payload.email}}\",\n    \"Tier\": \"{{payload.tier}}\",\n    \"ShippingCity\": \"{{payload.shippingCity}}\",\n    \"OrderId\": \"{{payload.orderId}}\",\n    \"OrderDate\": \"{{payload.orderDate}}\",\n    \"Currency\": \"{{payload.currency}}\",\n    \"LineItems\": {\n      \"{{#each order.lineItems}}\": {\n        \"Item\": {\n          \"Sku\": \"{{this.sku}}\",\n          \"Qty\": \"{{this.qty}}\",\n          \"Price\": \"{{this.price}}\"\n        }\n      }\n    }\n  }\n}",
+        "xmlEnvelope": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:tns=\"http://example.com/orders\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <tns:SubmitOrder>\n      {{payload}}\n    </tns:SubmitOrder>\n  </soapenv:Body>\n</soapenv:Envelope>"
+      },
+      "inputs": [
+        { "port": "payload", "ctxKey": "payloadJson" },
+        { "port": "order", "ctxKey": "orderJson" }
+      ],
+      "outputs": [
+        { "port": "output", "ctxKey": "soapOutput" }
+      ]
+    }
+  },
+  "edges": [
+    { "id": "e1", "source": "parseCustomer", "target": "parseOrder",   "type": "normal" },
+    { "id": "e2", "source": "parseCustomer", "target": "buildPayload", "type": "normal" },
+    { "id": "e3", "source": "parseOrder",    "target": "buildPayload", "type": "normal" },
+    { "id": "e4", "source": "buildPayload",  "target": "renderSoap",   "type": "normal" },
+    { "id": "e5", "source": "parseOrder",    "target": "renderSoap",   "type": "normal" }
+  ]
+}

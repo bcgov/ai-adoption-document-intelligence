@@ -34,6 +34,7 @@ import {
 import dagre from "dagre-esm";
 import { memo, useEffect, useMemo, useRef } from "react";
 import type {
+  ActivityNode,
   ChildWorkflowNode,
   GraphEdge,
   GraphNode,
@@ -56,8 +57,11 @@ interface GraphVisualizationProps {
 interface GraphNodeData {
   label: string;
   type: GraphNode["type"];
+  activityType?: string;
   hasError: boolean;
   workflowRef?: ChildWorkflowNode["workflowRef"];
+  inputFormat?: string;
+  outputFormat?: string;
 }
 
 interface GroupNodeData {
@@ -111,6 +115,28 @@ const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
   humanGate: <IconUserCheck size={18} />,
 };
 
+/**
+ * Extracts transform summary data from an activity node with activityType "data.transform".
+ */
+function transformNodeSummaryData(node: GraphNode): {
+  activityType?: string;
+  inputFormat?: string;
+  outputFormat?: string;
+} {
+  if (
+    node.type === "activity" &&
+    (node as ActivityNode).activityType === "data.transform"
+  ) {
+    const params = (node as ActivityNode).parameters ?? {};
+    return {
+      activityType: "data.transform",
+      inputFormat: params.inputFormat as string | undefined,
+      outputFormat: params.outputFormat as string | undefined,
+    };
+  }
+  return {};
+}
+
 const GraphNodeRenderer = memo(function GraphNodeRenderer({
   data,
 }: {
@@ -119,6 +145,8 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
   const color = NODE_COLORS[data.type];
   const isDiamond = data.type === "switch";
   const isChildWorkflow = data.type === "childWorkflow";
+  const isTransform =
+    data.type === "activity" && data.activityType === "data.transform";
   const workflowId =
     isChildWorkflow && data.workflowRef?.type === "library"
       ? data.workflowRef.workflowId
@@ -188,6 +216,22 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
           >
             <IconCornerDownRight size={12} />
             <span>{workflowId}</span>
+          </div>
+        ) : isTransform && data.inputFormat && data.outputFormat ? (
+          <div
+            style={{
+              fontSize: 10,
+              color: "#6b7280",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              alignItems: "center",
+            }}
+          >
+            <div>
+              {data.inputFormat.toUpperCase()} →{" "}
+              {data.outputFormat.toUpperCase()}
+            </div>
           </div>
         ) : (
           <div style={{ fontSize: 11, color: "#6b7280" }}>{data.type}</div>
@@ -850,8 +894,13 @@ function buildDetailedViewWithMapContainers(
         data: {
           label: node.label,
           type: node.type,
+          activityType:
+            node.type === "activity"
+              ? (node as ActivityNode).activityType
+              : undefined,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     } else {
@@ -871,8 +920,13 @@ function buildDetailedViewWithMapContainers(
         data: {
           label: node.label,
           type: node.type,
+          activityType:
+            node.type === "activity"
+              ? (node as ActivityNode).activityType
+              : undefined,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     }
@@ -1224,6 +1278,7 @@ function buildHybridView(
             type: bodyNode.type,
             hasError: errorNodeIds.has(bodyNode.id),
             workflowRef,
+            ...transformNodeSummaryData(bodyNode),
           } as unknown as Record<string, unknown>,
         });
       }
@@ -1240,6 +1295,7 @@ function buildHybridView(
           label: node.label,
           type: node.type,
           hasError: errorNodeIds.has(node.id),
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     }
@@ -1384,6 +1440,7 @@ function buildSimplifiedView(
         label: node.label,
         type: node.type,
         hasError: errorNodeIds.has(node.id),
+        ...transformNodeSummaryData(node),
       } as unknown as Record<string, unknown>,
     });
   }
@@ -1503,6 +1560,7 @@ export function GraphVisualization({
           type: node.type,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       };
     });

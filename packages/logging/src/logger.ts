@@ -25,6 +25,12 @@ const SECRET_KEYS = new Set([
   "cookie",
 ]);
 
+const RESERVED_CONTEXT_KEYS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
 function getConfiguredLevel(): LogLevel {
   const raw = process.env.LOG_LEVEL;
   if (raw && typeof raw === "string") {
@@ -38,14 +44,60 @@ export function getLogLevel(): LogLevel {
   return getConfiguredLevel();
 }
 
-function redactContext(context: LogContext): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
+/** Redacted context as a Map so merges avoid dynamic writes to plain objects (CodeQL). */
+function contextToRedactedMap(
+  context: LogContext | undefined,
+): Map<string, unknown> {
+  const out = new Map<string, unknown>();
+  if (context === undefined) {
+    return out;
+  }
   for (const [key, value] of Object.entries(context)) {
+    if (RESERVED_CONTEXT_KEYS.has(key)) {
+      continue;
+    }
     const keyLower = key.toLowerCase();
     const isSecret = SECRET_KEYS.has(key) || SECRET_KEYS.has(keyLower);
-    out[key] = isSecret ? REDACTED_PLACEHOLDER : value;
+    out.set(key, isSecret ? REDACTED_PLACEHOLDER : value);
   }
   return out;
+}
+
+function mergeRedactedMaps(
+  base: Map<string, unknown>,
+  extra: Map<string, unknown>,
+): Map<string, unknown> {
+  const merged = new Map(base);
+  for (const [k, v] of extra) {
+    merged.set(k, v);
+  }
+  return merged;
+}
+
+/** NDJSON line without spreading user keys onto a plain object. */
+function stringifyNdjsonLine(
+  timestamp: string,
+  level: LogLevel,
+  service: string,
+  message: string,
+  merged: Map<string, unknown>,
+): string {
+  const chunks: string[] = [
+    `"timestamp":${JSON.stringify(timestamp)}`,
+    `"level":${JSON.stringify(level)}`,
+    `"service":${JSON.stringify(service)}`,
+    `"message":${JSON.stringify(message)}`,
+  ];
+  for (const [k, v] of merged) {
+    let encoded: string;
+    try {
+      encoded = JSON.stringify(v);
+    } catch {
+      encoded = "null";
+    }
+    chunks.push(`${JSON.stringify(k)}:${encoded}`);
+  }
+  return `{${chunks.join(",")}}`;
 }
 
 function safeStringify(entry: StructuredLogEntry): string {
@@ -122,20 +174,24 @@ function formatPretty(
   level: LogLevel,
   service: string,
   message: string,
-  merged: Record<string, unknown>,
+  merged: Map<string, unknown>,
 ): string {
   const levelLabel = level.toUpperCase().padEnd(5);
   const timePart = `${secondary}[${timestamp}]${reset}`;
   const levelPart = `${levelColors[level]}${levelLabel}${reset}`;
   const servicePart = `${serviceColor}${service}${reset}`;
   let contextStr = "";
-  if (Object.keys(merged).length > 0) {
+  if (merged.size > 0) {
     if (isPrettyContextEnabled()) {
-      const prettyJson = JSON.stringify(merged, null, 2);
-      const indented = prettyJson.split("\n").map((l) => "  " + l).join("\n");
-      contextStr = `\n${contextColor}${indented}${reset}`;
+      const inner = Array.from(merged.entries())
+        .map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v, null, 2)}`)
+        .join(",\n");
+      contextStr = `\n${contextColor}{\n${inner}\n}${reset}`;
     } else {
-      contextStr = `  ${contextColor}${JSON.stringify(merged)}${reset}`;
+      const compact = `{${Array.from(merged.entries())
+        .map(([k, v]) => `${JSON.stringify(k)}:${JSON.stringify(v)}`)
+        .join(",")}}`;
+      contextStr = `  ${contextColor}${compact}${reset}`;
     }
   }
   return `${timePart}  ${levelPart}  ${servicePart}  ${message}${contextStr}`;
@@ -149,9 +205,9 @@ export interface Logger {
   child(context: LogContext): Logger;
 }
 
-function emit(
+function emitWithBaseMap(
   service: string,
-  baseContext: LogContext | undefined,
+  baseMap: Map<string, unknown>,
   level: LogLevel,
   message: string,
   context?: LogContext,
@@ -159,21 +215,15 @@ function emit(
   const configured = getConfiguredLevel();
   if (!shouldEmit(configured, level)) return;
 
-  const merged: Record<string, unknown> = {
-    ...redactContext(baseContext ?? {}),
-    ...redactContext(context ?? {}),
-  };
+  const merged = mergeRedactedMaps(
+    baseMap,
+    contextToRedactedMap(context ?? {}),
+  );
   const timestamp = new Date().toISOString();
 
   const line = isDevelopment()
     ? formatPretty(timestamp, level, service, message, merged)
-    : safeStringify({
-        timestamp,
-        ...merged,
-        level,
-        service,
-        message,
-      } as StructuredLogEntry);
+    : stringifyNdjsonLine(timestamp, level, service, message, merged);
 
   if (line) {
     writeStdout(line);
@@ -186,22 +236,35 @@ export function createLogger(
   serviceName: string,
   baseContext?: LogContext,
 ): Logger {
+  return createLoggerFromBaseMap(
+    serviceName,
+    contextToRedactedMap(baseContext),
+  );
+}
+
+function createLoggerFromBaseMap(
+  serviceName: string,
+  baseMap: Map<string, unknown>,
+): Logger {
   const logger: Logger = {
     debug(message: string, context?: LogContext): void {
-      emit(serviceName, baseContext, "debug", message, context);
+      emitWithBaseMap(serviceName, baseMap, "debug", message, context);
     },
     info(message: string, context?: LogContext): void {
-      emit(serviceName, baseContext, "info", message, context);
+      emitWithBaseMap(serviceName, baseMap, "info", message, context);
     },
     warn(message: string, context?: LogContext): void {
-      emit(serviceName, baseContext, "warn", message, context);
+      emitWithBaseMap(serviceName, baseMap, "warn", message, context);
     },
     error(message: string, context?: LogContext): void {
-      emit(serviceName, baseContext, "error", message, context);
+      emitWithBaseMap(serviceName, baseMap, "error", message, context);
     },
     child(context: LogContext): Logger {
-      const childBase = { ...baseContext, ...context };
-      return createLogger(serviceName, childBase);
+      const nextBase = mergeRedactedMaps(
+        baseMap,
+        contextToRedactedMap(context),
+      );
+      return createLoggerFromBaseMap(serviceName, nextBase);
     },
   };
   return logger;
