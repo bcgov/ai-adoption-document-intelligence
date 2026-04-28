@@ -96,7 +96,7 @@ describe("TablesDbService — tables CRUD", () => {
 
   describe("listTables", () => {
     it("lists tables for a group", async () => {
-      const mockTables = [
+      const allRows = [
         {
           group_id: "grp1",
           table_id: "a",
@@ -113,12 +113,24 @@ describe("TablesDbService — tables CRUD", () => {
           columns: [],
           lookups: [],
         },
+        {
+          group_id: "grp2",
+          table_id: "c",
+          label: "C",
+          description: null,
+          columns: [],
+          lookups: [],
+        },
       ];
-      mockPrismaClient.table.findMany.mockResolvedValue(mockTables);
+      mockPrismaClient.table.findMany.mockImplementation(
+        ({ where }: { where: { group_id: string } }) =>
+          Promise.resolve(allRows.filter((r) => r.group_id === where.group_id)),
+      );
 
       const list = await service.listTables("grp1");
 
       expect(list).toHaveLength(2);
+      expect(list.every((r) => r.group_id === "grp1")).toBe(true);
       expect(mockPrismaClient.table.findMany).toHaveBeenCalledWith({
         where: { group_id: "grp1" },
         orderBy: { label: "asc" },
