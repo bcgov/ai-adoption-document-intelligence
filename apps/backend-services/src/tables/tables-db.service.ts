@@ -144,4 +144,71 @@ export class TablesDbService {
       (ls) => ls.filter((l) => l.name !== name),
     );
   }
+
+  // Row CRUD — operates on the TableRow model with optimistic locking.
+  // Each row uses updateMany with an updated_at timestamp check to detect
+  // concurrent write conflicts at the row level.
+
+  async createRow(
+    group_id: string,
+    table_id: string,
+    data: Record<string, unknown>,
+  ) {
+    return this.prisma.tableRow.create({
+      data: {
+        group_id,
+        table_id,
+        data: data as unknown as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async findRow(group_id: string, table_id: string, id: string) {
+    return this.prisma.tableRow.findFirst({
+      where: { id, group_id, table_id },
+    });
+  }
+
+  async listRows(
+    group_id: string,
+    table_id: string,
+    opts: { offset: number; limit: number },
+  ) {
+    const [rows, total] = await Promise.all([
+      this.prisma.tableRow.findMany({
+        where: { group_id, table_id },
+        orderBy: { created_at: "desc" },
+        skip: opts.offset,
+        take: opts.limit,
+      }),
+      this.prisma.tableRow.count({ where: { group_id, table_id } }),
+    ]);
+    return { rows, total };
+  }
+
+  async updateRow(
+    group_id: string,
+    table_id: string,
+    id: string,
+    input: { data: Record<string, unknown>; expected_updated_at: Date },
+  ) {
+    const result = await this.prisma.tableRow.updateMany({
+      where: { id, group_id, table_id, updated_at: input.expected_updated_at },
+      data: { data: input.data as unknown as Prisma.InputJsonValue },
+    });
+    if (result.count === 0) {
+      throw new Error("row update conflict: stale expected_updated_at");
+    }
+    const refreshed = await this.findRow(group_id, table_id, id);
+    if (!refreshed) {
+      throw new Error("row not found after update");
+    }
+    return refreshed;
+  }
+
+  async deleteRow(group_id: string, table_id: string, id: string) {
+    await this.prisma.tableRow.deleteMany({
+      where: { id, group_id, table_id },
+    });
+  }
 }

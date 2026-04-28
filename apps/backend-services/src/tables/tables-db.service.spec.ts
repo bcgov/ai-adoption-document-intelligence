@@ -12,6 +12,14 @@ const mockPrismaClient = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  tableRow: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    updateMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
 };
 
 describe("TablesDbService — tables CRUD", () => {
@@ -465,6 +473,160 @@ describe("TablesDbService — lookups", () => {
       expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { lookups: [lookupB] },
+      });
+    });
+  });
+});
+
+describe("TablesDbService — rows", () => {
+  let service: TablesDbService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TablesDbService,
+        { provide: PrismaService, useValue: { prisma: mockPrismaClient } },
+      ],
+    }).compile();
+
+    service = module.get<TablesDbService>(TablesDbService);
+    jest.clearAllMocks();
+  });
+
+  describe("createRow", () => {
+    it("creates a row and passes data payload through unchanged", async () => {
+      const rowData = { name: "Alice", age: 30 };
+      const createdAt = new Date("2025-01-15T10:00:00Z");
+      const updatedAt = new Date("2025-01-15T10:00:00Z");
+      const mockRow = {
+        id: "row1",
+        group_id: "g",
+        table_id: "t",
+        data: rowData,
+        created_at: createdAt,
+        updated_at: updatedAt,
+      };
+      mockPrismaClient.tableRow.create.mockResolvedValue(mockRow);
+
+      const result = await service.createRow("g", "t", rowData);
+
+      expect(result).toEqual(mockRow);
+      expect(mockPrismaClient.tableRow.create).toHaveBeenCalledWith({
+        data: { group_id: "g", table_id: "t", data: rowData },
+      });
+    });
+  });
+
+  describe("listRows", () => {
+    it("returns rows and total using the composite where, correct orderBy, and pagination", async () => {
+      const createdAt = new Date("2025-01-15T10:00:00Z");
+      const updatedAt = new Date("2025-01-15T10:00:00Z");
+      const mockRows = [
+        {
+          id: "row2",
+          group_id: "g",
+          table_id: "t",
+          data: { name: "Bob" },
+          created_at: createdAt,
+          updated_at: updatedAt,
+        },
+        {
+          id: "row1",
+          group_id: "g",
+          table_id: "t",
+          data: { name: "Alice" },
+          created_at: createdAt,
+          updated_at: updatedAt,
+        },
+      ];
+      mockPrismaClient.tableRow.findMany.mockResolvedValue(mockRows);
+      mockPrismaClient.tableRow.count.mockResolvedValue(2);
+
+      const result = await service.listRows("g", "t", { offset: 0, limit: 10 });
+
+      expect(result.rows).toEqual(mockRows);
+      expect(result.total).toBe(2);
+      expect(mockPrismaClient.tableRow.findMany).toHaveBeenCalledWith({
+        where: { group_id: "g", table_id: "t" },
+        orderBy: { created_at: "desc" },
+        skip: 0,
+        take: 10,
+      });
+      expect(mockPrismaClient.tableRow.count).toHaveBeenCalledWith({
+        where: { group_id: "g", table_id: "t" },
+      });
+    });
+  });
+
+  describe("updateRow — happy path", () => {
+    it("updates row data and returns refreshed row when updated_at matches", async () => {
+      const expectedUpdatedAt = new Date("2025-01-15T09:00:00Z");
+      const newUpdatedAt = new Date("2025-01-15T10:00:00Z");
+      const newData = { name: "Alice Updated" };
+      const refreshedRow = {
+        id: "row1",
+        group_id: "g",
+        table_id: "t",
+        data: newData,
+        created_at: new Date("2025-01-15T08:00:00Z"),
+        updated_at: newUpdatedAt,
+      };
+
+      mockPrismaClient.tableRow.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.tableRow.findFirst.mockResolvedValue(refreshedRow);
+
+      const result = await service.updateRow("g", "t", "row1", {
+        data: newData,
+        expected_updated_at: expectedUpdatedAt,
+      });
+
+      expect(result).toEqual(refreshedRow);
+      expect(mockPrismaClient.tableRow.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: "row1",
+          group_id: "g",
+          table_id: "t",
+          updated_at: expectedUpdatedAt,
+        },
+        data: { data: newData },
+      });
+      expect(mockPrismaClient.tableRow.findFirst).toHaveBeenCalledWith({
+        where: { id: "row1", group_id: "g", table_id: "t" },
+      });
+    });
+  });
+
+  describe("updateRow — stale lock", () => {
+    it("throws a conflict error and does not call findFirst when updated_at is stale", async () => {
+      const staleUpdatedAt = new Date("2025-01-14T08:00:00Z");
+
+      mockPrismaClient.tableRow.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.updateRow("g", "t", "row1", {
+          data: { name: "Alice" },
+          expected_updated_at: staleUpdatedAt,
+        }),
+      ).rejects.toThrow(/stale|conflict/i);
+
+      expect(mockPrismaClient.tableRow.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteRow + findRow", () => {
+    it("deletes using the composite filter and findRow returns null afterwards", async () => {
+      mockPrismaClient.tableRow.deleteMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.tableRow.findFirst.mockResolvedValue(null);
+
+      await service.deleteRow("g", "t", "row1");
+      const found = await service.findRow("g", "t", "row1");
+
+      expect(found).toBeNull();
+      expect(mockPrismaClient.tableRow.deleteMany).toHaveBeenCalledWith({
+        where: { id: "row1", group_id: "g", table_id: "t" },
+      });
+      expect(mockPrismaClient.tableRow.findFirst).toHaveBeenCalledWith({
+        where: { id: "row1", group_id: "g", table_id: "t" },
       });
     });
   });
