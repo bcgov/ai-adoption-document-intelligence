@@ -17,7 +17,7 @@ export interface ColumnDef {
   unique?: boolean;
 }
 
-export type Pick = "first" | "last" | "one" | "all";
+export type PickStrategy = "first" | "last" | "one" | "all";
 
 export interface LookupParam {
   name: string;
@@ -34,7 +34,7 @@ export interface LookupDef {
   params: LookupParam[];
   filter: ConditionExpression;
   order?: OrderClause[];
-  pick: Pick;
+  pick: PickStrategy;
   templateId?: string;
   templateConfig?: Record<string, unknown>;
 }
