@@ -1,6 +1,7 @@
-import { PrismaClient } from "@generated/client";
+import { Prisma, PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
+import type { ColumnDef } from "./types";
 
 export interface CreateTableInput {
   group_id: string;
@@ -57,6 +58,49 @@ export class TablesDbService {
   async deleteTable(group_id: string, table_id: string) {
     await this.prisma.table.delete({
       where: { group_id_table_id: { group_id, table_id } },
+    });
+  }
+
+  async addColumn(group_id: string, table_id: string, col: ColumnDef) {
+    const existing = await this.prisma.table.findUniqueOrThrow({
+      where: { group_id_table_id: { group_id, table_id } },
+    });
+    const cols = (existing.columns as unknown as ColumnDef[]) ?? [];
+    return this.prisma.table.update({
+      where: { group_id_table_id: { group_id, table_id } },
+      data: { columns: [...cols, col] as unknown as Prisma.InputJsonValue },
+    });
+  }
+
+  async updateColumn(
+    group_id: string,
+    table_id: string,
+    key: string,
+    next: ColumnDef,
+  ) {
+    const existing = await this.prisma.table.findUniqueOrThrow({
+      where: { group_id_table_id: { group_id, table_id } },
+    });
+    const cols = (existing.columns as unknown as ColumnDef[]) ?? [];
+    const updated = cols.map((c) => (c.key === key ? next : c));
+    return this.prisma.table.update({
+      where: { group_id_table_id: { group_id, table_id } },
+      data: { columns: updated as unknown as Prisma.InputJsonValue },
+    });
+  }
+
+  async removeColumn(group_id: string, table_id: string, key: string) {
+    const existing = await this.prisma.table.findUniqueOrThrow({
+      where: { group_id_table_id: { group_id, table_id } },
+    });
+    const cols = (existing.columns as unknown as ColumnDef[]) ?? [];
+    return this.prisma.table.update({
+      where: { group_id_table_id: { group_id, table_id } },
+      data: {
+        columns: cols.filter(
+          (c) => c.key !== key,
+        ) as unknown as Prisma.InputJsonValue,
+      },
     });
   }
 }

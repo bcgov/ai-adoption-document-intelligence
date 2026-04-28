@@ -1,11 +1,13 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
 import { TablesDbService } from "./tables-db.service";
+import type { ColumnDef } from "./types";
 
 const mockPrismaClient = {
   table: {
     create: jest.fn(),
     findUnique: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -178,6 +180,153 @@ describe("TablesDbService — tables CRUD", () => {
       });
       expect(mockPrismaClient.table.findUnique).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+      });
+    });
+  });
+});
+
+describe("TablesDbService — columns", () => {
+  let service: TablesDbService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TablesDbService,
+        { provide: PrismaService, useValue: { prisma: mockPrismaClient } },
+      ],
+    }).compile();
+
+    service = module.get<TablesDbService>(TablesDbService);
+    jest.clearAllMocks();
+  });
+
+  const colA: ColumnDef = {
+    key: "name",
+    label: "Name",
+    type: "string",
+    required: true,
+  };
+  const colB: ColumnDef = { key: "age", label: "Age", type: "number" };
+
+  describe("addColumn", () => {
+    it("appends a new column to an existing non-empty columns array", async () => {
+      const existingTable = {
+        group_id: "grp1",
+        table_id: "t1",
+        label: "T1",
+        description: null,
+        columns: [colA],
+        lookups: [],
+      };
+      const newCol: ColumnDef = {
+        key: "email",
+        label: "Email",
+        type: "string",
+      };
+      const updatedTable = { ...existingTable, columns: [colA, newCol] };
+
+      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
+      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+
+      const result = await service.addColumn("grp1", "t1", newCol);
+
+      expect(result.columns).toEqual([colA, newCol]);
+      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+      });
+      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+        data: { columns: [colA, newCol] },
+      });
+    });
+
+    it("appends a column when the existing columns array is empty", async () => {
+      const existingTable = {
+        group_id: "grp1",
+        table_id: "t1",
+        label: "T1",
+        description: null,
+        columns: [],
+        lookups: [],
+      };
+      const updatedTable = { ...existingTable, columns: [colA] };
+
+      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
+      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+
+      const result = await service.addColumn("grp1", "t1", colA);
+
+      expect(result.columns).toEqual([colA]);
+      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+        data: { columns: [colA] },
+      });
+    });
+  });
+
+  describe("updateColumn", () => {
+    it("replaces the targeted column by key while leaving other columns unchanged", async () => {
+      const existingTable = {
+        group_id: "grp1",
+        table_id: "t1",
+        label: "T1",
+        description: null,
+        columns: [colA, colB],
+        lookups: [],
+      };
+      const updatedColA: ColumnDef = {
+        key: "name",
+        label: "Full Name",
+        type: "string",
+        required: false,
+      };
+      const updatedTable = { ...existingTable, columns: [updatedColA, colB] };
+
+      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
+      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+
+      const result = await service.updateColumn(
+        "grp1",
+        "t1",
+        "name",
+        updatedColA,
+      );
+
+      expect(result.columns).toEqual([updatedColA, colB]);
+      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+      });
+      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+        data: { columns: [updatedColA, colB] },
+      });
+    });
+  });
+
+  describe("removeColumn", () => {
+    it("removes the targeted column by key while preserving other columns", async () => {
+      const existingTable = {
+        group_id: "grp1",
+        table_id: "t1",
+        label: "T1",
+        description: null,
+        columns: [colA, colB],
+        lookups: [],
+      };
+      const updatedTable = { ...existingTable, columns: [colB] };
+
+      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
+      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+
+      const result = await service.removeColumn("grp1", "t1", "name");
+
+      expect(result.columns).toEqual([colB]);
+      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+      });
+      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+        data: { columns: [colB] },
       });
     });
   });
