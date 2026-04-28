@@ -39,6 +39,13 @@ describe("validateColumnDefs", () => {
     ];
     expect(() => validateColumnDefs(cols)).toThrow(/enumValues only allowed/i);
   });
+
+  it("rejects enum with empty enumValues array", () => {
+    const cols: ColumnDef[] = [
+      { key: "k", label: "K", type: "enum", enumValues: [] },
+    ];
+    expect(() => validateColumnDefs(cols)).toThrow(/enumValues required/i);
+  });
 });
 
 describe("buildRowZodSchema", () => {
@@ -84,5 +91,22 @@ describe("buildRowZodSchema", () => {
   it("rejects enum value not in enumValues", () => {
     const schema = buildRowZodSchema(cols);
     expect(() => schema.parse({ name: "x", kind: "c" })).toThrow();
+  });
+
+  it("accepts a valid ISO datetime with offset", () => {
+    const schema = buildRowZodSchema([
+      { key: "ts", label: "TS", type: "datetime", required: true },
+    ]);
+    expect(() => schema.parse({ ts: "2026-04-22T14:30:00Z" })).not.toThrow();
+    expect(() =>
+      schema.parse({ ts: "2026-04-22T14:30:00+05:00" }),
+    ).not.toThrow();
+  });
+
+  it("rejects a bare date for datetime type", () => {
+    const schema = buildRowZodSchema([
+      { key: "ts", label: "TS", type: "datetime", required: true },
+    ]);
+    expect(() => schema.parse({ ts: "2026-04-22" })).toThrow();
   });
 });
