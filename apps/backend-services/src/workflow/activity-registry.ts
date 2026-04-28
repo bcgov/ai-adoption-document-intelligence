@@ -63,6 +63,13 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Execute data transformation: parse input, resolve field-mapping bindings, render output",
     },
+    "blob.read": {
+      description: "Read a blob from storage and return its contents as base64",
+    },
+    "document.extractToBase64": {
+      description:
+        "Extract a page range from a PDF blob and return it as base64 (no blob write)",
+    },
   } as const;
 
 /**
