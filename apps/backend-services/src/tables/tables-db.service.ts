@@ -61,6 +61,9 @@ export class TablesDbService {
     });
   }
 
+  // Column ops are read-modify-write on a JSONB field; concurrent edits to
+  // the same table can lose writes. Schema editing is assumed single-user.
+  // Row-level concurrency is handled separately via optimistic locking.
   async addColumn(group_id: string, table_id: string, col: ColumnDef) {
     const existing = await this.prisma.table.findUniqueOrThrow({
       where: { group_id_table_id: { group_id, table_id } },
