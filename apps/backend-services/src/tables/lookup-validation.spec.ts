@@ -103,4 +103,62 @@ describe("validateLookupDefs", () => {
       /undeclared param.*b/i,
     );
   });
+
+  it("descends into nested and/or to find unknown column", () => {
+    const lookups: LookupDef[] = [
+      {
+        name: "x",
+        params: [],
+        filter: {
+          operator: "and",
+          operands: [
+            { operator: "is-not-null", value: { ref: "row.cutoff" } },
+            {
+              operator: "equals",
+              left: { ref: "row.unknown" },
+              right: { literal: 1 },
+            },
+          ],
+        } as never,
+        pick: "all",
+      },
+    ];
+    expect(() => validateLookupDefs(lookups, cols)).toThrow(
+      /unknown column.*unknown/i,
+    );
+  });
+
+  it("validates in/not-in list members against columns", () => {
+    const lookups: LookupDef[] = [
+      {
+        name: "x",
+        params: [],
+        filter: {
+          operator: "in",
+          value: { ref: "row.scheduleId" },
+          list: { ref: "row.unknown" },
+        } as never,
+        pick: "all",
+      },
+    ];
+    expect(() => validateLookupDefs(lookups, cols)).toThrow(
+      /unknown column.*unknown/i,
+    );
+  });
+
+  it("allows ctx.X references without validation", () => {
+    const lookups: LookupDef[] = [
+      {
+        name: "x",
+        params: [],
+        filter: {
+          operator: "equals",
+          left: { ref: "ctx.someKey" },
+          right: { ref: "row.scheduleId" },
+        },
+        pick: "all",
+      },
+    ];
+    expect(() => validateLookupDefs(lookups, cols)).not.toThrow();
+  });
 });

@@ -57,11 +57,22 @@ function validateExpression(
       validateRef(expr.value, colKeys, paramNames, lookupName);
       validateRef(expr.list, colKeys, paramNames, lookupName);
       return;
-    default:
-      // ComparisonExpression: equals, not-equals, gt, gte, lt, lte, contains
+    case "equals":
+    case "not-equals":
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+    case "contains":
       validateRef(expr.left, colKeys, paramNames, lookupName);
       validateRef(expr.right, colKeys, paramNames, lookupName);
       return;
+    default: {
+      const _exhaustive: never = expr;
+      throw new Error(
+        `unhandled expression operator: ${(_exhaustive as ConditionExpression).operator}`,
+      );
+    }
   }
 }
 
@@ -73,7 +84,7 @@ function validateRef(
 ): void {
   // ValueRef is { ref: string; literal?: never } | { literal: unknown; ref?: never }
   // A literal ref has no `ref` string (it's undefined/never)
-  if (ref.ref === undefined) return;
+  if ("literal" in ref) return;
   const path = ref.ref;
   if (path.startsWith("row.")) {
     const key = path.slice("row.".length).split(".")[0];
