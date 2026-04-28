@@ -7,8 +7,8 @@ resources:
   - temporal-server-service.yml
   - temporal-ui-deployment.yml
   - temporal-ui-service.yml
-  # temporal-ui-route.yml is intentionally excluded — Temporal UI should not be
-  # publicly exposed. Use `oc port-forward` for local access (see docs).
+  # No Route for Temporal UI — it must not be publicly exposed. The Service is
+  # ClusterIP only; access via `oc port-forward svc/<instance>-temporal-ui 8080:8080`.
   - temporal-worker-configmap.yml
   - temporal-worker-secrets.yml
   - temporal-worker-deployment.yml

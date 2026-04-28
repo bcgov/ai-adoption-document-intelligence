@@ -142,41 +142,39 @@ export function TrainingPanel({
         {isValidating ? (
           <Loader size="sm" />
         ) : validation ? (
-          <>
-            {validation.valid ? (
-              <Alert
-                color="green"
-                title="Ready for Training"
-                icon={<IconCheck />}
-              >
-                Template model has {validation.labeledDocumentsCount} labeled
-                documents (minimum required: {validation.minimumRequired})
-              </Alert>
-            ) : (
-              <Alert
-                color="red"
-                title="Not Ready for Training"
-                icon={<IconAlertCircle />}
-              >
-                <Stack gap="xs">
-                  <Text size="sm">
-                    Labeled documents: {validation.labeledDocumentsCount} /{" "}
-                    {validation.minimumRequired}
-                  </Text>
-                  <Text size="sm" fw={500}>
-                    Issues:
-                  </Text>
-                  <ul style={{ margin: 0, paddingLeft: 20 }}>
-                    {validation.issues.map((issue, index) => (
-                      <li key={index}>
-                        <Text size="sm">{issue}</Text>
-                      </li>
-                    ))}
-                  </ul>
-                </Stack>
-              </Alert>
-            )}
-          </>
+          validation.valid ? (
+            <Alert
+              color="green"
+              title="Ready for Training"
+              icon={<IconCheck />}
+            >
+              Template model has {validation.labeledDocumentsCount} labeled
+              documents (minimum required: {validation.minimumRequired})
+            </Alert>
+          ) : (
+            <Alert
+              color="red"
+              title="Not Ready for Training"
+              icon={<IconAlertCircle />}
+            >
+              <Stack gap="xs">
+                <Text size="sm">
+                  Labeled documents: {validation.labeledDocumentsCount} /{" "}
+                  {validation.minimumRequired}
+                </Text>
+                <Text size="sm" fw={500}>
+                  Issues:
+                </Text>
+                <ul style={{ margin: 0, paddingLeft: 20 }}>
+                  {validation.issues.map((issue, index) => (
+                    <li key={index}>
+                      <Text size="sm">{issue}</Text>
+                    </li>
+                  ))}
+                </ul>
+              </Stack>
+            </Alert>
+          )
         ) : null}
       </Paper>
 

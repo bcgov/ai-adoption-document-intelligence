@@ -119,7 +119,7 @@ export function DocumentViewerModal({
       void loadDocumentImage(document);
     } else if (!opened) {
       // Clean up object URL when modal closes
-      if (imageUrl && imageUrl.startsWith("blob:")) {
+      if (imageUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(imageUrl);
       }
       setImageUrl("");
@@ -190,7 +190,7 @@ export function DocumentViewerModal({
   };
 
   const handleClose = () => {
-    if (imageUrl && imageUrl.startsWith("blob:")) {
+    if (imageUrl?.startsWith("blob:")) {
       URL.revokeObjectURL(imageUrl);
     }
     setImageUrl("");
@@ -290,16 +290,15 @@ export function DocumentViewerModal({
                   OCR Results
                 </Tabs.Tab>
               )}
-              {document &&
-                (document.status === "needs_validation" ||
-                  document.needsReview) && (
-                  <Tabs.Tab
-                    value="review"
-                    leftSection={<IconChecklist size={16} />}
-                  >
-                    Review & Approve
-                  </Tabs.Tab>
-                )}
+              {(document?.status === "needs_validation" ||
+                document?.needsReview) && (
+                <Tabs.Tab
+                  value="review"
+                  leftSection={<IconChecklist size={16} />}
+                >
+                  Review & Approve
+                </Tabs.Tab>
+              )}
             </Tabs.List>
 
             <Tabs.Panel
@@ -311,7 +310,7 @@ export function DocumentViewerModal({
                 position: "relative",
               }}
             >
-              {imageUrl && document ? (
+              {imageUrl ? (
                 <DocumentViewer
                   imageUrl={imageUrl}
                   extractedFields={ocrResult?.ocr_result?.keyValuePairs}
@@ -331,32 +330,31 @@ export function DocumentViewerModal({
                 />
               </Tabs.Panel>
             )}
-            {document &&
-              (document.status === "needs_validation" ||
-                document.needsReview) && (
-                <Tabs.Panel
-                  value="review"
-                  className="flex-1 min-h-0 overflow-auto p-4"
-                >
-                  {ocrResult?.ocr_result ? (
-                    <DocumentValidation
-                      document={document}
-                      ocrResult={ocrResult.ocr_result}
-                      onValidationComplete={() => {
-                        // Refresh the document list and close modal after a short delay
-                        setTimeout(() => {
-                          handleClose();
-                        }, 1000);
-                      }}
-                    />
-                  ) : (
-                    <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-                      OCR results are not available yet. Please wait for
-                      processing to complete.
-                    </Alert>
-                  )}
-                </Tabs.Panel>
-              )}
+            {(document?.status === "needs_validation" ||
+              document?.needsReview) && (
+              <Tabs.Panel
+                value="review"
+                className="flex-1 min-h-0 overflow-auto p-4"
+              >
+                {ocrResult?.ocr_result ? (
+                  <DocumentValidation
+                    document={document}
+                    ocrResult={ocrResult.ocr_result}
+                    onValidationComplete={() => {
+                      // Refresh the document list and close modal after a short delay
+                      setTimeout(() => {
+                        handleClose();
+                      }, 1000);
+                    }}
+                  />
+                ) : (
+                  <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+                    OCR results are not available yet. Please wait for
+                    processing to complete.
+                  </Alert>
+                )}
+              </Tabs.Panel>
+            )}
           </Tabs>
         </div>
       )}

@@ -176,11 +176,6 @@ const SEED_RUN_ID_RUNNING = "seed-run-running-002";
 const SEED_RUN_ID_FAILED = "seed-run-failed-003";
 const SEED_RUN_ID_PASSING = "seed-run-passing-004";
 const SEED_RUN_ID_REGRESSED = "seed-run-regressed-005";
-const SEED_ARTIFACT_ID_JSON = "seed-artifact-json-001";
-const SEED_ARTIFACT_ID_IMAGE = "seed-artifact-image-001";
-const SEED_ARTIFACT_ID_TEXT = "seed-artifact-text-001";
-const SEED_ARTIFACT_ID_UNSUPPORTED = "seed-artifact-unsupported-001";
-
 /**
  * Create a test dataset repository with manifest and sample data
  * @returns The actual git commit hash of the created manifest

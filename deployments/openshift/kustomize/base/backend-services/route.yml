@@ -10,6 +10,9 @@ metadata:
     # The haproxy.router.openshift.io/deny list uses path-based ACLs
     # to return 403 for matching request paths.
     haproxy.router.openshift.io/deny-list: /metrics
+    # Only allow clients whose source IP is in this CIDR (space-separated list supported).
+    # 142.16.0.0/11 is the approximate VPN address range.
+    haproxy.router.openshift.io/ip_whitelist: 142.16.0.0/11
     haproxy.router.openshift.io/proxy-body-size: 100m
 spec:
   to:

@@ -62,7 +62,7 @@ export async function graphWorkflow(
   let cancelled = false;
   let cancelMode: "graceful" | "immediate" = "graceful";
   let ctx: Record<string, unknown> = {};
-  let workflowError: string | undefined = undefined;
+  let workflowError: string | undefined;
   const lastError: {
     current?: {
       nodeId: string;

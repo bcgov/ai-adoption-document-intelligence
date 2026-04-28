@@ -34,6 +34,7 @@ import {
 import dagre from "dagre-esm";
 import { memo, useEffect, useMemo, useRef } from "react";
 import type {
+  ActivityNode,
   ChildWorkflowNode,
   GraphEdge,
   GraphNode,
@@ -56,8 +57,11 @@ interface GraphVisualizationProps {
 interface GraphNodeData {
   label: string;
   type: GraphNode["type"];
+  activityType?: string;
   hasError: boolean;
   workflowRef?: ChildWorkflowNode["workflowRef"];
+  inputFormat?: string;
+  outputFormat?: string;
 }
 
 interface GroupNodeData {
@@ -111,6 +115,28 @@ const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
   humanGate: <IconUserCheck size={18} />,
 };
 
+/**
+ * Extracts transform summary data from an activity node with activityType "data.transform".
+ */
+function transformNodeSummaryData(node: GraphNode): {
+  activityType?: string;
+  inputFormat?: string;
+  outputFormat?: string;
+} {
+  if (
+    node.type === "activity" &&
+    (node as ActivityNode).activityType === "data.transform"
+  ) {
+    const params = (node as ActivityNode).parameters ?? {};
+    return {
+      activityType: "data.transform",
+      inputFormat: params.inputFormat as string | undefined,
+      outputFormat: params.outputFormat as string | undefined,
+    };
+  }
+  return {};
+}
+
 const GraphNodeRenderer = memo(function GraphNodeRenderer({
   data,
 }: {
@@ -119,6 +145,8 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
   const color = NODE_COLORS[data.type];
   const isDiamond = data.type === "switch";
   const isChildWorkflow = data.type === "childWorkflow";
+  const isTransform =
+    data.type === "activity" && data.activityType === "data.transform";
   const workflowId =
     isChildWorkflow && data.workflowRef?.type === "library"
       ? data.workflowRef.workflowId
@@ -188,6 +216,22 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
           >
             <IconCornerDownRight size={12} />
             <span>{workflowId}</span>
+          </div>
+        ) : isTransform && data.inputFormat && data.outputFormat ? (
+          <div
+            style={{
+              fontSize: 10,
+              color: "#6b7280",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              alignItems: "center",
+            }}
+          >
+            <div>
+              {data.inputFormat.toUpperCase()} →{" "}
+              {data.outputFormat.toUpperCase()}
+            </div>
           </div>
         ) : (
           <div style={{ fontSize: 11, color: "#6b7280" }}>{data.type}</div>
@@ -850,8 +894,13 @@ function buildDetailedViewWithMapContainers(
         data: {
           label: node.label,
           type: node.type,
+          activityType:
+            node.type === "activity"
+              ? (node as ActivityNode).activityType
+              : undefined,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     } else {
@@ -871,8 +920,13 @@ function buildDetailedViewWithMapContainers(
         data: {
           label: node.label,
           type: node.type,
+          activityType:
+            node.type === "activity"
+              ? (node as ActivityNode).activityType
+              : undefined,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     }
@@ -975,105 +1029,103 @@ function layoutGraphWithMapContainers(
   const { nodes: layoutedTopLevel } = layoutGraph(topLevelNodes, topLevelEdges);
 
   // Pass 2: Position body nodes inside their parent containers using layers
-  const finalNodes = layoutedTopLevel
-    .map((node) => {
-      if (node.type === "mapContainer") {
-        // Position body nodes inside this container based on layers
-        const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
-        const PADDING = 24;
-        const HEADER_HEIGHT = 50;
-        const NODE_GAP = 40;
-        const TOP_PADDING = 40; // Increased for more visible spacing
+  const finalNodes = layoutedTopLevel.flatMap((node) => {
+    if (node.type === "mapContainer") {
+      // Position body nodes inside this container based on layers
+      const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
+      const PADDING = 24;
+      const HEADER_HEIGHT = 50;
+      const NODE_GAP = 40;
+      const TOP_PADDING = 40; // Increased for more visible spacing
 
-        // Find the map node from config
-        const mapNodeConfig = Object.values(config.nodes).find(
-          (n) => n.id === node.id && n.type === "map",
-        ) as MapNode | undefined;
+      // Find the map node from config
+      const mapNodeConfig = Object.values(config.nodes).find(
+        (n) => n.id === node.id && n.type === "map",
+      ) as MapNode | undefined;
 
-        if (!mapNodeConfig) {
-          // Fallback to old horizontal layout if map node not found
-          let currentX = PADDING;
-          const positionedBodyNodes = bodyNodeIds.map((bodyNodeId) => {
-            const bodyNode = nodes.find((n) => n.id === bodyNodeId)!;
-            const positionedBody = {
-              ...bodyNode,
-              position: {
-                x: currentX,
-                y: HEADER_HEIGHT + TOP_PADDING,
-              },
-            };
-            currentX += (bodyNode.width ?? 0) + NODE_GAP;
-            return positionedBody;
-          });
-          return [node, ...positionedBodyNodes];
-        }
-
-        // Compute layers for body nodes
-        const layersMap = computeBodyNodeLayers(
-          bodyNodeIds,
-          config.edges,
-          mapNodeConfig.bodyEntryNodeId,
-        );
-
-        // Calculate actual max height per layer for precise positioning
-        const layerHeights = Array.from(layersMap.values()).map(
-          (layerNodeIds) => {
-            return Math.max(
-              ...layerNodeIds.map((nodeId) => {
-                const bodyNode = nodes.find((n) => n.id === nodeId)!;
-                return bodyNode.height ?? 80;
-              }),
-            );
-          },
-        );
-
-        // Position nodes layer by layer
-        const positionedBodyNodes: Node[] = [];
-        let cumulativeY = HEADER_HEIGHT + TOP_PADDING;
-
-        layersMap.forEach((layerNodeIds, layerNumber) => {
-          // Calculate layer dimensions
-          const layerNodesWithDims = layerNodeIds.map((nodeId) => {
-            const bodyNode = nodes.find((n) => n.id === nodeId)!;
-            return {
-              nodeId,
-              node: bodyNode,
-              width: bodyNode.width ?? 180,
-              height: bodyNode.height ?? 80,
-            };
-          });
-
-          const totalLayerWidth =
-            layerNodesWithDims.reduce((sum, n) => sum + n.width, 0) +
-            Math.max(0, layerNodeIds.length - 1) * NODE_GAP;
-
-          // Center the layer horizontally
-          let currentX = (node.width! - totalLayerWidth) / 2;
-
-          // Use cumulative Y position for this layer
-          const currentY = cumulativeY;
-
-          // Position each node in the layer
-          layerNodesWithDims.forEach(({ node: bodyNode }) => {
-            positionedBodyNodes.push({
-              ...bodyNode,
-              position: {
-                x: currentX,
-                y: currentY,
-              },
-            });
-            currentX += bodyNode.width! + NODE_GAP;
-          });
-
-          // Update cumulative Y for next layer
-          cumulativeY += layerHeights[layerNumber] + LAYER_GAP;
+      if (!mapNodeConfig) {
+        // Fallback to old horizontal layout if map node not found
+        let currentX = PADDING;
+        const positionedBodyNodes = bodyNodeIds.map((bodyNodeId) => {
+          const bodyNode = nodes.find((n) => n.id === bodyNodeId)!;
+          const positionedBody = {
+            ...bodyNode,
+            position: {
+              x: currentX,
+              y: HEADER_HEIGHT + TOP_PADDING,
+            },
+          };
+          currentX += (bodyNode.width ?? 0) + NODE_GAP;
+          return positionedBody;
         });
-
         return [node, ...positionedBodyNodes];
       }
-      return [node];
-    })
-    .flat();
+
+      // Compute layers for body nodes
+      const layersMap = computeBodyNodeLayers(
+        bodyNodeIds,
+        config.edges,
+        mapNodeConfig.bodyEntryNodeId,
+      );
+
+      // Calculate actual max height per layer for precise positioning
+      const layerHeights = Array.from(layersMap.values()).map(
+        (layerNodeIds) => {
+          return Math.max(
+            ...layerNodeIds.map((nodeId) => {
+              const bodyNode = nodes.find((n) => n.id === nodeId)!;
+              return bodyNode.height ?? 80;
+            }),
+          );
+        },
+      );
+
+      // Position nodes layer by layer
+      const positionedBodyNodes: Node[] = [];
+      let cumulativeY = HEADER_HEIGHT + TOP_PADDING;
+
+      layersMap.forEach((layerNodeIds, layerNumber) => {
+        // Calculate layer dimensions
+        const layerNodesWithDims = layerNodeIds.map((nodeId) => {
+          const bodyNode = nodes.find((n) => n.id === nodeId)!;
+          return {
+            nodeId,
+            node: bodyNode,
+            width: bodyNode.width ?? 180,
+            height: bodyNode.height ?? 80,
+          };
+        });
+
+        const totalLayerWidth =
+          layerNodesWithDims.reduce((sum, n) => sum + n.width, 0) +
+          Math.max(0, layerNodeIds.length - 1) * NODE_GAP;
+
+        // Center the layer horizontally
+        let currentX = (node.width! - totalLayerWidth) / 2;
+
+        // Use cumulative Y position for this layer
+        const currentY = cumulativeY;
+
+        // Position each node in the layer
+        layerNodesWithDims.forEach(({ node: bodyNode }) => {
+          positionedBodyNodes.push({
+            ...bodyNode,
+            position: {
+              x: currentX,
+              y: currentY,
+            },
+          });
+          currentX += bodyNode.width! + NODE_GAP;
+        });
+
+        // Update cumulative Y for next layer
+        cumulativeY += layerHeights[layerNumber] + LAYER_GAP;
+      });
+
+      return [node, ...positionedBodyNodes];
+    }
+    return [node];
+  });
 
   return { nodes: finalNodes, edges };
 }
@@ -1226,6 +1278,7 @@ function buildHybridView(
             type: bodyNode.type,
             hasError: errorNodeIds.has(bodyNode.id),
             workflowRef,
+            ...transformNodeSummaryData(bodyNode),
           } as unknown as Record<string, unknown>,
         });
       }
@@ -1242,6 +1295,7 @@ function buildHybridView(
           label: node.label,
           type: node.type,
           hasError: errorNodeIds.has(node.id),
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       });
     }
@@ -1386,6 +1440,7 @@ function buildSimplifiedView(
         label: node.label,
         type: node.type,
         hasError: errorNodeIds.has(node.id),
+        ...transformNodeSummaryData(node),
       } as unknown as Record<string, unknown>,
     });
   }
@@ -1505,6 +1560,7 @@ export function GraphVisualization({
           type: node.type,
           hasError: errorNodeIds.has(node.id),
           workflowRef,
+          ...transformNodeSummaryData(node),
         } as unknown as Record<string, unknown>,
       };
     });

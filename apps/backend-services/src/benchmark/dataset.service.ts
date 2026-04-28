@@ -1,4 +1,5 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+
 /**
  * Dataset Service
  *
@@ -8,6 +9,8 @@ import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
  * See feature-docs/003-benchmarking-system/user-stories/US-006-dataset-service-controller.md
  */
 
+import * as crypto from "node:crypto";
+import * as path from "node:path";
 import { AuditAction, Prisma, SplitType } from "@generated/client";
 import {
   BadRequestException,
@@ -18,8 +21,6 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import Ajv from "ajv";
-import * as crypto from "crypto";
-import * as path from "path";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -389,6 +390,10 @@ export class DatasetService {
       `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
     );
 
+    if (!Array.isArray(files)) {
+      throw new BadRequestException("Invalid files payload");
+    }
+
     const dataset = await this.datasetDbService.findDataset(datasetId);
 
     if (!dataset) {
@@ -502,7 +507,7 @@ export class DatasetService {
         existingSampleIds,
       );
 
-      for (const [sampleId, sampleFiles] of Object.entries(filesBySample)) {
+      for (const [sampleId, sampleFiles] of filesBySample) {
         let sample = manifest.samples.find((s) => s.id === sampleId);
         if (!sample) {
           sample = {
@@ -580,7 +585,6 @@ export class DatasetService {
       );
 
       if (
-        // biome-ignore lint/security/noSecrets: not a secret, bucket error check
         err.message.includes("NoSuchBucket") ||
         err.message.includes("bucket does not exist")
       ) {
@@ -1282,8 +1286,8 @@ export class DatasetService {
   private groupFilesBySampleId(
     files: UploadedFileDto[],
     _existingSampleIds: Set<string> = new Set(),
-  ): Record<string, UploadedFileDto[]> {
-    const groups: Record<string, UploadedFileDto[]> = {};
+  ): Map<string, UploadedFileDto[]> {
+    const groups = new Map<string, UploadedFileDto[]>();
     const assignedPaths: Set<string> = new Set();
 
     const inputSampleIds: Set<string> = new Set();
@@ -1291,6 +1295,16 @@ export class DatasetService {
 
     for (const file of files) {
       const sampleId = file.filename.replace(/\.[^.]+$/, "");
+      if (
+        sampleId.length === 0 ||
+        sampleId === "__proto__" ||
+        sampleId === "constructor" ||
+        sampleId === "prototype"
+      ) {
+        throw new BadRequestException(
+          `Invalid filename base for sample ID: "${file.filename}"`,
+        );
+      }
 
       if (assignedPaths.has(file.path)) {
         continue;
@@ -1313,10 +1327,10 @@ export class DatasetService {
       if (isInput) inputSampleIds.add(sampleId);
       if (isGt) gtSampleIds.add(sampleId);
 
-      if (!groups[sampleId]) {
-        groups[sampleId] = [];
+      if (!groups.has(sampleId)) {
+        groups.set(sampleId, []);
       }
-      groups[sampleId].push(file);
+      groups.get(sampleId)!.push(file);
       assignedPaths.add(file.path);
     }
 

@@ -34,9 +34,13 @@ spec:
               set -e
               mkdir -p /app/config-out
               # Quote values so YAML is valid (e.g. * must be "*, or parser treats it as alias).
+              # enableUi must be set explicitly — the image's default config-template.yaml
+              # defaults it via TEMPORAL_UI_ENABLED, but since we write our own config the
+              # UI handler is disabled unless we include this line.
               cat <<EOF > /app/config-out/docker.yaml
               temporalGrpcAddress: "${TEMPORAL_ADDRESS}"
               port: 8080
+              enableUi: true
               cors:
                 allowOrigins: ["${TEMPORAL_CORS_ORIGINS}"]
               EOF

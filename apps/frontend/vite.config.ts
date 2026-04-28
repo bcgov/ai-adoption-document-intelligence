@@ -24,6 +24,14 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Explicit aliases so Vite/Vitest always resolves to the same React
+      // instance in all environments (prevents "Invalid hook call" in CI).
+      react: fileURLToPath(
+        new URL("../../node_modules/react", import.meta.url),
+      ),
+      "react-dom": fileURLToPath(
+        new URL("../../node_modules/react-dom", import.meta.url),
+      ),
     },
   },
   server: {

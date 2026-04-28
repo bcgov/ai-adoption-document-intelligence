@@ -533,7 +533,7 @@ export class AzureController {
     @Query() query: GetClassificationResultQueryDto,
   ): Promise<ClassificationResultDto> {
     const { operationLocation } = query;
-    let returnValue;
+    let returnValue: unknown;
     await this.azureService.pollOperationUntilResolved(
       operationLocation,
       (r) => {
@@ -545,7 +545,7 @@ export class AzureController {
         );
       },
     );
-    return returnValue as unknown as ClassificationResultDto;
+    return returnValue as ClassificationResultDto;
   }
 
   @Get("classifier/train")
@@ -585,7 +585,7 @@ export class AzureController {
         "Classifier has not previously been sent for training. Request training first.",
       );
     }
-    let returnValue;
+    let returnValue: unknown;
     await this.azureService.pollOperationUntilResolved(
       classifier.operation_location,
       async (_r) => {
@@ -602,6 +602,6 @@ export class AzureController {
         );
       },
     );
-    return returnValue as unknown as ClassifierModelResponseDto;
+    return returnValue as ClassifierModelResponseDto;
   }
 }

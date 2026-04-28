@@ -8,7 +8,7 @@
  * See feature-docs/008-ocr-correction-agentic-sdlc/step-04-benchmark-integration-workflow-comparison.md
  */
 
-import * as fs from "fs/promises";
+import * as fs from "node:fs/promises";
 import type {
   BenchmarkEvaluator,
   EvaluationInput,

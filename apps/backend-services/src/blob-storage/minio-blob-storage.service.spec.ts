@@ -1,5 +1,6 @@
 jest.mock("@aws-sdk/client-s3");
 
+import { Readable } from "node:stream";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -9,7 +10,6 @@ import {
 } from "@aws-sdk/client-s3";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Readable } from "stream";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { MinioBlobStorageService } from "./minio-blob-storage.service";
