@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
-import type { ColumnDef } from "./types";
+import type { ColumnDef, LookupDef } from "./types";
 
 export interface CreateTableInput {
   group_id: string;
@@ -61,18 +61,33 @@ export class TablesDbService {
     });
   }
 
-  // Column ops are read-modify-write on a JSONB field; concurrent edits to
-  // the same table can lose writes. Schema editing is assumed single-user.
-  // Row-level concurrency is handled separately via optimistic locking.
-  async addColumn(group_id: string, table_id: string, col: ColumnDef) {
+  // Column and lookup ops are read-modify-write on JSONB fields; concurrent
+  // edits to the same table can lose writes. Schema editing is assumed
+  // single-user. Row-level concurrency is handled separately via optimistic locking.
+  private async mutateJsonArray<T>(
+    group_id: string,
+    table_id: string,
+    field: "columns" | "lookups",
+    mutate: (current: T[]) => T[],
+  ) {
     const existing = await this.prisma.table.findUniqueOrThrow({
       where: { group_id_table_id: { group_id, table_id } },
     });
-    const cols = (existing.columns as unknown as ColumnDef[]) ?? [];
+    const current = (existing[field] as unknown as T[]) ?? [];
+    const next = mutate(current);
     return this.prisma.table.update({
       where: { group_id_table_id: { group_id, table_id } },
-      data: { columns: [...cols, col] as unknown as Prisma.InputJsonValue },
+      data: { [field]: next as unknown as Prisma.InputJsonValue },
     });
+  }
+
+  async addColumn(group_id: string, table_id: string, col: ColumnDef) {
+    return this.mutateJsonArray<ColumnDef>(
+      group_id,
+      table_id,
+      "columns",
+      (cols) => [...cols, col],
+    );
   }
 
   async updateColumn(
@@ -81,29 +96,52 @@ export class TablesDbService {
     key: string,
     next: ColumnDef,
   ) {
-    const existing = await this.prisma.table.findUniqueOrThrow({
-      where: { group_id_table_id: { group_id, table_id } },
-    });
-    const cols = (existing.columns as unknown as ColumnDef[]) ?? [];
-    const updated = cols.map((c) => (c.key === key ? next : c));
-    return this.prisma.table.update({
-      where: { group_id_table_id: { group_id, table_id } },
-      data: { columns: updated as unknown as Prisma.InputJsonValue },
-    });
+    return this.mutateJsonArray<ColumnDef>(
+      group_id,
+      table_id,
+      "columns",
+      (cols) => cols.map((c) => (c.key === key ? next : c)),
+    );
   }
 
   async removeColumn(group_id: string, table_id: string, key: string) {
-    const existing = await this.prisma.table.findUniqueOrThrow({
-      where: { group_id_table_id: { group_id, table_id } },
-    });
-    const cols = (existing.columns as unknown as ColumnDef[]) ?? [];
-    return this.prisma.table.update({
-      where: { group_id_table_id: { group_id, table_id } },
-      data: {
-        columns: cols.filter(
-          (c) => c.key !== key,
-        ) as unknown as Prisma.InputJsonValue,
-      },
-    });
+    return this.mutateJsonArray<ColumnDef>(
+      group_id,
+      table_id,
+      "columns",
+      (cols) => cols.filter((c) => c.key !== key),
+    );
+  }
+
+  async addLookup(group_id: string, table_id: string, lookup: LookupDef) {
+    return this.mutateJsonArray<LookupDef>(
+      group_id,
+      table_id,
+      "lookups",
+      (ls) => [...ls, lookup],
+    );
+  }
+
+  async updateLookup(
+    group_id: string,
+    table_id: string,
+    name: string,
+    next: LookupDef,
+  ) {
+    return this.mutateJsonArray<LookupDef>(
+      group_id,
+      table_id,
+      "lookups",
+      (ls) => ls.map((l) => (l.name === name ? next : l)),
+    );
+  }
+
+  async removeLookup(group_id: string, table_id: string, name: string) {
+    return this.mutateJsonArray<LookupDef>(
+      group_id,
+      table_id,
+      "lookups",
+      (ls) => ls.filter((l) => l.name !== name),
+    );
   }
 }

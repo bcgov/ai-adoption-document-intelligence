@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
 import { TablesDbService } from "./tables-db.service";
-import type { ColumnDef } from "./types";
+import type { ColumnDef, LookupDef } from "./types";
 
 const mockPrismaClient = {
   table: {
@@ -327,6 +327,144 @@ describe("TablesDbService — columns", () => {
       expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { columns: [colB] },
+      });
+    });
+  });
+});
+
+describe("TablesDbService — lookups", () => {
+  let service: TablesDbService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TablesDbService,
+        { provide: PrismaService, useValue: { prisma: mockPrismaClient } },
+      ],
+    }).compile();
+
+    service = module.get<TablesDbService>(TablesDbService);
+    jest.clearAllMocks();
+  });
+
+  const lookupA: LookupDef = {
+    name: "byParam",
+    params: [{ name: "p", type: "string" }],
+    filter: {
+      operator: "equals",
+      left: { ref: "param.p" },
+      right: { literal: "v" },
+    },
+    pick: "first",
+  };
+  const lookupB: LookupDef = {
+    name: "another",
+    params: [],
+    filter: { operator: "is-not-null", value: { ref: "row.x" } },
+    pick: "all",
+  };
+
+  describe("addLookup", () => {
+    it("appends a new lookup to an existing non-empty lookups array", async () => {
+      const existingTable = {
+        group_id: "grp1",
+        table_id: "t1",
+        label: "T1",
+        description: null,
+        columns: [],
+        lookups: [lookupA],
+      };
+      const updatedTable = { ...existingTable, lookups: [lookupA, lookupB] };
+
+      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
+      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+
+      const result = await service.addLookup("grp1", "t1", lookupB);
+
+      expect(result.lookups).toEqual([lookupA, lookupB]);
+      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+      });
+      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+        data: { lookups: [lookupA, lookupB] },
+      });
+    });
+  });
+
+  describe("updateLookup", () => {
+    it("replaces the targeted lookup by name while leaving other lookups unchanged", async () => {
+      const existingTable = {
+        group_id: "grp1",
+        table_id: "t1",
+        label: "T1",
+        description: null,
+        columns: [],
+        lookups: [lookupA, lookupB],
+      };
+      const updatedLookupA: LookupDef = {
+        name: "byParam",
+        params: [
+          { name: "p", type: "string" },
+          { name: "q", type: "number" },
+        ],
+        filter: {
+          operator: "equals",
+          left: { ref: "param.p" },
+          right: { literal: "w" },
+        },
+        pick: "last",
+      };
+      const updatedTable = {
+        ...existingTable,
+        lookups: [updatedLookupA, lookupB],
+      };
+
+      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
+      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+
+      const result = await service.updateLookup(
+        "grp1",
+        "t1",
+        "byParam",
+        updatedLookupA,
+      );
+
+      expect(result.lookups).toEqual([updatedLookupA, lookupB]);
+      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+      });
+      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+        data: { lookups: [updatedLookupA, lookupB] },
+      });
+    });
+  });
+
+  describe("removeLookup", () => {
+    it("removes the targeted lookup by name while preserving other lookups", async () => {
+      const existingTable = {
+        group_id: "grp1",
+        table_id: "t1",
+        label: "T1",
+        description: null,
+        columns: [],
+        lookups: [lookupA, lookupB],
+      };
+      const updatedTable = { ...existingTable, lookups: [lookupB] };
+
+      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
+      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+
+      const result = await service.removeLookup("grp1", "t1", "byParam");
+
+      expect(result.lookups).toEqual([lookupB]);
+      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+      });
+      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+        where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
+        data: { lookups: [lookupB] },
       });
     });
   });
