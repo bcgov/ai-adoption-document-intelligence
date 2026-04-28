@@ -1,3 +1,4 @@
+import { PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
@@ -10,10 +11,14 @@ export interface CreateTableInput {
 
 @Injectable()
 export class TablesDbService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prismaService: PrismaService) {}
+
+  private get prisma(): PrismaClient {
+    return this.prismaService.prisma;
+  }
 
   async createTable(input: CreateTableInput) {
-    return this.prisma.prisma.table.create({
+    return this.prisma.table.create({
       data: {
         group_id: input.group_id,
         table_id: input.table_id,
@@ -26,13 +31,13 @@ export class TablesDbService {
   }
 
   async findTable(group_id: string, table_id: string) {
-    return this.prisma.prisma.table.findUnique({
+    return this.prisma.table.findUnique({
       where: { group_id_table_id: { group_id, table_id } },
     });
   }
 
   async listTables(group_id: string) {
-    return this.prisma.prisma.table.findMany({
+    return this.prisma.table.findMany({
       where: { group_id },
       orderBy: { label: "asc" },
     });
@@ -43,14 +48,14 @@ export class TablesDbService {
     table_id: string,
     patch: { label?: string; description?: string | null },
   ) {
-    return this.prisma.prisma.table.update({
+    return this.prisma.table.update({
       where: { group_id_table_id: { group_id, table_id } },
       data: patch,
     });
   }
 
   async deleteTable(group_id: string, table_id: string) {
-    await this.prisma.prisma.table.delete({
+    await this.prisma.table.delete({
       where: { group_id_table_id: { group_id, table_id } },
     });
   }
