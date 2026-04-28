@@ -2,6 +2,7 @@ import {
   BindingResolutionError,
   IterationResolutionError,
   IterationResult,
+  OMIT_SENTINEL,
   resolveBindings,
 } from "./binding-resolver";
 
@@ -358,5 +359,98 @@ describe("resolveBindings - array iteration", () => {
       Item: { Name: "Alpha", Value: "1" },
     });
     expect(iterResult.items[1]).toEqual({ Item: { Name: "Beta", Value: "2" } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Optional bindings — {{?path}} syntax
+// ---------------------------------------------------------------------------
+describe("resolveBindings - optional bindings", () => {
+  // Scenario 1: optional binding omits the key when path is unresolved
+  it("omits the key when an optional whole-value binding path is unresolved", () => {
+    const mapping = { name: "{{?extractionNode.MissingField}}" };
+    const context = { extractionNode: { FirstName: "Alice" } };
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result).not.toHaveProperty("name");
+  });
+
+  // Scenario 2: optional binding resolves normally when the path exists
+  it("resolves the value normally when an optional binding path exists", () => {
+    const mapping = { name: "{{?extractionNode.FirstName}}" };
+    const context = { extractionNode: { FirstName: "Alice" } };
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result.name).toBe("Alice");
+  });
+
+  // Scenario 3: optional key is omitted while other keys are preserved
+  it("omits the optional key while preserving other resolved keys", () => {
+    const mapping = {
+      present: "{{node.value}}",
+      missing: "{{?node.absent}}",
+    };
+    const context = { node: { value: "here" } };
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result.present).toBe("here");
+    expect(result).not.toHaveProperty("missing");
+  });
+
+  // Scenario 4: optional key inside a nested object is omitted when unresolved
+  it("omits an optional key inside a nested object when the path is unresolved", () => {
+    const mapping = {
+      envelope: {
+        required: "{{node.value}}",
+        optional: "{{?node.absent}}",
+      },
+    };
+    const context = { node: { value: "here" } };
+
+    const result = resolveBindings(mapping, context);
+
+    expect((result.envelope as Record<string, unknown>).required).toBe("here");
+    expect(result.envelope).not.toHaveProperty("optional");
+  });
+
+  // Scenario 5: optional binding for a node that doesn't exist in context at all
+  it("omits the key when the entire node is absent from context", () => {
+    const mapping = { doc: "{{?missingNode.base64}}" };
+    const context = {};
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result).not.toHaveProperty("doc");
+  });
+
+  // Scenario 6: inline {{?...}} is not treated as a binding and passes through as literal
+  it("leaves inline {{?...}} patterns as literal text (not supported for inline use)", () => {
+    const mapping = { label: "prefix-{{?node.missing}}-suffix" };
+    const context = { node: {} };
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result.label).toBe("prefix-{{?node.missing}}-suffix");
+  });
+
+  // Scenario 7: non-optional sibling of optional throws normally when unresolved
+  it("still throws BindingResolutionError for a non-optional unresolved binding", () => {
+    const mapping = {
+      required: "{{node.missingRequired}}",
+      optional: "{{?node.missingOptional}}",
+    };
+    const context = { node: {} };
+
+    expect(() => resolveBindings(mapping, context)).toThrow(
+      BindingResolutionError,
+    );
+  });
+
+  // Scenario 8: OMIT_SENTINEL is exported and is a symbol
+  it("OMIT_SENTINEL is a symbol", () => {
+    expect(typeof OMIT_SENTINEL).toBe("symbol");
   });
 });

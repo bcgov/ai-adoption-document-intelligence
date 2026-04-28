@@ -1,3 +1,10 @@
+/**
+ * Sentinel value returned by the binding resolver when an optional binding
+ * expression (`{{?path}}`) cannot be resolved. Keys whose resolved value is
+ * `OMIT_SENTINEL` are excluded from the final mapping output.
+ */
+export const OMIT_SENTINEL: unique symbol = Symbol("OMIT_VALUE");
+
 /** Structured error thrown when a binding expression cannot be resolved. */
 export class BindingResolutionError extends Error {
   constructor(public readonly path: string) {
@@ -26,7 +33,13 @@ export class IterationResult {
 }
 
 const WHOLE_BINDING_PATTERN = /^\{\{([^}]+)\}\}$/;
-const INLINE_BINDING_PATTERN = /\{\{([^}]+)\}\}/g;
+/** Matches a whole-value optional binding expression: `{{?path}}`. */
+const OPTIONAL_WHOLE_BINDING_PATTERN = /^\{\{\?([^}]+)\}\}$/;
+/**
+ * Matches inline binding expressions mixed with literal text.
+ * Excludes `{{?...}}` optional bindings — those are only valid as whole-value bindings.
+ */
+const INLINE_BINDING_PATTERN = /\{\{(?!\?)([^}]+)\}\}/g;
 
 /** Matches the opening marker of an iteration block: `{{#each arrayPath}}`. */
 const EACH_KEY_PATTERN = /^\{\{#each\s+(.+?)\}\}$/;
@@ -81,6 +94,17 @@ function resolveStringValue(
   value: string,
   context: Record<string, unknown>,
 ): unknown {
+  // Optional whole-value binding — return OMIT_SENTINEL if the path cannot be
+  // resolved so that the key is dropped from the final mapping.
+  const optionalMatch = OPTIONAL_WHOLE_BINDING_PATTERN.exec(value);
+  if (optionalMatch) {
+    try {
+      return resolveBindingPath(optionalMatch[1].trim(), context);
+    } catch {
+      return OMIT_SENTINEL;
+    }
+  }
+
   // Whole-value binding — preserve the original type of the resolved value.
   const wholeMatch = WHOLE_BINDING_PATTERN.exec(value);
   if (wholeMatch) {
@@ -121,7 +145,10 @@ export function resolveBindings(
   const resolved: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(mapping)) {
-    resolved[key] = resolveValue(value, context);
+    const resolvedValue = resolveValue(value, context);
+    if (resolvedValue !== OMIT_SENTINEL) {
+      resolved[key] = resolvedValue;
+    }
   }
 
   return resolved;
