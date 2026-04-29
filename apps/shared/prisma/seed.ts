@@ -19,7 +19,7 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg(getPrismaPgOptions(process.env.DATABASE_URL)),
 });
 
-const SEED_GROUP_ID = "seed-default-group";
+const SEED_GROUP_ID = "seeddefaultgroup";
 const SEED_GROUP_NAME = "Default";
 
 const SDPR_TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
