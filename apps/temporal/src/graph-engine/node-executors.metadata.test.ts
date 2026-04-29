@@ -2,7 +2,8 @@
  * Tests for __workflowMetadata.groupId injection in executeActivityNode
  *
  * Verifies that groupId from __workflowMetadata is injected into activity
- * inputs, and that port bindings or static parameters take precedence.
+ * inputs, and that metadata always wins over port bindings or static parameters
+ * (security: prevents cross-tenant access via graph node config).
  */
 
 // Mock @temporalio/workflow before importing any module that uses it
@@ -135,7 +136,7 @@ describe("executeActivityNode — __workflowMetadata.groupId injection", () => {
     expect(calledWith).not.toHaveProperty("groupId");
   });
 
-  it("does NOT overwrite groupId when node provides it via static parameters", async () => {
+  it("metadata groupId wins over node static parameters (cross-tenant fix)", async () => {
     const node = makeActivityNode({
       parameters: { groupId: "g-from-node", status: "test" },
     });
@@ -146,11 +147,11 @@ describe("executeActivityNode — __workflowMetadata.groupId injection", () => {
     await executeNode(node, graphConfig as never, state);
 
     expect(mockActivityFn).toHaveBeenCalledWith(
-      expect.objectContaining({ groupId: "g-from-node" }),
+      expect.objectContaining({ groupId: "g-from-meta" }),
     );
   });
 
-  it("does NOT overwrite groupId when node provides it via port binding", async () => {
+  it("metadata groupId wins over port binding (cross-tenant fix)", async () => {
     const node = makeActivityNode({
       inputs: [{ port: "groupId", ctxKey: "myGroupId" }],
     });
@@ -162,8 +163,28 @@ describe("executeActivityNode — __workflowMetadata.groupId injection", () => {
     await executeNode(node, graphConfig as never, state);
 
     expect(mockActivityFn).toHaveBeenCalledWith(
-      expect.objectContaining({ groupId: "g-from-binding" }),
+      expect.objectContaining({ groupId: "g-from-meta" }),
     );
+  });
+
+  it("graph config cannot override groupId for cross-tenant access", async () => {
+    const node = makeActivityNode({
+      parameters: { groupId: "evil-group", tableId: "t1", lookupName: "foo" },
+    });
+    const state = makeState({
+      __workflowMetadata: { groupId: "trusted-group" },
+    });
+
+    await executeNode(node, graphConfig as never, state);
+
+    expect(mockActivityFn).toHaveBeenCalledWith(
+      expect.objectContaining({ groupId: "trusted-group" }),
+    );
+    const calledWith = mockActivityFn.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(calledWith.groupId).toBe("trusted-group");
   });
 
   it("injects groupId alongside other inputs from port bindings", async () => {

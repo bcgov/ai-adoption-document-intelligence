@@ -162,13 +162,10 @@ async function executeActivityNode(
     ...inputs,
     ...node.parameters,
     ...(state.requestId && { requestId: state.requestId }),
-    // Inject groupId from workflow metadata only when the node hasn't declared it
-    // via port binding or static parameters, and metadata has a non-null value.
-    ...(injectedGroupId != null &&
-      !("groupId" in inputs) &&
-      !("groupId" in (node.parameters ?? {})) && {
-        groupId: injectedGroupId,
-      }),
+    // SECURITY: groupId from workflow metadata always wins over node config.
+    // Graph workflow authors (MEMBER role) must not be able to override the
+    // tenant-scoped groupId and access another group's data.
+    ...(injectedGroupId != null && { groupId: injectedGroupId }),
   };
   activityParams = mergeBenchmarkOcrCacheParams(
     node.activityType,
