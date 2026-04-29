@@ -118,7 +118,9 @@ test.describe('Split Management - Freeze Split', () => {
     // Wait a moment
     await page.waitForTimeout(1000);
 
-    // Then: Split remains unfrozen
+    // Then: Split remains unfrozen (status unchanged after cancel)
+    const statusAfterCancel = await splitsPage.getSplitStatusBadge(SPLIT_ID_GOLDEN).textContent();
+    expect(statusAfterCancel).toBe(originalStatus);
     await expect(splitsPage.getSplitStatusBadge(SPLIT_ID_GOLDEN)).toContainText(/editable/i);
 
     // Edit button is still visible

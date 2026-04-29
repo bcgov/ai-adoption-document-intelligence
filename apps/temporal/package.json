@@ -40,8 +40,10 @@
 		"@temporalio/worker": "1.10.0",
 		"@temporalio/workflow": "1.10.0",
 		"axios": "1.15.0",
+    "csv": "6.5.1",
 		"dictionary-en": "4.0.0",
 		"dotenv": "17.2.3",
+    "fast-xml-parser": "5.5.8",
 		"json-rules-engine": "4.0.0",
 		"nspell": "2.1.5",
 		"pdf-lib": "1.17.1"

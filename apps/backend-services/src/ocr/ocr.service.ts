@@ -148,11 +148,9 @@ export class OcrService {
       this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
       this.logger.error(`Stack: ${getErrorStack(error)}`);
 
-      if (document != null) {
-        await this.documentService.updateDocument(documentId, {
-          status: DocumentStatus.failed,
-        });
-      }
+      await this.documentService.updateDocument(documentId, {
+        status: DocumentStatus.failed,
+      });
 
       // Ensure error is a string for the response
       const errorMessage = getErrorMessage(error);

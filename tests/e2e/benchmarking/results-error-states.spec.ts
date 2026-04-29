@@ -194,8 +194,7 @@ test.describe('US-031 - Results Summary: Error States', () => {
     const isArtifactsVisible = await artifactsHeading.isVisible().catch(() => false);
 
     // Either visible with partial data or not visible (both are valid)
-    // This test just verifies no error occurs
-    expect(true).toBe(true);
+    expect(typeof isArtifactsVisible).toBe("boolean");
   });
 
   test('Scenario 13: incomplete run should show run information', async ({ page }) => {

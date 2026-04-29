@@ -81,6 +81,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Flatten all (or filtered) classifier labels into a single sorted ClassifiedSegment array for map node iteration",
     },
+    "data.transform": {
+      description:
+        "Execute data transformation: parse input, resolve field-mapping bindings, render output",
+    },
   } as const;
 
 /**

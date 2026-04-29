@@ -108,6 +108,11 @@ describe("resolvePortBinding", () => {
     const ctx = { foo: "string" };
     expect(resolvePortBinding("foo.bar", ctx)).toBeUndefined();
   });
+
+  it("returns undefined when path contains an unsafe segment", () => {
+    const ctx = { a: { b: "ok" } };
+    expect(resolvePortBinding("a.__proto__.polluted", ctx)).toBeUndefined();
+  });
 });
 
 describe("writeToCtx", () => {
@@ -157,5 +162,12 @@ describe("writeToCtx", () => {
     const ctx: Record<string, unknown> = { a: { b: "existing" } };
     writeToCtx("a.c", "new", ctx);
     expect(ctx).toEqual({ a: { b: "existing", c: "new" } });
+  });
+
+  it("throws when path contains an unsafe segment", () => {
+    const ctx: Record<string, unknown> = {};
+    expect(() => writeToCtx("a.__proto__.polluted", true, ctx)).toThrow(
+      /Invalid context key segment/,
+    );
   });
 });

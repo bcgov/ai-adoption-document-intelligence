@@ -13,9 +13,12 @@ import {
   Stack,
   Switch,
   Text,
+  Textarea,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useRef } from "react";
 import type {
   ActivityNode,
   CtxDeclaration,
@@ -59,6 +62,12 @@ const AZURE_CLASSIFY_SUBMIT_ACTIVITY_TYPE = "azureClassify.submit";
 const SELECT_CLASSIFIED_PAGES_ACTIVITY_TYPE = "document.selectClassifiedPages";
 const FLATTEN_CLASSIFIED_DOCUMENTS_ACTIVITY_TYPE =
   "document.flattenClassifiedDocuments";
+
+const FORMAT_OPTIONS = [
+  { value: "json", label: "JSON" },
+  { value: "xml", label: "XML" },
+  { value: "csv", label: "CSV" },
+] as const;
 
 export interface GraphConfigFormEditorProps {
   value: GraphWorkflowConfig;
@@ -509,6 +518,196 @@ export function GraphConfigFormEditor({
   );
 }
 
+interface TransformNodeFormProps {
+  node: ActivityNode;
+  onChange: (node: ActivityNode) => void;
+}
+
+type TransformFormat = "json" | "xml" | "csv";
+
+/**
+ * Configuration form for transform nodes. Provides format selectors,
+ * a field mapping editor, upload/download helpers, and an optional XML
+ * envelope editor (visible only when outputFormat is "xml").
+ */
+function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const envelopeFileInputRef = useRef<HTMLInputElement>(null);
+
+  const params = node.parameters ?? {};
+  const inputFormat = (params.inputFormat as TransformFormat) ?? "json";
+  const outputFormat = (params.outputFormat as TransformFormat) ?? "json";
+  const fieldMapping = (params.fieldMapping as string) ?? "";
+  const xmlEnvelope = params.xmlEnvelope as string | undefined;
+
+  const setParam = (key: string, value: unknown) => {
+    onChange({
+      ...node,
+      parameters: { ...params, [key]: value },
+    });
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === "string") {
+        setParam("fieldMapping", content);
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-uploaded
+    e.target.value = "";
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([fieldMapping], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "mapping.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEnvelopeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === "string") {
+        setParam("xmlEnvelope", content || undefined);
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-uploaded
+    e.target.value = "";
+  };
+
+  const handleEnvelopeDownload = () => {
+    const blob = new Blob([xmlEnvelope ?? ""], {
+      type: "application/xml",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "envelope.xml";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Stack gap="xs">
+      <Group gap="sm" wrap="wrap">
+        <Select
+          label="Input format"
+          data={[...FORMAT_OPTIONS]}
+          value={inputFormat}
+          onChange={(v) => setParam("inputFormat", v ?? "json")}
+          style={{ minWidth: 120 }}
+        />
+        <Select
+          label="Output format"
+          data={[...FORMAT_OPTIONS]}
+          value={outputFormat}
+          onChange={(v) => setParam("outputFormat", v ?? "json")}
+          style={{ minWidth: 120 }}
+        />
+      </Group>
+      <Tooltip
+        label="Use {{nodeName.fieldName}} to reference output fields from other nodes. Nested paths (e.g. {{nodeName.a.b}}) are supported."
+        multiline
+        w={320}
+        position="top-start"
+        withArrow
+      >
+        <Textarea
+          label="Field mapping"
+          description="JSON object mapping output keys to binding expressions (e.g. {{nodeName.fieldName}}). Invalid JSON is caught at execution time."
+          placeholder='{\n  "outputKey": "{{nodeName.fieldName}}"\n}'
+          value={fieldMapping}
+          onChange={(e) => setParam("fieldMapping", e.currentTarget.value)}
+          minRows={4}
+          maxRows={16}
+          autosize
+          spellCheck={false}
+          styles={{ input: { fontFamily: "monospace" } }}
+        />
+      </Tooltip>
+      <Group gap="xs">
+        <Button
+          variant="light"
+          size="xs"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Upload mapping
+        </Button>
+        <Button
+          variant="light"
+          size="xs"
+          onClick={handleDownload}
+          disabled={!fieldMapping.trim()}
+        >
+          Download mapping
+        </Button>
+      </Group>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        style={{ display: "none" }}
+        onChange={handleFileUpload}
+      />
+      {outputFormat === "xml" && (
+        <>
+          <Textarea
+            label="XML Envelope (optional)"
+            description="Wrap the rendered XML payload in a caller-defined envelope. Use {{payload}} where the rendered XML should be injected."
+            placeholder="<envelope>{{payload}}</envelope>"
+            value={xmlEnvelope ?? ""}
+            onChange={(e) => {
+              const val = e.currentTarget.value;
+              setParam("xmlEnvelope", val || undefined);
+            }}
+            minRows={4}
+            maxRows={16}
+            autosize
+            spellCheck={false}
+            styles={{ input: { fontFamily: "monospace" } }}
+          />
+          <Group gap="xs">
+            <Button
+              variant="light"
+              size="xs"
+              onClick={() => envelopeFileInputRef.current?.click()}
+            >
+              Upload envelope
+            </Button>
+            <Button
+              variant="light"
+              size="xs"
+              onClick={handleEnvelopeDownload}
+              disabled={!xmlEnvelope?.trim()}
+            >
+              Download envelope
+            </Button>
+          </Group>
+          <input
+            ref={envelopeFileInputRef}
+            type="file"
+            accept=".xml"
+            style={{ display: "none" }}
+            onChange={handleEnvelopeFileUpload}
+          />
+        </>
+      )}
+    </Stack>
+  );
+}
+
 interface ActivityNodeFormProps {
   node: ActivityNode;
   onChange: (node: ActivityNode) => void;
@@ -626,6 +825,18 @@ function ActivityNodeForm({ node, onChange }: ActivityNodeFormProps) {
               }
             />
           </Stack>
+        </Paper>
+      )}
+      {node.activityType === "data.transform" && (
+        <Paper
+          withBorder
+          p="sm"
+          style={{ background: "var(--mantine-color-default-hover)" }}
+        >
+          <Text size="sm" fw={600} mb="xs">
+            Data transform parameters
+          </Text>
+          <TransformNodeForm node={node} onChange={onChange} />
         </Paper>
       )}
       <Text size="sm" fw={500} c="dimmed">

@@ -131,6 +131,7 @@ test.describe('US-036: Run Comparison - Multiple Runs and Baseline', () => {
     await expect(comparisonPage.runInfoCard).toBeVisible();
 
     const baselineBadge = comparisonPage.getBaselineBadge(TEST_RUN_BASELINE);
+    await expect(baselineBadge).toBeAttached();
     // Note: Badge may not be visible if baseline detection isn't working
     // Check if badge exists in the run info table
     const badges = comparisonPage.runInfoCard.locator('[data-testid^="baseline-badge-"]');
@@ -151,6 +152,7 @@ test.describe('US-036: Run Comparison - Multiple Runs and Baseline', () => {
     await expect(comparisonPage.metricsComparisonCard).toBeVisible();
 
     const metricsBaselineBadge = comparisonPage.getMetricsBaselineBadge(TEST_RUN_BASELINE);
+    await expect(metricsBaselineBadge).toBeAttached();
     const badges = comparisonPage.metricsComparisonCard.locator('[data-testid^="metrics-baseline-badge-"]');
     const badgeCount = await badges.count();
 

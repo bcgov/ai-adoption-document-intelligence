@@ -40,6 +40,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "azureClassify.poll",
   "document.selectClassifiedPages",
   "document.flattenClassifiedDocuments",
+  "data.transform",
 ] as const;
 
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];

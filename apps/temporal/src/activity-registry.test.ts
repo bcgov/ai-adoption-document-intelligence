@@ -39,6 +39,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.selectClassifiedPages",
   "document.flattenClassifiedDocuments",
   "document.extractPageRange",
+  "data.transform",
 ];
 
 describe("activity-registry", () => {

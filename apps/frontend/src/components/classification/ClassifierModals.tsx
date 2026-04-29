@@ -2,6 +2,7 @@ import {
   Button,
   FileInput,
   Group,
+  List,
   Modal,
   Stack,
   Text,
@@ -10,9 +11,9 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useGroup } from "@/auth/GroupContext";
-import { useClassifier } from "@/data/hooks/useClassifier";
+import { ConflictingWorkflow, useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierSource } from "@/shared/types/classifier";
 
 interface DeleteClassifierModalProps {
@@ -161,6 +162,124 @@ export const UploadClassifierFilesModal = ({
           </Group>
         </Stack>
       </form>
+    </Modal>
+  );
+};
+
+interface DeleteClassifierConfirmationModalProps {
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
+  classifierName: string;
+  groupId: string;
+  onDeleted: () => void;
+}
+
+export const DeleteClassifierConfirmationModal = ({
+  isOpen,
+  setIsOpen,
+  classifierName,
+  groupId,
+  onDeleted,
+}: DeleteClassifierConfirmationModalProps) => {
+  const [confirmText, setConfirmText] = useState("");
+  const [conflictingWorkflows, setConflictingWorkflows] = useState<
+    ConflictingWorkflow[] | null
+  >(null);
+  const { deleteClassifier } = useClassifier();
+
+  const handleClose = () => {
+    setConfirmText("");
+    setConflictingWorkflows(null);
+    setIsOpen(false);
+  };
+
+  const handleDelete = () => {
+    setConflictingWorkflows(null);
+    deleteClassifier.mutate(
+      { name: classifierName, group_id: groupId },
+      {
+        onSuccess: () => {
+          notifications.show({
+            title: "Classifier Deleted",
+            message: `"${classifierName}" has been permanently deleted.`,
+            color: "green",
+          });
+          handleClose();
+          onDeleted();
+        },
+        onError: (error) => {
+          if (error.conflictingWorkflows) {
+            setConflictingWorkflows(error.conflictingWorkflows);
+          } else {
+            notifications.show({
+              title: "Error",
+              message: error.message,
+              color: "red",
+            });
+          }
+        },
+      },
+    );
+  };
+
+  const isConfirmed = confirmText.toLowerCase() === "delete";
+
+  return (
+    <Modal
+      opened={isOpen}
+      onClose={handleClose}
+      title="Delete Classifier"
+      centered
+    >
+      <Stack gap="md">
+        <Text>
+          You are about to permanently delete the classifier{" "}
+          <strong>{classifierName}</strong>. This action cannot be undone.
+        </Text>
+        {conflictingWorkflows && conflictingWorkflows.length > 0 && (
+          <Stack gap="xs">
+            <Text c="red" fw={500}>
+              This classifier cannot be deleted because it is referenced by the
+              following workflows:
+            </Text>
+            <List size="sm">
+              {conflictingWorkflows.map((wf) => (
+                <List.Item key={wf.id}>
+                  {wf.name} (ID: {wf.id})
+                </List.Item>
+              ))}
+            </List>
+            <Text size="sm" c="dimmed">
+              Remove the classifier reference from these workflows before
+              deleting.
+            </Text>
+          </Stack>
+        )}
+        <TextInput
+          label='Type "delete" to confirm'
+          placeholder="delete"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.currentTarget.value)}
+          disabled={deleteClassifier.isPending}
+        />
+        <Group justify="flex-end">
+          <Button
+            variant="default"
+            onClick={handleClose}
+            disabled={deleteClassifier.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            disabled={!isConfirmed}
+            loading={deleteClassifier.isPending}
+            onClick={handleDelete}
+          >
+            Delete
+          </Button>
+        </Group>
+      </Stack>
     </Modal>
   );
 };

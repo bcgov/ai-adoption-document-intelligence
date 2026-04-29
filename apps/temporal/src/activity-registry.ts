@@ -35,6 +35,7 @@ import { azureClassifyPoll } from "./activities/azure-classify-poll";
 import { azureClassifySubmit } from "./activities/azure-classify-submit";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
+import { executeTransformNode } from "./activities/data-transform/execute";
 import { validateDocumentFields } from "./activities/document-validate-fields";
 import { extractPageRange } from "./activities/extract-page-range";
 import { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
@@ -379,6 +380,17 @@ register({
   defaultRetry: { maximumAttempts: 3 },
   description:
     "Extract a specific page range from a source document and write it as a new blob segment",
+});
+
+// -- Data transform activities ----------------------------------------------
+
+register({
+  activityType: "data.transform",
+  activityFn: executeTransformNode as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 1 },
+  description:
+    "Execute data transformation: parse input, resolve field-mapping bindings, render output",
 });
 
 // ---------------------------------------------------------------------------

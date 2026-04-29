@@ -17,7 +17,6 @@ test.describe('Baseline Comparison', () => {
   const SEED_RUN_ID_COMPLETED = 'seed-run-completed-001'; // Baseline run
   const SEED_RUN_ID_PASSING = 'seed-run-passing-004'; // Passing comparison
   const SEED_RUN_ID_REGRESSED = 'seed-run-regressed-005'; // Regressed comparison
-  const SEED_RUN_ID_FAILED = 'seed-run-failed-003'; // Failed run (no comparison)
 
   let runDetailPage: RunDetailPage;
   let projectDetailPage: ProjectDetailPage;

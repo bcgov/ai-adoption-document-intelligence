@@ -29,13 +29,14 @@ const EXPECTED_ACTIVITY_TYPES = [
   "azureClassify.poll",
   "document.selectClassifiedPages",
   "document.flattenClassifiedDocuments",
+  "data.transform",
 ];
 
 describe("activity-registry (backend)", () => {
   describe("REGISTERED_ACTIVITY_TYPES", () => {
-    it("contains all 24 expected activity types", () => {
+    it("contains all 25 expected activity types", () => {
       const keys = Object.keys(REGISTERED_ACTIVITY_TYPES);
-      expect(keys).toHaveLength(24);
+      expect(keys).toHaveLength(25);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(activityType in REGISTERED_ACTIVITY_TYPES).toBe(true);
       }
@@ -66,9 +67,9 @@ describe("activity-registry (backend)", () => {
   });
 
   describe("getRegisteredActivityTypeKeys", () => {
-    it("returns all 24 activity type strings", () => {
+    it("returns all 25 activity type strings", () => {
       const keys = getRegisteredActivityTypeKeys();
-      expect(keys).toHaveLength(24);
+      expect(keys).toHaveLength(25);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(keys).toContain(activityType);
       }
