@@ -9,5 +9,4 @@ export class ColumnDto {
   type!: "string" | "number" | "boolean" | "date" | "datetime" | "enum";
   @ApiPropertyOptional() required?: boolean;
   @ApiPropertyOptional({ type: String, isArray: true }) enumValues?: string[];
-  @ApiPropertyOptional() unique?: boolean;
 }

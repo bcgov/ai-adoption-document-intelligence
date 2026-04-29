@@ -14,7 +14,6 @@ export interface ColumnDef {
   type: ColumnType;
   required?: boolean;
   enumValues?: string[];
-  unique?: boolean;
 }
 
 export type PickStrategy = "first" | "last" | "one" | "all";

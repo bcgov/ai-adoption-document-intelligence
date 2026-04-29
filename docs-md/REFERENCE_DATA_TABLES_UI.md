@@ -25,7 +25,7 @@ Four-tab view for a single table:
 
 ### ColumnsTab
 
-Displays all columns for a table with key, label, type, required, and unique attributes. Supports:
+Displays all columns for a table with key, label, type, and required attributes. Supports:
 
 - **Add Column** — opens `ColumnForm` in create mode
 - **Edit** — opens `ColumnForm` in edit mode (key is read-only when editing)
@@ -43,7 +43,6 @@ Fields:
 - **Type** — `string | number | boolean | date | datetime | enum`.
 - **Enum values** — visible only when type is `enum`. Uses `TagsInput` (press Enter to add values).
 - **Required** — toggle.
-- **Unique** — toggle.
 
 Validation:
 - Key must match `/^[a-zA-Z_][a-zA-Z0-9_]*$/`

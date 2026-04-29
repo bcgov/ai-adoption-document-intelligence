@@ -33,7 +33,6 @@ const DEFAULT_VALUES: ColumnDef = {
   label: "",
   type: "string",
   required: false,
-  unique: false,
 };
 
 export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
@@ -75,7 +74,6 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
             label: v.label,
             type: v.type,
             required: v.required,
-            unique: v.unique,
             ...(v.type === "enum" && v.enumValues
               ? { enumValues: v.enumValues }
               : {}),
@@ -110,10 +108,6 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
           <Switch
             label="Required"
             {...form.getInputProps("required", { type: "checkbox" })}
-          />
-          <Switch
-            label="Unique"
-            {...form.getInputProps("unique", { type: "checkbox" })}
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>

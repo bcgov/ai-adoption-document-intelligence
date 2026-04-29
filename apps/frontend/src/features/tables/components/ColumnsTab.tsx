@@ -72,7 +72,6 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
               <Table.Th>Label</Table.Th>
               <Table.Th>Type</Table.Th>
               <Table.Th>Required</Table.Th>
-              <Table.Th>Unique</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
@@ -87,7 +86,6 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
                 <Table.Td>{c.label}</Table.Td>
                 <Table.Td>{c.type}</Table.Td>
                 <Table.Td>{c.required ? "✓" : ""}</Table.Td>
-                <Table.Td>{c.unique ? "✓" : ""}</Table.Td>
                 <Table.Td>
                   <Group gap="xs">
                     <Button
