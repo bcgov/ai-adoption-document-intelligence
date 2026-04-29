@@ -1569,12 +1569,188 @@ async function seedGroup() {
   console.log("  ✓ Default group seeded");
 }
 
+// ---------------------------------------------------------------------------
+// Tables: payment_schedule reference data
+// ---------------------------------------------------------------------------
+
+const PAYMENT_SCHEDULE_TABLE_ID = "payment_schedule";
+const PAYMENT_SCHEDULE_LABEL = "Payment Schedule (BC Income Assistance)";
+const PAYMENT_SCHEDULE_FIRST_ID = 416; // January 2026 → 416, December 2026 → 427
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+function isoDate(year: number, monthIndex0: number, day: number): string {
+  return `${year}-${String(monthIndex0 + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function buildPaymentScheduleRows(year: number) {
+  // For benefit month X in `year`:
+  //   payment_issue_day  ≈ 16th of (X-1) — date the cheque is mailed
+  //   payment_cutoff_date = 5 days earlier (11th of X-1)
+  //   report_end_date     = same as cutoff (per the source-system pattern)
+  //   income_month        = name of (X-2) — what the report covers
+  //   prev_payment_issue_day = previous benefit month's payment_issue_day
+  return MONTH_NAMES.map((_, monthIndex0) => {
+    // Issue/cutoff are in the previous calendar month
+    const prevMonth = new Date(Date.UTC(year, monthIndex0, 1));
+    prevMonth.setUTCMonth(prevMonth.getUTCMonth() - 1);
+    const issueYear = prevMonth.getUTCFullYear();
+    const issueMonth0 = prevMonth.getUTCMonth();
+
+    const paymentIssueDay = isoDate(issueYear, issueMonth0, 16);
+    const paymentCutoffDate = isoDate(issueYear, issueMonth0, 11);
+    const reportEndDate = paymentCutoffDate;
+
+    // Income month is two months before benefit month
+    const incomeMonthDate = new Date(Date.UTC(year, monthIndex0, 1));
+    incomeMonthDate.setUTCMonth(incomeMonthDate.getUTCMonth() - 2);
+    const incomeMonth = MONTH_NAMES[incomeMonthDate.getUTCMonth()];
+
+    // Previous payment issue day = issue day for benefit month X-1
+    let prevPaymentIssueDay: string | null = null;
+    if (monthIndex0 > 0) {
+      const prevPrev = new Date(Date.UTC(year, monthIndex0 - 1, 1));
+      prevPrev.setUTCMonth(prevPrev.getUTCMonth() - 1);
+      prevPaymentIssueDay = isoDate(
+        prevPrev.getUTCFullYear(),
+        prevPrev.getUTCMonth(),
+        16,
+      );
+    }
+
+    return {
+      schedule_id: PAYMENT_SCHEDULE_FIRST_ID + monthIndex0,
+      benefit_month: `${year}-${String(monthIndex0 + 1).padStart(2, "0")}`,
+      payment_issue_day: paymentIssueDay,
+      payment_cutoff_date: paymentCutoffDate,
+      report_end_date: reportEndDate,
+      income_month: incomeMonth,
+      prev_payment_issue_day: prevPaymentIssueDay,
+    };
+  });
+}
+
+async function seedTablesData() {
+  console.log("📋 Seeding payment_schedule reference table...");
+
+  const columns = [
+    {
+      key: "schedule_id",
+      label: "Schedule ID",
+      type: "number",
+      required: true,
+    },
+    {
+      key: "benefit_month",
+      label: "Benefit Month",
+      type: "string",
+      required: true,
+    },
+    {
+      key: "payment_issue_day",
+      label: "Payment Issue Day",
+      type: "date",
+      required: true,
+    },
+    {
+      key: "payment_cutoff_date",
+      label: "Payment Cut-off Date",
+      type: "date",
+      required: true,
+    },
+    {
+      key: "report_end_date",
+      label: "Report End Date",
+      type: "date",
+      required: true,
+    },
+    {
+      key: "income_month",
+      label: "Income Month",
+      type: "string",
+    },
+    {
+      key: "prev_payment_issue_day",
+      label: "Prev Payment Issue Day",
+      type: "date",
+    },
+  ];
+
+  const lookups = [
+    {
+      name: "byDate",
+      params: [{ name: "submissionDate", type: "date" }],
+      filter: {
+        operator: "lte",
+        left: { ref: "param.submissionDate" },
+        right: { ref: "row.payment_cutoff_date" },
+      },
+      order: [{ field: "payment_cutoff_date", direction: "asc" }],
+      pick: "first",
+      templateId: "earliest-after",
+      templateConfig: {
+        column: "payment_cutoff_date",
+        param: "submissionDate",
+      },
+    },
+  ];
+
+  const table = await prisma.table.upsert({
+    where: {
+      group_id_table_id: {
+        group_id: SEED_GROUP_ID,
+        table_id: PAYMENT_SCHEDULE_TABLE_ID,
+      },
+    },
+    update: { columns, lookups, label: PAYMENT_SCHEDULE_LABEL },
+    create: {
+      group_id: SEED_GROUP_ID,
+      table_id: PAYMENT_SCHEDULE_TABLE_ID,
+      label: PAYMENT_SCHEDULE_LABEL,
+      description:
+        "BC Income Assistance payment schedule, used by ocr workflows to map submission date → benefit month.",
+      columns,
+      lookups,
+    },
+  });
+
+  // Replace rows wholesale (idempotent re-seed)
+  await prisma.tableRow.deleteMany({
+    where: { group_id: SEED_GROUP_ID, table_id: PAYMENT_SCHEDULE_TABLE_ID },
+  });
+  const rows = buildPaymentScheduleRows(2026);
+  await prisma.tableRow.createMany({
+    data: rows.map((data) => ({
+      group_id: SEED_GROUP_ID,
+      table_id: PAYMENT_SCHEDULE_TABLE_ID,
+      data,
+    })),
+  });
+
+  console.log(
+    `  ✓ payment_schedule seeded (${rows.length} rows for 2026, table.id=${table.id})`,
+  );
+}
+
 async function main() {
   console.log("🌱 Starting database seed...\n");
 
   await seedUsers();
   await seedGroup();
   await seedTestApiKey();
+  await seedTablesData();
   await seedTemplateModelData();
   await seedBenchmarkingData();
 
