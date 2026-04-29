@@ -512,4 +512,312 @@ describe("ClassifierService", () => {
       expect(result.error).toBe("fail");
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // listAzureClassifiers
+  // ---------------------------------------------------------------------------
+
+  describe("listAzureClassifiers", () => {
+    it("should return a list of classifier IDs on success", async () => {
+      (service as any).client = {
+        path: () => ({
+          get: jest.fn().mockResolvedValue({
+            status: "200",
+            body: {
+              value: [
+                { classifierId: "g1__clf1" },
+                { classifierId: "g1__clf2" },
+              ],
+            },
+          }),
+        }),
+      };
+
+      const result = await service.listAzureClassifiers();
+      expect(result).toEqual(["g1__clf1", "g1__clf2"]);
+    });
+
+    it("should return empty array when value is absent", async () => {
+      (service as any).client = {
+        path: () => ({
+          get: jest.fn().mockResolvedValue({
+            status: "200",
+            body: {},
+          }),
+        }),
+      };
+
+      const result = await service.listAzureClassifiers();
+      expect(result).toEqual([]);
+    });
+
+    it("should throw when Azure DI returns non-200", async () => {
+      (service as any).client = {
+        path: () => ({
+          get: jest.fn().mockResolvedValue({
+            status: "500",
+            body: "internal error",
+          }),
+        }),
+      };
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          log: jest.fn(),
+        },
+      });
+
+      await expect(service.listAzureClassifiers()).rejects.toThrow(
+        "Failed to list Azure DI classifiers",
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteClassifier
+  // ---------------------------------------------------------------------------
+
+  describe("deleteClassifier", () => {
+    const mockDeleteClient = (deleteStatus = "204") => {
+      (service as any).client = {
+        path: () => ({
+          get: jest.fn().mockResolvedValue({
+            status: "200",
+            body: { value: [{ classifierId: "g1__clf1" }] },
+          }),
+          delete: jest.fn().mockResolvedValue({ status: deleteStatus }),
+        }),
+      };
+    };
+
+    beforeEach(() => {
+      (
+        mockClassifierDbService.findClassifierModel as jest.Mock
+      ).mockResolvedValue({
+        name: "clf1",
+        group_id: "g1",
+        status: "READY",
+        operation_location: null,
+      });
+      (
+        mockClassifierDbService as any
+      ).findWorkflowVersionsReferencingClassifier = jest
+        .fn()
+        .mockResolvedValue([]);
+      (mockClassifierDbService as any).deleteClassifierModel = jest
+        .fn()
+        .mockResolvedValue({ name: "clf1" });
+      mockBlobService.deleteFilesWithPrefix.mockResolvedValue(undefined);
+      mockBlobStorage.deleteByPrefix.mockResolvedValue(undefined);
+    });
+
+    it("should return conflict when workflow versions reference classifier", async () => {
+      (
+        mockClassifierDbService as any
+      ).findWorkflowVersionsReferencingClassifier.mockResolvedValue([
+        { id: "wl-1", name: "Workflow 1" },
+      ]);
+
+      const result = await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(result).toEqual({
+        conflictingWorkflows: [{ id: "wl-1", name: "Workflow 1" }],
+      });
+    });
+
+    it("should return null on successful deletion (happy path)", async () => {
+      mockDeleteClient();
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          log: jest.fn(),
+        },
+      });
+
+      const result = await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(result).toBeNull();
+      expect(
+        (mockClassifierDbService as any).deleteClassifierModel,
+      ).toHaveBeenCalledWith("clf1", "g1");
+    });
+
+    it("should attempt cancellation when status is TRAINING", async () => {
+      (
+        mockClassifierDbService.findClassifierModel as jest.Mock
+      ).mockResolvedValue({
+        name: "clf1",
+        group_id: "g1",
+        status: "TRAINING",
+        operation_location: "https://mock/op/1",
+      });
+      const deleteMock = jest.fn().mockResolvedValue({ status: "204" });
+      (service as any).client = {
+        path: () => ({
+          get: jest.fn().mockResolvedValue({
+            status: "200",
+            body: { value: [] },
+          }),
+          delete: deleteMock,
+        }),
+      };
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          log: jest.fn(),
+        },
+      });
+
+      await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(deleteMock).toHaveBeenCalled();
+    });
+
+    it("should log warning if cancellation fails but continue deletion", async () => {
+      (
+        mockClassifierDbService.findClassifierModel as jest.Mock
+      ).mockResolvedValue({
+        name: "clf1",
+        group_id: "g1",
+        status: "TRAINING",
+        operation_location: "https://mock/op/1",
+      });
+      const warnLogger = jest.fn();
+      (service as any).client = {
+        path: () => ({
+          get: jest.fn().mockResolvedValue({
+            status: "200",
+            body: { value: [] },
+          }),
+          delete: jest.fn().mockRejectedValue(new Error("cancel failed")),
+        }),
+      };
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: warnLogger,
+          debug: jest.fn(),
+          log: jest.fn(),
+        },
+      });
+
+      const result = await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(result).toBeNull();
+      expect(warnLogger).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to cancel training"),
+        expect.any(Object),
+      );
+    });
+
+    it("should skip Azure DI deletion if model not in list", async () => {
+      (service as any).client = {
+        path: () => ({
+          get: jest.fn().mockResolvedValue({
+            status: "200",
+            body: { value: [] }, // no classifiers
+          }),
+          delete: jest.fn(),
+        }),
+      };
+      const warnLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: warnLogger,
+          debug: jest.fn(),
+          log: jest.fn(),
+        },
+      });
+
+      await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(warnLogger).toHaveBeenCalledWith(
+        expect.stringContaining("not found"),
+        expect.any(Object),
+      );
+    });
+
+    it("should skip Azure DI deletion entirely when status is PRETRAINING", async () => {
+      (
+        mockClassifierDbService.findClassifierModel as jest.Mock
+      ).mockResolvedValue({
+        name: "clf1",
+        group_id: "g1",
+        status: "PRETRAINING",
+        operation_location: null,
+      });
+      const getAzureMock = jest.fn();
+      (service as any).client = {
+        path: () => ({
+          get: getAzureMock,
+          delete: jest.fn(),
+        }),
+      };
+      const logLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          log: logLogger,
+        },
+      });
+
+      const result = await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(result).toBeNull();
+      expect(getAzureMock).not.toHaveBeenCalled();
+      expect(logLogger).toHaveBeenCalledWith(
+        expect.stringContaining("skipping Azure DI model deletion"),
+        expect.any(Object),
+      );
+    });
+
+    it("should log warning if Azure blob delete fails but continue", async () => {
+      mockDeleteClient();
+      mockBlobService.deleteFilesWithPrefix.mockRejectedValueOnce(
+        new Error("azure blob fail"),
+      );
+      const warnLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: warnLogger,
+          debug: jest.fn(),
+          log: jest.fn(),
+        },
+      });
+
+      const result = await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(result).toBeNull();
+      expect(warnLogger).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to delete Azure blob storage files"),
+        expect.any(Object),
+      );
+    });
+
+    it("should log warning if primary blob delete fails but continue", async () => {
+      mockDeleteClient();
+      mockBlobStorage.deleteByPrefix.mockRejectedValueOnce(
+        new Error("primary blob fail"),
+      );
+      const warnLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: {
+          error: jest.fn(),
+          warn: warnLogger,
+          debug: jest.fn(),
+          log: jest.fn(),
+        },
+      });
+
+      const result = await service.deleteClassifier("clf1", "g1", "actor-1");
+      expect(result).toBeNull();
+      expect(warnLogger).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to delete primary blob storage files"),
+        expect.any(Object),
+      );
+    });
+  });
 });

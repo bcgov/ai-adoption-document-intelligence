@@ -26,15 +26,15 @@ The job runs regardless of whether application images were built (it depends on 
 | `OPENSHIFT_NAMESPACE` | Target namespace (e.g., `fd34fb-dev`) |
 | `GRAFANA_ADMIN_PASSWORD` | Grafana admin password (falls back to `admin` if unset) |
 
-### Local Deployment (`oc-deploy.sh`)
+### CI Deployment (`deploy-instance.yml`)
 
-The `scripts/oc-deploy.sh` script deploys the PLG stack as **Step 7**, between applying the Kustomize overlay (Step 6) and creating instance secrets (Step 8). This step:
+The `Deploy Instance` GitHub workflow deploys the PLG stack as part of the `Deploy to OpenShift` job, between applying the Kustomize overlay and creating instance secrets. The step:
 
-1. Reads PLG-specific configuration from the environment profile (`dev.env` or `prod.env`)
-2. Derives instance-specific Prometheus scrape targets from the Kustomize instance name
+1. Reads PLG-specific configuration from the `test` or `prod` GitHub environment secrets (populated from `dev.env`/`prod.env`)
+2. Derives instance-specific Prometheus scrape targets from the instance name
 3. Runs `helm upgrade --install` with environment-specific values passed via `--set` flags
 
-If the `helm` CLI is not installed, the PLG step is skipped with a warning. The application deployment continues normally.
+PLG deployment failures are logged as warnings and do not fail the workflow — application deployment continues normally.
 
 #### Instance-Specific Helm Release
 
@@ -56,7 +56,7 @@ PLG-specific variables are configured in the same environment profile files used
 | `PROMETHEUS_PVC_SIZE` | `10Gi` | Persistent volume size for Prometheus TSDB |
 | `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
 
-These variables are read by `oc-deploy.sh` via the `config-loader.sh` library and passed to Helm as `--set` overrides on top of the `values-openshift.yaml` base.
+These variables are read by the `Deploy Instance` workflow from the environment secrets and passed to Helm as `--set` overrides on top of the `values-openshift.yaml` base.
 
 ## Separation from Kustomize
 
@@ -72,11 +72,8 @@ The PLG deployment is completely independent of the Kustomize-based application 
 Grafana is not exposed via an OpenShift Route. Access it via port-forwarding:
 
 ```bash
-# For instance-specific deployments (via oc-deploy.sh)
+# For instance-specific deployments (each instance gets its own PLG release)
 oc port-forward svc/<instance>-plg-grafana 3001:3001 -n <namespace>
-
-# For CI-deployed PLG (single release per namespace)
-oc port-forward svc/plg-grafana 3001:3001 -n <namespace>
 ```
 
 Then open `http://localhost:3001` and log in with `admin` / `<GRAFANA_ADMIN_PASSWORD>`.
@@ -89,6 +86,5 @@ Then open `http://localhost:3001` and log in with `admin` / `<GRAFANA_ADMIN_PASS
 | `deployments/openshift/helm/plg/values-openshift.yaml` | OpenShift-specific value overrides |
 | `deployments/openshift/config/dev.env.example` | Dev environment config template (includes PLG variables) |
 | `deployments/openshift/config/prod.env.example` | Prod environment config template (includes PLG variables) |
-| `.github/workflows/build-apps.yml` | CI workflow with `deploy-plg` job |
-| `scripts/oc-deploy.sh` | Local deployment script (Step 7: PLG) |
-| `scripts/oc-teardown.sh` | Teardown script (Step 3b: PLG uninstall) |
+| `.github/workflows/deploy-instance.yml` | CI workflow that deploys app + PLG |
+| `scripts/oc-teardown.sh` | Teardown script (uninstalls PLG release for the instance) |
