@@ -453,4 +453,16 @@ describe("resolveBindings - optional bindings", () => {
   it("OMIT_SENTINEL is a symbol", () => {
     expect(typeof OMIT_SENTINEL).toBe("symbol");
   });
+
+  // Scenario 9: optional bindings inside arrays filter out unresolved items
+  it("filters array items that resolve to OMIT_SENTINEL from optional bindings", () => {
+    const mapping = {
+      tags: ["{{?node.present}}", "{{?node.absent}}"],
+    };
+    const context = { node: { present: "keep-me" } };
+
+    const result = resolveBindings(mapping, context);
+
+    expect(result.tags).toEqual(["keep-me"]);
+  });
 });

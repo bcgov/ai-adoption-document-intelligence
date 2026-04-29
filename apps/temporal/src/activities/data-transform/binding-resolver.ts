@@ -172,7 +172,9 @@ function resolveValue(
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => resolveValue(item, context));
+    return value
+      .map((item) => resolveValue(item, context))
+      .filter((item) => item !== OMIT_SENTINEL);
   }
 
   if (value !== null && typeof value === "object") {
