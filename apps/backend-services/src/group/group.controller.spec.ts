@@ -381,7 +381,10 @@ describe("GroupController", () => {
       jest.spyOn(service, "leaveGroup").mockResolvedValueOnce();
       const req = { resolvedIdentity: { userId } } as any;
       const result = await controller.leaveGroup(req, groupId);
-      expect(service.leaveGroup).toHaveBeenCalledWith(userId, groupId);
+      expect(service.leaveGroup).toHaveBeenCalledWith(
+        req.resolvedIdentity,
+        groupId,
+      );
       expect(result).toEqual({ success: true });
     });
 

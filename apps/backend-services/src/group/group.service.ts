@@ -292,7 +292,7 @@ export class GroupService {
       event_type: "membership_request_approved",
       resource_type: "group_membership_request",
       resource_id: requestId,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: request.group_id,
       payload: {
         user_id: request.user_id,
@@ -303,13 +303,13 @@ export class GroupService {
       event_type: "member_added",
       resource_type: "user_group",
       resource_id: `${request.user_id}:${request.group_id}`,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: request.group_id,
       payload: { user_id: request.user_id, membership_request_id: requestId },
     });
     this.logger.log("Membership request approved, user added to group", {
       requestId,
-      actorId: identity.userId,
+      actorId: identity.actorId,
       userId: request.user_id,
       groupId: request.group_id,
     });
@@ -513,14 +513,14 @@ export class GroupService {
       event_type: "member_added",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { user_id: userId },
     });
     this.logger.log("User added to group", {
       userId,
       groupId,
-      actorId: identity.userId,
+      actorId: identity.actorId,
     });
   }
 
@@ -554,16 +554,17 @@ export class GroupService {
   /**
    * Removes the calling user from a group they are a member of.
    * Throws BadRequestException if the caller is not a member of the group.
-   * @param userId - The ID of the user leaving the group (from resolvedIdentity.userId).
+   * @param identity - Identity of the user making the request.
    * @param groupId - The ID of the group to leave.
    */
-  async leaveGroup(userId: string, groupId: string): Promise<void> {
+  async leaveGroup(identity: ResolvedIdentity, groupId: string): Promise<void> {
+    const userId = identity.userId!;
     await this.groupDb.deleteUserGroup(userId, groupId);
     await this.auditService.recordEvent({
       event_type: "user_left_group",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: userId,
+      actor_id: identity.actorId,
       group_id: groupId,
     });
     this.logger.log("User left group", { userId, groupId });
@@ -642,7 +643,7 @@ export class GroupService {
     role: GroupRole,
     identity: ResolvedIdentity,
   ): Promise<void> {
-    const group = await this.groupDb.findGroup(groupId);
+    const group = await this.groupDb.findActiveGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
@@ -660,7 +661,7 @@ export class GroupService {
       event_type: "member_role_updated",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { user_id: userId, new_role: role },
     });
@@ -668,7 +669,7 @@ export class GroupService {
       groupId,
       userId,
       role,
-      actorId: identity.userId,
+      actorId: identity.actorId,
     });
   }
 
@@ -703,14 +704,14 @@ export class GroupService {
       event_type: "member_removed",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { removed_user_id: userId },
     });
     this.logger.log("Member removed from group", {
       groupId,
       removedUserId: userId,
-      actorId: identity.userId,
+      actorId: identity.actorId,
     });
   }
 }

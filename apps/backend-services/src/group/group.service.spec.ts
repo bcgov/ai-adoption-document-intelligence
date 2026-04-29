@@ -943,7 +943,7 @@ describe("updateGroupMemberRole", () => {
   it("should update the target user's role", async () => {
     const updateUserGroupRole = jest.fn().mockResolvedValue(undefined);
     const groupDb = makeGroupDb({
-      findGroup: jest.fn().mockResolvedValue(mockGroup),
+      findActiveGroup: jest.fn().mockResolvedValue(mockGroup),
       findUserGroupMembership: jest.fn().mockResolvedValue(targetMembership),
       updateUserGroupRole,
     });
@@ -960,7 +960,7 @@ describe("updateGroupMemberRole", () => {
 
   it("should throw NotFoundException when group does not exist", async () => {
     const groupDb = makeGroupDb({
-      findGroup: jest.fn().mockResolvedValue(null),
+      findActiveGroup: jest.fn().mockResolvedValue(null),
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await expect(
@@ -972,7 +972,7 @@ describe("updateGroupMemberRole", () => {
 
   it("should throw NotFoundException when target user is not a member", async () => {
     const groupDb = makeGroupDb({
-      findGroup: jest.fn().mockResolvedValue(mockGroup),
+      findActiveGroup: jest.fn().mockResolvedValue(mockGroup),
       findUserGroupMembership: jest.fn().mockResolvedValue(null),
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
@@ -1063,8 +1063,13 @@ describe("leaveGroup", () => {
     const deleteUserGroup = jest.fn().mockResolvedValue(undefined);
     const groupDb = makeGroupDb({ deleteUserGroup });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.leaveGroup("user1", "group1");
-    expect(deleteUserGroup).toHaveBeenCalledWith("user1", "group1");
+    await svc.leaveGroup(
+      {
+        userId: "caller-id",
+      } as ResolvedIdentity,
+      "group1",
+    );
+    expect(deleteUserGroup).toHaveBeenCalledWith("caller-id", "group1");
   });
 });
 

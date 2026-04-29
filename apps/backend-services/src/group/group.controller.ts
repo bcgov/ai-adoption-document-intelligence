@@ -540,8 +540,8 @@ export class GroupController {
     @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<SuccessDto> {
-    const userId = requireUserId(req.resolvedIdentity);
-    await this.groupService.leaveGroup(userId, groupId);
+    requireUserId(req.resolvedIdentity);
+    await this.groupService.leaveGroup(req.resolvedIdentity, groupId);
     return { success: true };
   }
 }
