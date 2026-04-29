@@ -3,10 +3,16 @@ jest.mock("@/auth/identity.helpers", () => ({
 }));
 
 import { GroupRole } from "@generated/client";
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import * as identityHelpers from "@/auth/identity.helpers";
+import { ColumnDto } from "./dto/column.dto";
+import { LookupDto } from "./dto/lookup.dto";
 import {
   CreateTableDto,
   TableDetailDto,
@@ -26,6 +32,12 @@ describe("TablesController", () => {
     createTable: jest.fn(),
     updateTableMetadata: jest.fn(),
     deleteTable: jest.fn(),
+    addColumn: jest.fn(),
+    updateColumn: jest.fn(),
+    removeColumn: jest.fn(),
+    addLookup: jest.fn(),
+    updateLookup: jest.fn(),
+    removeLookup: jest.fn(),
   };
 
   const mockReq = {
@@ -259,6 +271,149 @@ describe("TablesController", () => {
         "u1",
         "group-1",
         "my_table",
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 9. addColumn — happy path
+  // -------------------------------------------------------------------------
+  describe("POST /api/tables/:tableId/columns (addColumn)", () => {
+    it("calls admin check and service.addColumn; returns mapped TableDetailDto", async () => {
+      const colBody: ColumnDto = {
+        key: "status",
+        label: "Status",
+        type: "string",
+      };
+      const updatedTable = {
+        ...baseTable,
+        columns: [colBody],
+        lookups: [],
+      };
+      mockTablesService.addColumn.mockResolvedValue(updatedTable);
+
+      const result: TableDetailDto = await controller.addColumn(
+        mockReq,
+        "my_table",
+        "group-1",
+        colBody,
+      );
+
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockReq.resolvedIdentity,
+        "group-1",
+        GroupRole.ADMIN,
+      );
+      expect(service.addColumn).toHaveBeenCalledWith(
+        "u1",
+        "group-1",
+        "my_table",
+        colBody,
+      );
+      expect(result.columns).toHaveLength(1);
+      expect(result.table_id).toBe("my_table");
+    });
+
+    // 10. addColumn — forbidden short-circuit
+    it("propagates ForbiddenException when not admin; service NOT called", async () => {
+      (
+        identityHelpers.identityCanAccessGroup as jest.Mock
+      ).mockImplementationOnce(() => {
+        throw new ForbiddenException();
+      });
+
+      const colBody: ColumnDto = { key: "col", label: "Col", type: "string" };
+
+      await expect(
+        controller.addColumn(mockReq, "my_table", "group-1", colBody),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(service.addColumn).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 11. removeColumn — 409 wrap
+  // -------------------------------------------------------------------------
+  describe("DELETE /api/tables/:tableId/columns/:columnKey (removeColumn)", () => {
+    it("propagates ConflictException when column is referenced by lookups", async () => {
+      mockTablesService.removeColumn.mockRejectedValue(
+        new ConflictException('column "k" is referenced by lookups: byK'),
+      );
+
+      await expect(
+        controller.removeColumn(mockReq, "my_table", "k", "group-1"),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(service.removeColumn).toHaveBeenCalledWith(
+        "u1",
+        "group-1",
+        "my_table",
+        "k",
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 12. addLookup — happy path
+  // -------------------------------------------------------------------------
+  describe("POST /api/tables/:tableId/lookups (addLookup)", () => {
+    it("calls admin check and service.addLookup with cast body; returns mapped TableDetailDto", async () => {
+      const lookupBody: LookupDto = {
+        name: "byStatus",
+        params: [],
+        filter: { field: "status", op: "eq", value: "active" },
+        pick: "all",
+      };
+      const updatedTable = {
+        ...baseTable,
+        columns: [],
+        lookups: [lookupBody],
+      };
+      mockTablesService.addLookup.mockResolvedValue(updatedTable);
+
+      const result: TableDetailDto = await controller.addLookup(
+        mockReq,
+        "my_table",
+        "group-1",
+        lookupBody,
+      );
+
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockReq.resolvedIdentity,
+        "group-1",
+        GroupRole.ADMIN,
+      );
+      expect(service.addLookup).toHaveBeenCalledWith(
+        "u1",
+        "group-1",
+        "my_table",
+        lookupBody,
+      );
+      expect(result.lookups).toHaveLength(1);
+      expect(result.table_id).toBe("my_table");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 13. removeLookup — happy path
+  // -------------------------------------------------------------------------
+  describe("DELETE /api/tables/:tableId/lookups/:lookupName (removeLookup)", () => {
+    it("calls admin check and service.removeLookup with correct args; returns void (204)", async () => {
+      mockTablesService.removeLookup.mockResolvedValue(baseTable);
+
+      await controller.removeLookup(mockReq, "my_table", "byStatus", "group-1");
+
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockReq.resolvedIdentity,
+        "group-1",
+        GroupRole.ADMIN,
+      );
+      expect(service.removeLookup).toHaveBeenCalledWith(
+        "u1",
+        "group-1",
+        "my_table",
+        "byStatus",
       );
     });
   });

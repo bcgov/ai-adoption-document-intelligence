@@ -17,6 +17,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -30,6 +31,8 @@ import {
 import type { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { ColumnDto } from "./dto/column.dto";
+import { LookupDto } from "./dto/lookup.dto";
 import {
   CreateTableDto,
   TableDetailDto,
@@ -37,6 +40,7 @@ import {
   UpdateTableMetadataDto,
 } from "./dto/table.dto";
 import { TablesService } from "./tables.service";
+import type { LookupDef } from "./types";
 
 @ApiTags("tables")
 @ApiBearerAuth()
@@ -182,5 +186,213 @@ export class TablesController {
     identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
     const actor_id = req.resolvedIdentity!.actorId;
     await this.svc.deleteTable(actor_id, group_id, tableId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Column subresource endpoints
+  // ---------------------------------------------------------------------------
+
+  @Post(":tableId/columns")
+  @HttpCode(HttpStatus.CREATED)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Add a column to a table (admin only)" })
+  @ApiParam({ name: "tableId", description: "Stable table identifier" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiBody({ type: ColumnDto })
+  @ApiCreatedResponse({ type: TableDetailDto })
+  @ApiForbiddenResponse({ description: "Admin role required" })
+  @ApiBadRequestResponse({ description: "Invalid column definition" })
+  @ApiConflictResponse({ description: "Column key already exists" })
+  async addColumn(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Query("group_id") group_id: string,
+    @Body() body: ColumnDto,
+  ): Promise<TableDetailDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
+    const actor_id = req.resolvedIdentity!.actorId;
+    const updated = await this.svc.addColumn(actor_id, group_id, tableId, body);
+    return {
+      id: updated.id,
+      group_id: updated.group_id,
+      table_id: updated.table_id,
+      label: updated.label,
+      description: updated.description,
+      columns: (updated.columns as unknown as unknown[]) ?? [],
+      lookups: (updated.lookups as unknown as unknown[]) ?? [],
+      updated_at: updated.updated_at,
+    };
+  }
+
+  @Patch(":tableId/columns/:columnKey")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Update a column definition (admin only)" })
+  @ApiParam({ name: "tableId", description: "Stable table identifier" })
+  @ApiParam({ name: "columnKey", description: "Column key to update" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiBody({ type: ColumnDto })
+  @ApiOkResponse({ type: TableDetailDto })
+  @ApiForbiddenResponse({ description: "Admin role required" })
+  @ApiBadRequestResponse({
+    description: "Invalid column definition or table not found",
+  })
+  @ApiConflictResponse({
+    description: "Column update conflicts with existing lookups",
+  })
+  async updateColumn(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Param("columnKey") columnKey: string,
+    @Query("group_id") group_id: string,
+    @Body() body: ColumnDto,
+  ): Promise<TableDetailDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
+    const actor_id = req.resolvedIdentity!.actorId;
+    const updated = await this.svc.updateColumn(
+      actor_id,
+      group_id,
+      tableId,
+      columnKey,
+      body,
+    );
+    return {
+      id: updated.id,
+      group_id: updated.group_id,
+      table_id: updated.table_id,
+      label: updated.label,
+      description: updated.description,
+      columns: (updated.columns as unknown as unknown[]) ?? [],
+      lookups: (updated.lookups as unknown as unknown[]) ?? [],
+      updated_at: updated.updated_at,
+    };
+  }
+
+  @Delete(":tableId/columns/:columnKey")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Remove a column from a table (admin only)" })
+  @ApiParam({ name: "tableId", description: "Stable table identifier" })
+  @ApiParam({ name: "columnKey", description: "Column key to remove" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiNoContentResponse({ description: "Column removed" })
+  @ApiForbiddenResponse({ description: "Admin role required" })
+  @ApiBadRequestResponse({ description: "Table not found" })
+  @ApiConflictResponse({ description: "Column referenced by lookups" })
+  async removeColumn(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Param("columnKey") columnKey: string,
+    @Query("group_id") group_id: string,
+  ): Promise<void> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
+    const actor_id = req.resolvedIdentity!.actorId;
+    await this.svc.removeColumn(actor_id, group_id, tableId, columnKey);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lookup subresource endpoints
+  // ---------------------------------------------------------------------------
+
+  @Post(":tableId/lookups")
+  @HttpCode(HttpStatus.CREATED)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Add a lookup to a table (admin only)" })
+  @ApiParam({ name: "tableId", description: "Stable table identifier" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiBody({ type: LookupDto })
+  @ApiCreatedResponse({ type: TableDetailDto })
+  @ApiForbiddenResponse({ description: "Admin role required" })
+  @ApiBadRequestResponse({ description: "Invalid lookup definition" })
+  @ApiConflictResponse({ description: "Lookup name already exists" })
+  async addLookup(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Query("group_id") group_id: string,
+    @Body() body: LookupDto,
+  ): Promise<TableDetailDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
+    const actor_id = req.resolvedIdentity!.actorId;
+    const updated = await this.svc.addLookup(
+      actor_id,
+      group_id,
+      tableId,
+      body as unknown as LookupDef,
+    );
+    return {
+      id: updated.id,
+      group_id: updated.group_id,
+      table_id: updated.table_id,
+      label: updated.label,
+      description: updated.description,
+      columns: (updated.columns as unknown as unknown[]) ?? [],
+      lookups: (updated.lookups as unknown as unknown[]) ?? [],
+      updated_at: updated.updated_at,
+    };
+  }
+
+  @Patch(":tableId/lookups/:lookupName")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Update a lookup definition (admin only)" })
+  @ApiParam({ name: "tableId", description: "Stable table identifier" })
+  @ApiParam({ name: "lookupName", description: "Lookup name to update" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiBody({ type: LookupDto })
+  @ApiOkResponse({ type: TableDetailDto })
+  @ApiForbiddenResponse({ description: "Admin role required" })
+  @ApiBadRequestResponse({
+    description: "Invalid lookup definition or table not found",
+  })
+  @ApiConflictResponse({
+    description: "Lookup update conflicts with existing definitions",
+  })
+  async updateLookup(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Param("lookupName") lookupName: string,
+    @Query("group_id") group_id: string,
+    @Body() body: LookupDto,
+  ): Promise<TableDetailDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
+    const actor_id = req.resolvedIdentity!.actorId;
+    const updated = await this.svc.updateLookup(
+      actor_id,
+      group_id,
+      tableId,
+      lookupName,
+      body as unknown as LookupDef,
+    );
+    return {
+      id: updated.id,
+      group_id: updated.group_id,
+      table_id: updated.table_id,
+      label: updated.label,
+      description: updated.description,
+      columns: (updated.columns as unknown as unknown[]) ?? [],
+      lookups: (updated.lookups as unknown as unknown[]) ?? [],
+      updated_at: updated.updated_at,
+    };
+  }
+
+  @Delete(":tableId/lookups/:lookupName")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Remove a lookup from a table (admin only)" })
+  @ApiParam({ name: "tableId", description: "Stable table identifier" })
+  @ApiParam({ name: "lookupName", description: "Lookup name to remove" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiNoContentResponse({ description: "Lookup removed" })
+  @ApiForbiddenResponse({ description: "Admin role required" })
+  @ApiConflictResponse({
+    description: "Lookup removal conflicts with existing definitions",
+  })
+  async removeLookup(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Param("lookupName") lookupName: string,
+    @Query("group_id") group_id: string,
+  ): Promise<void> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
+    const actor_id = req.resolvedIdentity!.actorId;
+    await this.svc.removeLookup(actor_id, group_id, tableId, lookupName);
   }
 }
