@@ -53,7 +53,7 @@ export class UploadClassifierDocumentsDto {
     description: `Label name. The following labels are reserved and cannot be used: ${RESERVED_CLASSIFIER_LABELS.join(", ")}.`,
   })
   @Transform(({ value }: { value: string }) =>
-    typeof value === "string" ? value.toLowerCase() : value,
+    typeof value === "string" ? value.toLowerCase().trim() : value,
   )
   @IsString()
   @IsNotIn([...RESERVED_CLASSIFIER_LABELS], {
