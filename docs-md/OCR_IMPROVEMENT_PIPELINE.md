@@ -118,12 +118,12 @@ Returns `{ entries: PipelineLogEntry[] }` where each entry has `step`, `timestam
 - **Location:** Benchmarking -> Project -> Definition detail. The **OCR improvement pipeline** card has a **Generate candidate workflow** button.
 - **Flow:**
   1. Click **Generate candidate workflow**. On success (`candidate_created`), the candidate workflow version is created and linked to a new lineage.
-  2. Open the candidate in the **workflow editor** to review the AI-suggested correction nodes. Adjust parameters or structure as needed.
-  3. From the definition page, create a **benchmark definition** targeting the candidate workflow version and **start a run**. The run compares the candidate against the baseline metrics.
+  2. Optionally open the candidate in the **workflow editor** to review or tweak the AI-suggested correction nodes.
+  3. On the same definition page, click **Start benchmark with this candidate** (shown under the pipeline result). That starts a run with `candidateWorkflowVersionId` set to the version you just generated. **Persist OCR cache** and **Use cached OCR from** (same row as **Start Run**) apply to this button too; when a cache source is selected, only `ocrCacheBaselineRunId` is sent (not `persistOcrCache: true`), matching the API mutual-exclusion rule.
   4. Review metrics on the **run detail** page. Use **Evaluation Details** for per-sample inspection.
   5. If the candidate improves results, click **Apply candidate to base** on the run detail page to promote it.
 - **Apply candidate to base:** On the **benchmark run detail** page, when the run **`status` is `completed`** and the run’s definition workflow is a **`benchmark_candidate`** lineage, the UI shows **Apply candidate to base workflow** with an optional **Clean up candidate artifacts** checkbox. That calls `POST /api/benchmark/projects/:projectId/apply-candidate-to-base` with `candidateWorkflowVersionId` and `cleanupCandidateArtifacts`. The backend creates a new `WorkflowVersion` on the base `WorkflowLineage` and updates the lineage head. When `cleanupCandidateArtifacts` is `true`, the candidate lineage, its versions, and any definitions/runs pointing to them are deleted. No baseline metric gate -- only completion and a `benchmark_candidate` workflow are required.
-- **Start run with candidate (override):** The **Start run** API supports optional **`candidateWorkflowVersionId`** in the body for re-running a persisted candidate workflow without re-running the full pipeline.
+- **Start run with candidate (override):** The definition page button above, or the **Start run** API with optional **`candidateWorkflowVersionId`**, runs the benchmark using that `workflow_version` row’s config without changing the definition’s pinned workflow.
 
 ## Related
 
