@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
+import { ColumnsTab } from "../components/ColumnsTab";
 import { RowForm } from "../components/RowForm";
 import { RowsTab } from "../components/RowsTab";
 import { useTable } from "../hooks/useTable";
@@ -120,9 +121,13 @@ export function TableDetailPage() {
           )}
         </Tabs.Panel>
         <Tabs.Panel value="columns" pt="md">
-          <Text c="dimmed" fs="italic">
-            Columns tab — implemented in Task 26.
-          </Text>
+          {groupId && tableId && (
+            <ColumnsTab
+              groupId={groupId}
+              tableId={tableId}
+              columns={table.data.columns}
+            />
+          )}
         </Tabs.Panel>
         <Tabs.Panel value="lookups" pt="md">
           <Text c="dimmed" fs="italic">
