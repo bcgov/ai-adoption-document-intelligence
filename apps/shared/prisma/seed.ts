@@ -520,7 +520,7 @@ async function seedBenchmarkingData() {
         id: lineageId,
         name,
         description: description ?? null,
-        user_id: "test-user",
+        actor_id: SEED_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },
     });
