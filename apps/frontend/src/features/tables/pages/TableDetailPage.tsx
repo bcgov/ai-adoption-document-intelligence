@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
+import { RowsTab } from "../components/RowsTab";
 import { useTable } from "../hooks/useTable";
 
 export function TableDetailPage() {
@@ -98,9 +99,19 @@ export function TableDetailPage() {
           <Tabs.Tab value="settings">Settings</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="rows" pt="md">
-          <Text c="dimmed" fs="italic">
-            Rows tab — implemented in Task 24.
-          </Text>
+          {groupId && tableId && (
+            <RowsTab
+              groupId={groupId}
+              tableId={tableId}
+              columns={table.data.columns}
+              onCreate={() => {
+                /* Task 25: open create modal */
+              }}
+              onEdit={(_row) => {
+                /* Task 25: open edit modal */
+              }}
+            />
+          )}
         </Tabs.Panel>
         <Tabs.Panel value="columns" pt="md">
           <Text c="dimmed" fs="italic">
