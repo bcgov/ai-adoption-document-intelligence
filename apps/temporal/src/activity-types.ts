@@ -36,6 +36,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "ocr.characterConfusion",
   "ocr.normalizeFields",
   "data.transform",
+  "tables.lookup",
 ] as const;
 
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];

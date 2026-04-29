@@ -65,6 +65,11 @@ export { splitAndClassifyDocument } from "./activities/split-and-classify-docume
 export { splitDocument } from "./activities/split-document";
 export { storeDocumentRejection } from "./activities/store-document-rejection";
 export { submitToAzureOCR } from "./activities/submit-to-azure-ocr";
+export type {
+  TablesLookupInput,
+  TablesLookupOutput,
+} from "./activities/tables-lookup";
+export { tablesLookup } from "./activities/tables-lookup";
 export { updateDocumentStatus } from "./activities/update-document-status";
 export { upsertOcrResult } from "./activities/upsert-ocr-result";
 // AI recommendation types (used by workflow-modification + benchmarks; LLM call lives in Nest AiRecommendationService)

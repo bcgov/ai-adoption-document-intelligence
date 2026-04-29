@@ -24,13 +24,14 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.characterConfusion",
   "ocr.normalizeFields",
   "data.transform",
+  "tables.lookup",
 ];
 
 describe("activity-registry (backend)", () => {
   describe("REGISTERED_ACTIVITY_TYPES", () => {
-    it("contains all 19 expected activity types", () => {
+    it("contains all 20 expected activity types", () => {
       const keys = Object.keys(REGISTERED_ACTIVITY_TYPES);
-      expect(keys).toHaveLength(19);
+      expect(keys).toHaveLength(20);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(activityType in REGISTERED_ACTIVITY_TYPES).toBe(true);
       }
@@ -61,9 +62,9 @@ describe("activity-registry (backend)", () => {
   });
 
   describe("getRegisteredActivityTypeKeys", () => {
-    it("returns all 19 activity type strings", () => {
+    it("returns all 20 activity type strings", () => {
       const keys = getRegisteredActivityTypeKeys();
-      expect(keys).toHaveLength(19);
+      expect(keys).toHaveLength(20);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(keys).toContain(activityType);
       }
