@@ -15,8 +15,10 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
+import { RowForm } from "../components/RowForm";
 import { RowsTab } from "../components/RowsTab";
 import { useTable } from "../hooks/useTable";
+import type { TableRow } from "../types";
 
 export function TableDetailPage() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -26,6 +28,8 @@ export function TableDetailPage() {
   const qc = useQueryClient();
   const table = useTable(groupId, tableId ?? null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingRow, setEditingRow] = useState<TableRow | undefined>(undefined);
+  const [rowFormOpen, setRowFormOpen] = useState(false);
 
   const updateMeta = useMutation({
     mutationFn: async (patch: {
@@ -105,10 +109,12 @@ export function TableDetailPage() {
               tableId={tableId}
               columns={table.data.columns}
               onCreate={() => {
-                /* Task 25: open create modal */
+                setEditingRow(undefined);
+                setRowFormOpen(true);
               }}
-              onEdit={(_row) => {
-                /* Task 25: open edit modal */
+              onEdit={(row) => {
+                setEditingRow(row);
+                setRowFormOpen(true);
               }}
             />
           )}
@@ -190,6 +196,16 @@ export function TableDetailPage() {
           </Modal>
         </Tabs.Panel>
       </Tabs>
+      {groupId && tableId && (
+        <RowForm
+          opened={rowFormOpen}
+          onClose={() => setRowFormOpen(false)}
+          groupId={groupId}
+          tableId={tableId}
+          columns={table.data.columns}
+          existing={editingRow}
+        />
+      )}
     </Container>
   );
 }
