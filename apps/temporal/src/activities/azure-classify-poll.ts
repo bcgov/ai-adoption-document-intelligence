@@ -3,6 +3,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { ApplicationFailure } from "@temporalio/workflow";
 import { createActivityLogger } from "../logger";
 import type { AzureClassifySubmitOutput } from "./azure-classify-submit";
 
@@ -131,10 +132,11 @@ export async function azureClassifyPoll(
     if (status === "failed") {
       // Non-retryable — propagate the failure details
       const detail = body.error?.message ?? "unknown error";
-      throw Object.assign(
-        new Error(`Azure classifier analysis failed: ${detail}`),
-        { nonRetryable: true },
-      );
+      throw ApplicationFailure.create({
+        message: `Azure classifier analysis failed: ${detail}`,
+        nonRetryable: true,
+        details: [detail],
+      });
     }
 
     if (status !== "succeeded") {
@@ -156,7 +158,7 @@ export async function azureClassifyPoll(
     const labeledDocuments: Record<string, ClassifiedDocument[]> = {};
 
     for (const doc of documents) {
-      const pageNumbers = doc.boundingRegions
+      const pageNumbers = (doc.boundingRegions ?? [])
         .map((r) => r.pageNumber)
         .sort((a, b) => a - b);
 
