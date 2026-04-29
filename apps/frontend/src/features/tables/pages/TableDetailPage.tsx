@@ -16,10 +16,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 import { ColumnsTab } from "../components/ColumnsTab";
+import { LookupSnippetPanel } from "../components/LookupSnippetPanel";
+import { LookupsTab } from "../components/LookupsTab";
 import { RowForm } from "../components/RowForm";
 import { RowsTab } from "../components/RowsTab";
 import { useTable } from "../hooks/useTable";
-import type { TableRow } from "../types";
+import type { LookupDef, TableRow } from "../types";
 
 export function TableDetailPage() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -31,6 +33,7 @@ export function TableDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingRow, setEditingRow] = useState<TableRow | undefined>(undefined);
   const [rowFormOpen, setRowFormOpen] = useState(false);
+  const [snippetLookup, setSnippetLookup] = useState<LookupDef | null>(null);
 
   const updateMeta = useMutation({
     mutationFn: async (patch: {
@@ -130,9 +133,15 @@ export function TableDetailPage() {
           )}
         </Tabs.Panel>
         <Tabs.Panel value="lookups" pt="md">
-          <Text c="dimmed" fs="italic">
-            Lookups tab — implemented in Task 28.
-          </Text>
+          {groupId && tableId && (
+            <LookupsTab
+              groupId={groupId}
+              tableId={tableId}
+              columns={table.data.columns}
+              lookups={table.data.lookups}
+              onShowSnippet={setSnippetLookup}
+            />
+          )}
         </Tabs.Panel>
         <Tabs.Panel value="settings" pt="md">
           <Stack maw={500}>
@@ -209,6 +218,14 @@ export function TableDetailPage() {
           tableId={tableId}
           columns={table.data.columns}
           existing={editingRow}
+        />
+      )}
+      {tableId && (
+        <LookupSnippetPanel
+          opened={!!snippetLookup}
+          onClose={() => setSnippetLookup(null)}
+          tableId={tableId}
+          lookup={snippetLookup}
         />
       )}
     </Container>
