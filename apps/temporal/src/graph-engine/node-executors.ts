@@ -153,10 +153,22 @@ async function executeActivityNode(
   }
 
   // Step 3: Merge static parameters with resolved inputs; inject requestId for tracing
+  const metadata = state.ctx.__workflowMetadata as
+    | { groupId?: string | null }
+    | undefined;
+  const injectedGroupId = metadata?.groupId;
+
   let activityParams: Record<string, unknown> = {
     ...inputs,
     ...node.parameters,
     ...(state.requestId && { requestId: state.requestId }),
+    // Inject groupId from workflow metadata only when the node hasn't declared it
+    // via port binding or static parameters, and metadata has a non-null value.
+    ...(injectedGroupId != null &&
+      !("groupId" in inputs) &&
+      !("groupId" in (node.parameters ?? {})) && {
+        groupId: injectedGroupId,
+      }),
   };
   activityParams = mergeBenchmarkOcrCacheParams(
     node.activityType,

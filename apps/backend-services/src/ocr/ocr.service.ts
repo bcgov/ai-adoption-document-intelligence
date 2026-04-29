@@ -106,6 +106,7 @@ export class OcrService {
           documentId,
           workflowConfigId,
           initialCtx,
+          document.group_id,
           graphOverride,
         );
 

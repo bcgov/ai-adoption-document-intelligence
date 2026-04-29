@@ -134,7 +134,13 @@ describe("OcrService", () => {
       const result = await service.requestOcr("0000");
       expect(result.status).toEqual(DocumentStatus.ongoing_ocr);
       expect(result.workflowId).toEqual("workflow-123");
-      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalled();
+      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalledWith(
+        "0000",
+        expect.any(String),
+        expect.any(Object),
+        defaultDocument.group_id,
+        undefined,
+      );
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {
