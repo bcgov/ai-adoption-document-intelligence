@@ -13,6 +13,7 @@ import { Request } from "express";
 import * as identityHelpers from "@/auth/identity.helpers";
 import { ColumnDto } from "./dto/column.dto";
 import { LookupDto } from "./dto/lookup.dto";
+import { RowDto, RowListDto } from "./dto/row.dto";
 import {
   CreateTableDto,
   TableDetailDto,
@@ -38,6 +39,11 @@ describe("TablesController", () => {
     addLookup: jest.fn(),
     updateLookup: jest.fn(),
     removeLookup: jest.fn(),
+    listRows: jest.fn(),
+    getRow: jest.fn(),
+    createRow: jest.fn(),
+    updateRow: jest.fn(),
+    deleteRow: jest.fn(),
   };
 
   const mockReq = {
@@ -414,6 +420,128 @@ describe("TablesController", () => {
         "group-1",
         "my_table",
         "byStatus",
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 14. listRows — happy path with pagination conversion
+  // -------------------------------------------------------------------------
+  describe("GET /api/tables/:tableId/rows (listRows)", () => {
+    it("returns RowListDto with mapped rows; converts offset/limit strings to numbers", async () => {
+      const now = new Date("2025-06-01T00:00:00Z");
+      const dbRows = [
+        {
+          id: "row-1",
+          group_id: "group-1",
+          table_id: "tbl-uuid",
+          data: { col1: "a" },
+          updated_at: now,
+        },
+        {
+          id: "row-2",
+          group_id: "group-1",
+          table_id: "tbl-uuid",
+          data: { col1: "b" },
+          updated_at: now,
+        },
+      ];
+      mockTablesService.listRows.mockResolvedValue({ rows: dbRows, total: 2 });
+
+      const result: RowListDto = await controller.listRows(
+        mockReq,
+        "my_table",
+        "group-1",
+        "5",
+        "20",
+      );
+
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockReq.resolvedIdentity,
+        "group-1",
+      );
+      expect(service.listRows).toHaveBeenCalledWith("group-1", "my_table", {
+        offset: 5,
+        limit: 20,
+      });
+      expect(result.total).toBe(2);
+      expect(result.rows).toHaveLength(2);
+      const row = result.rows[0] as RowDto;
+      expect(row.id).toBe("row-1");
+      expect(row.data).toEqual({ col1: "a" });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 15. createRow — happy path
+  // -------------------------------------------------------------------------
+  describe("POST /api/tables/:tableId/rows (createRow)", () => {
+    it("calls identityCanAccessGroup (MEMBER) and service.createRow with actor_id; returns mapped RowDto", async () => {
+      const now = new Date("2025-06-01T00:00:00Z");
+      const dbRow = {
+        id: "row-new",
+        group_id: "group-1",
+        table_id: "tbl-uuid",
+        data: { status: "active" },
+        updated_at: now,
+      };
+      mockTablesService.createRow.mockResolvedValue(dbRow);
+
+      const result: RowDto = await controller.createRow(
+        mockReq,
+        "my_table",
+        "group-1",
+        { data: { status: "active" } },
+      );
+
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockReq.resolvedIdentity,
+        "group-1",
+      );
+      expect(service.createRow).toHaveBeenCalledWith(
+        "u1",
+        "group-1",
+        "my_table",
+        { status: "active" },
+      );
+      expect(result.id).toBe("row-new");
+      expect(result.data).toEqual({ status: "active" });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 16. updateRow — 409 propagation
+  // -------------------------------------------------------------------------
+  describe("PATCH /api/tables/:tableId/rows/:rowId (updateRow)", () => {
+    it("propagates ConflictException (409) when service rejects with stale expected_updated_at", async () => {
+      mockTablesService.updateRow.mockRejectedValue(
+        new ConflictException("stale expected_updated_at"),
+      );
+
+      await expect(
+        controller.updateRow(mockReq, "my_table", "row-1", "group-1", {
+          data: { status: "inactive" },
+          expected_updated_at: new Date("2025-01-01T00:00:00Z"),
+        }),
+      ).rejects.toMatchObject({ status: 409 });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 17. getRow — 404 when service returns null
+  // -------------------------------------------------------------------------
+  describe("GET /api/tables/:tableId/rows/:rowId (getRow)", () => {
+    it("throws NotFoundException when service returns null", async () => {
+      mockTablesService.getRow.mockResolvedValue(null);
+
+      await expect(
+        controller.getRow(mockReq, "my_table", "missing-row", "group-1"),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(service.getRow).toHaveBeenCalledWith(
+        "group-1",
+        "my_table",
+        "missing-row",
       );
     });
   });

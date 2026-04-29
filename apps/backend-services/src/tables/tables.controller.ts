@@ -33,6 +33,7 @@ import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { ColumnDto } from "./dto/column.dto";
 import { LookupDto } from "./dto/lookup.dto";
+import { CreateRowDto, RowDto, RowListDto, UpdateRowDto } from "./dto/row.dto";
 import {
   CreateTableDto,
   TableDetailDto,
@@ -394,5 +395,153 @@ export class TablesController {
     identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
     const actor_id = req.resolvedIdentity!.actorId;
     await this.svc.removeLookup(actor_id, group_id, tableId, lookupName);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rows
+  // ---------------------------------------------------------------------------
+
+  @Get(":tableId/rows")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "List rows in a table (paginated)" })
+  @ApiParam({ name: "tableId" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiQuery({ name: "offset", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiOkResponse({ type: RowListDto })
+  @ApiForbiddenResponse({ description: "Access denied" })
+  async listRows(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Query("group_id") group_id: string,
+    @Query("offset") offset = "0",
+    @Query("limit") limit = "50",
+  ): Promise<RowListDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const { rows, total } = await this.svc.listRows(group_id, tableId, {
+      offset: Number(offset),
+      limit: Number(limit),
+    });
+    return {
+      rows: rows.map((r) => ({
+        id: r.id,
+        group_id: r.group_id,
+        table_id: r.table_id,
+        data: r.data as unknown as Record<string, unknown>,
+        updated_at: r.updated_at,
+      })),
+      total,
+    };
+  }
+
+  @Get(":tableId/rows/:rowId")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Get a single row" })
+  @ApiParam({ name: "tableId" })
+  @ApiParam({ name: "rowId" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiOkResponse({ type: RowDto })
+  @ApiForbiddenResponse({ description: "Access denied" })
+  @ApiNotFoundResponse({ description: "Row not found" })
+  async getRow(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Param("rowId") rowId: string,
+    @Query("group_id") group_id: string,
+  ): Promise<RowDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const r = await this.svc.getRow(group_id, tableId, rowId);
+    if (!r) throw new NotFoundException("Row not found");
+    return {
+      id: r.id,
+      group_id: r.group_id,
+      table_id: r.table_id,
+      data: r.data as unknown as Record<string, unknown>,
+      updated_at: r.updated_at,
+    };
+  }
+
+  @Post(":tableId/rows")
+  @HttpCode(HttpStatus.CREATED)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Create a row" })
+  @ApiParam({ name: "tableId" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiBody({ type: CreateRowDto })
+  @ApiCreatedResponse({ type: RowDto })
+  @ApiForbiddenResponse({ description: "Access denied" })
+  @ApiBadRequestResponse({ description: "Row data violates column schema" })
+  async createRow(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Query("group_id") group_id: string,
+    @Body() body: CreateRowDto,
+  ): Promise<RowDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const actor_id = req.resolvedIdentity!.actorId;
+    const r = await this.svc.createRow(actor_id, group_id, tableId, body.data);
+    return {
+      id: r.id,
+      group_id: r.group_id,
+      table_id: r.table_id,
+      data: r.data as unknown as Record<string, unknown>,
+      updated_at: r.updated_at,
+    };
+  }
+
+  @Patch(":tableId/rows/:rowId")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Update a row with optimistic locking" })
+  @ApiParam({ name: "tableId" })
+  @ApiParam({ name: "rowId" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiBody({ type: UpdateRowDto })
+  @ApiOkResponse({ type: RowDto })
+  @ApiForbiddenResponse({ description: "Access denied" })
+  @ApiBadRequestResponse({ description: "Row data violates column schema" })
+  @ApiConflictResponse({
+    description:
+      "Stale expected_updated_at — row was modified by another writer",
+  })
+  async updateRow(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Param("rowId") rowId: string,
+    @Query("group_id") group_id: string,
+    @Body() body: UpdateRowDto,
+  ): Promise<RowDto> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const actor_id = req.resolvedIdentity!.actorId;
+    const r = await this.svc.updateRow(actor_id, group_id, tableId, rowId, {
+      data: body.data,
+      expected_updated_at: new Date(body.expected_updated_at),
+    });
+    return {
+      id: r.id,
+      group_id: r.group_id,
+      table_id: r.table_id,
+      data: r.data as unknown as Record<string, unknown>,
+      updated_at: r.updated_at,
+    };
+  }
+
+  @Delete(":tableId/rows/:rowId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Delete a row" })
+  @ApiParam({ name: "tableId" })
+  @ApiParam({ name: "rowId" })
+  @ApiQuery({ name: "group_id", required: true, type: String })
+  @ApiNoContentResponse({ description: "Row deleted (or did not exist)" })
+  @ApiForbiddenResponse({ description: "Access denied" })
+  async deleteRow(
+    @Req() req: Request,
+    @Param("tableId") tableId: string,
+    @Param("rowId") rowId: string,
+    @Query("group_id") group_id: string,
+  ): Promise<void> {
+    identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const actor_id = req.resolvedIdentity!.actorId;
+    await this.svc.deleteRow(actor_id, group_id, tableId, rowId);
   }
 }
