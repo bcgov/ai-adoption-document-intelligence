@@ -31,6 +31,24 @@ function makeTable(
   } as unknown;
 }
 
+function makeRow(
+  overrides: {
+    id?: string;
+    group_id?: string;
+    table_id?: string;
+    data?: Record<string, unknown>;
+  } = {},
+) {
+  return {
+    id: overrides.id ?? "row1",
+    group_id: overrides.group_id ?? "g",
+    table_id: overrides.table_id ?? "t",
+    data: (overrides.data ?? {}) as unknown,
+    created_at: new Date("2025-01-15T09:00:00Z"),
+    updated_at: new Date("2025-01-15T09:00:00Z"),
+  } as unknown;
+}
+
 describe("TablesService", () => {
   let svc: TablesService;
   let db: jest.Mocked<TablesDbService>;
@@ -66,10 +84,10 @@ describe("TablesService", () => {
     svc = moduleRef.get(TablesService);
   });
 
-  // Test 1: createTable records audit with correct shape
+  // Test 1: createTable records audit with correct shape (resource_id is UUID from db, not slug)
   it("createTable records audit with event_type tables.created and resource_type table", async () => {
     const created = makeTable({
-      id: "new-tbl",
+      id: "new-tbl-uuid",
       table_id: "my-table",
       group_id: "grp1",
     });
@@ -87,7 +105,7 @@ describe("TablesService", () => {
       expect.objectContaining({
         event_type: "tables.created",
         resource_type: "table",
-        resource_id: "my-table",
+        resource_id: "new-tbl-uuid",
         actor_id: "user1",
         group_id: "grp1",
       }),
@@ -168,7 +186,7 @@ describe("TablesService", () => {
 
   // Test 6: removeLookup records audit and does NOT call db.findTable (no validation)
   it("removeLookup records audit and does not call db.findTable", async () => {
-    const updated = makeTable();
+    const updated = makeTable({ id: "tbl-uuid" });
     db.removeLookup.mockResolvedValueOnce(updated as never);
 
     await svc.removeLookup("user1", "g", "t", "byName");
@@ -178,8 +196,10 @@ describe("TablesService", () => {
       expect.objectContaining({
         event_type: "tables.lookup.removed",
         resource_type: "table",
+        resource_id: "tbl-uuid",
         actor_id: "user1",
         group_id: "g",
+        payload: { lookup_name: "byName" },
       }),
     );
     expect(db.findTable).not.toHaveBeenCalled();
@@ -215,5 +235,132 @@ describe("TablesService", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(db.addLookup).not.toHaveBeenCalled();
+  });
+
+  // Test 9: updateTableMetadata happy path — db called with correct args, audit uses UUID resource_id
+  it("updateTableMetadata calls db.updateTableMetadata and records audit with UUID resource_id", async () => {
+    const updated = makeTable({ id: "tbl-uuid", table_id: "t", group_id: "g" });
+    db.updateTableMetadata.mockResolvedValueOnce(updated as never);
+
+    const patch = { label: "New Label" };
+    await svc.updateTableMetadata("user1", "g", "t", patch);
+
+    expect(db.updateTableMetadata).toHaveBeenCalledWith("g", "t", patch);
+    expect(audit.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "tables.updated",
+        resource_type: "table",
+        resource_id: "tbl-uuid",
+        payload: patch,
+      }),
+    );
+  });
+
+  // Test 10: addLookup happy path — db called, audit uses UUID resource_id
+  it("addLookup calls db.addLookup and records audit with UUID resource_id", async () => {
+    const col: ColumnDef = { key: "k", label: "K", type: "string" };
+    const tableWithCol = makeTable({ id: "tbl-uuid", columns: [col] });
+    db.findTable.mockResolvedValueOnce(tableWithCol as never);
+    const updatedTable = makeTable({ id: "tbl-uuid", columns: [col] });
+    db.addLookup.mockResolvedValueOnce(updatedTable as never);
+
+    const lookup: LookupDef = {
+      name: "byK",
+      params: [{ name: "p", type: "string" }],
+      filter: {
+        operator: "equals",
+        left: { ref: "param.p" },
+        right: { ref: "row.k" },
+      },
+      pick: "one",
+    };
+    await svc.addLookup("user1", "g", "t", lookup);
+
+    expect(db.addLookup).toHaveBeenCalledWith("g", "t", lookup);
+    expect(audit.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "tables.lookup.added",
+        resource_type: "table",
+        resource_id: "tbl-uuid",
+        payload: { lookup },
+      }),
+    );
+  });
+
+  // Test 11: updateColumn happy path — audit uses column_key in payload
+  it("updateColumn calls db.updateColumn and records audit with column_key payload key", async () => {
+    const before: ColumnDef = {
+      key: "name",
+      label: "Old Name",
+      type: "string",
+    };
+    const next: ColumnDef = { key: "name", label: "New Name", type: "string" };
+    const tableWithCol = makeTable({ id: "tbl-uuid", columns: [before] });
+    db.findTable.mockResolvedValueOnce(tableWithCol as never);
+    const updatedTable = makeTable({ id: "tbl-uuid", columns: [next] });
+    db.updateColumn.mockResolvedValueOnce(updatedTable as never);
+
+    await svc.updateColumn("user1", "g", "t", "name", next);
+
+    expect(db.updateColumn).toHaveBeenCalledWith("g", "t", "name", next);
+    expect(audit.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "tables.column.updated",
+        resource_type: "table",
+        resource_id: "tbl-uuid",
+        payload: { column_key: "name", before, after: next },
+      }),
+    );
+  });
+
+  // Test 12: createRow happy path — audit uses resource_type table_row, row UUID as resource_id, table_id in payload
+  it("createRow calls db.createRow and records audit with resource_type table_row and table_id in payload", async () => {
+    const col: ColumnDef = { key: "name", label: "Name", type: "string" };
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: [col] }) as never);
+    const row = makeRow({
+      id: "row-uuid",
+      table_id: "t",
+      data: { name: "Alice" },
+    });
+    db.createRow.mockResolvedValueOnce(row as never);
+
+    await svc.createRow("user1", "g", "t", { name: "Alice" });
+
+    expect(db.createRow).toHaveBeenCalledWith("g", "t", { name: "Alice" });
+    expect(audit.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "tables.row.created",
+        resource_type: "table_row",
+        resource_id: "row-uuid",
+        payload: expect.objectContaining({
+          table_id: "t",
+          after: { name: "Alice" },
+        }),
+      }),
+    );
+  });
+
+  // Test 13: deleteRow happy path — audit uses resource_type table_row, row UUID as resource_id, table_id + before.data in payload
+  it("deleteRow calls db.findRow then db.deleteRow and records audit with resource_type table_row", async () => {
+    const existing = makeRow({
+      id: "row-uuid",
+      table_id: "t",
+      data: { name: "Alice" },
+    });
+    db.findRow.mockResolvedValueOnce(existing as never);
+    db.deleteRow.mockResolvedValueOnce(undefined as never);
+
+    await svc.deleteRow("user1", "g", "t", "row-uuid");
+
+    expect(db.findRow).toHaveBeenCalledWith("g", "t", "row-uuid");
+    expect(db.deleteRow).toHaveBeenCalledWith("g", "t", "row-uuid");
+    expect(audit.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "tables.row.deleted",
+        resource_type: "table_row",
+        resource_id: "row-uuid",
+        payload: { table_id: "t", before: { name: "Alice" } },
+      }),
+    );
   });
 });

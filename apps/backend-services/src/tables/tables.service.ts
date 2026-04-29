@@ -32,7 +32,7 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.created",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
       payload: { label, description },
@@ -58,10 +58,10 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.updated",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
-      payload: { patch },
+      payload: patch,
     });
     return result;
   }
@@ -73,7 +73,7 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.deleted",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: existing.id,
       actor_id,
       group_id,
       payload: { label: existing.label },
@@ -106,7 +106,7 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.column.added",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
       payload: { column: col },
@@ -142,10 +142,10 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.column.updated",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
-      payload: { key, before, after: next },
+      payload: { column_key: key, before, after: next },
     });
     return result;
   }
@@ -171,10 +171,10 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.column.removed",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
-      payload: { key },
+      payload: { column_key: key },
     });
     return result;
   }
@@ -204,7 +204,7 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.lookup.added",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
       payload: { lookup },
@@ -224,7 +224,6 @@ export class TablesService {
 
     const existingCols = t.columns as unknown as ColumnDef[];
     const existingLookups = t.lookups as unknown as LookupDef[];
-    const before = existingLookups.find((l) => l.name === name);
     const proposed = existingLookups.map((l) => (l.name === name ? next : l));
 
     try {
@@ -239,14 +238,16 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.lookup.updated",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
-      payload: { name, before, after: next },
+      payload: { lookup_name: name, after: next },
     });
     return result;
   }
 
+  // removeLookup is unconditionally safe: filtering an absent name is a no-op,
+  // so no findTable read or validation is required.
   async removeLookup(
     actor_id: string,
     group_id: string,
@@ -257,10 +258,10 @@ export class TablesService {
     await this.audit.recordEvent({
       event_type: "tables.lookup.removed",
       resource_type: "table",
-      resource_id: table_id,
+      resource_id: result.id,
       actor_id,
       group_id,
-      payload: { name },
+      payload: { lookup_name: name },
     });
     return result;
   }
@@ -279,16 +280,16 @@ export class TablesService {
     // Let ZodError propagate — Nest's global filter handles it, or caller wraps it
     const parsed = schema.parse(data) as Record<string, unknown>;
 
-    const result = await this.db.createRow(group_id, table_id, parsed);
+    const row = await this.db.createRow(group_id, table_id, parsed);
     await this.audit.recordEvent({
       event_type: "tables.row.created",
-      resource_type: "table",
-      resource_id: table_id,
+      resource_type: "table_row",
+      resource_id: row.id,
       actor_id,
       group_id,
-      payload: { after: parsed },
+      payload: { table_id, after: parsed },
     });
-    return result;
+    return row;
   }
 
   async listRows(
@@ -319,30 +320,25 @@ export class TablesService {
 
     const before = await this.db.findRow(group_id, table_id, id);
 
-    const result = await this.db
-      .updateRow(group_id, table_id, id, {
+    let row: Awaited<ReturnType<typeof this.db.updateRow>>;
+    try {
+      row = await this.db.updateRow(group_id, table_id, id, {
         data: parsed,
         expected_updated_at: input.expected_updated_at,
-      })
-      .catch((err: unknown) => {
-        throw new ConflictException(
-          err instanceof Error ? err.message : "row update conflict",
-        );
       });
+    } catch (e) {
+      throw new ConflictException((e as Error).message);
+    }
 
     await this.audit.recordEvent({
       event_type: "tables.row.updated",
-      resource_type: "table",
-      resource_id: table_id,
+      resource_type: "table_row",
+      resource_id: row.id,
       actor_id,
       group_id,
-      payload: {
-        row_id: id,
-        before: before?.data,
-        after: parsed,
-      },
+      payload: { table_id, before: before?.data, after: parsed },
     });
-    return result;
+    return row;
   }
 
   async deleteRow(
@@ -351,17 +347,17 @@ export class TablesService {
     table_id: string,
     id: string,
   ) {
-    const existing = await this.db.findRow(group_id, table_id, id);
-    if (!existing) return;
+    const before = await this.db.findRow(group_id, table_id, id);
+    if (!before) return;
 
     await this.db.deleteRow(group_id, table_id, id);
     await this.audit.recordEvent({
       event_type: "tables.row.deleted",
-      resource_type: "table",
-      resource_id: table_id,
+      resource_type: "table_row",
+      resource_id: before.id,
       actor_id,
       group_id,
-      payload: { row_id: id, before: existing.data },
+      payload: { table_id, before: before.data },
     });
   }
 }
