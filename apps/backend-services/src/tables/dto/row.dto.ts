@@ -1,16 +1,24 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import { IsDate, IsObject } from "class-validator";
 
 export class CreateRowDto {
   @ApiProperty({
     type: Object,
     description: "Row data shaped per column definitions",
   })
+  @IsObject()
   data!: Record<string, unknown>;
 }
 
 export class UpdateRowDto {
-  @ApiProperty({ type: Object }) data!: Record<string, unknown>;
+  @ApiProperty({ type: Object })
+  @IsObject()
+  data!: Record<string, unknown>;
+
   @ApiProperty({ type: String, format: "date-time" })
+  @Type(() => Date)
+  @IsDate()
   expected_updated_at!: Date;
 }
 
