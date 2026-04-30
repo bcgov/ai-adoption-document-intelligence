@@ -76,7 +76,7 @@
 		},
 		"testEnvironment": "node",
 		"transformIgnorePatterns": [
-			"node_modules/(?!(@aws-sdk))"
+			"node_modules/(?!(@aws-sdk|@nodable))"
 		],
 		"moduleNameMapper": {
 			"^@generated/(.*)$": "<rootDir>/generated/$1"
