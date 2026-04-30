@@ -143,6 +143,22 @@ describe("OcrService", () => {
       );
     });
 
+    it("populates initialCtx.documentMetadata.receivedAt from document.created_at (used by `doc.*` ref namespace)", async () => {
+      const fixedDate = new Date("2026-01-15T12:34:56.000Z");
+      (documentService.findDocument as jest.Mock).mockResolvedValueOnce({
+        ...defaultDocument,
+        created_at: fixedDate,
+      });
+
+      await service.requestOcr("0000");
+
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx.documentMetadata).toEqual({
+        receivedAt: fixedDate.toISOString(),
+      });
+    });
+
     it("should throw a NotFoundException if no document matches that id", async () => {
       (documentService.findDocument as jest.Mock).mockResolvedValue(null);
       await expect(service.requestOcr("123")).rejects.toThrow(

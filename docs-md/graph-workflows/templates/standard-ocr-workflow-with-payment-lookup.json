@@ -24,7 +24,11 @@
       "description": "Result from tables.lookup against payment_schedule.byDate; null when the OCR'd date doesn't match any cycle."
     },
     "averageConfidence": { "type": "number" },
-    "requiresReview": { "type": "boolean", "defaultValue": false }
+    "requiresReview": { "type": "boolean", "defaultValue": false },
+    "documentMetadata": {
+      "type": "object",
+      "description": "System metadata about the document, populated by the workflow caller (not by activities). Access via the `doc.*` ref namespace, e.g. `doc.receivedAt` resolves to `documentMetadata.receivedAt`."
+    }
   },
   "nodes": {
     "prepareFileData": {
@@ -115,17 +119,14 @@
     "lookupPaymentSchedule": {
       "id": "lookupPaymentSchedule",
       "type": "activity",
-      "label": "Look up payment schedule for submission date",
+      "label": "Look up payment schedule for document arrival date",
       "activityType": "tables.lookup",
       "parameters": {
         "tableId": "payment_schedule",
         "lookupName": "byDate"
       },
       "inputs": [
-        {
-          "port": "submissionDate",
-          "ctxKey": "cleanedResult.documents.0.fields.date.content"
-        }
+        { "port": "submissionDate", "ctxKey": "doc.receivedAt" }
       ],
       "outputs": [{ "port": "result", "ctxKey": "paymentSchedule" }],
       "timeout": { "startToClose": "30s" },

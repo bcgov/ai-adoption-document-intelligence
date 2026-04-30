@@ -97,6 +97,13 @@ export class OcrService {
         fileType,
         contentType,
         modelId,
+        // System metadata about the document. Populated here so workflow
+        // authors can bind generic per-document values via the `doc.*`
+        // ref namespace (e.g. `doc.receivedAt`) without coupling to any
+        // specific OCR-output shape or extracted field.
+        documentMetadata: {
+          receivedAt: document.created_at.toISOString(),
+        },
         ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold: 0 to skip human review)
       };
 
