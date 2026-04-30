@@ -72,14 +72,15 @@
 		"rootDir": "src",
 		"testRegex": ".*\\.test\\.ts$",
 		"transform": {
-			"^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "allowJs": true } }]
+			"^.+\\.(t|j)s$": "ts-jest"
 		},
 		"testEnvironment": "node",
 		"transformIgnorePatterns": [
 			"node_modules/(?!(@aws-sdk|@nodable))"
 		],
 		"moduleNameMapper": {
-			"^@generated/(.*)$": "<rootDir>/generated/$1"
+			"^@generated/(.*)$": "<rootDir>/generated/$1",
+			"^@nodable/entities$": "<rootDir>/__mocks__/@nodable/entities.js"
 		},
 		"forceExit": true
 	}
