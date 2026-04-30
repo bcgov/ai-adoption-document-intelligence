@@ -19,7 +19,7 @@ export class TablesDbService {
   }
 
   async createTable(input: CreateTableInput) {
-    return this.prisma.table.create({
+    return this.prisma.referenceTable.create({
       data: {
         group_id: input.group_id,
         table_id: input.table_id,
@@ -32,13 +32,13 @@ export class TablesDbService {
   }
 
   async findTable(group_id: string, table_id: string) {
-    return this.prisma.table.findUnique({
+    return this.prisma.referenceTable.findUnique({
       where: { group_id_table_id: { group_id, table_id } },
     });
   }
 
   async listTables(group_id: string) {
-    return this.prisma.table.findMany({
+    return this.prisma.referenceTable.findMany({
       where: { group_id },
       orderBy: { label: "asc" },
     });
@@ -49,14 +49,14 @@ export class TablesDbService {
     table_id: string,
     patch: { label?: string; description?: string | null },
   ) {
-    return this.prisma.table.update({
+    return this.prisma.referenceTable.update({
       where: { group_id_table_id: { group_id, table_id } },
       data: patch,
     });
   }
 
   async deleteTable(group_id: string, table_id: string) {
-    await this.prisma.table.delete({
+    await this.prisma.referenceTable.delete({
       where: { group_id_table_id: { group_id, table_id } },
     });
   }
@@ -70,12 +70,12 @@ export class TablesDbService {
     field: "columns" | "lookups",
     mutate: (current: T[]) => T[],
   ) {
-    const existing = await this.prisma.table.findUniqueOrThrow({
+    const existing = await this.prisma.referenceTable.findUniqueOrThrow({
       where: { group_id_table_id: { group_id, table_id } },
     });
     const current = (existing[field] as unknown as T[]) ?? [];
     const next = mutate(current);
-    return this.prisma.table.update({
+    return this.prisma.referenceTable.update({
       where: { group_id_table_id: { group_id, table_id } },
       data: { [field]: next as unknown as Prisma.InputJsonValue },
     });
@@ -154,7 +154,7 @@ export class TablesDbService {
     table_id: string,
     data: Record<string, unknown>,
   ) {
-    return this.prisma.tableRow.create({
+    return this.prisma.referenceTableRow.create({
       data: {
         group_id,
         table_id,
@@ -164,7 +164,7 @@ export class TablesDbService {
   }
 
   async findRow(group_id: string, table_id: string, id: string) {
-    return this.prisma.tableRow.findFirst({
+    return this.prisma.referenceTableRow.findFirst({
       where: { id, group_id, table_id },
     });
   }
@@ -175,13 +175,13 @@ export class TablesDbService {
     opts: { offset: number; limit: number },
   ) {
     const [rows, total] = await Promise.all([
-      this.prisma.tableRow.findMany({
+      this.prisma.referenceTableRow.findMany({
         where: { group_id, table_id },
         orderBy: { created_at: "desc" },
         skip: opts.offset,
         take: opts.limit,
       }),
-      this.prisma.tableRow.count({ where: { group_id, table_id } }),
+      this.prisma.referenceTableRow.count({ where: { group_id, table_id } }),
     ]);
     return { rows, total };
   }
@@ -192,7 +192,7 @@ export class TablesDbService {
     id: string,
     input: { data: Record<string, unknown>; expected_updated_at: Date },
   ) {
-    const result = await this.prisma.tableRow.updateMany({
+    const result = await this.prisma.referenceTableRow.updateMany({
       where: { id, group_id, table_id, updated_at: input.expected_updated_at },
       data: { data: input.data as unknown as Prisma.InputJsonValue },
     });
@@ -207,7 +207,7 @@ export class TablesDbService {
   }
 
   async deleteRow(group_id: string, table_id: string, id: string) {
-    await this.prisma.tableRow.deleteMany({
+    await this.prisma.referenceTableRow.deleteMany({
       where: { id, group_id, table_id },
     });
   }

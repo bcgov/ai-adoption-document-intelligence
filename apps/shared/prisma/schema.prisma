@@ -343,7 +343,7 @@ model Group {
   datasets            Dataset[]
   benchmark_projects  BenchmarkProject[]
   confusionProfiles   ConfusionProfile[]
-  tables              Table[]
+  reference_tables    ReferenceTable[]
 
   @@map("group")
 }
@@ -776,7 +776,7 @@ enum GroupRole {
 
 // ========== REFERENCE DATA TABLES ==========
 
-model Table {
+model ReferenceTable {
   id          String   @id @default(cuid())
   group_id    String
   group       Group    @relation(fields: [group_id], references: [id], onDelete: Cascade)
@@ -788,22 +788,22 @@ model Table {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  rows TableRow[]
+  rows ReferenceTableRow[]
 
   @@unique([group_id, table_id])
   @@index([group_id])
-  @@map("tables")
+  @@map("reference_tables")
 }
 
-model TableRow {
-  id         String   @id @default(cuid())
+model ReferenceTableRow {
+  id         String         @id @default(cuid())
   group_id   String
   table_id   String
-  table      Table    @relation(fields: [group_id, table_id], references: [group_id, table_id], onDelete: Cascade)
+  table      ReferenceTable @relation(fields: [group_id, table_id], references: [group_id, table_id], onDelete: Cascade)
   data       Json
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  created_at DateTime       @default(now())
+  updated_at DateTime       @updatedAt
 
   @@index([group_id, table_id])
-  @@map("table_rows")
+  @@map("reference_table_rows")
 }

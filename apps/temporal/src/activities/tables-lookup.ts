@@ -22,7 +22,7 @@ export async function tablesLookup(
   const { groupId, tableId, lookupName, ...params } = input;
   const prisma = getPrismaClient();
 
-  const table = await prisma.table.findUnique({
+  const table = await prisma.referenceTable.findUnique({
     where: { group_id_table_id: { group_id: groupId, table_id: tableId } },
   });
   if (!table) {
@@ -43,7 +43,7 @@ export async function tablesLookup(
     });
   }
 
-  const rows = await prisma.tableRow.findMany({
+  const rows = await prisma.referenceTableRow.findMany({
     where: { group_id: groupId, table_id: tableId },
   });
 

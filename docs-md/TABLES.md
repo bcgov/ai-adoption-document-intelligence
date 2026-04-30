@@ -10,9 +10,9 @@ See also: [docs-md/REFERENCE_DATA_TABLES_UI.md](REFERENCE_DATA_TABLES_UI.md) for
 
 ## Concepts
 
-- **Table**: a named, group-scoped collection with a stable `table_id` identifier, a human-readable label, an optional description, a schema (array of column definitions), and a set of named lookup queries.
+- **Reference table**: a named, group-scoped collection with a stable `table_id` identifier, a human-readable label, an optional description, a schema (array of column definitions), and a set of named lookup queries.
 - **Column**: a typed field definition stored in the table's JSONB `columns` array. Supported types are `string`, `number`, `boolean`, `date`, `datetime`, `enum`. A column may be marked `required`, and for `enum` columns a list of allowed values is stored in `enumValues`. The `key` field is a stable machine identifier; `label` is the display name.
-- **Row**: a data record matching the table's column schema, stored as JSONB in the `TableRow` model. Rows are validated on write against the column schema. Updates use optimistic locking via `expected_updated_at`.
+- **Row**: a data record matching the table's column schema, stored as JSONB in the `ReferenceTableRow` model. Rows are validated on write against the column schema. Updates use optimistic locking via `expected_updated_at`.
 - **Lookup**: a named, parameterized query over a table. Each lookup specifies: declared `params` (name + type), a `filter` (`ConditionExpression` tree), an optional `order` clause array, and a `pick` strategy. The lookup is stored canonically in the JSONB `lookups` array; an optional `templateId` / `templateConfig` hint allows the frontend to round-trip back to the template UI.
 
 ---
@@ -21,8 +21,8 @@ See also: [docs-md/REFERENCE_DATA_TABLES_UI.md](REFERENCE_DATA_TABLES_UI.md) for
 
 Two Prisma models back the feature:
 
-- **`Table`**: holds `id` (UUID), `group_id`, `table_id` (stable human-chosen key), `label`, `description`, `columns` (JSONB array of `ColumnDef`), `lookups` (JSONB array of `LookupDef`), and `updated_at`. The composite unique constraint is `(group_id, table_id)`.
-- **`TableRow`**: holds `id` (UUID), `group_id`, `table_id`, `data` (JSONB record), and `updated_at`. Rows are looked up by `group_id + table_id` at activity execution time.
+- **`ReferenceTable`** (DB table `reference_tables`): holds `id` (UUID), `group_id`, `table_id` (stable human-chosen key), `label`, `description`, `columns` (JSONB array of `ColumnDef`), `lookups` (JSONB array of `LookupDef`), and `updated_at`. The composite unique constraint is `(group_id, table_id)`.
+- **`ReferenceTableRow`** (DB table `reference_table_rows`): holds `id` (UUID), `group_id`, `table_id`, `data` (JSONB record), and `updated_at`. Rows are looked up by `group_id + table_id` at activity execution time.
 
 No per-table DDL migrations are needed. Adding or removing columns changes only the JSONB definition; existing rows retain their previous `data` values (the lookup engine evaluates against whatever is present at runtime).
 

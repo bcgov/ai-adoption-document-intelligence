@@ -4,7 +4,7 @@ import { TablesDbService } from "./tables-db.service";
 import type { ColumnDef, LookupDef } from "./types";
 
 const mockPrismaClient = {
-  table: {
+  referenceTable: {
     create: jest.fn(),
     findUnique: jest.fn(),
     findUniqueOrThrow: jest.fn(),
@@ -12,7 +12,7 @@ const mockPrismaClient = {
     update: jest.fn(),
     delete: jest.fn(),
   },
-  tableRow: {
+  referenceTableRow: {
     create: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
@@ -47,7 +47,7 @@ describe("TablesDbService — tables CRUD", () => {
         columns: [],
         lookups: [],
       };
-      mockPrismaClient.table.create.mockResolvedValue(mockTable);
+      mockPrismaClient.referenceTable.create.mockResolvedValue(mockTable);
 
       const result = await service.createTable({
         group_id: "grp1",
@@ -59,7 +59,7 @@ describe("TablesDbService — tables CRUD", () => {
       expect(result.table_id).toBe("t1");
       expect(result.columns).toEqual([]);
       expect(result.lookups).toEqual([]);
-      expect(mockPrismaClient.table.create).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.create).toHaveBeenCalledWith({
         data: {
           group_id: "grp1",
           table_id: "t1",
@@ -74,7 +74,7 @@ describe("TablesDbService — tables CRUD", () => {
 
   describe("createTable — duplicate rejection", () => {
     it("rejects duplicate (group_id, table_id) pairs", async () => {
-      mockPrismaClient.table.create.mockResolvedValueOnce({
+      mockPrismaClient.referenceTable.create.mockResolvedValueOnce({
         group_id: "grp1",
         table_id: "t1",
         label: "x",
@@ -82,7 +82,7 @@ describe("TablesDbService — tables CRUD", () => {
         columns: [],
         lookups: [],
       });
-      mockPrismaClient.table.create.mockRejectedValueOnce(
+      mockPrismaClient.referenceTable.create.mockRejectedValueOnce(
         new Error("unique constraint violation"),
       );
 
@@ -132,7 +132,7 @@ describe("TablesDbService — tables CRUD", () => {
           lookups: [],
         },
       ];
-      mockPrismaClient.table.findMany.mockImplementation(
+      mockPrismaClient.referenceTable.findMany.mockImplementation(
         ({ where }: { where: { group_id: string } }) =>
           Promise.resolve(allRows.filter((r) => r.group_id === where.group_id)),
       );
@@ -141,7 +141,7 @@ describe("TablesDbService — tables CRUD", () => {
 
       expect(list).toHaveLength(2);
       expect(list.every((r) => r.group_id === "grp1")).toBe(true);
-      expect(mockPrismaClient.table.findMany).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.findMany).toHaveBeenCalledWith({
         where: { group_id: "grp1" },
         orderBy: { label: "asc" },
       });
@@ -158,7 +158,7 @@ describe("TablesDbService — tables CRUD", () => {
         columns: [],
         lookups: [],
       };
-      mockPrismaClient.table.update.mockResolvedValue(mockUpdated);
+      mockPrismaClient.referenceTable.update.mockResolvedValue(mockUpdated);
 
       const result = await service.updateTableMetadata("grp1", "t1", {
         label: "new",
@@ -167,7 +167,7 @@ describe("TablesDbService — tables CRUD", () => {
 
       expect(result.label).toBe("new");
       expect(result.description).toBe("d");
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { label: "new", description: "d" },
       });
@@ -176,17 +176,17 @@ describe("TablesDbService — tables CRUD", () => {
 
   describe("deleteTable", () => {
     it("deletes a table", async () => {
-      mockPrismaClient.table.delete.mockResolvedValue({});
-      mockPrismaClient.table.findUnique.mockResolvedValue(null);
+      mockPrismaClient.referenceTable.delete.mockResolvedValue({});
+      mockPrismaClient.referenceTable.findUnique.mockResolvedValue(null);
 
       await service.deleteTable("grp1", "t1");
       const found = await service.findTable("grp1", "t1");
 
       expect(found).toBeNull();
-      expect(mockPrismaClient.table.delete).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.delete).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
-      expect(mockPrismaClient.table.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.findUnique).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
     });
@@ -233,16 +233,20 @@ describe("TablesDbService — columns", () => {
       };
       const updatedTable = { ...existingTable, columns: [colA, newCol] };
 
-      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
-      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.referenceTable.findUniqueOrThrow.mockResolvedValue(
+        existingTable,
+      );
+      mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
 
       const result = await service.addColumn("grp1", "t1", newCol);
 
       expect(result.columns).toEqual([colA, newCol]);
-      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTable.findUniqueOrThrow,
+      ).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { columns: [colA, newCol] },
       });
@@ -259,13 +263,15 @@ describe("TablesDbService — columns", () => {
       };
       const updatedTable = { ...existingTable, columns: [colA] };
 
-      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
-      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.referenceTable.findUniqueOrThrow.mockResolvedValue(
+        existingTable,
+      );
+      mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
 
       const result = await service.addColumn("grp1", "t1", colA);
 
       expect(result.columns).toEqual([colA]);
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { columns: [colA] },
       });
@@ -290,8 +296,10 @@ describe("TablesDbService — columns", () => {
       };
       const updatedTable = { ...existingTable, columns: [updatedColA, colB] };
 
-      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
-      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.referenceTable.findUniqueOrThrow.mockResolvedValue(
+        existingTable,
+      );
+      mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
 
       const result = await service.updateColumn(
         "grp1",
@@ -301,10 +309,12 @@ describe("TablesDbService — columns", () => {
       );
 
       expect(result.columns).toEqual([updatedColA, colB]);
-      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTable.findUniqueOrThrow,
+      ).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { columns: [updatedColA, colB] },
       });
@@ -323,16 +333,20 @@ describe("TablesDbService — columns", () => {
       };
       const updatedTable = { ...existingTable, columns: [colB] };
 
-      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
-      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.referenceTable.findUniqueOrThrow.mockResolvedValue(
+        existingTable,
+      );
+      mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
 
       const result = await service.removeColumn("grp1", "t1", "name");
 
       expect(result.columns).toEqual([colB]);
-      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTable.findUniqueOrThrow,
+      ).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { columns: [colB] },
       });
@@ -384,16 +398,20 @@ describe("TablesDbService — lookups", () => {
       };
       const updatedTable = { ...existingTable, lookups: [lookupA, lookupB] };
 
-      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
-      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.referenceTable.findUniqueOrThrow.mockResolvedValue(
+        existingTable,
+      );
+      mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
 
       const result = await service.addLookup("grp1", "t1", lookupB);
 
       expect(result.lookups).toEqual([lookupA, lookupB]);
-      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTable.findUniqueOrThrow,
+      ).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { lookups: [lookupA, lookupB] },
       });
@@ -428,8 +446,10 @@ describe("TablesDbService — lookups", () => {
         lookups: [updatedLookupA, lookupB],
       };
 
-      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
-      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.referenceTable.findUniqueOrThrow.mockResolvedValue(
+        existingTable,
+      );
+      mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
 
       const result = await service.updateLookup(
         "grp1",
@@ -439,10 +459,12 @@ describe("TablesDbService — lookups", () => {
       );
 
       expect(result.lookups).toEqual([updatedLookupA, lookupB]);
-      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTable.findUniqueOrThrow,
+      ).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { lookups: [updatedLookupA, lookupB] },
       });
@@ -461,16 +483,20 @@ describe("TablesDbService — lookups", () => {
       };
       const updatedTable = { ...existingTable, lookups: [lookupB] };
 
-      mockPrismaClient.table.findUniqueOrThrow.mockResolvedValue(existingTable);
-      mockPrismaClient.table.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.referenceTable.findUniqueOrThrow.mockResolvedValue(
+        existingTable,
+      );
+      mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
 
       const result = await service.removeLookup("grp1", "t1", "byParam");
 
       expect(result.lookups).toEqual([lookupB]);
-      expect(mockPrismaClient.table.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTable.findUniqueOrThrow,
+      ).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
       });
-      expect(mockPrismaClient.table.update).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTable.update).toHaveBeenCalledWith({
         where: { group_id_table_id: { group_id: "grp1", table_id: "t1" } },
         data: { lookups: [lookupB] },
       });
@@ -506,12 +532,12 @@ describe("TablesDbService — rows", () => {
         created_at: createdAt,
         updated_at: updatedAt,
       };
-      mockPrismaClient.tableRow.create.mockResolvedValue(mockRow);
+      mockPrismaClient.referenceTableRow.create.mockResolvedValue(mockRow);
 
       const result = await service.createRow("g", "t", rowData);
 
       expect(result).toEqual(mockRow);
-      expect(mockPrismaClient.tableRow.create).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTableRow.create).toHaveBeenCalledWith({
         data: { group_id: "g", table_id: "t", data: rowData },
       });
     });
@@ -539,20 +565,20 @@ describe("TablesDbService — rows", () => {
           updated_at: updatedAt,
         },
       ];
-      mockPrismaClient.tableRow.findMany.mockResolvedValue(mockRows);
-      mockPrismaClient.tableRow.count.mockResolvedValue(2);
+      mockPrismaClient.referenceTableRow.findMany.mockResolvedValue(mockRows);
+      mockPrismaClient.referenceTableRow.count.mockResolvedValue(2);
 
       const result = await service.listRows("g", "t", { offset: 0, limit: 10 });
 
       expect(result.rows).toEqual(mockRows);
       expect(result.total).toBe(2);
-      expect(mockPrismaClient.tableRow.findMany).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTableRow.findMany).toHaveBeenCalledWith({
         where: { group_id: "g", table_id: "t" },
         orderBy: { created_at: "desc" },
         skip: 0,
         take: 10,
       });
-      expect(mockPrismaClient.tableRow.count).toHaveBeenCalledWith({
+      expect(mockPrismaClient.referenceTableRow.count).toHaveBeenCalledWith({
         where: { group_id: "g", table_id: "t" },
       });
     });
@@ -572,8 +598,12 @@ describe("TablesDbService — rows", () => {
         updated_at: newUpdatedAt,
       };
 
-      mockPrismaClient.tableRow.updateMany.mockResolvedValue({ count: 1 });
-      mockPrismaClient.tableRow.findFirst.mockResolvedValue(refreshedRow);
+      mockPrismaClient.referenceTableRow.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      mockPrismaClient.referenceTableRow.findFirst.mockResolvedValue(
+        refreshedRow,
+      );
 
       const result = await service.updateRow("g", "t", "row1", {
         data: newData,
@@ -581,7 +611,9 @@ describe("TablesDbService — rows", () => {
       });
 
       expect(result).toEqual(refreshedRow);
-      expect(mockPrismaClient.tableRow.updateMany).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTableRow.updateMany,
+      ).toHaveBeenCalledWith({
         where: {
           id: "row1",
           group_id: "g",
@@ -590,9 +622,11 @@ describe("TablesDbService — rows", () => {
         },
         data: { data: newData },
       });
-      expect(mockPrismaClient.tableRow.findFirst).toHaveBeenCalledWith({
-        where: { id: "row1", group_id: "g", table_id: "t" },
-      });
+      expect(mockPrismaClient.referenceTableRow.findFirst).toHaveBeenCalledWith(
+        {
+          where: { id: "row1", group_id: "g", table_id: "t" },
+        },
+      );
     });
   });
 
@@ -600,7 +634,9 @@ describe("TablesDbService — rows", () => {
     it("throws a conflict error and does not call findFirst when updated_at is stale", async () => {
       const staleUpdatedAt = new Date("2025-01-14T08:00:00Z");
 
-      mockPrismaClient.tableRow.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.referenceTableRow.updateMany.mockResolvedValue({
+        count: 0,
+      });
 
       await expect(
         service.updateRow("g", "t", "row1", {
@@ -609,25 +645,33 @@ describe("TablesDbService — rows", () => {
         }),
       ).rejects.toThrow(/stale|conflict/i);
 
-      expect(mockPrismaClient.tableRow.findFirst).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.referenceTableRow.findFirst,
+      ).not.toHaveBeenCalled();
     });
   });
 
   describe("deleteRow + findRow", () => {
     it("deletes using the composite filter and findRow returns null afterwards", async () => {
-      mockPrismaClient.tableRow.deleteMany.mockResolvedValue({ count: 1 });
-      mockPrismaClient.tableRow.findFirst.mockResolvedValue(null);
+      mockPrismaClient.referenceTableRow.deleteMany.mockResolvedValue({
+        count: 1,
+      });
+      mockPrismaClient.referenceTableRow.findFirst.mockResolvedValue(null);
 
       await service.deleteRow("g", "t", "row1");
       const found = await service.findRow("g", "t", "row1");
 
       expect(found).toBeNull();
-      expect(mockPrismaClient.tableRow.deleteMany).toHaveBeenCalledWith({
+      expect(
+        mockPrismaClient.referenceTableRow.deleteMany,
+      ).toHaveBeenCalledWith({
         where: { id: "row1", group_id: "g", table_id: "t" },
       });
-      expect(mockPrismaClient.tableRow.findFirst).toHaveBeenCalledWith({
-        where: { id: "row1", group_id: "g", table_id: "t" },
-      });
+      expect(mockPrismaClient.referenceTableRow.findFirst).toHaveBeenCalledWith(
+        {
+          where: { id: "row1", group_id: "g", table_id: "t" },
+        },
+      );
     });
   });
 });

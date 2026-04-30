@@ -1707,7 +1707,7 @@ async function seedTablesData() {
     },
   ];
 
-  const table = await prisma.table.upsert({
+  const table = await prisma.referenceTable.upsert({
     where: {
       group_id_table_id: {
         group_id: SEED_GROUP_ID,
@@ -1727,11 +1727,11 @@ async function seedTablesData() {
   });
 
   // Replace rows wholesale (idempotent re-seed)
-  await prisma.tableRow.deleteMany({
+  await prisma.referenceTableRow.deleteMany({
     where: { group_id: SEED_GROUP_ID, table_id: PAYMENT_SCHEDULE_TABLE_ID },
   });
   const rows = buildPaymentScheduleRows(2026);
-  await prisma.tableRow.createMany({
+  await prisma.referenceTableRow.createMany({
     data: rows.map((data) => ({
       group_id: SEED_GROUP_ID,
       table_id: PAYMENT_SCHEDULE_TABLE_ID,
