@@ -4,7 +4,10 @@ const mockTable = { findUnique: jest.fn() };
 const mockTableRow = { findMany: jest.fn() };
 
 jest.mock("./database-client", () => ({
-  getPrismaClient: () => ({ table: mockTable, tableRow: mockTableRow }),
+  getPrismaClient: () => ({
+    referenceTable: mockTable,
+    referenceTableRow: mockTableRow,
+  }),
 }));
 
 describe("tablesLookup activity", () => {
@@ -124,5 +127,19 @@ describe("tablesLookup activity", () => {
       lookupName: "maybe",
     });
     expect(result.result).toBeNull();
+  });
+
+  it("throws TABLES_GROUP_ID_MISSING (nonRetryable) when groupId is missing", async () => {
+    await expect(
+      tablesLookup({
+        groupId: "",
+        tableId: "t",
+        lookupName: "any",
+      }),
+    ).rejects.toMatchObject({
+      type: "TABLES_GROUP_ID_MISSING",
+      nonRetryable: true,
+    });
+    expect(mockTable.findUnique).not.toHaveBeenCalled();
   });
 });

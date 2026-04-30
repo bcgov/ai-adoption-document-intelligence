@@ -152,20 +152,16 @@ async function executeActivityNode(
     }
   }
 
-  // Step 3: Merge static parameters with resolved inputs; inject requestId for tracing
-  const metadata = state.ctx.__workflowMetadata as
-    | { groupId?: string | null }
-    | undefined;
-  const injectedGroupId = metadata?.groupId;
-
+  // Step 3: Merge static parameters with resolved inputs; inject system fields
   let activityParams: Record<string, unknown> = {
     ...inputs,
     ...node.parameters,
     ...(state.requestId && { requestId: state.requestId }),
-    // SECURITY: groupId from workflow metadata always wins over node config.
-    // Graph workflow authors (MEMBER role) must not be able to override the
-    // tenant-scoped groupId and access another group's data.
-    ...(injectedGroupId != null && { groupId: injectedGroupId }),
+    // SECURITY: groupId is the tenant scope set by the workflow caller.
+    // It lives on ExecutionState (not in ctx) so graph workflow authors
+    // (MEMBER role) cannot forge or override it via ctx defaults to access
+    // another group's data. Spread last so it wins over inputs/parameters.
+    ...(state.groupId != null && { groupId: state.groupId }),
   };
   activityParams = mergeBenchmarkOcrCacheParams(
     node.activityType,

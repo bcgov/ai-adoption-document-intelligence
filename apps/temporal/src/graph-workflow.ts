@@ -61,12 +61,7 @@ export async function graphWorkflow(
     "running";
   let cancelled = false;
   let cancelMode: "graceful" | "immediate" = "graceful";
-  let ctx: Record<string, unknown> = {
-    __workflowMetadata: {
-      groupId: input.groupId ?? null,
-      workflowId: workflowInfo().workflowId,
-    },
-  };
+  let ctx: Record<string, unknown> = {};
   let workflowError: string | undefined;
   const lastError: {
     current?: {

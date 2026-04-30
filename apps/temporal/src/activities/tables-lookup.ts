@@ -20,6 +20,16 @@ export async function tablesLookup(
   input: TablesLookupInput,
 ): Promise<TablesLookupOutput> {
   const { groupId, tableId, lookupName, ...params } = input;
+
+  if (!groupId) {
+    throw ApplicationFailure.create({
+      type: "TABLES_GROUP_ID_MISSING",
+      message:
+        "tables.lookup invoked without groupId. Workflows must be started with input.groupId so the runner can inject it; if you see this, check that the workflow caller sets groupId.",
+      nonRetryable: true,
+    });
+  }
+
   const prisma = getPrismaClient();
 
   const table = await prisma.referenceTable.findUnique({
