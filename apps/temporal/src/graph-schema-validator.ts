@@ -10,6 +10,7 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.2 step 1
  */
 
+import { validateActivityParameters } from "./activity-parameter-schema-registry";
 import { isRegisteredActivityType } from "./activity-types";
 import type {
   ActivityNode,
@@ -292,6 +293,13 @@ function validateActivityTypesAgainstRegistry(
           message: `Activity type "${activityNode.activityType}" is not registered`,
           severity: "error",
         });
+      } else {
+        validateActivityParameters(
+          activityNode.activityType,
+          nodeId,
+          activityNode.parameters,
+          errors,
+        );
       }
     }
 

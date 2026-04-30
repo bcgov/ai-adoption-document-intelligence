@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   ForbiddenException,
@@ -9,6 +10,7 @@ import {
   Inject,
   InternalServerErrorException,
   NotFoundException,
+  Param,
   Patch,
   Post,
   Query,
@@ -21,11 +23,15 @@ import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import "multer";
 import {
   ApiBody,
+  ApiConflictResponse,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
@@ -57,6 +63,7 @@ import {
 import {
   ClassifierModelResponseDto,
   ClassifierResponseDto,
+  DeleteClassifierConflictResponseDto,
   DeleteClassifierDocumentsResponseDto,
   UploadClassifierDocumentsResponseDto,
 } from "@/azure/dto/classifier-responses.dto";
@@ -603,5 +610,58 @@ export class AzureController {
       },
     );
     return returnValue as ClassifierModelResponseDto;
+  }
+
+  @Delete("classifiers/:groupId/:classifierName")
+  @Identity({
+    minimumRole: GroupRole.ADMIN,
+    groupIdFrom: { param: "groupId" },
+  })
+  @ApiOperation({
+    summary: "Delete a classifier",
+    description:
+      "Deletes a classifier and all associated Azure DI model, blob storage files, and database record. Only group admins or system admins may delete classifiers.",
+  })
+  @ApiParam({
+    name: "groupId",
+    description: "The group ID owning the classifier",
+  })
+  @ApiParam({
+    name: "classifierName",
+    description: "The name of the classifier to delete",
+  })
+  @ApiOkResponse({ description: "Classifier successfully deleted." })
+  @ApiNotFoundResponse({ description: "Classifier record does not exist." })
+  @ApiForbiddenResponse({ description: "Actor lacks permission." })
+  @ApiConflictResponse({
+    description: "Classifier is referenced by one or more workflow versions.",
+    type: DeleteClassifierConflictResponseDto,
+  })
+  @HttpCode(200)
+  async deleteClassifier(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
+    @Param("classifierName") classifierName: string,
+  ): Promise<undefined | DeleteClassifierConflictResponseDto> {
+    const actorId = req.resolvedIdentity.actorId;
+
+    const classifier = await this.classifierService.findClassifierModel(
+      classifierName,
+      groupId,
+    );
+    if (classifier == null) {
+      throw new NotFoundException("Classifier record does not exist.");
+    }
+
+    const result = await this.classifierService.deleteClassifier(
+      classifierName,
+      groupId,
+      actorId,
+    );
+
+    if (result !== null) {
+      throw new ConflictException(result);
+    }
+    return undefined;
   }
 }

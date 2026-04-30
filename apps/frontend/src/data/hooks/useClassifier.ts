@@ -1,3 +1,12 @@
+export interface ConflictingWorkflow {
+  id: string;
+  name: string;
+}
+
+export interface DeleteClassifierConflictResponse {
+  conflictingWorkflows: ConflictingWorkflow[];
+}
+
 // Classification result response type
 export interface ClassificationResult {
   status: "succeeded" | "failed" | "running" | string;
@@ -201,6 +210,28 @@ export function useClassifier() {
     throw new Error(response.message || "Failed to get classification result");
   };
 
+  const deleteClassifier = useMutation<
+    void,
+    { message: string; conflictingWorkflows?: ConflictingWorkflow[] },
+    { name: string; group_id: string }
+  >({
+    mutationFn: async (params) => {
+      const response =
+        await apiService.delete<DeleteClassifierConflictResponse>(
+          `/azure/classifiers/${encodeURIComponent(params.group_id)}/${encodeURIComponent(params.name)}`,
+        );
+      if (response.success) return;
+      const conflict = (
+        response.data as DeleteClassifierConflictResponse | null
+      )?.conflictingWorkflows;
+      const err = {
+        message: response.message ?? "Failed to delete classifier",
+        conflictingWorkflows: conflict,
+      };
+      throw err;
+    },
+  });
+
   return {
     getClassifiers,
     getClassifier,
@@ -212,5 +243,6 @@ export function useClassifier() {
     requestTraining,
     requestClassification,
     fetchClassificationResult,
+    deleteClassifier,
   };
 }

@@ -152,6 +152,19 @@ export class ClassifierDbService {
   }
 
   /**
+   * Finds all classifier model name/group_id pairs in the database.
+   * Used for bulk lookups (e.g. orphan cleanup) to avoid N+1 queries.
+   * @returns An array of `{ name, group_id }` objects for every classifier record.
+   */
+  async findAllClassifierNameGroupPairs(): Promise<
+    { name: string; group_id: string }[]
+  > {
+    return this.prisma.classifierModel.findMany({
+      select: { name: true, group_id: true },
+    });
+  }
+
+  /**
    * Finds all classifier models belonging to the specified groups, including group details.
    * @param groupIds The list of group IDs to filter by.
    * @returns An array of ClassifierModel records with their associated group.
@@ -186,4 +199,100 @@ export class ClassifierDbService {
       },
     });
   }
+
+  /**
+   * Hard-deletes a classifier model record by name and group ID.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @param tx Optional Prisma transaction client.
+   * @returns The deleted ClassifierModel record.
+   */
+  async deleteClassifierModel(
+    classifierName: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ClassifierModel> {
+    const client = tx ?? this.prisma;
+    return client.classifierModel.delete({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+    });
+  }
+
+  /**
+   * Finds all workflow lineages within a group whose versions reference the given classifier name.
+   * Walks the config JSON tree and checks for exact "classifierName" property matches to avoid
+   * false positives from substring matches against descriptions, labels, or superstring names.
+   * @param classifierName The name of the classifier to search for.
+   * @param groupId The group ID to scope the search to.
+   * @returns An array of objects containing workflow lineage id and name.
+   */
+  async findWorkflowVersionsReferencingClassifier(
+    classifierName: string,
+    groupId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    const versions = await this.prisma.workflowVersion.findMany({
+      where: {
+        lineage: {
+          group_id: groupId,
+        },
+      },
+      select: {
+        config: true,
+        lineage: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    const referencedLineages = new Map<string, string>();
+    for (const version of versions) {
+      if (configReferencesClassifier(version.config, classifierName)) {
+        referencedLineages.set(version.lineage.id, version.lineage.name);
+      }
+    }
+
+    return Array.from(referencedLineages.entries()).map(([id, name]) => ({
+      id,
+      name,
+    }));
+  }
+}
+
+/**
+ * Recursively walks a JSON value and returns true if any object node has a
+ * "classifierName" property whose value is an exact match for the given name.
+ * This prevents false positives from substring matches (e.g. "inv" matching
+ * "invoice-classifier") or name occurrences in unrelated fields such as
+ * descriptions or labels.
+ * @param value The JSON value to traverse.
+ * @param classifierName The exact classifier name to match.
+ * @returns true if a matching classifierName property is found, false otherwise.
+ */
+export function configReferencesClassifier(
+  value: unknown,
+  classifierName: string,
+): boolean {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) =>
+      configReferencesClassifier(item, classifierName),
+    );
+  }
+  const obj = value as Record<string, unknown>;
+  if ("classifierName" in obj && obj["classifierName"] === classifierName) {
+    return true;
+  }
+  return Object.values(obj).some((v) =>
+    configReferencesClassifier(v, classifierName),
+  );
 }
