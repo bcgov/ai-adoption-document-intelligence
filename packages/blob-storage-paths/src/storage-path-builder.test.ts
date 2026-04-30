@@ -2,11 +2,30 @@ import {
   OperationCategory,
   buildBlobFilePath,
   buildBlobPrefixPath,
+  buildSharedBlobPrefixPath,
   validateBlobFilePath,
   validateBlobPrefixPath,
 } from "./storage-path-builder";
 
 const VALID_CUID = "clh7z2xk00000356u8e3h1234";
+
+describe("buildSharedBlobPrefixPath", () => {
+  it("builds a shared prefix starting with _shared", () => {
+    const result = buildSharedBlobPrefixPath(OperationCategory.CLASSIFICATION, ["other"]);
+    expect(result).toBe("_shared/classification/other");
+  });
+
+  it("builds a shared prefix with multiple components", () => {
+    const result = buildSharedBlobPrefixPath(OperationCategory.OCR, ["models", "v2"]);
+    expect(result).toBe("_shared/ocr/models/v2");
+  });
+
+  it("throws on illegal characters", () => {
+    expect(() =>
+      buildSharedBlobPrefixPath(OperationCategory.CLASSIFICATION, ["bad:path"])
+    ).toThrow("Blob storage path includes illegal characters.");
+  });
+});
 
 describe("buildBlobPrefixPath", () => {
   it("builds a prefix path with prefix components", () => {

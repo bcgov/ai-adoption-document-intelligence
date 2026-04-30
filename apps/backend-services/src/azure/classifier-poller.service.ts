@@ -87,6 +87,7 @@ export class ClassifierPollerService {
         );
         this.logger.warn(
           `Classifier ${classifierName} (group ${groupId}) training failed.`,
+          { result },
         );
       } else {
         this.logger.debug(

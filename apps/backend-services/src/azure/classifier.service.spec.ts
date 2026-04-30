@@ -33,6 +33,9 @@ const mockBlobService = {
   generateSasUrl: jest.fn().mockReturnValue("https://mockbloburl"),
   deleteFilesWithPrefix: jest.fn(),
   fileExists: jest.fn().mockReturnValue(false),
+  listBlobs: jest
+    .fn()
+    .mockResolvedValue([{ name: "_shared/classification/other/sample.jpg" }]),
 };
 const mockBlobStorage = {
   write: jest.fn(),
@@ -102,6 +105,9 @@ describe("ClassifierService", () => {
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: jest.fn().mockReturnValue([]),
       });
+      (azureStorage.listBlobs as jest.Mock).mockResolvedValue([
+        { name: "_shared/classification/other/sample.jpg" },
+      ]);
       (
         classifierDbService.updateClassifierModel as jest.Mock
       ).mockResolvedValue({
@@ -125,6 +131,9 @@ describe("ClassifierService", () => {
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: jest.fn().mockReturnValue([]),
       });
+      (azureStorage.listBlobs as jest.Mock).mockResolvedValue([
+        { name: "_shared/classification/other/sample.jpg" },
+      ]);
       await expect(
         service.requestClassifierTraining("c", "g", "u"),
       ).rejects.toThrow();
@@ -418,6 +427,11 @@ describe("ClassifierService", () => {
       expect(config.classifierId).toBe("gid__cid");
       expect(config.docTypes.label1).toBeDefined();
       expect(config.docTypes.label2).toBeDefined();
+      // "other" label is always injected automatically
+      expect(config.docTypes.other).toBeDefined();
+      expect(config.docTypes.other.azureBlobSource.prefix).toBe(
+        "_shared/classification/other",
+      );
     });
   });
 
