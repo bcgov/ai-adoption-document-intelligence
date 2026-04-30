@@ -59,6 +59,28 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Field normalization; optional documentType (LabelingProject id) for schema-aware rules per field_type",
     },
+    getWorkflowGraphConfig: {
+      description: "Load workflow configuration from database",
+    },
+    "document.extractPageRange": {
+      description:
+        "Extract a specific page range from a source document and write it as a new blob segment",
+    },
+    "azureClassify.submit": {
+      description: "Submit document to Azure Document Intelligence classifier",
+    },
+    "azureClassify.poll": {
+      description:
+        "Poll Azure Document Intelligence classifier results and split document into labelled segments",
+    },
+    "document.selectClassifiedPages": {
+      description:
+        "Select all page range segments for a specific classifier label from azureClassify.poll output",
+    },
+    "document.flattenClassifiedDocuments": {
+      description:
+        "Flatten all (or filtered) classifier labels into a single sorted ClassifiedSegment array for map node iteration",
+    },
     "data.transform": {
       description:
         "Execute data transformation: parse input, resolve field-mapping bindings, render output",

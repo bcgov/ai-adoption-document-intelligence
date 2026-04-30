@@ -21,6 +21,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "document.classify",
   "document.splitAndClassify",
   "document.validateFields",
+  "document.extractPageRange",
   "segment.combineResult",
   "benchmark.evaluate",
   "benchmark.aggregate",
@@ -35,6 +36,10 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "azureClassify.submit",
+  "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
   "data.transform",
 ] as const;
 

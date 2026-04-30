@@ -10,6 +10,17 @@
 // then repo-local .env for non-sensitive defaults. MUST remain first import.
 import "./env-loader";
 
+export type {
+  AzureClassifyPollOutput,
+  ClassifiedDocument,
+} from "./activities/azure-classify-poll";
+export { azureClassifyPoll } from "./activities/azure-classify-poll";
+// Azure Classifier activities (Feature 010)
+export type {
+  AzureClassifySubmitInput,
+  AzureClassifySubmitOutput,
+} from "./activities/azure-classify-submit";
+export { azureClassifySubmit } from "./activities/azure-classify-submit";
 export type { BenchmarkBaselineComparisonInput } from "./activities/benchmark-baseline-comparison";
 export { benchmarkCompareAgainstBaseline } from "./activities/benchmark-baseline-comparison";
 export type { BenchmarkCleanupInput } from "./activities/benchmark-cleanup";
@@ -50,6 +61,17 @@ export { validateDocumentFields } from "./activities/document-validate-fields";
 export type { EnrichResultsParams } from "./activities/enrich-results";
 export { enrichResults } from "./activities/enrich-results";
 export { extractOCRResults } from "./activities/extract-ocr-results";
+export type {
+  ExtractPageRangeInput,
+  ExtractPageRangeOutput,
+} from "./activities/extract-page-range";
+export { extractPageRange } from "./activities/extract-page-range";
+export type {
+  ClassifiedSegment,
+  FlattenClassifiedDocumentsInput,
+  FlattenClassifiedDocumentsOutput,
+} from "./activities/flatten-classified-documents";
+export { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
@@ -60,6 +82,12 @@ export { postOcrCleanup } from "./activities/post-ocr-cleanup";
 export type { PrepareFileDataInput } from "./activities/prepare-file-data";
 // Re-export all activities
 export { prepareFileData } from "./activities/prepare-file-data";
+export type {
+  ClassifiedPageSegment,
+  SelectClassifiedPagesInput,
+  SelectClassifiedPagesOutput,
+} from "./activities/select-classified-pages";
+export { selectClassifiedPages } from "./activities/select-classified-pages";
 export { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 // Re-export existing activities from activities folder
 export { splitDocument } from "./activities/split-document";

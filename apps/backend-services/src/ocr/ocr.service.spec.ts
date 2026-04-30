@@ -9,7 +9,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { DocumentService } from "../document/document.service";
-import type { DocumentData } from "../document/document-db.types";
+import { DocumentData } from "../document/document-db.types";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrService } from "./ocr.service";
 

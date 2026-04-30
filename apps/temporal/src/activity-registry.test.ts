@@ -34,6 +34,11 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "azureClassify.submit",
+  "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
+  "document.extractPageRange",
   "data.transform",
 ];
 

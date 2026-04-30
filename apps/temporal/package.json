@@ -45,7 +45,8 @@
 		"dotenv": "17.2.3",
     "fast-xml-parser": "5.5.8",
 		"json-rules-engine": "4.0.0",
-		"nspell": "2.1.5"
+		"nspell": "2.1.5",
+		"pdf-lib": "1.17.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",
@@ -74,8 +75,12 @@
 			"^.+\\.(t|j)s$": "ts-jest"
 		},
 		"testEnvironment": "node",
+		"transformIgnorePatterns": [
+			"node_modules/(?!(@aws-sdk|@nodable))"
+		],
 		"moduleNameMapper": {
-			"^@generated/(.*)$": "<rootDir>/generated/$1"
+			"^@generated/(.*)$": "<rootDir>/generated/$1",
+			"^@nodable/entities$": "<rootDir>/__mocks__/@nodable/entities.js"
 		},
 		"forceExit": true
 	}
