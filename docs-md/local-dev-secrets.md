@@ -68,3 +68,9 @@ populated before any other module reads it (decorators, top-level consts, etc.):
 - [apps/backend-services/src/main.ts](../apps/backend-services/src/main.ts)
 - [apps/temporal/src/worker.ts](../apps/temporal/src/worker.ts)
 - [apps/temporal/src/activities.ts](../apps/temporal/src/activities.ts)
+
+## Feature flags
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_CLASSIFIER_ORPHAN_CLEANUP` | `false` (unset) | Set to `true` to enable the weekly cron job that removes orphaned Azure DI classifier models and their blob storage files (i.e. models that exist in Azure DI but have no corresponding database record). Safe to leave disabled in local dev. |
