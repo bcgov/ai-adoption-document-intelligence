@@ -75,6 +75,9 @@
 			"^.+\\.(t|j)s$": "ts-jest"
 		},
 		"testEnvironment": "node",
+		"transformIgnorePatterns": [
+			"node_modules/(?!(@aws-sdk))"
+		],
 		"moduleNameMapper": {
 			"^@generated/(.*)$": "<rootDir>/generated/$1"
 		},

@@ -125,7 +125,7 @@
 		"coverageDirectory": "../coverage",
 		"testEnvironment": "node",
 		"transformIgnorePatterns": [
-			"node_modules/(?!(uuid|openid-client|oauth4webapi|jose))"
+			"node_modules/(?!(uuid|openid-client|oauth4webapi|jose|@aws-sdk))"
 		],
 		"moduleNameMapper": {
 			"^@/(.*)$": "<rootDir>/$1",
