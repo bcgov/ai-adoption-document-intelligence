@@ -5,12 +5,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "../../auth/AuthContext";
 import {
   CreateClassifierModal,
+  DeleteClassifierConfirmationModal,
   UploadClassifierFilesModal,
 } from "./ClassifierModals";
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
+
+const { mockNotificationsShow } = vi.hoisted(() => ({
+  mockNotificationsShow: vi.fn(),
+}));
 
 const mockUseGroup = vi.fn();
 const mockUseClassifier = vi.fn();
@@ -25,7 +30,7 @@ vi.mock("../../data/hooks/useClassifier", () => ({
 
 vi.mock("@mantine/notifications", () => ({
   notifications: {
-    show: vi.fn(),
+    show: mockNotificationsShow,
   },
 }));
 
@@ -262,6 +267,193 @@ describe("UploadClassifierFilesModal", () => {
       const input = document.querySelector('input[type="file"]');
       expect(input).not.toBeNull();
       expect(input).toHaveAttribute("accept", "image/*,application/pdf");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DeleteClassifierConfirmationModal
+// ---------------------------------------------------------------------------
+
+const mockDeleteMutate = vi.fn();
+
+/**
+ * Renders DeleteClassifierConfirmationModal inside required providers.
+ */
+const renderDeleteModal = (props?: {
+  onDeleted?: () => void;
+  mutate?: ReturnType<typeof vi.fn>;
+  isPending?: boolean;
+}) => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  mockUseClassifier.mockReturnValue({
+    deleteClassifier: {
+      mutate: props?.mutate ?? mockDeleteMutate,
+      isPending: props?.isPending ?? false,
+    },
+  });
+  mockUseGroup.mockReturnValue({ activeGroup });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <DeleteClassifierConfirmationModal
+          isOpen={true}
+          setIsOpen={vi.fn()}
+          classifierName="my-classifier"
+          groupId="group-abc"
+          onDeleted={props?.onDeleted ?? vi.fn()}
+        />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+};
+
+describe("DeleteClassifierConfirmationModal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 1 – delete button disabled until "delete" is typed
+  // -------------------------------------------------------------------------
+  describe("Scenario 1 – confirmation input gates the Delete button", () => {
+    it("renders the classifier name in the modal", () => {
+      renderDeleteModal();
+      expect(screen.getByText(/my-classifier/)).toBeInTheDocument();
+    });
+
+    it("Delete button is disabled when input is empty", () => {
+      renderDeleteModal();
+      const btn = screen.getByRole("button", { name: /^delete$/i });
+      expect(btn).toBeDisabled();
+    });
+
+    it("Delete button is disabled when input text is incorrect", () => {
+      renderDeleteModal();
+      fireEvent.change(screen.getByPlaceholderText(/delete/i), {
+        target: { value: "delet" },
+      });
+      const btn = screen.getByRole("button", { name: /^delete$/i });
+      expect(btn).toBeDisabled();
+    });
+
+    it("Delete button is enabled when user types 'delete' (case-insensitive)", () => {
+      renderDeleteModal();
+      fireEvent.change(screen.getByPlaceholderText(/delete/i), {
+        target: { value: "DELETE" },
+      });
+      const btn = screen.getByRole("button", { name: /^delete$/i });
+      expect(btn).not.toBeDisabled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 2 – successful deletion
+  // -------------------------------------------------------------------------
+  describe("Scenario 2 – success flow", () => {
+    it("calls deleteClassifier.mutate with correct params on confirm", async () => {
+      const mutate = vi.fn();
+      renderDeleteModal({ mutate });
+      fireEvent.change(screen.getByPlaceholderText(/delete/i), {
+        target: { value: "delete" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      expect(mutate).toHaveBeenCalledWith(
+        { name: "my-classifier", group_id: "group-abc" },
+        expect.any(Object),
+      );
+    });
+
+    it("shows success notification and calls onDeleted on 200 success", async () => {
+      const onDeleted = vi.fn();
+      const mutate = vi.fn().mockImplementation((_params, callbacks) => {
+        callbacks.onSuccess();
+      });
+      renderDeleteModal({ mutate, onDeleted });
+      fireEvent.change(screen.getByPlaceholderText(/delete/i), {
+        target: { value: "delete" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await waitFor(() => {
+        expect(mockNotificationsShow).toHaveBeenCalledWith(
+          expect.objectContaining({ color: "green" }),
+        );
+        expect(onDeleted).toHaveBeenCalled();
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 3 – 409 conflict handling
+  // -------------------------------------------------------------------------
+  describe("Scenario 3 – 409 conflict error display", () => {
+    it("does not navigate away and shows conflicting workflows on 409", async () => {
+      const onDeleted = vi.fn();
+      const conflictingWorkflows = [
+        { id: "wf-1", name: "Workflow One" },
+        { id: "wf-2", name: "Workflow Two" },
+      ];
+      const mutate = vi.fn().mockImplementation((_params, callbacks) => {
+        callbacks.onError({ conflictingWorkflows, message: "Conflict" });
+      });
+      renderDeleteModal({ mutate, onDeleted });
+      fireEvent.change(screen.getByPlaceholderText(/delete/i), {
+        target: { value: "delete" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await waitFor(() => {
+        expect(screen.getByText(/workflow one/i)).toBeInTheDocument();
+        expect(screen.getByText(/workflow two/i)).toBeInTheDocument();
+      });
+      expect(onDeleted).not.toHaveBeenCalled();
+    });
+
+    it("does not show a notification on 409 conflict", async () => {
+      const conflictingWorkflows = [{ id: "wf-1", name: "Workflow One" }];
+      const mutate = vi.fn().mockImplementation((_params, callbacks) => {
+        callbacks.onError({ conflictingWorkflows, message: "Conflict" });
+      });
+      renderDeleteModal({ mutate });
+      fireEvent.change(screen.getByPlaceholderText(/delete/i), {
+        target: { value: "delete" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await waitFor(() => {
+        expect(mockNotificationsShow).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 4 – modal close resets state
+  // -------------------------------------------------------------------------
+  describe("Scenario 4 – Cancel closes modal without action", () => {
+    it("clicking Cancel calls setIsOpen(false)", () => {
+      const setIsOpen = vi.fn();
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      mockUseClassifier.mockReturnValue({
+        deleteClassifier: { mutate: vi.fn(), isPending: false },
+      });
+      mockUseGroup.mockReturnValue({ activeGroup });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MantineProvider>
+            <DeleteClassifierConfirmationModal
+              isOpen={true}
+              setIsOpen={setIsOpen}
+              classifierName="my-classifier"
+              groupId="group-abc"
+              onDeleted={vi.fn()}
+            />
+          </MantineProvider>
+        </QueryClientProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+      expect(setIsOpen).toHaveBeenCalledWith(false);
     });
   });
 });
