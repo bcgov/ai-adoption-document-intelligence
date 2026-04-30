@@ -102,12 +102,7 @@ export function rawValueToAzureDocumentFieldValue(
           confidence,
         };
       }
-      const s =
-        typeof raw === "string"
-          ? raw
-          : raw == null
-            ? ""
-            : String(raw);
+      const s = typeof raw === "string" ? raw : raw == null ? "" : String(raw);
       const normalized = s.replace(/,/g, "").trim();
       const n = parseFloat(normalized);
       if (!Number.isNaN(n) && normalized !== "") {
@@ -138,12 +133,7 @@ export function rawValueToAzureDocumentFieldValue(
       };
     }
     case "date": {
-      const s =
-        typeof raw === "string"
-          ? raw
-          : raw == null
-            ? ""
-            : String(raw);
+      const s = typeof raw === "string" ? raw : raw == null ? "" : String(raw);
       return {
         type: "date",
         content: s,
@@ -153,12 +143,7 @@ export function rawValueToAzureDocumentFieldValue(
       };
     }
     case "signature": {
-      const s =
-        typeof raw === "string"
-          ? raw
-          : raw == null
-            ? ""
-            : String(raw);
+      const s = typeof raw === "string" ? raw : raw == null ? "" : String(raw);
       return {
         type: "signature",
         content: s,

@@ -254,9 +254,7 @@ export const useStartRun = (projectId: string, definitionId: string) => {
         data,
       );
       if (!response.success || response.data == null || !response.data.id) {
-        throw new Error(
-          response.message ?? "Failed to start benchmark run",
-        );
+        throw new Error(response.message ?? "Failed to start benchmark run");
       }
       return response.data;
     },
