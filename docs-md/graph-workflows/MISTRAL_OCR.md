@@ -51,9 +51,11 @@ After `npm run db:seed` (from `apps/shared` or your usual seed command), a workf
 - Raw Mistral JSON is converted in [`apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts`](../../apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts). When **`templateModelId`** is set, the activity loads the same **`field_schema`** used for `document_annotation_format` and maps **`document_annotation`** into:
   - **`OCRResult.documents[0].fields`**: Azure custom-model–shaped field objects (`type`, `content`, `valueString`, `valueNumber`, `valueDate`, `valueSelectionMark`, …) per [`mistral-annotation-to-azure-fields.ts`](../../apps/temporal/src/ocr-providers/mistral/mistral-annotation-to-azure-fields.ts). This matches how **`ocr.storeResults`** / the document viewer prefer **`documents[0].fields`** over plain key–value pairs (same path as Azure custom models).
   - **`OCRResult.keyValuePairs`**: derived display strings via [`extractAzureFieldDisplayValue`](../../apps/temporal/src/azure-ocr-field-display-value.ts) so **`ocr.enrich`**, benchmarks (`buildFlatPredictionMapFromCtx`), and LLM merge behave like the Azure pipeline.
+- For `selectionMark` fields, annotation mapping normalizes common checkbox outputs to Azure-compatible values (`selected` / `unselected`). This includes booleans (`true`/`false`), textual variants (`checked`, `unchecked`, `yes`, `no`, `on`, `off`, `1`, `0`), and common glyphs (`☑`, `☐`, `✓`, `✔`, `✗`, `✘`).
 - If **`templateModelId`** is omitted or the template has no usable schema, annotation is skipped and those structures are empty from Mistral.
 - Without a template, any **`document_annotation`** still maps to string-only **`keyValuePairs`** (legacy path).
 - Field schema → Mistral request format is built in [`apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts`](../../apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts).
+  - `selectionMark` fields are emitted as JSON Schema string enums: `["selected", "unselected"]` so annotation output is constrained at schema level.
 
 ### Optional enrichment (`ocr.enrich`) — same as Azure
 

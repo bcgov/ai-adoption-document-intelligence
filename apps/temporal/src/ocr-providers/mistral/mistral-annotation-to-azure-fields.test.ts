@@ -15,6 +15,51 @@ describe("rawValueToAzureDocumentFieldValue", () => {
     expect(f.valueSelectionMark).toBe("selected");
     expect(f.type).toBe("selectionMark");
   });
+
+  it("maps checkbox selected variants to selected", () => {
+    const selectedVariants = [
+      true,
+      "checked",
+      "yes",
+      "true",
+      "1",
+      "on",
+      "☑",
+      "☒",
+      "✓",
+      "✔",
+      "x",
+    ];
+
+    for (const variant of selectedVariants) {
+      const f = rawValueToAzureDocumentFieldValue(variant, "selectionMark");
+      expect(f.valueSelectionMark).toBe("selected");
+      expect(f.valueString).toBe("selected");
+    }
+  });
+
+  it("maps checkbox unselected variants to unselected", () => {
+    const unselectedVariants = [
+      false,
+      "unselected",
+      "unchecked",
+      "no",
+      "false",
+      "0",
+      "off",
+      "☐",
+      "✗",
+      "✘",
+      "",
+      "unknown-value",
+    ];
+
+    for (const variant of unselectedVariants) {
+      const f = rawValueToAzureDocumentFieldValue(variant, "selectionMark");
+      expect(f.valueSelectionMark).toBe("unselected");
+      expect(f.valueString).toBe("unselected");
+    }
+  });
 });
 
 describe("mistralAnnotationToDocumentsAndKeyValuePairs", () => {

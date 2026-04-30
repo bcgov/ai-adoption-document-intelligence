@@ -9,6 +9,7 @@ describe("fieldDefinitionsToMistralDocumentAnnotationFormat", () => {
     const fmt = fieldDefinitionsToMistralDocumentAnnotationFormat([
       { field_key: "invoice_id", field_type: "string" },
       { field_key: "total", field_type: "number" },
+      { field_key: "approved", field_type: "selectionMark" },
     ]);
     expect(fmt).not.toBeNull();
     expect(fmt!.type).toBe("json_schema");
@@ -20,7 +21,16 @@ describe("fieldDefinitionsToMistralDocumentAnnotationFormat", () => {
       type: "number",
       title: "total",
     });
-    expect(fmt!.json_schema.schema.required).toEqual(["invoice_id", "total"]);
+    expect(fmt!.json_schema.schema.properties.approved).toEqual({
+      type: "string",
+      title: "approved",
+      enum: ["selected", "unselected"],
+    });
+    expect(fmt!.json_schema.schema.required).toEqual([
+      "invoice_id",
+      "total",
+      "approved",
+    ]);
     expect(fmt!.json_schema.schema.additionalProperties).toBe(false);
   });
 

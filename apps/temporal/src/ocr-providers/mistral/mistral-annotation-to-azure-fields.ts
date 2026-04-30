@@ -18,6 +18,33 @@ export interface MistralFieldDefRow {
   field_format?: string | null;
 }
 
+const SELECTED_CHECKBOX_VALUES = new Set([
+  "selected",
+  "checked",
+  "yes",
+  "true",
+  "1",
+  "on",
+  "☑",
+  "☒",
+  "✓",
+  "✔",
+  "x",
+]);
+
+const UNSELECTED_CHECKBOX_VALUES = new Set([
+  "unselected",
+  "unchecked",
+  "no",
+  "false",
+  "0",
+  "off",
+  "☐",
+  "✗",
+  "✘",
+  "",
+]);
+
 function parseAnnotationObject(
   documentAnnotation: string | null | undefined,
 ): Record<string, unknown> | null {
@@ -44,14 +71,11 @@ function normalizeSelectionMark(raw: unknown): "selected" | "unselected" {
   if (raw === false) return "unselected";
   if (typeof raw === "string") {
     const s = raw.trim().toLowerCase();
-    if (
-      s === "selected" ||
-      s === "yes" ||
-      s === "true" ||
-      s === "☑" ||
-      s === "x"
-    ) {
+    if (SELECTED_CHECKBOX_VALUES.has(s)) {
       return "selected";
+    }
+    if (UNSELECTED_CHECKBOX_VALUES.has(s)) {
+      return "unselected";
     }
     return "unselected";
   }
@@ -81,7 +105,7 @@ export function rawValueToAzureDocumentFieldValue(
       const s =
         typeof raw === "string"
           ? raw
-          : raw == null || raw === undefined
+          : raw == null
             ? ""
             : String(raw);
       const normalized = s.replace(/,/g, "").trim();
@@ -117,7 +141,7 @@ export function rawValueToAzureDocumentFieldValue(
       const s =
         typeof raw === "string"
           ? raw
-          : raw == null || raw === undefined
+          : raw == null
             ? ""
             : String(raw);
       return {
@@ -132,7 +156,7 @@ export function rawValueToAzureDocumentFieldValue(
       const s =
         typeof raw === "string"
           ? raw
-          : raw == null || raw === undefined
+          : raw == null
             ? ""
             : String(raw);
       return {
@@ -146,7 +170,7 @@ export function rawValueToAzureDocumentFieldValue(
       const s =
         typeof raw === "string"
           ? raw
-          : raw == null || raw === undefined
+          : raw == null
             ? ""
             : typeof raw === "number" || typeof raw === "boolean"
               ? String(raw)

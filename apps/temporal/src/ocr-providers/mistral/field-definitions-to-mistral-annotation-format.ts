@@ -26,7 +26,10 @@ export interface MistralDocumentAnnotationFormat {
     schema: {
       type: "object";
       title: string;
-      properties: Record<string, { type: string; title?: string }>;
+      properties: Record<
+        string,
+        { type: string; title?: string; enum?: string[] }
+      >;
       required: string[];
       additionalProperties: false;
     };
@@ -36,6 +39,7 @@ export interface MistralDocumentAnnotationFormat {
 function jsonSchemaPropertyForField(field: TemplateFieldDefinitionInput): {
   type: string;
   title?: string;
+  enum?: string[];
 } {
   const title = field.field_key;
   switch (field.field_type) {
@@ -43,9 +47,14 @@ function jsonSchemaPropertyForField(field: TemplateFieldDefinitionInput): {
       return { type: "number", title };
     case "string":
     case "date":
-    case "selectionMark":
     case "signature":
       return { type: "string", title };
+    case "selectionMark":
+      return {
+        type: "string",
+        title,
+        enum: ["selected", "unselected"],
+      };
   }
 }
 
@@ -60,7 +69,10 @@ export function fieldDefinitionsToMistralDocumentAnnotationFormat(
     return null;
   }
 
-  const properties: Record<string, { type: string; title?: string }> = {};
+  const properties: Record<
+    string,
+    { type: string; title?: string; enum?: string[] }
+  > = {};
   const required: string[] = [];
 
   for (const f of fields) {
