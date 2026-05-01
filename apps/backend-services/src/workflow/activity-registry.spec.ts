@@ -25,6 +25,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.characterConfusion",
   "ocr.normalizeFields",
   "data.transform",
+  "tables.lookup",
 ];
 
 describe("activity-registry (backend)", () => {

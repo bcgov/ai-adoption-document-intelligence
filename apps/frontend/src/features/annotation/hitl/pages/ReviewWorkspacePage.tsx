@@ -1111,10 +1111,22 @@ export const ReviewWorkspacePage: FC = () => {
           </Group>
         )}
 
-        <Stack gap="xs">
-          <Text fw={600}>Correction history</Text>
-          <CorrectionHistory corrections={corrections} />
-        </Stack>
+        <Accordion
+          variant="contained"
+          chevronPosition="left"
+          defaultValue={readOnly ? "history" : null}
+        >
+          <Accordion.Item value="history">
+            <Accordion.Control>
+              <Text fw={600}>Correction history ({corrections.length})</Text>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <ScrollArea.Autosize mah={320} type="auto">
+                <CorrectionHistory corrections={corrections} />
+              </ScrollArea.Autosize>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
 
         <Modal
           opened={escalationOpen}

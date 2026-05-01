@@ -46,6 +46,23 @@ interface ReviewSessionWithDocument extends ReviewSession {
   document: DocumentWithOcrResult;
 }
 
+function readTemplateModelIdFromMetadata(
+  metadata: unknown,
+): string | undefined {
+  if (
+    metadata === null ||
+    metadata === undefined ||
+    typeof metadata !== "object" ||
+    Array.isArray(metadata)
+  ) {
+    return undefined;
+  }
+  const raw = (metadata as Record<string, unknown>).templateModelId;
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 @Injectable()
 export class HitlService {
   constructor(
@@ -294,12 +311,19 @@ export class HitlService {
 
     const doc = session.document as ReviewSessionWithDocument["document"];
 
-    // Fetch field definitions for format-aware HITL validation
-    const fieldDefinitions = session.document.group_id
-      ? await this.reviewDb.findFieldDefinitionsByGroupId(
-          session.document.group_id,
-        )
-      : [];
+    // Fetch field definitions for format-aware HITL validation. Prefer the exact
+    // template model recorded on the document (a Group can hold many templates;
+    // only one was actually used). Fall back to the group lookup for older docs.
+    const templateModelId = readTemplateModelIdFromMetadata(
+      session.document.metadata,
+    );
+    const fieldDefinitions =
+      templateModelId || session.document.group_id
+        ? await this.reviewDb.findFieldDefinitionsForDocument({
+            templateModelId,
+            groupId: session.document.group_id,
+          })
+        : [];
 
     return {
       id: session.id,

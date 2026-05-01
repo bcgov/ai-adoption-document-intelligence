@@ -361,25 +361,44 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds field definitions (field_key + format_spec) for the first template model
-   * belonging to the given group. Returns an empty array if no template model exists.
-   * @param groupId - The group ID to look up.
-   * @returns Array of { field_key, format_spec } objects.
+   * Finds field definitions for the template model that processed a document.
+   *
+   * Prefers the explicit templateModelId (recorded on Document.metadata at OCR time)
+   * because a Group may contain multiple TemplateModels and only one was actually
+   * used for this document. Falls back to the first TemplateModel in the group for
+   * documents that predate metadata.templateModelId being recorded.
+   *
+   * @param opts.templateModelId - The TemplateModel.id used by the OCR workflow, if known.
+   * @param opts.groupId - The document's group ID, used as fallback.
+   * @returns Array of { field_key, format_spec } objects, or [] if nothing resolves.
    */
-  async findFieldDefinitionsByGroupId(
-    groupId: string,
+  async findFieldDefinitionsForDocument(
+    opts: {
+      templateModelId?: string | null;
+      groupId?: string | null;
+    },
     tx?: Prisma.TransactionClient,
   ): Promise<Array<{ field_key: string; format_spec: string | null }>> {
     const client = tx ?? this.prisma;
-    const templateModel = await client.templateModel.findFirst({
-      where: { group_id: groupId },
-      include: {
-        field_schema: {
-          orderBy: { display_order: "asc" },
-          select: { field_key: true, format_spec: true },
-        },
+    const fieldSchemaInclude = {
+      field_schema: {
+        orderBy: { display_order: "asc" } as const,
+        select: { field_key: true, format_spec: true },
       },
-    });
+    };
+
+    const templateModel = opts.templateModelId
+      ? await client.templateModel.findUnique({
+          where: { id: opts.templateModelId },
+          include: fieldSchemaInclude,
+        })
+      : opts.groupId
+        ? await client.templateModel.findFirst({
+            where: { group_id: opts.groupId },
+            include: fieldSchemaInclude,
+          })
+        : null;
+
     return (
       templateModel?.field_schema?.map((f) => ({
         field_key: f.field_key,

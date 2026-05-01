@@ -465,6 +465,87 @@ export class GroundTruthJobDbService {
   }
 
   /**
+   * Deletes all ground truth jobs for a (versionId, sampleId) pair along with
+   * the Documents they reference. Documents must be removed because the
+   * job→document relation has no onDelete cascade — without this, the deleted
+   * sample would still surface in the HITL ground-truth-review queue and (once
+   * orphaned) potentially in the regular HITL queue.
+   *
+   * Cascading deletes from Document handle OcrResult, ReviewSession,
+   * FieldCorrection, and DocumentLock. Returns the documentIds that were
+   * removed so callers can clean up associated blob storage.
+   */
+  async deleteJobsForSample(
+    versionId: string,
+    sampleId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ documentIds: string[] }> {
+    return this.deleteJobsAndDocuments(
+      { datasetVersionId: versionId, sampleId },
+      tx,
+    );
+  }
+
+  /**
+   * Same as deleteJobsForSample, but for every job belonging to the given
+   * dataset versions. Used by version/dataset deletion paths to ensure the
+   * Documents that the job rows pointed at don't get stranded — without this,
+   * the cascade from DatasetVersion only removes the job rows, leaving
+   * orphaned Documents that would satisfy the regular HITL queue's
+   * `groundTruthJob: null` filter.
+   */
+  async deleteJobsForVersions(
+    versionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ documentIds: string[] }> {
+    if (versionIds.length === 0) {
+      return { documentIds: [] };
+    }
+    return this.deleteJobsAndDocuments(
+      { datasetVersionId: { in: versionIds } },
+      tx,
+    );
+  }
+
+  private async deleteJobsAndDocuments(
+    where: Prisma.DatasetGroundTruthJobWhereInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ documentIds: string[] }> {
+    const run = async (
+      client: Prisma.TransactionClient | PrismaClient,
+    ): Promise<{ documentIds: string[] }> => {
+      const jobs = await client.datasetGroundTruthJob.findMany({
+        where,
+        select: { id: true, documentId: true },
+      });
+      if (jobs.length === 0) {
+        return { documentIds: [] };
+      }
+      const jobIds = jobs.map((j) => j.id);
+      const documentIds = jobs
+        .map((j) => j.documentId)
+        .filter((id): id is string => id !== null);
+
+      // Jobs first: the FK from job→document has no cascade, so the document
+      // delete would fail while the job still references it.
+      await client.datasetGroundTruthJob.deleteMany({
+        where: { id: { in: jobIds } },
+      });
+      if (documentIds.length > 0) {
+        await client.document.deleteMany({
+          where: { id: { in: documentIds } },
+        });
+      }
+      return { documentIds };
+    };
+
+    if (tx) {
+      return run(tx);
+    }
+    return this.prisma.$transaction((txClient) => run(txClient));
+  }
+
+  /**
    * Finds completed jobs for a version, returning only sampleId.
    *
    * @param versionId - The dataset version ID.

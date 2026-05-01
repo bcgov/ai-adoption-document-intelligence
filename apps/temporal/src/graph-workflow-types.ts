@@ -257,6 +257,8 @@ export interface GraphWorkflowInput {
   parentWorkflowId?: string;
   /** Correlation ID from the API request; for cross-service tracing. */
   requestId?: string;
+  /** The group_id of the document/workflow owner; auto-injected into activity inputs as `groupId`. */
+  groupId?: string | null;
 }
 
 export interface GraphWorkflowResult {

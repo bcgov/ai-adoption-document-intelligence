@@ -42,7 +42,7 @@ export async function setupMockAuth(
         roles: ['user'],
         isAdmin: false,
         expires_in: 3600,
-        groups: [{ id: 'seed-default-group', name: 'Default' }],
+        groups: [{ id: 'seeddefaultgroup', name: 'Default' }],
       }),
     });
   });

@@ -256,6 +256,105 @@ describe("graph-schema-validator (temporal)", () => {
     });
   });
 
+  describe("port binding namespaces (doc.* / segment.*)", () => {
+    function configWithLookupBinding(
+      lookupCtxKey: string,
+      ctxDecls: GraphWorkflowConfig["ctx"],
+    ): GraphWorkflowConfig {
+      return {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "lookup",
+        ctx: ctxDecls,
+        nodes: {
+          lookup: {
+            id: "lookup",
+            type: "activity",
+            label: "Lookup",
+            activityType: "tables.lookup",
+            parameters: { tableId: "t", lookupName: "byDate" },
+            inputs: [{ port: "submissionDate", ctxKey: lookupCtxKey }],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+    }
+
+    it("accepts `doc.X` port binding when documentMetadata is declared", () => {
+      const result = validateGraphConfigForExecution(
+        configWithLookupBinding("doc.receivedAt", {
+          documentMetadata: { type: "object" },
+        }),
+      );
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("rejects `doc.X` port binding when documentMetadata is NOT declared", () => {
+      const result = validateGraphConfigForExecution(
+        configWithLookupBinding("doc.receivedAt", {}),
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              'root key "documentMetadata" not in ctx declarations',
+            ),
+          }),
+        ]),
+      );
+    });
+
+    it("accepts `segment.X` port binding when currentSegment is declared", () => {
+      const result = validateGraphConfigForExecution(
+        configWithLookupBinding("segment.payload", {
+          currentSegment: { type: "object" },
+        }),
+      );
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("still rejects unknown literal root keys", () => {
+      const result = validateGraphConfigForExecution(
+        configWithLookupBinding("notDeclared.x", {}),
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              'root key "notDeclared" not in ctx declarations',
+            ),
+          }),
+        ]),
+      );
+    });
+
+    it("output bindings via `doc.*` are also accepted when documentMetadata is declared", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "n",
+        ctx: { documentMetadata: { type: "object" } },
+        nodes: {
+          n: {
+            id: "n",
+            type: "activity",
+            label: "N",
+            activityType: "document.updateStatus",
+            outputs: [{ port: "anything", ctxKey: "doc.scribbled" }],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
   describe("expression validation", () => {
     it("validates expression operators", () => {
       const config: GraphWorkflowConfig = {

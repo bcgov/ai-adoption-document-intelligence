@@ -41,6 +41,7 @@ import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
+import { tablesLookup } from "./activities/tables-lookup";
 import type { RetryPolicy } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
@@ -344,6 +345,16 @@ register({
   defaultRetry: { maximumAttempts: 1 },
   description:
     "Execute data transformation: parse input, resolve field-mapping bindings, render output",
+});
+
+// -- Tables activities ------------------------------------------------------
+
+register({
+  activityType: "tables.lookup",
+  activityFn: tablesLookup as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Look up a row from a Tables-managed reference table",
 });
 
 // ---------------------------------------------------------------------------
