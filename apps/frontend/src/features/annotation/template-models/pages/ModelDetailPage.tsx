@@ -47,6 +47,7 @@ import { apiService } from "@/data/services/api.service";
 import { type FieldDefinition, FieldType } from "../../core/types/field";
 import { ExportPanel } from "../components/ExportPanel";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
+import { TrainedVersionsPanel } from "../components/TrainedVersionsPanel";
 import { TrainingPanel } from "../components/TrainingPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import {
@@ -523,6 +524,7 @@ export const ModelDetailPage: FC = () => {
           <Tabs.Tab value="schema">Field Schema</Tabs.Tab>
           <Tabs.Tab value="export">Export</Tabs.Tab>
           <Tabs.Tab value="training">Training</Tabs.Tab>
+          <Tabs.Tab value="versions">Versions</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="documents" pt="md">
@@ -758,6 +760,10 @@ export const ModelDetailPage: FC = () => {
             templateModelId={routeModelId}
             templateModelModelId={templateModel?.model_id}
           />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="versions" pt="md">
+          <TrainedVersionsPanel templateModelId={routeModelId} />
         </Tabs.Panel>
       </Tabs>
 
