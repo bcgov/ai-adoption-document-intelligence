@@ -54,6 +54,7 @@ import {
   useTemplateModel,
   useTemplateModelDocuments,
 } from "../hooks/useTemplateModels";
+import { useTrainedVersions } from "../hooks/useTrainedVersions";
 import type { TemplateModelStatus } from "../types/training.types";
 
 interface LabelingUploadPayload {
@@ -132,6 +133,14 @@ export const ModelDetailPage: FC = () => {
   }
   const { templateModel, isLoading: isModelLoading } =
     useTemplateModel(routeModelId);
+  const { versions: trainedVersions } = useTrainedVersions(routeModelId);
+  const activeTrainedVersion = trainedVersions.find((v) => v.isActive);
+  // The id worth copying is the Azure model name resolved at runtime — i.e.
+  // the active version (e.g. km-invoice-v3). v1 keeps the bare template id
+  // for backwards compatibility, so falling back to model_id is safe when
+  // no version is active yet.
+  const copyableModelId =
+    activeTrainedVersion?.modelId ?? templateModel?.model_id ?? "";
   const queryClient = useQueryClient();
   const {
     documents,
@@ -481,12 +490,23 @@ export const ModelDetailPage: FC = () => {
           </Button>
           <Stack gap={2}>
             <Title order={2}>{templateModel?.name || "Template Model"}</Title>
-            {templateModel?.model_id && (
+            {copyableModelId && (
               <Group gap="xs">
-                <Code>{templateModel.model_id}</Code>
-                <CopyButton value={templateModel.model_id}>
+                <Code>{copyableModelId}</Code>
+                {activeTrainedVersion && (
+                  <Code c="dimmed">v{activeTrainedVersion.version}</Code>
+                )}
+                <CopyButton value={copyableModelId}>
                   {({ copied, copy }) => (
-                    <Tooltip label={copied ? "Copied!" : "Copy model ID"}>
+                    <Tooltip
+                      label={
+                        copied
+                          ? "Copied!"
+                          : activeTrainedVersion
+                            ? `Copy active model ID (v${activeTrainedVersion.version})`
+                            : "Copy model ID"
+                      }
+                    >
                       <ActionIcon
                         color={copied ? "green" : "gray"}
                         variant="subtle"

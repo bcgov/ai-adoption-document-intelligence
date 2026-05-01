@@ -18,7 +18,7 @@ import {
   IconStarFilled,
   IconTrash,
 } from "@tabler/icons-react";
-import { FC, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { useTrainedVersions } from "../hooks/useTrainedVersions";
 import { useTraining } from "../hooks/useTraining";
 import { TrainedModelVersion, TrainingStatus } from "../types/training.types";
@@ -35,18 +35,7 @@ function formatDateTime(value: string): string {
 export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
   templateModelId,
 }) => {
-  const {
-    versions,
-    isLoading,
-    activateVersion,
-    isActivating,
-    deleteVersion,
-    isDeleting,
-  } = useTrainedVersions(templateModelId);
   const { jobs } = useTraining(templateModelId);
-  const [drawerVersion, setDrawerVersion] =
-    useState<TrainedModelVersion | null>(null);
-
   const trainingInProgress = jobs.some((j) =>
     [
       TrainingStatus.PENDING,
@@ -55,6 +44,32 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
       TrainingStatus.TRAINING,
     ].includes(j.status),
   );
+  const {
+    versions,
+    isLoading,
+    refetch,
+    activateVersion,
+    isActivating,
+    deleteVersion,
+    isDeleting,
+  } = useTrainedVersions(templateModelId, {
+    pollWhileTraining: trainingInProgress,
+  });
+  const [drawerVersion, setDrawerVersion] =
+    useState<TrainedModelVersion | null>(null);
+
+  // When training transitions from active → idle, force one more refetch.
+  // The polling-while-training window stops the moment trainingInProgress
+  // flips false, which can happen *just* before the poller writes the new
+  // row. Catching this transition guarantees the new version appears
+  // without a manual refresh.
+  const wasTraining = useRef(false);
+  useEffect(() => {
+    if (wasTraining.current && !trainingInProgress) {
+      refetch();
+    }
+    wasTraining.current = trainingInProgress;
+  }, [trainingInProgress, refetch]);
 
   const handleActivate = async (version: TrainedModelVersion) => {
     try {

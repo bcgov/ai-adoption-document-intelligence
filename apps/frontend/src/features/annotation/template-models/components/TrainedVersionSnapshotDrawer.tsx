@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Alert,
   Badge,
   Drawer,
@@ -55,63 +56,74 @@ export const TrainedVersionSnapshotDrawer: FC<
           history.
         </Alert>
       ) : (
-        <ScrollArea h="calc(100vh - 120px)" type="auto">
-          <Stack gap="md">
-            {data.documents.map((doc) => (
-              <Stack
-                key={doc.labelingDocumentId}
-                gap="xs"
-                p="sm"
-                style={{
-                  border: "1px solid var(--mantine-color-gray-3)",
-                  borderRadius: 6,
-                }}
-              >
-                <Group justify="space-between" wrap="nowrap">
-                  <Text fw={600} size="sm" lineClamp={1}>
-                    {doc.originalFilename}
-                  </Text>
-                  <Badge size="sm" variant="light">
-                    {doc.labels.length}{" "}
-                    {doc.labels.length === 1 ? "label" : "labels"}
-                  </Badge>
-                </Group>
-                {doc.labels.length > 0 && (
-                  <Table withRowBorders={false} verticalSpacing={4}>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Field</Table.Th>
-                        <Table.Th>Value</Table.Th>
-                        <Table.Th style={{ width: 60 }}>Page</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {doc.labels.map((label, idx) => (
-                        <Table.Tr key={`${label.fieldKey}-${idx}`}>
-                          <Table.Td>
-                            <Text size="xs" fw={500}>
-                              {label.fieldKey}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="xs" lineClamp={2}>
-                              {label.value ?? "—"}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="xs" c="dimmed">
-                              {label.pageNumber}
-                            </Text>
-                          </Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                )}
-              </Stack>
-            ))}
-          </Stack>
-        </ScrollArea>
+        <Stack gap="xs">
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              {data.documents.length}{" "}
+              {data.documents.length === 1 ? "document" : "documents"}
+            </Text>
+          </Group>
+          <ScrollArea h="calc(100vh - 140px)" type="auto">
+            <Accordion multiple variant="separated" chevronPosition="left">
+              {data.documents.map((doc) => (
+                <Accordion.Item
+                  key={doc.labelingDocumentId}
+                  value={doc.labelingDocumentId}
+                >
+                  <Accordion.Control>
+                    <Group justify="space-between" wrap="nowrap" pr="md">
+                      <Text fw={500} size="sm" lineClamp={1}>
+                        {doc.originalFilename}
+                      </Text>
+                      <Badge size="sm" variant="light">
+                        {doc.labels.length}{" "}
+                        {doc.labels.length === 1 ? "label" : "labels"}
+                      </Badge>
+                    </Group>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    {doc.labels.length === 0 ? (
+                      <Text size="xs" c="dimmed">
+                        No labels recorded for this document.
+                      </Text>
+                    ) : (
+                      <Table withRowBorders={false} verticalSpacing={4}>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Field</Table.Th>
+                            <Table.Th>Value</Table.Th>
+                            <Table.Th style={{ width: 60 }}>Page</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {doc.labels.map((label, idx) => (
+                            <Table.Tr key={`${label.fieldKey}-${idx}`}>
+                              <Table.Td>
+                                <Text size="xs" fw={500}>
+                                  {label.fieldKey}
+                                </Text>
+                              </Table.Td>
+                              <Table.Td>
+                                <Text size="xs" lineClamp={2}>
+                                  {label.value ?? "—"}
+                                </Text>
+                              </Table.Td>
+                              <Table.Td>
+                                <Text size="xs" c="dimmed">
+                                  {label.pageNumber}
+                                </Text>
+                              </Table.Td>
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    )}
+                  </Accordion.Panel>
+                </Accordion.Item>
+              ))}
+            </Accordion>
+          </ScrollArea>
+        </Stack>
       )}
     </Drawer>
   );

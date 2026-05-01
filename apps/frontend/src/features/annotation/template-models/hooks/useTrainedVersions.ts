@@ -5,7 +5,10 @@ import {
   TrainedModelVersion,
 } from "../types/training.types";
 
-export function useTrainedVersions(templateModelId: string) {
+export function useTrainedVersions(
+  templateModelId: string,
+  opts: { pollWhileTraining?: boolean } = {},
+) {
   const queryClient = useQueryClient();
 
   const versionsQuery = useQuery({
@@ -17,6 +20,9 @@ export function useTrainedVersions(templateModelId: string) {
       return response.data || [];
     },
     enabled: !!templateModelId,
+    // Poll while a training job is active so the new version appears as soon
+    // as the poller writes it, no manual refresh needed.
+    refetchInterval: opts.pollWhileTraining ? 5000 : false,
   });
 
   const activateMutation = useMutation({
