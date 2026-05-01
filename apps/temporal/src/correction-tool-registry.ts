@@ -4,7 +4,7 @@
  * Maintains a manifest of available OCR correction tools with their parameter
  * schemas. Consumed by the AI recommendation pipeline to select and configure tools,
  * and by documentation. Candidate insertion is fixed by the improvement pipeline
- * (first edge after `azureOcr.extract`), not by per-tool metadata here.
+ * (first edge after structured OCR: `azureOcr.extract`, `mistralOcr.process`, …), not by per-tool metadata here.
  *
  * **Why not a single module?** The same manifest text is duplicated in
  * `apps/backend-services/src/hitl/tool-manifest.service.ts` because the Nest API

@@ -94,7 +94,7 @@ export class BenchmarkRunController {
     description:
       "Extracts field mismatches from the baseline run, runs AI recommendation, and creates a candidate workflow. " +
       "Requires a promoted baseline run on the definition. Does not start a benchmark run. " +
-      "Use the workflow editor to review, then create a definition and run normally.",
+      "On the definition UI, use Start benchmark with this candidate after generate, or POST .../definitions/:definitionId/runs with candidateWorkflowVersionId.",
   })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })

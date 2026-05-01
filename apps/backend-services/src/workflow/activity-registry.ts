@@ -27,6 +27,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureOcr.submit": { description: "Submit to Azure Document Intelligence" },
     "azureOcr.poll": { description: "Poll Azure for OCR results" },
     "azureOcr.extract": { description: "Extract structured OCR data" },
+    "mistralOcr.process": {
+      description:
+        "Mistral Document AI OCR (sync) with optional document annotation",
+    },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {
       description: "Enrich OCR results using field schema and optional LLM",

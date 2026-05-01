@@ -158,6 +158,7 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
 // ========== BENCHMARKING SEED DATA ==========
 
 const SEED_WORKFLOW_ID = "seed-workflow-standard-ocr";
+const SEED_WORKFLOW_ID_MISTRAL = "seed-workflow-standard-ocr-mistral";
 const SEED_WORKFLOW_ID_MULTI_PAGE = "seed-workflow-multi-page-report";
 const SEED_DATASET_ID = "seed-dataset-invoices";
 const SEED_DATASET_ID_2 = "seed-dataset-receipts";
@@ -505,6 +506,12 @@ async function seedBenchmarkingData() {
       "utf-8",
     ),
   );
+  const mistralStandardOcrConfig = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, "../../../docs-md/graph-workflows/templates/mistral-standard-ocr-workflow.json"),
+      "utf-8",
+    ),
+  );
 
   const seedLineageVersion = async (
     lineageId: string,
@@ -520,7 +527,7 @@ async function seedBenchmarkingData() {
         id: lineageId,
         name,
         description: description ?? null,
-        actor_id: SEED_ACTOR_ID,
+        actor_id: TEST_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },
     });
@@ -553,6 +560,13 @@ async function seedBenchmarkingData() {
     multiPageReportConfig.metadata.name,
     multiPageReportConfig.metadata.description,
     multiPageReportConfig,
+  );
+
+  await seedLineageVersion(
+    SEED_WORKFLOW_ID_MISTRAL,
+    mistralStandardOcrConfig.metadata.name,
+    mistralStandardOcrConfig.metadata.description,
+    mistralStandardOcrConfig,
   );
 
   // Create test dataset files with sample data
@@ -1503,6 +1517,16 @@ async function seedUsers() {
 
 async function seedGroup() {
   console.log("👥 Seeding default group...");
+
+  const conflictingByName = await prisma.group.findUnique({
+    where: { name: SEED_GROUP_NAME },
+  });
+  if (conflictingByName && conflictingByName.id !== SEED_GROUP_ID) {
+    await prisma.group.update({
+      where: { id: conflictingByName.id },
+      data: { name: `${SEED_GROUP_NAME} (renamed for seed)` },
+    });
+  }
 
   const group = await prisma.group.upsert({
     where: { id: SEED_GROUP_ID },

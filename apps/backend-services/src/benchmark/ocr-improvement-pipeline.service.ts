@@ -359,7 +359,7 @@ export class OcrImprovementPipelineService {
           },
           analysis: aiOutput.analysis,
           pipelineMessage:
-            "No insertion edge after azureOcr.extract; cannot apply correction tools.",
+            "No insertion edge after structured OCR output; cannot apply correction tools.",
           status: "no_recommendations",
         };
       }
