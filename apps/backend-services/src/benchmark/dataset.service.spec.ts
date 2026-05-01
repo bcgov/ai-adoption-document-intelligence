@@ -18,6 +18,7 @@ import {
 import { AuditLogDbService } from "./audit-log-db.service";
 import { DatasetService } from "./dataset.service";
 import { DatasetDbService } from "./dataset-db.service";
+import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 
 const mockDatasetDbService = {
   createDataset: jest.fn(),
@@ -50,6 +51,10 @@ const mockDatasetDbService = {
 const mockAuditLogDbService = {
   createAuditLog: jest.fn(),
   findAllAuditLogs: jest.fn(),
+};
+
+const mockGroundTruthJobDbService = {
+  deleteJobsForSample: jest.fn().mockResolvedValue({ documentIds: [] }),
 };
 
 describe("DatasetService", () => {
@@ -87,6 +92,9 @@ describe("DatasetService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockDatasetDbService.findAllSplitsForVersion.mockResolvedValue([]);
+    mockGroundTruthJobDbService.deleteJobsForSample.mockResolvedValue({
+      documentIds: [],
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -98,6 +106,10 @@ describe("DatasetService", () => {
         {
           provide: AuditLogDbService,
           useValue: mockAuditLogDbService,
+        },
+        {
+          provide: GroundTruthJobDbService,
+          useValue: mockGroundTruthJobDbService,
         },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
       ],
@@ -566,6 +578,95 @@ describe("DatasetService", () => {
         expect.any(String),
         expect.objectContaining({ documentCount: 1 }),
       );
+
+      // Verify ground-truth jobs/documents for this sample were cleaned up so
+      // the sample doesn't linger in the HITL ground-truth review queue.
+      expect(
+        mockGroundTruthJobDbService.deleteJobsForSample,
+      ).toHaveBeenCalledWith("version-1", "sample-1");
+    });
+
+    it("removes OCR blob prefix for each document linked to deleted jobs", async () => {
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
+        id: "version-1",
+        datasetId: "dataset-1",
+        version: "1.0.0",
+        storagePrefix: "datasets/dataset-1/version-1",
+        manifestPath: "dataset-manifest.json",
+        documentCount: 1,
+      });
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-1",
+            inputs: [
+              { path: "inputs/sample-1.pdf", mimeType: "application/pdf" },
+            ],
+            groundTruth: [],
+          },
+        ],
+      };
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+      mockGroundTruthJobDbService.deleteJobsForSample.mockResolvedValueOnce({
+        documentIds: ["doc-aaa", "doc-bbb"],
+      });
+
+      await service.deleteSample(
+        "dataset-1",
+        "version-1",
+        "sample-1",
+        "group-1",
+      );
+
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "group-1/ocr/doc-aaa",
+      );
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "group-1/ocr/doc-bbb",
+      );
+    });
+
+    it("does not fail when blob cleanup throws for a document", async () => {
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
+        id: "version-1",
+        datasetId: "dataset-1",
+        version: "1.0.0",
+        storagePrefix: "datasets/dataset-1/version-1",
+        manifestPath: "dataset-manifest.json",
+        documentCount: 1,
+      });
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-1",
+            inputs: [
+              { path: "inputs/sample-1.pdf", mimeType: "application/pdf" },
+            ],
+            groundTruth: [],
+          },
+        ],
+      };
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+      mockGroundTruthJobDbService.deleteJobsForSample.mockResolvedValueOnce({
+        documentIds: ["doc-1"],
+      });
+      (mockBlobStorage.deleteByPrefix as jest.Mock).mockRejectedValueOnce(
+        new Error("storage offline"),
+      );
+
+      await expect(
+        service.deleteSample("dataset-1", "version-1", "sample-1", "group-1"),
+      ).resolves.toBeUndefined();
     });
 
     it("throws BadRequestException when version is frozen", async () => {

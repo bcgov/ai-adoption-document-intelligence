@@ -50,6 +50,7 @@ import {
   VersionListResponseDto,
   VersionResponseDto,
 } from "./dto";
+import { GroundTruthJobDbService } from "./ground-truth-job-db.service";
 
 @Injectable()
 export class DatasetService {
@@ -58,6 +59,7 @@ export class DatasetService {
   constructor(
     private readonly datasetDbService: DatasetDbService,
     private readonly auditLogDbService: AuditLogDbService,
+    private readonly groundTruthJobDb: GroundTruthJobDbService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
   ) {}
 
@@ -731,6 +733,33 @@ export class DatasetService {
           await this.datasetDbService.updateSplit(split.id, {
             sampleIds: updatedSampleIds,
           });
+        }
+      }
+
+      // Remove ground-truth-generation jobs and their documents for this sample.
+      // Without this, the deleted sample lingers in the HITL ground-truth review
+      // queue (jobs survive because the job→document FK has no cascade, and the
+      // queue filter only checks status + datasetVersionId).
+      const { documentIds } = await this.groundTruthJobDb.deleteJobsForSample(
+        versionId,
+        sampleId,
+      );
+
+      // Best-effort blob cleanup for any OCR-side artifacts the document
+      // produced (e.g., normalized PDF). Failures are logged but not fatal —
+      // the user-visible HITL queue entry is already gone.
+      for (const documentId of documentIds) {
+        try {
+          const documentPrefix = buildBlobPrefixPath(
+            groupId,
+            OperationCategory.OCR,
+            [documentId],
+          );
+          await this.blobStorage.deleteByPrefix(documentPrefix);
+        } catch (error) {
+          this.logger.warn(
+            `Could not delete OCR blobs for document ${documentId}: ${getErrorMessage(error)}`,
+          );
         }
       }
 

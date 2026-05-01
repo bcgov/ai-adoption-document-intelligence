@@ -465,6 +465,56 @@ export class GroundTruthJobDbService {
   }
 
   /**
+   * Deletes all ground truth jobs for a (versionId, sampleId) pair along with
+   * the Documents they reference. Documents must be removed because the
+   * job→document relation has no onDelete cascade — without this, the deleted
+   * sample would still surface in the HITL ground-truth-review queue and (once
+   * orphaned) potentially in the regular HITL queue.
+   *
+   * Cascading deletes from Document handle OcrResult, ReviewSession,
+   * FieldCorrection, and DocumentLock. Returns the documentIds that were
+   * removed so callers can clean up associated blob storage.
+   */
+  async deleteJobsForSample(
+    versionId: string,
+    sampleId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ documentIds: string[] }> {
+    const run = async (
+      client: Prisma.TransactionClient | PrismaClient,
+    ): Promise<{ documentIds: string[] }> => {
+      const jobs = await client.datasetGroundTruthJob.findMany({
+        where: { datasetVersionId: versionId, sampleId },
+        select: { id: true, documentId: true },
+      });
+      if (jobs.length === 0) {
+        return { documentIds: [] };
+      }
+      const jobIds = jobs.map((j) => j.id);
+      const documentIds = jobs
+        .map((j) => j.documentId)
+        .filter((id): id is string => id !== null);
+
+      // Jobs first: the FK from job→document has no cascade, so the document
+      // delete would fail while the job still references it.
+      await client.datasetGroundTruthJob.deleteMany({
+        where: { id: { in: jobIds } },
+      });
+      if (documentIds.length > 0) {
+        await client.document.deleteMany({
+          where: { id: { in: documentIds } },
+        });
+      }
+      return { documentIds };
+    };
+
+    if (tx) {
+      return run(tx);
+    }
+    return this.prisma.$transaction((txClient) => run(txClient));
+  }
+
+  /**
    * Finds completed jobs for a version, returning only sampleId.
    *
    * @param versionId - The dataset version ID.
