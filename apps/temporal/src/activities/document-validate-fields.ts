@@ -152,10 +152,6 @@ function resolveField(
 }
 
 function parseCurrency(value: unknown): number | undefined {
-  if (value == null) {
-    return undefined;
-  }
-
   let str: string;
   if (typeof value === "number") {
     return value;

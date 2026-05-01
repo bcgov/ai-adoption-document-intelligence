@@ -6,7 +6,15 @@
  */
 
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsBoolean, IsObject, IsOptional, IsUUID } from "class-validator";
+import {
+  IsBoolean,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from "class-validator";
 
 /**
  * DTO for creating a benchmark run
@@ -31,11 +39,13 @@ export class CreateRunDto {
 
   @ApiPropertyOptional({
     description:
-      "When set, the run uses this workflow version's config (e.g. a candidate). Otherwise the definition's pinned workflow is used.",
-    format: "uuid",
+      "When set, the run uses this workflow version's config (e.g. a candidate). Otherwise the definition's pinned workflow is used. Uses the same id format as `workflow_versions.id` (cuid).",
+    example: "clx1234567890abcdefghijk",
   })
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
   candidateWorkflowVersionId?: string;
 
   @ApiPropertyOptional({

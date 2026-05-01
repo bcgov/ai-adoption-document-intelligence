@@ -314,6 +314,6 @@ Deterministic field normalization: whitespace cleanup, digit grouping, date sepa
 
 ### Correction Tool Registry
 
-A programmatic manifest of the three AI-recommendable correction tools and their parameters is available via `apps/temporal/src/correction-tool-registry.ts`. The AI recommendation pipeline (Feature 008 Step 3) uses it for tool IDs and parameter schemas; **node placement** for candidate workflows is fixed: **split the first normal edge after `azureOcr.extract`** (see `docs-md/OCR_IMPROVEMENT_PIPELINE.md`), not per-entry “safe insertion” metadata in the registry.
+A programmatic manifest of the three AI-recommendable correction tools and their parameters is available via `apps/temporal/src/correction-tool-registry.ts`. The AI recommendation pipeline (Feature 008 Step 3) uses it for tool IDs and parameter schemas; **node placement** for candidate workflows is fixed: **split the first normal edge after structured OCR** (`azureOcr.extract`, `mistralOcr.process`, … — `OCR_CORRECTION_AFTER_ACTIVITY_TYPES` in `@ai-di/graph-insertion-slots`; see `docs-md/OCR_IMPROVEMENT_PIPELINE.md`), not per-entry “safe insertion” metadata in the registry.
 
 See also: `docs-md/OCR_CONFUSION_MATRICES.md` for confusion matrix documentation.

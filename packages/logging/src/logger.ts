@@ -6,6 +6,11 @@
 import type { LogContext, LogLevel, StructuredLogEntry } from "./types";
 import { LOG_LEVELS } from "./types";
 
+/** Node `process` when present; undefined in browser / Temporal workflow sandbox (no throws on load). */
+function nodeProcess(): NodeJS.Process | undefined {
+  return typeof process !== "undefined" ? process : undefined;
+}
+
 const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
@@ -32,7 +37,7 @@ const RESERVED_CONTEXT_KEYS = new Set([
 ]);
 
 function getConfiguredLevel(): LogLevel {
-  const raw = process.env.LOG_LEVEL;
+  const raw = nodeProcess()?.env.LOG_LEVEL;
   if (raw && typeof raw === "string") {
     const level = raw.toLowerCase() as LogLevel;
     if (LOG_LEVELS.includes(level)) return level;
@@ -109,8 +114,12 @@ function safeStringify(entry: StructuredLogEntry): string {
 }
 
 function writeStdout(line: string): void {
+  const proc = nodeProcess();
+  if (proc?.stdout == null) {
+    return;
+  }
   try {
-    process.stdout.write(line + "\n", (err) => {
+    proc.stdout.write(line + "\n", (err) => {
       if (err) fallbackStderr(`stdout write failed: ${err.message}`, line);
     });
   } catch (err) {
@@ -129,10 +138,11 @@ function fallbackStderr(reason: string, originalLine: string): void {
         service: "logging",
         message: reason,
       });
-    process.stderr.write(
-      `[logging fallback] ${reason}: ${fallback}\n`,
-      () => {},
-    );
+    const proc = nodeProcess();
+    if (proc?.stderr == null) {
+      return;
+    }
+    proc.stderr.write(`[logging fallback] ${reason}: ${fallback}\n`, () => {});
   } catch {
     // Best effort only; do not throw.
   }
@@ -143,18 +153,27 @@ function shouldEmit(configured: LogLevel, messageLevel: LogLevel): boolean {
 }
 
 function isDevelopment(): boolean {
-  return process.env.NODE_ENV === "development";
+  return nodeProcess()?.env.NODE_ENV === "development";
 }
 
 /** When set (e.g. LOG_PRETTY_CONTEXT=1), context is pretty-printed on multiple lines in dev. */
 function isPrettyContextEnabled(): boolean {
-  const v = process.env.LOG_PRETTY_CONTEXT;
+  const v = nodeProcess()?.env.LOG_PRETTY_CONTEXT;
   if (v === undefined || v === "") return false;
   return ["1", "true", "yes"].includes(v.toLowerCase());
 }
 
-/** ANSI colors for pretty dev output; no-op when stdout is not a TTY. */
-const TTY = typeof process.stdout.isTTY === "boolean" && process.stdout.isTTY;
+/** ANSI colors for pretty dev output; no-op when stdout is not a TTY or not in Node. */
+function isStdoutTty(): boolean {
+  const proc = nodeProcess();
+  return (
+    proc !== undefined &&
+    typeof proc.stdout.isTTY === "boolean" &&
+    proc.stdout.isTTY
+  );
+}
+
+const TTY = isStdoutTty();
 const reset = TTY ? "\x1b[0m" : "";
 const secondary = TTY ? "\x1b[90m" : ""; // bright gray (visible on dark/light)
 const levelColors: Record<LogLevel, string> = TTY
