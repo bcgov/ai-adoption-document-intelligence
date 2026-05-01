@@ -18,6 +18,7 @@ import {
   IconStarFilled,
   IconTrash,
 } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FC, useEffect, useRef, useState } from "react";
 import { useTrainedVersions } from "../hooks/useTrainedVersions";
 import { useTraining } from "../hooks/useTraining";
@@ -62,14 +63,20 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
   // The polling-while-training window stops the moment trainingInProgress
   // flips false, which can happen *just* before the poller writes the new
   // row. Catching this transition guarantees the new version appears
-  // without a manual refresh.
+  // without a manual refresh — and refreshes the template-model query so
+  // the page header's "active model id" updates too.
+  const queryClient = useQueryClient();
   const wasTraining = useRef(false);
   useEffect(() => {
     if (wasTraining.current && !trainingInProgress) {
       refetch();
+      queryClient.invalidateQueries({
+        queryKey: ["template-model", templateModelId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["template-models"] });
     }
     wasTraining.current = trainingInProgress;
-  }, [trainingInProgress, refetch]);
+  }, [trainingInProgress, refetch, queryClient, templateModelId]);
 
   const handleActivate = async (version: TrainedModelVersion) => {
     try {

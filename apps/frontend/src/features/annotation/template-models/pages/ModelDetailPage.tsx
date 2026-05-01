@@ -54,7 +54,6 @@ import {
   useTemplateModel,
   useTemplateModelDocuments,
 } from "../hooks/useTemplateModels";
-import { useTrainedVersions } from "../hooks/useTrainedVersions";
 import type { TemplateModelStatus } from "../types/training.types";
 
 interface LabelingUploadPayload {
@@ -133,14 +132,13 @@ export const ModelDetailPage: FC = () => {
   }
   const { templateModel, isLoading: isModelLoading } =
     useTemplateModel(routeModelId);
-  const { versions: trainedVersions } = useTrainedVersions(routeModelId);
-  const activeTrainedVersion = trainedVersions.find((v) => v.isActive);
   // The id worth copying is the Azure model name resolved at runtime — i.e.
   // the active version (e.g. km-invoice-v3). v1 keeps the bare template id
   // for backwards compatibility, so falling back to model_id is safe when
   // no version is active yet.
+  const activeTrainedModel = templateModel?.active_trained_model;
   const copyableModelId =
-    activeTrainedVersion?.modelId ?? templateModel?.model_id ?? "";
+    activeTrainedModel?.model_id ?? templateModel?.model_id ?? "";
   const queryClient = useQueryClient();
   const {
     documents,
@@ -493,8 +491,8 @@ export const ModelDetailPage: FC = () => {
             {copyableModelId && (
               <Group gap="xs">
                 <Code>{copyableModelId}</Code>
-                {activeTrainedVersion && (
-                  <Code c="dimmed">v{activeTrainedVersion.version}</Code>
+                {activeTrainedModel && (
+                  <Code c="dimmed">v{activeTrainedModel.version}</Code>
                 )}
                 <CopyButton value={copyableModelId}>
                   {({ copied, copy }) => (
@@ -502,8 +500,8 @@ export const ModelDetailPage: FC = () => {
                       label={
                         copied
                           ? "Copied!"
-                          : activeTrainedVersion
-                            ? `Copy active model ID (v${activeTrainedVersion.version})`
+                          : activeTrainedModel
+                            ? `Copy active model ID (v${activeTrainedModel.version})`
                             : "Copy model ID"
                       }
                     >

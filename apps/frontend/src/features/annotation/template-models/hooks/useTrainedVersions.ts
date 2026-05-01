@@ -37,6 +37,12 @@ export function useTrainedVersions(
       queryClient.invalidateQueries({
         queryKey: ["trained-versions", templateModelId],
       });
+      // Header on the detail/list page reads active_trained_model from the
+      // template-model query — keep it in sync.
+      queryClient.invalidateQueries({
+        queryKey: ["template-model", templateModelId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["template-models"] });
     },
   });
 
@@ -54,6 +60,12 @@ export function useTrainedVersions(
       queryClient.invalidateQueries({
         queryKey: ["trained-versions", templateModelId],
       });
+      // Header on the detail/list page reads active_trained_model from the
+      // template-model query — keep it in sync.
+      queryClient.invalidateQueries({
+        queryKey: ["template-model", templateModelId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["template-models"] });
     },
   });
 

@@ -14,6 +14,45 @@ import type {
   TemplateModelData,
 } from "./template-model-db.types";
 
+/**
+ * Prisma include shape for the active (non-tombstoned) TrainedModel of a
+ * template. Returns at most one row — the active one, if any.
+ */
+const activeTrainedModelInclude = {
+  trained_models: {
+    where: { is_active: true, deleted_at: null },
+    take: 1,
+    select: {
+      id: true,
+      model_id: true,
+      version: true,
+      is_active: true,
+      deleted_at: true,
+      created_at: true,
+    },
+    orderBy: { version: "desc" },
+  },
+} as const satisfies Prisma.TemplateModelInclude;
+
+/**
+ * Re-shapes Prisma's `trained_models: [...]` array (limited to the active
+ * one) into a single `active_trained_model` field on TemplateModelData.
+ * Returns null when the input is null so findUnique results pass through.
+ */
+function reshapeActiveTrainedModel<
+  T extends { trained_models?: TemplateModelData["active_trained_model"][] },
+>(input: T | null): (T & TemplateModelData) | null {
+  if (input === null) return null;
+  const { trained_models, ...rest } = input as T & {
+    trained_models?: TemplateModelData["active_trained_model"][];
+  };
+  return {
+    ...(rest as T),
+    active_trained_model:
+      trained_models && trained_models.length > 0 ? trained_models[0] : null,
+  } as T & TemplateModelData;
+}
+
 @Injectable()
 export class TemplateModelDbService {
   constructor(
@@ -102,9 +141,10 @@ export class TemplateModelDbService {
             labels: true,
           },
         },
+        ...activeTrainedModelInclude,
       },
     });
-    return templateModel as TemplateModelData | null;
+    return reshapeActiveTrainedModel(templateModel);
   }
 
   /**
@@ -125,9 +165,12 @@ export class TemplateModelDbService {
       include: {
         field_schema: { orderBy: { display_order: "asc" } },
         _count: { select: { documents: true } },
+        ...activeTrainedModelInclude,
       },
     });
-    return templateModels as TemplateModelData[];
+    return templateModels.map(
+      (m) => reshapeActiveTrainedModel(m) as TemplateModelData,
+    );
   }
 
   /**
