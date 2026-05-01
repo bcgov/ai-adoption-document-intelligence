@@ -134,7 +134,29 @@ describe("OcrService", () => {
       const result = await service.requestOcr("0000");
       expect(result.status).toEqual(DocumentStatus.ongoing_ocr);
       expect(result.workflowId).toEqual("workflow-123");
-      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalled();
+      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalledWith(
+        "0000",
+        expect.any(String),
+        expect.any(Object),
+        defaultDocument.group_id,
+        undefined,
+      );
+    });
+
+    it("populates initialCtx.documentMetadata.receivedAt from document.created_at (used by `doc.*` ref namespace)", async () => {
+      const fixedDate = new Date("2026-01-15T12:34:56.000Z");
+      (documentService.findDocument as jest.Mock).mockResolvedValueOnce({
+        ...defaultDocument,
+        created_at: fixedDate,
+      });
+
+      await service.requestOcr("0000");
+
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx.documentMetadata).toEqual({
+        receivedAt: fixedDate.toISOString(),
+      });
     });
 
     it("should merge templateModelId from document metadata into initialCtx", async () => {
@@ -147,6 +169,7 @@ describe("OcrService", () => {
         "doc-1",
         "workflow-config-123",
         expect.objectContaining({ templateModelId: "tm-from-meta" }),
+        defaultDocument.group_id,
         undefined,
       );
     });
@@ -161,6 +184,7 @@ describe("OcrService", () => {
         "doc-2",
         "workflow-config-123",
         expect.objectContaining({ templateModelId: "tm-b" }),
+        defaultDocument.group_id,
         undefined,
       );
     });

@@ -22,53 +22,55 @@ import type {
   ValueRef,
 } from "./graph-workflow-types";
 
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+/**
+ * Named binding namespaces for evaluating expressions in a table lookup context.
+ *
+ * - `ctx`: workflow context variables (legacy bare-path refs also resolve here)
+ * - `param`: lookup invocation parameters (`param.X` refs)
+ * - `row`: current table row being evaluated (`row.X` refs)
+ */
+export interface EvalBindings {
+  ctx: Record<string, unknown>;
+  param: Record<string, unknown>;
+  row: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
  * Evaluate a condition expression against a workflow context.
+ * Legacy wrapper — delegates to evaluateConditionWithBindings.
  */
 export function evaluateCondition(
   expression: ConditionExpression,
   ctx: Record<string, unknown>,
 ): boolean {
-  switch (expression.operator) {
-    // Comparison operators
-    case "equals":
-    case "not-equals":
-    case "gt":
-    case "gte":
-    case "lt":
-    case "lte":
-    case "contains":
-      return evaluateComparison(expression as ComparisonExpression, ctx);
+  return evaluateConditionWithBindings(expression, { ctx, param: {}, row: {} });
+}
 
-    // Logical operators
-    case "and":
-    case "or":
-      return evaluateLogical(expression as LogicalExpression, ctx);
-
-    // Not operator
-    case "not":
-      return evaluateNot(expression as NotExpression, ctx);
-
-    // Null check operators
-    case "is-null":
-    case "is-not-null":
-      return evaluateNullCheck(expression as NullCheckExpression, ctx);
-
-    // List membership operators
-    case "in":
-    case "not-in":
-      return evaluateListMembership(
-        expression as ListMembershipExpression,
-        ctx,
-      );
-
-    default: {
-      const exhaustiveCheck: never = expression;
-      throw new Error(
-        `Unknown expression operator: ${(exhaustiveCheck as ConditionExpression).operator}`,
-      );
-    }
-  }
+/**
+ * Evaluate a condition expression with namespaced bindings.
+ *
+ * Ref routing rules:
+ * - `param.X`  → resolved against bindings.param
+ * - `row.X`    → resolved against bindings.row
+ * - `ctx.X`    → resolved against bindings.ctx
+ * - bare `X`   → resolved against bindings.ctx (legacy back-compat)
+ * - `literal`  → returned as-is
+ */
+export function evaluateConditionWithBindings(
+  expression: ConditionExpression,
+  bindings: EvalBindings,
+): boolean {
+  const resolve = (ref: ValueRef): unknown =>
+    resolveRefWithBindings(ref, bindings);
+  return walkExpr(expression, resolve);
 }
 
 /**
@@ -78,15 +80,7 @@ export function resolveValueRef(
   ref: ValueRef,
   ctx: Record<string, unknown>,
 ): unknown {
-  if ("literal" in ref && ref.literal !== undefined) {
-    return ref.literal;
-  }
-
-  if ("ref" in ref && ref.ref !== undefined) {
-    return resolveReference(ref.ref, ctx);
-  }
-
-  return null;
+  return resolveRefWithBindings(ref, { ctx, param: {}, row: {} });
 }
 
 // ---------------------------------------------------------------------------
@@ -94,17 +88,38 @@ export function resolveValueRef(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a dotted reference string against the workflow context.
+ * Resolve a ValueRef using namespaced bindings.
+ */
+function resolveRefWithBindings(
+  ref: ValueRef,
+  bindings: EvalBindings,
+): unknown {
+  if ("literal" in ref && ref.literal !== undefined) {
+    return ref.literal;
+  }
+
+  if ("ref" in ref && ref.ref !== undefined) {
+    return resolveReferenceWithBindings(ref.ref, bindings);
+  }
+
+  return null;
+}
+
+/**
+ * Resolve a dotted reference string against the appropriate namespace binding.
  *
  * Supported namespaces:
- * - ctx.<key>              -> ctx[key]
- * - ctx.<key>.<nested>     -> ctx[key][nested]
- * - doc.<field>            -> ctx.documentMetadata[field]
- * - segment.<field>        -> ctx.currentSegment[field]
+ * - param.<key>            -> bindings.param[key]
+ * - row.<key>              -> bindings.row[key]
+ * - ctx.<key>              -> bindings.ctx[key]
+ * - ctx.<key>.<nested>     -> bindings.ctx[key][nested]
+ * - doc.<field>            -> bindings.ctx.documentMetadata[field]
+ * - segment.<field>        -> bindings.ctx.currentSegment[field]
+ * - bare <key>             -> bindings.ctx[key] (legacy back-compat)
  */
-function resolveReference(
+function resolveReferenceWithBindings(
   refString: string,
-  ctx: Record<string, unknown>,
+  bindings: EvalBindings,
 ): unknown {
   const parts = refString.split(".");
 
@@ -113,24 +128,30 @@ function resolveReference(
   }
 
   const namespace = parts[0];
-  let remainingParts: string[];
+  const remainingParts = parts.slice(1);
 
   switch (namespace) {
+    case "param":
+      return traversePath(bindings.param, remainingParts);
+
+    case "row":
+      return traversePath(bindings.row, remainingParts);
+
     case "ctx":
-      remainingParts = parts.slice(1);
-      return traversePath(ctx, remainingParts);
+      return traversePath(bindings.ctx, remainingParts);
 
     case "doc":
-      remainingParts = parts.slice(1);
-      return traversePath(ctx, ["documentMetadata", ...remainingParts]);
+      return traversePath(bindings.ctx, [
+        "documentMetadata",
+        ...remainingParts,
+      ]);
 
     case "segment":
-      remainingParts = parts.slice(1);
-      return traversePath(ctx, ["currentSegment", ...remainingParts]);
+      return traversePath(bindings.ctx, ["currentSegment", ...remainingParts]);
 
     default:
-      // If no known namespace, treat the entire string as a ctx path
-      return traversePath(ctx, parts);
+      // Bare path — legacy callers that don't use a namespace prefix
+      return traversePath(bindings.ctx, parts);
   }
 }
 
@@ -161,15 +182,68 @@ function traversePath(obj: unknown, path: string[]): unknown {
 }
 
 // ---------------------------------------------------------------------------
+// Internal: Expression Tree Walker
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk a ConditionExpression tree, resolving values via the provided resolver.
+ */
+function walkExpr(
+  expression: ConditionExpression,
+  resolve: (ref: ValueRef) => unknown,
+): boolean {
+  switch (expression.operator) {
+    // Comparison operators
+    case "equals":
+    case "not-equals":
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+    case "contains":
+      return walkComparison(expression as ComparisonExpression, resolve);
+
+    // Logical operators
+    case "and":
+    case "or":
+      return walkLogical(expression as LogicalExpression, resolve);
+
+    // Not operator
+    case "not":
+      return walkNot(expression as NotExpression, resolve);
+
+    // Null check operators
+    case "is-null":
+    case "is-not-null":
+      return walkNullCheck(expression as NullCheckExpression, resolve);
+
+    // List membership operators
+    case "in":
+    case "not-in":
+      return walkListMembership(
+        expression as ListMembershipExpression,
+        resolve,
+      );
+
+    default: {
+      const exhaustiveCheck: never = expression;
+      throw new Error(
+        `Unknown expression operator: ${(exhaustiveCheck as ConditionExpression).operator}`,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Internal: Expression Evaluators
 // ---------------------------------------------------------------------------
 
-function evaluateComparison(
+function walkComparison(
   expr: ComparisonExpression,
-  ctx: Record<string, unknown>,
+  resolve: (ref: ValueRef) => unknown,
 ): boolean {
-  const left = resolveValueRef(expr.left, ctx);
-  const right = resolveValueRef(expr.right, ctx);
+  const left = resolve(expr.left);
+  const right = resolve(expr.right);
 
   switch (expr.operator) {
     case "equals":
@@ -179,20 +253,32 @@ function evaluateComparison(
       return left !== right;
 
     case "gt":
-      if (typeof left !== "number" || typeof right !== "number") return false;
-      return left > right;
+      if (typeof left === "number" && typeof right === "number")
+        return left > right;
+      if (typeof left === "string" && typeof right === "string")
+        return left > right;
+      return false;
 
     case "gte":
-      if (typeof left !== "number" || typeof right !== "number") return false;
-      return left >= right;
+      if (typeof left === "number" && typeof right === "number")
+        return left >= right;
+      if (typeof left === "string" && typeof right === "string")
+        return left >= right;
+      return false;
 
     case "lt":
-      if (typeof left !== "number" || typeof right !== "number") return false;
-      return left < right;
+      if (typeof left === "number" && typeof right === "number")
+        return left < right;
+      if (typeof left === "string" && typeof right === "string")
+        return left < right;
+      return false;
 
     case "lte":
-      if (typeof left !== "number" || typeof right !== "number") return false;
-      return left <= right;
+      if (typeof left === "number" && typeof right === "number")
+        return left <= right;
+      if (typeof left === "string" && typeof right === "string")
+        return left <= right;
+      return false;
 
     case "contains":
       if (typeof left !== "string" || typeof right !== "string") return false;
@@ -203,13 +289,13 @@ function evaluateComparison(
   }
 }
 
-function evaluateLogical(
+function walkLogical(
   expr: LogicalExpression,
-  ctx: Record<string, unknown>,
+  resolve: (ref: ValueRef) => unknown,
 ): boolean {
   if (expr.operator === "and") {
     for (const operand of expr.operands) {
-      if (!evaluateCondition(operand, ctx)) {
+      if (!walkExpr(operand, resolve)) {
         return false;
       }
     }
@@ -218,36 +304,36 @@ function evaluateLogical(
 
   // "or"
   for (const operand of expr.operands) {
-    if (evaluateCondition(operand, ctx)) {
+    if (walkExpr(operand, resolve)) {
       return true;
     }
   }
   return false;
 }
 
-function evaluateNot(
+function walkNot(
   expr: NotExpression,
-  ctx: Record<string, unknown>,
+  resolve: (ref: ValueRef) => unknown,
 ): boolean {
-  return !evaluateCondition(expr.operand, ctx);
+  return !walkExpr(expr.operand, resolve);
 }
 
-function evaluateNullCheck(
+function walkNullCheck(
   expr: NullCheckExpression,
-  ctx: Record<string, unknown>,
+  resolve: (ref: ValueRef) => unknown,
 ): boolean {
-  const value = resolveValueRef(expr.value, ctx);
+  const value = resolve(expr.value);
   const isNull = value === null || value === undefined;
 
   return expr.operator === "is-null" ? isNull : !isNull;
 }
 
-function evaluateListMembership(
+function walkListMembership(
   expr: ListMembershipExpression,
-  ctx: Record<string, unknown>,
+  resolve: (ref: ValueRef) => unknown,
 ): boolean {
-  const value = resolveValueRef(expr.value, ctx);
-  const list = resolveValueRef(expr.list, ctx);
+  const value = resolve(expr.value);
+  const list = resolve(expr.list);
 
   if (!Array.isArray(list)) {
     return false;
