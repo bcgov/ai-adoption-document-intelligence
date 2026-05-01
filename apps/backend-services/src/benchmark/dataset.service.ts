@@ -216,9 +216,35 @@ export class DatasetService {
       });
     }
 
+    // Remove ground-truth jobs and the Documents they reference before the
+    // version cascade fires. The DatasetVersion → DatasetGroundTruthJob
+    // relation cascades, but DatasetGroundTruthJob → Document does not, so
+    // skipping this leaves orphaned Documents that would surface in the
+    // regular HITL queue (its filter is `groundTruthJob: null`).
+    const versionIds = dataset.versions.map((v) => v.id);
+    const { documentIds: orphanedDocumentIds } =
+      await this.groundTruthJobDb.deleteJobsForVersions(versionIds);
+
     await this.datasetDbService.deleteManyDatasetVersions({ datasetId: id });
 
     await this.datasetDbService.deleteDataset(id);
+
+    // Best-effort cleanup of OCR-side blobs for those documents (they live
+    // outside the dataset's storagePath).
+    for (const documentId of orphanedDocumentIds) {
+      try {
+        const documentPrefix = buildBlobPrefixPath(
+          dataset.group_id,
+          OperationCategory.OCR,
+          [documentId],
+        );
+        await this.blobStorage.deleteByPrefix(documentPrefix);
+      } catch (error) {
+        this.logger.warn(
+          `Could not delete OCR blobs for document ${documentId}: ${getErrorMessage(error)}`,
+        );
+      }
+    }
 
     // Delete all files from object storage
     if (dataset.storagePath) {
@@ -811,15 +837,20 @@ export class DatasetService {
       datasetVersionId: versionId,
     });
 
+    // Remove ground-truth jobs and their Documents before the version cascade
+    // fires (job→document has no onDelete cascade). See deleteSample for the
+    // same reasoning.
+    const { documentIds: orphanedDocumentIds } =
+      await this.groundTruthJobDb.deleteJobsForVersions([versionId]);
+
     // Delete the version record
     await this.datasetDbService.deleteDatasetVersion(versionId);
 
     // Delete files from object storage
+    const dataset = await this.datasetDbService.findDataset(version.datasetId);
+    const groupId = dataset?.group_id;
     if (version.storagePrefix) {
       try {
-        const groupId = (
-          await this.datasetDbService.findDataset(version.datasetId)
-        )?.group_id;
         if (!groupId) {
           throw new NotFoundException(
             `Dataset not found for version ${versionId}`,
@@ -835,6 +866,24 @@ export class DatasetService {
         this.logger.warn(
           `Failed to delete storage files for version ${versionId}: ${error}`,
         );
+      }
+    }
+
+    // Best-effort cleanup of OCR-side blobs for the now-removed documents.
+    if (groupId) {
+      for (const documentId of orphanedDocumentIds) {
+        try {
+          const documentPrefix = buildBlobPrefixPath(
+            groupId,
+            OperationCategory.OCR,
+            [documentId],
+          );
+          await this.blobStorage.deleteByPrefix(documentPrefix);
+        } catch (error) {
+          this.logger.warn(
+            `Could not delete OCR blobs for document ${documentId}: ${getErrorMessage(error)}`,
+          );
+        }
       }
     }
 

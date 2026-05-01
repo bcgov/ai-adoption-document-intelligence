@@ -480,11 +480,42 @@ export class GroundTruthJobDbService {
     sampleId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<{ documentIds: string[] }> {
+    return this.deleteJobsAndDocuments(
+      { datasetVersionId: versionId, sampleId },
+      tx,
+    );
+  }
+
+  /**
+   * Same as deleteJobsForSample, but for every job belonging to the given
+   * dataset versions. Used by version/dataset deletion paths to ensure the
+   * Documents that the job rows pointed at don't get stranded — without this,
+   * the cascade from DatasetVersion only removes the job rows, leaving
+   * orphaned Documents that would satisfy the regular HITL queue's
+   * `groundTruthJob: null` filter.
+   */
+  async deleteJobsForVersions(
+    versionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ documentIds: string[] }> {
+    if (versionIds.length === 0) {
+      return { documentIds: [] };
+    }
+    return this.deleteJobsAndDocuments(
+      { datasetVersionId: { in: versionIds } },
+      tx,
+    );
+  }
+
+  private async deleteJobsAndDocuments(
+    where: Prisma.DatasetGroundTruthJobWhereInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ documentIds: string[] }> {
     const run = async (
       client: Prisma.TransactionClient | PrismaClient,
     ): Promise<{ documentIds: string[] }> => {
       const jobs = await client.datasetGroundTruthJob.findMany({
-        where: { datasetVersionId: versionId, sampleId },
+        where,
         select: { id: true, documentId: true },
       });
       if (jobs.length === 0) {

@@ -707,4 +707,46 @@ describe("GroundTruthJobDbService", () => {
       expect(externalDoc.deleteMany).toHaveBeenCalled();
     });
   });
+
+  describe("deleteJobsForVersions", () => {
+    it("deletes jobs and documents across multiple versions", async () => {
+      const jobs = [
+        { id: "j-1", documentId: "doc-1" },
+        { id: "j-2", documentId: "doc-2" },
+        { id: "j-3", documentId: null },
+      ];
+      const txJob = {
+        findMany: jest.fn().mockResolvedValue(jobs),
+        deleteMany: jest.fn().mockResolvedValue({ count: 3 }),
+      };
+      const txDoc = { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) };
+      const txClient = {
+        datasetGroundTruthJob: txJob,
+        document: txDoc,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
+      mockPrismaClient.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      const result = await service.deleteJobsForVersions(["v-1", "v-2"]);
+
+      expect(result).toEqual({ documentIds: ["doc-1", "doc-2"] });
+      expect(txJob.findMany).toHaveBeenCalledWith({
+        where: { datasetVersionId: { in: ["v-1", "v-2"] } },
+        select: { id: true, documentId: true },
+      });
+      expect(txJob.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["j-1", "j-2", "j-3"] } },
+      });
+      expect(txDoc.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["doc-1", "doc-2"] } },
+      });
+    });
+
+    it("short-circuits when version list is empty", async () => {
+      const result = await service.deleteJobsForVersions([]);
+      expect(result).toEqual({ documentIds: [] });
+      expect(mockPrismaClient.$transaction).not.toHaveBeenCalled();
+    });
+  });
 });

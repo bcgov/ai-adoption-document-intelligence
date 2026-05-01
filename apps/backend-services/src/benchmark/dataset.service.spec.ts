@@ -55,6 +55,7 @@ const mockAuditLogDbService = {
 
 const mockGroundTruthJobDbService = {
   deleteJobsForSample: jest.fn().mockResolvedValue({ documentIds: [] }),
+  deleteJobsForVersions: jest.fn().mockResolvedValue({ documentIds: [] }),
 };
 
 describe("DatasetService", () => {
@@ -93,6 +94,9 @@ describe("DatasetService", () => {
     jest.clearAllMocks();
     mockDatasetDbService.findAllSplitsForVersion.mockResolvedValue([]);
     mockGroundTruthJobDbService.deleteJobsForSample.mockResolvedValue({
+      documentIds: [],
+    });
+    mockGroundTruthJobDbService.deleteJobsForVersions.mockResolvedValue({
       documentIds: [],
     });
 
@@ -259,6 +263,44 @@ describe("DatasetService", () => {
       );
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
         "testgroup1/benchmark/datasets/dataset-1",
+      );
+      // Even with no versions, the cleanup should run (with empty list).
+      expect(
+        mockGroundTruthJobDbService.deleteJobsForVersions,
+      ).toHaveBeenCalledWith([]);
+    });
+
+    it("removes ground-truth jobs and OCR blobs for all versions before cascade", async () => {
+      mockDatasetDbService.findDatasetForDeletion.mockResolvedValue({
+        ...mockDataset,
+        versions: [
+          { id: "v-1", benchmarkDefinitions: [], splits: [] },
+          { id: "v-2", benchmarkDefinitions: [], splits: [] },
+        ],
+      });
+      mockGroundTruthJobDbService.deleteJobsForVersions.mockResolvedValueOnce({
+        documentIds: ["doc-1", "doc-2"],
+      });
+
+      await service.deleteDataset("dataset-1");
+
+      expect(
+        mockGroundTruthJobDbService.deleteJobsForVersions,
+      ).toHaveBeenCalledWith(["v-1", "v-2"]);
+      // Ground-truth cleanup must run before the version cascade.
+      const cleanupOrder =
+        mockGroundTruthJobDbService.deleteJobsForVersions.mock
+          .invocationCallOrder[0];
+      const versionsDeleteOrder =
+        mockDatasetDbService.deleteManyDatasetVersions.mock
+          .invocationCallOrder[0];
+      expect(cleanupOrder).toBeLessThan(versionsDeleteOrder);
+      // OCR blob prefixes for each freed document.
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "test-group/ocr/doc-1",
+      );
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "test-group/ocr/doc-2",
       );
     });
 
@@ -780,6 +822,38 @@ describe("DatasetService", () => {
 
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
         "test-group/benchmark/datasets/dataset-1/version-1",
+      );
+      // Cleanup must run for the version even when no documents are returned.
+      expect(
+        mockGroundTruthJobDbService.deleteJobsForVersions,
+      ).toHaveBeenCalledWith(["version-1"]);
+    });
+
+    it("removes orphaned documents and their OCR blobs", async () => {
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersionForDeletion.mockResolvedValue({
+        id: "version-1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/version-1",
+        benchmarkDefinitions: [],
+      });
+      mockGroundTruthJobDbService.deleteJobsForVersions.mockResolvedValueOnce({
+        documentIds: ["doc-x", "doc-y"],
+      });
+
+      await service.deleteVersion("dataset-1", "version-1");
+
+      const cleanupOrder =
+        mockGroundTruthJobDbService.deleteJobsForVersions.mock
+          .invocationCallOrder[0];
+      const versionDeleteOrder =
+        mockDatasetDbService.deleteDatasetVersion.mock.invocationCallOrder[0];
+      expect(cleanupOrder).toBeLessThan(versionDeleteOrder);
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "test-group/ocr/doc-x",
+      );
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "test-group/ocr/doc-y",
       );
     });
 
