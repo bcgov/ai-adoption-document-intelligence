@@ -368,6 +368,26 @@ export class BenchmarkDefinitionDbService {
   }
 
   /**
+   * Counts benchmark definitions whose workflowConfigOverrides pin a specific
+   * Azure model ID (the value of `ctx.modelId.defaultValue`). Used as a
+   * guardrail before deleting a TrainedModel version.
+   */
+  async countDefinitionsReferencingModelId(
+    modelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.benchmarkDefinition.count({
+      where: {
+        workflowConfigOverrides: {
+          path: ["ctx.modelId.defaultValue"],
+          equals: modelId,
+        },
+      },
+    });
+  }
+
+  /**
    * Runs a Prisma interactive transaction (workflow promote, etc.).
    */
   async transaction<T>(

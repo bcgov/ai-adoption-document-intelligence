@@ -99,11 +99,13 @@ export class TrainingPollerService {
 
       this.logger.debug(`Polling ${activeJobs.length} active training job(s)`);
 
-      // Poll each active job
+      // Poll each active job. target_model_id is the versioned Azure model
+      // name captured at startTraining; fall back to the bare template id
+      // for legacy in-flight jobs that pre-date the column.
       for (const job of activeJobs) {
         await this.pollTrainingStatus(
           job.id,
-          job.template_model.model_id,
+          job.target_model_id ?? job.template_model.model_id,
           job.operation_id,
         );
       }
@@ -242,20 +244,45 @@ export class TrainingPollerService {
           completed_at: new Date(),
         });
 
-        // Create trained model record
+        // Build a snapshot of the labeled documents that just trained this
+        // version. Captured here (rather than at startTraining) because users
+        // very rarely modify labels mid-Azure-training, and the simpler model
+        // is easier to reason about than threading the snapshot through the
+        // job row.
+        const snapshot = await this.trainingDb.buildTrainedModelSnapshot(
+          job.template_model_id,
+        );
+
+        // Resolve the version + Azure model id this job targets. Legacy
+        // jobs (started before this column existed) fall back to v1 / the
+        // bare template model id so they keep working.
+        const targetVersion = job.target_version ?? 1;
+        const targetModelId =
+          job.target_model_id ?? job.template_model.model_id;
+
+        // Demote any currently-active version for this template so the new
+        // one becomes the unique active version.
+        await this.trainingDb.demoteActiveTrainedModels(job.template_model_id);
+
+        // Create trained model record for this version.
         await this.trainingDb.createTrainedModel({
           template_model_id: job.template_model_id,
           training_job_id: jobId,
-          model_id: job.template_model.model_id,
+          model_id: targetModelId,
+          version: targetVersion,
+          is_active: true,
           description,
           doc_types:
             docTypes == null
               ? Prisma.DbNull
               : (docTypes as Prisma.InputJsonValue),
           field_count: fieldCount,
+          dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
         });
 
-        this.logger.log(`Created trained model record for: ${modelId}`);
+        this.logger.log(
+          `Created trained model record v${targetVersion} for: ${targetModelId}`,
+        );
       } catch (modelError) {
         this.logger.error(
           `Error polling operation ${operationId} for model ${modelId}: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
@@ -291,7 +318,7 @@ export class TrainingPollerService {
     ) {
       await this.pollTrainingStatus(
         jobId,
-        job.template_model.model_id,
+        job.target_model_id ?? job.template_model.model_id,
         job.operation_id,
       );
     }

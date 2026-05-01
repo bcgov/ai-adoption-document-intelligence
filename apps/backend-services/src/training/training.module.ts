@@ -1,4 +1,5 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
+import { BenchmarkModule } from "../benchmark/benchmark.module";
 import { BlobStorageModule } from "../blob-storage/blob-storage.module";
 import { TemplateModelModule } from "../template-model/template-model.module";
 import { TrainingController } from "./training.controller";
@@ -7,7 +8,11 @@ import { TrainingDbService } from "./training-db.service";
 import { TrainingPollerService } from "./training-poller.service";
 
 @Module({
-  imports: [BlobStorageModule, TemplateModelModule],
+  imports: [
+    BlobStorageModule,
+    TemplateModelModule,
+    forwardRef(() => BenchmarkModule),
+  ],
   controllers: [TrainingController],
   providers: [TrainingDbService, TrainingService, TrainingPollerService],
   exports: [TrainingService],

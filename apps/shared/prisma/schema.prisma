@@ -202,7 +202,7 @@ model TemplateModel {
   field_schema   FieldDefinition[]
   documents      LabeledDocument[]
   training_jobs  TrainingJob[]
-  trained_model  TrainedModel?
+  trained_models TrainedModel[]
   group_id       String
   group          Group               @relation(fields: [group_id], references: [id])
 
@@ -266,6 +266,14 @@ model TrainingJob {
   sas_url        String?
   blob_count     Int            @default(0)
 
+  /// The versioned Azure model ID this job targets (e.g. "km-invoice-v3").
+  /// Captured at startTraining time so the poller and downstream consumers
+  /// don't have to re-derive it from naming conventions.
+  target_model_id String?
+  /// The version number this job will produce. Persisted alongside
+  /// target_model_id for the same reason.
+  target_version  Int?
+
   operation_id  String?
   error_message String?
 
@@ -281,18 +289,33 @@ model TrainingJob {
 
 model TrainedModel {
   id                String        @id @default(cuid())
-  template_model_id String        @unique
+  template_model_id String
   template_model    TemplateModel @relation(fields: [template_model_id], references: [id], onDelete: Cascade)
   training_job_id   String        @unique
   training_job      TrainingJob   @relation(fields: [training_job_id], references: [id])
 
+  /// Versioned Azure model identifier. v1 keeps the bare TemplateModel.model_id
+  /// for backwards compatibility; v2+ append "-v<n>".
   model_id    String  @unique
+  /// Sequential version per TemplateModel, starting at 1.
+  version     Int     @default(1)
+  /// Exactly one row per TemplateModel should be active. Documents and benchmarks
+  /// referencing TemplateModel.model_id resolve to whichever version is active.
+  is_active   Boolean @default(false)
+  /// Tombstone for deleted versions. The Azure artifact is removed but the row
+  /// is kept so audit trails ("v2 — deleted on …") still resolve.
+  deleted_at  DateTime?
+  /// Snapshot of the labeled documents + labels used to train this version.
+  /// Shape: { documents: Array<{ labelingDocumentId, originalFilename, labels: Array<{ fieldKey, labelName, value, pageNumber, boundingBox }> }> }
+  dataset_snapshot Json?
   description String?
   doc_types   Json?
   field_count Int     @default(0)
 
   created_at DateTime @default(now())
 
+  @@unique([template_model_id, version])
+  @@index([template_model_id, is_active])
   @@map("trained_models")
 }
 
