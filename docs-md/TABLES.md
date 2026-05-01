@@ -139,7 +139,11 @@ interface TablesLookupInput {
 }
 ```
 
-`groupId` is automatically injected by the graph workflow runner from the workflow's metadata — authors of graph workflow JSON do not need to plumb it explicitly.
+`groupId` is automatically injected by the graph workflow runner from the workflow's metadata — authors of graph workflow JSON do not need to plumb it explicitly. Injection is applied uniformly across `activity`, `pollUntil`, and `childWorkflow` nodes, and the runtime overrides any `groupId` supplied via `parameters` or port bindings to prevent cross-tenant access.
+
+### Row Cap
+
+Lookups load matching rows into worker memory and filter in JavaScript. To protect the worker from OOM on misuse, the activity caps loaded rows at **50,000** per call (`MAX_LOOKUP_ROWS`). When a table's row count exceeds this cap the activity fails with `TABLES_TOO_MANY_ROWS` (non-retryable). Reference tables are intended for human-curated data; workloads above this should be redesigned to query their source system directly.
 
 ### Output
 
@@ -164,6 +168,8 @@ All errors are Temporal `ApplicationFailure` with `nonRetryable: true`. The `typ
 | `TABLES_LOOKUP_NOT_FOUND` | The table exists but no lookup named `lookupName` is defined on it. |
 | `TABLES_NO_MATCH` | `pick: "one"` and zero rows matched the filter. |
 | `TABLES_AMBIGUOUS_MATCH` | `pick: "one"` and more than one row matched the filter. |
+| `TABLES_TOO_MANY_ROWS` | Table has more than `MAX_LOOKUP_ROWS` (50,000) rows. |
+| `TABLES_GROUP_ID_MISSING` | Activity was invoked without a `groupId` (workflow runner failed to inject; check the caller). |
 
 ### Example Graph Workflow Node
 

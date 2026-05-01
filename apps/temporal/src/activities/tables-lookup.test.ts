@@ -1,4 +1,4 @@
-import { tablesLookup } from "./tables-lookup";
+import { MAX_LOOKUP_ROWS, tablesLookup } from "./tables-lookup";
 
 const mockTable = { findUnique: jest.fn() };
 const mockTableRow = { findMany: jest.fn() };
@@ -51,6 +51,7 @@ describe("tablesLookup activity", () => {
     });
     expect(mockTableRow.findMany).toHaveBeenCalledWith({
       where: { group_id: "g", table_id: "t" },
+      take: MAX_LOOKUP_ROWS + 1,
     });
   });
 
@@ -127,6 +128,91 @@ describe("tablesLookup activity", () => {
       lookupName: "maybe",
     });
     expect(result.result).toBeNull();
+  });
+
+  it("requests at most MAX_LOOKUP_ROWS + 1 rows from the database", async () => {
+    mockTable.findUnique.mockResolvedValue({
+      lookups: [
+        {
+          name: "x",
+          pick: "all",
+          params: [],
+          // Tautology — matches every row.
+          filter: {
+            operator: "equals",
+            left: { literal: 1 },
+            right: { literal: 1 },
+          },
+        },
+      ],
+    });
+    mockTableRow.findMany.mockResolvedValue([]);
+
+    await tablesLookup({ groupId: "g", tableId: "t", lookupName: "x" });
+
+    expect(mockTableRow.findMany).toHaveBeenCalledWith({
+      where: { group_id: "g", table_id: "t" },
+      take: MAX_LOOKUP_ROWS + 1,
+    });
+  });
+
+  it("throws TABLES_TOO_MANY_ROWS (nonRetryable) when row count exceeds the cap", async () => {
+    mockTable.findUnique.mockResolvedValue({
+      lookups: [
+        {
+          name: "x",
+          pick: "all",
+          params: [],
+          // Tautology — matches every row.
+          filter: {
+            operator: "equals",
+            left: { literal: 1 },
+            right: { literal: 1 },
+          },
+        },
+      ],
+    });
+    // Simulate the take limit returning MAX + 1 rows (the overflow signal).
+    mockTableRow.findMany.mockResolvedValue(
+      Array.from({ length: MAX_LOOKUP_ROWS + 1 }, (_, i) => ({
+        data: { i },
+      })),
+    );
+
+    await expect(
+      tablesLookup({ groupId: "g", tableId: "t", lookupName: "x" }),
+    ).rejects.toMatchObject({
+      type: "TABLES_TOO_MANY_ROWS",
+      nonRetryable: true,
+    });
+  });
+
+  it("does NOT throw at exactly MAX_LOOKUP_ROWS rows", async () => {
+    mockTable.findUnique.mockResolvedValue({
+      lookups: [
+        {
+          name: "x",
+          pick: "all",
+          params: [],
+          // Tautology — matches every row.
+          filter: {
+            operator: "equals",
+            left: { literal: 1 },
+            right: { literal: 1 },
+          },
+        },
+      ],
+    });
+    mockTableRow.findMany.mockResolvedValue(
+      Array.from({ length: MAX_LOOKUP_ROWS }, (_, i) => ({ data: { i } })),
+    );
+
+    const result = await tablesLookup({
+      groupId: "g",
+      tableId: "t",
+      lookupName: "x",
+    });
+    expect(Array.isArray(result.result)).toBe(true);
   });
 
   it("throws TABLES_GROUP_ID_MISSING (nonRetryable) when groupId is missing", async () => {
