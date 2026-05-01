@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "PDF Segment Extraction Example",
+    "description": "Demonstrates document.split, blob.read, and document.extractToBase64 working together. Trigger this workflow via the normal upload process: the upload flow injects blobKey (normalized PDF path), documentId, groupId, and fileName into initialCtx automatically. A 5-page source PDF is split into two segments (pages 1-2 and pages 3-4). Two independent branches then materialise page content as base64: blob.read retrieves segment 1 from blob storage via the stored blob key, while document.extractToBase64 extracts segment 2's page range directly from the original PDF without writing to blob storage. startPage and endPage for extractToBase64 are bound dynamically from the split output (splitResult.1.pageRange.start / .end)."
+  },
+  "entryNodeId": "splitPdf",
+  "ctx": {
+    "blobKey": {
+      "type": "string",
+      "description": "Blob storage key of the normalized PDF. Injected automatically by the upload process via initialCtx."
+    },
+    "groupId": {
+      "type": "string",
+      "description": "Group ID used by document.split to construct segment blob paths. Injected automatically by the upload process via initialCtx."
+    },
+    "documentId": {
+      "type": "string",
+      "description": "Document ID used by document.split to name segment files. Injected automatically by the upload process via initialCtx."
+    },
+    "splitResult": {
+      "type": "array",
+      "description": "DocumentSegment[] produced by document.split. Each element has blobKey, pageRange, segmentIndex, and pageCount. Accessed via dot notation (e.g. splitResult.0.blobKey)."
+    },
+    "segment1Base64": {
+      "type": "string",
+      "description": "Base64-encoded content of segment 1 (pages 1-2), read from blob storage by blob.read."
+    },
+    "section2Base64": {
+      "type": "string",
+      "description": "Base64-encoded PDF of segment 2's pages, extracted in-memory by document.extractToBase64. No blob write occurs. Page range is driven dynamically from splitResult.1.pageRange."
+    },
+    "section2PageCount": {
+      "type": "number",
+      "description": "Page count of the extracted section — confirmed as endPage - startPage + 1 by document.extractToBase64."
+    }
+  },
+  "nodes": {
+    "splitPdf": {
+      "id": "splitPdf",
+      "type": "activity",
+      "activityType": "document.split",
+      "label": "Split source PDF into two named segments",
+      "parameters": {
+        "strategy": "custom-ranges",
+        "customRanges": [
+          { "start": 1, "end": 2 },
+          { "start": 3, "end": 4 }
+        ]
+      },
+      "inputs": [
+        { "port": "blobKey",    "ctxKey": "blobKey" },
+        { "port": "groupId",    "ctxKey": "groupId" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [
+        { "port": "segments", "ctxKey": "splitResult" }
+      ]
+    },
+
+    "readSegment1": {
+      "id": "readSegment1",
+      "type": "activity",
+      "activityType": "blob.read",
+      "label": "Read segment 1 blob as base64 (via stored blob key)",
+      "inputs": [
+        { "port": "blobKey", "ctxKey": "splitResult.0.blobKey" }
+      ],
+      "outputs": [
+        { "port": "base64", "ctxKey": "segment1Base64" }
+      ]
+    },
+
+    "extractSection2": {
+      "id": "extractSection2",
+      "type": "activity",
+      "activityType": "document.extractToBase64",
+      "label": "Extract segment 2's page range as base64 (no blob write, dynamic range)",
+      "inputs": [
+        { "port": "blobKey",   "ctxKey": "blobKey" },
+        { "port": "startPage", "ctxKey": "splitResult.1.pageRange.start" },
+        { "port": "endPage",   "ctxKey": "splitResult.1.pageRange.end" }
+      ],
+      "outputs": [
+        { "port": "base64",    "ctxKey": "section2Base64" },
+        { "port": "pageCount", "ctxKey": "section2PageCount" }
+      ]
+    }
+  },
+  "edges": [
+    { "id": "e1", "source": "splitPdf",  "target": "readSegment1",   "type": "normal" },
+    { "id": "e2", "source": "splitPdf",  "target": "extractSection2", "type": "normal" }
+  ]
+}
