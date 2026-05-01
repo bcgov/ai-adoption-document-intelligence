@@ -129,7 +129,7 @@ describe("HitlService", () => {
       releaseDocumentLock: jest.fn(),
       refreshLockHeartbeat: jest.fn(),
       deleteCorrection: jest.fn(),
-      findFieldDefinitionsByGroupId: jest.fn().mockResolvedValue([]),
+      findFieldDefinitionsForDocument: jest.fn().mockResolvedValue([]),
     };
 
     const mockAnalytics = {
@@ -500,7 +500,7 @@ describe("HitlService", () => {
           format_spec: '{"canonicalize": "digits", "pattern": "^\\\\d+$"}',
         },
       ];
-      mockReviewDbService.findFieldDefinitionsByGroupId.mockResolvedValueOnce(
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
         mockFieldDefs,
       );
 
@@ -510,8 +510,11 @@ describe("HitlService", () => {
         "session-1",
       );
       expect(
-        mockReviewDbService.findFieldDefinitionsByGroupId,
-      ).toHaveBeenCalledWith("group-1");
+        mockReviewDbService.findFieldDefinitionsForDocument,
+      ).toHaveBeenCalledWith({
+        templateModelId: undefined,
+        groupId: "group-1",
+      });
 
       expect(result).toEqual({
         id: "session-1",
@@ -534,12 +537,38 @@ describe("HitlService", () => {
       });
     });
 
-    it("should return empty fieldDefinitions when document has no group_id", async () => {
+    it("should pass templateModelId from document metadata when present", async () => {
+      const sessionWithTemplateId = {
+        ...mockReviewSession,
+        document: {
+          ...mockReviewSession.document,
+          metadata: { templateModelId: "tmpl-123" },
+        },
+      };
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithTemplateId as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      await service.getSession("session-1");
+
+      expect(
+        mockReviewDbService.findFieldDefinitionsForDocument,
+      ).toHaveBeenCalledWith({
+        templateModelId: "tmpl-123",
+        groupId: "group-1",
+      });
+    });
+
+    it("should return empty fieldDefinitions when document has no group_id and no templateModelId", async () => {
       const sessionNoGroup = {
         ...mockReviewSession,
         document: {
           ...mockReviewSession.document,
           group_id: null,
+          metadata: {},
         },
       };
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
@@ -549,9 +578,35 @@ describe("HitlService", () => {
       const result = await service.getSession("session-1");
 
       expect(
-        mockReviewDbService.findFieldDefinitionsByGroupId,
+        mockReviewDbService.findFieldDefinitionsForDocument,
       ).not.toHaveBeenCalled();
       expect(result.fieldDefinitions).toEqual([]);
+    });
+
+    it("should still call lookup when templateModelId is set even without group_id", async () => {
+      const sessionTemplateOnly = {
+        ...mockReviewSession,
+        document: {
+          ...mockReviewSession.document,
+          group_id: null,
+          metadata: { templateModelId: "tmpl-456" },
+        },
+      };
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionTemplateOnly as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      await service.getSession("session-1");
+
+      expect(
+        mockReviewDbService.findFieldDefinitionsForDocument,
+      ).toHaveBeenCalledWith({
+        templateModelId: "tmpl-456",
+        groupId: null,
+      });
     });
 
     it("should throw NotFoundException if session does not exist", async () => {
