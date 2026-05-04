@@ -569,6 +569,84 @@ describe("TrainingService", () => {
         }),
       );
     });
+
+    it("persists buildMode=neural and maxTrainingHours on the new TrainingJob", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValue([
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+      ] as never);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValue(2);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValue(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValue({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v2",
+        sas_url: null,
+        blob_count: 0,
+        operation_id: null,
+        error_message: null,
+        started_at: new Date(),
+        completed_at: null,
+        target_model_id: "custom-model-1-v2",
+        target_version: 2,
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+
+      await service.startTraining("tm-1", {
+        description: "test",
+        buildMode: "neural" as never,
+        maxTrainingHours: 2,
+      });
+
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: "neural",
+          max_training_hours: 2,
+        }),
+      );
+    });
+
+    it("defaults buildMode to template and leaves max_training_hours null when not provided", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValue([
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+      ] as never);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValue(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValue(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValue({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v1",
+        target_model_id: "custom-model-1",
+        target_version: 1,
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+
+      await service.startTraining("tm-1", { description: "test" });
+
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: "template",
+          max_training_hours: null,
+        }),
+      );
+    });
   });
 
   describe("listTrainedVersions", () => {

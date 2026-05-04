@@ -4,6 +4,7 @@ import DocumentIntelligence, {
   parseResultIdFromResponse,
 } from "@azure-rest/ai-document-intelligence";
 import {
+  BuildMode,
   LabelingStatus,
   TrainedModel,
   TrainingJob,
@@ -303,12 +304,18 @@ export class TrainingService {
     // job's intended output so the poller doesn't have to re-derive the
     // versioning later.
     const containerName = `training-${templateModelId}-v${nextVersion}`;
+    const buildMode = dto.buildMode ?? BuildMode.template;
+    const maxTrainingHours =
+      buildMode === BuildMode.neural ? (dto.maxTrainingHours ?? null) : null;
+
     const trainingJob = await this.trainingDb.createTrainingJob({
       template_model_id: templateModelId,
       status: TrainingStatus.PENDING,
       container_name: containerName,
       target_model_id: versionedModelId,
       target_version: nextVersion,
+      build_mode: buildMode,
+      max_training_hours: maxTrainingHours,
     });
 
     // Start async upload and training process

@@ -5,7 +5,7 @@ import type {
   TrainedModel,
   TrainingJob,
 } from "@generated/client";
-import { LabelingStatus, TrainingStatus } from "@generated/client";
+import { BuildMode, LabelingStatus, TrainingStatus } from "@generated/client";
 
 export interface TrainedModelSnapshotDocument {
   labelingDocumentId: string;
@@ -36,6 +36,8 @@ export interface TrainingJobCreateData {
   container_name: string;
   target_model_id?: string | null;
   target_version?: number | null;
+  build_mode?: BuildMode;
+  max_training_hours?: number | null;
 }
 
 export interface TrainingJobUpdateData {
