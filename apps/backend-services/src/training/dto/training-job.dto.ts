@@ -1,4 +1,4 @@
-import { TrainingStatus } from "@generated/client";
+import { BuildMode, TrainingStatus } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class TrainingJobDto {
@@ -31,6 +31,17 @@ export class TrainingJobDto {
 
   @ApiPropertyOptional({ description: "When training completed" })
   completedAt?: Date;
+
+  @ApiProperty({
+    description: "Azure build mode used for this job",
+    enum: BuildMode,
+  })
+  buildMode!: BuildMode;
+
+  @ApiPropertyOptional({
+    description: "Max training hours budget (neural only)",
+  })
+  maxTrainingHours?: number;
 }
 
 export class ValidationResultDto {

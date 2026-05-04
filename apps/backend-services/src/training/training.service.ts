@@ -600,6 +600,8 @@ export class TrainingService {
       errorMessage: job.error_message ?? undefined,
       startedAt: job.started_at,
       completedAt: job.completed_at ?? undefined,
+      buildMode: job.build_mode,
+      maxTrainingHours: job.max_training_hours ?? undefined,
     };
   }
 
@@ -773,6 +775,9 @@ export class TrainingService {
       docTypes: model.doc_types as Record<string, unknown> | undefined,
       fieldCount: model.field_count,
       createdAt: model.created_at,
+      buildMode: model.build_mode,
+      maxTrainingHours: model.max_training_hours ?? undefined,
+      actualTrainingHours: model.actual_training_hours ?? undefined,
     };
   }
 }

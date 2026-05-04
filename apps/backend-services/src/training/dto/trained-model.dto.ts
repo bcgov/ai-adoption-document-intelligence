@@ -1,3 +1,4 @@
+import { BuildMode } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class TrainedModelDto {
@@ -40,6 +41,22 @@ export class TrainedModelDto {
 
   @ApiProperty({ description: "Number of fields the model recognizes" })
   fieldCount!: number;
+
+  @ApiProperty({
+    description: "Azure build mode used to train this version",
+    enum: BuildMode,
+  })
+  buildMode!: BuildMode;
+
+  @ApiPropertyOptional({
+    description: "Max training hours budget (neural only)",
+  })
+  maxTrainingHours?: number;
+
+  @ApiPropertyOptional({
+    description: "Actual training time consumed by Azure (neural only)",
+  })
+  actualTrainingHours?: number;
 
   @ApiProperty({ description: "When the model was created" })
   createdAt!: Date;
