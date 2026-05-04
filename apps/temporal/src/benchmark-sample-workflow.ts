@@ -10,8 +10,17 @@
  * data. See docs-md/benchmarking/temporal-history-bloat-fix.md for context.
  */
 
-import { proxyActivities } from "@temporalio/workflow";
-import { type GraphWorkflowConfig } from "./graph-workflow-types";
+import { executeChild, proxyActivities } from "@temporalio/workflow";
+import {
+  buildFlatConfidenceMapFromCtx,
+  buildFlatPredictionMapFromCtx,
+} from "./azure-ocr-field-display-value";
+import {
+  GRAPH_RUNNER_VERSION,
+  type GraphWorkflowConfig,
+  type GraphWorkflowInput,
+  type GraphWorkflowResult,
+} from "./graph-workflow-types";
 
 export interface BenchmarkSampleWorkflowInput {
   sampleId: string;
@@ -67,9 +76,102 @@ const customActivities = proxyActivities<BenchmarkActivities>({
 });
 
 export async function benchmarkSampleWorkflow(
-  _input: BenchmarkSampleWorkflowInput,
+  input: BenchmarkSampleWorkflowInput,
 ): Promise<BenchmarkSampleWorkflowOutput> {
-  // Reference customActivities to keep proxy alive for tests / future tasks.
-  void customActivities;
-  throw new Error("not implemented");
+  const {
+    sampleId,
+    workflowConfig,
+    configHash,
+    inputPaths,
+    outputBaseDir,
+    sampleMetadata,
+    predictionOutputDir,
+    persistOcrCache,
+    parentWorkflowId,
+    requestId,
+  } = input;
+
+  const primaryInput = inputPaths[0] || "";
+  const fileName = primaryInput.split("/").pop() || "document";
+  const lowerName = fileName.toLowerCase();
+  const isImage = /\.(jpg|jpeg|png|gif|bmp|tiff|webp)$/i.test(lowerName);
+  const fileType = isImage ? "image" : "pdf";
+  const contentType = isImage
+    ? lowerName.endsWith(".png")
+      ? "image/png"
+      : "image/jpeg"
+    : "application/pdf";
+
+  const initialCtx: Record<string, unknown> = {
+    ...sampleMetadata,
+    inputPaths,
+    outputBaseDir,
+    sampleId,
+    documentId: `benchmark-${sampleId}`,
+    blobKey: primaryInput,
+    fileName,
+    fileType,
+    contentType,
+  };
+
+  const childInput: GraphWorkflowInput = {
+    graph: workflowConfig,
+    initialCtx,
+    configHash,
+    runnerVersion: GRAPH_RUNNER_VERSION,
+    parentWorkflowId,
+    requestId,
+  };
+
+  const graphResult = (await executeChild("graphWorkflow", {
+    args: [childInput],
+  })) as GraphWorkflowResult;
+
+  const predictionData = buildFlatPredictionMapFromCtx(graphResult.ctx);
+  const confidenceData = buildFlatConfidenceMapFromCtx(graphResult.ctx);
+
+  const { predictionPath } = await customActivities[
+    "benchmark.writePrediction"
+  ]({
+    predictionData,
+    outputDir: predictionOutputDir,
+    sampleId,
+  });
+
+  if (
+    persistOcrCache &&
+    graphResult.ctx.ocrResponse !== undefined &&
+    graphResult.ctx.ocrResponse !== null
+  ) {
+    await customActivities["benchmark.persistOcrCache"]({
+      sourceRunId: persistOcrCache.sourceRunId,
+      sampleId,
+      ocrResponse: graphResult.ctx.ocrResponse,
+    });
+  }
+
+  const outputPaths = extractOutputPaths(graphResult.ctx);
+
+  return {
+    sampleId,
+    success: graphResult.status === "completed",
+    graphStatus: graphResult.status,
+    completedNodes: graphResult.completedNodes.length,
+    predictionPath,
+    confidenceData,
+    outputPaths,
+  };
+}
+
+function extractOutputPaths(ctx: Record<string, unknown>): string[] {
+  const paths: string[] = [];
+  if (Array.isArray(ctx.outputPaths)) {
+    for (const p of ctx.outputPaths) {
+      if (typeof p === "string") paths.push(p);
+    }
+  }
+  if (typeof ctx.outputPath === "string") {
+    paths.push(ctx.outputPath);
+  }
+  return paths;
 }
