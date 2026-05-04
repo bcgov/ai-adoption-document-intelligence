@@ -1163,5 +1163,40 @@ describe("TrainingService", () => {
         "Invalid api-key",
       );
     });
+
+    it("throws when the Azure client is not configured", async () => {
+      const moduleNoCreds: TestingModule = await Test.createTestingModule({
+        providers: [
+          TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          { provide: TrainingDbService, useValue: mockTrainingDb },
+          {
+            provide: AzureStorageService,
+            useValue: mockBlobStorage,
+          },
+          { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
+          {
+            provide: TemplateModelService,
+            useValue: mockTemplateModelService,
+          },
+          {
+            provide: BenchmarkDefinitionDbService,
+            useValue: mockBenchmarkDefinitionDb,
+          },
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn(() => undefined),
+            },
+          },
+        ],
+      }).compile();
+      const unconfiguredService =
+        moduleNoCreds.get<TrainingService>(TrainingService);
+
+      await expect(unconfiguredService.getTrainingInfo()).rejects.toThrow(
+        "Azure Document Intelligence client is not configured",
+      );
+    });
   });
 });

@@ -673,6 +673,8 @@ export class TrainingService {
     const body = (response.body ?? {}) as unknown as Record<string, unknown>;
     return {
       region: typeof body.region === "string" ? body.region : undefined,
+      // Passthrough — Azure's response is documented but not strongly schema-validated here;
+      // the consumer (frontend) is responsible for reading what it needs from the shape.
       customNeuralDocumentModelBuilds: body.customNeuralDocumentModelBuilds as
         | TrainingInfoDto["customNeuralDocumentModelBuilds"]
         | undefined,
