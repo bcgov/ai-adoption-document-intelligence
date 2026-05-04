@@ -7,6 +7,11 @@ export enum TrainingStatus {
   FAILED = "FAILED",
 }
 
+export enum BuildMode {
+  template = "template",
+  neural = "neural",
+}
+
 export type TemplateModelStatus = "draft" | "training" | "trained" | "failed";
 
 export interface TrainingJob {
@@ -20,6 +25,8 @@ export interface TrainingJob {
   errorMessage?: string;
   startedAt: string;
   completedAt?: string;
+  buildMode: BuildMode;
+  maxTrainingHours?: number;
 }
 
 export interface ValidationResult {
@@ -31,14 +38,10 @@ export interface ValidationResult {
 
 export interface StartTrainingRequest {
   description?: string;
+  buildMode?: BuildMode;
+  maxTrainingHours?: number;
 }
 
-/**
- * One trained version of a template model. Each retrain produces a new row;
- * `version` is the sequential version number, `isActive` flags the version
- * resolved by OCR/benchmarks against the bare template model_id, and
- * `deletedAt` is set on tombstoned versions.
- */
 export interface TrainedModelVersion {
   id: string;
   templateModelId: string;
@@ -51,6 +54,9 @@ export interface TrainedModelVersion {
   docTypes?: Record<string, unknown>;
   fieldCount: number;
   createdAt: string;
+  buildMode: BuildMode;
+  maxTrainingHours?: number;
+  actualTrainingHours?: number;
 }
 
 export interface TrainedModelSnapshotLabel {
@@ -69,4 +75,14 @@ export interface TrainedModelSnapshotDocument {
 
 export interface TrainedModelSnapshot {
   documents: TrainedModelSnapshotDocument[];
+}
+
+export interface TrainingInfo {
+  region?: string;
+  customNeuralDocumentModelBuilds?: {
+    used: number;
+    quota: number;
+    quotaResetDateTime: string;
+  };
+  raw?: Record<string, unknown>;
 }
