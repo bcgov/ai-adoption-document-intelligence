@@ -142,6 +142,86 @@ describe("benchmarkSampleWorkflow", () => {
     expect(mockPersistOcrCache).not.toHaveBeenCalled();
   });
 
+  it("infers PDF contentType from extension and forwards initialCtx to graphWorkflow", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      ctx: {},
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    await benchmarkSampleWorkflow({
+      ...baseInput,
+      sampleMetadata: { docType: "invoice" },
+    });
+
+    const childArgs = mockExecuteChild.mock.calls[0][1].args[0];
+    expect(childArgs.initialCtx).toMatchObject({
+      docType: "invoice",
+      sampleId: "sample-001",
+      documentId: "benchmark-sample-001",
+      fileName: "doc.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: "/tmp/in/doc.pdf",
+    });
+  });
+
+  it("infers image contentType from extension", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      ctx: {},
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    await benchmarkSampleWorkflow({
+      ...baseInput,
+      inputPaths: ["/tmp/in/scan.png"],
+    });
+
+    const childArgs = mockExecuteChild.mock.calls[0][1].args[0];
+    expect(childArgs.initialCtx).toMatchObject({
+      fileName: "scan.png",
+      fileType: "image",
+      contentType: "image/png",
+    });
+  });
+
+  it("extracts outputPaths from results[].outputPath in ctx", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      ctx: {
+        results: [
+          { outputPath: "/data/output/file1.json" },
+          { outputPath: "/data/output/file2.json" },
+        ],
+      },
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    const result = await benchmarkSampleWorkflow(baseInput);
+
+    expect(result.outputPaths).toEqual([
+      "/data/output/file1.json",
+      "/data/output/file2.json",
+    ]);
+  });
+
+  it("falls back to outputBaseDir when ctx has no explicit output paths", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      ctx: { outputBaseDir: "/data/output/run-1/sample-001" },
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    const result = await benchmarkSampleWorkflow(baseInput);
+
+    expect(result.outputPaths).toEqual(["/data/output/run-1/sample-001"]);
+  });
+
   it("returns success=false with graphStatus when inner graphWorkflow returns status=failed", async () => {
     mockExecuteChild.mockResolvedValue({
       status: "failed",

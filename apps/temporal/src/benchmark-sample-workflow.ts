@@ -177,13 +177,31 @@ export async function benchmarkSampleWorkflow(
 
 function extractOutputPaths(ctx: Record<string, unknown>): string[] {
   const paths: string[] = [];
+
   if (Array.isArray(ctx.outputPaths)) {
     for (const p of ctx.outputPaths) {
       if (typeof p === "string") paths.push(p);
     }
   }
+
   if (typeof ctx.outputPath === "string") {
     paths.push(ctx.outputPath);
   }
+
+  if (Array.isArray(ctx.results)) {
+    for (const result of ctx.results) {
+      if (result && typeof result === "object" && "outputPath" in result) {
+        const r = result as Record<string, unknown>;
+        if (typeof r.outputPath === "string") {
+          paths.push(r.outputPath);
+        }
+      }
+    }
+  }
+
+  if (paths.length === 0 && typeof ctx.outputBaseDir === "string") {
+    paths.push(ctx.outputBaseDir);
+  }
+
   return paths;
 }
