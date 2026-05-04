@@ -42,6 +42,12 @@ export interface StartTrainingRequest {
   maxTrainingHours?: number;
 }
 
+/**
+ * One trained version of a template model. Each retrain produces a new row;
+ * `version` is the sequential version number, `isActive` flags the version
+ * resolved by OCR/benchmarks against the bare template model_id, and
+ * `deletedAt` is set on tombstoned versions.
+ */
 export interface TrainedModelVersion {
   id: string;
   templateModelId: string;
