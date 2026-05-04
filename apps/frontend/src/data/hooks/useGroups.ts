@@ -21,7 +21,14 @@ export interface GroupMember {
   userId: string;
   email: string;
   joinedAt: string;
+  role: string;
 }
+
+/** Selectable role options for group members. Derived from the GroupRole enum. */
+export const GROUP_ROLE_OPTIONS = [
+  { value: "MEMBER", label: "Member" },
+  { value: "ADMIN", label: "Admin" },
+] as const;
 
 /** Membership request belonging to the authenticated caller, returned by GET /api/groups/requests/mine */
 export interface MyMembershipRequest {
@@ -346,6 +353,43 @@ export function useLeaveGroup(groupId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groups"] });
+    },
+  });
+}
+
+/** Payload for updating a group member's role */
+export interface UpdateMemberRolePayload {
+  userId: string;
+  role: string;
+}
+
+/**
+ * Updates a group member's role via PATCH /api/groups/:groupId/members/:userId/role.
+ * Invalidates the group members query on success.
+ *
+ * @param groupId - The ID of the group.
+ * @returns A react-query mutation result.
+ */
+export function useUpdateGroupMemberRole(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      role,
+    }: UpdateMemberRolePayload): Promise<{ success: boolean }> => {
+      const response = await apiService.patch<{ success: boolean }>(
+        `/groups/${groupId}/members/${userId}/role`,
+        { role },
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message ?? "Failed to update member role");
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["groups", groupId, "members"],
+      });
     },
   });
 }

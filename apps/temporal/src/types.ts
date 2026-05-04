@@ -64,11 +64,15 @@ export interface AnalyzeResult {
 
 /** Field value shape from Azure Document Intelligence custom models */
 export interface AzureDocumentFieldValue {
+  /** Labeling field type (`string`, `number`, `date`, …); also set for Mistral template extraction. */
+  type?: string;
   content?: string;
   valueString?: string;
   /** Present on numeric fields; extractAzureFieldDisplayValue prefers this over `content` when set. */
   valueNumber?: number;
   valueInteger?: number;
+  valueDate?: string;
+  valueSelectionMark?: "selected" | "unselected";
   confidence?: number;
   boundingRegions?: BoundingRegion[];
   spans?: Span[];

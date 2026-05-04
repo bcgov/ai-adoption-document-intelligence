@@ -23,6 +23,7 @@ import {
   getWorkflowGraphConfig,
   loadDatasetManifest,
   materializeDataset,
+  mistralOcrProcess,
   pollOCRResults,
   postOcrCleanup,
   prepareFileData,
@@ -112,6 +113,15 @@ register({
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Post-OCR text normalization",
+});
+
+register({
+  activityType: "mistralOcr.process",
+  activityFn: mistralOcrProcess as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "10m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Mistral Document AI OCR (sync) with optional document annotation",
 });
 
 register({
