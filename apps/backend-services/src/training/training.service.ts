@@ -434,10 +434,14 @@ export class TrainingService {
           body: {
             modelId,
             description: dto.description,
-            buildMode: "template",
+            buildMode: job.build_mode,
             azureBlobSource: {
               containerUrl: sasUrl,
             },
+            ...(job.build_mode === BuildMode.neural &&
+            job.max_training_hours !== null
+              ? { maxTrainingHours: job.max_training_hours }
+              : {}),
           },
         });
 
