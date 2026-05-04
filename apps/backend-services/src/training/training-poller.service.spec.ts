@@ -659,6 +659,7 @@ describe("TrainingPollerService", () => {
           actual_training_hours: 0.42,
         }),
       );
+      expect(documentModelsGet).toHaveBeenCalledTimes(1);
     });
 
     it("leaves actual_training_hours null for template builds", async () => {
@@ -705,6 +706,47 @@ describe("TrainingPollerService", () => {
           actual_training_hours: null,
         }),
       );
+      expect(documentModelsGet).not.toHaveBeenCalled();
+    });
+
+    it("uses trainingHours from operation.result when present and skips the model GET", async () => {
+      const neuralJob = {
+        ...mockTrainingJob,
+        build_mode: "neural",
+        max_training_hours: 2,
+      };
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValue([neuralJob]);
+      mockTrainingDb.findTrainingJob.mockResolvedValue(neuralJob);
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const operationGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          status: "succeeded",
+          result: {
+            docTypes: { doc1: { fieldSchema: { f1: {} } } },
+            description: "n",
+            trainingHours: 0.75,
+          },
+        },
+      });
+      const documentModelsGet = jest.fn();
+      mockAdminClient.path = jest.fn((p: string) => {
+        if (p.includes("/operations/")) return { get: operationGet };
+        if (p.includes("/documentModels/")) return { get: documentModelsGet };
+        return { get: jest.fn() };
+      });
+
+      await service.pollActiveJobs();
+
+      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: "neural",
+          max_training_hours: 2,
+          actual_training_hours: 0.75,
+        }),
+      );
+      expect(documentModelsGet).not.toHaveBeenCalled();
     });
 
     it("should handle succeeded with no docTypes", async () => {

@@ -226,7 +226,10 @@ export class TrainingPollerService {
         let actualTrainingHours: number | null =
           resultModel?.trainingHours ?? null;
 
-        if (!resultModel || actualTrainingHours === null) {
+        if (
+          !resultModel ||
+          (job.build_mode === BuildMode.neural && actualTrainingHours === null)
+        ) {
           // Fallback: fetch the model by ID (required when result is absent, or
           // when trainingHours is missing from the operation result — Azure
           // typically surfaces trainingHours only on GET /documentModels).
