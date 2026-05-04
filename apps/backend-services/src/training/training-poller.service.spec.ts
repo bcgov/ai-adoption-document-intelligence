@@ -154,10 +154,10 @@ describe("TrainingPollerService", () => {
     it("rounds up partial intervals", () => {
       const result = service["computeMaxAttempts"]({
         build_mode: "neural",
-        max_training_hours: 0.5,
+        max_training_hours: 0.17,
       } as never);
-      // (0.5*3600 + 600) / 10 = 240
-      expect(result).toBe(240);
+      // (0.17*3600 + 600) / 10 = 1212/10 = 121.2 → ceil = 122
+      expect(result).toBe(122);
     });
   });
 
