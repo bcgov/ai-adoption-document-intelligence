@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Azure Classifier-Based Page Extraction",
+    "description": "Classifies a multi-page document with Azure Document Intelligence to identify page ranges for each document type, then selects all segments for a target label and extracts each one as a separate blob in parallel. Demonstrates the submit → poll → selectClassifiedPages → map(extractPageRange) pattern.",
+    "tags": ["azure-classifier", "page-extraction", "classification"]
+  },
+  "entryNodeId": "submitClassify",
+  "ctx": {
+    "documentId": {
+      "type": "string",
+      "description": "Source document ID from the database"
+    },
+    "blobKey": {
+      "type": "string",
+      "description": "Blob storage key for the source (multi-page) document"
+    },
+    "groupId": {
+      "type": "string",
+      "description": "Group ID — must own the classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
+    },
+    "classifierName": {
+      "type": "string",
+      "description": "Name of the READY Azure Document Intelligence classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
+    },
+    "resultId": {
+      "type": "string",
+      "description": "Azure DI operation ID returned by azureClassify.submit — consumed by the poll node"
+    },
+    "constructedClassifierName": {
+      "type": "string",
+      "description": "Fully-qualified Azure DI classifier name built by azureClassify.submit (e.g. groupId__classifierName)"
+    },
+    "labeledDocuments": {
+      "type": "object",
+      "description": "Classification result: Record<label, ClassifiedDocument[]> where ClassifiedDocument = { confidence: number, pageRange: { start: number, end: number } }"
+    },
+    "classifiedSegments": {
+      "type": "array",
+      "description": "All detected segments for the target label from the classifier, sorted by pageRange.start. Produced by document.selectClassifiedPages."
+    },
+    "currentSegment": {
+      "type": "object",
+      "description": "The current segment being processed inside the map node. Has shape { pageRange: { start, end }, confidence }."
+    },
+    "extractedSegmentBlobKey": {
+      "type": "string",
+      "description": "Blob key of the extracted page-range segment produced by document.extractPageRange inside the map body."
+    }
+  },
+  "nodes": {
+    "submitClassify": {
+      "id": "submitClassify",
+      "type": "activity",
+      "label": "Submit to Azure Classifier",
+      "activityType": "azureClassify.submit",
+      "inputs": [
+        { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "groupId", "ctxKey": "groupId" },
+        { "port": "classifierName", "ctxKey": "classifierName" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [
+        { "port": "resultId", "ctxKey": "resultId" },
+        { "port": "constructedClassifierName", "ctxKey": "constructedClassifierName" }
+      ],
+      "parameters": {
+        "classifierName": "<SELECT_IN_UI>"
+      },
+      "timeout": { "startToClose": "2m" },
+      "retry": { "maximumAttempts": 3 }
+    },
+    "pollClassify": {
+      "id": "pollClassify",
+      "type": "activity",
+      "label": "Poll Classification Results",
+      "activityType": "azureClassify.poll",
+      "inputs": [
+        { "port": "resultId", "ctxKey": "resultId" },
+        { "port": "constructedClassifierName", "ctxKey": "constructedClassifierName" },
+        { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "groupId", "ctxKey": "groupId" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [
+        { "port": "labeledDocuments", "ctxKey": "labeledDocuments" }
+      ],
+      "timeout": { "startToClose": "30s" },
+      "retry": {
+        "maximumAttempts": 20,
+        "initialInterval": "5s",
+        "backoffCoefficient": 1.0,
+        "maximumInterval": "5s"
+      }
+    },
+    "selectClassifiedPages": {
+      "id": "selectClassifiedPages",
+      "type": "activity",
+      "label": "Select Classified Page Segments",
+      "activityType": "document.selectClassifiedPages",
+      "inputs": [
+        { "port": "labeledDocuments", "ctxKey": "labeledDocuments" }
+      ],
+      "outputs": [
+        { "port": "segments", "ctxKey": "classifiedSegments" }
+      ],
+      "parameters": {
+        "targetLabel": "<SELECT_IN_UI>"
+      },
+      "timeout": { "startToClose": "30s" },
+      "retry": { "maximumAttempts": 1 }
+    },
+    "extractDocumentSegments": {
+      "id": "extractDocumentSegments",
+      "type": "map",
+      "label": "Extract Each Document Segment",
+      "collectionCtxKey": "classifiedSegments",
+      "itemCtxKey": "currentSegment",
+      "bodyEntryNodeId": "extractSegment",
+      "bodyExitNodeId": "extractSegment"
+    },
+    "extractSegment": {
+      "id": "extractSegment",
+      "type": "activity",
+      "label": "Extract Page Range",
+      "activityType": "document.extractPageRange",
+      "inputs": [
+        { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "groupId", "ctxKey": "groupId" },
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "pageRange", "ctxKey": "currentSegment.pageRange" }
+      ],
+      "outputs": [
+        { "port": "segmentBlobKey", "ctxKey": "extractedSegmentBlobKey" }
+      ],
+      "timeout": { "startToClose": "5m" },
+      "retry": { "maximumAttempts": 3 }
+    }
+  },
+  "edges": [
+    { "id": "e1", "source": "submitClassify", "target": "pollClassify", "type": "normal" },
+    { "id": "e2", "source": "pollClassify", "target": "selectClassifiedPages", "type": "normal" },
+    { "id": "e3", "source": "selectClassifiedPages", "target": "extractDocumentSegments", "type": "normal" }
+  ]
+}
