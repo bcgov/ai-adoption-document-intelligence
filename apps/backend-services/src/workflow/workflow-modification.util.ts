@@ -280,7 +280,7 @@ export function applyRecommendations(
     ) {
       rejected.push({
         recommendation: rec,
-        reason: `OCR correction tools must run only after Azure OCR extract; edge source "${splitSourceNodeId}" is upstream of azureOcr.extract`,
+        reason: `OCR correction tools must run only after structured OCR output; edge source "${splitSourceNodeId}" is upstream of the OCR anchor`,
       });
       continue;
     }

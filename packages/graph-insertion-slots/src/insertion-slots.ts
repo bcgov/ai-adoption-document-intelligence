@@ -37,20 +37,34 @@ function nodeActivityType(
   return node.activityType ?? null;
 }
 
-export const OCR_CORRECTION_AFTER_ACTIVITY_TYPE = "azureOcr.extract";
+/**
+ * Activity types whose node outputs structured OCR (`ocrResult` shape) used by
+ * downstream cleanup and correction tools. Extend this list when adding a new
+ * OCR provider whose graph ends with an equivalent “structured extract” step.
+ */
+export const OCR_CORRECTION_AFTER_ACTIVITY_TYPES = [
+  "azureOcr.extract",
+  "mistralOcr.process",
+] as const;
+
+export type OcrCorrectionAnchorActivityType =
+  (typeof OCR_CORRECTION_AFTER_ACTIVITY_TYPES)[number];
 
 export interface BuildInsertionSlotsOptions {
+  /** Only list normal edges whose source is reachable from a structured-OCR anchor (see {@link OCR_CORRECTION_AFTER_ACTIVITY_TYPES}). */
   postAzureOcrExtractOnly?: boolean;
 }
 
-function findActivityNodeIdsByType(
+function findActivityNodeIdsByTypes(
   config: InsertionSlotsGraphConfig,
-  activityType: string,
+  activityTypes: readonly string[],
 ): Set<string> {
+  const want = new Set(activityTypes.map((t) => t.toLowerCase()));
   const ids = new Set<string>();
   for (const [id, node] of Object.entries(config.nodes)) {
     if (node.type !== "activity") continue;
-    if (node.activityType === activityType) {
+    const at = node.activityType;
+    if (at != null && want.has(at.toLowerCase())) {
       ids.add(id);
     }
   }
@@ -92,14 +106,14 @@ export function isOcrCorrectionInsertionEdgeSourceAllowed(
   config: InsertionSlotsGraphConfig,
   sourceNodeId: string,
 ): boolean {
-  const extractIds = findActivityNodeIdsByType(
+  const anchorIds = findActivityNodeIdsByTypes(
     config,
-    OCR_CORRECTION_AFTER_ACTIVITY_TYPE,
+    OCR_CORRECTION_AFTER_ACTIVITY_TYPES,
   );
-  if (extractIds.size === 0) {
+  if (anchorIds.size === 0) {
     return true;
   }
-  const allowed = forwardReachableNormalFromNodes(config, extractIds);
+  const allowed = forwardReachableNormalFromNodes(config, anchorIds);
   return allowed.has(sourceNodeId);
 }
 
@@ -110,14 +124,18 @@ export function buildInsertionSlots(
   const postExtractOnly = options?.postAzureOcrExtractOnly === true;
   const allowedSources: Set<string> | null = postExtractOnly
     ? (() => {
-        const extractIds = findActivityNodeIdsByType(
+        const anchorIds = findActivityNodeIdsByTypes(
           config,
-          OCR_CORRECTION_AFTER_ACTIVITY_TYPE,
+          OCR_CORRECTION_AFTER_ACTIVITY_TYPES,
         );
-        if (extractIds.size === 0) {
-          return new Set<string>();
+        // No registered structured-OCR node: do not use an empty Set (that would
+        // drop every edge). Fall back to unfiltered edges so callers/debug logs
+        // still see the graph; findSlotImmediatelyAfterAzureOcrExtract may still
+        // return undefined until the activity type is added to the anchor list.
+        if (anchorIds.size === 0) {
+          return null;
         }
-        return forwardReachableNormalFromNodes(config, extractIds);
+        return forwardReachableNormalFromNodes(config, anchorIds);
       })()
     : null;
 
@@ -147,7 +165,7 @@ export function buildInsertionSlots(
 }
 
 /**
- * Normal edges whose source activity is {@link OCR_CORRECTION_AFTER_ACTIVITY_TYPE}.
+ * First normal edge leaving a structured-OCR anchor ({@link OCR_CORRECTION_AFTER_ACTIVITY_TYPES}).
  * If multiple exist, the result is deterministic (lexicographic by afterNodeId, then beforeNodeId).
  */
 export function findSlotImmediatelyAfterAzureOcrExtract(
@@ -156,11 +174,13 @@ export function findSlotImmediatelyAfterAzureOcrExtract(
     "afterNodeId" | "beforeNodeId" | "afterActivityType"
   >[],
 ): { afterNodeId: string; beforeNodeId: string } | undefined {
-  const want = OCR_CORRECTION_AFTER_ACTIVITY_TYPE.toLowerCase();
+  const want = new Set(
+    OCR_CORRECTION_AFTER_ACTIVITY_TYPES.map((t) => t.toLowerCase()),
+  );
   const matches = slots.filter(
     (s) =>
       s.afterActivityType != null &&
-      s.afterActivityType.toLowerCase() === want,
+      want.has(s.afterActivityType.toLowerCase()),
   );
   if (matches.length === 0) return undefined;
   matches.sort((a, b) => {
