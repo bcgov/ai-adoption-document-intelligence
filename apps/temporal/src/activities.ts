@@ -47,6 +47,11 @@ export {
   benchmarkLoadOcrCache,
   benchmarkPersistOcrCache,
 } from "./activities/benchmark-ocr-cache";
+export type {
+  BenchmarkPersistEvaluationDetailsInput,
+  BenchmarkPersistEvaluationDetailsOutput,
+} from "./activities/benchmark-persist-evaluation-details";
+export { benchmarkPersistEvaluationDetails } from "./activities/benchmark-persist-evaluation-details";
 export type { BenchmarkUpdateRunStatusInput } from "./activities/benchmark-update-run";
 export { benchmarkUpdateRunStatus } from "./activities/benchmark-update-run";
 export type {

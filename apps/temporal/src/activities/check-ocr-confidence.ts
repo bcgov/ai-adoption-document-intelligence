@@ -56,7 +56,13 @@ export async function checkOcrConfidence(params: {
     const normalizedConfidence =
       averageConfidence > 1 ? averageConfidence / 100 : averageConfidence;
 
-    const requiresReview = normalizedConfidence < confidenceThreshold;
+    // Benchmark runs must never wait for HITL: the humanReview node would
+    // park the workflow on a 24h timer waiting for an approval signal that
+    // can't arrive in benchmark mode. Force requiresReview=false so the
+    // switch routes straight to storeResults.
+    const isBenchmark = documentId.startsWith("benchmark-");
+    const requiresReview =
+      !isBenchmark && normalizedConfidence < confidenceThreshold;
 
     log.info("Check OCR confidence complete", {
       event: "complete",
@@ -69,8 +75,7 @@ export async function checkOcrConfidence(params: {
     // Update document status if review is required (skip in benchmark: no DB row exists)
     // Note: We keep status as 'ongoing_ocr' since the workflow is still in progress
     // The workflow itself tracks the 'awaiting_review' state separately
-    const isBenchmark = documentId.startsWith("benchmark-");
-    if (requiresReview && !isBenchmark) {
+    if (requiresReview) {
       const prisma = getPrismaClient();
       await prisma.document.update({
         where: { id: documentId },
@@ -83,12 +88,6 @@ export async function checkOcrConfidence(params: {
         event: "status_updated",
         status: "ongoing_ocr",
         requiresReview: true,
-      });
-    } else if (requiresReview && isBenchmark) {
-      log.debug("Skipping document status update for benchmark run", {
-        event: "status_update_skipped",
-        documentId,
-        reason: "benchmark",
       });
     }
 
