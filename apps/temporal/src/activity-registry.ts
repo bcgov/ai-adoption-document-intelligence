@@ -32,15 +32,15 @@ import {
   updateDocumentStatus,
   upsertOcrResult,
 } from "./activities";
-import { blobRead } from "./activities/blob-read";
 import { azureClassifyPoll } from "./activities/azure-classify-poll";
 import { azureClassifySubmit } from "./activities/azure-classify-submit";
+import { blobRead } from "./activities/blob-read";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
 import { executeTransformNode } from "./activities/data-transform/execute";
 import { validateDocumentFields } from "./activities/document-validate-fields";
-import { extractPagesBase64 } from "./activities/extract-pages-base64";
 import { extractPageRange } from "./activities/extract-page-range";
+import { extractPagesBase64 } from "./activities/extract-pages-base64";
 import { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
