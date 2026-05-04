@@ -29,10 +29,6 @@ import {
   type BenchmarkExecuteOutput,
   benchmarkExecuteWorkflow,
 } from "./activities/benchmark-execute";
-import {
-  buildFlatConfidenceMapFromCtx,
-  buildFlatPredictionMapFromCtx,
-} from "./azure-ocr-field-display-value";
 import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -114,12 +110,6 @@ type BenchmarkActivities = {
     completedAt?: Date;
   }) => Promise<void>;
 
-  "benchmark.writePrediction": (input: {
-    predictionData: Record<string, unknown>;
-    outputDir: string;
-    sampleId: string;
-  }) => Promise<{ predictionPath: string }>;
-
   "benchmark.compareAgainstBaseline": (params: {
     runId: string;
   }) => Promise<unknown>;
@@ -128,12 +118,6 @@ type BenchmarkActivities = {
     sourceRunId: string;
     sampleId: string;
   }) => Promise<{ ocrResponse: unknown | null }>;
-
-  "benchmark.persistOcrCache": (params: {
-    sourceRunId: string;
-    sampleId: string;
-    ocrResponse: unknown;
-  }) => Promise<void>;
 };
 
 // Default activity options for benchmark activities
@@ -442,7 +426,7 @@ export async function benchmarkRunWorkflow(
     currentPhase = "executing";
 
     const maxParallel = runtimeSettings.maxParallelDocuments || 10;
-    const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 300000; // 5 min default
+    const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 600000; // 10 min default (belt-and-suspenders headroom on top of the wrapper-workflow history-bloat fix)
 
     const childTaskQueue = "benchmark-processing";
 
@@ -500,7 +484,10 @@ export async function benchmarkRunWorkflow(
                 ocrCachePayload = { ocrResponse: loaded.ocrResponse };
               }
 
-              // Execute workflow for this sample
+              // Execute workflow for this sample via the wrapper child workflow.
+              // The wrapper writes the prediction file and persists OCR cache
+              // (when configured) from inside its own context, so the heavy
+              // payloads stay in the wrapper's history, not this parent's.
               const executeInput: BenchmarkExecuteInput = {
                 sampleId: sample.id,
                 workflowConfig,
@@ -513,24 +500,16 @@ export async function benchmarkRunWorkflow(
                     ? { __benchmarkOcrCache: ocrCachePayload }
                     : {}),
                 },
+                predictionOutputDir: outputBaseDir,
+                persistOcrCache: persistOcrCache
+                  ? { sourceRunId: runId }
+                  : undefined,
                 timeoutMs,
                 taskQueue: childTaskQueue,
               };
 
               const executeOutput =
                 await benchmarkExecuteWorkflow(executeInput);
-
-              if (
-                executeOutput.success &&
-                persistOcrCache &&
-                executeOutput.workflowResult?.ctx?.ocrResponse != null
-              ) {
-                await customActivities["benchmark.persistOcrCache"]({
-                  sourceRunId: runId,
-                  sampleId: sample.id,
-                  ocrResponse: executeOutput.workflowResult.ctx.ocrResponse,
-                });
-              }
 
               return {
                 sample,
@@ -573,31 +552,21 @@ export async function benchmarkRunWorkflow(
         // Only evaluate if execution succeeded
         if (executeOutput.success) {
           try {
-            // Extract prediction fields from the workflow ctx and write to disk
-            // so the evaluator can compare against ground truth files.
-            const ctx = executeOutput.workflowResult?.ctx ?? {};
-            const predictionData = buildFlatPredictionMapFromCtx(ctx);
-            const confidenceData = buildFlatConfidenceMapFromCtx(ctx);
-
-            const { predictionPath } = await customActivities[
-              "benchmark.writePrediction"
-            ]({
-              predictionData,
-              outputDir: joinPath(
-                materializedPath!,
-                ".benchmark-outputs",
-                sample.id,
-              ),
-              sampleId: sample.id,
-            });
+            // The wrapper child workflow already wrote the prediction JSON and
+            // returned a slim summary. Just feed it to the evaluator.
+            if (!executeOutput.predictionPath) {
+              throw new Error(
+                `wrapper returned success without predictionPath for sample ${sample.id}`,
+              );
+            }
 
             const evaluationResult = await customActivities[
               "benchmark.evaluate"
             ]({
               sampleId: sample.id,
               inputPaths,
-              predictionPaths: [predictionPath],
-              predictionConfidences: confidenceData,
+              predictionPaths: [executeOutput.predictionPath],
+              predictionConfidences: executeOutput.confidenceData ?? {},
               groundTruthPaths,
               metadata: sample.metadata,
               evaluatorType,
