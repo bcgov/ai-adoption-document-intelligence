@@ -120,6 +120,7 @@ export class OcrService {
         fileType,
         contentType,
         modelId,
+        groupId: document.group_id,
         ...(templateModelId !== undefined && { templateModelId }),
         ...ctxOverrides, // Overrides document metadata (e.g. confidenceThreshold, templateModelId)
       };
