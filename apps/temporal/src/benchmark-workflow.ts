@@ -118,6 +118,17 @@ type BenchmarkActivities = {
     sourceRunId: string;
     sampleId: string;
   }) => Promise<{ ocrResponse: unknown | null }>;
+
+  "benchmark.persistEvaluationDetails": (params: {
+    runId: string;
+    sampleId: string;
+    details: {
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      diagnostics?: unknown;
+    };
+  }) => Promise<{ evaluationBlobPath: string }>;
 };
 
 // Default activity options for benchmark activities
@@ -573,6 +584,29 @@ export async function benchmarkRunWorkflow(
               evaluatorConfig,
             });
 
+            // Persist heavy per-sample fields to blob storage so the
+            // drill-down UI can fetch them later without round-tripping
+            // through Temporal payloads. We do this once per sample (each
+            // call is small enough to fit under the 2 MB blob limit), then
+            // attach the returned blobPath to the in-memory result.
+            const { evaluationBlobPath } = await customActivities[
+              "benchmark.persistEvaluationDetails"
+            ]({
+              runId,
+              sampleId: sample.id,
+              details: {
+                groundTruth: evaluationResult.groundTruth,
+                prediction: evaluationResult.prediction,
+                evaluationDetails: evaluationResult.evaluationDetails,
+                diagnostics: evaluationResult.diagnostics,
+              },
+            });
+            (
+              evaluationResult as EvaluationResult & {
+                evaluationBlobPath?: string;
+              }
+            ).evaluationBlobPath = evaluationBlobPath;
+
             evaluationResults.push(evaluationResult);
 
             if (!evaluationResult.pass) {
@@ -651,6 +685,9 @@ export async function benchmarkRunWorkflow(
     // the aggregator and would otherwise push the activity input past Temporal's
     // 2 MB blob limit at scale (~100+ samples). Same fix pattern as the
     // wrapper-workflow change: don't ship heavy data through Temporal payloads.
+    // The heavy fields were already persisted to blob storage per sample by
+    // `benchmark.persistEvaluationDetails`; we keep the returned blob path on
+    // perSampleResults so the backend can fetch them on demand.
     const slimResultsForAggregate = evaluationResults.map((er) => ({
       sampleId: er.sampleId,
       metrics: er.metrics,
@@ -672,14 +709,23 @@ export async function benchmarkRunWorkflow(
       unknown
     >;
 
-    // Same reasoning as above for the storage payload: keep perSampleResults
-    // lean so `updateRunStatus`'s activity input stays under the blob limit.
-    // The dropped fields can be reconstructed from the prediction / ground
-    // truth files on disk if a future drill-down view needs them.
+    // Storage payload: include the per-sample evaluation blob path so the
+    // backend can read groundTruth / prediction / evaluationDetails on demand.
     aggregateResultForStorage = {
       ...flatMetrics,
       _aggregate: aggregateResult as unknown as Record<string, unknown>,
-      perSampleResults: slimResultsForAggregate,
+      perSampleResults: evaluationResults.map((er) => ({
+        sampleId: er.sampleId,
+        metrics: er.metrics,
+        diagnostics: er.diagnostics,
+        pass: er.pass,
+        artifacts: er.artifacts,
+        evaluationBlobPath: (
+          er as EvaluationResult & {
+            evaluationBlobPath?: string;
+          }
+        ).evaluationBlobPath,
+      })),
     };
 
     // ---------------------------------------------------------------------------
