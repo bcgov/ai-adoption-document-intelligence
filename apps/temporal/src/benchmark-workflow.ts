@@ -646,8 +646,21 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     currentPhase = "aggregating";
 
+    // Strip large per-sample fields (`groundTruth`, `prediction`,
+    // `evaluationDetails`) before passing through Temporal. They aren't read by
+    // the aggregator and would otherwise push the activity input past Temporal's
+    // 2 MB blob limit at scale (~100+ samples). Same fix pattern as the
+    // wrapper-workflow change: don't ship heavy data through Temporal payloads.
+    const slimResultsForAggregate = evaluationResults.map((er) => ({
+      sampleId: er.sampleId,
+      metrics: er.metrics,
+      diagnostics: er.diagnostics,
+      pass: er.pass,
+      artifacts: er.artifacts,
+    }));
+
     const aggregateResult = await customActivities["benchmark.aggregate"]({
-      results: evaluationResults,
+      results: slimResultsForAggregate,
       options: {
         failureAnalysis: { topN: 10 },
       },
@@ -659,21 +672,14 @@ export async function benchmarkRunWorkflow(
       unknown
     >;
 
-    // Build the stored metrics object: flat metrics at the top level for baseline
-    // comparison, plus structured data for drill-down and per-sample browsing.
+    // Same reasoning as above for the storage payload: keep perSampleResults
+    // lean so `updateRunStatus`'s activity input stays under the blob limit.
+    // The dropped fields can be reconstructed from the prediction / ground
+    // truth files on disk if a future drill-down view needs them.
     aggregateResultForStorage = {
       ...flatMetrics,
       _aggregate: aggregateResult as unknown as Record<string, unknown>,
-      perSampleResults: evaluationResults.map((er) => ({
-        sampleId: er.sampleId,
-        metrics: er.metrics,
-        diagnostics: er.diagnostics,
-        pass: er.pass,
-        artifacts: er.artifacts,
-        groundTruth: er.groundTruth,
-        prediction: er.prediction,
-        evaluationDetails: er.evaluationDetails,
-      })),
+      perSampleResults: slimResultsForAggregate,
     };
 
     // ---------------------------------------------------------------------------
