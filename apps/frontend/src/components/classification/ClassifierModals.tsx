@@ -14,7 +14,10 @@ import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 import { useGroup } from "@/auth/GroupContext";
 import { ConflictingWorkflow, useClassifier } from "@/data/hooks/useClassifier";
-import { ClassifierSource } from "@/shared/types/classifier";
+import {
+  ClassifierSource,
+  RESERVED_CLASSIFIER_LABELS,
+} from "@/shared/types/classifier";
 
 interface DeleteClassifierModalProps {
   isOpen: boolean;
@@ -82,7 +85,19 @@ export const UploadClassifierFilesModal = ({
       files: null as FileList | null,
     },
     validate: {
-      label: (value) => (value.trim() === "" ? "Label is required" : null),
+      label: (value) => {
+        if (value.trim() === "") return "Label is required";
+        if (
+          RESERVED_CLASSIFIER_LABELS.includes(
+            value
+              .trim()
+              .toLowerCase() as (typeof RESERVED_CLASSIFIER_LABELS)[number],
+          )
+        ) {
+          return `"${value}" is a reserved label and cannot be used. Reserved labels: ${RESERVED_CLASSIFIER_LABELS.join(", ")}.`;
+        }
+        return null;
+      },
       files: (value) => {
         if (!value || value.length === 0)
           return "At least one file is required";

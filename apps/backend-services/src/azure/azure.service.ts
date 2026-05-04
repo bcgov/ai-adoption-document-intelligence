@@ -80,33 +80,43 @@ export class AzureService {
         `operationLocation origin "${parsed.origin}" does not match expected Azure endpoint origin "${endpointUrl.origin}"`,
       );
     }
+    if (!parsed.pathname.includes("/documentintelligence/")) {
+      throw new Error(
+        `operationLocation path "${parsed.pathname}" is not an allowed Azure Document Intelligence endpoint path`,
+      );
+    }
     return parsed;
   }
 
-  private extractOperationId(operationLocation: string): string {
+  /**
+   * Rebuilds the operation URL from the trusted endpoint origin plus only the
+   * validated path and query string from the supplied location. This ensures
+   * the outgoing request always targets the configured Azure endpoint, even if
+   * `validateOperationLocationUrl` were somehow bypassed.
+   */
+  private buildSafeOperationStatusUrl(operationLocation: string): string {
     const parsed = this.validateOperationLocationUrl(operationLocation);
-    const match = parsed.pathname.match(
-      /\/(?:operations|analyzeResults)\/([A-Za-z0-9-]+)$/,
-    );
-    if (!match) {
-      throw new Error(
-        `operationLocation path "${parsed.pathname}" does not contain a supported operation identifier`,
-      );
-    }
-    return match[1];
+    const endpointUrl = new URL(this.endpoint);
+    const safeUrl = new URL(endpointUrl.origin);
+    safeUrl.pathname = parsed.pathname;
+    safeUrl.search = parsed.search;
+    return safeUrl.toString();
   }
 
   /**
    * Retrieves current operation information.
    * @param operationLocation The url of the operation to check.
-   * @returns A respnose from Azure on your operation.
+   * @returns A response from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
-    const operationId = this.extractOperationId(operationLocation);
-    const pollResp = await this.client
-      .path("/operations/{operationId}", operationId)
-      .get();
-    return this.asPollResult(pollResp.body);
+    const safeUrl = this.buildSafeOperationStatusUrl(operationLocation);
+    // Reconstruct URL from trusted endpoint origin + validated path/query and disable redirects.
+    const response = await fetch(safeUrl, {
+      headers: { "api-key": this.apiKey },
+      redirect: "error",
+    });
+    const body: unknown = await response.json();
+    return this.asPollResult(body);
   }
 
   /**
@@ -128,8 +138,6 @@ export class AzureService {
       maxRetries?: number;
     },
   ): Promise<void> {
-    const validatedOperationLocation = operationLocation;
-
     const maxRetries = options?.maxRetries ?? 5;
     const interval = options?.intervalMs ?? 5000;
     const getStatus = (result: PollOperationResult): string | undefined => {
@@ -145,7 +153,7 @@ export class AzureService {
     let result: PollOperationResult;
 
     // Fetch initial result before entering the loop
-    result = await this.checkOperationStatus(validatedOperationLocation);
+    result = await this.checkOperationStatus(operationLocation);
     status = getStatus(result);
     this.logger.debug(`Operation status: ${status}`);
     let retryCount = 0;
@@ -156,7 +164,7 @@ export class AzureService {
     ) {
       retryCount++;
       await new Promise((res) => setTimeout(res, interval));
-      result = await this.checkOperationStatus(validatedOperationLocation);
+      result = await this.checkOperationStatus(operationLocation);
       status = getStatus(result);
       this.logger.debug(`Operation status: ${status}`);
     }

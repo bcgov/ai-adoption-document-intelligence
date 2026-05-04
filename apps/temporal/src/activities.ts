@@ -73,6 +73,11 @@ export type {
 } from "./activities/flatten-classified-documents";
 export { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
+export type { MistralOcrProcessParams } from "./activities/mistral-ocr-process";
+export {
+  mistralOcrProcess,
+  resolveMistralOcrModelId,
+} from "./activities/mistral-ocr-process";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 // OCR correction tools (Feature 008)
