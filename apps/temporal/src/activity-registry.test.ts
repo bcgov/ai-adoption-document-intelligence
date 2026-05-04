@@ -32,6 +32,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "benchmark.loadDatasetManifest",
   "benchmark.loadOcrCache",
   "benchmark.persistOcrCache",
+  "benchmark.persistEvaluationDetails",
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",

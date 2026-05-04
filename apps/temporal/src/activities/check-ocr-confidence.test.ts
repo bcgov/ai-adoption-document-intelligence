@@ -365,7 +365,7 @@ describe("checkOcrConfidence activity", () => {
     expect(result.requiresReview).toBe(false);
   });
 
-  it("skips document update when documentId is benchmark synthetic id", async () => {
+  it("forces requiresReview=false and skips DB update for benchmark documents", async () => {
     const ocrResult: OCRResult = {
       success: true,
       status: "succeeded",
@@ -413,7 +413,10 @@ describe("checkOcrConfidence activity", () => {
       threshold: 0.95,
     });
 
-    expect(result.requiresReview).toBe(true);
+    // Confidence is well below threshold but the documentId starts with
+    // "benchmark-", so the activity must short-circuit requiresReview to
+    // false (avoiding the 24h humanGate park) and never touch the DB.
+    expect(result.requiresReview).toBe(false);
     expect(prismaMock.document.update).not.toHaveBeenCalled();
   });
 });

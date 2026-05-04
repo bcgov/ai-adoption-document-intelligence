@@ -14,6 +14,7 @@ import {
   benchmarkCompareAgainstBaseline,
   benchmarkEvaluate,
   benchmarkLoadOcrCache,
+  benchmarkPersistEvaluationDetails,
   benchmarkPersistOcrCache,
   benchmarkUpdateRunStatus,
   benchmarkWritePrediction,
@@ -340,6 +341,17 @@ register({
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 3 },
   description: "Persist Azure OCR poll JSON for a benchmark sample",
+});
+
+register({
+  activityType: "benchmark.persistEvaluationDetails",
+  activityFn: benchmarkPersistEvaluationDetails as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Persist per-sample evaluation details (groundTruth/prediction/evaluationDetails) to blob storage",
 });
 
 // -- Azure Classifier activities -------------------------------------------
