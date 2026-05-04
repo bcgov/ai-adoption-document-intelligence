@@ -30,6 +30,7 @@ import {
 } from "@/data/hooks/useWorkflows";
 import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
 import {
+  type CreateRunDto,
   useGenerateCandidate,
   useOcrCacheSources,
   usePipelineDebugLog,
@@ -153,12 +154,47 @@ export function DefinitionDetailView({
   const { entries: debugLogEntries, isLoading: isLoadingDebugLog } =
     usePipelineDebugLog(definition.projectId, definition.id, showDebugLog);
 
+  /** Backend rejects both `persistOcrCache: true` and `ocrCacheBaselineRunId` in one request. */
+  const ocrCacheRunOptions = (): Pick<
+    CreateRunDto,
+    "persistOcrCache" | "ocrCacheBaselineRunId"
+  > => {
+    if (ocrCacheBaselineRunId) {
+      return { ocrCacheBaselineRunId: ocrCacheBaselineRunId };
+    }
+    if (persistOcrCache) {
+      return { persistOcrCache: true };
+    }
+    return {};
+  };
+
   const handleStartRun = async () => {
-    const run = await startRun({
-      persistOcrCache,
-      ...(ocrCacheBaselineRunId ? { ocrCacheBaselineRunId } : {}),
-    });
+    const run = await startRun(ocrCacheRunOptions());
     navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
+  };
+
+  const handleStartRunWithCandidate = async () => {
+    const candidateId = generateResult?.candidateWorkflowVersionId;
+    if (!candidateId) return;
+    try {
+      const run = await startRun({
+        candidateWorkflowVersionId: candidateId,
+        ...ocrCacheRunOptions(),
+      });
+      navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
+      notifications.show({
+        title: "Benchmark started",
+        message: "Run is using the generated candidate workflow.",
+        color: "green",
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Failed to start run",
+        message:
+          error instanceof Error ? error.message : "Could not start benchmark",
+        color: "red",
+      });
+    }
   };
 
   const handleGenerateCandidate = async () => {
@@ -168,7 +204,7 @@ export function DefinitionDetailView({
         notifications.show({
           title: "Candidate workflow created",
           message:
-            "Candidate created. Review it in the workflow editor, then create a definition and benchmark it.",
+            "Review it in the workflow editor if you want, then use “Start benchmark with this candidate” below.",
           color: "green",
           autoClose: 8000,
         });
@@ -401,10 +437,10 @@ export function DefinitionDetailView({
           <Text size="sm" c="dimmed" data-testid="ocr-improvement-description">
             Extract field mismatches from the baseline run and get AI tool
             recommendations to generate a candidate workflow. Requires a
-            promoted baseline run. Review the candidate in the workflow editor,
-            then create a definition and benchmark it. When the benchmark run
-            completes, apply the candidate workflow to the base lineage from the
-            run page.
+            promoted baseline run. Optionally review the candidate in the
+            workflow editor, then start a benchmark with this candidate (uses
+            the OCR cache options above). When the run completes, you can apply
+            the candidate to the base lineage from the run page.
           </Text>
           {generateResult && (
             <Stack gap="xs">
@@ -421,23 +457,34 @@ export function DefinitionDetailView({
                 {generateResult.status}
               </Badge>
               {generateResult.status === "candidate_created" && (
-                <Group gap="lg">
-                  <Text size="sm">
-                    <Text span fw={500}>
-                      Candidate workflow:
-                    </Text>{" "}
-                    <Code>{generateResult.candidateWorkflowVersionId}</Code>
-                  </Text>
-                  <Text size="sm">
-                    Applied {generateResult.recommendationsSummary.applied}{" "}
-                    tools
-                    {generateResult.recommendationsSummary.rejected > 0 &&
-                      `, rejected ${generateResult.recommendationsSummary.rejected}`}
-                    :{" "}
-                    {generateResult.recommendationsSummary.toolIds.join(", ") ||
-                      "—"}
-                  </Text>
-                </Group>
+                <Stack gap="sm">
+                  <Group gap="lg" align="flex-start" wrap="wrap">
+                    <Text size="sm">
+                      <Text span fw={500}>
+                        Candidate workflow:
+                      </Text>{" "}
+                      <Code>{generateResult.candidateWorkflowVersionId}</Code>
+                    </Text>
+                    <Text size="sm">
+                      Applied {generateResult.recommendationsSummary.applied}{" "}
+                      tools
+                      {generateResult.recommendationsSummary.rejected > 0 &&
+                        `, rejected ${generateResult.recommendationsSummary.rejected}`}
+                      :{" "}
+                      {generateResult.recommendationsSummary.toolIds.join(
+                        ", ",
+                      ) || "—"}
+                    </Text>
+                  </Group>
+                  <Button
+                    leftSection={<IconPlayerPlay size={16} />}
+                    onClick={handleStartRunWithCandidate}
+                    loading={isStarting}
+                    data-testid="start-run-with-candidate-btn"
+                  >
+                    Start benchmark with this candidate
+                  </Button>
+                </Stack>
               )}
               {generateResult.analysis && (
                 <Alert

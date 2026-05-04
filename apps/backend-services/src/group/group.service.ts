@@ -292,7 +292,7 @@ export class GroupService {
       event_type: "membership_request_approved",
       resource_type: "group_membership_request",
       resource_id: requestId,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: request.group_id,
       payload: {
         user_id: request.user_id,
@@ -303,13 +303,13 @@ export class GroupService {
       event_type: "member_added",
       resource_type: "user_group",
       resource_id: `${request.user_id}:${request.group_id}`,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: request.group_id,
       payload: { user_id: request.user_id, membership_request_id: requestId },
     });
     this.logger.log("Membership request approved, user added to group", {
       requestId,
-      actorId: identity.userId,
+      actorId: identity.actorId,
       userId: request.user_id,
       groupId: request.group_id,
     });
@@ -513,14 +513,14 @@ export class GroupService {
       event_type: "member_added",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { user_id: userId },
     });
     this.logger.log("User added to group", {
       userId,
       groupId,
-      actorId: identity.userId,
+      actorId: identity.actorId,
     });
   }
 
@@ -547,22 +547,24 @@ export class GroupService {
       userId: m.user_id,
       email: m.user?.email ?? "",
       joinedAt: m.created_at,
+      role: m.role,
     }));
   }
 
   /**
    * Removes the calling user from a group they are a member of.
    * Throws BadRequestException if the caller is not a member of the group.
-   * @param userId - The ID of the user leaving the group (from resolvedIdentity.userId).
+   * @param identity - Identity of the user making the request.
    * @param groupId - The ID of the group to leave.
    */
-  async leaveGroup(userId: string, groupId: string): Promise<void> {
+  async leaveGroup(identity: ResolvedIdentity, groupId: string): Promise<void> {
+    const userId = identity.userId!;
     await this.groupDb.deleteUserGroup(userId, groupId);
     await this.auditService.recordEvent({
       event_type: "user_left_group",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: userId,
+      actor_id: identity.actorId,
       group_id: groupId,
     });
     this.logger.log("User left group", { userId, groupId });
@@ -627,6 +629,51 @@ export class GroupService {
   }
 
   /**
+   * Updates the role of a member in a group.
+   * Throws NotFoundException if the group does not exist.
+   * Throws NotFoundException if the target user is not a member of the group.
+   * @param groupId - The ID of the group.
+   * @param userId - The ID of the user whose role to update.
+   * @param role - The new role to assign.
+   * @param identity - The resolved identity of the caller.
+   */
+  async updateGroupMemberRole(
+    groupId: string,
+    userId: string,
+    role: GroupRole,
+    identity: ResolvedIdentity,
+  ): Promise<void> {
+    const group = await this.groupDb.findActiveGroup(groupId);
+    if (!group) {
+      throw new NotFoundException("Group not found");
+    }
+
+    const targetMembership = await this.groupDb.findUserGroupMembership(
+      userId,
+      groupId,
+    );
+    if (!targetMembership) {
+      throw new NotFoundException("User is not a member of this group");
+    }
+
+    await this.groupDb.updateUserGroupRole(userId, groupId, role);
+    await this.auditService.recordEvent({
+      event_type: "member_role_updated",
+      resource_type: "user_group",
+      resource_id: `${userId}:${groupId}`,
+      actor_id: identity.actorId,
+      group_id: groupId,
+      payload: { user_id: userId, new_role: role },
+    });
+    this.logger.log("Member role updated", {
+      groupId,
+      userId,
+      role,
+      actorId: identity.actorId,
+    });
+  }
+
+  /**
    * Removes a user from a group.
    * Throws NotFoundException if the group does not exist.
    * Throws NotFoundException if the target user is not a member of the group.
@@ -657,14 +704,14 @@ export class GroupService {
       event_type: "member_removed",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { removed_user_id: userId },
     });
     this.logger.log("Member removed from group", {
       groupId,
       removedUserId: userId,
-      actorId: identity.userId,
+      actorId: identity.actorId,
     });
   }
 }

@@ -3,7 +3,6 @@ import {
   findSlotImmediatelyAfterAzureOcrExtract,
   forwardReachableNormalFromNodes,
   isOcrCorrectionInsertionEdgeSourceAllowed,
-  OCR_CORRECTION_AFTER_ACTIVITY_TYPE,
   resolveRecommendationsInsertionSlots,
   type InsertionSlotsGraphConfig,
 } from "./insertion-slots";
@@ -56,7 +55,7 @@ describe("graph-insertion-slots", () => {
     expect(slots).toHaveLength(1);
     expect(slots[0].afterNodeId).toBe("b");
     expect(slots[0].beforeNodeId).toBe("c");
-    expect(slots[0].afterActivityType).toBe(OCR_CORRECTION_AFTER_ACTIVITY_TYPE);
+    expect(slots[0].afterActivityType).toBe("azureOcr.extract");
   });
 
   it("forwardReachableNormalFromNodes includes extract and downstream", () => {
@@ -142,5 +141,51 @@ describe("graph-insertion-slots", () => {
     const slots = buildInsertionSlots(g);
     const edge = findSlotImmediatelyAfterAzureOcrExtract(slots);
     expect(edge).toEqual({ afterNodeId: "ext1", beforeNodeId: "t1" });
+  });
+
+  const mistralGraph: InsertionSlotsGraphConfig = {
+    nodes: {
+      prep: { type: "activity", activityType: "file.prepare" },
+      mistral: { type: "activity", activityType: "mistralOcr.process" },
+      cleanup: { type: "activity", activityType: "ocr.cleanup" },
+    },
+    edges: [
+      { id: "e1", source: "prep", target: "mistral", type: "normal" },
+      { id: "e2", source: "mistral", target: "cleanup", type: "normal" },
+    ],
+  };
+
+  it("findSlotImmediatelyAfterAzureOcrExtract finds edge after mistralOcr.process", () => {
+    const slots = buildInsertionSlots(mistralGraph, {
+      postAzureOcrExtractOnly: true,
+    });
+    expect(findSlotImmediatelyAfterAzureOcrExtract(slots)).toEqual({
+      afterNodeId: "mistral",
+      beforeNodeId: "cleanup",
+    });
+  });
+
+  it("isOcrCorrectionInsertionEdgeSourceAllowed rejects upstream of mistralOcr.process", () => {
+    expect(isOcrCorrectionInsertionEdgeSourceAllowed(mistralGraph, "prep")).toBe(
+      false,
+    );
+    expect(
+      isOcrCorrectionInsertionEdgeSourceAllowed(mistralGraph, "mistral"),
+    ).toBe(true);
+  });
+
+  it("buildInsertionSlots with postAzureOcrExtractOnly falls back to all normal edges when no anchor type exists", () => {
+    const unknownOcr: InsertionSlotsGraphConfig = {
+      nodes: {
+        x: { type: "activity", activityType: "customOcr.extract" },
+        y: { type: "activity", activityType: "ocr.cleanup" },
+      },
+      edges: [{ id: "e1", source: "x", target: "y", type: "normal" }],
+    };
+    const slots = buildInsertionSlots(unknownOcr, {
+      postAzureOcrExtractOnly: true,
+    });
+    expect(slots).toHaveLength(1);
+    expect(slots[0].afterActivityType).toBe("customOcr.extract");
   });
 });
