@@ -571,19 +571,22 @@ describe("TrainingService", () => {
     });
 
     it("persists buildMode=neural and maxTrainingHours on the new TrainingJob", async () => {
-      mockTemplateModelService.getTemplateModel.mockResolvedValue(
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
         mockTemplateModel as never,
       );
-      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValue([
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
         mockLabeledDocument,
         mockLabeledDocument,
         mockLabeledDocument,
         mockLabeledDocument,
       ] as never);
-      mockTrainingDb.getNextVersionNumber.mockResolvedValue(2);
-      mockTrainingDb.findTrainedModelByModelId.mockResolvedValue(null);
-      mockTrainingDb.createTrainingJob.mockResolvedValue({
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(2);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
         id: "job-1",
         template_model_id: "tm-1",
         status: "PENDING",
@@ -615,19 +618,22 @@ describe("TrainingService", () => {
     });
 
     it("defaults buildMode to template and leaves max_training_hours null when not provided", async () => {
-      mockTemplateModelService.getTemplateModel.mockResolvedValue(
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
         mockTemplateModel as never,
       );
-      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValue([
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
         mockLabeledDocument,
         mockLabeledDocument,
         mockLabeledDocument,
         mockLabeledDocument,
       ] as never);
-      mockTrainingDb.getNextVersionNumber.mockResolvedValue(1);
-      mockTrainingDb.findTrainedModelByModelId.mockResolvedValue(null);
-      mockTrainingDb.createTrainingJob.mockResolvedValue({
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
         id: "job-1",
         template_model_id: "tm-1",
         status: "PENDING",
