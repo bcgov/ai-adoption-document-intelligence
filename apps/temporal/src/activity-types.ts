@@ -42,6 +42,8 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "document.selectClassifiedPages",
   "document.flattenClassifiedDocuments",
   "data.transform",
+  "blob.read",
+  "document.extractToBase64",
 ] as const;
 
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];

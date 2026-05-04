@@ -34,11 +34,13 @@ import {
 } from "./activities";
 import { azureClassifyPoll } from "./activities/azure-classify-poll";
 import { azureClassifySubmit } from "./activities/azure-classify-submit";
+import { blobRead } from "./activities/blob-read";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
 import { executeTransformNode } from "./activities/data-transform/execute";
 import { validateDocumentFields } from "./activities/document-validate-fields";
 import { extractPageRange } from "./activities/extract-page-range";
+import { extractPagesBase64 } from "./activities/extract-pages-base64";
 import { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
@@ -401,6 +403,23 @@ register({
   defaultRetry: { maximumAttempts: 1 },
   description:
     "Execute data transformation: parse input, resolve field-mapping bindings, render output",
+});
+
+register({
+  activityType: "blob.read",
+  activityFn: blobRead as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Read a blob from storage and return its contents as base64",
+});
+
+register({
+  activityType: "document.extractToBase64",
+  activityFn: extractPagesBase64 as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "3m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Extract a page range from a PDF blob and return it as base64 (no blob write)",
 });
 
 // ---------------------------------------------------------------------------

@@ -115,12 +115,12 @@ export class OcrService {
 
       const initialCtx: Record<string, unknown> = {
         documentId,
+        groupId: document.group_id,
         blobKey: document.normalized_file_path,
         fileName: "normalized.pdf",
         fileType,
         contentType,
         modelId,
-        groupId: document.group_id,
         ...(templateModelId !== undefined && { templateModelId }),
         ...ctxOverrides, // Overrides document metadata (e.g. confidenceThreshold, templateModelId)
       };

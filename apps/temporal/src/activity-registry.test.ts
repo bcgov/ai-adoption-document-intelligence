@@ -41,6 +41,8 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.flattenClassifiedDocuments",
   "document.extractPageRange",
   "data.transform",
+  "blob.read",
+  "document.extractToBase64",
 ];
 
 describe("activity-registry", () => {
