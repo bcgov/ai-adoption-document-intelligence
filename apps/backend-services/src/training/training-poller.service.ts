@@ -21,6 +21,7 @@ interface AzureOperationResponse {
   result?: {
     docTypes?: Record<string, DocumentType>;
     description?: string;
+    trainingHours?: number;
   };
   error?: {
     message?: string;
@@ -34,6 +35,7 @@ interface DocumentType {
 interface AzureModelResponse {
   docTypes?: Record<string, DocumentType>;
   description?: string;
+  trainingHours?: number;
 }
 
 @Injectable()
@@ -221,9 +223,13 @@ export class TrainingPollerService {
         const resultModel = operation.result;
         let docTypes = resultModel?.docTypes || {};
         let description = resultModel?.description;
+        let actualTrainingHours: number | null =
+          resultModel?.trainingHours ?? null;
 
-        if (!resultModel) {
-          // Fallback: fetch the model by ID
+        if (!resultModel || actualTrainingHours === null) {
+          // Fallback: fetch the model by ID (required when result is absent, or
+          // when trainingHours is missing from the operation result — Azure
+          // typically surfaces trainingHours only on GET /documentModels).
           const modelResponse = await this.adminClient
             .path("/documentModels/{modelId}", modelId)
             .get();
@@ -239,8 +245,11 @@ export class TrainingPollerService {
           }
 
           const modelBody = modelResponse.body as AzureModelResponse;
-          docTypes = modelBody.docTypes || {};
-          description = modelBody.description;
+          if (!resultModel) {
+            docTypes = modelBody.docTypes || {};
+            description = modelBody.description;
+          }
+          actualTrainingHours = modelBody.trainingHours ?? null;
         }
 
         let fieldCount = 0;
@@ -292,6 +301,9 @@ export class TrainingPollerService {
               : (docTypes as Prisma.InputJsonValue),
           field_count: fieldCount,
           dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
+          build_mode: job.build_mode,
+          max_training_hours: job.max_training_hours,
+          actual_training_hours: actualTrainingHours,
         });
 
         this.logger.log(

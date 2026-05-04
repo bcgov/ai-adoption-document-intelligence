@@ -59,6 +59,9 @@ export interface TrainedModelCreateData {
   doc_types: Prisma.InputJsonValue | typeof Prisma.DbNull;
   field_count: number;
   dataset_snapshot: Prisma.InputJsonValue | typeof Prisma.DbNull;
+  build_mode?: BuildMode;
+  max_training_hours?: number | null;
+  actual_training_hours?: number | null;
 }
 
 /**
