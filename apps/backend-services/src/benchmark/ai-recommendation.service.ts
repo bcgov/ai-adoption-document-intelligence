@@ -4,7 +4,8 @@
  * Calls Azure OpenAI to analyze HITL correction patterns and recommend
  * OCR correction tools; recommendations are applied via workflow modification utilities.
  * The model only chooses which of three tools to include and parameters;
- * insertion is always on the first edge after `azureOcr.extract`.
+ * insertion is always on the first edge after structured OCR
+ * (e.g. `azureOcr.extract`, `mistralOcr.process`; see `@ai-di/graph-insertion-slots`).
  *
  * See feature-docs/008-ocr-correction-agentic-sdlc/step-03-ai-hitl-processing-tool-selection.md
  */
@@ -94,7 +95,7 @@ export interface AiRecommendationInput {
   availableConfusionProfiles?: ConfusionProfileSummary[];
 }
 
-/** Tool choices and parameters only; insertion is applied in the improvement pipeline (first edge after `azureOcr.extract`). */
+/** Tool choices and parameters only; insertion is applied in the improvement pipeline (first edge after structured OCR output). */
 export interface ToolRecommendationOutput {
   toolId: string;
   parameters: Record<string, unknown>;
@@ -192,7 +193,7 @@ ${profilesSection}
 Workflow context (match documentType to the LabelingProject id used by ocr.enrich when present):
 ${workflowJson}
 
-Insertion: the server places enabled tools on the first normal edge after azureOcr.extract in a fixed order; you do not choose graph position.
+Insertion: the server places enabled tools on the first normal edge after structured OCR (e.g. azureOcr.extract or mistralOcr.process) in a fixed order; you do not choose graph position.
 
 Respond with one JSON object:
 {
@@ -415,7 +416,7 @@ export class AiRecommendationService {
 
     if (!insertion) {
       this.logger.log(
-        "AI recommendation: no edge after azureOcr.extract in insertionSlots; returning empty recommendations",
+        "AI recommendation: no edge after structured OCR anchor in insertionSlots; returning empty recommendations",
       );
       return { recommendations: [], analysis: parsed.analysis, debugInfo };
     }

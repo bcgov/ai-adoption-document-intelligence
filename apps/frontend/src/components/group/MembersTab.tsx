@@ -5,6 +5,7 @@ import {
   Group,
   Loader,
   Modal,
+  Select,
   Table,
   Text,
 } from "@mantine/core";
@@ -12,9 +13,11 @@ import { notifications } from "@mantine/notifications";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import {
+  GROUP_ROLE_OPTIONS,
   type GroupMember,
   useGroupMembers,
   useRemoveGroupMember,
+  useUpdateGroupMemberRole,
 } from "../../data/hooks/useGroups";
 
 interface MembersTabProps {
@@ -24,7 +27,7 @@ interface MembersTabProps {
 
 /**
  * Tab panel showing all members of the group.
- * Admins (group admin or system admin) see a Remove button per row.
+ * Admins (group admin or system admin) see a role dropdown and a Remove button per row.
  * Clicking Remove opens a confirmation dialog before the mutation is fired.
  *
  * @param props.groupId - The ID of the group whose members to display.
@@ -34,6 +37,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
   const [confirmMember, setConfirmMember] = useState<GroupMember | null>(null);
   const { data: members, isLoading, isError } = useGroupMembers(groupId);
   const removeMutation = useRemoveGroupMember(groupId);
+  const updateRoleMutation = useUpdateGroupMemberRole(groupId);
 
   const handleRemoveConfirm = () => {
     if (!confirmMember) return;
@@ -50,6 +54,27 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
         setConfirmMember(null);
       },
     });
+  };
+
+  /**
+   * Handles a role change for a member via the role dropdown.
+   * @param member - The group member whose role is being changed.
+   * @param newRole - The new role value selected.
+   */
+  const handleRoleChange = (member: GroupMember, newRole: string | null) => {
+    if (!newRole || newRole === member.role) return;
+    updateRoleMutation.mutate(
+      { userId: member.userId, role: newRole },
+      {
+        onError: () => {
+          notifications.show({
+            title: "Error",
+            message: "Failed to update member role. Please try again.",
+            color: "red",
+          });
+        },
+      },
+    );
   };
 
   if (isLoading) {
@@ -87,6 +112,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
           <Table.Tr>
             <Table.Th>Email</Table.Th>
             <Table.Th>Joined</Table.Th>
+            <Table.Th>Role</Table.Th>
             {isAdmin && <Table.Th>Actions</Table.Th>}
           </Table.Tr>
         </Table.Thead>
@@ -96,6 +122,24 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
               <Table.Td>{member.email}</Table.Td>
               <Table.Td>
                 {new Date(member.joinedAt).toLocaleDateString()}
+              </Table.Td>
+              <Table.Td>
+                {isAdmin ? (
+                  <Select
+                    size="xs"
+                    data={GROUP_ROLE_OPTIONS}
+                    value={member.role}
+                    onChange={(value) => handleRoleChange(member, value)}
+                    disabled={updateRoleMutation.isPending}
+                    allowDeselect={false}
+                    data-testid={`role-select-${member.userId}`}
+                  />
+                ) : (
+                  <Text size="sm">
+                    {GROUP_ROLE_OPTIONS.find((o) => o.value === member.role)
+                      ?.label ?? member.role}
+                  </Text>
+                )}
               </Table.Td>
               {isAdmin && (
                 <Table.Td>

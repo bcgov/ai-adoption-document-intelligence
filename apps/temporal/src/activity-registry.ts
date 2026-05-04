@@ -23,6 +23,7 @@ import {
   getWorkflowGraphConfig,
   loadDatasetManifest,
   materializeDataset,
+  mistralOcrProcess,
   pollOCRResults,
   postOcrCleanup,
   prepareFileData,
@@ -31,13 +32,20 @@ import {
   updateDocumentStatus,
   upsertOcrResult,
 } from "./activities";
+import { azureClassifyPoll } from "./activities/azure-classify-poll";
+import { azureClassifySubmit } from "./activities/azure-classify-submit";
+import { blobRead } from "./activities/blob-read";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
 import { executeTransformNode } from "./activities/data-transform/execute";
 import { validateDocumentFields } from "./activities/document-validate-fields";
+import { extractPageRange } from "./activities/extract-page-range";
+import { extractPagesBase64 } from "./activities/extract-pages-base64";
+import { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
+import { selectClassifiedPages } from "./activities/select-classified-pages";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
 import type { RetryPolicy } from "./graph-workflow-types";
@@ -112,6 +120,15 @@ register({
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Post-OCR text normalization",
+});
+
+register({
+  activityType: "mistralOcr.process",
+  activityFn: mistralOcrProcess as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "10m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Mistral Document AI OCR (sync) with optional document annotation",
 });
 
 register({
@@ -325,6 +342,58 @@ register({
   description: "Persist Azure OCR poll JSON for a benchmark sample",
 });
 
+// -- Azure Classifier activities -------------------------------------------
+
+register({
+  activityType: "azureClassify.submit",
+  activityFn: azureClassifySubmit as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Submit document to Azure Document Intelligence classifier",
+});
+
+register({
+  activityType: "azureClassify.poll",
+  activityFn: azureClassifyPoll as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 20 },
+  description:
+    "Poll Azure Document Intelligence classifier results and split document into labelled segments",
+});
+
+// -- Azure Classifier segment utilities ------------------------------------
+
+register({
+  activityType: "document.selectClassifiedPages",
+  activityFn: selectClassifiedPages as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 1 },
+  description:
+    "Select all page range segments for a specific classifier label from azureClassify.poll output",
+});
+
+register({
+  activityType: "document.flattenClassifiedDocuments",
+  activityFn: flattenClassifiedDocuments as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 1 },
+  description:
+    "Flatten all (or filtered) classifier labels into a single sorted ClassifiedSegment array for map node iteration",
+});
+
+// -- Page range extraction --------------------------------------------------
+
+register({
+  activityType: "document.extractPageRange",
+  activityFn: extractPageRange as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "5m",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Extract a specific page range from a source document and write it as a new blob segment",
+});
+
 // -- Data transform activities ----------------------------------------------
 
 register({
@@ -334,6 +403,23 @@ register({
   defaultRetry: { maximumAttempts: 1 },
   description:
     "Execute data transformation: parse input, resolve field-mapping bindings, render output",
+});
+
+register({
+  activityType: "blob.read",
+  activityFn: blobRead as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Read a blob from storage and return its contents as base64",
+});
+
+register({
+  activityType: "document.extractToBase64",
+  activityFn: extractPagesBase64 as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "3m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Extract a page range from a PDF blob and return it as base64 (no blob write)",
 });
 
 // ---------------------------------------------------------------------------

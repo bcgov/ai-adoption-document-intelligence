@@ -6,6 +6,7 @@ export type { BlobFilePath, BlobPrefixPath } from "@ai-di/blob-storage-paths";
 export {
   buildBlobFilePath,
   buildBlobPrefixPath,
+  buildSharedBlobPrefixPath,
   OperationCategory,
   validateBlobFilePath,
   validateBlobPrefixPath,

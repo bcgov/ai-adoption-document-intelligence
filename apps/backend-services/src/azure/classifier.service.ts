@@ -10,7 +10,11 @@ import {
   type ClassifierEditableProperties,
   type ClassifierModelWithGroup,
 } from "@/azure/classifier-db.service";
-import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
+import {
+  CLASSIFIER_OTHER_AZURE_PREFIX,
+  CLASSIFIER_OTHER_LABEL,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -268,6 +272,20 @@ export class ClassifierService {
         },
       };
     }
+
+    // Always inject the shared "other" label so users don't need to manage it.
+    docTypes[CLASSIFIER_OTHER_LABEL] = {
+      azureBlobSource: {
+        containerUrl,
+        prefix: CLASSIFIER_OTHER_AZURE_PREFIX,
+      },
+    };
+
+    this.logger.debug("Generated training docTypes", {
+      classifierId: this.getConstructedClassifierName(groupId, classifierName),
+      docTypes,
+    });
+
     // NOTE: baseClassifierId cannot be the same one you are overwriting.
     // It will not find the original. Possibly clears beforehand.
     return {
@@ -306,6 +324,19 @@ export class ClassifierService {
     const containerUrl = await this.azureStorage.generateSasUrl(
       this.containerName,
     );
+
+    // Verify the shared "other" training data exists in Azure blob storage
+    // before attempting to build the classifier.
+    const otherBlobs = await this.azureStorage.listBlobs(
+      this.containerName,
+      CLASSIFIER_OTHER_AZURE_PREFIX,
+    );
+    if (otherBlobs.length === 0) {
+      throw new Error(
+        `No training files found at the shared "other" path (${CLASSIFIER_OTHER_AZURE_PREFIX}) in Azure blob storage. ` +
+          `Upload sample documents there before training.`,
+      );
+    }
 
     const trainingConfig = await this.generateTrainingConfig(
       groupId,
@@ -503,6 +534,15 @@ export class ClassifierService {
       properties,
       actorId,
     );
+  }
+
+  /**
+   * Lists blobs in the Azure blob storage container under the given prefix.
+   * @param prefix Prefix path to filter blobs.
+   * @returns Array of blob info objects.
+   */
+  async listAzureBlobs(prefix: string) {
+    return this.azureStorage.listBlobs(this.containerName, prefix);
   }
 
   /**
