@@ -1,4 +1,4 @@
-import { TrainingStatus } from "@generated/client";
+import { BuildMode, TrainingStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -49,6 +49,8 @@ describe("TrainingPollerService", () => {
     blob_count: null,
     target_model_id: "model-123",
     target_version: 1,
+    build_mode: BuildMode.template,
+    max_training_hours: null,
     started_at: new Date(),
     completed_at: null,
     error_message: null,
@@ -121,6 +123,42 @@ describe("TrainingPollerService", () => {
     }).compile();
 
     service = module.get<TrainingPollerService>(TrainingPollerService);
+  });
+
+  describe("max-attempts budget", () => {
+    it("returns templateMaxAttempts (60) for template builds", () => {
+      const result = service["computeMaxAttempts"]({
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+      expect(result).toBe(60);
+    });
+
+    it("returns 180 attempts (30 min default) for neural builds with no budget", () => {
+      const result = service["computeMaxAttempts"]({
+        build_mode: "neural",
+        max_training_hours: null,
+      } as never);
+      expect(result).toBe(180);
+    });
+
+    it("scales attempts to budget + 10 min buffer for neural builds with budget", () => {
+      const result = service["computeMaxAttempts"]({
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+      // (2*3600 + 600) / 10 = 780
+      expect(result).toBe(780);
+    });
+
+    it("rounds up partial intervals", () => {
+      const result = service["computeMaxAttempts"]({
+        build_mode: "neural",
+        max_training_hours: 0.5,
+      } as never);
+      // (0.5*3600 + 600) / 10 = 240
+      expect(result).toBe(240);
+    });
   });
 
   describe("constructor", () => {

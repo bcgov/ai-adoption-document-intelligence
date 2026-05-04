@@ -3,7 +3,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { Prisma, TrainingStatus } from "@generated/client";
+import { BuildMode, Prisma, TrainingStatus } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
@@ -116,6 +116,19 @@ export class TrainingPollerService {
     }
   }
 
+  private computeMaxAttempts(job: {
+    build_mode: BuildMode;
+    max_training_hours: number | null;
+  }): number {
+    if (job.build_mode === BuildMode.template) {
+      return this.maxAttempts;
+    }
+    if (job.max_training_hours == null) {
+      return Math.ceil((30 * 60) / this.pollInterval);
+    }
+    return Math.ceil((job.max_training_hours * 3600 + 600) / this.pollInterval);
+  }
+
   /**
    * Poll the status of a specific training job
    */
@@ -141,11 +154,12 @@ export class TrainingPollerService {
         (Date.now() - job.started_at.getTime()) / 1000,
       );
       const attempts = Math.floor(elapsedSeconds / this.pollInterval);
+      const maxAttempts = this.computeMaxAttempts(job);
 
       // Check if max attempts exceeded
-      if (attempts > this.maxAttempts) {
+      if (attempts > maxAttempts) {
         this.logger.warn(
-          `Training job ${jobId} exceeded max polling attempts (${this.maxAttempts})`,
+          `Training job ${jobId} exceeded max polling attempts (${maxAttempts})`,
         );
         await this.trainingDb.updateTrainingJob(jobId, {
           status: TrainingStatus.FAILED,
@@ -168,7 +182,7 @@ export class TrainingPollerService {
         if (isUnexpected(operationResponse)) {
           if (operationResponse.status === "404") {
             this.logger.debug(
-              `Operation ${operationId} not ready yet (attempt ${attempts}/${this.maxAttempts})`,
+              `Operation ${operationId} not ready yet (attempt ${attempts}/${maxAttempts})`,
             );
             return;
           }
@@ -187,7 +201,7 @@ export class TrainingPollerService {
 
         if (status === "notStarted" || status === "running") {
           this.logger.debug(
-            `Training still in progress for job ${jobId} (status: ${status}, attempt ${attempts}/${this.maxAttempts})`,
+            `Training still in progress for job ${jobId} (status: ${status}, attempt ${attempts}/${maxAttempts})`,
           );
           return;
         }
