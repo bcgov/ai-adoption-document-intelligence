@@ -1,5 +1,6 @@
 import { GroupRole } from "@generated/client";
 import {
+  ConflictException,
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
@@ -502,6 +503,47 @@ describe("AzureController", () => {
       await expect(controller.updateClassifier(req, body)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe("deleteClassifier", () => {
+    beforeEach(() => {
+      classifierService.deleteClassifier = jest.fn();
+    });
+
+    it("should return 200 and no body when deletion succeeds", async () => {
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.deleteClassifier.mockResolvedValue(null);
+      const req = createMockReq("user1", ["g1"]);
+
+      const result = await controller.deleteClassifier(req, "g1", "clf1");
+      expect(result).toBeUndefined();
+      expect(classifierService.deleteClassifier).toHaveBeenCalledWith(
+        "clf1",
+        "g1",
+        "actor-1",
+      );
+    });
+
+    it("should throw NotFoundException when classifier does not exist", async () => {
+      classifierService.findClassifierModel.mockResolvedValue(null);
+      const req = createMockReq("user1", ["g1"]);
+
+      await expect(
+        controller.deleteClassifier(req, "g1", "clf1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw ConflictException when classifier is referenced by workflow versions", async () => {
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.deleteClassifier.mockResolvedValue({
+        conflictingWorkflows: [{ id: "wl-1", name: "Workflow 1" }],
+      });
+      const req = createMockReq("user1", ["g1"]);
+
+      await expect(
+        controller.deleteClassifier(req, "g1", "clf1"),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

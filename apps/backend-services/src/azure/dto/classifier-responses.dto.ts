@@ -68,3 +68,16 @@ export class ClassifierModelResponseDto {
   @ApiProperty({ type: String, nullable: true })
   operation_location?: string;
 }
+
+export class ConflictingWorkflowDto {
+  @ApiProperty({ example: "workflow-id" })
+  id!: string;
+
+  @ApiProperty({ example: "My Workflow" })
+  name!: string;
+}
+
+export class DeleteClassifierConflictResponseDto {
+  @ApiProperty({ type: [ConflictingWorkflowDto] })
+  conflictingWorkflows!: ConflictingWorkflowDto[];
+}

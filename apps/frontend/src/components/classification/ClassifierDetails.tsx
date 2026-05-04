@@ -9,14 +9,21 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useState } from "react";
+import { useAuth } from "@/auth/AuthContext";
+import { DeleteClassifierConfirmationModal } from "@/components/classification/ClassifierModals";
 import { useClassifier } from "@/data/hooks/useClassifier";
+import { useMyGroups } from "@/data/hooks/useGroups";
 import { ClassifierModel } from "@/shared/types/classifier";
 
 interface ClassifierDetailsProps {
   classifierModel: ClassifierModel;
+  onDeleted?: () => void;
 }
 
-const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
+const ClassifierDetails = ({
+  classifierModel,
+  onDeleted,
+}: ClassifierDetailsProps) => {
   const form = useForm({
     initialValues: {
       name: classifierModel.name || "",
@@ -30,6 +37,15 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
   const { updateClassifier } = useClassifier();
   const [showSuccess, setShowSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+  const { user, isSystemAdmin } = useAuth();
+  const { data: myGroups } = useMyGroups(user?.sub ?? "");
+  const isGroupAdmin =
+    myGroups?.some(
+      (g) => g.id === classifierModel.group_id && g.role === "ADMIN",
+    ) ?? false;
+  const canDelete = isSystemAdmin || isGroupAdmin;
 
   const onSave = (values: typeof form.values) => {
     setShowSuccess(false);
@@ -66,9 +82,21 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
         >
           <Group justify="space-between">
             <h2>Classifier Details</h2>
-            <Button type="submit" variant="outline" size="xs">
-              Update
-            </Button>
+            <Group gap="xs">
+              {canDelete && (
+                <Button
+                  variant="outline"
+                  color="red"
+                  size="xs"
+                  onClick={() => setDeleteModalOpen(true)}
+                >
+                  Delete
+                </Button>
+              )}
+              <Button type="submit" variant="outline" size="xs">
+                Update
+              </Button>
+            </Group>
           </Group>
           {showSuccess && (
             <Notification color="green" onClose={() => setShowSuccess(false)}>
@@ -104,6 +132,16 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
           />
         </form>
       </Paper>
+      <DeleteClassifierConfirmationModal
+        isOpen={deleteModalOpen}
+        setIsOpen={setDeleteModalOpen}
+        classifierName={classifierModel.name}
+        groupId={classifierModel.group_id}
+        onDeleted={() => {
+          setDeleteModalOpen(false);
+          onDeleted?.();
+        }}
+      />
     </Stack>
   );
 };

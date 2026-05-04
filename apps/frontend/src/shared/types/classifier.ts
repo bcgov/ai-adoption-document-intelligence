@@ -9,6 +9,9 @@ export enum ClassifierSource {
   AZURE = "AZURE",
 }
 
+/** Labels that are reserved for internal use and may not be created by users. */
+export const RESERVED_CLASSIFIER_LABELS = ["other", "others"] as const;
+
 export interface ClassifierModel {
   id: string;
   name: string;

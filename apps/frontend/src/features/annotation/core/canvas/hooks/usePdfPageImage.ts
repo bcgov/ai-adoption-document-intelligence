@@ -53,7 +53,10 @@ export function usePdfPageImage(
     const loadDoc = async () => {
       if (currentUrlRef.current === pdfUrl && pdfDocRef.current) return;
       try {
-        const doc = await pdfjsLib.getDocument(pdfUrl).promise;
+        const doc = await pdfjsLib.getDocument({
+          url: pdfUrl,
+          wasmUrl: "/pdfjs-wasm/",
+        }).promise;
         if (cancelled) return;
         pdfDocRef.current = doc;
         currentUrlRef.current = pdfUrl;

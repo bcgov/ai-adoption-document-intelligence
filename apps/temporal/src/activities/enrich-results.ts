@@ -212,13 +212,16 @@ function collectLowConfidenceFields(
   fieldMap: Record<string, { type: string; format?: string }>,
   threshold: number,
 ): LowConfidenceField[] {
+  const seen = new Set<string>();
   const out: LowConfidenceField[] = [];
+
   for (const pair of ocrResult.keyValuePairs) {
     const key = (pair.key?.content ?? "").trim();
     const value = (pair.value?.content ?? "").trim();
     const conf = pair.confidence ?? 0;
     const normalizedConf = conf > 1 ? conf / 100 : conf;
     if (key && normalizedConf < threshold) {
+      seen.add(key);
       out.push({
         fieldKey: key,
         value,
@@ -233,6 +236,9 @@ function collectLowConfidenceFields(
       { content?: string; confidence?: number }
     >;
     for (const [key, data] of Object.entries(fields)) {
+      if (seen.has(key)) {
+        continue;
+      }
       const content = data?.content ?? "";
       const conf = (data?.confidence ?? 0) as number;
       const normalizedConf = conf > 1 ? conf / 100 : conf;

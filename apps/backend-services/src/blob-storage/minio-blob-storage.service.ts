@@ -8,6 +8,7 @@
 
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
@@ -235,14 +236,29 @@ export class MinioBlobStorageService implements BlobStorageInterface {
   }
 
   /**
-   * Delete all blobs matching a given prefix.
+   * Delete all blobs matching a given prefix using S3 batch delete.
+   * Deletes up to 1000 objects per request for efficiency.
    * @param prefix - The key prefix to match for deletion
    */
   async deleteByPrefix(prefix: string): Promise<void> {
     const keys = await this.list(prefix);
 
-    for (const key of keys) {
-      await this.delete(key);
+    if (keys.length === 0) {
+      this.logger.debug(`No blobs found with prefix "${prefix}"`);
+      return;
+    }
+
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+      const batch = keys.slice(i, i + BATCH_SIZE);
+      await this.s3Client.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: {
+            Objects: batch.map((key) => ({ Key: key })),
+          },
+        }),
+      );
     }
 
     this.logger.debug(`Deleted ${keys.length} blobs with prefix "${prefix}"`);

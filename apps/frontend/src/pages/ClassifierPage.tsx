@@ -101,6 +101,10 @@ const ClassifierPage = () => {
           <ClassifierDetails
             key={selectedModel}
             classifierModel={selectedModelDetails}
+            onDeleted={() => {
+              setSelectedModel(null);
+              getClassifiers.refetch();
+            }}
           />
           <ClassificationFiles
             classifierModel={selectedModelDetails}

@@ -342,7 +342,7 @@ describe("applyRecommendations", () => {
     expect(result.appliedRecommendations).toHaveLength(0);
     expect(result.rejectedRecommendations).toHaveLength(1);
     expect(result.rejectedRecommendations[0].reason).toContain(
-      "after Azure OCR extract",
+      "structured OCR output",
     );
   });
 
