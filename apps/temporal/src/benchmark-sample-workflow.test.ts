@@ -92,4 +92,53 @@ describe("benchmarkSampleWorkflow", () => {
     expect(result).not.toHaveProperty("workflowResult");
     expect(JSON.stringify(result)).not.toContain("huge");
   });
+
+  it("does not call persistOcrCache when persistOcrCache is undefined", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      ctx: { ocrResponse: { foo: "bar" } },
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    await benchmarkSampleWorkflow(baseInput);
+
+    expect(mockPersistOcrCache).not.toHaveBeenCalled();
+  });
+
+  it("calls persistOcrCache when persistOcrCache.sourceRunId is provided and ocrResponse exists", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      ctx: { ocrResponse: { foo: "bar" } },
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    await benchmarkSampleWorkflow({
+      ...baseInput,
+      persistOcrCache: { sourceRunId: "run-42" },
+    });
+
+    expect(mockPersistOcrCache).toHaveBeenCalledWith({
+      sourceRunId: "run-42",
+      sampleId: "sample-001",
+      ocrResponse: { foo: "bar" },
+    });
+  });
+
+  it("does not call persistOcrCache when ocrResponse is null/undefined", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      ctx: {},
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    await benchmarkSampleWorkflow({
+      ...baseInput,
+      persistOcrCache: { sourceRunId: "run-42" },
+    });
+
+    expect(mockPersistOcrCache).not.toHaveBeenCalled();
+  });
 });
