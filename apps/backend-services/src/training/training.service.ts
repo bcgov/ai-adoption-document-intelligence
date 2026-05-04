@@ -31,6 +31,7 @@ import { ExportFormat } from "../template-model/dto/export.dto";
 import { TemplateModelService } from "../template-model/template-model.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
+import { TrainingInfoDto } from "./dto/training-info.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
 import { TrainingDbService } from "./training-db.service";
 
@@ -650,6 +651,33 @@ export class TrainingService {
    */
   async findAllTrainedModelIds(): Promise<string[]> {
     return this.trainingDb.findAllTrainedModelIds();
+  }
+
+  /**
+   * Proxy of Azure Document Intelligence `GET /info`. Surfaces the Azure
+   * region and neural model quota so the frontend can show an FYI banner
+   * when the user picks neural mode. Any fields Azure exposes beyond what
+   * we explicitly model are returned under `raw` for forward-compat.
+   */
+  async getTrainingInfo(): Promise<TrainingInfoDto> {
+    if (!this.adminClient) {
+      throw new Error("Azure Document Intelligence client is not configured");
+    }
+    const response = await this.adminClient.path("/info").get();
+    if (isUnexpected(response)) {
+      const errorMessage =
+        (response.body as AzureErrorResponse)?.error?.message ||
+        `Azure /info request failed with status ${response.status}`;
+      throw new Error(errorMessage);
+    }
+    const body = (response.body ?? {}) as unknown as Record<string, unknown>;
+    return {
+      region: typeof body.region === "string" ? body.region : undefined,
+      customNeuralDocumentModelBuilds: body.customNeuralDocumentModelBuilds as
+        | TrainingInfoDto["customNeuralDocumentModelBuilds"]
+        | undefined,
+      raw: body,
+    };
   }
 
   /**

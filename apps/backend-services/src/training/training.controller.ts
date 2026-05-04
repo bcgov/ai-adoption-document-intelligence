@@ -26,6 +26,7 @@ import {
   TrainedModelDto,
   TrainedModelSnapshotDto,
 } from "./dto/trained-model.dto";
+import { TrainingInfoDto } from "./dto/training-info.dto";
 import {
   CancelJobResponseDto,
   TrainingJobDto,
@@ -40,6 +41,25 @@ export class TrainingController {
     private readonly trainingService: TrainingService,
     private readonly templateModelService: TemplateModelService,
   ) {}
+
+  /**
+   * Get Azure Document Intelligence resource info (region, neural quota).
+   * Not group-scoped — the response only exposes Azure-resource-level metadata.
+   */
+  @Get("training/info")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Get Azure Document Intelligence resource info (region, neural quota)",
+  })
+  @ApiOkResponse({
+    description:
+      "Region and quota information from Azure Document Intelligence /info",
+    type: TrainingInfoDto,
+  })
+  async getTrainingInfo() {
+    return this.trainingService.getTrainingInfo();
+  }
 
   /**
    * Validate if a template model is ready for training

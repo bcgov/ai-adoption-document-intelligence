@@ -1120,4 +1120,48 @@ describe("TrainingService", () => {
       expect(result).toHaveProperty("fieldCount", 1);
     });
   });
+
+  describe("getTrainingInfo", () => {
+    it("returns the parsed Azure /info response", async () => {
+      const mockGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          customDocumentModels: { count: 1, limit: 100 },
+          customNeuralDocumentModelBuilds: {
+            used: 3,
+            quota: 20,
+            quotaResetDateTime: "2026-06-01T00:00:00Z",
+          },
+        },
+      });
+      mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const result = await service.getTrainingInfo();
+
+      expect(result.customNeuralDocumentModelBuilds).toEqual({
+        used: 3,
+        quota: 20,
+        quotaResetDateTime: "2026-06-01T00:00:00Z",
+      });
+      expect(result.raw).toEqual(
+        expect.objectContaining({
+          customDocumentModels: { count: 1, limit: 100 },
+        }),
+      );
+    });
+
+    it("throws when Azure returns an error response", async () => {
+      const mockGet = jest.fn().mockResolvedValue({
+        status: "401",
+        body: { error: { message: "Invalid api-key" } },
+      });
+      mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
+
+      await expect(service.getTrainingInfo()).rejects.toThrow(
+        "Invalid api-key",
+      );
+    });
+  });
 });
