@@ -9,10 +9,10 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  GroupMember,
-  GroupRequest,
-  UserGroup,
+import {
+  type GroupMember,
+  type GroupRequest,
+  type UserGroup,
 } from "../data/hooks/useGroups";
 import { GroupDetailPage } from "./GroupDetailPage";
 
@@ -48,6 +48,8 @@ const mockUpdateMutate = vi.fn();
 const mockUseUpdateGroup = vi.fn();
 const mockDeleteMutate = vi.fn();
 const mockUseDeleteGroup = vi.fn();
+const mockUpdateRoleMutate = vi.fn();
+const mockUseUpdateGroupMemberRole = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -78,6 +80,11 @@ vi.mock("../data/hooks/useGroups", () => ({
   useMyRequests: () => mockUseMyRequests(),
   useUpdateGroup: () => mockUseUpdateGroup(),
   useDeleteGroup: () => mockUseDeleteGroup(),
+  useUpdateGroupMemberRole: () => mockUseUpdateGroupMemberRole(),
+  GROUP_ROLE_OPTIONS: [
+    { value: "MEMBER", label: "Member" },
+    { value: "ADMIN", label: "Admin" },
+  ],
 }));
 
 // ---------------------------------------------------------------------------
@@ -101,8 +108,14 @@ const members: GroupMember[] = [
     userId: "u-1",
     email: "alice@example.com",
     joinedAt: "2026-01-10T00:00:00Z",
+    role: "MEMBER",
   },
-  { userId: "u-2", email: "bob@example.com", joinedAt: "2026-02-01T00:00:00Z" },
+  {
+    userId: "u-2",
+    email: "bob@example.com",
+    joinedAt: "2026-02-01T00:00:00Z",
+    role: "ADMIN",
+  },
 ];
 
 const groupRequests: GroupRequest[] = [
@@ -175,6 +188,10 @@ describe("GroupDetailPage", () => {
     });
     mockUseDeleteGroup.mockReturnValue({
       mutate: mockDeleteMutate,
+      isPending: false,
+    });
+    mockUseUpdateGroupMemberRole.mockReturnValue({
+      mutate: mockUpdateRoleMutate,
       isPending: false,
     });
     mockUseGroupMembers.mockReturnValue({

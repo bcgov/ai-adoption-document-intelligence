@@ -19,7 +19,11 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
+import {
+  BlobSASPermissions,
+  BlobServiceClient,
+  type ContainerClient,
+} from "@azure/storage-blob";
 
 /** Minimal blob-storage interface used by Temporal activities. */
 export interface BlobStorageClient {
@@ -35,6 +39,12 @@ export interface BlobStorageClient {
   list(prefix: BlobPrefixPath): Promise<string[]>;
   /** Delete all objects matching a prefix. */
   deleteByPrefix(prefix: BlobPrefixPath): Promise<void>;
+  /**
+   * Generate a short-lived read-only SAS URL for the given blob key.
+   * Only supported when `BLOB_STORAGE_PROVIDER=azure`.
+   * @throws {Error} When called against the Minio provider.
+   */
+  generateSasUrl(key: BlobFilePath, expiryMinutes: number): Promise<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +140,13 @@ function buildMinioClient(): BlobStorageClient {
         );
       }
     },
+
+    async generateSasUrl(
+      _key: BlobFilePath,
+      _expiryMinutes: number,
+    ): Promise<string> {
+      throw new Error("SAS URLs not supported for Minio storage");
+    },
   };
 }
 
@@ -186,6 +203,18 @@ function buildAzureClient(): BlobStorageClient {
       await Promise.all(
         keys.map((k) => container.getBlobClient(k).deleteIfExists()),
       );
+    },
+
+    async generateSasUrl(
+      key: BlobFilePath,
+      expiryMinutes: number,
+    ): Promise<string> {
+      const blockBlobClient = container.getBlockBlobClient(key);
+      const expiresOn = new Date(Date.now() + expiryMinutes * 60 * 1000);
+      return blockBlobClient.generateSasUrl({
+        permissions: BlobSASPermissions.parse("r"),
+        expiresOn,
+      });
     },
   };
 }

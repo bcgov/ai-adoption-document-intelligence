@@ -12,6 +12,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "azureOcr.extract",
   "ocr.cleanup",
   "ocr.checkConfidence",
+  "mistralOcr.process",
   "ocr.storeResults",
   "document.storeRejection",
   "getWorkflowGraphConfig",
@@ -34,7 +35,14 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "azureClassify.submit",
+  "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
+  "document.extractPageRange",
   "data.transform",
+  "blob.read",
+  "document.extractToBase64",
 ];
 
 describe("activity-registry", () => {

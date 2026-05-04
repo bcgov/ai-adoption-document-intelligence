@@ -27,6 +27,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureOcr.submit": { description: "Submit to Azure Document Intelligence" },
     "azureOcr.poll": { description: "Poll Azure for OCR results" },
     "azureOcr.extract": { description: "Extract structured OCR data" },
+    "mistralOcr.process": {
+      description:
+        "Mistral Document AI OCR (sync) with optional document annotation",
+    },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {
       description: "Enrich OCR results using field schema and optional LLM",
@@ -59,9 +63,38 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Field normalization; optional documentType (LabelingProject id) for schema-aware rules per field_type",
     },
+    getWorkflowGraphConfig: {
+      description: "Load workflow configuration from database",
+    },
+    "document.extractPageRange": {
+      description:
+        "Extract a specific page range from a source document and write it as a new blob segment",
+    },
+    "azureClassify.submit": {
+      description: "Submit document to Azure Document Intelligence classifier",
+    },
+    "azureClassify.poll": {
+      description:
+        "Poll Azure Document Intelligence classifier results and split document into labelled segments",
+    },
+    "document.selectClassifiedPages": {
+      description:
+        "Select all page range segments for a specific classifier label from azureClassify.poll output",
+    },
+    "document.flattenClassifiedDocuments": {
+      description:
+        "Flatten all (or filtered) classifier labels into a single sorted ClassifiedSegment array for map node iteration",
+    },
     "data.transform": {
       description:
         "Execute data transformation: parse input, resolve field-mapping bindings, render output",
+    },
+    "blob.read": {
+      description: "Read a blob from storage and return its contents as base64",
+    },
+    "document.extractToBase64": {
+      description:
+        "Extract a page range from a PDF blob and return it as base64 (no blob write)",
     },
   } as const;
 

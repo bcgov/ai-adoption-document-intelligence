@@ -9,7 +9,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { DocumentService } from "../document/document.service";
-import type { DocumentData } from "../document/document-db.types";
+import { DocumentData } from "../document/document-db.types";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrService } from "./ocr.service";
 
@@ -135,6 +135,34 @@ describe("OcrService", () => {
       expect(result.status).toEqual(DocumentStatus.ongoing_ocr);
       expect(result.workflowId).toEqual("workflow-123");
       expect(temporalClientService.startGraphWorkflow).toHaveBeenCalled();
+    });
+
+    it("should merge templateModelId from document metadata into initialCtx", async () => {
+      (documentService.findDocument as jest.Mock).mockResolvedValueOnce({
+        ...defaultDocument,
+        metadata: { templateModelId: "tm-from-meta" },
+      });
+      await service.requestOcr("doc-1");
+      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalledWith(
+        "doc-1",
+        "workflow-config-123",
+        expect.objectContaining({ templateModelId: "tm-from-meta" }),
+        undefined,
+      );
+    });
+
+    it("should let ctxOverrides override templateModelId from metadata", async () => {
+      (documentService.findDocument as jest.Mock).mockResolvedValueOnce({
+        ...defaultDocument,
+        metadata: { templateModelId: "tm-a" },
+      });
+      await service.requestOcr("doc-2", { templateModelId: "tm-b" });
+      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalledWith(
+        "doc-2",
+        "workflow-config-123",
+        expect.objectContaining({ templateModelId: "tm-b" }),
+        undefined,
+      );
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {
