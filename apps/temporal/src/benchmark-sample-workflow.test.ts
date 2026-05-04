@@ -141,4 +141,22 @@ describe("benchmarkSampleWorkflow", () => {
 
     expect(mockPersistOcrCache).not.toHaveBeenCalled();
   });
+
+  it("returns success=false with graphStatus when inner graphWorkflow returns status=failed", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "failed",
+      completedNodes: ["n1"],
+      ctx: { failedNodeId: "n2" },
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    const result = await benchmarkSampleWorkflow(baseInput);
+
+    expect(result.success).toBe(false);
+    expect(result.graphStatus).toBe("failed");
+    expect(result.error).toEqual({
+      message: "graphWorkflow status: failed",
+      failedNodeId: "n2",
+    });
+  });
 });

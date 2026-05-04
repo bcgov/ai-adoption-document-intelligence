@@ -151,15 +151,27 @@ export async function benchmarkSampleWorkflow(
   }
 
   const outputPaths = extractOutputPaths(graphResult.ctx);
+  const success = graphResult.status === "completed";
+
+  const error = success
+    ? undefined
+    : {
+        message: `graphWorkflow status: ${graphResult.status}`,
+        failedNodeId:
+          typeof graphResult.ctx.failedNodeId === "string"
+            ? graphResult.ctx.failedNodeId
+            : undefined,
+      };
 
   return {
     sampleId,
-    success: graphResult.status === "completed",
+    success,
     graphStatus: graphResult.status,
     completedNodes: graphResult.completedNodes.length,
     predictionPath,
     confidenceData,
     outputPaths,
+    error,
   };
 }
 
