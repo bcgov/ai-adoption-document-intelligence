@@ -426,7 +426,7 @@ export async function benchmarkRunWorkflow(
     currentPhase = "executing";
 
     const maxParallel = runtimeSettings.maxParallelDocuments || 10;
-    const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 300000; // 5 min default
+    const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 600000; // 10 min default (belt-and-suspenders headroom on top of the wrapper-workflow history-bloat fix)
 
     const childTaskQueue = "benchmark-processing";
 
