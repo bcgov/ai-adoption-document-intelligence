@@ -32,11 +32,19 @@ const EXPECTED_ACTIVITY_TYPES = [
   "benchmark.loadDatasetManifest",
   "benchmark.loadOcrCache",
   "benchmark.persistOcrCache",
+  "benchmark.persistEvaluationDetails",
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "azureClassify.submit",
+  "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
+  "document.extractPageRange",
   "data.transform",
   "tables.lookup",
+  "blob.read",
+  "document.extractToBase64",
 ];
 
 describe("activity-registry", () => {

@@ -29,10 +29,6 @@ import {
   type BenchmarkExecuteOutput,
   benchmarkExecuteWorkflow,
 } from "./activities/benchmark-execute";
-import {
-  buildFlatConfidenceMapFromCtx,
-  buildFlatPredictionMapFromCtx,
-} from "./azure-ocr-field-display-value";
 import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -114,12 +110,6 @@ type BenchmarkActivities = {
     completedAt?: Date;
   }) => Promise<void>;
 
-  "benchmark.writePrediction": (input: {
-    predictionData: Record<string, unknown>;
-    outputDir: string;
-    sampleId: string;
-  }) => Promise<{ predictionPath: string }>;
-
   "benchmark.compareAgainstBaseline": (params: {
     runId: string;
   }) => Promise<unknown>;
@@ -129,11 +119,16 @@ type BenchmarkActivities = {
     sampleId: string;
   }) => Promise<{ ocrResponse: unknown | null }>;
 
-  "benchmark.persistOcrCache": (params: {
-    sourceRunId: string;
+  "benchmark.persistEvaluationDetails": (params: {
+    runId: string;
     sampleId: string;
-    ocrResponse: unknown;
-  }) => Promise<void>;
+    details: {
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      diagnostics?: unknown;
+    };
+  }) => Promise<{ evaluationBlobPath: string }>;
 };
 
 // Default activity options for benchmark activities
@@ -442,7 +437,7 @@ export async function benchmarkRunWorkflow(
     currentPhase = "executing";
 
     const maxParallel = runtimeSettings.maxParallelDocuments || 10;
-    const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 300000; // 5 min default
+    const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 600000; // 10 min default (belt-and-suspenders headroom on top of the wrapper-workflow history-bloat fix)
 
     const childTaskQueue = "benchmark-processing";
 
@@ -500,7 +495,10 @@ export async function benchmarkRunWorkflow(
                 ocrCachePayload = { ocrResponse: loaded.ocrResponse };
               }
 
-              // Execute workflow for this sample
+              // Execute workflow for this sample via the wrapper child workflow.
+              // The wrapper writes the prediction file and persists OCR cache
+              // (when configured) from inside its own context, so the heavy
+              // payloads stay in the wrapper's history, not this parent's.
               const executeInput: BenchmarkExecuteInput = {
                 sampleId: sample.id,
                 workflowConfig,
@@ -513,24 +511,16 @@ export async function benchmarkRunWorkflow(
                     ? { __benchmarkOcrCache: ocrCachePayload }
                     : {}),
                 },
+                predictionOutputDir: outputBaseDir,
+                persistOcrCache: persistOcrCache
+                  ? { sourceRunId: runId }
+                  : undefined,
                 timeoutMs,
                 taskQueue: childTaskQueue,
               };
 
               const executeOutput =
                 await benchmarkExecuteWorkflow(executeInput);
-
-              if (
-                executeOutput.success &&
-                persistOcrCache &&
-                executeOutput.workflowResult?.ctx?.ocrResponse != null
-              ) {
-                await customActivities["benchmark.persistOcrCache"]({
-                  sourceRunId: runId,
-                  sampleId: sample.id,
-                  ocrResponse: executeOutput.workflowResult.ctx.ocrResponse,
-                });
-              }
 
               return {
                 sample,
@@ -573,36 +563,49 @@ export async function benchmarkRunWorkflow(
         // Only evaluate if execution succeeded
         if (executeOutput.success) {
           try {
-            // Extract prediction fields from the workflow ctx and write to disk
-            // so the evaluator can compare against ground truth files.
-            const ctx = executeOutput.workflowResult?.ctx ?? {};
-            const predictionData = buildFlatPredictionMapFromCtx(ctx);
-            const confidenceData = buildFlatConfidenceMapFromCtx(ctx);
-
-            const { predictionPath } = await customActivities[
-              "benchmark.writePrediction"
-            ]({
-              predictionData,
-              outputDir: joinPath(
-                materializedPath!,
-                ".benchmark-outputs",
-                sample.id,
-              ),
-              sampleId: sample.id,
-            });
+            // The wrapper child workflow already wrote the prediction JSON and
+            // returned a slim summary. Just feed it to the evaluator.
+            if (!executeOutput.predictionPath) {
+              throw new Error(
+                `wrapper returned success without predictionPath for sample ${sample.id}`,
+              );
+            }
 
             const evaluationResult = await customActivities[
               "benchmark.evaluate"
             ]({
               sampleId: sample.id,
               inputPaths,
-              predictionPaths: [predictionPath],
-              predictionConfidences: confidenceData,
+              predictionPaths: [executeOutput.predictionPath],
+              predictionConfidences: executeOutput.confidenceData ?? {},
               groundTruthPaths,
               metadata: sample.metadata,
               evaluatorType,
               evaluatorConfig,
             });
+
+            // Persist heavy per-sample fields to blob storage so the
+            // drill-down UI can fetch them later without round-tripping
+            // through Temporal payloads. We do this once per sample (each
+            // call is small enough to fit under the 2 MB blob limit), then
+            // attach the returned blobPath to the in-memory result.
+            const { evaluationBlobPath } = await customActivities[
+              "benchmark.persistEvaluationDetails"
+            ]({
+              runId,
+              sampleId: sample.id,
+              details: {
+                groundTruth: evaluationResult.groundTruth,
+                prediction: evaluationResult.prediction,
+                evaluationDetails: evaluationResult.evaluationDetails,
+                diagnostics: evaluationResult.diagnostics,
+              },
+            });
+            (
+              evaluationResult as EvaluationResult & {
+                evaluationBlobPath?: string;
+              }
+            ).evaluationBlobPath = evaluationBlobPath;
 
             evaluationResults.push(evaluationResult);
 
@@ -677,8 +680,24 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     currentPhase = "aggregating";
 
+    // Strip large per-sample fields (`groundTruth`, `prediction`,
+    // `evaluationDetails`) before passing through Temporal. They aren't read by
+    // the aggregator and would otherwise push the activity input past Temporal's
+    // 2 MB blob limit at scale (~100+ samples). Same fix pattern as the
+    // wrapper-workflow change: don't ship heavy data through Temporal payloads.
+    // The heavy fields were already persisted to blob storage per sample by
+    // `benchmark.persistEvaluationDetails`; we keep the returned blob path on
+    // perSampleResults so the backend can fetch them on demand.
+    const slimResultsForAggregate = evaluationResults.map((er) => ({
+      sampleId: er.sampleId,
+      metrics: er.metrics,
+      diagnostics: er.diagnostics,
+      pass: er.pass,
+      artifacts: er.artifacts,
+    }));
+
     const aggregateResult = await customActivities["benchmark.aggregate"]({
-      results: evaluationResults,
+      results: slimResultsForAggregate,
       options: {
         failureAnalysis: { topN: 10 },
       },
@@ -690,8 +709,8 @@ export async function benchmarkRunWorkflow(
       unknown
     >;
 
-    // Build the stored metrics object: flat metrics at the top level for baseline
-    // comparison, plus structured data for drill-down and per-sample browsing.
+    // Storage payload: include the per-sample evaluation blob path so the
+    // backend can read groundTruth / prediction / evaluationDetails on demand.
     aggregateResultForStorage = {
       ...flatMetrics,
       _aggregate: aggregateResult as unknown as Record<string, unknown>,
@@ -701,9 +720,11 @@ export async function benchmarkRunWorkflow(
         diagnostics: er.diagnostics,
         pass: er.pass,
         artifacts: er.artifacts,
-        groundTruth: er.groundTruth,
-        prediction: er.prediction,
-        evaluationDetails: er.evaluationDetails,
+        evaluationBlobPath: (
+          er as EvaluationResult & {
+            evaluationBlobPath?: string;
+          }
+        ).evaluationBlobPath,
       })),
     };
 

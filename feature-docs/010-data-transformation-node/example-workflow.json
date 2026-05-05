@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "metadata": {
     "name": "Transform Node Examples",
-    "description": "Self-contained example demonstrating all transform node conversion types: CSV→JSON, XML→JSON (with array iteration), JSON→JSON remap, and JSON→XML with a SOAP envelope. Initial data is seeded via ctx defaultValue — no upstream activities are required."
+    "description": "Self-contained example demonstrating all transform node conversion types: CSV→JSON, XML→JSON (with array iteration), JSON→JSON remap, and JSON→XML with a SOAP envelope. Also demonstrates optional binding syntax ({{?path}}): the buildPayload node maps a `promoCode` field using {{?meta.promoCode}}, which is absent from the seeded data — the key is silently omitted from the output rather than halting the workflow. Initial data is seeded via ctx defaultValue — no upstream activities are required."
   },
   "entryNodeId": "parseCustomer",
   "ctx": {
@@ -83,7 +83,7 @@
       "parameters": {
         "inputFormat": "json",
         "outputFormat": "json",
-        "fieldMapping": "{\n  \"customerId\": \"{{customer.customerId}}\",\n  \"fullName\": \"{{customer.firstName}} {{customer.lastName}}\",\n  \"email\": \"{{customer.email}}\",\n  \"tier\": \"{{meta.tier}}\",\n  \"shippingCity\": \"{{meta.shippingAddress.city}}\",\n  \"orderId\": \"{{order.orderId}}\",\n  \"orderDate\": \"{{order.orderDate}}\",\n  \"currency\": \"{{order.currency}}\"\n}"
+        "fieldMapping": "{\n  \"customerId\": \"{{customer.customerId}}\",\n  \"fullName\": \"{{customer.firstName}} {{customer.lastName}}\",\n  \"email\": \"{{customer.email}}\",\n  \"tier\": \"{{meta.tier}}\",\n  \"shippingCity\": \"{{meta.shippingAddress.city}}\",\n  \"orderId\": \"{{order.orderId}}\",\n  \"orderDate\": \"{{order.orderDate}}\",\n  \"currency\": \"{{order.currency}}\",\n  \"promoCode\": \"{{?meta.promoCode}}\"\n}"
       },
       "inputs": [
         { "port": "customer", "ctxKey": "customerJson" },
