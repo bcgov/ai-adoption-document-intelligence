@@ -252,7 +252,9 @@ export class TrainingPollerService {
             docTypes = modelBody.docTypes || {};
             description = modelBody.description;
           }
-          actualTrainingHours = modelBody.trainingHours ?? null;
+          if (job.build_mode === BuildMode.neural) {
+            actualTrainingHours = modelBody.trainingHours ?? null;
+          }
         }
 
         let fieldCount = 0;

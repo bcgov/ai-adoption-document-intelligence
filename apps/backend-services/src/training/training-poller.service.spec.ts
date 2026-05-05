@@ -662,6 +662,52 @@ describe("TrainingPollerService", () => {
       expect(documentModelsGet).toHaveBeenCalledTimes(1);
     });
 
+    it("leaves actual_training_hours null for template build when fallback GET returns trainingHours", async () => {
+      // TDD: this test was written BEFORE the fix was applied.
+      // Scenario: template build, Azure returns succeeded with NO result field,
+      // forcing the fallback GET /documentModels path. The GET body incorrectly
+      // surfaces trainingHours: 0.5. The poller must NOT leak it into the record.
+      const templateJob = {
+        ...mockTrainingJob,
+        build_mode: BuildMode.template,
+        max_training_hours: null,
+      };
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValue([templateJob]);
+      mockTrainingDb.findTrainingJob.mockResolvedValue(templateJob);
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const operationGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          status: "succeeded",
+          // No result field — forces the fallback documentModels GET
+        },
+      });
+      const documentModelsGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          docTypes: { doc1: { fieldSchema: { f1: {} } } },
+          description: "template-model",
+          trainingHours: 0.5, // Azure surfaces this; must be ignored for template builds
+        },
+      });
+      mockAdminClient.path = jest.fn((p: string) => {
+        if (p.includes("/operations/")) return { get: operationGet };
+        if (p.includes("/documentModels/")) return { get: documentModelsGet };
+        return { get: jest.fn() };
+      });
+
+      await service.pollActiveJobs();
+
+      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: BuildMode.template,
+          actual_training_hours: null,
+        }),
+      );
+      expect(documentModelsGet).toHaveBeenCalledTimes(1);
+    });
+
     it("leaves actual_training_hours null for template builds", async () => {
       mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValue([
         {

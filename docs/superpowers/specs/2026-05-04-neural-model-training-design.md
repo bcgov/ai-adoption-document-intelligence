@@ -190,7 +190,7 @@ class TrainingInfoDto {
 }
 ```
 
-The frontend calls this lazily — only when the user selects "neural" in the TrainingPanel mode selector. Auth: same group-scoped guard as other training endpoints.
+The frontend calls this lazily — only when the user selects "neural" in the TrainingPanel mode selector. Auth: not group-scoped. The response only exposes Azure-resource-level metadata (region, neural quota counters) shared across all groups using the deployment, so per-group scoping would be meaningless. Reuses `@Identity({ allowApiKey: true })` to require authentication.
 
 If Azure exposes additional neural-related quota fields in `/info` (e.g. a free-hours pool counter) we pass them through verbatim; the FYI banner can surface them without us needing to know the exact shape ahead of time.
 
