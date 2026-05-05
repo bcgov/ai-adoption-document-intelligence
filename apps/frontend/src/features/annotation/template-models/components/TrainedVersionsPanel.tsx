@@ -22,7 +22,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FC, useEffect, useRef, useState } from "react";
 import { useTrainedVersions } from "../hooks/useTrainedVersions";
 import { useTraining } from "../hooks/useTraining";
-import { TrainedModelVersion, TrainingStatus } from "../types/training.types";
+import {
+  BuildMode,
+  TrainedModelVersion,
+  TrainingStatus,
+} from "../types/training.types";
 import { TrainedVersionSnapshotDrawer } from "./TrainedVersionSnapshotDrawer";
 
 interface TrainedVersionsPanelProps {
@@ -31,6 +35,17 @@ interface TrainedVersionsPanelProps {
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString();
+}
+
+function formatModeCell(v: TrainedModelVersion): string {
+  if (v.buildMode === BuildMode.template) return "template";
+  if (v.actualTrainingHours != null) {
+    return `neural · ${v.actualTrainingHours.toFixed(2)}h used`;
+  }
+  if (v.maxTrainingHours != null) {
+    return `neural · ${v.maxTrainingHours}h budget`;
+  }
+  return "neural";
 }
 
 export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
@@ -149,6 +164,7 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
           <Table.Tr>
             <Table.Th style={{ width: 80 }}>Version</Table.Th>
             <Table.Th>Azure model id</Table.Th>
+            <Table.Th style={{ width: 160 }}>Mode</Table.Th>
             <Table.Th style={{ width: 100 }}>Fields</Table.Th>
             <Table.Th>Trained</Table.Th>
             <Table.Th style={{ width: 120 }}>Status</Table.Th>
@@ -170,6 +186,22 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
                   <Text size="sm" ff="monospace">
                     {v.modelId}
                   </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Tooltip
+                    label={
+                      v.buildMode === BuildMode.neural &&
+                      v.maxTrainingHours != null
+                        ? `Budget: ${v.maxTrainingHours}h`
+                        : ""
+                    }
+                    disabled={
+                      v.buildMode === BuildMode.template ||
+                      v.maxTrainingHours == null
+                    }
+                  >
+                    <Text size="sm">{formatModeCell(v)}</Text>
+                  </Tooltip>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">{v.fieldCount}</Text>
