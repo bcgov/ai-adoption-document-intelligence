@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import { PDFDocument } from "pdf-lib";
+import { degrees, PDFDocument } from "pdf-lib";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
   PdfNormalizationError,
@@ -99,6 +99,90 @@ describe("PdfNormalizationService", () => {
       await expect(
         service.normalizeToPdf(Buffer.from("x"), "unknown"),
       ).rejects.toThrow(PdfNormalizationError);
+    });
+  });
+
+  describe("normalizeToPdf – PDF rotation baking", () => {
+    async function pdfWithRotation(angle: number): Promise<Buffer> {
+      const doc = await PDFDocument.create();
+      const page = doc.addPage([200, 100]);
+      // Draw minimal content so the page has a content stream (required for embedPage)
+      page.drawRectangle({ x: 0, y: 0, width: 10, height: 10 });
+      page.setRotation(degrees(angle));
+      return Buffer.from(await doc.save());
+    }
+
+    it("returns original buffer unchanged when no page has rotation", async () => {
+      const buf = await minimalValidPdfBuffer();
+      const out = await service.normalizeToPdf(buf, "pdf");
+      // Same bytes expected
+      expect(out.equals(buf)).toBe(true);
+    });
+
+    it("produces a PDF with Rotate=0 on all pages for 90° rotation", async () => {
+      const buf = await pdfWithRotation(90);
+      const out = await service.normalizeToPdf(buf, "pdf");
+      const parsed = await PDFDocument.load(out);
+      expect(parsed.getPageCount()).toBe(1);
+      expect(parsed.getPage(0).getRotation().angle).toBe(0);
+    });
+
+    it("swaps page dimensions when baking 90° rotation", async () => {
+      const buf = await pdfWithRotation(90);
+      const out = await service.normalizeToPdf(buf, "pdf");
+      const parsed = await PDFDocument.load(out);
+      const page = parsed.getPage(0);
+      // Native page was 200×100; after 90° CW bake the visual size becomes 100×200.
+      expect(page.getWidth()).toBe(100);
+      expect(page.getHeight()).toBe(200);
+    });
+
+    it("produces Rotate=0 and unchanged dimensions for 180° rotation", async () => {
+      const buf = await pdfWithRotation(180);
+      const out = await service.normalizeToPdf(buf, "pdf");
+      const parsed = await PDFDocument.load(out);
+      const page = parsed.getPage(0);
+      expect(page.getRotation().angle).toBe(0);
+      expect(page.getWidth()).toBe(200);
+      expect(page.getHeight()).toBe(100);
+    });
+
+    it("produces Rotate=0 and swapped dimensions for 270° rotation", async () => {
+      const buf = await pdfWithRotation(270);
+      const out = await service.normalizeToPdf(buf, "pdf");
+      const parsed = await PDFDocument.load(out);
+      const page = parsed.getPage(0);
+      expect(page.getRotation().angle).toBe(0);
+      expect(page.getWidth()).toBe(100);
+      expect(page.getHeight()).toBe(200);
+    });
+
+    it("handles mixed-rotation multi-page PDFs", async () => {
+      const srcDoc = await PDFDocument.create();
+      const p1 = srcDoc.addPage([200, 100]);
+      p1.drawRectangle({ x: 0, y: 0, width: 10, height: 10 });
+      p1.setRotation(degrees(0));
+      const p2 = srcDoc.addPage([200, 100]);
+      p2.drawRectangle({ x: 0, y: 0, width: 10, height: 10 });
+      p2.setRotation(degrees(90));
+      const p3 = srcDoc.addPage([200, 100]);
+      p3.drawRectangle({ x: 0, y: 0, width: 10, height: 10 });
+      p3.setRotation(degrees(180));
+      const buf = Buffer.from(await srcDoc.save());
+
+      const out = await service.normalizeToPdf(buf, "pdf");
+      const parsed = await PDFDocument.load(out);
+      expect(parsed.getPageCount()).toBe(3);
+      for (let i = 0; i < 3; i++) {
+        expect(parsed.getPage(i).getRotation().angle).toBe(0);
+      }
+    });
+
+    it("also works for scan file type", async () => {
+      const buf = await pdfWithRotation(90);
+      const out = await service.normalizeToPdf(buf, "scan");
+      const parsed = await PDFDocument.load(out);
+      expect(parsed.getPage(0).getRotation().angle).toBe(0);
     });
   });
 });

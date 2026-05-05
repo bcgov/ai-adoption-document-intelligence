@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { PDFDocument } from "pdf-lib";
+import { degrees, PDFDocument } from "pdf-lib";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 /** `export =` module — default import breaks under Jest/ts-jest. */
@@ -77,12 +77,14 @@ export class PdfNormalizationService {
 
   /**
    * Produces a PDF buffer suitable for OCR and in-app viewing.
+   * For PDFs, bakes any /Rotate page flags into content so all pages have Rotate=0.
+   * For images, applies EXIF orientation before embedding so the stored PDF is correctly oriented.
    * @throws PdfNormalizationError when conversion fails after validation.
    */
   async normalizeToPdf(fileBuffer: Buffer, fileType: string): Promise<Buffer> {
     const ft = fileType.toLowerCase();
     if (ft === "pdf" || ft === "scan") {
-      return Buffer.from(fileBuffer);
+      return await this.normalizePdfPageRotations(fileBuffer);
     }
     if (ft === "image") {
       return await this.imageBufferToPdf(fileBuffer);
@@ -99,7 +101,8 @@ export class PdfNormalizationService {
       for (let i = 0; i < pageCount; i++) {
         const pipeline =
           pageCount > 1 ? sharp(buffer, { page: i }) : sharp(buffer);
-        const pngBuffer = await pipeline.png().toBuffer();
+        // .rotate() with no arguments auto-orients the image from its EXIF orientation tag.
+        const pngBuffer = await pipeline.rotate().png().toBuffer();
         const embedded = await pdfDoc.embedPng(pngBuffer);
         const w = embedded.width;
         const h = embedded.height;
@@ -124,5 +127,91 @@ export class PdfNormalizationService {
         "Document could not be converted to PDF.",
       );
     }
+  }
+
+  /**
+   * Loads the PDF, and for any page whose /Rotate flag is non-zero, bakes the
+   * rotation into the page content and resets the flag to 0.  Pages that are
+   * already upright are copied without re-encoding.
+   *
+   * This ensures the stored normalized PDF renders correctly in any viewer or
+   * programmatic tool regardless of whether it honours the /Rotate metadata.
+   */
+  private async normalizePdfPageRotations(fileBuffer: Buffer): Promise<Buffer> {
+    const srcDoc = await PDFDocument.load(fileBuffer);
+    const pageCount = srcDoc.getPageCount();
+
+    const hasRotation = srcDoc
+      .getPages()
+      .some((p) => p.getRotation().angle !== 0);
+    if (!hasRotation) {
+      return Buffer.from(fileBuffer);
+    }
+
+    const newDoc = await PDFDocument.create();
+
+    for (let i = 0; i < pageCount; i++) {
+      const srcPage = srcDoc.getPage(i);
+      const rotationAngle = srcPage.getRotation().angle; // 0 | 90 | 180 | 270
+
+      if (rotationAngle === 0) {
+        const [copied] = await newDoc.copyPages(srcDoc, [i]);
+        newDoc.addPage(copied);
+        continue;
+      }
+
+      // Embed the source page as an XObject so we can draw it with a transform.
+      // embedded.width/height are the page's *native* (pre-rotation) dimensions.
+      const embedded = await newDoc.embedPage(srcPage);
+      const nativeW = embedded.width;
+      const nativeH = embedded.height;
+
+      // Visual dimensions after applying the /Rotate flag.
+      const swapDims = rotationAngle === 90 || rotationAngle === 270;
+      const pageW = swapDims ? nativeH : nativeW;
+      const pageH = swapDims ? nativeW : nativeH;
+
+      // Compute draw origin and angle that bakes the rotation into content.
+      // PDF coordinates are bottom-left origin; pdf-lib rotate is counter-clockwise.
+      let drawX: number;
+      let drawY: number;
+      let drawRotate: ReturnType<typeof degrees>;
+
+      switch (rotationAngle) {
+        case 90:
+          // CW 90°: rotate CCW 90° and translate up by native width.
+          drawX = 0;
+          drawY = nativeW;
+          drawRotate = degrees(-90);
+          break;
+        case 180:
+          // 180°: translate to top-right corner.
+          drawX = nativeW;
+          drawY = nativeH;
+          drawRotate = degrees(180);
+          break;
+        case 270:
+          // CW 270° (CCW 90°): rotate CCW 270° and translate right by native height.
+          drawX = nativeH;
+          drawY = 0;
+          drawRotate = degrees(90);
+          break;
+        default:
+          drawX = 0;
+          drawY = 0;
+          drawRotate = degrees(0);
+      }
+
+      const newPage = newDoc.addPage([pageW, pageH]);
+      newPage.drawPage(embedded, {
+        x: drawX,
+        y: drawY,
+        width: nativeW,
+        height: nativeH,
+        rotate: drawRotate,
+      });
+    }
+
+    return Buffer.from(await newDoc.save());
   }
 }
