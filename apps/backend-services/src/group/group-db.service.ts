@@ -276,6 +276,26 @@ export class GroupDbService {
   }
 
   /**
+   * Updates the role of a UserGroup record.
+   * @param userId - The user ID.
+   * @param groupId - The group ID.
+   * @param role - The new role to assign.
+   * @param tx - Optional. Prisma transaction client.
+   */
+  async updateUserGroupRole(
+    userId: string,
+    groupId: string,
+    role: GroupRole,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.userGroup.update({
+      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+      data: { role },
+    });
+  }
+
+  /**
    * Deletes a UserGroup record.
    * @param userId - The user ID.
    * @param groupId - The group ID.

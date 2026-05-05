@@ -13,13 +13,19 @@ import { getErrorMessage } from "@ai-di/shared-logging";
 
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { Prisma } from "@generated/client";
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import {
+  BLOB_STORAGE,
+  type BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { AuditLogService } from "./audit-log.service";
@@ -53,7 +59,46 @@ export class BenchmarkRunService {
     private benchmarkTemporal: BenchmarkTemporalService,
     private datasetService: DatasetService,
     private readonly auditLogService: AuditLogService,
+    @Inject(BLOB_STORAGE)
+    private readonly blobStorage: BlobStorageInterface,
   ) {}
+
+  /**
+   * Read per-sample evaluation details (groundTruth / prediction /
+   * evaluationDetails) from blob storage. The Temporal workflow writes one
+   * JSON file per sample at `{groupId}/benchmark/runs/{runId}/{sampleId}.json`
+   * via `benchmark.persistEvaluationDetails`; we fetch and inline them here so
+   * the per-sample drill-down API contract stays stable. Returns an empty
+   * shape when the blob is missing or unreadable so the UI degrades gracefully
+   * (older runs that pre-date the blob-storage scheme have no path).
+   */
+  private async readEvaluationDetailsBlob(
+    blobPath: string | undefined,
+  ): Promise<{
+    groundTruth?: unknown;
+    prediction?: unknown;
+    evaluationDetails?: unknown;
+  }> {
+    if (!blobPath) return {};
+    try {
+      const buf = await this.blobStorage.read(validateBlobFilePath(blobPath));
+      const parsed = JSON.parse(buf.toString("utf-8")) as {
+        groundTruth?: unknown;
+        prediction?: unknown;
+        evaluationDetails?: unknown;
+      };
+      return {
+        groundTruth: parsed.groundTruth ?? undefined,
+        prediction: parsed.prediction ?? undefined,
+        evaluationDetails: parsed.evaluationDetails ?? undefined,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Failed to read evaluation details blob "${blobPath}": ${getErrorMessage(err)}`,
+      );
+      return {};
+    }
+  }
 
   /**
    * Get the current Git SHA of the worker codebase
@@ -938,6 +983,13 @@ export class BenchmarkRunService {
       groundTruth?: unknown;
       prediction?: unknown;
       evaluationDetails?: unknown;
+      /**
+       * Path to the per-sample evaluation details blob written by
+       * `benchmark.persistEvaluationDetails`. Present on runs created after
+       * the blob-storage scheme landed; missing on older runs (which had the
+       * heavy fields inlined directly).
+       */
+      evaluationBlobPath?: string;
     }>;
 
     // Collect available dimensions: metadata keys plus "pass" as a synthetic dimension
@@ -995,17 +1047,36 @@ export class BenchmarkRunService {
     const offset = (page - 1) * limit;
     const paginatedResults = filteredResults.slice(offset, offset + limit);
 
-    // Map to DTO
-    const results: PerSampleResultDto[] = paginatedResults.map((result) => ({
-      sampleId: result.sampleId,
-      metadata: result.metadata || {},
-      metrics: result.metrics || {},
-      pass: result.pass ?? false,
-      diagnostics: result.diagnostics,
-      groundTruth: result.groundTruth,
-      prediction: result.prediction,
-      evaluationDetails: result.evaluationDetails,
-    }));
+    // Map to DTO. Heavy fields (groundTruth / prediction / evaluationDetails)
+    // were stripped from `metrics.perSampleResults` to keep the activity
+    // payload under Temporal's 2 MB blob limit; the workflow persists them to
+    // blob storage instead. Read each blob in parallel and inline the parsed
+    // contents so the API contract for the drill-down view stays unchanged.
+    const inlinedDetails = await Promise.all(
+      paginatedResults.map((r) =>
+        // Backwards-compat: prefer inline fields if present (older runs).
+        r.evaluationBlobPath
+          ? this.readEvaluationDetailsBlob(r.evaluationBlobPath)
+          : Promise.resolve({
+              groundTruth: r.groundTruth,
+              prediction: r.prediction,
+              evaluationDetails: r.evaluationDetails,
+            }),
+      ),
+    );
+
+    const results: PerSampleResultDto[] = paginatedResults.map(
+      (result, idx) => ({
+        sampleId: result.sampleId,
+        metadata: result.metadata || {},
+        metrics: result.metrics || {},
+        pass: result.pass ?? false,
+        diagnostics: result.diagnostics,
+        groundTruth: inlinedDetails[idx].groundTruth,
+        prediction: inlinedDetails[idx].prediction,
+        evaluationDetails: inlinedDetails[idx].evaluationDetails,
+      }),
+    );
 
     return {
       runId: run.id,
