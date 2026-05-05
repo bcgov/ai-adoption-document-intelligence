@@ -101,7 +101,6 @@ describe("TrainingPollerService", () => {
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_POLL_INTERVAL_SECONDS: 10,
-          TRAINING_MAX_POLL_ATTEMPTS: 60,
         };
         return config[key] ?? defaultValue;
       }),
@@ -125,42 +124,6 @@ describe("TrainingPollerService", () => {
     service = module.get<TrainingPollerService>(TrainingPollerService);
   });
 
-  describe("max-attempts budget", () => {
-    it("returns templateMaxAttempts (60) for template builds", () => {
-      const result = service["computeMaxAttempts"]({
-        build_mode: "template",
-        max_training_hours: null,
-      } as never);
-      expect(result).toBe(60);
-    });
-
-    it("returns 180 attempts (30 min default) for neural builds with no budget", () => {
-      const result = service["computeMaxAttempts"]({
-        build_mode: "neural",
-        max_training_hours: null,
-      } as never);
-      expect(result).toBe(180);
-    });
-
-    it("scales attempts to budget + 10 min buffer for neural builds with budget", () => {
-      const result = service["computeMaxAttempts"]({
-        build_mode: "neural",
-        max_training_hours: 2,
-      } as never);
-      // (2*3600 + 600) / 10 = 780
-      expect(result).toBe(780);
-    });
-
-    it("rounds up partial intervals", () => {
-      const result = service["computeMaxAttempts"]({
-        build_mode: "neural",
-        max_training_hours: 0.17,
-      } as never);
-      // (0.17*3600 + 600) / 10 = 1212/10 = 121.2 → ceil = 122
-      expect(result).toBe(122);
-    });
-  });
-
   describe("constructor", () => {
     it("should initialize with Azure credentials", () => {
       expect(service).toBeDefined();
@@ -172,7 +135,6 @@ describe("TrainingPollerService", () => {
         get: jest.fn((key: string, defaultValue?: number) => {
           const config: Record<string, number> = {
             TRAINING_POLL_INTERVAL_SECONDS: 10,
-            TRAINING_MAX_POLL_ATTEMPTS: 60,
           };
           return config[key] ?? defaultValue;
         }),
@@ -302,27 +264,6 @@ describe("TrainingPollerService", () => {
       await service["pollTrainingStatus"]("non-existent", "model-1", "op-1");
 
       expect(mockTrainingDb.updateTrainingJob).not.toHaveBeenCalled();
-    });
-
-    it("should timeout job after max attempts", async () => {
-      const oldJob = {
-        ...mockTrainingJob,
-        started_at: new Date(Date.now() - 700 * 1000), // 700 seconds ago
-      };
-
-      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(oldJob);
-
-      await service["pollTrainingStatus"](
-        "job-1",
-        "model-123",
-        "operation-123",
-      );
-
-      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
-        status: TrainingStatus.FAILED,
-        error_message: "Training timeout - exceeded maximum polling time",
-        completed_at: expect.any(Date),
-      });
     });
 
     it("should handle operation not ready (404)", async () => {

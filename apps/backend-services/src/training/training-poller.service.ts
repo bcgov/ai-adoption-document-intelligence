@@ -42,7 +42,6 @@ interface AzureModelResponse {
 export class TrainingPollerService {
   private adminClient!: DocumentIntelligenceClient;
   private readonly pollInterval: number;
-  private readonly maxAttempts: number;
 
   constructor(
     private readonly trainingDb: TrainingDbService,
@@ -75,10 +74,6 @@ export class TrainingPollerService {
     this.pollInterval = this.configService.get<number>(
       "TRAINING_POLL_INTERVAL_SECONDS",
       10,
-    );
-    this.maxAttempts = this.configService.get<number>(
-      "TRAINING_MAX_POLL_ATTEMPTS",
-      60,
     );
   }
 
@@ -118,19 +113,6 @@ export class TrainingPollerService {
     }
   }
 
-  private computeMaxAttempts(job: {
-    build_mode: BuildMode;
-    max_training_hours: number | null;
-  }): number {
-    if (job.build_mode === BuildMode.template) {
-      return this.maxAttempts;
-    }
-    if (job.max_training_hours == null) {
-      return Math.ceil((30 * 60) / this.pollInterval);
-    }
-    return Math.ceil((job.max_training_hours * 3600 + 600) / this.pollInterval);
-  }
-
   /**
    * Poll the status of a specific training job
    */
@@ -156,20 +138,6 @@ export class TrainingPollerService {
         (Date.now() - job.started_at.getTime()) / 1000,
       );
       const attempts = Math.floor(elapsedSeconds / this.pollInterval);
-      const maxAttempts = this.computeMaxAttempts(job);
-
-      // Check if max attempts exceeded
-      if (attempts > maxAttempts) {
-        this.logger.warn(
-          `Training job ${jobId} exceeded max polling attempts (${maxAttempts})`,
-        );
-        await this.trainingDb.updateTrainingJob(jobId, {
-          status: TrainingStatus.FAILED,
-          error_message: "Training timeout - exceeded maximum polling time",
-          completed_at: new Date(),
-        });
-        return;
-      }
 
       this.logger.debug(
         `Polling operation ${operationId} for job ${jobId} (model ${modelId})`,
@@ -184,7 +152,7 @@ export class TrainingPollerService {
         if (isUnexpected(operationResponse)) {
           if (operationResponse.status === "404") {
             this.logger.debug(
-              `Operation ${operationId} not ready yet (attempt ${attempts}/${maxAttempts})`,
+              `Operation ${operationId} not ready yet (attempt ${attempts})`,
             );
             return;
           }
@@ -203,7 +171,7 @@ export class TrainingPollerService {
 
         if (status === "notStarted" || status === "running") {
           this.logger.debug(
-            `Training still in progress for job ${jobId} (status: ${status}, attempt ${attempts}/${maxAttempts})`,
+            `Training still in progress for job ${jobId} (status: ${status}, attempt ${attempts})`,
           );
           return;
         }
