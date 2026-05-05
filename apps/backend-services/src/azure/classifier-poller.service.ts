@@ -1,5 +1,6 @@
 import { getErrorStack } from "@ai-di/shared-logging";
 import { Inject, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierDbService } from "@/azure/classifier-db.service";
@@ -19,6 +20,7 @@ export class ClassifierPollerService {
     private readonly azureService: AzureService,
     private readonly azureStorage: AzureStorageService,
     private readonly logger: AppLoggerService,
+    private readonly configService: ConfigService,
     @Inject(BLOB_STORAGE_CONTAINER_NAME)
     private readonly containerName: string,
   ) {}
@@ -87,12 +89,7 @@ export class ClassifierPollerService {
           this.logger.debug(
             `Classifier ${classifierName} (group ${groupId}) confirmed READY via direct model check.`,
           );
-          await this.azureStorage.deleteFilesWithPrefix(
-            buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
-              classifierName,
-            ]),
-            this.containerName,
-          );
+          await this.deleteTrainingBlobs(classifierName, groupId);
         } else {
           await this.classifierDb.systemUpdateClassifierModel(
             classifierName,
@@ -118,13 +115,7 @@ export class ClassifierPollerService {
         this.logger.log(
           `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
         );
-        // Need to remove the files from blob storage to avoid costs
-        await this.azureStorage.deleteFilesWithPrefix(
-          buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
-            classifierName,
-          ]),
-          this.containerName,
-        );
+        await this.deleteTrainingBlobs(classifierName, groupId);
       } else if (status === "failed") {
         const errorMessage =
           (result as { error?: { message?: string } }).error?.message ??
@@ -151,5 +142,34 @@ export class ClassifierPollerService {
         { stack: getErrorStack(error) },
       );
     }
+  }
+
+  /**
+   * Deletes training blobs from Azure storage after a classifier is marked READY.
+   * When Azure is the primary storage provider (BLOB_STORAGE_PROVIDER=azure), the
+   * Azure container is the only copy of the user's training documents, so we must
+   * NOT delete them. Deletion only applies when MinIO (or another provider) holds
+   * the primary copy and Azure holds a temporary duplicate for DI training.
+   */
+  private async deleteTrainingBlobs(
+    classifierName: string,
+    groupId: string,
+  ): Promise<void> {
+    const provider = this.configService.get<string>(
+      "BLOB_STORAGE_PROVIDER",
+      "minio",
+    );
+    if (provider === "azure") {
+      this.logger.debug(
+        `Skipping Azure blob deletion for classifier ${classifierName} (group ${groupId}) — Azure is the primary storage provider.`,
+      );
+      return;
+    }
+    await this.azureStorage.deleteFilesWithPrefix(
+      buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
+        classifierName,
+      ]),
+      this.containerName,
+    );
   }
 }

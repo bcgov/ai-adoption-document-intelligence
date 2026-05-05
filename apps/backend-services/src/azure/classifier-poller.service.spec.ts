@@ -1,3 +1,4 @@
+import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -29,6 +30,9 @@ const mockLogger = {
   log: jest.fn(),
   warn: jest.fn(),
 };
+const mockConfigService = {
+  get: jest.fn().mockReturnValue("minio"),
+};
 
 describe("ClassifierPollerService", () => {
   let service: ClassifierPollerService;
@@ -42,6 +46,7 @@ describe("ClassifierPollerService", () => {
         { provide: AzureService, useValue: mockAzureService },
         { provide: AzureStorageService, useValue: mockBlobService },
         { provide: ClassifierService, useValue: mockClassifierService },
+        { provide: ConfigService, useValue: mockConfigService },
         { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
       ],
     }).compile();
@@ -95,6 +100,7 @@ describe("ClassifierPollerService", () => {
 
   describe("pollClassifierStatus", () => {
     it("should update status to READY if succeeded and delete files for classifier", async () => {
+      mockConfigService.get.mockReturnValue("minio");
       mockAzureService.checkOperationStatusById.mockResolvedValue({
         status: "succeeded",
       });
@@ -137,7 +143,20 @@ describe("ClassifierPollerService", () => {
       ).resolves.not.toThrow();
     });
 
+    it("should not delete files when Azure is the primary storage provider", async () => {
+      mockConfigService.get.mockReturnValue("azure");
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        status: "succeeded",
+      });
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(
+        mockClassifierDbService.systemUpdateClassifierModel,
+      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
+      expect(mockBlobService.deleteFilesWithPrefix).not.toHaveBeenCalled();
+    });
+
     it("should mark READY via direct model check when operation returns 404", async () => {
+      mockConfigService.get.mockReturnValue("minio");
       mockAzureService.checkOperationStatusById.mockResolvedValue({
         error: { code: "404", message: "Resource Not Found" },
       });
