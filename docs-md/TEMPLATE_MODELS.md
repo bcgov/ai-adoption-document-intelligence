@@ -137,6 +137,7 @@ apps/backend-services/src/training/
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/template-models/training/info` | Azure resource region + neural quota (FYI for the train UI) |
 | GET | `/api/template-models/:modelId/training/validate` | Check training readiness |
 | POST | `/api/template-models/:modelId/training/train` | Start training |
 | GET | `/api/template-models/:modelId/training/jobs` | List training jobs |
@@ -181,6 +182,7 @@ apps/frontend/src/features/annotation/template-models/
 - **Training panel**: No model_id input — just click "Train" with optional description
 - **Model card**: Shows both friendly name and copyable `model_id`
 - **Status badges**: draft (blue), training (yellow), trained (green), failed (red)
+- **Build mode**: TrainingPanel exposes a Template/Neural segmented selector. When Neural is selected, an FYI banner shows region + neural quota and the `Max training hours` input appears (default 1h).
 - **Suggest Formats**: On the Field Schema tab, clicking "Suggest Formats" calls the AI endpoint with HITL corrections. Accepts an optional `suggestFromRun` query param to also include benchmark run mismatch data — when present, the suggestion runs automatically on page load.
 
 ### Format Suggestions with Benchmark Data
@@ -198,9 +200,9 @@ From the RunDetailPage, the "Suggest Formats" button opens a modal to select a t
 5. Clicks "Train" on the Training tab
 6. Backend validates readiness (min 5 labeled docs, schema defined, all docs have labels)
 7. Uploads training data to Azure Blob Storage
-8. Submits to Azure Document Intelligence `buildMode: "template"`
-9. Poller checks Azure every 10 seconds
-10. On success: TrainedModel record created, model appears in upload dropdown
+8. Submits to Azure Document Intelligence with `buildMode` matching the user's selection (`template` or `neural`); for neural, also passes `maxTrainingHours` if provided.
+9. Poller checks Azure every 10 seconds. Max poll duration scales with mode and budget: 10 min for template, 30 min for neural with no budget, or `maxTrainingHours + 10 min` when a budget is set.
+10. On success: TrainedModel record created with `build_mode`, `max_training_hours`, and `actual_training_hours` (the read-only `trainingHours` Azure returned). Model appears in upload dropdown.
 
 ## Model Availability
 
