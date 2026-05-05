@@ -63,7 +63,6 @@ describe("ClassifierDbService", () => {
   describe("createClassifierModel", () => {
     const properties: ClassifierEditableProperties = {
       group_id: "g1",
-      config: { labels: [] },
       description: "test classifier",
       status: ClassifierStatus.PRETRAINING,
       source: ClassifierSource.AZURE,
@@ -321,7 +320,6 @@ describe("ClassifierDbService", () => {
       const mockTx = { classifierModel: mockTxClassifierModel } as any;
       const properties: ClassifierEditableProperties = {
         group_id: "g1",
-        config: { labels: [] },
         description: "test",
         status: ClassifierStatus.PRETRAINING,
         source: ClassifierSource.AZURE,

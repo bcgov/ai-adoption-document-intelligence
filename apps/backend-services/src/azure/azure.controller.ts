@@ -160,7 +160,6 @@ export class AzureController {
         description,
         source,
         status: ClassifierStatus.PRETRAINING,
-        config: { labels: [] },
         group_id: group_id,
       },
       req.resolvedIdentity.actorId,

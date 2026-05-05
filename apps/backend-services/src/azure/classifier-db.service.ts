@@ -6,18 +6,9 @@ import {
 } from "@/azure/dto/classifier-constants.dto";
 import { PrismaService } from "@/database/prisma.service";
 
-export type ClassifierConfig = {
-  labels: {
-    label: string;
-    fromFolder: string;
-    blobFolder: string;
-  }[];
-};
-
 export interface ClassifierEditableProperties {
   version?: number;
   group_id: string;
-  config: ClassifierConfig;
   description: string;
   status: ClassifierStatus;
   source: ClassifierSource;

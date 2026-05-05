@@ -5,7 +5,6 @@ import "multer";
 import * as path from "node:path";
 import { AzureService } from "@/azure/azure.service";
 import {
-  type ClassifierConfig,
   ClassifierDbService,
   type ClassifierEditableProperties,
   type ClassifierModelWithGroup,
@@ -28,11 +27,7 @@ import {
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
-export type {
-  ClassifierConfig,
-  ClassifierEditableProperties,
-  ClassifierModelWithGroup,
-};
+export type { ClassifierEditableProperties, ClassifierModelWithGroup };
 
 interface DocType {
   azureBlobSource: {
