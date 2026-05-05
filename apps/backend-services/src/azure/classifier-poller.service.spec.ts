@@ -14,7 +14,8 @@ const mockClassifierDbService = {
   systemUpdateClassifierModel: jest.fn(),
 };
 const mockAzureService = {
-  checkOperationStatus: jest.fn(),
+  checkOperationStatusById: jest.fn(),
+  checkClassifierExists: jest.fn(),
 };
 const mockBlobService = {
   deleteFilesWithPrefix: jest.fn(),
@@ -94,7 +95,7 @@ describe("ClassifierPollerService", () => {
 
   describe("pollClassifierStatus", () => {
     it("should update status to READY if succeeded and delete files for classifier", async () => {
-      mockAzureService.checkOperationStatus.mockResolvedValue({
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
         status: "succeeded",
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
@@ -108,7 +109,7 @@ describe("ClassifierPollerService", () => {
     });
 
     it("should update status to FAILED if failed", async () => {
-      mockAzureService.checkOperationStatus.mockResolvedValue({
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
         status: "failed",
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
@@ -118,7 +119,7 @@ describe("ClassifierPollerService", () => {
     });
 
     it("should not update if still training", async () => {
-      mockAzureService.checkOperationStatus.mockResolvedValue({
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
         status: "running",
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
@@ -128,12 +129,38 @@ describe("ClassifierPollerService", () => {
     });
 
     it("should not throw if polling fails", async () => {
-      mockAzureService.checkOperationStatus.mockRejectedValue(
+      mockAzureService.checkOperationStatusById.mockRejectedValue(
         new Error("fail"),
       );
       await expect(
         (service as any).pollClassifierStatus("clf", "gid", "loc"),
       ).resolves.not.toThrow();
+    });
+
+    it("should mark READY via direct model check when operation returns 404", async () => {
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        error: { code: "404", message: "Resource Not Found" },
+      });
+      mockAzureService.checkClassifierExists.mockResolvedValue(true);
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(mockAzureService.checkClassifierExists).toHaveBeenCalledWith(
+        "gid__clf",
+      );
+      expect(
+        mockClassifierDbService.systemUpdateClassifierModel,
+      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
+      expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalled();
+    });
+
+    it("should mark FAILED via direct model check when operation returns 404 and model not found", async () => {
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        error: { code: "404", message: "Resource Not Found" },
+      });
+      mockAzureService.checkClassifierExists.mockResolvedValue(false);
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(
+        mockClassifierDbService.systemUpdateClassifierModel,
+      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.FAILED });
     });
   });
 });

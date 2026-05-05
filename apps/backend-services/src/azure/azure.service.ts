@@ -116,6 +116,58 @@ export class AzureService {
       redirect: "error",
     });
     const body: unknown = await response.json();
+    this.logger.debug("checkOperationStatus response", {
+      httpStatus: response.status,
+      body,
+    });
+    return this.asPollResult(body);
+  }
+
+  /**
+   * Checks whether a classifier model exists in Azure Document Intelligence.
+   * Uses the SDK client so the correct base URL (including any path suffix) is
+   * applied regardless of whether the endpoint is a direct DI URL or an APIM gateway.
+   * Used as a fallback when the async operation record has expired (404).
+   * @param classifierId The fully-qualified classifier ID (e.g. groupId__name).
+   * @returns true if the classifier model exists, false otherwise.
+   */
+  async checkClassifierExists(classifierId: string): Promise<boolean> {
+    const response = await (
+      this.client as unknown as {
+        path: (p: string) => {
+          get: (opts: object) => Promise<{ status: string }>;
+        };
+      }
+    )
+      .path(`/documentClassifiers/${encodeURIComponent(classifierId)}`)
+      .get({ queryParameters: { "api-version": "2024-11-30" } });
+    this.logger.debug(
+      `checkClassifierExists: ${classifierId} -> HTTP ${response.status}`,
+    );
+    return response.status === "200";
+  }
+
+  /**
+   * Polls an operation by its bare UUID, constructing the URL from the configured
+   * endpoint (preserving any path suffix) rather than accepting an external URL.
+   * This avoids the SSRF validation required by checkOperationStatus and is safe
+   * because the URL is built entirely from trusted, internal components.
+   * @param operationId The operation UUID returned by Azure DI.
+   * @returns The operation status result.
+   */
+  async checkOperationStatusById(operationId: string) {
+    const base = this.endpoint.replace(/\/$/, "");
+    const url = `${base}/documentClassifiers/operations/${operationId}?api-version=2024-11-30`;
+    const response = await fetch(url, {
+      headers: { "api-key": this.apiKey },
+      redirect: "error",
+    });
+    const body: unknown = await response.json();
+    this.logger.debug("checkOperationStatusById response", {
+      operationId,
+      httpStatus: response.status,
+      body,
+    });
     return this.asPollResult(body);
   }
 

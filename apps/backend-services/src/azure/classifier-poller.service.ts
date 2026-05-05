@@ -56,8 +56,56 @@ export class ClassifierPollerService {
         );
         return;
       }
+      // operationLocation is stored as a bare operation UUID extracted from the
+      // operation-location header at training submission time. Build the full URL
+      // from the configured endpoint (preserving any path suffix, e.g.
+      // /sdpr-invoice-automation) so the request reaches the correct backend
+      // regardless of whether the endpoint is a direct DI URL or an APIM gateway.
       const result =
-        await this.azureService.checkOperationStatus(operationLocation);
+        await this.azureService.checkOperationStatusById(operationLocation);
+      const errorCode = (result as { error?: { code?: string } }).error?.code;
+
+      // Azure operation records expire quickly after completion. A 404 means
+      // the operation is no longer tracked — fall back to checking whether the
+      // classifier model itself exists to determine the final status.
+      if (
+        errorCode === "404" ||
+        (result.status === undefined && errorCode !== undefined)
+      ) {
+        this.logger.log(
+          `Operation record expired (404) for classifier ${classifierName} (group ${groupId}). Checking model directly.`,
+        );
+        const classifierId = `${groupId}__${classifierName}`;
+        const exists =
+          await this.azureService.checkClassifierExists(classifierId);
+        if (exists) {
+          await this.classifierDb.systemUpdateClassifierModel(
+            classifierName,
+            groupId,
+            { status: ClassifierStatus.READY },
+          );
+          this.logger.debug(
+            `Classifier ${classifierName} (group ${groupId}) confirmed READY via direct model check.`,
+          );
+          await this.azureStorage.deleteFilesWithPrefix(
+            buildBlobPrefixPath(groupId, OperationCategory.CLASSIFICATION, [
+              classifierName,
+            ]),
+            this.containerName,
+          );
+        } else {
+          await this.classifierDb.systemUpdateClassifierModel(
+            classifierName,
+            groupId,
+            { status: ClassifierStatus.FAILED },
+          );
+          this.logger.warn(
+            `Classifier ${classifierName} (group ${groupId}) model not found after operation expiry — marking FAILED.`,
+          );
+        }
+        return;
+      }
+
       const status = result.status || result.modelInfo?.status;
       if (status === "succeeded") {
         await this.classifierDb.systemUpdateClassifierModel(
@@ -78,6 +126,9 @@ export class ClassifierPollerService {
           this.containerName,
         );
       } else if (status === "failed") {
+        const errorMessage =
+          (result as { error?: { message?: string } }).error?.message ??
+          JSON.stringify(result);
         await this.classifierDb.systemUpdateClassifierModel(
           classifierName,
           groupId,
@@ -86,12 +137,12 @@ export class ClassifierPollerService {
           },
         );
         this.logger.warn(
-          `Classifier ${classifierName} (group ${groupId}) training failed.`,
+          `Classifier ${classifierName} (group ${groupId}) training failed: ${errorMessage}`,
           { result },
         );
       } else {
         this.logger.debug(
-          `Classifier ${classifierName} (group ${groupId}) still training (status: ${status}).`,
+          `Classifier ${classifierName} (group ${groupId}) still training (status: ${status ?? "unknown"}).`,
         );
       }
     } catch (error) {

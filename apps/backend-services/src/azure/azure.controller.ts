@@ -423,15 +423,25 @@ export class AzureController {
     setImmediate(async () => {
       try {
         // Upload the documents required for training
+        this.logger.debug(
+          `Classifier training background task started for "${name}" in group ${group_id}`,
+        );
         const uploadResults =
           await this.classifierService.uploadDocumentsForTraining(
             group_id,
             name,
           );
+        this.logger.debug(
+          `Uploaded ${uploadResults.length} training document(s) for classifier "${name}"`,
+        );
 
         // Create the layout json for user-uploaded files
         const filePaths = uploadResults.map((r) => r.blobPath);
+        this.logger.debug(
+          `Creating layout JSON for ${filePaths.length} user file(s)`,
+        );
         await this.classifierService.createLayoutJson(filePaths);
+        this.logger.debug(`Layout JSON step complete for user files`);
 
         // Also ensure layout json exists for the shared "other" files.
         // createLayoutJson skips files that already have a .ocr.json, so this
@@ -439,16 +449,24 @@ export class AzureController {
         const otherBlobs = await this.classifierService.listAzureBlobs(
           CLASSIFIER_OTHER_AZURE_PREFIX,
         );
+        this.logger.debug(
+          `Found ${otherBlobs.length} shared "other" blob(s). Creating layout JSON.`,
+        );
         await this.classifierService.createLayoutJson(
           otherBlobs.map((b) => b.name),
         );
+        this.logger.debug(`Layout JSON step complete for "other" files`);
 
         // Start the training process
+        this.logger.debug(
+          `Submitting training request for classifier "${name}"`,
+        );
         await this.classifierService.requestClassifierTraining(
           name,
           group_id,
           actorId,
         );
+        this.logger.debug(`Training request accepted for classifier "${name}"`);
       } catch (e) {
         this.logger.error(
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
