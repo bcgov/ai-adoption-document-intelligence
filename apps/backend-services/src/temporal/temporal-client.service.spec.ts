@@ -248,6 +248,7 @@ describe("TemporalClientService", () => {
         "doc-123",
         "workflow-123",
         { documentId: "doc-123", fileName: "test.pdf", fileType: "pdf" },
+        "g-test",
       );
 
       expect(result).toBe("workflow-123");
@@ -264,6 +265,7 @@ describe("TemporalClientService", () => {
               },
               configHash: expect.any(String),
               runnerVersion: "1.0.0",
+              groupId: "g-test",
             },
           ],
           taskQueue: "ocr-processing",
@@ -280,7 +282,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        newService.startGraphWorkflow("doc-123", "workflow-123", {}),
+        newService.startGraphWorkflow("doc-123", "workflow-123", {}, null),
       ).rejects.toThrow("Temporal client not initialized");
     });
 
@@ -290,7 +292,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
       ).rejects.toThrow("Failed to start graph workflow");
     });
   });
@@ -456,7 +458,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
       ).rejects.toThrow("Cannot connect to Temporal server");
     });
 
@@ -466,7 +468,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
       ).rejects.toThrow("Connection to Temporal server timed out");
     });
 
@@ -476,7 +478,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
       ).rejects.toThrow("The Temporal worker may not be running");
     });
   });

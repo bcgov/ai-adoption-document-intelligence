@@ -43,6 +43,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "document.selectClassifiedPages",
   "document.flattenClassifiedDocuments",
   "data.transform",
+  "tables.lookup",
   "blob.read",
   "document.extractToBase64",
 ] as const;

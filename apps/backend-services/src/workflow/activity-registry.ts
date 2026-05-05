@@ -89,6 +89,9 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Execute data transformation: parse input, resolve field-mapping bindings, render output",
     },
+    "tables.lookup": {
+      description: "Look up a row from a Tables-managed reference table",
+    },
     "blob.read": {
       description: "Read a blob from storage and return its contents as base64",
     },

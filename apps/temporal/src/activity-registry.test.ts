@@ -42,6 +42,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.flattenClassifiedDocuments",
   "document.extractPageRange",
   "data.transform",
+  "tables.lookup",
   "blob.read",
   "document.extractToBase64",
 ];

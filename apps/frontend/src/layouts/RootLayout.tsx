@@ -25,6 +25,7 @@ import {
   IconList,
   IconLogout,
   IconSettings,
+  IconTable,
   IconTags,
   IconUpload,
   IconUsers,
@@ -64,6 +65,12 @@ export function RootLayout() {
         label: "Template Models",
         description: "Manage template models",
         icon: IconTags,
+      },
+      {
+        path: "/tables",
+        label: "Tables",
+        description: "Manage reference data tables",
+        icon: IconTable,
       },
       {
         path: "/review",
