@@ -197,7 +197,8 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
                     }
                     disabled={
                       v.buildMode === BuildMode.template ||
-                      v.maxTrainingHours == null
+                      v.maxTrainingHours == null ||
+                      v.actualTrainingHours == null
                     }
                   >
                     <Text size="sm">{formatModeCell(v)}</Text>
