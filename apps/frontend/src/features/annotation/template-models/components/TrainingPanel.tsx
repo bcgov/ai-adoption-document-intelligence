@@ -211,7 +211,13 @@ export function TrainingPanel({
             </Text>
             <SegmentedControl
               value={buildMode}
-              onChange={(v) => setBuildMode(v as BuildMode)}
+              onChange={(v) => {
+                const mode = v as BuildMode;
+                setBuildMode(mode);
+                if (mode === BuildMode.neural && maxTrainingHours === "") {
+                  setMaxTrainingHours(1);
+                }
+              }}
               data={[
                 { value: BuildMode.template, label: "Template" },
                 { value: BuildMode.neural, label: "Neural" },
@@ -267,6 +273,7 @@ export function TrainingPanel({
                 description="Default 1h. Training stops at this budget and returns the best model so far — it does not fail."
                 min={0.5}
                 step={0.5}
+                clampBehavior="strict"
                 value={maxTrainingHours}
                 onChange={(v) =>
                   setMaxTrainingHours(typeof v === "number" ? v : "")
