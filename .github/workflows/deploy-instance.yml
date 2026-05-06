@@ -406,7 +406,7 @@ jobs:
           # orphan cleanup reclaims underlying layers.
           # For test/dev, just orphan cleanup — no SHA tags accumulate.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
-            ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-*"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-*"
           else
-            ./scripts/artifactory-cleanup.sh --delete
+            bash ./scripts/artifactory-cleanup.sh --delete
           fi
