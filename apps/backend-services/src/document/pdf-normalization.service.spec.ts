@@ -6,7 +6,7 @@ import {
   PdfNormalizationService,
 } from "./pdf-normalization.service";
 
-/** Minimal valid 1×1 PNG (sharp accepts). */
+/** Minimal valid 1×1 PNG (RGB, no alpha — sharp accepts). */
 const MIN_PNG = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49,
   0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02,
@@ -15,6 +15,38 @@ const MIN_PNG = Buffer.from([
   0x00, 0x18, 0xdd, 0x8d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44,
   0xae, 0x42, 0x60, 0x82,
 ]);
+
+/** Minimal 1×1 JPEG generated at runtime. */
+let MIN_JPEG: Buffer;
+/** Minimal 1×1 RGBA PNG (has alpha channel) generated at runtime. */
+let MIN_RGBA_PNG: Buffer;
+
+beforeAll(async () => {
+  // biome-ignore lint/style/noCommonJs: sharp uses export = syntax; require avoids ESM/CJS parser incompatibility
+  const sharpFn: typeof import("sharp") = require("sharp");
+
+  MIN_JPEG = await sharpFn({
+    create: {
+      width: 1,
+      height: 1,
+      channels: 3,
+      background: { r: 255, g: 0, b: 0 },
+    },
+  })
+    .jpeg()
+    .toBuffer();
+
+  MIN_RGBA_PNG = await sharpFn({
+    create: {
+      width: 1,
+      height: 1,
+      channels: 4,
+      background: { r: 255, g: 0, b: 0, alpha: 0.5 },
+    },
+  })
+    .png()
+    .toBuffer();
+});
 
 async function minimalValidPdfBuffer(): Promise<Buffer> {
   const doc = await PDFDocument.create();
@@ -88,8 +120,22 @@ describe("PdfNormalizationService", () => {
       expect(out.equals(buf)).toBe(true);
     });
 
-    it("embeds a PNG image as PDF pages", async () => {
+    it("embeds a non-alpha PNG image as a single-page PDF using JPEG encoding", async () => {
       const out = await service.normalizeToPdf(MIN_PNG, "image");
+      expect(out.length).toBeGreaterThan(100);
+      const parsed = await PDFDocument.load(out);
+      expect(parsed.getPageCount()).toBe(1);
+    });
+
+    it("embeds a JPEG image as a single-page PDF using original bytes", async () => {
+      const out = await service.normalizeToPdf(MIN_JPEG, "image");
+      expect(out.length).toBeGreaterThan(100);
+      const parsed = await PDFDocument.load(out);
+      expect(parsed.getPageCount()).toBe(1);
+    });
+
+    it("embeds an RGBA PNG image as a single-page PDF using PNG encoding to preserve alpha", async () => {
+      const out = await service.normalizeToPdf(MIN_RGBA_PNG, "image");
       expect(out.length).toBeGreaterThan(100);
       const parsed = await PDFDocument.load(out);
       expect(parsed.getPageCount()).toBe(1);

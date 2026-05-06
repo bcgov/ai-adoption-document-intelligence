@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFImage } from "pdf-lib";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 /** `export =` module — default import breaks under Jest/ts-jest. */
@@ -94,13 +94,28 @@ export class PdfNormalizationService {
     try {
       const meta = await sharp(buffer).metadata();
       const pageCount = meta.pages ?? 1;
+      const isJpeg = meta.format === "jpeg";
+      const hasAlpha = meta.hasAlpha ?? false;
       const pdfDoc = await PDFDocument.create();
 
       for (let i = 0; i < pageCount; i++) {
         const pipeline =
           pageCount > 1 ? sharp(buffer, { page: i }) : sharp(buffer);
-        const pngBuffer = await pipeline.png().toBuffer();
-        const embedded = await pdfDoc.embedPng(pngBuffer);
+
+        let embedded: PDFImage;
+        if (isJpeg && pageCount === 1) {
+          // Embed original JPEG bytes directly — no re-encoding, no quality loss
+          embedded = await pdfDoc.embedJpg(buffer);
+        } else if (hasAlpha) {
+          // PNG is required to preserve transparency
+          const pngBuffer = await pipeline.png().toBuffer();
+          embedded = await pdfDoc.embedPng(pngBuffer);
+        } else {
+          // JPEG is far more compact than PNG for non-transparent images
+          const jpegBuffer = await pipeline.jpeg({ quality: 100 }).toBuffer();
+          embedded = await pdfDoc.embedJpg(jpegBuffer);
+        }
+
         const w = embedded.width;
         const h = embedded.height;
         const page = pdfDoc.addPage([w, h]);

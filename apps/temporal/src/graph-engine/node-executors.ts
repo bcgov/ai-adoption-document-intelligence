@@ -77,6 +77,33 @@ function mergeBenchmarkOcrCacheParams(
 }
 
 /**
+ * Build the parameter object passed to a registered activity, applying the
+ * standard merge order:
+ *   1. resolved port-binding inputs
+ *   2. static node parameters
+ *   3. system fields (requestId, groupId) — spread last so they always win
+ *
+ * SECURITY: groupId is the tenant scope set by the workflow caller. It lives
+ * on ExecutionState (not in ctx) so graph workflow authors (MEMBER role)
+ * cannot forge or override it via ctx defaults, port bindings, or static
+ * parameters to access another group's data. Every executor that invokes an
+ * activity must build its parameter object through this helper so the rule
+ * is applied consistently.
+ */
+function buildActivityParams(
+  node: { parameters?: Record<string, unknown> },
+  state: ExecutionState,
+  inputs: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...inputs,
+    ...node.parameters,
+    ...(state.requestId && { requestId: state.requestId }),
+    ...(state.groupId != null && { groupId: state.groupId }),
+  };
+}
+
+/**
  * Execute a node based on its type
  */
 export async function executeNode(
@@ -152,12 +179,8 @@ async function executeActivityNode(
     }
   }
 
-  // Step 3: Merge static parameters with resolved inputs; inject requestId for tracing
-  let activityParams: Record<string, unknown> = {
-    ...inputs,
-    ...node.parameters,
-    ...(state.requestId && { requestId: state.requestId }),
-  };
+  // Step 3: Merge static parameters with resolved inputs; inject system fields
+  let activityParams = buildActivityParams(node, state, inputs);
   activityParams = mergeBenchmarkOcrCacheParams(
     node.activityType,
     activityParams,
@@ -369,10 +392,7 @@ async function executePollUntilNode(
       }
     }
 
-    let activityParams: Record<string, unknown> = {
-      ...inputs,
-      ...node.parameters,
-    };
+    let activityParams = buildActivityParams(node, state, inputs);
     activityParams = mergeBenchmarkOcrCacheParams(
       node.activityType,
       activityParams,
@@ -524,6 +544,12 @@ async function executeChildWorkflowNode(
         configHash: state.configHash,
         runnerVersion: state.runnerVersion,
         parentWorkflowId: workflowInfo().workflowId,
+        // SECURITY: propagate the parent's tenant scope so the child runner
+        // sets state.groupId and its activity-node executor can inject the
+        // trusted groupId. Without this the child would run with
+        // state.groupId=null and any activity parameters supplied by the
+        // graph author would reach the activity unchecked.
+        groupId: state.groupId ?? null,
       },
     ],
   });

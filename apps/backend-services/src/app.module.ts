@@ -19,6 +19,7 @@ import { LoggingModule } from "./logging/logging.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
+import { TablesModule } from "./tables/tables.module";
 import { TemplateModelModule } from "./template-model/template-model.module";
 import { TemporalModule } from "./temporal/temporal.module";
 import { TrainingModule } from "./training/training.module";
@@ -67,6 +68,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     BootstrapModule,
     GroupModule,
     MetricsModule,
+    TablesModule,
   ],
   providers: [
     {

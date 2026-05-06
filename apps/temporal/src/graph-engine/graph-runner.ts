@@ -30,6 +30,7 @@ export async function runGraphExecution(
   state.configHash = input.configHash;
   state.runnerVersion = input.runnerVersion;
   state.requestId = input.requestId;
+  state.groupId = input.groupId ?? null;
 
   // Step 1: Initialize context from defaults + initialCtx
   state.ctx = initializeContext(config, input.initialCtx);
