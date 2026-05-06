@@ -17,8 +17,26 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// mupdf mock (ESM-only, loaded via dynamic import inside the activity)
+// tesseract.js — minimal mock for the static `import { OEM }` in the activity.
+// The actual createWorker is provided via the esm-imports mock below.
 // ---------------------------------------------------------------------------
+jest.mock("tesseract.js", () => ({
+  OEM: { TESSERACT_ONLY: 0 },
+}));
+
+// ---------------------------------------------------------------------------
+// ESM imports mock — replaces loadMupdf/loadTesseract so new Function() is
+// never invoked inside Jest's VM sandbox.
+// The factory only returns jest.fn() stubs with no references to outer
+// variables; per-test behaviour is configured in beforeEach via
+// jest.requireMock(), which avoids the var-hoisting problem entirely.
+// ---------------------------------------------------------------------------
+jest.mock("./esm-imports", () => ({
+  loadMupdf: jest.fn(),
+  loadTesseract: jest.fn(),
+}));
+
+// Per-page mupdf helpers — configured in beforeEach.
 const mockAsPNG = jest.fn<Uint8Array, []>(() => new Uint8Array([1, 2, 3]));
 const mockToPixmap = jest.fn<{ asPNG: typeof mockAsPNG }, [object, object]>(
   () => ({ asPNG: mockAsPNG }),
@@ -36,34 +54,8 @@ const mockOpenDocument = jest.fn<
   countPages: mockCountPages,
   loadPage: mockLoadPage,
 }));
-
-jest.mock("mupdf", () => ({
-  __esModule: true,
-  default: {
-    Document: {
-      openDocument: (buf: Uint8Array, magic: string) =>
-        mockOpenDocument(buf, magic),
-    },
-    Matrix: { scale: jest.fn(() => ({})) },
-    ColorSpace: { DeviceRGB: {} },
-  },
-}));
-
-// ---------------------------------------------------------------------------
-// tesseract.js mock (also loaded via dynamic import inside the activity)
-// ---------------------------------------------------------------------------
 const mockDetect = jest.fn();
 const mockTerminate = jest.fn().mockResolvedValue(undefined);
-
-jest.mock("tesseract.js", () => ({
-  OEM: { TESSERACT_ONLY: 0 },
-  createWorker: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      detect: mockDetect,
-      terminate: mockTerminate,
-    }),
-  ),
-}));
 
 // ---------------------------------------------------------------------------
 // pdf-lib mock — only needs to produce a valid save() buffer
@@ -114,6 +106,29 @@ describe("normalizeDocumentOrientation", () => {
     mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4 fake"));
     mockCountPages.mockReturnValue(1);
     mockBlobWrite.mockResolvedValue(undefined);
+
+    const esmImports = jest.requireMock("./esm-imports") as {
+      loadMupdf: jest.Mock;
+      loadTesseract: jest.Mock;
+    };
+
+    esmImports.loadMupdf.mockResolvedValue({
+      Document: {
+        openDocument: (buf: Uint8Array, magic: string) =>
+          mockOpenDocument(buf, magic),
+      },
+      Matrix: { scale: jest.fn(() => ({})) },
+      ColorSpace: { DeviceRGB: {} },
+    });
+
+    esmImports.loadTesseract.mockResolvedValue({
+      OEM: { TESSERACT_ONLY: 0 },
+      createWorker: jest
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve({ detect: mockDetect, terminate: mockTerminate }),
+        ),
+    });
   });
 
   // --- No correction needed ---

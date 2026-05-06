@@ -5,6 +5,7 @@ import type { Worker as TesseractWorker } from "tesseract.js";
 import { OEM } from "tesseract.js";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
+import { loadMupdf, loadTesseract } from "./esm-imports";
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 2.0;
 
@@ -48,21 +49,14 @@ export interface NormalizeDocumentOrientationOutput {
 let mupdfPromise: Promise<typeof import("mupdf")["default"]> | null = null;
 
 /**
- * Loads mupdf via a true ESM dynamic import, bypassing the TypeScript
- * CommonJS transform that would compile `import("mupdf")` into `require()`.
- * Node 22+ can `require()` ESM modules, but only when they have no top-level
- * `await` — mupdf does, so `require()` throws. Using `new Function(...)` keeps
- * the import call opaque to the TypeScript compiler so it is emitted as a
- * genuine `import()` expression in the compiled output.
+ * Returns the mupdf default export, loading it via `loadMupdf()` on first call
+ * and caching the result for the lifetime of the worker process.
  *
  * @returns The default export of the mupdf module.
  */
 async function getMupdf(): Promise<typeof import("mupdf")["default"]> {
   if (!mupdfPromise) {
-    const esmImport = new Function("m", "return import(m)") as (
-      m: string,
-    ) => Promise<{ default: typeof import("mupdf")["default"] }>;
-    mupdfPromise = esmImport("mupdf").then((m) => m.default);
+    mupdfPromise = loadMupdf();
   }
   return mupdfPromise;
 }
@@ -130,12 +124,7 @@ export async function normalizeDocumentOrientation(
   const pageCount = mupdfDoc.countPages();
 
   // Load tesseract OSD worker once for all pages in this document.
-  // Use new Function() to emit a true ESM dynamic import in the compiled CJS
-  // output — same reason as getMupdf() above.
-  const esmImport = new Function("m", "return import(m)") as (
-    m: string,
-  ) => Promise<typeof import("tesseract.js")>;
-  const { createWorker } = await esmImport("tesseract.js");
+  const { createWorker } = await loadTesseract();
   const worker: TesseractWorker = await createWorker("osd", OEM.TESSERACT_ONLY);
 
   const pageCorrections: PageOrientationResult[] = [];
