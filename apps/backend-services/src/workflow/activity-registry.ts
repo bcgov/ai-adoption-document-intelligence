@@ -99,6 +99,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Extract a page range from a PDF blob and return it as base64 (no blob write)",
     },
+    "document.normalizeOrientation": {
+      description:
+        "Detect and correct per-page orientation using mupdf rendering and Tesseract OSD",
+    },
   } as const;
 
 /**
