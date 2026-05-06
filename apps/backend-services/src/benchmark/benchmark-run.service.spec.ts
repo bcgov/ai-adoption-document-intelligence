@@ -1907,6 +1907,21 @@ describe("BenchmarkRunService", () => {
         { field: "name", matched: true, confidence: 0.95 },
         { field: "total", matched: false, confidence: 0.42 },
       ]);
+      // perFieldResults built from evaluation details across all samples
+      expect(result.perFieldResults).toHaveLength(2);
+      const nameField = result.perFieldResults.find((f) => f.name === "name")!;
+      expect(nameField.evaluatedCount).toBe(2);
+      expect(nameField.correctCount).toBe(1);
+      expect(nameField.errorCount).toBe(1);
+      expect(nameField.errors).toHaveLength(1);
+      expect(nameField.errors[0].sampleId).toBe("s2");
+      const totalField = result.perFieldResults.find(
+        (f) => f.name === "total",
+      )!;
+      expect(totalField.evaluatedCount).toBe(1);
+      expect(totalField.errorCount).toBe(1);
+      expect(totalField.errors).toHaveLength(1);
+      expect(totalField.errors[0].sampleId).toBe("s1");
       expect(result.errorDetectionAnalysis).toBeDefined();
     });
 
@@ -2092,6 +2107,7 @@ describe("BenchmarkRunService", () => {
       expect(result.run.status).toBe("failed");
       expect(result.run.error).toBe("Worker crashed during evaluation");
       expect(result.perSampleResults).toEqual([]);
+      expect(result.perFieldResults).toEqual([]);
       expect(result.errorDetectionAnalysis).toBeUndefined();
     });
 
@@ -2100,6 +2116,109 @@ describe("BenchmarkRunService", () => {
       await expect(
         service.exportFullRun("project-1", "missing"),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("merges suggested thresholds from analysis and strips curves", async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          BenchmarkRunService,
+          BenchmarkRunDbService,
+          { provide: PrismaService, useValue: { prisma: mockPrismaClient } },
+          {
+            provide: BenchmarkTemporalService,
+            useValue: {
+              startBenchmarkRunWorkflow: jest.fn(),
+              cancelBenchmarkRunWorkflow: jest.fn(),
+              getWorkflowStatus: jest.fn(),
+            },
+          },
+          {
+            provide: DatasetService,
+            useValue: { validateDatasetVersion: jest.fn() },
+          },
+          {
+            provide: AuditLogService,
+            useValue: {
+              logRunStarted: jest.fn(),
+              logBaselinePromoted: jest.fn(),
+            },
+          },
+          {
+            provide: BLOB_STORAGE,
+            useValue: {
+              read: jest.fn(),
+              write: jest.fn(),
+              exists: jest.fn(),
+              delete: jest.fn(),
+              list: jest.fn(),
+              deleteByPrefix: jest.fn(),
+            },
+          },
+          {
+            provide: BenchmarkErrorDetectionService,
+            useValue: {
+              getAnalysis: jest.fn().mockResolvedValue({
+                runId: "run-1",
+                notReady: false,
+                fields: [
+                  {
+                    name: "name",
+                    evaluatedCount: 10,
+                    errorCount: 2,
+                    errorRate: 0.2,
+                    curve: [
+                      { threshold: 0, tp: 0, fp: 0, fn: 2, tn: 8 },
+                      { threshold: 0.5, tp: 1, fp: 1, fn: 1, tn: 7 },
+                    ],
+                    suggestedCatch90: 0.3,
+                    suggestedBestBalance: 0.5,
+                    suggestedMinimizeReview: 0.7,
+                  },
+                ],
+                excludedFields: ["signature"],
+              }),
+              invalidate: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+      const svc = moduleRef.get<BenchmarkRunService>(BenchmarkRunService);
+
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        exportableRun(),
+      );
+
+      const result = await svc.exportFullRun("project-1", "run-1");
+
+      // perFieldResults is built from evaluation details and enriched with thresholds
+      const nameField = result.perFieldResults.find((f) => f.name === "name")!;
+      expect(nameField).toBeDefined();
+      expect(nameField.suggestedCatch90).toBe(0.3);
+      expect(nameField.suggestedBestBalance).toBe(0.5);
+      expect(nameField.suggestedMinimizeReview).toBe(0.7);
+      expect(nameField.errors).toBeDefined();
+      expect(nameField.errors.length).toBeGreaterThan(0);
+      // Error instances include source sample info
+      expect(nameField.errors[0]).toHaveProperty("sampleId");
+      expect(nameField.errors[0]).toHaveProperty("sampleMetadata");
+      expect(nameField.errors[0]).toHaveProperty("expected");
+      expect(nameField.errors[0]).toHaveProperty("predicted");
+      expect(nameField.errors[0]).toHaveProperty("confidence");
+
+      // "total" field doesn't have a matching analysis entry, keeps default thresholds
+      const totalField = result.perFieldResults.find(
+        (f) => f.name === "total",
+      )!;
+      expect(totalField.suggestedCatch90).toBeNull();
+      expect(totalField.suggestedBestBalance).toBe(0);
+
+      // errorDetectionAnalysis fields have empty curve arrays
+      expect(result.errorDetectionAnalysis).toBeDefined();
+      expect(result.errorDetectionAnalysis!.fields[0].curve).toEqual([]);
+      expect(result.errorDetectionAnalysis!.fields[0].name).toBe("name");
+      expect(result.errorDetectionAnalysis!.excludedFields).toEqual([
+        "signature",
+      ]);
     });
   });
 });

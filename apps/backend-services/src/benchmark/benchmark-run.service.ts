@@ -39,6 +39,7 @@ import {
   BenchmarkRunExportSampleDto,
   CreateRunDto,
   DrillDownResponseDto,
+  ExportPerFieldResultDto,
   FieldErrorBreakdownDto,
   MetricComparison,
   MetricThreshold,
@@ -104,6 +105,133 @@ export class BenchmarkRunService {
       );
       return { blobReadError: message };
     }
+  }
+
+  /**
+   * Build comprehensive per-field results aggregated across all samples.
+   * Groups evaluation details by field name and collects every error instance
+   * with source document info, expected/predicted values, and confidence.
+   */
+  private buildPerFieldResults(
+    rawSamples: Array<{
+      sampleId: string;
+      metadata?: Record<string, unknown>;
+    }>,
+    resolvedDetails: Array<{
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      blobReadError?: string;
+    }>,
+  ): ExportPerFieldResultDto[] {
+    interface FieldInstance {
+      sampleId: string;
+      sampleMetadata: Record<string, unknown>;
+      expected: unknown;
+      predicted: unknown;
+      confidence: number | null;
+      matched: boolean;
+    }
+
+    const byField = new Map<string, FieldInstance[]>();
+
+    for (let idx = 0; idx < rawSamples.length; idx++) {
+      const sample = rawSamples[idx];
+      const resolved = resolvedDetails[idx];
+      const details = Array.isArray(resolved.evaluationDetails)
+        ? (resolved.evaluationDetails as Array<{
+            field: string;
+            matched: boolean;
+            confidence?: number | null;
+            expected?: unknown;
+            predicted?: unknown;
+          }>)
+        : [];
+
+      const groundTruth =
+        resolved.groundTruth && typeof resolved.groundTruth === "object"
+          ? (resolved.groundTruth as Record<string, unknown>)
+          : {};
+      const prediction =
+        resolved.prediction && typeof resolved.prediction === "object"
+          ? (resolved.prediction as Record<string, unknown>)
+          : {};
+
+      for (const d of details) {
+        if (!d || typeof d.field !== "string") continue;
+
+        if (!byField.has(d.field)) byField.set(d.field, []);
+        byField.get(d.field)!.push({
+          sampleId: sample.sampleId,
+          sampleMetadata: sample.metadata ?? {},
+          expected:
+            d.expected !== undefined
+              ? d.expected
+              : (groundTruth[d.field] ?? null),
+          predicted:
+            d.predicted !== undefined
+              ? d.predicted
+              : (prediction[d.field] ?? null),
+          confidence: typeof d.confidence === "number" ? d.confidence : null,
+          matched: d.matched === true,
+        });
+      }
+    }
+
+    const results: ExportPerFieldResultDto[] = [];
+    for (const [name, instances] of byField.entries()) {
+      const evaluatedCount = instances.length;
+      const correctCount = instances.filter((i) => i.matched).length;
+      const errorCount = evaluatedCount - correctCount;
+      const errorRate = evaluatedCount === 0 ? 0 : errorCount / evaluatedCount;
+      const accuracy = evaluatedCount === 0 ? 0 : correctCount / evaluatedCount;
+
+      const confidenceValues = instances
+        .filter((i) => i.confidence !== null)
+        .map((i) => i.confidence as number);
+      const correctConfidence = instances
+        .filter((i) => i.matched && i.confidence !== null)
+        .map((i) => i.confidence as number);
+      const errorConfidence = instances
+        .filter((i) => !i.matched && i.confidence !== null)
+        .map((i) => i.confidence as number);
+
+      const avg = (values: number[]): number | null =>
+        values.length === 0
+          ? null
+          : values.reduce((sum, v) => sum + v, 0) / values.length;
+
+      const errors = instances
+        .filter((i) => !i.matched)
+        .map((i) => ({
+          sampleId: i.sampleId,
+          sampleMetadata: i.sampleMetadata,
+          expected: i.expected,
+          predicted: i.predicted,
+          confidence: i.confidence,
+          matched: i.matched,
+        }));
+
+      results.push({
+        name,
+        evaluatedCount,
+        correctCount,
+        errorCount,
+        errorRate,
+        accuracy,
+        averageConfidence: avg(confidenceValues),
+        averageConfidenceCorrect: avg(correctConfidence),
+        averageConfidenceErrors: avg(errorConfidence),
+        suggestedCatch90: null,
+        suggestedBestBalance: 0,
+        suggestedMinimizeReview: null,
+        errors,
+      });
+    }
+
+    // Sort by error rate descending (worst fields first)
+    results.sort((a, b) => b.errorRate - a.errorRate);
+    return results;
   }
 
   /**
@@ -1170,12 +1298,38 @@ export class BenchmarkRunService {
     );
 
     let errorDetectionAnalysis: BenchmarkRunExportDto["errorDetectionAnalysis"];
+    let perFieldResults: ExportPerFieldResultDto[] = [];
     if (rawSamples.length > 0) {
+      // Build comprehensive per-field results from resolved evaluation details
+      perFieldResults = this.buildPerFieldResults(rawSamples, resolvedDetails);
+
       try {
-        errorDetectionAnalysis = await this.errorDetectionService.getAnalysis(
+        const fullAnalysis = await this.errorDetectionService.getAnalysis(
           projectId,
           runId,
         );
+
+        // Merge suggested thresholds from the error-detection analysis into perFieldResults
+        const thresholdsByField = new Map(
+          fullAnalysis.fields.map((f) => [f.name, f]),
+        );
+        for (const field of perFieldResults) {
+          const analysis = thresholdsByField.get(field.name);
+          if (analysis) {
+            field.suggestedCatch90 = analysis.suggestedCatch90;
+            field.suggestedBestBalance = analysis.suggestedBestBalance;
+            field.suggestedMinimizeReview = analysis.suggestedMinimizeReview;
+          }
+        }
+
+        // Strip curve from errorDetectionAnalysis fields for the export
+        errorDetectionAnalysis = {
+          ...fullAnalysis,
+          fields: fullAnalysis.fields.map((f) => ({
+            ...f,
+            curve: [],
+          })),
+        };
       } catch (err) {
         // Never fail an export over a derived analysis; the raw data is the
         // primary payload and consumers can recompute curves themselves.
@@ -1190,6 +1344,7 @@ export class BenchmarkRunService {
       exportFormatVersion: 1,
       run: runDetails,
       metrics,
+      perFieldResults,
       perSampleResults,
       errorDetectionAnalysis,
     };

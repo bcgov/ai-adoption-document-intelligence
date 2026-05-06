@@ -668,6 +668,7 @@ describe("BenchmarkRunController", () => {
         exportFormatVersion: 1,
         run: { id: "r1" } as unknown,
         metrics: {},
+        perFieldResults: [{ name: "name", evaluatedCount: 1 }],
         perSampleResults: [
           { sampleId: "s1", metadata: {}, metrics: {}, pass: true },
         ],
@@ -693,12 +694,13 @@ describe("BenchmarkRunController", () => {
       expect(JSON.parse(sentBuffer.toString("utf-8"))).toEqual(exportPayload);
       expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          event_type: "document_list_accessed",
+          event_type: "benchmark_run_downloaded",
           resource_type: "benchmark_run",
           resource_id: "r1",
           payload: expect.objectContaining({
             action: "download",
             sample_count: 1,
+            field_count: 1,
           }),
         }),
       );

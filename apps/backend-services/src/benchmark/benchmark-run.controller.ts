@@ -434,7 +434,7 @@ export class BenchmarkRunController {
       runId,
     );
     await this.auditService.recordEvent({
-      event_type: "document_list_accessed",
+      event_type: "benchmark_run_downloaded",
       resource_type: "benchmark_run",
       resource_id: runId,
       actor_id: req.resolvedIdentity.actorId,
@@ -443,6 +443,7 @@ export class BenchmarkRunController {
         action: "download",
         project_id: projectId,
         sample_count: exportPayload.perSampleResults.length,
+        field_count: exportPayload.perFieldResults.length,
       },
     });
     const body = Buffer.from(JSON.stringify(exportPayload), "utf-8");

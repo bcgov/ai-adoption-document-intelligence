@@ -5,8 +5,9 @@
  * return a complete, self-contained dump of a benchmark run: run metadata,
  * aggregated metrics, every per-sample result with `groundTruth`,
  * `prediction`, `evaluationDetails` (resolved from blob storage when needed),
- * and the precomputed error-detection curves. Heavy data is returned inline
- * in a single JSON document so it can be saved to disk and replayed offline.
+ * and the precomputed error-detection analysis (without heavy curve data).
+ * Heavy data is returned inline in a single JSON document so it can be saved
+ * to disk and replayed offline.
  */
 
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
@@ -83,6 +84,120 @@ export class BenchmarkRunExportSampleDto {
 }
 
 /**
+ * A single error instance for a field across all samples.
+ */
+export class ExportFieldErrorInstanceDto {
+  @ApiProperty({ description: "Sample ID where the error occurred" })
+  sampleId!: string;
+
+  @ApiProperty({
+    description: "Sample metadata (e.g. document filename, type, page number)",
+    type: "object",
+    additionalProperties: true,
+  })
+  sampleMetadata!: Record<string, unknown>;
+
+  @ApiProperty({
+    description: "Expected (ground truth) value for this field",
+    nullable: true,
+  })
+  expected!: unknown;
+
+  @ApiProperty({
+    description: "Predicted value produced by the model for this field",
+    nullable: true,
+  })
+  predicted!: unknown;
+
+  @ApiProperty({
+    description: "Confidence score assigned by the evaluator (0–1)",
+    nullable: true,
+  })
+  confidence!: number | null;
+
+  @ApiProperty({ description: "Whether this instance was matched correctly" })
+  matched!: boolean;
+}
+
+/**
+ * Per-field aggregated metrics across all samples, with every individual
+ * evaluation instance for comprehensive offline analysis.
+ */
+export class ExportPerFieldResultDto {
+  @ApiProperty({ description: "Field name" })
+  name!: string;
+
+  @ApiProperty({
+    description:
+      "Total number of instances across all samples where this field was evaluated",
+  })
+  evaluatedCount!: number;
+
+  @ApiProperty({
+    description: "Number of correctly matched instances",
+  })
+  correctCount!: number;
+
+  @ApiProperty({ description: "Number of incorrect instances among evaluated" })
+  errorCount!: number;
+
+  @ApiProperty({ description: "Error rate: errorCount / evaluatedCount" })
+  errorRate!: number;
+
+  @ApiProperty({
+    description: "Accuracy: correctCount / evaluatedCount",
+  })
+  accuracy!: number;
+
+  @ApiProperty({
+    description: "Average confidence score across all evaluated instances",
+    nullable: true,
+  })
+  averageConfidence!: number | null;
+
+  @ApiProperty({
+    description:
+      "Average confidence score for correctly matched instances only",
+    nullable: true,
+  })
+  averageConfidenceCorrect!: number | null;
+
+  @ApiProperty({
+    description: "Average confidence score for error instances only",
+    nullable: true,
+  })
+  averageConfidenceErrors!: number | null;
+
+  @ApiPropertyOptional({
+    description:
+      "Smallest threshold whose recall ≥ 0.90, or null if unattainable",
+    nullable: true,
+  })
+  suggestedCatch90!: number | null;
+
+  @ApiProperty({
+    description: "Threshold maximizing F1 (ties broken by smaller threshold)",
+  })
+  suggestedBestBalance!: number;
+
+  @ApiPropertyOptional({
+    description:
+      "Largest threshold whose false-positive rate ≤ 0.10, or null if unattainable",
+    nullable: true,
+  })
+  suggestedMinimizeReview!: number | null;
+
+  @ApiProperty({
+    description:
+      "Every error instance for this field across all samples, with source " +
+      "document, expected/predicted values, and confidence score.",
+    type: () => ExportFieldErrorInstanceDto,
+    isArray: true,
+  })
+  errors!: ExportFieldErrorInstanceDto[];
+}
+
+/**
  * Top-level export envelope returned by the download endpoint.
  */
 export class BenchmarkRunExportDto {
@@ -115,6 +230,16 @@ export class BenchmarkRunExportDto {
 
   @ApiProperty({
     description:
+      "Per-field results aggregated over all samples. Includes all metrics " +
+      "(evaluatedCount, errorCount, errorRate, suggested thresholds) but " +
+      "excludes the heavy confidence-threshold curve data.",
+    type: () => ExportPerFieldResultDto,
+    isArray: true,
+  })
+  perFieldResults!: ExportPerFieldResultDto[];
+
+  @ApiProperty({
+    description:
       "Every per-sample result with full evaluation details inlined. " +
       "Includes ground truth, prediction, field-level matched/confidence, " +
       "and any per-sample diagnostics or error info.",
@@ -125,9 +250,8 @@ export class BenchmarkRunExportDto {
 
   @ApiPropertyOptional({
     description:
-      "Precomputed error-detection analysis (confidence-threshold curves and " +
-      "suggested cut-offs per field). Omitted for runs that have no per-sample " +
-      "results yet.",
+      "Precomputed error-detection analysis (suggested cut-offs per field, " +
+      "without curve data). Omitted for runs that have no per-sample results yet.",
     type: () => ErrorDetectionAnalysisResponseDto,
   })
   errorDetectionAnalysis?: ErrorDetectionAnalysisResponseDto;
