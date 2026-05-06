@@ -9,6 +9,8 @@ data:
   TEMPORAL_NAMESPACE: "default"
   TEMPORAL_TASK_QUEUE: "ocr-processing"
   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-azure-endpoint.cognitiveservices.azure.com"
+  # Set to "true" for worker OCR activities only (no live Document Intelligence). See docs-md/LOAD_TESTING.md
+  MOCK_AZURE_OCR: "false"
   # Blob storage
   BLOB_STORAGE_PROVIDER: "minio"
   AZURE_STORAGE_CONTAINER_NAME: "document-blobs"

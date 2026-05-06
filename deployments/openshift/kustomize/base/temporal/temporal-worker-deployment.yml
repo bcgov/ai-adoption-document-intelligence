@@ -58,6 +58,11 @@ spec:
                 secretKeyRef:
                   name: temporal-worker-secrets
                   key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+            - name: MOCK_AZURE_OCR
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MOCK_AZURE_OCR
             - name: BENCHMARK_TASK_QUEUE
               valueFrom:
                 configMapKeyRef:

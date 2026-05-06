@@ -3,6 +3,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "./azure.service";
+import { MOCK_DOCUMENT_INTELLIGENCE_ENDPOINT } from "./mock-document-intelligence.constants";
 
 describe("AzureService", () => {
   let service: AzureService;
@@ -193,6 +194,56 @@ describe("AzureService", () => {
       ).rejects.toThrow(
         `operationLocation origin "https://attacker.com" does not match expected Azure endpoint origin "https://test.com"`,
       );
+    });
+  });
+
+  describe("DOCUMENT_INTELLIGENCE_MODE=mock", () => {
+    beforeEach(async () => {
+      configService = {
+        get: jest.fn((key: string) => {
+          if (key === "DOCUMENT_INTELLIGENCE_MODE") return "mock";
+          if (key === "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+            return "https://unused.example.com";
+          if (key === "AZURE_DOCUMENT_INTELLIGENCE_API_KEY") return "unused";
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          { provide: ConfigService, useValue: configService },
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          AzureService,
+        ],
+      }).compile();
+      service = module.get<AzureService>(AzureService);
+    });
+
+    it("uses fixed mock endpoint and reports mock mode", () => {
+      expect(service.isMockMode()).toBe(true);
+      expect(service.getEndpoint()).toBe(MOCK_DOCUMENT_INTELLIGENCE_ENDPOINT);
+    });
+
+    it("checkOperationStatus returns deterministic succeeded classification body", async () => {
+      const result = await service.checkOperationStatus(
+        `${MOCK_DOCUMENT_INTELLIGENCE_ENDPOINT}/documentintelligence/analyzeResults/mock-op`,
+      );
+      expect(result.status).toBe("succeeded");
+      expect(
+        (result.analyzeResult as { modelId?: string } | undefined)?.modelId,
+      ).toBe("mock-classifier");
+    });
+
+    it("pollOperationUntilResolved invokes onSuccess without live polling loop", async () => {
+      const onSuccess = jest.fn();
+      await service.pollOperationUntilResolved(
+        `${MOCK_DOCUMENT_INTELLIGENCE_ENDPOINT}/documentintelligence/analyzeResults/mock-op`,
+        onSuccess,
+        undefined,
+        { maxRetries: 0, intervalMs: 1 },
+      );
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+      expect(onSuccess.mock.calls[0][0].status).toBe("succeeded");
     });
   });
 });

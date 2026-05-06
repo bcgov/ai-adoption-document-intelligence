@@ -7,6 +7,7 @@ import { Prisma, TrainingStatus } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { TrainingDbService } from "./training-db.service";
 
@@ -38,15 +39,20 @@ interface AzureModelResponse {
 
 @Injectable()
 export class TrainingPollerService {
-  private adminClient!: DocumentIntelligenceClient;
+  private adminClient?: DocumentIntelligenceClient;
   private readonly pollInterval: number;
   private readonly maxAttempts: number;
+  private readonly diMode: ReturnType<typeof resolveDocumentIntelligenceMode>;
 
   constructor(
     private readonly trainingDb: TrainingDbService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
   ) {
+    this.diMode = resolveDocumentIntelligenceMode(
+      this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
+    );
+
     const endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
@@ -54,7 +60,11 @@ export class TrainingPollerService {
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
 
-    if (!endpoint || !apiKey) {
+    if (this.diMode === "mock") {
+      this.logger.log(
+        "DOCUMENT_INTELLIGENCE_MODE=mock — training job polling against Azure is disabled.",
+      );
+    } else if (!endpoint || !apiKey) {
       this.logger.warn(
         "Azure Document Intelligence credentials not configured. Training polling will not work.",
       );
@@ -128,6 +138,11 @@ export class TrainingPollerService {
         return;
       }
 
+      const client = this.adminClient;
+      if (!client) {
+        return;
+      }
+
       // Calculate attempt number based on job start time
       const job = await this.trainingDb.findTrainingJob(jobId);
 
@@ -159,7 +174,7 @@ export class TrainingPollerService {
 
       // Poll the build operation status
       try {
-        const operationResponse = await this.adminClient
+        const operationResponse = await client
           .path("/operations/{operationId}", operationId)
           .get();
 
@@ -208,7 +223,7 @@ export class TrainingPollerService {
 
         if (!resultModel) {
           // Fallback: fetch the model by ID
-          const modelResponse = await this.adminClient
+          const modelResponse = await client
             .path("/documentModels/{modelId}", modelId)
             .get();
 

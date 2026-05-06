@@ -102,6 +102,9 @@ These values are derived automatically by the deploy script — do not set them 
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | No | Azure Document Intelligence API endpoint |
 | `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | Yes | Azure Document Intelligence API key |
 | `AZURE_DOC_INTELLIGENCE_MODELS` | No | Comma-separated allowed model IDs |
+| `DOCUMENT_INTELLIGENCE_MODE` | No | `live` (default) or `mock`; mock avoids live Azure for classification polling and labeling OCR and returns **503** for template/classifier training — use only on disposable environments |
+
+See [LOAD_TESTING.md](../LOAD_TESTING.md) for load-test usage of `mock`.
 
 ### Azure Blob Storage
 

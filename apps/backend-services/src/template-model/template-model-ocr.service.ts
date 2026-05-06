@@ -5,6 +5,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
 import {
   buildBlobFilePath,
   OperationCategory,
@@ -24,6 +25,7 @@ import type { AnalysisResponse } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import type { LabelingDocumentData } from "./labeling-document-db.types";
+import { mockLabelingOcrAnalysisResponse } from "./mock-labeling-ocr-response";
 
 type JsonValue = Prisma.JsonValue;
 
@@ -35,6 +37,7 @@ export type CreateLabelingDocumentResult =
 export class TemplateModelOcrService {
   private readonly azureEndpoint: string;
   private readonly azureApiKey: string;
+  private readonly diMode: ReturnType<typeof resolveDocumentIntelligenceMode>;
 
   constructor(
     private readonly labelingDocumentDb: LabelingDocumentDbService,
@@ -45,6 +48,9 @@ export class TemplateModelOcrService {
     private readonly pdfNormalization: PdfNormalizationService,
     private readonly logger: AppLoggerService,
   ) {
+    this.diMode = resolveDocumentIntelligenceMode(
+      this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
+    );
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     )!;
@@ -184,6 +190,10 @@ export class TemplateModelOcrService {
   }
 
   private async requestOcr(blobKey: string): Promise<string> {
+    if (this.diMode === "mock") {
+      return "mock-apim-request-id";
+    }
+
     const fileBuffer = await this.blobStorage.read(
       validateBlobFilePath(blobKey),
     );
@@ -215,6 +225,10 @@ export class TemplateModelOcrService {
     maxAttempts = 30,
     delayMs = 2000,
   ): Promise<AnalysisResponse> {
+    if (this.diMode === "mock") {
+      return mockLabelingOcrAnalysisResponse();
+    }
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const response = await lastValueFrom(
         this.httpService.get(

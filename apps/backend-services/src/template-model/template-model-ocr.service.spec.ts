@@ -492,4 +492,102 @@ describe("TemplateModelOcrService", () => {
       });
     });
   });
+
+  describe("DOCUMENT_INTELLIGENCE_MODE=mock", () => {
+    beforeEach(async () => {
+      const mockLabelingDocumentDb = {
+        createLabelingDocument: jest.fn(),
+        findLabelingDocument: jest.fn(),
+        updateLabelingDocument: jest.fn(),
+      };
+
+      const mockHttp = {
+        post: jest.fn(),
+        get: jest.fn(),
+      };
+
+      const mockBlob = {
+        write: jest.fn().mockResolvedValue(undefined),
+        read: jest.fn().mockResolvedValue(Buffer.from("test")),
+        exists: jest.fn().mockResolvedValue(true),
+        delete: jest.fn().mockResolvedValue(undefined),
+        list: jest.fn().mockResolvedValue([]),
+        deleteByPrefix: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const mockConfig = {
+        get: jest.fn((key: string) => {
+          const config: Record<string, string> = {
+            DOCUMENT_INTELLIGENCE_MODE: "mock",
+            AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
+            AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+          };
+          return config[key];
+        }),
+      };
+
+      const mockPdfNormalization = {
+        validateForUpload: jest.fn().mockResolvedValue(undefined),
+        normalizeToPdf: jest
+          .fn()
+          .mockImplementation((buf: Buffer) =>
+            Promise.resolve(Buffer.from(buf)),
+          ),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TemplateModelOcrService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          {
+            provide: LabelingDocumentDbService,
+            useValue: mockLabelingDocumentDb,
+          },
+          {
+            provide: HttpService,
+            useValue: mockHttp,
+          },
+          {
+            provide: ConfigService,
+            useValue: mockConfig,
+          },
+          {
+            provide: BLOB_STORAGE,
+            useValue: mockBlob,
+          },
+          {
+            provide: PdfNormalizationService,
+            useValue: mockPdfNormalization,
+          },
+        ],
+      }).compile();
+
+      service = module.get<TemplateModelOcrService>(TemplateModelOcrService);
+      mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
+      mockHttpService = module.get(HttpService);
+    });
+
+    it("processOcrForLabelingDocument completes without Azure HTTP calls", async () => {
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
+        mockLabelingDocument as never,
+      );
+
+      await service.processOcrForLabelingDocument("doc-1");
+
+      expect(mockHttpService.post).not.toHaveBeenCalled();
+      expect(mockHttpService.get).not.toHaveBeenCalled();
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith(
+        "doc-1",
+        expect.objectContaining({
+          status: DocumentStatus.completed_ocr,
+          ocr_result: expect.objectContaining({
+            status: "succeeded",
+            analyzeResult: expect.objectContaining({ content: "mock" }),
+          }),
+        }),
+      );
+    });
+  });
 });

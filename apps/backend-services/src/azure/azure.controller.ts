@@ -93,7 +93,7 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -127,6 +127,7 @@ export class AzureController {
   @Identity({
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { body: "group_id" },
+    allowApiKey: true,
   })
   @ApiOperation({
     summary: "Create a new classifier",
@@ -221,6 +222,7 @@ export class AzureController {
 
   @Post("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -289,6 +291,7 @@ export class AzureController {
 
   @Get("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -338,6 +341,7 @@ export class AzureController {
 
   @Delete("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })

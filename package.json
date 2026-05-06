@@ -7,7 +7,8 @@
 		"apps/backend-services",
 		"apps/frontend",
 		"apps/temporal",
-		"packages/*"
+		"packages/*",
+		"tools/load-testing"
 	],
 	"scripts": {
 		"dev:backend": "mkdir -p logs && cd apps/backend-services && npm run start:dev 2>&1 | tee ../../logs/backend-services.log",
@@ -28,7 +29,18 @@
 		"dev:monitoring": "docker compose -f deployments/local/docker-compose.monitoring.yml up -d",
 		"dev:monitoring:down": "docker compose -f deployments/local/docker-compose.monitoring.yml down",
 		"dev:monitoring:logs": "docker compose -f deployments/local/docker-compose.monitoring.yml logs -f",
-		"docs:build": "npm run generate:openapi && cd docs && bash build.sh"
+		"docs:build": "npm run generate:openapi && cd docs && bash build.sh",
+		"load-test:seed": "npm run seed -w @ai-di/load-testing --",
+		"load-test:hitl-fixtures": "npm run hitl-fixtures -w @ai-di/load-testing --",
+		"load-test:k6:smoke": "npm run k6:smoke -w @ai-di/load-testing",
+		"load-test:k6:datasets": "npm run k6:datasets -w @ai-di/load-testing",
+		"load-test:k6:documents": "npm run k6:documents -w @ai-di/load-testing",
+		"load-test:k6:upload-ocr": "npm run k6:upload-ocr -w @ai-di/load-testing",
+		"load-test:k6:payload-sizes": "npm run k6:payload-sizes -w @ai-di/load-testing",
+		"load-test:k6:blob-storage": "npm run k6:blob-storage -w @ai-di/load-testing",
+		"load-test:k6:review-hitl": "npm run k6:review-hitl -w @ai-di/load-testing",
+		"load-test:temporal:saturation": "npm run temporal:saturation -w @ai-di/load-testing",
+		"load-test:temporal:saturation:cleanup": "npm run temporal:saturation:cleanup -w @ai-di/load-testing"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.58.2",
@@ -36,7 +48,7 @@
 		"dotenv": "17.2.3",
 		"lefthook": "2.1.4",
 		"picomatch": "4.0.4",
-    "prisma": "7.2.0"
+		"prisma": "7.2.0"
 	},
 	"engines": {
 		"node": ">=24.0.0",
