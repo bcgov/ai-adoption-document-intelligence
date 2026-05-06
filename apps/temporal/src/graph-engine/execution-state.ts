@@ -21,6 +21,11 @@ export interface ExecutionState {
   configHash: string;
   runnerVersion: string;
   requestId?: string;
+  // Tenant scope: the group under which the workflow was started. Set by the
+  // caller (server-side, derived from the document's group_id), never from
+  // the workflow JSON. Lives outside ctx so graph-workflow authors cannot
+  // forge or override it via ctx defaults.
+  groupId?: string | null;
   lastError: {
     current?: {
       nodeId: string;

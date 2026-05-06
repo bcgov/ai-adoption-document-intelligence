@@ -46,6 +46,44 @@ const ALL_VALID_OPERATORS = [
 ];
 
 // ---------------------------------------------------------------------------
+// Ctx namespace shortcuts
+//
+// These mirror the runtime resolver in
+// apps/temporal/src/graph-engine/context-utils.ts: paths that begin with
+// `doc.` resolve at runtime to `ctx.documentMetadata.*`, and `segment.` to
+// `ctx.currentSegment.*`. The validator must agree with the runtime, or a
+// valid template fails save-time validation.
+//
+// Keep this map in sync with CTX_NAMESPACE_PREFIXES in the temporal copy.
+// (The two validators are forked; deduplicating into a shared package is
+// out of scope for this fix.)
+// ---------------------------------------------------------------------------
+
+const CTX_NAMESPACE_PREFIXES: Record<string, string> = {
+  doc: "documentMetadata",
+  segment: "currentSegment",
+};
+
+/** Root ctx field for a port-binding path (no `ctx.` prefix). */
+function getCtxRootKey(ctxKey: string): string {
+  const dotIdx = ctxKey.indexOf(".");
+  const namespace = dotIdx === -1 ? ctxKey : ctxKey.slice(0, dotIdx);
+  return CTX_NAMESPACE_PREFIXES[namespace] ?? namespace;
+}
+
+/**
+ * Root ctx field for a ref path (`ctx.X.Y` → X; `doc.X` / `segment.X` → their
+ * ctx field). Returns undefined for refs that don't address ctx (e.g.
+ * `param.X`, `row.X`, `now`) so callers can skip the declared-key check.
+ */
+function getRefCtxRootKey(refPath: string): string | undefined {
+  const parts = refPath.split(".");
+  const namespace = parts[0];
+  if (namespace === "ctx" && parts.length >= 2) return parts[1];
+  return CTX_NAMESPACE_PREFIXES[namespace];
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -413,7 +451,7 @@ function validatePortBindings(
     if (node.inputs) {
       for (let i = 0; i < node.inputs.length; i++) {
         const binding = node.inputs[i];
-        const rootKey = binding.ctxKey.split(".")[0];
+        const rootKey = getCtxRootKey(binding.ctxKey);
         if (!declaredCtxKeys.has(rootKey)) {
           errors.push({
             path: `nodes.${nodeId}.inputs[${i}].ctxKey`,
@@ -428,7 +466,7 @@ function validatePortBindings(
     if (node.outputs) {
       for (let i = 0; i < node.outputs.length; i++) {
         const binding = node.outputs[i];
-        const rootKey = binding.ctxKey.split(".")[0];
+        const rootKey = getCtxRootKey(binding.ctxKey);
         if (!declaredCtxKeys.has(rootKey)) {
           errors.push({
             path: `nodes.${nodeId}.outputs[${i}].ctxKey`,
@@ -556,18 +594,7 @@ function validateValueRef(
   if (!ref || typeof ref !== "object") return;
 
   if ("ref" in ref && ref.ref) {
-    const parts = ref.ref.split(".");
-    const namespace = parts[0];
-    let rootCtxKey: string | undefined;
-
-    if (namespace === "ctx" && parts.length >= 2) {
-      rootCtxKey = parts[1];
-    } else if (namespace === "doc") {
-      rootCtxKey = "documentMetadata";
-    } else if (namespace === "segment") {
-      rootCtxKey = "currentSegment";
-    }
-
+    const rootCtxKey = getRefCtxRootKey(ref.ref);
     if (rootCtxKey && !declaredCtxKeys.has(rootCtxKey)) {
       errors.push({
         path,

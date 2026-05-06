@@ -20,6 +20,8 @@ import {
   RunComparisonPage,
   RunDetailPage,
 } from "./features/benchmarking/pages";
+import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
+import { TablesListPage } from "./features/tables/pages/TablesListPage";
 import { RootLayout } from "./layouts/RootLayout";
 import ClassifierPage from "./pages/ClassifierPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
@@ -63,6 +65,10 @@ const router = createBrowserRouter([
         path: "workflows/:workflowId/edit",
         element: <WorkflowEditorPage mode="edit" />,
       },
+
+      // Tables
+      { path: "tables", element: <TablesListPage /> },
+      { path: "tables/:tableId", element: <TableDetailPage /> },
 
       // Template Models with nested routes
       { path: "template-models", element: <ModelListPage /> },

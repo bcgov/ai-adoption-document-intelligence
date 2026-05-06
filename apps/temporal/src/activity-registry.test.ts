@@ -32,6 +32,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "benchmark.loadDatasetManifest",
   "benchmark.loadOcrCache",
   "benchmark.persistOcrCache",
+  "benchmark.persistEvaluationDetails",
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
@@ -41,6 +42,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.flattenClassifiedDocuments",
   "document.extractPageRange",
   "data.transform",
+  "tables.lookup",
   "blob.read",
   "document.extractToBase64",
 ];

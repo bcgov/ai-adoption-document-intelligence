@@ -34,6 +34,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "benchmark.loadDatasetManifest",
   "benchmark.loadOcrCache",
   "benchmark.persistOcrCache",
+  "benchmark.persistEvaluationDetails",
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
@@ -42,6 +43,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "document.selectClassifiedPages",
   "document.flattenClassifiedDocuments",
   "data.transform",
+  "tables.lookup",
   "blob.read",
   "document.extractToBase64",
 ] as const;
