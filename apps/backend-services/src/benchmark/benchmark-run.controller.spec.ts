@@ -40,6 +40,7 @@ describe("BenchmarkRunController", () => {
     getPerSampleResults: jest.fn(),
     promoteToBaseline: jest.fn(),
     deleteRun: jest.fn(),
+    exportFullRun: jest.fn(),
   };
 
   const mockProjectService = {
@@ -650,6 +651,66 @@ describe("BenchmarkRunController", () => {
         "p1",
         "r1",
       );
+    });
+  });
+
+  describe("GET /runs/:runId/download", () => {
+    function makeRes() {
+      return {
+        set: jest.fn().mockReturnThis(),
+        send: jest.fn().mockReturnThis(),
+      } as unknown as import("express").Response;
+    }
+
+    it("streams the export as an attachment with audit and headers", async () => {
+      const exportPayload = {
+        exportedAt: "2026-05-05T12:00:00.000Z",
+        exportFormatVersion: 1,
+        run: { id: "r1" } as unknown,
+        metrics: {},
+        perSampleResults: [
+          { sampleId: "s1", metadata: {}, metrics: {}, pass: true },
+        ],
+        errorDetectionAnalysis: undefined,
+      };
+      mockRunService.exportFullRun.mockResolvedValue(exportPayload);
+      const res = makeRes();
+
+      await controller.downloadRun(projectId, "r1", mockReq, res);
+
+      expect(mockRunService.exportFullRun).toHaveBeenCalledWith(
+        projectId,
+        "r1",
+      );
+      expect(res.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "Content-Type": "application/json",
+          "Content-Disposition": 'attachment; filename="benchmark-run-r1.json"',
+        }),
+      );
+      expect(res.send).toHaveBeenCalledTimes(1);
+      const sentBuffer = (res.send as jest.Mock).mock.calls[0][0] as Buffer;
+      expect(JSON.parse(sentBuffer.toString("utf-8"))).toEqual(exportPayload);
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "document_list_accessed",
+          resource_type: "benchmark_run",
+          resource_id: "r1",
+          payload: expect.objectContaining({
+            action: "download",
+            sample_count: 1,
+          }),
+        }),
+      );
+    });
+
+    it("propagates NotFoundException when run is missing", async () => {
+      mockRunService.exportFullRun.mockRejectedValue(
+        new NotFoundException("Benchmark run not found"),
+      );
+      await expect(
+        controller.downloadRun(projectId, "missing", mockReq, makeRes()),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

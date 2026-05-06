@@ -388,6 +388,31 @@ export const useDrillDown = (projectId: string, runId: string) => {
   };
 };
 
+/**
+ * Mutation that downloads a complete benchmark run JSON file (run metadata,
+ * raw metrics, every per-sample result with field-level matched/confidence/
+ * error info, and the precomputed error-detection analysis) and triggers a
+ * browser save dialog. The endpoint is available for runs in any status, so
+ * users can pull error info from failed runs as well.
+ */
+export const useDownloadRun = (projectId: string, runId: string) => {
+  return useMutation({
+    mutationFn: async () => {
+      const blob = await apiService.getBlob(
+        `/benchmark/projects/${projectId}/runs/${runId}/download`,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `benchmark-run-${runId}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    },
+  });
+};
+
 interface Artifact {
   id: string;
   runId: string;

@@ -20,6 +20,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
@@ -34,7 +35,7 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
-import { Request } from "express";
+import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
@@ -46,6 +47,7 @@ import { BenchmarkRunService } from "./benchmark-run.service";
 import {
   ApplyCandidateToBaseDto,
   ApplyCandidateToBaseResponseDto,
+  BenchmarkRunExportDto,
   CreateRunDto,
   DrillDownResponseDto,
   ErrorDetectionAnalysisResponseDto,
@@ -394,6 +396,63 @@ export class BenchmarkRunController {
     );
     await this.assertProjectGroupAccess(projectId, req);
     return this.errorDetectionService.getAnalysis(projectId, runId);
+  }
+
+  @Get("runs/:runId/download")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Download a complete benchmark run as JSON",
+    description:
+      "Returns a single JSON file containing run metadata, raw metrics " +
+      "(including the `_aggregate` block), every per-sample result with " +
+      "ground truth, prediction, and field-level evaluation details " +
+      "(matched flag, confidence, error info) resolved from blob storage, " +
+      "plus the precomputed error-detection analysis (confidence-threshold " +
+      "curves) when available. Available for runs in any status so failed " +
+      "runs can also be exported.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiOkResponse({
+    description: "Full benchmark run export as a JSON file attachment",
+    type: BenchmarkRunExportDto,
+  })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async downloadRun(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/runs/${runId}/download`,
+    );
+    const groupId = await this.assertProjectGroupAccess(projectId, req);
+    const exportPayload = await this.benchmarkRunService.exportFullRun(
+      projectId,
+      runId,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_list_accessed",
+      resource_type: "benchmark_run",
+      resource_id: runId,
+      actor_id: req.resolvedIdentity.actorId,
+      group_id: groupId,
+      payload: {
+        action: "download",
+        project_id: projectId,
+        sample_count: exportPayload.perSampleResults.length,
+      },
+    });
+    const body = Buffer.from(JSON.stringify(exportPayload), "utf-8");
+    const filename = `benchmark-run-${runId}.json`;
+    res.set({
+      "Content-Type": "application/json",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": body.length.toString(),
+    });
+    res.send(body);
   }
 
   @Get("runs/:runId/samples")

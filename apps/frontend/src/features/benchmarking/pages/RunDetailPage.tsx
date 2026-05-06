@@ -27,6 +27,7 @@ import {
   IconArrowLeft,
   IconCheck,
   IconChevronRight,
+  IconDownload,
   IconExternalLink,
   IconSparkles,
   IconTrophy,
@@ -44,6 +45,7 @@ import { useApplyToBaseWorkflow, useDefinition } from "../hooks/useDefinitions";
 import { useProject } from "../hooks/useProjects";
 import {
   useArtifacts,
+  useDownloadRun,
   useDrillDown,
   useOcrCacheSources,
   usePerSampleResults,
@@ -354,6 +356,19 @@ export function RunDetailPage() {
     projectId,
     runId || "",
   );
+
+  const downloadRunMutation = useDownloadRun(projectId, runId || "");
+  const handleDownloadRun = () => {
+    downloadRunMutation.mutate(undefined, {
+      onError: (err: Error) => {
+        notifications.show({
+          title: "Download failed",
+          message: err.message ?? "Could not download benchmark run",
+          color: "red",
+        });
+      },
+    });
+  };
 
   const handleConfusionOpen = () => {
     setConfusionName("");
@@ -743,6 +758,15 @@ export function RunDetailPage() {
                 View All Samples
               </Button>
             )}
+            <Button
+              variant="light"
+              leftSection={<IconDownload size={16} />}
+              onClick={handleDownloadRun}
+              loading={downloadRunMutation.isPending}
+              data-testid="download-run-btn"
+            >
+              Download Results
+            </Button>
             {run.status === "completed" && project?.groupId && (
               <Button
                 variant="light"

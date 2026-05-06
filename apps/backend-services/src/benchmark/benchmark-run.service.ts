@@ -29,11 +29,14 @@ import {
 import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { AuditLogService } from "./audit-log.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
 import {
   BaselineComparison,
+  BenchmarkRunExportDto,
+  BenchmarkRunExportSampleDto,
   CreateRunDto,
   DrillDownResponseDto,
   FieldErrorBreakdownDto,
@@ -61,6 +64,7 @@ export class BenchmarkRunService {
     private readonly auditLogService: AuditLogService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly errorDetectionService: BenchmarkErrorDetectionService,
   ) {}
 
   /**
@@ -78,6 +82,7 @@ export class BenchmarkRunService {
     groundTruth?: unknown;
     prediction?: unknown;
     evaluationDetails?: unknown;
+    blobReadError?: string;
   }> {
     if (!blobPath) return {};
     try {
@@ -93,10 +98,11 @@ export class BenchmarkRunService {
         evaluationDetails: parsed.evaluationDetails ?? undefined,
       };
     } catch (err) {
+      const message = getErrorMessage(err);
       this.logger.warn(
-        `Failed to read evaluation details blob "${blobPath}": ${getErrorMessage(err)}`,
+        `Failed to read evaluation details blob "${blobPath}": ${message}`,
       );
-      return {};
+      return { blobReadError: message };
     }
   }
 
@@ -1087,6 +1093,105 @@ export class BenchmarkRunService {
       totalPages,
       availableDimensions,
       dimensionValues,
+    };
+  }
+
+  /**
+   * Build a full export of a benchmark run: metadata, raw metrics (including
+   * `_aggregate` and per-sample snapshots), every per-sample result with
+   * `groundTruth` / `prediction` / `evaluationDetails` resolved from blob
+   * storage, and the precomputed error-detection analysis.
+   *
+   * Available for any run regardless of status so users can pull error
+   * information from failed runs as well.
+   */
+  async exportFullRun(
+    projectId: string,
+    runId: string,
+  ): Promise<BenchmarkRunExportDto> {
+    this.logger.log(`Exporting benchmark run ${runId}`);
+
+    const runDetails = await this.getRunById(projectId, runId);
+    const runRow = await this.runDb.findBenchmarkRunBare(runId, projectId);
+    if (!runRow) {
+      throw new NotFoundException(
+        `Benchmark run with ID "${runId}" not found for project "${projectId}"`,
+      );
+    }
+
+    const metrics = (runRow.metrics ?? {}) as Record<string, unknown>;
+    const rawSamples = (metrics.perSampleResults ?? []) as Array<{
+      sampleId: string;
+      metadata?: Record<string, unknown>;
+      metrics?: Record<string, number>;
+      diagnostics?: Record<string, unknown>;
+      pass?: boolean;
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      evaluationBlobPath?: string;
+    }>;
+
+    // Resolve heavy fields from blob storage in parallel; legacy runs that
+    // still have inline values are returned as-is.
+    const resolvedDetails: Array<{
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      blobReadError?: string;
+    }> = await Promise.all(
+      rawSamples.map((s) =>
+        s.evaluationBlobPath
+          ? this.readEvaluationDetailsBlob(s.evaluationBlobPath)
+          : Promise.resolve({
+              groundTruth: s.groundTruth,
+              prediction: s.prediction,
+              evaluationDetails: s.evaluationDetails,
+            }),
+      ),
+    );
+
+    const perSampleResults: BenchmarkRunExportSampleDto[] = rawSamples.map(
+      (s, idx) => {
+        const resolved = resolvedDetails[idx];
+        return {
+          sampleId: s.sampleId,
+          metadata: s.metadata ?? {},
+          metrics: s.metrics ?? {},
+          pass: s.pass ?? false,
+          diagnostics: s.diagnostics,
+          groundTruth: resolved.groundTruth,
+          prediction: resolved.prediction,
+          evaluationDetails: resolved.evaluationDetails,
+          evaluationBlobPath: s.evaluationBlobPath,
+          blobReadError: resolved.blobReadError,
+        };
+      },
+    );
+
+    let errorDetectionAnalysis: BenchmarkRunExportDto["errorDetectionAnalysis"];
+    if (rawSamples.length > 0) {
+      try {
+        errorDetectionAnalysis = await this.errorDetectionService.getAnalysis(
+          projectId,
+          runId,
+        );
+      } catch (err) {
+        // Never fail an export over a derived analysis; the raw data is the
+        // primary payload and consumers can recompute curves themselves.
+        this.logger.warn(
+          `Skipping error-detection analysis in export for run ${runId}: ${getErrorMessage(err)}`,
+        );
+      }
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      exportFormatVersion: 1,
+      run: runDetails,
+      metrics,
+      perSampleResults,
+      errorDetectionAnalysis,
     };
   }
 
