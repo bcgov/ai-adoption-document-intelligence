@@ -209,7 +209,7 @@ describe("AzureService", () => {
       } as Response);
       const result = await service.checkOperationStatusById("my-uuid");
       expect(fetch).toHaveBeenCalledWith(
-        "https://test.com/documentClassifiers/operations/my-uuid?api-version=2024-11-30",
+        "https://test.com/documentintelligence/operations/my-uuid?api-version=2024-11-30",
         expect.objectContaining({ headers: { "api-key": "secret-key" } }),
       );
       expect(result).toEqual(mockBody);
@@ -237,7 +237,7 @@ describe("AzureService", () => {
       } as Response);
       await svc2.checkOperationStatusById("abc-123");
       expect(fetch).toHaveBeenCalledWith(
-        "https://apim.example.com/myapi/documentClassifiers/operations/abc-123?api-version=2024-11-30",
+        "https://apim.example.com/myapi/documentintelligence/operations/abc-123?api-version=2024-11-30",
         expect.anything(),
       );
     });

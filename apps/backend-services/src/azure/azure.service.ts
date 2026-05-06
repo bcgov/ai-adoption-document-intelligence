@@ -157,7 +157,7 @@ export class AzureService {
    */
   async checkOperationStatusById(operationId: string) {
     const base = this.endpoint.replace(/\/$/, "");
-    const url = `${base}/documentClassifiers/operations/${operationId}?api-version=2024-11-30`;
+    const url = `${base}/documentintelligence/operations/${operationId}?api-version=2024-11-30`;
     const response = await fetch(url, {
       headers: { "api-key": this.apiKey },
       redirect: "error",
