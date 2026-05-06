@@ -13,6 +13,7 @@ const mockClassifierDbService = {
   findAllTrainingClassifiers: jest.fn(),
   updateClassifierModel: jest.fn(),
   systemUpdateClassifierModel: jest.fn(),
+  markClassifierReadyIfTraining: jest.fn(),
 };
 const mockAzureService = {
   checkOperationStatusById: jest.fn(),
@@ -104,14 +105,33 @@ describe("ClassifierPollerService", () => {
       mockAzureService.checkOperationStatusById.mockResolvedValue({
         status: "succeeded",
       });
+      mockClassifierDbService.markClassifierReadyIfTraining.mockResolvedValue(
+        true,
+      );
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
-        mockClassifierDbService.systemUpdateClassifierModel,
-      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
+        mockClassifierDbService.markClassifierReadyIfTraining,
+      ).toHaveBeenCalledWith("clf", "gid");
       expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalledWith(
         "gid/classification/clf",
         "document-blobs",
       );
+    });
+
+    it("should skip log and blob deletion when another cron already set READY (race condition)", async () => {
+      mockConfigService.get.mockReturnValue("minio");
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        status: "succeeded",
+      });
+      mockClassifierDbService.markClassifierReadyIfTraining.mockResolvedValue(
+        false,
+      );
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(
+        mockClassifierDbService.markClassifierReadyIfTraining,
+      ).toHaveBeenCalledWith("clf", "gid");
+      expect(mockBlobService.deleteFilesWithPrefix).not.toHaveBeenCalled();
+      expect(mockLogger.log).not.toHaveBeenCalled();
     });
 
     it("should update status to FAILED if failed", async () => {
@@ -148,10 +168,13 @@ describe("ClassifierPollerService", () => {
       mockAzureService.checkOperationStatusById.mockResolvedValue({
         status: "succeeded",
       });
+      mockClassifierDbService.markClassifierReadyIfTraining.mockResolvedValue(
+        true,
+      );
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
-        mockClassifierDbService.systemUpdateClassifierModel,
-      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
+        mockClassifierDbService.markClassifierReadyIfTraining,
+      ).toHaveBeenCalledWith("clf", "gid");
       expect(mockBlobService.deleteFilesWithPrefix).not.toHaveBeenCalled();
     });
 
@@ -161,13 +184,16 @@ describe("ClassifierPollerService", () => {
         error: { code: "404", message: "Resource Not Found" },
       });
       mockAzureService.checkClassifierExists.mockResolvedValue(true);
+      mockClassifierDbService.markClassifierReadyIfTraining.mockResolvedValue(
+        true,
+      );
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(mockAzureService.checkClassifierExists).toHaveBeenCalledWith(
         "gid__clf",
       );
       expect(
-        mockClassifierDbService.systemUpdateClassifierModel,
-      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
+        mockClassifierDbService.markClassifierReadyIfTraining,
+      ).toHaveBeenCalledWith("clf", "gid");
       expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalled();
     });
 

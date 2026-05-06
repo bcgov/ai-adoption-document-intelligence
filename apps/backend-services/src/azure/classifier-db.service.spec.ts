@@ -16,6 +16,7 @@ describe("ClassifierDbService", () => {
     classifierModel: {
       create: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
       findUnique: jest.Mock;
       findMany: jest.Mock;
       delete: jest.Mock;
@@ -30,6 +31,7 @@ describe("ClassifierDbService", () => {
       classifierModel: {
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
         delete: jest.fn(),
@@ -261,6 +263,36 @@ describe("ClassifierDbService", () => {
       await expect(
         service.findAllClassifierModelsForGroups(["g1"]),
       ).rejects.toThrow("Prisma error");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // markClassifierReadyIfTraining
+  // ---------------------------------------------------------------------------
+
+  describe("markClassifierReadyIfTraining", () => {
+    it("should return true and update to READY when classifier is in TRAINING", async () => {
+      mockPrisma.classifierModel.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      const result = await service.markClassifierReadyIfTraining("clf1", "g1");
+
+      expect(result).toBe(true);
+      expect(mockPrisma.classifierModel.updateMany).toHaveBeenCalledWith({
+        where: {
+          name: "clf1",
+          group_id: "g1",
+          status: ClassifierStatus.TRAINING,
+        },
+        data: { status: ClassifierStatus.READY },
+      });
+    });
+
+    it("should return false when classifier is already READY (no rows updated)", async () => {
+      mockPrisma.classifierModel.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      const result = await service.markClassifierReadyIfTraining("clf1", "g1");
+
+      expect(result).toBe(false);
     });
   });
 

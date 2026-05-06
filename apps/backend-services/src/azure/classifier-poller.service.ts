@@ -81,15 +81,17 @@ export class ClassifierPollerService {
         const exists =
           await this.azureService.checkClassifierExists(classifierId);
         if (exists) {
-          await this.classifierDb.systemUpdateClassifierModel(
-            classifierName,
-            groupId,
-            { status: ClassifierStatus.READY },
-          );
-          this.logger.debug(
-            `Classifier ${classifierName} (group ${groupId}) confirmed READY via direct model check.`,
-          );
-          await this.deleteTrainingBlobs(classifierName, groupId);
+          const transitioned =
+            await this.classifierDb.markClassifierReadyIfTraining(
+              classifierName,
+              groupId,
+            );
+          if (transitioned) {
+            this.logger.debug(
+              `Classifier ${classifierName} (group ${groupId}) confirmed READY via direct model check.`,
+            );
+            await this.deleteTrainingBlobs(classifierName, groupId);
+          }
         } else {
           await this.classifierDb.systemUpdateClassifierModel(
             classifierName,
@@ -105,17 +107,17 @@ export class ClassifierPollerService {
 
       const status = result.status || result.modelInfo?.status;
       if (status === "succeeded") {
-        await this.classifierDb.systemUpdateClassifierModel(
-          classifierName,
-          groupId,
-          {
-            status: ClassifierStatus.READY,
-          },
-        );
-        this.logger.log(
-          `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
-        );
-        await this.deleteTrainingBlobs(classifierName, groupId);
+        const transitioned =
+          await this.classifierDb.markClassifierReadyIfTraining(
+            classifierName,
+            groupId,
+          );
+        if (transitioned) {
+          this.logger.log(
+            `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
+          );
+          await this.deleteTrainingBlobs(classifierName, groupId);
+        }
       } else if (status === "failed") {
         const errorMessage =
           (result as { error?: { message?: string } }).error?.message ??

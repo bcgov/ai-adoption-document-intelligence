@@ -93,6 +93,30 @@ export class ClassifierDbService {
   }
 
   /**
+   * Atomically transitions a classifier from TRAINING to READY status.
+   * Uses a conditional update so that concurrent cron executions cannot both
+   * complete the transition — only the first writer wins.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @returns true if the transition occurred (i.e. the record was in TRAINING),
+   *          false if it was already in another state (e.g. a concurrent run already set READY).
+   */
+  async markClassifierReadyIfTraining(
+    classifierName: string,
+    groupId: string,
+  ): Promise<boolean> {
+    const { count } = await this.prisma.classifierModel.updateMany({
+      where: {
+        name: classifierName,
+        group_id: groupId,
+        status: ClassifierStatus.TRAINING,
+      },
+      data: { status: ClassifierStatus.READY },
+    });
+    return count > 0;
+  }
+
+  /**
    * Updates an existing classifier model record, but from a system's scheduled call.
    * @param classifierName The name of the classifier.
    * @param groupId The group ID that owns the classifier.
