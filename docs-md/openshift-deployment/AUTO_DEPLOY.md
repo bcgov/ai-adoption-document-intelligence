@@ -74,4 +74,16 @@ Secret values never touch stdout.
 
 ## `workflow_dispatch` path
 
-The workflow still accepts manual dispatch from any branch. In that case it falls back to the branch-derived behavior: instance and image tag derived from the branch name, deployed to the `dev` GitHub environment (namespace `fd34fb-dev`).
+The workflow supports manual dispatch from any branch with explicit inputs:
+
+- `environment` (`dev|test|prod`, default `dev`)
+- `environment` (`dev|test`, default `dev`)
+- `namespace` (optional OpenShift namespace override)
+- `instance_name` (optional instance name override)
+
+Manual-dispatch behavior:
+
+- By default, instance and image tag are branch-derived (same as before).
+- If `instance_name` is provided, it overrides the branch-derived instance name.
+- The selected `environment` is used as the GitHub environment for both build and deploy jobs, so environment-specific secrets (including `test`) are honored.
+- If `namespace` is not provided, deploy uses `OPENSHIFT_NAMESPACE` from the selected GitHub environment secrets.
