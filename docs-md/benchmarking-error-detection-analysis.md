@@ -50,7 +50,14 @@ Azure Document Intelligence returns per-field confidence scores alongside extrac
 
 ### 3. Precomputed analysis on request
 
-When the frontend requests the analysis, `BenchmarkErrorDetectionService` reads the `evaluationDetails` from the run's metrics, groups them by field, and precomputes a confusion-matrix curve at 101 threshold steps (0.00 to 1.00, step 0.01). It derives the three suggested thresholds per field from that curve and caches the result in memory by run ID. Subsequent requests for the same run are served from the cache.
+When the frontend requests the analysis, `BenchmarkErrorDetectionService` reads `perSampleResults` from the run's metrics. For each sample, it resolves the `evaluationDetails` array from one of two locations:
+
+- **Inline** on the sample (older runs created before per-sample heavy fields were moved to blob storage), or
+- **From blob storage** at `{groupId}/benchmark/runs/{runId}/{sampleId}.json`, when only `evaluationBlobPath` is present (current scheme — see [benchmarking-temporal-history-bloat-fix.md](benchmarking-temporal-history-bloat-fix.md) for why heavy fields were moved out of the metrics JSON).
+
+It then groups the resolved evaluation details by field, precomputes a confusion-matrix curve at 101 threshold steps (0.00 to 1.00, step 0.01), and derives the three suggested thresholds per field from that curve. The result is cached in memory by run ID. Subsequent requests for the same run are served from the cache.
+
+**Data-loss window**: benchmark runs created between the "strip heavy fields" change and the "persist to blob storage" change have neither inline nor blob copies of `evaluationDetails`. For those runs the analysis returns `fields: []` because the underlying field-level data does not exist anywhere — re-running the benchmark is the only way to regenerate it.
 
 ### 4. Frontend rendering
 
@@ -85,9 +92,9 @@ Each `ErrorDetectionFieldDto` contains the field name, the precomputed curve, an
 
 | File | Purpose |
 |---|---|
-| `apps/backend-services/src/benchmark/error-detection.service.ts` | Curve computation, threshold selection, in-memory cache |
-| `apps/backend-services/src/benchmark/error-detection.controller.ts` | `GET …/error-detection-analysis` endpoint |
-| `apps/backend-services/src/benchmark/dto/error-detection.dto.ts` | `ErrorDetectionAnalysisResponseDto`, `ErrorDetectionFieldDto` |
+| `apps/backend-services/src/benchmark/benchmark-error-detection.service.ts` | Curve computation, blob-storage resolution of evaluation details, threshold selection, in-memory cache |
+| `apps/backend-services/src/benchmark/benchmark-run.controller.ts` | `GET …/error-detection-analysis` endpoint |
+| `apps/backend-services/src/benchmark/dto/error-detection-analysis.dto.ts` | `ErrorDetectionAnalysisResponseDto`, `ErrorDetectionFieldDto` |
 | `apps/temporal/src/azure-ocr-field-display-value.ts` | `buildFlatConfidenceMapFromCtx` — extracts confidence map from workflow ctx |
 | `apps/temporal/src/schema-aware-evaluator.ts` | `SchemaAwareEvaluator` — attaches confidence to `FieldComparisonResult` |
 

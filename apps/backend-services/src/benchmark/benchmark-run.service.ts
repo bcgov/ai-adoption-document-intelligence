@@ -29,13 +29,17 @@ import {
 import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { AuditLogService } from "./audit-log.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
 import {
   BaselineComparison,
+  BenchmarkRunExportDto,
+  BenchmarkRunExportSampleDto,
   CreateRunDto,
   DrillDownResponseDto,
+  ExportPerFieldResultDto,
   FieldErrorBreakdownDto,
   MetricComparison,
   MetricThreshold,
@@ -61,6 +65,7 @@ export class BenchmarkRunService {
     private readonly auditLogService: AuditLogService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly errorDetectionService: BenchmarkErrorDetectionService,
   ) {}
 
   /**
@@ -78,6 +83,7 @@ export class BenchmarkRunService {
     groundTruth?: unknown;
     prediction?: unknown;
     evaluationDetails?: unknown;
+    blobReadError?: string;
   }> {
     if (!blobPath) return {};
     try {
@@ -93,11 +99,139 @@ export class BenchmarkRunService {
         evaluationDetails: parsed.evaluationDetails ?? undefined,
       };
     } catch (err) {
+      const message = getErrorMessage(err);
       this.logger.warn(
-        `Failed to read evaluation details blob "${blobPath}": ${getErrorMessage(err)}`,
+        `Failed to read evaluation details blob "${blobPath}": ${message}`,
       );
-      return {};
+      return { blobReadError: message };
     }
+  }
+
+  /**
+   * Build comprehensive per-field results aggregated across all samples.
+   * Groups evaluation details by field name and collects every error instance
+   * with source document info, expected/predicted values, and confidence.
+   */
+  private buildPerFieldResults(
+    rawSamples: Array<{
+      sampleId: string;
+      metadata?: Record<string, unknown>;
+    }>,
+    resolvedDetails: Array<{
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      blobReadError?: string;
+    }>,
+  ): ExportPerFieldResultDto[] {
+    interface FieldInstance {
+      sampleId: string;
+      sampleMetadata: Record<string, unknown>;
+      expected: unknown;
+      predicted: unknown;
+      confidence: number | null;
+      matched: boolean;
+    }
+
+    const byField = new Map<string, FieldInstance[]>();
+
+    for (let idx = 0; idx < rawSamples.length; idx++) {
+      const sample = rawSamples[idx];
+      const resolved = resolvedDetails[idx];
+      const details = Array.isArray(resolved.evaluationDetails)
+        ? (resolved.evaluationDetails as Array<{
+            field: string;
+            matched: boolean;
+            confidence?: number | null;
+            expected?: unknown;
+            predicted?: unknown;
+          }>)
+        : [];
+
+      const groundTruth =
+        resolved.groundTruth && typeof resolved.groundTruth === "object"
+          ? (resolved.groundTruth as Record<string, unknown>)
+          : {};
+      const prediction =
+        resolved.prediction && typeof resolved.prediction === "object"
+          ? (resolved.prediction as Record<string, unknown>)
+          : {};
+
+      for (const d of details) {
+        if (!d || typeof d.field !== "string") continue;
+
+        if (!byField.has(d.field)) byField.set(d.field, []);
+        byField.get(d.field)!.push({
+          sampleId: sample.sampleId,
+          sampleMetadata: sample.metadata ?? {},
+          expected:
+            d.expected !== undefined
+              ? d.expected
+              : (groundTruth[d.field] ?? null),
+          predicted:
+            d.predicted !== undefined
+              ? d.predicted
+              : (prediction[d.field] ?? null),
+          confidence: typeof d.confidence === "number" ? d.confidence : null,
+          matched: d.matched === true,
+        });
+      }
+    }
+
+    const results: ExportPerFieldResultDto[] = [];
+    for (const [name, instances] of byField.entries()) {
+      const evaluatedCount = instances.length;
+      const correctCount = instances.filter((i) => i.matched).length;
+      const errorCount = evaluatedCount - correctCount;
+      const errorRate = evaluatedCount === 0 ? 0 : errorCount / evaluatedCount;
+      const accuracy = evaluatedCount === 0 ? 0 : correctCount / evaluatedCount;
+
+      const confidenceValues = instances
+        .filter((i) => i.confidence !== null)
+        .map((i) => i.confidence as number);
+      const correctConfidence = instances
+        .filter((i) => i.matched && i.confidence !== null)
+        .map((i) => i.confidence as number);
+      const errorConfidence = instances
+        .filter((i) => !i.matched && i.confidence !== null)
+        .map((i) => i.confidence as number);
+
+      const avg = (values: number[]): number | null =>
+        values.length === 0
+          ? null
+          : values.reduce((sum, v) => sum + v, 0) / values.length;
+
+      const errors = instances
+        .filter((i) => !i.matched)
+        .map((i) => ({
+          sampleId: i.sampleId,
+          sampleMetadata: i.sampleMetadata,
+          expected: i.expected,
+          predicted: i.predicted,
+          confidence: i.confidence,
+          matched: i.matched,
+        }));
+
+      results.push({
+        name,
+        evaluatedCount,
+        correctCount,
+        errorCount,
+        errorRate,
+        accuracy,
+        averageConfidence: avg(confidenceValues),
+        averageConfidenceCorrect: avg(correctConfidence),
+        averageConfidenceErrors: avg(errorConfidence),
+        suggestedCatch90: null,
+        suggestedBestBalance: 0,
+        suggestedMinimizeReview: null,
+        errors,
+      });
+    }
+
+    // Sort by error rate descending (worst fields first)
+    results.sort((a, b) => b.errorRate - a.errorRate);
+    return results;
   }
 
   /**
@@ -1087,6 +1221,132 @@ export class BenchmarkRunService {
       totalPages,
       availableDimensions,
       dimensionValues,
+    };
+  }
+
+  /**
+   * Build a full export of a benchmark run: metadata, raw metrics (including
+   * `_aggregate` and per-sample snapshots), every per-sample result with
+   * `groundTruth` / `prediction` / `evaluationDetails` resolved from blob
+   * storage, and the precomputed error-detection analysis.
+   *
+   * Available for any run regardless of status so users can pull error
+   * information from failed runs as well.
+   */
+  async exportFullRun(
+    projectId: string,
+    runId: string,
+  ): Promise<BenchmarkRunExportDto> {
+    this.logger.log(`Exporting benchmark run ${runId}`);
+
+    const runDetails = await this.getRunById(projectId, runId);
+    const runRow = await this.runDb.findBenchmarkRunBare(runId, projectId);
+    if (!runRow) {
+      throw new NotFoundException(
+        `Benchmark run with ID "${runId}" not found for project "${projectId}"`,
+      );
+    }
+
+    const metrics = (runRow.metrics ?? {}) as Record<string, unknown>;
+    const rawSamples = (metrics.perSampleResults ?? []) as Array<{
+      sampleId: string;
+      metadata?: Record<string, unknown>;
+      metrics?: Record<string, number>;
+      diagnostics?: Record<string, unknown>;
+      pass?: boolean;
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      evaluationBlobPath?: string;
+    }>;
+
+    // Resolve heavy fields from blob storage in parallel; legacy runs that
+    // still have inline values are returned as-is.
+    const resolvedDetails: Array<{
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+      blobReadError?: string;
+    }> = await Promise.all(
+      rawSamples.map((s) =>
+        s.evaluationBlobPath
+          ? this.readEvaluationDetailsBlob(s.evaluationBlobPath)
+          : Promise.resolve({
+              groundTruth: s.groundTruth,
+              prediction: s.prediction,
+              evaluationDetails: s.evaluationDetails,
+            }),
+      ),
+    );
+
+    const perSampleResults: BenchmarkRunExportSampleDto[] = rawSamples.map(
+      (s, idx) => {
+        const resolved = resolvedDetails[idx];
+        return {
+          sampleId: s.sampleId,
+          metadata: s.metadata ?? {},
+          metrics: s.metrics ?? {},
+          pass: s.pass ?? false,
+          diagnostics: s.diagnostics,
+          groundTruth: resolved.groundTruth,
+          prediction: resolved.prediction,
+          evaluationDetails: resolved.evaluationDetails,
+          evaluationBlobPath: s.evaluationBlobPath,
+          blobReadError: resolved.blobReadError,
+        };
+      },
+    );
+
+    let errorDetectionAnalysis: BenchmarkRunExportDto["errorDetectionAnalysis"];
+    let perFieldResults: ExportPerFieldResultDto[] = [];
+    if (rawSamples.length > 0) {
+      // Build comprehensive per-field results from resolved evaluation details
+      perFieldResults = this.buildPerFieldResults(rawSamples, resolvedDetails);
+
+      try {
+        const fullAnalysis = await this.errorDetectionService.getAnalysis(
+          projectId,
+          runId,
+        );
+
+        // Merge suggested thresholds from the error-detection analysis into perFieldResults
+        const thresholdsByField = new Map(
+          fullAnalysis.fields.map((f) => [f.name, f]),
+        );
+        for (const field of perFieldResults) {
+          const analysis = thresholdsByField.get(field.name);
+          if (analysis) {
+            field.suggestedCatch90 = analysis.suggestedCatch90;
+            field.suggestedBestBalance = analysis.suggestedBestBalance;
+            field.suggestedMinimizeReview = analysis.suggestedMinimizeReview;
+          }
+        }
+
+        // Strip curve from errorDetectionAnalysis fields for the export
+        errorDetectionAnalysis = {
+          ...fullAnalysis,
+          fields: fullAnalysis.fields.map((f) => ({
+            ...f,
+            curve: [],
+          })),
+        };
+      } catch (err) {
+        // Never fail an export over a derived analysis; the raw data is the
+        // primary payload and consumers can recompute curves themselves.
+        this.logger.warn(
+          `Skipping error-detection analysis in export for run ${runId}: ${getErrorMessage(err)}`,
+        );
+      }
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      exportFormatVersion: 1,
+      run: runDetails,
+      metrics,
+      perFieldResults,
+      perSampleResults,
+      errorDetectionAnalysis,
     };
   }
 

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { degrees, PDFDocument } from "pdf-lib";
+import { degrees, PDFDocument, PDFImage } from "pdf-lib";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 /** `export =` module — default import breaks under Jest/ts-jest. */
@@ -96,14 +96,28 @@ export class PdfNormalizationService {
     try {
       const meta = await sharp(buffer).metadata();
       const pageCount = meta.pages ?? 1;
+      const hasAlpha = meta.hasAlpha ?? false;
       const pdfDoc = await PDFDocument.create();
 
       for (let i = 0; i < pageCount; i++) {
         const pipeline =
           pageCount > 1 ? sharp(buffer, { page: i }) : sharp(buffer);
+
         // .rotate() with no arguments auto-orients the image from its EXIF orientation tag.
-        const pngBuffer = await pipeline.rotate().png().toBuffer();
-        const embedded = await pdfDoc.embedPng(pngBuffer);
+        let embedded: PDFImage;
+        if (hasAlpha) {
+          // PNG is required to preserve transparency
+          const pngBuffer = await pipeline.rotate().png().toBuffer();
+          embedded = await pdfDoc.embedPng(pngBuffer);
+        } else {
+          // JPEG is far more compact than PNG for non-transparent images
+          const jpegBuffer = await pipeline
+            .rotate()
+            .jpeg({ quality: 100 })
+            .toBuffer();
+          embedded = await pdfDoc.embedJpg(jpegBuffer);
+        }
+
         const w = embedded.width;
         const h = embedded.height;
         const page = pdfDoc.addPage([w, h]);
