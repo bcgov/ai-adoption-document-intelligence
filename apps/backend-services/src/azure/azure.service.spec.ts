@@ -195,4 +195,72 @@ describe("AzureService", () => {
       );
     });
   });
+
+  describe("checkOperationStatusById", () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it("should construct URL from full endpoint and return parsed body", async () => {
+      const mockBody = { status: "succeeded" };
+      jest.spyOn(global, "fetch").mockResolvedValue({
+        json: async () => mockBody,
+        status: 200,
+      } as Response);
+      const result = await service.checkOperationStatusById("my-uuid");
+      expect(fetch).toHaveBeenCalledWith(
+        "https://test.com/documentintelligence/operations/my-uuid?api-version=2024-11-30",
+        expect.objectContaining({ headers: { "api-key": "secret-key" } }),
+      );
+      expect(result).toEqual(mockBody);
+    });
+
+    it("should preserve path suffix in endpoint when building URL", async () => {
+      // Simulate a path-suffixed APIM endpoint
+      (configService.get as jest.Mock).mockImplementation((key: string) => {
+        if (key === "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+          return "https://apim.example.com/myapi";
+        if (key === "AZURE_DOCUMENT_INTELLIGENCE_API_KEY") return "key";
+        return undefined;
+      });
+      const module2 = await Test.createTestingModule({
+        providers: [
+          { provide: ConfigService, useValue: configService },
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          AzureService,
+        ],
+      }).compile();
+      const svc2 = module2.get<AzureService>(AzureService);
+      jest.spyOn(global, "fetch").mockResolvedValue({
+        json: async () => ({}),
+        status: 200,
+      } as Response);
+      await svc2.checkOperationStatusById("abc-123");
+      expect(fetch).toHaveBeenCalledWith(
+        "https://apim.example.com/myapi/documentintelligence/operations/abc-123?api-version=2024-11-30",
+        expect.anything(),
+      );
+    });
+  });
+
+  describe("checkClassifierExists", () => {
+    it("should return true when the classifier exists", async () => {
+      const mockPath = jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({ status: "200" }),
+      });
+      (service as any).client = { path: mockPath };
+      const result = await service.checkClassifierExists("gid__clf");
+      expect(mockPath).toHaveBeenCalledWith("/documentClassifiers/gid__clf");
+      expect(result).toBe(true);
+    });
+
+    it("should return false when the classifier does not exist", async () => {
+      const mockPath = jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({ status: "404" }),
+      });
+      (service as any).client = { path: mockPath };
+      const result = await service.checkClassifierExists("gid__clf");
+      expect(result).toBe(false);
+    });
+  });
 });
