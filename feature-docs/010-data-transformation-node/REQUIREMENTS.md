@@ -74,6 +74,8 @@ The primary driver for this feature is enabling conversion of OCR-extracted JSON
 - `nodeName` uniquely identifies a prior node in the workflow. The identifier must correspond to the Temporal activity/node identifier used in the workflow engine.
 - Bindings can reference the immediate predecessor node or any earlier node in the graph.
 - Binding resolution is performed at workflow execution time, not at configuration time.
+- A binding may be marked **optional** by prefixing the path with `?`: `{{?nodeName.field.path}}`. Optional bindings do not halt the workflow when the path cannot be resolved; instead the corresponding output key is silently **omitted** from the rendered result. See FR-6 for full error-handling behaviour.
+- Optional bindings are only supported as **whole-value** bindings (i.e., the entire field value is `"{{?path}}"`). Using `{{?path}}` embedded within a larger string (e.g., `"prefix-{{?path}}-suffix"`) is not supported; it is left as literal text.
 
 ### FR-5: Template Rendering
 
@@ -126,10 +128,17 @@ The primary driver for this feature is enabling conversion of OCR-extracted JSON
 
 ### FR-6: Missing Field Handling
 
-- If a binding expression cannot be resolved (the referenced field does not exist in the upstream node's output), the node must:
-  1. **Throw an error** and halt the workflow at that node.
+- Binding expressions have two resolution modes depending on whether the binding is marked optional:
+
+  **Required bindings** (`{{path}}`):
+  1. If the path cannot be resolved, **throw an error** and halt the workflow at that node.
   2. **Record the error** in the workflow execution log identifying the unresolved binding path.
   3. **Set an error badge** on the node in the workflow UI indicating the failure.
+
+  **Optional bindings** (`{{?path}}`):
+  1. If the path cannot be resolved, **omit the key** from the output entirely (the key is not written to the rendered result).
+  2. No error is thrown and the workflow continues normally.
+  3. This is the correct approach when a field is legitimately absent in some workflow runs (e.g., a supporting document that may or may not be present in a given submission).
 
 ### FR-7: Malformed Output Handling
 

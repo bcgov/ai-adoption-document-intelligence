@@ -75,9 +75,9 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
       trainLabel = "Retrain";
     }
   }
-  const trainDisabled = files.length < 2;
+  const trainDisabled = files.length < 1;
   const trainTooltip = trainDisabled
-    ? "At least 2 label groups are required to train."
+    ? "At least 1 label group is required to train."
     : undefined;
 
   const [showTrainingNotice, setShowTrainingNotice] = useState(false);
@@ -143,6 +143,12 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
           {files.length === 0
             ? "No files uploaded yet. Use the 'Add Label Group' button to create a new group and upload files."
             : "Each label represents a group of files used for training. You can add files to an existing label or delete an entire label group."}
+        </Text>
+        <Text size="sm" c="dimmed" mb="md">
+          An <strong>other</strong> label is automatically included during
+          training to handle documents that do not match any defined label.
+          Labels named &quot;other&quot; or &quot;others&quot; are reserved and
+          cannot be created manually.
         </Text>
         <ClassificationFileCards
           fileGroups={files}

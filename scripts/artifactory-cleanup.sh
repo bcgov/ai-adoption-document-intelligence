@@ -2,13 +2,16 @@
 #
 # artifactory-cleanup.sh — Reclaim storage in the Artifactory container repo.
 #
-# Two phases (both optional and composable):
+# Three phases (rotation is optional, orphan + uploads always run):
 #   1. Tag rotation — for each image, keep only the N most-recent named tags
 #      matching a glob pattern; delete the rest. Use for immutable SHA tags like
 #      `bcgov-di-<sha>` so they don't accumulate unbounded.
 #   2. Orphan manifest reclamation — identifies SHA-tagged manifests (stored as
 #      sha256__* folders) that are not referenced by any named tag and deletes
-#      them. Always runs.
+#      them.
+#   3. Uploads cleanup — under <image>/_uploads/, delete blob files that are
+#      either (a) duplicates of layers already stored in tag folders, or
+#      (b) older than 24 hours (stale upload sessions that didn't get GC'd).
 #
 # Usage:
 #   ./scripts/artifactory-cleanup.sh --env dev                        # Orphan cleanup, dry run
@@ -47,6 +50,8 @@ Phases:
     tags matching GLOB beyond the N most recent per image (by created time).
   - Orphan cleanup (always): delete SHA-tagged manifests not referenced by any
     named tag.
+  - Uploads cleanup (always): delete leftover blobs under <image>/_uploads/
+    that are duplicates of stored layers or older than 24 hours.
 
 By default runs in dry-run mode (shows what would be deleted without deleting).
 
@@ -203,7 +208,7 @@ log_info "Querying all stored manifests via AQL..."
 
 AQL_RESULT=$(curl -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
   -H "Content-Type: text/plain" \
-  -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\"}).include(\"repo\",\"path\",\"name\",\"size\")" 2>&1) || {
+  -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\"}).include(\"repo\",\"path\",\"name\",\"size\",\"created\")" 2>&1) || {
   log_error "AQL query failed."
   exit 1
 }
@@ -358,11 +363,88 @@ done
 
 echo ""
 
-TOTAL_SIZE_MB=$(python3 -c "print(f'{${TOTAL_DELETE_SIZE}/1048576:.1f}')" 2>/dev/null || echo "?")
-TOTAL_SIZE_GB=$(python3 -c "print(f'{${TOTAL_DELETE_SIZE}/1073741824:.2f}')" 2>/dev/null || echo "?")
+# ---------- phase 3: uploads cleanup ----------
+# Under <image>/_uploads/, delete blob files that are either:
+#   (a) duplicates of layers already stored in tag folders, OR
+#   (b) older than 24 hours (stale upload sessions never GC'd)
+# These are leftover chunked-upload blobs that should not persist post-push.
+
+log_info "Phase 3: cleaning _uploads (duplicate and stale blobs)..."
+
+UPLOADS_PLAN=$(echo "${AQL_RESULT}" | python3 -c "
+import sys, json
+from datetime import datetime, timezone, timedelta
+
+data = json.load(sys.stdin)
+cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+
+# Build set of (image, sha-blob-name) referenced as layer files in non-_uploads folders
+layer_blobs = set()
+uploads = []  # (image, path, name, size, created)
+
+for r in data['results']:
+    parts = r['path'].split('/')
+    if len(parts) < 2:
+        continue
+    image = parts[0]
+    name = r['name']
+    if parts[1] == '_uploads':
+        if name.startswith('sha256__'):
+            uploads.append((image, r['path'], name, r['size'], r.get('created', '')))
+    else:
+        if name.startswith('sha256__'):
+            layer_blobs.add((image, name))
+
+for image, path, name, size, created in uploads:
+    is_duplicate = (image, name) in layer_blobs
+    is_stale = False
+    if created:
+        try:
+            t = datetime.fromisoformat(created.replace('Z', '+00:00'))
+            is_stale = t < cutoff
+        except Exception:
+            pass
+    if is_duplicate or is_stale:
+        reason = 'dup' if is_duplicate else 'stale'
+        print(f'{path}\t{name}\t{size}\t{reason}')
+" 2>/dev/null) || true
+
+UP_COUNT=0
+UP_SIZE=0
+while IFS=$'\t' read -r upath uname usize ureason; do
+  [[ -z "${upath}" || -z "${uname}" ]] && continue
+  UP_COUNT=$((UP_COUNT + 1))
+  UP_SIZE=$((UP_SIZE + usize))
+  size_mb=$(python3 -c "print(f'{${usize}/1048576:.1f}')" 2>/dev/null || echo "?")
+  if [[ "${DO_DELETE}" == "true" ]]; then
+    log_info "  Deleting ${upath}/${uname} (${size_mb} MB, ${ureason})..."
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
+      "${BASE_URL}/${ARTIFACTORY_REPO}/${upath}/${uname}" 2>/dev/null || echo "000")
+    if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
+      log_ok "  Deleted ${upath}/${uname}"
+    else
+      log_warn "  Failed to delete ${upath}/${uname} (HTTP ${http_code})"
+    fi
+  else
+    echo "    [DRY RUN] Would delete ${upath}/${uname} (${size_mb} MB, ${ureason})"
+  fi
+done <<< "${UPLOADS_PLAN}"
+
+UP_SIZE_MB=$(python3 -c "print(f'{${UP_SIZE}/1048576:.1f}')" 2>/dev/null || echo "?")
+if [[ "${DO_DELETE}" == "true" ]]; then
+  log_ok "Uploads cleanup: deleted ${UP_COUNT} blob(s) (${UP_SIZE_MB} MB)."
+else
+  log_info "Uploads cleanup: ${UP_COUNT} blob(s) flagged for deletion (${UP_SIZE_MB} MB)."
+fi
+echo ""
+
+GRAND_DELETE_SIZE=$((TOTAL_DELETE_SIZE + UP_SIZE))
+GRAND_DELETE_COUNT=$((TOTAL_DELETE_COUNT + UP_COUNT))
+TOTAL_SIZE_MB=$(python3 -c "print(f'{${GRAND_DELETE_SIZE}/1048576:.1f}')" 2>/dev/null || echo "?")
+TOTAL_SIZE_GB=$(python3 -c "print(f'{${GRAND_DELETE_SIZE}/1073741824:.2f}')" 2>/dev/null || echo "?")
 
 if [[ "${DO_DELETE}" == "true" ]]; then
-  log_ok "Cleanup complete. Deleted ${TOTAL_DELETE_COUNT} unreferenced manifests (${TOTAL_SIZE_GB} GB)."
+  log_ok "Cleanup complete. Deleted ${TOTAL_DELETE_COUNT} unreferenced manifests + ${UP_COUNT} upload blob(s) = ${GRAND_DELETE_COUNT} items (${TOTAL_SIZE_GB} GB)."
   echo ""
   log_info "Note: Artifactory may take time to reclaim disk space from deleted layers."
   log_info "Run './scripts/artifactory-usage.sh --env ${ENV_PROFILE}' to verify."
@@ -370,7 +452,7 @@ else
   echo "============================================================"
   echo "  DRY RUN SUMMARY"
   echo "============================================================"
-  echo "  Would delete: ${TOTAL_DELETE_COUNT} unreferenced SHA manifests"
+  echo "  Would delete: ${TOTAL_DELETE_COUNT} unreferenced SHA manifests + ${UP_COUNT} upload blob(s)"
   echo "  Estimated space: ${TOTAL_SIZE_GB} GB (${TOTAL_SIZE_MB} MB)"
   echo ""
   echo "  To actually delete, run:"

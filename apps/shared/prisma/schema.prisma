@@ -328,7 +328,6 @@ model ClassifierModel {
   updator            Actor            @relation(name: "ClassifierUpdatedByActor", fields: [updated_by], references: [id])
   group_id           String
   group              Group            @relation(fields: [group_id], references: [id])
-  config             Json
   created_at         DateTime         @default(now())
   updated_at         DateTime         @updatedAt
   last_used_at       DateTime?

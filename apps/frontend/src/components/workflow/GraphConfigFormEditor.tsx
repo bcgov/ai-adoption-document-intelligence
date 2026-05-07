@@ -29,6 +29,9 @@ import type {
   NodeType,
   PortBinding,
 } from "../../types/graph-workflow";
+import { AzureClassifySubmitForm } from "./AzureClassifySubmitForm";
+import { FlattenClassifiedDocumentsForm } from "./FlattenClassifiedDocumentsForm";
+import { SelectClassifiedPagesForm } from "./SelectClassifiedPagesForm";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "activity", label: "Activity" },
@@ -55,6 +58,10 @@ const EDGE_TYPES = [
 ];
 
 const OCR_ENRICH_ACTIVITY_TYPE = "ocr.enrich";
+const AZURE_CLASSIFY_SUBMIT_ACTIVITY_TYPE = "azureClassify.submit";
+const SELECT_CLASSIFIED_PAGES_ACTIVITY_TYPE = "document.selectClassifiedPages";
+const FLATTEN_CLASSIFIED_DOCUMENTS_ACTIVITY_TYPE =
+  "document.flattenClassifiedDocuments";
 
 const FORMAT_OPTIONS = [
   { value: "json", label: "JSON" },
@@ -746,6 +753,18 @@ function ActivityNodeForm({ node, onChange }: ActivityNodeFormProps) {
       parameters: { ...(node.parameters ?? {}), [key]: value },
     });
   };
+
+  if (node.activityType === AZURE_CLASSIFY_SUBMIT_ACTIVITY_TYPE) {
+    return <AzureClassifySubmitForm node={node} onChange={onChange} />;
+  }
+
+  if (node.activityType === SELECT_CLASSIFIED_PAGES_ACTIVITY_TYPE) {
+    return <SelectClassifiedPagesForm node={node} onChange={onChange} />;
+  }
+
+  if (node.activityType === FLATTEN_CLASSIFIED_DOCUMENTS_ACTIVITY_TYPE) {
+    return <FlattenClassifiedDocumentsForm node={node} onChange={onChange} />;
+  }
 
   return (
     <Stack gap="xs">

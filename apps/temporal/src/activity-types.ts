@@ -22,6 +22,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "document.classify",
   "document.splitAndClassify",
   "document.validateFields",
+  "document.extractPageRange",
   "segment.combineResult",
   "benchmark.evaluate",
   "benchmark.aggregate",
@@ -33,11 +34,18 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "benchmark.loadDatasetManifest",
   "benchmark.loadOcrCache",
   "benchmark.persistOcrCache",
+  "benchmark.persistEvaluationDetails",
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "azureClassify.submit",
+  "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
   "data.transform",
   "tables.lookup",
+  "blob.read",
+  "document.extractToBase64",
 ] as const;
 
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];

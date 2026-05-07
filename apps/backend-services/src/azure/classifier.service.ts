@@ -5,12 +5,15 @@ import "multer";
 import * as path from "node:path";
 import { AzureService } from "@/azure/azure.service";
 import {
-  type ClassifierConfig,
   ClassifierDbService,
   type ClassifierEditableProperties,
   type ClassifierModelWithGroup,
 } from "@/azure/classifier-db.service";
-import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
+import {
+  CLASSIFIER_OTHER_AZURE_PREFIX,
+  CLASSIFIER_OTHER_LABEL,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -24,11 +27,7 @@ import {
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
-export type {
-  ClassifierConfig,
-  ClassifierEditableProperties,
-  ClassifierModelWithGroup,
-};
+export type { ClassifierEditableProperties, ClassifierModelWithGroup };
 
 interface DocType {
   azureBlobSource: {
@@ -120,6 +119,7 @@ export class ClassifierService {
             (result) => {
               this.logger.error("Analyze operation failed", { result });
             },
+            { intervalMs: 10000, maxRetries: 30 },
           );
         } else if (analyzeResponse.status === "404") {
           // Possible fallback if the url doesn't work. Download and analyze via upload.
@@ -268,6 +268,20 @@ export class ClassifierService {
         },
       };
     }
+
+    // Always inject the shared "other" label so users don't need to manage it.
+    docTypes[CLASSIFIER_OTHER_LABEL] = {
+      azureBlobSource: {
+        containerUrl,
+        prefix: CLASSIFIER_OTHER_AZURE_PREFIX,
+      },
+    };
+
+    this.logger.debug("Generated training docTypes", {
+      classifierId: this.getConstructedClassifierName(groupId, classifierName),
+      docTypes,
+    });
+
     // NOTE: baseClassifierId cannot be the same one you are overwriting.
     // It will not find the original. Possibly clears beforehand.
     return {
@@ -307,11 +321,33 @@ export class ClassifierService {
       this.containerName,
     );
 
+    // Verify the shared "other" training data exists in Azure blob storage
+    // before attempting to build the classifier.
+    this.logger.debug(
+      `Verifying "other" training blobs exist for classifier "${classifierName}"`,
+    );
+    const otherBlobs = await this.azureStorage.listBlobs(
+      this.containerName,
+      CLASSIFIER_OTHER_AZURE_PREFIX,
+    );
+    if (otherBlobs.length === 0) {
+      throw new Error(
+        `No training files found at the shared "other" path (${CLASSIFIER_OTHER_AZURE_PREFIX}) in Azure blob storage. ` +
+          `Upload sample documents there before training.`,
+      );
+    }
+    this.logger.debug(
+      `Found ${otherBlobs.length} "other" training blob(s). Building training config.`,
+    );
+
     const trainingConfig = await this.generateTrainingConfig(
       groupId,
       classifierName,
       existingClassifier.description,
       containerUrl,
+    );
+    this.logger.debug(
+      `Training config built for classifier "${classifierName}". Submitting build request to Azure DI.`,
     );
 
     // Run training of classifier
@@ -319,27 +355,37 @@ export class ClassifierService {
       body: trainingConfig,
       queryParameters: { "api-version": "2024-11-30" },
     });
+    this.logger.debug(
+      `Azure DI build response: status=${response.status} for classifier "${classifierName}"`,
+    );
 
     // Poll operation status if 202 Accepted
-    let operationLocation =
+    const operationLocation =
       response.headers["operation-location"] ||
       response.headers["Operation-Location"];
     if (response.status === "202" && operationLocation) {
-      // Returned operation-location header uses wrong domain.
-      // Must replace with our actual Azure endpoint
-      const docIntelligenceEndpoint = this.azureService.getEndpoint();
-      operationLocation = operationLocation.replace(
-        /https:\/\/[^/]+/,
-        docIntelligenceEndpoint.replace(/\/$/, ""),
+      // Extract just the operation ID from the URL to store endpoint-agnostically.
+      // The full URL origin may differ between APIM and the backing Cognitive Services
+      // host depending on whether the APIM rewrite policy fired, so we never store
+      // the raw URL — only the final path segment (the UUID operation ID).
+      const operationId = new URL(operationLocation).pathname
+        .split("/")
+        .filter(Boolean)
+        .pop();
+      if (!operationId) {
+        const message = `Could not extract operation ID from operation-location header: ${operationLocation}`;
+        this.logger.error(message);
+        throw new Error(message);
+      }
+      this.logger.debug(
+        `Classifier training submitted. Operation ID: ${operationId}`,
       );
-
-      // Update classifier record
       return await this.classifierDb.updateClassifierModel(
         classifierName,
         groupId,
         {
           status: ClassifierStatus.TRAINING,
-          operation_location: operationLocation,
+          operation_location: operationId,
         },
         actorId,
       );
@@ -503,6 +549,15 @@ export class ClassifierService {
       properties,
       actorId,
     );
+  }
+
+  /**
+   * Lists blobs in the Azure blob storage container under the given prefix.
+   * @param prefix Prefix path to filter blobs.
+   * @returns Array of blob info objects.
+   */
+  async listAzureBlobs(prefix: string) {
+    return this.azureStorage.listBlobs(this.containerName, prefix);
   }
 
   /**

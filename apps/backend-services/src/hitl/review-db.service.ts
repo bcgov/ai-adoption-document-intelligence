@@ -387,6 +387,10 @@ export class ReviewDbService {
       },
     };
 
+    // Fallback branch is required: documents created before metadata.templateModelId
+    // was recorded at OCR time won't carry it, so we look up by group_id instead.
+    // A Group can hold multiple TemplateModels, so this fallback may pick the wrong
+    // one — accepted only for legacy docs that predate the metadata field.
     const templateModel = opts.templateModelId
       ? await client.templateModel.findUnique({
           where: { id: opts.templateModelId },
