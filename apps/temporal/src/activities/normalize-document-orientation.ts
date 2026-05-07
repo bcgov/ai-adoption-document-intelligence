@@ -61,24 +61,26 @@ async function getMupdf(): Promise<typeof import("mupdf")["default"]> {
   return mupdfPromise;
 }
 
+type MupdfModule = Awaited<ReturnType<typeof getMupdf>>;
+type MupdfDocument = ReturnType<MupdfModule["Document"]["openDocument"]>;
+
 /**
  * Renders a single PDF page to a PNG buffer using mupdf at 72 dpi (1× scale).
  * 72 dpi is sufficient for Tesseract OSD — it does not need high resolution.
  *
+ * Takes an already-opened document so the caller can amortise the parse cost
+ * across all pages (mupdf re-parses the entire PDF on each `openDocument`).
+ *
  * @param mupdf - The loaded mupdf module.
- * @param pdfBuffer - Raw PDF bytes.
+ * @param doc - An open mupdf document.
  * @param pageIndex - 0-based page index.
  * @returns PNG bytes suitable for Tesseract.
  */
 function renderPageToPng(
-  mupdf: Awaited<ReturnType<typeof getMupdf>>,
-  pdfBuffer: Buffer,
+  mupdf: MupdfModule,
+  doc: MupdfDocument,
   pageIndex: number,
 ): Buffer {
-  const doc = mupdf.Document.openDocument(
-    new Uint8Array(pdfBuffer),
-    "application/pdf",
-  );
   const page = doc.loadPage(pageIndex);
   const matrix = mupdf.Matrix.scale(1, 1);
   const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB);
@@ -142,7 +144,7 @@ export async function normalizeDocumentOrientation(
       let confidence = 0;
 
       try {
-        const pagePng = renderPageToPng(mupdf, pdfBuffer, i);
+        const pagePng = renderPageToPng(mupdf, mupdfDoc, i);
         const result = await worker.detect(pagePng);
         detectedAngle = result.data.orientation_degrees ?? 0;
         confidence = result.data.orientation_confidence ?? 0;
