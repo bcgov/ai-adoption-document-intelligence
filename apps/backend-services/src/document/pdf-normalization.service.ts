@@ -150,6 +150,12 @@ export class PdfNormalizationService {
    *
    * This ensures the stored normalized PDF renders correctly in any viewer or
    * programmatic tool regardless of whether it honours the /Rotate metadata.
+   *
+   * The same per-page rotation-baking transform (the switch on 90 / 180 / 270
+   * below) is also implemented in
+   * `apps/temporal/src/activities/normalize-document-orientation.ts`, where the
+   * angle source is Tesseract OSD detection rather than the PDF /Rotate flag.
+   * Keep both sites in sync when changing the math.
    */
   private async normalizePdfPageRotations(fileBuffer: Buffer): Promise<Buffer> {
     const srcDoc = await PDFDocument.load(fileBuffer);

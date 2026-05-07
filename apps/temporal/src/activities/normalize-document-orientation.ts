@@ -99,6 +99,13 @@ function renderPageToPng(
  * Pages with zero orientation or low confidence are copied unchanged.
  * If no pages require correction the input blob is returned as-is (no write).
  *
+ * The per-page rotation-baking transform (the switch on 90 / 180 / 270 below)
+ * is also implemented in
+ * `apps/backend-services/src/document/pdf-normalization.service.ts`
+ * (`normalizePdfPageRotations`), where the angle source is the PDF /Rotate
+ * flag rather than OSD detection. Keep both sites in sync when changing
+ * the math.
+ *
  * @param input - Blob key of the normalized PDF and optional confidence threshold.
  * @returns Corrected blob key and per-page correction details.
  */
