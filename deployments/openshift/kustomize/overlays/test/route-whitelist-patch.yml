@@ -1,0 +1,3 @@
+- op: replace
+  path: /metadata/annotations/haproxy.router.openshift.io~1ip_whitelist
+  value: 142.16.0.0/11 142.34.247.9
