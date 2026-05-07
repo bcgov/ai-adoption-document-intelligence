@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
+import { getErrorMessage } from "@ai-di/shared-logging";
+import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  BLOB_STORAGE,
+  type BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import { PrismaService } from "@/database/prisma.service";
 import {
   ErrorDetectionAnalysisResponseDto,
@@ -19,12 +25,17 @@ interface PartitionResult {
 
 @Injectable()
 export class BenchmarkErrorDetectionService {
+  private readonly logger = new Logger(BenchmarkErrorDetectionService.name);
   protected readonly cache = new Map<
     string,
     ErrorDetectionAnalysisResponseDto
   >();
 
-  constructor(protected readonly prismaService: PrismaService) {}
+  constructor(
+    protected readonly prismaService: PrismaService,
+    @Inject(BLOB_STORAGE)
+    protected readonly blobStorage: BlobStorageInterface,
+  ) {}
 
   /** Drop instances missing confidence; report whether the field has zero evaluable. */
   partitionInstances(instances: FieldInstance[]): PartitionResult {
@@ -76,6 +87,32 @@ export class BenchmarkErrorDetectionService {
   }
 
   /**
+   * Read just the `evaluationDetails` array from a per-sample blob written by
+   * `benchmark.persistEvaluationDetails`. Older runs (pre blob-storage) inlined
+   * the same data on `perSampleResults[].evaluationDetails`; this is only used
+   * when the blob path is set and the inline field is absent.
+   *
+   * Returns `null` when the blob is missing or unreadable so the caller can
+   * skip the sample without failing the whole analysis.
+   */
+  private async readEvaluationDetailsFromBlob(
+    blobPath: string,
+  ): Promise<unknown> {
+    try {
+      const buf = await this.blobStorage.read(validateBlobFilePath(blobPath));
+      const parsed = JSON.parse(buf.toString("utf-8")) as {
+        evaluationDetails?: unknown;
+      };
+      return parsed.evaluationDetails ?? null;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to read evaluation details blob "${blobPath}": ${getErrorMessage(err)}`,
+      );
+      return null;
+    }
+  }
+
+  /**
    * Build the error-detection analysis for a run. Cached by runId.
    */
   async getAnalysis(
@@ -98,6 +135,12 @@ export class BenchmarkErrorDetectionService {
     const perSampleResults = (metrics.perSampleResults ?? []) as Array<{
       sampleId: string;
       evaluationDetails?: unknown;
+      /**
+       * Path to per-sample evaluation details blob (newer runs). Older runs
+       * have `evaluationDetails` inline; the workflow strips heavy fields for
+       * runs created after the blob-storage scheme landed.
+       */
+      evaluationBlobPath?: string;
     }>;
 
     if (!perSampleResults.length) {
@@ -111,11 +154,27 @@ export class BenchmarkErrorDetectionService {
       return empty;
     }
 
+    // Resolve evaluationDetails per sample, fetching from blob when only the
+    // path is present. Inline fields take precedence so legacy runs continue
+    // to work without an extra blob read.
+    const resolvedDetails = await Promise.all(
+      perSampleResults.map((s) => {
+        if (Array.isArray(s.evaluationDetails)) {
+          return Promise.resolve(s.evaluationDetails as unknown);
+        }
+        if (s.evaluationBlobPath) {
+          return this.readEvaluationDetailsFromBlob(s.evaluationBlobPath);
+        }
+        return Promise.resolve(null);
+      }),
+    );
+
     // Group instances by field name.
     const byField = new Map<string, FieldInstance[]>();
-    for (const sample of perSampleResults) {
-      const details = Array.isArray(sample.evaluationDetails)
-        ? (sample.evaluationDetails as Array<{
+    perSampleResults.forEach((_sample, idx) => {
+      const raw = resolvedDetails[idx];
+      const details = Array.isArray(raw)
+        ? (raw as Array<{
             field: string;
             matched: boolean;
             confidence?: number | null;
@@ -129,7 +188,7 @@ export class BenchmarkErrorDetectionService {
           correct: d.matched === true,
         });
       }
-    }
+    });
 
     const fields: ErrorDetectionFieldDto[] = [];
     const excludedFields: string[] = [];

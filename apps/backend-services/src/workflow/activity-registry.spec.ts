@@ -24,8 +24,16 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "getWorkflowGraphConfig",
+  "document.extractPageRange",
+  "azureClassify.submit",
+  "azureClassify.poll",
+  "document.selectClassifiedPages",
+  "document.flattenClassifiedDocuments",
   "data.transform",
   "tables.lookup",
+  "blob.read",
+  "document.extractToBase64",
 ];
 
 describe("activity-registry (backend)", () => {

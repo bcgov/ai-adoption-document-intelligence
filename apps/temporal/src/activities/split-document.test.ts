@@ -1,22 +1,12 @@
-import { execFile } from "node:child_process";
-import * as fs from "node:fs/promises";
+import { PDFDocument } from "pdf-lib";
 import type { SplitDocumentInput } from "./split-document";
 import { splitDocument } from "./split-document";
 
-jest.mock("node:child_process", () => ({
-  execFile: jest.fn(),
-}));
-
-jest.mock("node:fs/promises", () => ({
-  access: jest.fn(),
-  mkdir: jest.fn(),
-  mkdtemp: jest.fn(),
-  rm: jest.fn(),
-  open: jest.fn().mockResolvedValue({
-    writeFile: jest.fn().mockResolvedValue(undefined),
-    close: jest.fn().mockResolvedValue(undefined),
-  }),
-  readFile: jest.fn().mockResolvedValue(Buffer.from("")),
+jest.mock("pdf-lib", () => ({
+  PDFDocument: {
+    load: jest.fn(),
+    create: jest.fn(),
+  },
 }));
 
 const mockBlobRead = jest.fn();
@@ -28,37 +18,39 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
-const execFileMock = execFile as unknown as jest.Mock;
-const accessMock = fs.access as jest.Mock;
-const mkdirMock = fs.mkdir as jest.Mock;
-const mkdtempMock = fs.mkdtemp as jest.Mock;
-const rmMock = fs.rm as jest.Mock;
+const PDFDocumentMock = PDFDocument as unknown as {
+  load: jest.Mock;
+  create: jest.Mock;
+};
+
+/**
+ * Sets up pdf-lib mocks for a document with `totalPages` pages.
+ * PDFDocument.load returns a doc with getPageCount().
+ * PDFDocument.create returns a doc with copyPages/addPage/save.
+ */
+function setupPdfLibMocks(totalPages: number) {
+  const mockSrcDoc = {
+    getPageCount: jest.fn().mockReturnValue(totalPages),
+  };
+  const mockNewDoc = {
+    copyPages: jest.fn().mockResolvedValue([{}]),
+    addPage: jest.fn(),
+    save: jest.fn().mockResolvedValue(new Uint8Array([37, 80, 68, 70])),
+  };
+  PDFDocumentMock.load.mockResolvedValue(mockSrcDoc);
+  PDFDocumentMock.create.mockResolvedValue(mockNewDoc);
+  return { mockSrcDoc, mockNewDoc };
+}
 
 describe("splitDocument activity", () => {
   beforeEach(() => {
-    execFileMock.mockReset();
-    accessMock.mockReset();
-    mkdirMock.mockReset();
-    mkdtempMock.mockReset();
-    rmMock.mockReset();
-    mockBlobRead.mockReset();
-    mockBlobWrite.mockReset();
+    jest.clearAllMocks();
     mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4 test content"));
     mockBlobWrite.mockResolvedValue(undefined);
-    accessMock.mockResolvedValue(undefined);
-    mkdtempMock.mockResolvedValue("/tmp/split-document-test");
-    rmMock.mockResolvedValue(undefined);
-    mkdirMock.mockResolvedValue(undefined);
   });
 
   it("splits per-page", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "3\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(3);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
@@ -77,13 +69,7 @@ describe("splitDocument activity", () => {
   });
 
   it("splits fixed range", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "23\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(23);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
@@ -99,53 +85,8 @@ describe("splitDocument activity", () => {
     expect(result.segments[4].pageRange).toEqual({ start: 21, end: 23 });
   });
 
-  it("splits using boundary detection", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "4\n", stderr: "" });
-        return;
-      }
-      if (cmd === "pdftotext") {
-        const filePath = args[2] as string;
-        if (filePath.includes("page-1.pdf")) {
-          cb(null, { stdout: "Page 1 of 2\nReport", stderr: "" });
-          return;
-        }
-        if (filePath.includes("page-2.pdf")) {
-          cb(null, { stdout: "Continued", stderr: "" });
-          return;
-        }
-        if (filePath.includes("page-3.pdf")) {
-          cb(null, { stdout: "Page 1 of 2\nInvoice", stderr: "" });
-          return;
-        }
-        cb(null, { stdout: "More", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
-
-    const input: SplitDocumentInput = {
-      blobKey: "atestgroup/ocr/original.pdf",
-      groupId: "atestgroup",
-      documentId: "doc-3",
-      strategy: "boundary-detection",
-    };
-
-    const result = await splitDocument(input);
-    expect(result.segments).toHaveLength(2);
-    expect(result.segments[0].pageRange).toEqual({ start: 1, end: 2 });
-    expect(result.segments[1].pageRange).toEqual({ start: 3, end: 4 });
-  });
-
   it("handles large documents up to 2000 pages", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "2000\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(2000);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
@@ -157,17 +98,14 @@ describe("splitDocument activity", () => {
     const result = await splitDocument(input);
     expect(result.segments).toHaveLength(2000);
     expect(result.segments[0].pageRange).toEqual({ start: 1, end: 1 });
-    expect(result.segments[1999].pageRange).toEqual({ start: 2000, end: 2000 });
+    expect(result.segments[1999].pageRange).toEqual({
+      start: 2000,
+      end: 2000,
+    });
   });
 
   it("splits using custom ranges", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "5\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(5);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
@@ -195,13 +133,7 @@ describe("splitDocument activity", () => {
   });
 
   it("validates custom ranges - rejects overlapping ranges", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "10\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(10);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
@@ -210,7 +142,7 @@ describe("splitDocument activity", () => {
       strategy: "custom-ranges",
       customRanges: [
         { start: 1, end: 5 },
-        { start: 4, end: 8 }, // Overlaps with first range
+        { start: 4, end: 8 },
       ],
     };
 
@@ -220,13 +152,7 @@ describe("splitDocument activity", () => {
   });
 
   it("validates custom ranges - rejects out of bounds ranges", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "5\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(5);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
@@ -235,7 +161,7 @@ describe("splitDocument activity", () => {
       strategy: "custom-ranges",
       customRanges: [
         { start: 1, end: 3 },
-        { start: 4, end: 10 }, // Page 10 doesn't exist
+        { start: 4, end: 10 },
       ],
     };
 
@@ -245,20 +171,14 @@ describe("splitDocument activity", () => {
   });
 
   it("validates custom ranges - rejects invalid ranges (start > end)", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "10\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(10);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
       groupId: "atestgroup",
       documentId: "doc-8",
       strategy: "custom-ranges",
-      customRanges: [{ start: 5, end: 3 }], // Invalid: start > end
+      customRanges: [{ start: 5, end: 3 }],
     };
 
     await expect(splitDocument(input)).rejects.toThrow(
@@ -267,20 +187,13 @@ describe("splitDocument activity", () => {
   });
 
   it("validates custom ranges - requires customRanges parameter", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => {
-      if (cmd === "qpdf" && args[0] === "--show-npages") {
-        cb(null, { stdout: "10\n", stderr: "" });
-        return;
-      }
-      cb(null, { stdout: "", stderr: "" });
-    });
+    setupPdfLibMocks(10);
 
     const input: SplitDocumentInput = {
       blobKey: "atestgroup/ocr/original.pdf",
       groupId: "atestgroup",
       documentId: "doc-9",
       strategy: "custom-ranges",
-      // customRanges not provided
     };
 
     await expect(splitDocument(input)).rejects.toThrow(

@@ -33,6 +33,7 @@ describe("GroupController", () => {
             getGroupRequests: jest.fn(),
             getMyRequests: jest.fn(),
             removeGroupMember: jest.fn(),
+            updateGroupMemberRole: jest.fn(),
             leaveGroup: jest.fn(),
           },
         },
@@ -171,12 +172,51 @@ describe("GroupController", () => {
     it("should call service with groupId from param and return members", async () => {
       const groupId = "group1";
       const members = [
-        { userId: "user1", email: "user1@example.com", joinedAt: new Date() },
+        {
+          userId: "user1",
+          email: "user1@example.com",
+          joinedAt: new Date(),
+          role: "MEMBER" as any,
+        },
       ];
       jest.spyOn(service, "getGroupMembers").mockResolvedValueOnce(members);
       const result = await controller.getGroupMembers(groupId);
       expect(service.getGroupMembers).toHaveBeenCalledWith(groupId);
       expect(result).toEqual(members);
+    });
+  });
+
+  describe("updateGroupMemberRole", () => {
+    it("should call service with groupId, userId, role, and identity", async () => {
+      const groupId = "group1";
+      const userId = "user1";
+      const req = { resolvedIdentity: { userId: "caller-id" } } as any;
+      jest.spyOn(service, "updateGroupMemberRole").mockResolvedValueOnce();
+      const result = await controller.updateGroupMemberRole(
+        req,
+        groupId,
+        userId,
+        { role: "ADMIN" as any },
+      );
+      expect(service.updateGroupMemberRole).toHaveBeenCalledWith(
+        groupId,
+        userId,
+        "ADMIN",
+        req.resolvedIdentity,
+      );
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should propagate errors thrown by the service", async () => {
+      const req = { resolvedIdentity: { userId: "caller-id" } } as any;
+      jest
+        .spyOn(service, "updateGroupMemberRole")
+        .mockRejectedValueOnce(new Error("Not found"));
+      await expect(
+        controller.updateGroupMemberRole(req, "group1", "user1", {
+          role: "MEMBER" as any,
+        }),
+      ).rejects.toThrow("Not found");
     });
   });
 
@@ -341,7 +381,10 @@ describe("GroupController", () => {
       jest.spyOn(service, "leaveGroup").mockResolvedValueOnce();
       const req = { resolvedIdentity: { userId } } as any;
       const result = await controller.leaveGroup(req, groupId);
-      expect(service.leaveGroup).toHaveBeenCalledWith(userId, groupId);
+      expect(service.leaveGroup).toHaveBeenCalledWith(
+        req.resolvedIdentity,
+        groupId,
+      );
       expect(result).toEqual({ success: true });
     });
 
