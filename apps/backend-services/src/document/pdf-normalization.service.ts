@@ -92,27 +92,49 @@ export class PdfNormalizationService {
     throw new PdfNormalizationError(`Unsupported file type: ${fileType}`);
   }
 
+  /**
+   * Embeds an image (or each page of a multi-page raster) into a PDF.
+   *
+   * Encoding policy:
+   *  - Single-page JPEG with no EXIF orientation transform → embedded verbatim.
+   *  - Everything else (PNG, TIFF, WebP, GIF, BMP, multi-page, oriented JPEG)
+   *    → re-encoded to JPEG q=100 after applying EXIF rotation and flattening
+   *    any alpha onto white.
+   *
+   * pdf-lib's `embedPng` is intentionally avoided: it decodes PNG to raw RGB
+   * and stores it as FlateDecode WITHOUT PNG predictors (see
+   * `node_modules/pdf-lib/es/core/embedders/PngEmbedder.js`), producing PDFs
+   * 3–10× larger than the source PNG. Re-encoding to JPEG produces materially
+   * smaller PDFs without measurable quality loss for the document use case.
+   */
   private async imageBufferToPdf(buffer: Buffer): Promise<Buffer> {
     try {
       const meta = await sharp(buffer).metadata();
       const pageCount = meta.pages ?? 1;
-      const hasAlpha = meta.hasAlpha ?? false;
+      const isJpeg = meta.format === "jpeg";
+      // EXIF Orientation tag: 1 = no rotation. Absent tag is treated the same.
+      // Values 2–8 encode rotations and/or mirrors that must be baked into the
+      // pixels before embedding because PDF's image XObject does not honour EXIF.
+      const orientation = meta.orientation ?? 1;
       const pdfDoc = await PDFDocument.create();
 
       for (let i = 0; i < pageCount; i++) {
-        const pipeline =
-          pageCount > 1 ? sharp(buffer, { page: i }) : sharp(buffer);
-
-        // .rotate() with no arguments auto-orients the image from its EXIF orientation tag.
         let embedded: PDFImage;
-        if (hasAlpha) {
-          // PNG is required to preserve transparency
-          const pngBuffer = await pipeline.rotate().png().toBuffer();
-          embedded = await pdfDoc.embedPng(pngBuffer);
+        if (isJpeg && pageCount === 1 && orientation === 1) {
+          // Fast path: bytes verbatim. Content-based detection for sideways
+          // pixels with no EXIF metadata happens later in the OSD activity,
+          // not in this metadata-driven layer.
+          embedded = await pdfDoc.embedJpg(buffer);
         } else {
-          // JPEG is far more compact than PNG for non-transparent images
+          const pipeline =
+            pageCount > 1 ? sharp(buffer, { page: i }) : sharp(buffer);
+          // .rotate() (no-arg) bakes the EXIF Orientation tag into pixels.
+          // .flatten() composites any alpha onto white — JPEG can't carry
+          // transparency, and white is the conventional background for
+          // documents. flatten() is a no-op when no alpha channel exists.
           const jpegBuffer = await pipeline
             .rotate()
+            .flatten({ background: "#ffffff" })
             .jpeg({ quality: 100 })
             .toBuffer();
           embedded = await pdfDoc.embedJpg(jpegBuffer);

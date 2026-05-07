@@ -16,8 +16,10 @@ const MIN_PNG = Buffer.from([
   0xae, 0x42, 0x60, 0x82,
 ]);
 
-/** Minimal 1×1 JPEG generated at runtime. */
+/** Minimal 1×1 JPEG generated at runtime. No EXIF orientation tag. */
 let MIN_JPEG: Buffer;
+/** 2×1 JPEG with EXIF Orientation=6 (display rotated 90° CW → upright is 1×2). */
+let JPEG_ORIENTATION_6: Buffer;
 /** Minimal 1×1 RGBA PNG (has alpha channel) generated at runtime. */
 let MIN_RGBA_PNG: Buffer;
 
@@ -33,6 +35,18 @@ beforeAll(async () => {
       background: { r: 255, g: 0, b: 0 },
     },
   })
+    .jpeg()
+    .toBuffer();
+
+  JPEG_ORIENTATION_6 = await sharpFn({
+    create: {
+      width: 2,
+      height: 1,
+      channels: 3,
+      background: { r: 0, g: 255, b: 0 },
+    },
+  })
+    .withMetadata({ orientation: 6 })
     .jpeg()
     .toBuffer();
 
@@ -134,11 +148,41 @@ describe("PdfNormalizationService", () => {
       expect(parsed.getPageCount()).toBe(1);
     });
 
-    it("embeds an RGBA PNG image as a single-page PDF using PNG encoding to preserve alpha", async () => {
+    it("passes the original JPEG bytes through verbatim when no EXIF orientation transform is required", async () => {
+      // The fast path embeds bytes verbatim, so the source JPEG payload should
+      // appear inside the resulting PDF stream (DCTDecode-encoded image XObject
+      // with the JPEG bytes as the stream contents).
+      const out = await service.normalizeToPdf(MIN_JPEG, "image");
+      expect(out.includes(MIN_JPEG)).toBe(true);
+    });
+
+    it("re-encodes (does NOT passthrough) when JPEG carries non-trivial EXIF orientation", async () => {
+      const out = await service.normalizeToPdf(JPEG_ORIENTATION_6, "image");
+      // Original bytes must not survive verbatim — they were re-encoded after
+      // sharp().rotate() applied the EXIF Orientation=6 transform.
+      expect(out.includes(JPEG_ORIENTATION_6)).toBe(false);
+    });
+
+    it("applies EXIF orientation 6 (90° CW) so a 2×1 source produces a 1×2 page", async () => {
+      const out = await service.normalizeToPdf(JPEG_ORIENTATION_6, "image");
+      const parsed = await PDFDocument.load(out);
+      const page = parsed.getPage(0);
+      // Source recorded as 2×1 with EXIF=6; sharp.rotate() yields 1×2 upright.
+      expect(page.getWidth()).toBe(1);
+      expect(page.getHeight()).toBe(2);
+    });
+
+    it("flattens an RGBA PNG onto white and embeds it as JPEG (avoids pdf-lib PNG bloat)", async () => {
       const out = await service.normalizeToPdf(MIN_RGBA_PNG, "image");
       expect(out.length).toBeGreaterThan(100);
       const parsed = await PDFDocument.load(out);
       expect(parsed.getPageCount()).toBe(1);
+      // /DCTDecode only appears in PDFs as the filter for JPEG image XObjects.
+      // If the alpha PNG were routed through pdf-lib's embedPng() the image
+      // XObject would use FlateDecode and no DCTDecode token would exist.
+      // (FlateDecode itself appears in PDFs unrelated to images — xref stream,
+      // metadata — so we can't assert its absence.)
+      expect(out.toString("latin1")).toContain("/DCTDecode");
     });
 
     it("throws PdfNormalizationError for unsupported file type", async () => {
