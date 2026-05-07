@@ -85,17 +85,17 @@ alertmanager:
 
 ### CHES (BCGov Email Service)
 
-- Alertmanager uses CHES as an SMTP-compatible relay or via its REST API (to be determined based on CHES onboarding)
-- Client credentials (`CHES_CLIENT_ID`, `CHES_CLIENT_SECRET`) are **not yet available** — the integration is designed as the primary target but CHES config is stubbed/templated so Teams can be used in the interim
-- Recipient list: a fixed list of email addresses defined in Helm values (e.g., `alertmanager.ches.recipients`)
-- This is a **prerequisite dependency**: CHES onboarding must be completed before email delivery can be activated
+- CHES is the **primary notification channel**. Alertmanager uses CHES as an SMTP-compatible relay or via its REST API (to be determined based on CHES onboarding).
+- Test credentials will be provided for development and integration testing.
+- Recipient list: a fixed list of email addresses defined in Helm values (e.g., `alertmanager.ches.recipients`).
+- Until CHES is confirmed working, `notificationsEnabled` defaults to `false` so no external notifications fire.
 
 ### Microsoft Teams Webhook
 
-- Alertmanager uses the Teams webhook receiver (via the `msteams` integration or equivalent)
-- Webhook URL is a single private channel webhook, stored as a Helm value / Secret
-- Same fixed recipient model — all alerts go to the same channel
-- Teams is the **interim default** until CHES credentials are available
+- Teams is **stubbed** as a fallback receiver in the Helm config template.
+- Due to an organizational policy block on setting up webhooks in Teams channels, Teams cannot be used as an active notification channel at this time.
+- The Teams receiver block is kept in the template to preserve the swappable architecture in case the block is resolved in future, but `notificationChannel` will never default to `teams`.
+- No real Teams webhook URL is expected to be provided; the stub renders with a placeholder value.
 
 ### Severity Filtering
 
@@ -163,25 +163,27 @@ The following new GitHub Environment secrets must be added for each environment 
 
 | Secret Name | Purpose | Example Value |
 |-------------|---------|---------------|
-| `ALERTMANAGER_NOTIFICATION_CHANNEL` | Which channel to route notifications to | `teams` or `ches` |
-| `ALERTMANAGER_NOTIFICATIONS_ENABLED` | Whether to deliver external notifications; set `false` in dev/test to suppress alert fatigue | `true` / `false` |
+| `ALERTMANAGER_NOTIFICATION_CHANNEL` | Which channel to route notifications to | `ches` (primary) or `teams` (stub) |
+| `ALERTMANAGER_NOTIFICATIONS_ENABLED` | Whether to deliver external notifications; defaults to `false` until CHES is confirmed working | `true` / `false` |
 | `ALERTMANAGER_MIN_SEVERITY` | Minimum severity level that triggers external notification | `warning` or `critical` |
-| `ALERTMANAGER_TEAMS_WEBHOOK_URL` | Teams private channel incoming webhook URL (used when channel = `teams`) | `https://...` |
-| `ALERTMANAGER_RECIPIENTS` | Comma-separated list of recipient email addresses (used when channel = `ches`) | `user@example.com,...` |
-| `ALERTMANAGER_CHES_CLIENT_ID` | CHES OAuth client ID (used when channel = `ches`; not yet available — stub until onboarding complete) | — |
+| `ALERTMANAGER_RECIPIENTS` | Comma-separated list of recipient email addresses (CHES) | `user@example.com,...` |
+| `ALERTMANAGER_CHES_CLIENT_ID` | CHES OAuth client ID — test credentials available for dev/test; prod credentials to follow | — |
 | `ALERTMANAGER_CHES_CLIENT_SECRET` | CHES OAuth client secret (same) | — |
+| `ALERTMANAGER_TEAMS_WEBHOOK_URL` | Teams webhook URL placeholder (channel blocked by org policy; kept for future use) | `placeholder` |
 
 **Notes:**
 - `GRAFANA_PVC_SIZE` is **not** a configurable secret — Grafana's PVC is hardcoded to `1Gi` in `values.yaml`. Unlike Loki and Prometheus, Grafana only stores its SQLite database (alert annotations, dashboard state) which stays small regardless of environment.
-- CHES secrets are placeholders until BCGov CHES onboarding is complete. `ALERTMANAGER_NOTIFICATION_CHANNEL=teams` should be the default until then.
+- The default for `ALERTMANAGER_NOTIFICATION_CHANNEL` is `ches`. `ALERTMANAGER_NOTIFICATIONS_ENABLED` defaults to `false` until CHES delivery is verified end-to-end.
+- Teams is structurally present in the template but is blocked by an organizational policy preventing webhook setup in Teams channels. It is kept as a stub only.
 
 ---
 
 ## Out of Scope / Assumptions
 
-- **CHES onboarding** is a prerequisite not owned by this ticket. Teams webhook is the interim delivery method.
+- **CHES onboarding** is a prerequisite for active external notifications. Test credentials will be provided; the `notificationsEnabled` flag defaults to `false` until CHES delivery is verified end-to-end.
 - **OpenShift User Workload Monitoring** being enabled is assumed; verification is a prerequisite.
 - No per-user or per-group alert subscriptions.
 - No in-app UI for alert management — Grafana and Alertmanager UIs are the operator interfaces.
 - No automated CI/CD silence integration.
-- Alert routing by severity (e.g., `critical` → email, `warning` → Teams) is explicitly excluded — all alerts go to one configured channel.
+- Alert routing by severity is explicitly excluded — all alerts at or above `minNotificationSeverity` go to one configured channel.
+- Microsoft Teams is structurally stubbed in the Helm template but is blocked by organizational policy and will not be used as an active channel.
