@@ -1,6 +1,6 @@
 # E02 — Mistral Document AI on Azure Foundry
 
-**Branch**: `experiment/02-mistral-doc-ai-azure`
+**Branch**: `experiment/02-mistral-doc-ai-azure` — branched from `experiment/01-neural-doc-intelligence` (chained stack)
 **Read first**: `experiments/briefs/_shared-rules.md`
 
 ## Goal
