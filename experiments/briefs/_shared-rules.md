@@ -1,6 +1,8 @@
 # Shared rules for all experiment branches
 
-These rules apply to every experiment branch (`experiment/01-...` through `experiment/05-...`) stacked on `feature/extraction-experiments`. Each per-experiment brief references this file.
+These rules apply to every experiment branch (`experiment/01-...` through `experiment/05-...`). Each per-experiment brief references this file.
+
+**Branches are chained, not hub-and-spoke**: E01 branches from `feature/extraction-experiments`; E02 branches from E01; E03 from E02; etc. By the end, `experiment/05-vlm-ocr-hybrid` contains every change from E01–E05 — that's the branch the user runs all benchmarks from. **Always create your branch from the previous experiment**, not from `feature/extraction-experiments`.
 
 ## Required reading before you implement
 

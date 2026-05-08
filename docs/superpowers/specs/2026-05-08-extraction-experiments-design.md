@@ -8,20 +8,22 @@ This branch (`feature/extraction-experiments`) holds shared scaffolding only. Ea
 
 This branch is stacked on `feature/neural-model-training` (PR #134, open). The neural training capability that PR adds is a prerequisite for E01.
 
-## Stacking
+## Stacking — chained, not hub-and-spoke
 
 ```
 develop
-  └── feature/neural-model-training         (PR #134, open — neural training capability)
-      └── feature/extraction-experiments    (this branch — shared scaffolding)
-          ├── experiment/01-neural-doc-intelligence
-          ├── experiment/02-mistral-doc-ai-azure
-          ├── experiment/03-azure-content-understanding
-          ├── experiment/04-vlm-direct
-          └── experiment/05-vlm-ocr-hybrid
+  └── feature/neural-model-training              (PR #134 — neural training capability)
+      └── feature/extraction-experiments         (this branch — shared scaffolding)
+          └── experiment/01-neural-doc-intelligence
+              └── experiment/02-mistral-doc-ai-azure
+                  └── experiment/03-content-understanding
+                      └── experiment/04-vlm-direct
+                          └── experiment/05-vlm-ocr-hybrid     ← final tip has all 5 accumulated
 ```
 
-Each experiment opens a draft PR targeting the parent. Whole stack rebases onto develop once #134 merges.
+Each experiment branches from the **previous** experiment (not from the parent). By the time E05 is done, its tip contains every workflow JSON, every provider folder, and every seed change from E01–E05 — so checking out E05 gives you a fully-populated system ready to run all benchmarks and produce a cross-experiment comparison report.
+
+PR strategy: each experiment opens its own draft PR targeting the previous experiment's branch. The whole stack rebases onto develop once #134 merges (after E05 lands).
 
 ## Non-Goals
 

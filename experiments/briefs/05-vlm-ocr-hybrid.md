@@ -1,6 +1,6 @@
 # E05 — VLM + OCR hybrid
 
-**Branch**: `experiment/05-vlm-ocr-hybrid`
+**Branch**: `experiment/05-vlm-ocr-hybrid` — branched from `experiment/04-vlm-direct` (chained stack — final tip; runs all 5 benchmarks)
 **Read first**: `experiments/briefs/_shared-rules.md`
 
 ## Goal

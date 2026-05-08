@@ -4,17 +4,19 @@ Hub doc for the extraction-experiments suite. Index of experiments + status + ho
 
 See `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md` for the full spec, and `experiments/briefs/` for per-experiment briefs.
 
-## Stacking
+## Stacking — chained
+
+Each experiment branches from the **previous** experiment, so the final tip (`experiment/05-vlm-ocr-hybrid`) contains every workflow, every provider, and every seed change from E01–E05 — ready to run all 5 benchmarks against the same dataset and produce a cross-experiment comparison.
 
 ```
 develop
-  └── feature/neural-model-training         (PR #134, open — neural training capability)
-      └── feature/extraction-experiments    (this branch — shared scaffolding)
-          ├── experiment/01-neural-doc-intelligence
-          ├── experiment/02-mistral-doc-ai-azure
-          ├── experiment/03-azure-content-understanding
-          ├── experiment/04-vlm-direct
-          └── experiment/05-vlm-ocr-hybrid
+  └── feature/neural-model-training              (PR #134 — neural training capability)
+      └── feature/extraction-experiments         (this branch — shared scaffolding)
+          └── experiment/01-neural-doc-intelligence
+              └── experiment/02-mistral-doc-ai-azure
+                  └── experiment/03-content-understanding
+                      └── experiment/04-vlm-direct
+                          └── experiment/05-vlm-ocr-hybrid     ← runs all 5 benchmarks
 ```
 
 ## Status
@@ -29,7 +31,12 @@ develop
 
 ## How to run an experiment
 
-1. **Switch to the experiment branch** (created from this parent): `git checkout -b experiment/<slug> feature/extraction-experiments`
+1. **Switch to the experiment branch** (chained from the previous experiment, not from this parent):
+   - E01: `git checkout -b experiment/01-neural-doc-intelligence feature/extraction-experiments`
+   - E02: `git checkout -b experiment/02-mistral-doc-ai-azure experiment/01-neural-doc-intelligence`
+   - E03: `git checkout -b experiment/03-content-understanding experiment/02-mistral-doc-ai-azure`
+   - E04: `git checkout -b experiment/04-vlm-direct experiment/03-content-understanding`
+   - E05: `git checkout -b experiment/05-vlm-ocr-hybrid experiment/04-vlm-direct`
 2. **Read the brief** at `experiments/briefs/<slug>.md`. Read `_shared-rules.md` first.
 3. **Implement** following the brief's task list.
 4. **Run the workflow on a real document** end-to-end against the real engine API.
@@ -53,17 +60,36 @@ develop
 7. **Fill in the engine-integration checklist** (12 items) for your experiment in the section below.
 8. **Write the summary** at `experiments/results/<slug>/SUMMARY.md`.
 
-## Run all benchmarks (after E01–E05 land)
+## Run all benchmarks + build comparison report
 
-After the 5 experiment branches merge, every experiment has seeded its `BenchmarkDefinition`. Trigger all 5 runs against the same dataset with one command:
+Once `experiment/05-vlm-ocr-hybrid` is checked out (final tip of the chained stack — has all 5 experiments accumulated), the full benchmark + comparison flow is two commands:
 
 ```bash
+# 1. Trigger all 5 benchmark runs against the same dataset (33 samples).
 ./scripts/run-experiment-benchmarks.sh
+
+# 2. Wait for runs to complete (watch progress in the UI or poll the API):
+#    GET /api/benchmark/projects/seed-experiments-project/runs
+
+# 3. Download all completed runs to a tmp dir and build a markdown report.
+./scripts/compare-experiment-benchmarks.sh
+# → /tmp/extraction-experiments-YYYYMMDD-HHMMSS/
+#     ├── 01-neural-doc-intelligence/run.json
+#     ├── 02-mistral-doc-ai-azure/run.json
+#     ├── 03-content-understanding/run.json
+#     ├── 04-vlm-direct/run.json
+#     ├── 05-vlm-ocr-hybrid/run.json
+#     └── COMPARISON.md
 ```
 
-Requires `TEST_API_KEY` exported (from your override file). Outputs each run's HTTP status and run id. Watch progress at `GET /api/benchmark/projects/seed-experiments-project/runs`.
+Both scripts require `TEST_API_KEY` exported (from your override file). The comparison script:
+- Lists runs in `seed-experiments-project`
+- Filters by tag pattern `experiment-*`
+- Picks the most recent **completed** run per tag (so you can re-run individual experiments and the comparison picks up the latest)
+- Downloads via the existing `GET /runs/:runId/download` endpoint
+- Writes a markdown table with status, field/character/word accuracy, duration, cost, run id
 
-The runs are tagged `experiment-{slug}` so cross-experiment comparison reads cleanly from the BenchmarkRun table.
+`COMPARISON.md` is intentionally simple — extend the script as you add per-field-class metrics or P95 latency.
 
 ## Engine-integration checklists (filled per experiment)
 
