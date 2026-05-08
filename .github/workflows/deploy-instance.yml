@@ -365,6 +365,14 @@ jobs:
             "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite -n "$OC_NAMESPACE" || true
           echo "::endgroup::"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Generate alert rules
+        run: npm ci --ignore-scripts && npm run generate:alert-rules
+
       - name: Deploy PLG monitoring stack
         if: env.DEPLOY_PLG == 'true'
         env:
