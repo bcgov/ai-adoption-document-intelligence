@@ -33,21 +33,37 @@ develop
 2. **Read the brief** at `experiments/briefs/<slug>.md`. Read `_shared-rules.md` first.
 3. **Implement** following the brief's task list.
 4. **Run the workflow on a real document** end-to-end against the real engine API.
-5. **Run a benchmark** programmatically:
+5. **Run a benchmark** programmatically (via the runner script — only works once your branch seeds the definition):
+
+   ```bash
+   ./scripts/run-experiment-benchmarks.sh <leading-number>      # e.g. 02
+   ```
+
+   Or trigger directly:
 
    ```bash
    curl -H "x-api-key: $TEST_API_KEY" \
         -H "Content-Type: application/json" \
         -X POST \
-        -d '{"datasetVersionId":"<id>","workflowId":"<id>","tags":["experiment-XX"]}' \
-        http://localhost:3002/api/benchmark/projects/<projectId>/runs
+        -d '{"tags":["experiment-<slug>"]}' \
+        http://localhost:3002/api/benchmark/projects/seed-experiments-project/definitions/seed-experiment-<slug>-definition/runs
    ```
-
-   The user provides the API key (`TEST_API_KEY` from the override file).
 
 6. **Write mock-based tests** once stable (see `_shared-rules.md` § Dev loop, step 5).
 7. **Fill in the engine-integration checklist** (12 items) for your experiment in the section below.
 8. **Write the summary** at `experiments/results/<slug>/SUMMARY.md`.
+
+## Run all benchmarks (after E01–E05 land)
+
+After the 5 experiment branches merge, every experiment has seeded its `BenchmarkDefinition`. Trigger all 5 runs against the same dataset with one command:
+
+```bash
+./scripts/run-experiment-benchmarks.sh
+```
+
+Requires `TEST_API_KEY` exported (from your override file). Outputs each run's HTTP status and run id. Watch progress at `GET /api/benchmark/projects/seed-experiments-project/runs`.
+
+The runs are tagged `experiment-{slug}` so cross-experiment comparison reads cleanly from the BenchmarkRun table.
 
 ## Engine-integration checklists (filled per experiment)
 

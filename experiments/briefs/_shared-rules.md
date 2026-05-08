@@ -39,7 +39,16 @@ Confirm and document these 12 items as you implement. Fill in the checklist row 
 8. **Workflow graph definition** — JSON wiring engine + applicable post-processing nodes (`ocr.cleanup`, `ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`, `ocr.enrich`, `ocr.checkConfidence`, `ocr.storeResults`). Persist via the dataset seed extension or workflow CRUD API.
 9. **Engine-internal preprocessing** — does the engine deskew/rotate/denoise internally? Document so we don't double-process. Upstream is `apps/backend-services/src/document/pdf-normalization.service.ts`.
 10. **Test coverage** — see dev loop below.
-11. **Benchmark integration** — run via the existing `BenchmarkRun` flow against the seeded `Dataset`. Tag the run with `experiment-XX`. Use the backend benchmark API endpoint (user provides API key for programmatic runs).
+11. **Benchmark integration** — extend `apps/shared/prisma/seed.ts` so the experiment is **runnable from the API without manual setup** after `npm run test:db:reset`. Specifically, seed:
+    - A `WorkflowLineage` + `WorkflowVersion` for your experiment's graph.
+    - A `BenchmarkDefinition` with id `seed-experiment-{slug}-definition` in the parent-seeded `BenchmarkProject` `seed-experiments-project` (project + a `Split` per local dataset are already seeded on the parent).
+    - The definition references your seeded workflow version + `seed-local-{folder}-{visibility}-split` + `seed-local-{folder}-{visibility}-v1` dataset version.
+
+    Then run the benchmark via the existing API:
+    ```
+    POST /api/benchmark/projects/seed-experiments-project/definitions/seed-experiment-{slug}-definition/runs
+    ```
+    Tag the run with `experiment-{slug}`. The user provides the API key for programmatic runs (`x-api-key: $TEST_API_KEY`). After your branch lands, `scripts/run-experiment-benchmarks.sh` will be able to trigger your experiment alongside the others.
 12. **Cost/usage telemetry** — record per-call usage on the run's `metrics` JSON. DI per page, Mistral per page/char, Azure OpenAI per token, CU has both content-extraction and generative-model components.
 
 ## Dev loop
