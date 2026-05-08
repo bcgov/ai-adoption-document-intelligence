@@ -76,9 +76,9 @@ prometheus:
     backendServices:
       host: "backend-services"
       port: 3002
-    temporalServer:
+    temporalWorker:
       host: "temporal"
-      port: 9090
+      port: 9091
 
 grafana:
   image:

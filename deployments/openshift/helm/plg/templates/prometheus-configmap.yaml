@@ -21,9 +21,9 @@ data:
           - targets:
               - "{{ .Values.prometheus.scrapeTargets.backendServices.host }}:{{ .Values.prometheus.scrapeTargets.backendServices.port }}"
 
-      - job_name: "temporal-server"
+      - job_name: "temporal-worker"
         metrics_path: "/metrics"
         scrape_interval: {{ .Values.prometheus.scrapeInterval }}
         static_configs:
           - targets:
-              - "{{ .Values.prometheus.scrapeTargets.temporalServer.host }}:{{ .Values.prometheus.scrapeTargets.temporalServer.port }}"
+              - "{{ .Values.prometheus.scrapeTargets.temporalWorker.host }}:{{ .Values.prometheus.scrapeTargets.temporalWorker.port }}"

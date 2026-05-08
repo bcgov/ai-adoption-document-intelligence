@@ -398,7 +398,7 @@ jobs:
             --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE:-10Gi}" \
             --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL:-15s}" \
             --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
-            --set "prometheus.scrapeTargets.temporalServer.host=${INSTANCE_NAME}-temporal" \
+            --set "prometheus.scrapeTargets.temporalWorker.host=${INSTANCE_NAME}-temporal" \
             --wait --timeout 120s || echo "::warning::PLG deployment failed (non-blocking)"
 
       - name: Restart deployments and wait

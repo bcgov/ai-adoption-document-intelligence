@@ -11,11 +11,11 @@ scrape_configs:
     scrape_interval: 15s
     static_configs:
       - targets:
-          - "host.docker.internal:3002"
+          - "host.containers.internal:3002"
 
-  - job_name: "temporal-server"
+  - job_name: "temporal-worker"
     metrics_path: "/metrics"
     scrape_interval: 15s
     static_configs:
       - targets:
-          - "temporal:9090"
+          - "host.containers.internal:9091"
