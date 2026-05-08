@@ -1836,9 +1836,11 @@ async function seedLocalDatasets() {
     // Blob-convention paths. The actual files are uploaded by
     // LocalDatasetSyncService on backend startup; until then, these paths
     // are placeholders that the sync service confirms / refreshes.
+    // manifestPath is stored relative to storagePrefix — same convention as
+    // dataset.service.ts createVersion (defaults to "dataset-manifest.json").
     const datasetStoragePath = `datasets/${datasetId}`;
     const versionStoragePrefix = `datasets/${datasetId}/${versionId}`;
-    const versionManifestPath = `groups/${SEED_GROUP_ID}/benchmark/${versionStoragePrefix}/dataset-manifest.json`;
+    const versionManifestPath = "dataset-manifest.json";
 
     await prisma.dataset.upsert({
       where: { id: datasetId },
@@ -2039,9 +2041,10 @@ async function seedExperimentWorkflows() {
         name: `${workflowName} Benchmark`,
         workflowVersionId: versionId,
         workflowConfigHash: `seed-${slug}`,
-        evaluatorType: "field-accuracy",
+        evaluatorType: "schema-aware",
         evaluatorConfig: {
-          metrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+          defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 },
+          passThreshold: 0.8,
         },
         runtimeSettings: { timeout: 600, retries: 2 },
       },
@@ -2052,9 +2055,10 @@ async function seedExperimentWorkflows() {
         datasetVersionId: targetVersion.id,
         workflowVersionId: versionId,
         workflowConfigHash: `seed-${slug}`,
-        evaluatorType: "field-accuracy",
+        evaluatorType: "schema-aware",
         evaluatorConfig: {
-          metrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+          defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 },
+          passThreshold: 0.8,
         },
         runtimeSettings: { timeout: 600, retries: 2 },
       },
