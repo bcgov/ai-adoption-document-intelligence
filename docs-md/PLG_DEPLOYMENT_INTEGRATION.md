@@ -2,7 +2,7 @@
 
 ## Overview
 
-The PLG (Prometheus, Loki, Grafana) monitoring stack is deployed as a separate Helm release alongside the application. It does not modify or interfere with the existing Kustomize-based application deployment. PLG deployment is integrated into both the GitHub Actions CI/CD pipeline and the local deployment scripts.
+The PLG (Prometheus, Loki, Grafana, Alertmanager) monitoring stack is deployed as a separate Helm release alongside the application. It does not modify or interfere with the existing Kustomize-based application deployment. PLG deployment is integrated into both the GitHub Actions CI/CD pipeline and the local deployment scripts.
 
 ## Deployment Methods
 
@@ -55,8 +55,15 @@ PLG-specific variables are configured in the same environment profile files used
 | `LOKI_PVC_SIZE` | `10Gi` | Persistent volume size for Loki data |
 | `PROMETHEUS_PVC_SIZE` | `10Gi` | Persistent volume size for Prometheus TSDB |
 | `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
+| `ALERTMANAGER_NOTIFICATION_CHANNEL` | `ches` | Active notification channel: `ches` or `teams` |
+| `ALERTMANAGER_NOTIFICATIONS_ENABLED` | `false` | Whether Alertmanager routes alerts externally |
+| `ALERTMANAGER_MIN_SEVERITY` | `warning` | Minimum severity for external notification: `warning` or `critical` |
+| `ALERTMANAGER_CHES_ADAPTER_SECRET` | `""` | Shared Bearer token between Alertmanager and ches-adapter |
+| `ALERTMANAGER_TEAMS_WEBHOOK_URL` | `placeholder` | Teams webhook URL (org policy stub) |
 
 These variables are read by the `Deploy Instance` workflow from the environment secrets and passed to Helm as `--set` overrides on top of the `values-openshift.yaml` base.
+
+CHES credentials (`chesClientId`, `chesClientSecret`, `chesAuthHost`, `chesHost`, `chesFromEmail`, `chesToEmails`) are stored in a Kubernetes Secret referenced by `chesAdapter.secretName` (default: `ches-adapter-secrets`). This secret must be created manually in the target namespace before deploying with `notificationChannel=ches`. See [ALERTING.md](ALERTING.md) for the required secret keys.
 
 ## Separation from Kustomize
 

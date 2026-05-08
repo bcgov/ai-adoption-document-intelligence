@@ -62,11 +62,11 @@ After implementing a user story, check it off at the bottom of this file.
 
 ### Phase 5 — In-App Usage, Persistence & CI/CD (depends on Phases 1–4)
 - [x] **US-002** (Demonstrate in-app alerting in backend service and Temporal activity) — requires US-001
-- [ ] **US-010** (Grafana PVC for persistent alert history) — independent of alerting logic, can be done any time after US-004
-- [ ] **US-011** (Wire Alertmanager secrets into deploy-instance.yml) — requires all Helm values from US-004, US-007, US-008, US-009 to be defined
+- [x] **US-010** (Grafana PVC for persistent alert history) — independent of alerting logic, can be done any time after US-004
+- [x] **US-011** (Wire Alertmanager secrets into deploy-instance.yml) — requires all Helm values from US-004, US-007, US-008, US-009 to be defined
 
 ### Phase 6 — Documentation (depends on all prior phases being complete)
-- [ ] **US-012** (Update docs-md) — documents the completed system
+- [x] **US-012** (Update docs-md) — documents the completed system
 
 > Stories are ordered by dependency chain for automated implementation.
 > Each story should be implementable after all stories in previous phases are complete.

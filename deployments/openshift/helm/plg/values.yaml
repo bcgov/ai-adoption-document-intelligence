@@ -101,6 +101,12 @@ grafana:
   # Port Grafana listens on.
   httpPort: 3001
 
+  # PVC size for Grafana SQLite database and alert history.
+  pvcSize: 1Gi
+
+  # Storage class for the PVC. Empty string uses the cluster default.
+  storageClassName: ""
+
 alertmanager:
   image:
     repository: prom/alertmanager

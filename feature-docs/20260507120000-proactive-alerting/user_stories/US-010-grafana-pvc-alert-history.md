@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Grafana PVC template renders in the Helm chart
+- [x] **Scenario 1**: Grafana PVC template renders in the Helm chart
     - **Given** the PLG Helm chart is templated
     - **When** `helm template` is run
     - **Then** a `PersistentVolumeClaim` named after the Grafana instance is included with `storage: 1Gi` and the configured storage class
 
-- [ ] **Scenario 2**: Grafana Deployment mounts the PVC at `/var/lib/grafana`
+- [x] **Scenario 2**: Grafana Deployment mounts the PVC at `/var/lib/grafana`
     - **Given** the PLG Helm chart is templated
     - **When** `helm template` is run
     - **Then** the Grafana Deployment spec includes a volume referencing the PVC and a `volumeMount` at `/var/lib/grafana`
 
-- [ ] **Scenario 3**: Grafana PVC size is hardcoded to `1Gi` in `values.yaml`
+- [x] **Scenario 3**: Grafana PVC size is hardcoded to `1Gi` in `values.yaml`
     - **Given** `values.yaml` is reviewed
     - **When** `grafana.pvcSize` is checked
     - **Then** the value is `1Gi` and there is no environment-specific override in `values-openshift.yaml` or `values-local.yaml`
 
-- [ ] **Scenario 4**: Local Docker Compose Grafana uses a named volume for the same purpose
+- [x] **Scenario 4**: Local Docker Compose Grafana uses a named volume for the same purpose
     - **Given** `docker-compose.monitoring.yml` is updated
     - **When** the monitoring stack starts
     - **Then** Grafana's `/var/lib/grafana` is backed by a named Docker volume (e.g., `grafana_data`) so alert state persists across `docker compose down && up`

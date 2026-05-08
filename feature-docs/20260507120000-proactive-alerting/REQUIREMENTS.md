@@ -159,17 +159,32 @@ Grafana is given a **Persistent Volume Claim (1Gi)** for its internal SQLite dat
 
 ## New Environment Variables / Secrets
 
-The following new GitHub Environment secrets must be added for each environment (`dev`, `test`, `prod`) and wired through the `Deploy Instance` workflow as `--set` flags on the PLG `helm upgrade` command. They follow the same pattern as existing PLG secrets (`GRAFANA_ADMIN_PASSWORD`, `LOKI_RETENTION_DAYS`, etc.).
+### GitHub Environment secrets (wired as `--set` flags in `deploy-instance.yml`)
+
+The following secrets are set per environment (`dev`, `test`, `prod`) and passed to the PLG `helm upgrade` command as `--set` flags, following the same pattern as `GRAFANA_ADMIN_PASSWORD`, `LOKI_RETENTION_DAYS`, etc.
 
 | Secret Name | Purpose | Example Value |
 |-------------|---------|---------------|
 | `ALERTMANAGER_NOTIFICATION_CHANNEL` | Which channel to route notifications to | `ches` (primary) or `teams` (stub) |
 | `ALERTMANAGER_NOTIFICATIONS_ENABLED` | Whether to deliver external notifications; defaults to `false` until CHES is confirmed working | `true` / `false` |
 | `ALERTMANAGER_MIN_SEVERITY` | Minimum severity level that triggers external notification | `warning` or `critical` |
-| `ALERTMANAGER_RECIPIENTS` | Comma-separated list of recipient email addresses (CHES) | `user@example.com,...` |
-| `ALERTMANAGER_CHES_CLIENT_ID` | CHES OAuth client ID — test credentials available for dev/test; prod credentials to follow | — |
-| `ALERTMANAGER_CHES_CLIENT_SECRET` | CHES OAuth client secret (same) | — |
+| `ALERTMANAGER_CHES_ADAPTER_SECRET` | Shared Bearer token sent by Alertmanager to the ches-adapter service | any random secret string |
 | `ALERTMANAGER_TEAMS_WEBHOOK_URL` | Teams webhook URL placeholder (channel blocked by org policy; kept for future use) | `placeholder` |
+
+### Kubernetes Secret (provisioned manually before deployment)
+
+CHES credentials are **not** passed as `--set` flags. They are stored in a Kubernetes Secret in the target namespace, referenced by the Helm value `chesAdapter.secretName` (default: `ches-adapter-secrets`). This secret must be created by the operator before deploying with `notificationChannel=ches`:
+
+```bash
+oc create secret generic ches-adapter-secrets \
+  --from-literal=webhookSecret=<CHES_ADAPTER_SECRET value> \
+  --from-literal=chesClientId=<CHES client ID> \
+  --from-literal=chesClientSecret=<CHES client secret> \
+  --from-literal=chesAuthHost=https://loginproxy.gov.bc.ca \
+  --from-literal=chesHost=https://ches.api.gov.bc.ca \
+  --from-literal=chesFromEmail=<sender address registered with CHES> \
+  --from-literal=chesToEmails=<comma-separated recipient list>
+```
 
 **Notes:**
 - `GRAFANA_PVC_SIZE` is **not** a configurable secret — Grafana's PVC is hardcoded to `1Gi` in `values.yaml`. Unlike Loki and Prometheus, Grafana only stores its SQLite database (alert annotations, dashboard state) which stays small regardless of environment.

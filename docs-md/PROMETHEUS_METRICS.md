@@ -14,6 +14,16 @@ The backend-services application exposes a `/metrics` endpoint for Prometheus sc
 | `http_request_errors_total` | Counter | `method`, `path`, `status_code` | Total HTTP requests with 4xx or 5xx status codes |
 | `http_request_duration_seconds` | Histogram | `method`, `path` | Request duration in seconds with configurable buckets |
 
+### In-App Alert Metrics
+
+Emitted by the shared logger metrics hook whenever a log line includes `{ alertType: "..." }` in context. See [ALERTING.md](ALERTING.md) for usage.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `app_error_total` | Counter | `type`, `severity` | Incremented on each `warn` (`severity=warning`) or `error` (`severity=critical`) log with an `alertType`. Used as the numerator in error-rate alert rules. |
+| `app_recovery_total` | Counter | `type` | Incremented once when the first `info`/`debug` log is emitted for a `type` that was previously in error state. Signals a recovery transition. |
+| `app_success_total` | Counter | `type` | Incremented on every `info`/`debug` log with an `alertType`. Used as the denominator in error-rate alert rules. |
+
 ### Node.js Runtime Metrics
 
 Default `prom-client` metrics are collected, including:

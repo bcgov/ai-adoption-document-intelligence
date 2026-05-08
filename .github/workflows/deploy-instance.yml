@@ -383,6 +383,11 @@ jobs:
           LOKI_PVC_SIZE: ${{ secrets.LOKI_PVC_SIZE }}
           PROMETHEUS_PVC_SIZE: ${{ secrets.PROMETHEUS_PVC_SIZE }}
           METRICS_SCRAPE_INTERVAL: ${{ secrets.METRICS_SCRAPE_INTERVAL }}
+          ALERTMANAGER_NOTIFICATION_CHANNEL: ${{ secrets.ALERTMANAGER_NOTIFICATION_CHANNEL }}
+          ALERTMANAGER_NOTIFICATIONS_ENABLED: ${{ secrets.ALERTMANAGER_NOTIFICATIONS_ENABLED }}
+          ALERTMANAGER_MIN_SEVERITY: ${{ secrets.ALERTMANAGER_MIN_SEVERITY }}
+          ALERTMANAGER_CHES_ADAPTER_SECRET: ${{ secrets.ALERTMANAGER_CHES_ADAPTER_SECRET }}
+          ALERTMANAGER_TEAMS_WEBHOOK_URL: ${{ secrets.ALERTMANAGER_TEAMS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
 
@@ -399,6 +404,12 @@ jobs:
             --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL:-15s}" \
             --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
             --set "prometheus.scrapeTargets.temporalWorker.host=${INSTANCE_NAME}-temporal" \
+            --set "alertmanager.notificationChannel=${ALERTMANAGER_NOTIFICATION_CHANNEL:-ches}" \
+            --set "alertmanager.notificationsEnabled=${ALERTMANAGER_NOTIFICATIONS_ENABLED:-false}" \
+            --set "alertmanager.minNotificationSeverity=${ALERTMANAGER_MIN_SEVERITY:-warning}" \
+            --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
+            --set "alertmanager.ches.webhookSecret=${ALERTMANAGER_CHES_ADAPTER_SECRET:-}" \
+            --set "alertmanager.teams.webhookUrl=${ALERTMANAGER_TEAMS_WEBHOOK_URL:-placeholder}" \
             --wait --timeout 120s || echo "::warning::PLG deployment failed (non-blocking)"
 
       - name: Restart deployments and wait
