@@ -15,6 +15,12 @@ import { getPrismaPgOptions } from "../../backend-services/src/utils/database-ur
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import {
+  localDatasetId,
+  localDatasetVersionId,
+  parseLocalDatasets,
+} from "../../backend-services/src/seed/local-datasets";
+
 const prisma = new PrismaClient({
   adapter: new PrismaPg(getPrismaPgOptions(process.env.DATABASE_URL)),
 });
@@ -1768,6 +1774,90 @@ async function seedTablesData() {
   );
 }
 
+/**
+ * Seed local-folder datasets dropped at `data/datasets/<name>/{public,private}/`.
+ * Convention defined in `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md`.
+ *
+ * Idempotent — re-running with the same folders updates existing Dataset /
+ * DatasetVersion rows without duplicating samples. Runs after the seed-test
+ * datasets so existing test fixtures keep their stable IDs.
+ */
+async function seedLocalDatasets() {
+  const repoRoot = path.resolve(__dirname, "../../..");
+  const datasetsDir = path.join(repoRoot, "data", "datasets");
+
+  const parsed = parseLocalDatasets(datasetsDir, repoRoot, {
+    warn: (msg) => console.warn(`  ⚠ ${msg}`),
+  });
+
+  if (parsed.length === 0) {
+    console.log(
+      "📁 No local datasets in data/datasets/<name>/{public,private}/ (skipping local dataset seed).",
+    );
+    return;
+  }
+
+  console.log(`📁 Seeding ${parsed.length} local dataset version(s)...`);
+
+  for (const entry of parsed) {
+    const datasetId = localDatasetId(entry.folder, entry.visibility);
+    const versionId = localDatasetVersionId(entry.folder, entry.visibility);
+
+    await prisma.dataset.upsert({
+      where: { id: datasetId },
+      update: {
+        name: entry.datasetName,
+        description: `Local dataset (${entry.visibility}) loaded from data/datasets/${entry.folder}/${entry.visibility}`,
+        metadata: {
+          templateModelKey: entry.templateModelKey,
+          visibility: entry.visibility,
+          source: "local-folder",
+        },
+        storagePath: entry.storagePrefix,
+        createdBy: SEED_ACTOR_ID,
+        group_id: SEED_GROUP_ID,
+      },
+      create: {
+        id: datasetId,
+        name: entry.datasetName,
+        description: `Local dataset (${entry.visibility}) loaded from data/datasets/${entry.folder}/${entry.visibility}`,
+        metadata: {
+          templateModelKey: entry.templateModelKey,
+          visibility: entry.visibility,
+          source: "local-folder",
+        },
+        storagePath: entry.storagePrefix,
+        createdBy: SEED_ACTOR_ID,
+        group_id: SEED_GROUP_ID,
+      },
+    });
+
+    await prisma.datasetVersion.upsert({
+      where: { id: versionId },
+      update: {
+        version: "v1",
+        storagePrefix: entry.storagePrefix,
+        manifestPath: entry.manifestPath,
+        documentCount: entry.sampleCount,
+        groundTruthSchema: {},
+      },
+      create: {
+        id: versionId,
+        datasetId,
+        version: "v1",
+        storagePrefix: entry.storagePrefix,
+        manifestPath: entry.manifestPath,
+        documentCount: entry.sampleCount,
+        groundTruthSchema: {},
+      },
+    });
+
+    console.log(
+      `  ✓ ${entry.datasetName} / ${entry.visibility} (${entry.sampleCount} samples)`,
+    );
+  }
+}
+
 async function main() {
   console.log("🌱 Starting database seed...\n");
 
@@ -1777,6 +1867,7 @@ async function main() {
   await seedTablesData();
   await seedTemplateModelData();
   await seedBenchmarkingData();
+  await seedLocalDatasets();
 
   console.log("\n✅ All seed data created successfully!");
 }
