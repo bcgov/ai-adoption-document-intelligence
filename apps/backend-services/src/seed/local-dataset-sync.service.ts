@@ -140,7 +140,7 @@ export class LocalDatasetSyncService implements OnApplicationBootstrap {
       entry,
       repoRoot,
       this.blobStorage,
-      this.prisma as unknown as DatasetVersionUpdater,
+      this.prisma.prisma as unknown as DatasetVersionUpdater,
     );
   }
 }
