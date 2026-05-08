@@ -1,6 +1,6 @@
 # E04 — VLM-direct extraction
 
-**Branch**: `experiment/04-vlm-direct`
+**Branch**: `experiment/04-vlm-direct` — branched from `experiment/03-content-understanding` (chained stack)
 **Read first**: `experiments/briefs/_shared-rules.md`
 
 ## ⚠ Pre-work: gpt-5.5 quota request

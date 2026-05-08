@@ -1,6 +1,6 @@
 # E03 — Azure Content Understanding
 
-**Branch**: `experiment/03-content-understanding`
+**Branch**: `experiment/03-content-understanding` — branched from `experiment/02-mistral-doc-ai-azure` (chained stack)
 **Read first**: `experiments/briefs/_shared-rules.md`
 
 ## Goal
