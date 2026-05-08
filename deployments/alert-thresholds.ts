@@ -66,6 +66,12 @@ export interface AlertThresholdConfig {
   window?: string;
   /** Alert severity label. Inherited by the firing alert in Prometheus/Alertmanager. */
   severity: "warning" | "critical";
+  /**
+   * Prometheus scrape job this alert belongs to.
+   * Must match the `job_name` in prometheus.yml.
+   * Controls which rule group the alert is placed in.
+   */
+  job: "backend-services" | "temporal-worker";
   /** Human-readable alert summary (appears in Prometheus/Grafana alert annotations). */
   summary: string;
   /** Detailed description for the alert annotation. */
@@ -78,7 +84,7 @@ export interface AlertThresholdConfig {
  * This is the safest default — operators can relax thresholds for specific types
  * by adding an entry to `ALERT_THRESHOLDS`.
  */
-export const DEFAULT_ALERT_THRESHOLD: Omit<AlertThresholdConfig, "summary" | "description"> = {
+export const DEFAULT_ALERT_THRESHOLD: Omit<AlertThresholdConfig, "summary" | "description" | "job"> = {
   mode: "any-error",
   severity: "warning",
   window: "5m",
@@ -99,6 +105,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     errorRateThreshold: 0.05,
     severity: "warning",
     window: "5m",
+    job: "backend-services",
     summary: "Classifier training has failed",
     description:
       "5% of the classifier training jobs have failed within the last 5 minutes.",
@@ -108,6 +115,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     mode: "any-error",
     severity: "critical",
     window: "5m",
+    job: "temporal-worker",
     summary: "OCR enrichment activity failed",
     description:
       "At least one enrichment activity failed within the last 5 minutes.",

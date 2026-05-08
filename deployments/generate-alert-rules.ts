@@ -68,23 +68,74 @@ function buildFor(config: AlertThresholdConfig): string {
 function generateRulesYaml(): string {
   const entries = Object.entries(ALERT_THRESHOLDS);
 
-  const rules = entries
-    .map(([alertType, config]) => {
-      const name = toAlertName(alertType);
-      const expr = buildExpr(alertType, config);
-      const forDuration = buildFor(config);
+  // Group entries by job
+  const byJob = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const job = entry[1].job;
+    if (!byJob.has(job)) byJob.set(job, []);
+    byJob.get(job)!.push(entry);
+  }
 
-      return [
-        `    - alert: ${name}`,
-        `      expr: >-`,
-        `        ${expr}`,
-        `      for: ${forDuration}`,
-        `      labels:`,
-        `        severity: ${config.severity}`,
-        `      annotations:`,
-        `        summary: "${config.summary}"`,
-        `        description: "${config.description}"`,
-      ].join("\n");
+  // Ensure both known groups exist even if empty
+  const knownJobs: Array<"backend-services" | "temporal-worker"> = [
+    "backend-services",
+    "temporal-worker",
+  ];
+  for (const job of knownJobs) {
+    if (!byJob.has(job)) byJob.set(job, []);
+  }
+
+  /**
+   * Builds a catch-all rule that fires for any app_error_total on a given job.
+   */
+  function buildCatchAll(job: string): string {
+    const jobLabel = job
+      .split("-")
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join("");
+    return [
+      `    - alert: Any${jobLabel}Error`,
+      `      expr: >-`,
+      `        increase(app_error_total{job="${job}"}[5m]) > 0`,
+      `      for: 0m`,
+      `      labels:`,
+      `        severity: warning`,
+      `      annotations:`,
+      `        summary: "Application error detected on ${job} ({{ $labels.type }})"`,
+      `        description: "An alertable error of type {{ $labels.type }} was logged on ${job} within the last 5 minutes."`,
+    ].join("\n");
+  }
+
+  const groups = [...byJob.entries()]
+    .map(([job, jobEntries]) => {
+      const specificRules = jobEntries
+        .map(([alertType, config]) => {
+          const name = toAlertName(alertType);
+          const expr = buildExpr(alertType, config);
+          const forDuration = buildFor(config);
+          return [
+            `    - alert: ${name}`,
+            `      expr: >-`,
+            `        ${expr}`,
+            `      for: ${forDuration}`,
+            `      labels:`,
+            `        severity: ${config.severity}`,
+            `      annotations:`,
+            `        summary: "${config.summary}"`,
+            `        description: "${config.description}"`,
+          ].join("\n");
+        })
+        .join("\n\n");
+
+      const catchAll = buildCatchAll(job);
+      const groupName = job.replace(/-/g, "_") + "_alerts";
+
+      const rules =
+        specificRules.length > 0
+          ? specificRules + "\n\n" + catchAll
+          : catchAll;
+
+      return [`  - name: ${groupName}`, `    rules:`, rules].join("\n");
     })
     .join("\n\n");
 
@@ -106,9 +157,7 @@ function generateRulesYaml(): string {
     `#   3. Run: npm run generate:alert-rules`,
     `#`,
     `groups:`,
-    `  - name: app_alerts`,
-    `    rules:`,
-    rules,
+    groups,
   ].join("\n");
 }
 
