@@ -1803,6 +1803,13 @@ async function seedLocalDatasets() {
     const datasetId = localDatasetId(entry.folder, entry.visibility);
     const versionId = localDatasetVersionId(entry.folder, entry.visibility);
 
+    // Blob-convention paths. The actual files are uploaded by
+    // LocalDatasetSyncService on backend startup; until then, these paths
+    // are placeholders that the sync service confirms / refreshes.
+    const datasetStoragePath = `datasets/${datasetId}`;
+    const versionStoragePrefix = `datasets/${datasetId}/${versionId}`;
+    const versionManifestPath = `groups/${SEED_GROUP_ID}/benchmark/${versionStoragePrefix}/dataset-manifest.json`;
+
     await prisma.dataset.upsert({
       where: { id: datasetId },
       update: {
@@ -1813,7 +1820,7 @@ async function seedLocalDatasets() {
           visibility: entry.visibility,
           source: "local-folder",
         },
-        storagePath: entry.storagePrefix,
+        storagePath: datasetStoragePath,
         createdBy: SEED_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },
@@ -1826,7 +1833,7 @@ async function seedLocalDatasets() {
           visibility: entry.visibility,
           source: "local-folder",
         },
-        storagePath: entry.storagePrefix,
+        storagePath: datasetStoragePath,
         createdBy: SEED_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },
@@ -1836,8 +1843,8 @@ async function seedLocalDatasets() {
       where: { id: versionId },
       update: {
         version: "v1",
-        storagePrefix: entry.storagePrefix,
-        manifestPath: entry.manifestPath,
+        storagePrefix: versionStoragePrefix,
+        manifestPath: versionManifestPath,
         documentCount: entry.sampleCount,
         groundTruthSchema: {},
       },
@@ -1845,8 +1852,8 @@ async function seedLocalDatasets() {
         id: versionId,
         datasetId,
         version: "v1",
-        storagePrefix: entry.storagePrefix,
-        manifestPath: entry.manifestPath,
+        storagePrefix: versionStoragePrefix,
+        manifestPath: versionManifestPath,
         documentCount: entry.sampleCount,
         groundTruthSchema: {},
       },
@@ -1854,6 +1861,12 @@ async function seedLocalDatasets() {
 
     console.log(
       `  ✓ ${entry.datasetName} / ${entry.visibility} (${entry.sampleCount} samples)`,
+    );
+  }
+
+  if (parsed.length > 0) {
+    console.log(
+      "  ↳ files will be uploaded to blob storage by LocalDatasetSyncService when the backend starts.",
     );
   }
 }
