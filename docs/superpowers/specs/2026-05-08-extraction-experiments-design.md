@@ -88,7 +88,7 @@ MISTRAL_DOC_AI_AZURE_KEY=
 
 # Azure OpenAI deployments allowed for workflow node selection (comma-separated).
 # AZURE_OPENAI_DEPLOYMENT remains the default fallback.
-AZURE_OPENAI_DEPLOYMENTS=gpt-4o,gpt-5.5
+AZURE_OPENAI_DEPLOYMENTS=gpt-4o,gpt-5
 ```
 
 User redirects existing `AZURE_DOCUMENT_INTELLIGENCE_*` and `AZURE_OPENAI_*` to their personal Azure via `~/.config/bcgov-di/{backend-services,temporal}.env` — the override mechanism. Claude does not read those files.
@@ -163,7 +163,7 @@ CU is OCR-first → generative-AI-extraction (per MS Learn: "Content Understandi
 
 ### E04: VLM-direct
 
-`experiment/04-vlm-direct`. Pure VLM: image + structured-output prompt. New provider `apps/temporal/src/ocr-providers/vlm-direct/`. Adds the PDF→image rendering activity on this branch. Variants: single-pass; chain-of-thought; self-consistency 3-pass majority vote. Workflow node param `azureOpenAiDeployment` selects between `gpt-4o` and `gpt-5.5`.
+`experiment/04-vlm-direct`. Pure VLM: image + structured-output prompt. New provider `apps/temporal/src/ocr-providers/vlm-direct/`. Adds the PDF→image rendering activity on this branch. Variants: single-pass; chain-of-thought; self-consistency 3-pass majority vote. Workflow node param `azureOpenAiDeployment` selects between `gpt-4o` and `gpt-5`.
 
 ### E05: VLM-OCR hybrid
 
@@ -176,10 +176,10 @@ CU is OCR-first → generative-AI-extraction (per MS Learn: "Content Understandi
 | Document Intelligence (AIServices kind) | `ai-jobstoreai2846…` (westus) | ✅ already deployed | E01, E05 (direct, bypassing APIM) |
 | `gpt-4o` deployment, cap 50 | `ai-jobstoreai2846…` (westus) | ✅ already deployed | Existing LLM enrichment + E04/E05 baseline |
 | `mistral-document-ai-2512`, cap 10 | `strukalex-8338-resource` (eastus2) | ✅ already deployed | E02 |
-| `gpt-5.5` deployment | `ai-jobstoreai2846…` (westus) | 🟡 to provision | E04, E05 alternative model |
+| `gpt-5` deployment, cap 10 | `ai-jobstoreai2846…` (westus) | ✅ deployed (model version `2025-08-07`) | E04, E05 alternative model |
 | CU analyzer | `strukalex-8338-resource` (eastus2, has `allowProjectManagement`) | runtime call during E03 | E03 |
 
-`gpt-5.5` (model version `2026-04-24`) is the latest 5.x with `chatCompletion: true`. Vision support not flagged explicitly in capabilities listing but documented as native for the 5.x family — validated by sending a test image during E04; fall back to `gpt-5.4` if 5.5 rejects images. Same account as `gpt-4o` so a single `AZURE_OPENAI_ENDPOINT` works for both; node param is the only switch.
+`gpt-5` (model version `2025-08-07`, GlobalStandard) was deployed instead of the original gpt-5.5 plan because gpt-5.5 GlobalStandard quota is 0 in this subscription (a quota request would block parent setup). Vision support is documented as native for the 5.x family but not flagged explicitly in capabilities — validated by sending a test image during E04; fall back to `gpt-5-chat` or request `gpt-5.5` quota if vanilla `gpt-5` rejects images. Same account as `gpt-4o` so a single `AZURE_OPENAI_ENDPOINT` works for both; node param is the only switch.
 
 ## Future candidates (re-pitch after E01–E05 land)
 
@@ -198,7 +198,7 @@ Most of these need per-engine per-field benchmark numbers from E01–E05 as inpu
 ## Sequence of work after spec approval
 
 1. Output existing-resource keys + override-file instructions (DI direct, Mistral on Foundry, gpt-4o)
-2. Deploy `gpt-5.5` via `az`; output its key + override instructions
+2. ~~Deploy `gpt-5` via `az`~~ done (model version `2025-08-07`, capacity 10, GlobalStandard, on `ai-jobstoreai2846` westus)
 3. Implement parent-branch deliverables (briefs, two docs incl. existing-engine audit, `.env.sample` updates, deployment-selection plumbing, dataset seed extension, `.gitignore` rules)
 4. Sanity test: `npm run db:seed` runs without error against the new dataset folder layout (empty is fine)
 5. Hand off / start E01 on `experiment/01-neural-doc-intelligence`
