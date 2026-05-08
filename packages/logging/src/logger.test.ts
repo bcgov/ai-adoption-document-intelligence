@@ -328,4 +328,67 @@ describe("createLogger", () => {
       }
     });
   });
+
+  describe("metricsHook", () => {
+    it("calls hook with level and alertType when alertType is present in context", () => {
+      const out = captureStdout();
+      const hook = jest.fn();
+      try {
+        const log = createLogger(SERVICE, undefined, hook);
+        log.warn("something failed", { alertType: "test_alert" });
+        expect(hook).toHaveBeenCalledWith("warn", "test_alert");
+      } finally {
+        out.restore();
+      }
+    });
+
+    it("does not call hook when alertType is absent from context", () => {
+      const out = captureStdout();
+      const hook = jest.fn();
+      try {
+        const log = createLogger(SERVICE, undefined, hook);
+        log.error("an error", { event: "failure" });
+        expect(hook).not.toHaveBeenCalled();
+      } finally {
+        out.restore();
+      }
+    });
+
+    it("propagates hook through child loggers", () => {
+      const out = captureStdout();
+      const hook = jest.fn();
+      try {
+        const parent = createLogger(SERVICE, undefined, hook);
+        const child = parent.child({ activity: "myActivity" });
+        child.error("child error", { alertType: "child_alert" });
+        expect(hook).toHaveBeenCalledWith("error", "child_alert");
+      } finally {
+        out.restore();
+      }
+    });
+
+    it("calls hook with alertType from base context when not overridden in emit context", () => {
+      const out = captureStdout();
+      const hook = jest.fn();
+      try {
+        const log = createLogger(SERVICE, { alertType: "base_alert" }, hook);
+        log.warn("base level alert");
+        expect(hook).toHaveBeenCalledWith("warn", "base_alert");
+      } finally {
+        out.restore();
+      }
+    });
+
+    it("does not call hook when no hook is provided", () => {
+      const out = captureStdout();
+      try {
+        const log = createLogger(SERVICE);
+        expect(() =>
+          log.error("no hook", { alertType: "test_alert" }),
+        ).not.toThrow();
+      } finally {
+        out.restore();
+      }
+    });
+  });
 });

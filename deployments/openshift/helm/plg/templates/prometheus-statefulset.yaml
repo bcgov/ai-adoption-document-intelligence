@@ -16,6 +16,7 @@ spec:
         {{- include "plg.prometheus.labels" . | nindent 8 }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/prometheus-configmap.yaml") . | sha256sum }}
+        checksum/rules: {{ include (print $.Template.BasePath "/prometheus-rules-configmap.yaml") . | sha256sum }}
     spec:
       containers:
         - name: prometheus
@@ -49,6 +50,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus
+            - name: rules
+              mountPath: /etc/prometheus/rules
+              readOnly: true
             - name: data
               mountPath: /prometheus
           securityContext:
@@ -59,6 +63,9 @@ spec:
         - name: config
           configMap:
             name: {{ include "plg.prometheus.fullname" . }}-config
+        - name: rules
+          configMap:
+            name: {{ include "plg.prometheus.fullname" . }}-rules
   volumeClaimTemplates:
     - metadata:
         name: data

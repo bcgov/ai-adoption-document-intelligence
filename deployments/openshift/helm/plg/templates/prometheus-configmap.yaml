@@ -10,6 +10,9 @@ data:
       scrape_interval: {{ .Values.prometheus.scrapeInterval }}
       evaluation_interval: {{ .Values.prometheus.scrapeInterval }}
 
+    rule_files:
+      - "rules/*.yml"
+
     scrape_configs:
       - job_name: "backend-services"
         metrics_path: "/metrics"

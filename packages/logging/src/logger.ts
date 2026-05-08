@@ -3,7 +3,7 @@
  * Does not throw on serialization or write errors.
  */
 
-import type { LogContext, LogLevel, StructuredLogEntry } from "./types";
+import type { LogContext, LogLevel, MetricsHook, StructuredLogEntry } from "./types";
 import { LOG_LEVELS } from "./types";
 
 /** Node `process` when present; undefined in browser / Temporal workflow sandbox (no throws on load). */
@@ -229,7 +229,8 @@ function emitWithBaseMap(
   baseMap: Map<string, unknown>,
   level: LogLevel,
   message: string,
-  context?: LogContext,
+  context: LogContext | undefined,
+  metricsHook: MetricsHook | undefined,
 ): void {
   const configured = getConfiguredLevel();
   if (!shouldEmit(configured, level)) return;
@@ -249,41 +250,51 @@ function emitWithBaseMap(
   } else {
     fallbackStderr("serialization returned empty", message);
   }
+
+  if (metricsHook !== undefined) {
+    const alertType = context?.alertType ?? (baseMap.get("alertType") as string | undefined);
+    if (typeof alertType === "string") {
+      metricsHook(level, alertType);
+    }
+  }
 }
 
 export function createLogger(
   serviceName: string,
   baseContext?: LogContext,
+  metricsHook?: MetricsHook,
 ): Logger {
   return createLoggerFromBaseMap(
     serviceName,
     contextToRedactedMap(baseContext),
+    metricsHook,
   );
 }
 
 function createLoggerFromBaseMap(
   serviceName: string,
   baseMap: Map<string, unknown>,
+  metricsHook: MetricsHook | undefined,
 ): Logger {
   const logger: Logger = {
     debug(message: string, context?: LogContext): void {
-      emitWithBaseMap(serviceName, baseMap, "debug", message, context);
+      emitWithBaseMap(serviceName, baseMap, "debug", message, context, metricsHook);
     },
     info(message: string, context?: LogContext): void {
-      emitWithBaseMap(serviceName, baseMap, "info", message, context);
+      emitWithBaseMap(serviceName, baseMap, "info", message, context, metricsHook);
     },
     warn(message: string, context?: LogContext): void {
-      emitWithBaseMap(serviceName, baseMap, "warn", message, context);
+      emitWithBaseMap(serviceName, baseMap, "warn", message, context, metricsHook);
     },
     error(message: string, context?: LogContext): void {
-      emitWithBaseMap(serviceName, baseMap, "error", message, context);
+      emitWithBaseMap(serviceName, baseMap, "error", message, context, metricsHook);
     },
     child(context: LogContext): Logger {
       const nextBase = mergeRedactedMaps(
         baseMap,
         contextToRedactedMap(context),
       );
-      return createLoggerFromBaseMap(serviceName, nextBase);
+      return createLoggerFromBaseMap(serviceName, nextBase, metricsHook);
     },
   };
   return logger;
