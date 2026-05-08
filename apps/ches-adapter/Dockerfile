@@ -1,14 +1,14 @@
-# Build context: repository root (.), so apps/alertmanager-webhook is available.
+# Build context: repository root (.), so apps/ches-adapter is available.
 FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-COPY apps/alertmanager-webhook/package.json ./
-COPY apps/alertmanager-webhook/tsconfig.json ./
+COPY apps/ches-adapter/package.json ./
+COPY apps/ches-adapter/tsconfig.json ./
 
 RUN npm install --ignore-scripts
 
-COPY apps/alertmanager-webhook/src ./src
+COPY apps/ches-adapter/src ./src
 
 RUN npm run build
 
