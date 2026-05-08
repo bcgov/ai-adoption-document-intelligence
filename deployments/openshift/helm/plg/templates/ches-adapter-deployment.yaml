@@ -1,0 +1,86 @@
+{{- if eq .Values.alertmanager.notificationChannel "ches" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "plg.chesAdapter.fullname" . }}
+  labels:
+    {{- include "plg.chesAdapter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "plg.chesAdapter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "plg.chesAdapter.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: ches-adapter
+          image: "{{ .Values.chesAdapter.image.repository }}:{{ .Values.chesAdapter.image.tag }}"
+          imagePullPolicy: {{ .Values.chesAdapter.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.chesAdapter.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.chesAdapter.port | quote }}
+            - name: CHES_ADAPTER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.chesAdapter.secretName }}
+                  key: webhookSecret
+            - name: CHES_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.chesAdapter.secretName }}
+                  key: chesClientId
+            - name: CHES_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.chesAdapter.secretName }}
+                  key: chesClientSecret
+            - name: CHES_AUTH_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.chesAdapter.secretName }}
+                  key: chesAuthHost
+            - name: CHES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.chesAdapter.secretName }}
+                  key: chesHost
+            - name: CHES_FROM_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.chesAdapter.secretName }}
+                  key: chesFromEmail
+            - name: CHES_TO_EMAILS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.chesAdapter.secretName }}
+                  key: chesToEmails
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.chesAdapter.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      securityContext:
+        runAsNonRoot: true
+{{- end }}

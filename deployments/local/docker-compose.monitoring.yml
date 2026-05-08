@@ -47,6 +47,24 @@ services:
       retries: 5
       start_period: 10s
 
+  ches-adapter:
+    build:
+      context: ../..
+      dockerfile: apps/ches-adapter/Dockerfile
+    container_name: ai-doc-intelligence-ches-adapter
+    restart: unless-stopped
+    environment:
+      PORT: 3003
+      CHES_ADAPTER_SECRET: ${CHES_ADAPTER_SECRET}
+      CHES_CLIENT_ID: ${CHES_CLIENT_ID}
+      CHES_CLIENT_SECRET: ${CHES_CLIENT_SECRET}
+      CHES_AUTH_HOST: ${CHES_AUTH_HOST}
+      CHES_HOST: ${CHES_HOST}
+      CHES_FROM_EMAIL: ${CHES_FROM_EMAIL}
+      CHES_TO_EMAILS: ${CHES_TO_EMAILS}
+    ports:
+      - "3003:3003"
+
   prometheus:
     image: prom/prometheus:v3.2.1
     container_name: ai-doc-intelligence-prometheus

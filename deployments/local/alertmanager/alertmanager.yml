@@ -1,6 +1,11 @@
-# Local Alertmanager configuration
-# Routes all alerts to the drop receiver so no real notifications fire locally.
-# Override receivers here when testing notification channels during development.
+# Local Alertmanager configuration.
+# By default all alerts are routed to the 'drop' receiver (no notifications).
+#
+# To test CHES email delivery locally:
+#   1. Set CHES_* and CHES_ADAPTER_SECRET env vars in backend-services.
+#   2. Uncomment the ches-notifications receiver below.
+#   3. Change the default receiver to "ches-notifications".
+#   4. Restart the monitoring stack: podman compose -f deployments/local/docker-compose.monitoring.yml restart alertmanager
 
 global:
   resolve_timeout: 5m
@@ -11,6 +16,21 @@ route:
   group_wait: 10s
   group_interval: 1m
   repeat_interval: 1h
+  # Uncomment to route firing alerts to CHES:
+  # routes:
+  #   - receiver: "ches-notifications"
+  #     matchers:
+  #       - 'severity =~ "warning|critical"'
+  #   - receiver: "drop"
 
 receivers:
   - name: "drop"
+  # Uncomment and fill in to enable CHES notifications locally:
+  # - name: "ches-notifications"
+  #   webhook_configs:
+  #     - url: "http://host.containers.internal:3002/api/ches-adapter"
+  #       send_resolved: true
+  #       http_config:
+  #         authorization:
+  #           type: Bearer
+  #           credentials: "<CHES_ADAPTER_SECRET value>"

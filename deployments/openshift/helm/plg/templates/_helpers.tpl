@@ -136,3 +136,28 @@ Alertmanager fullname.
 {{- define "plg.alertmanager.fullname" -}}
 {{- printf "%s-alertmanager" (include "plg.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/*
+CHES Adapter labels.
+*/}}
+{{- define "plg.chesAdapter.labels" -}}
+{{ include "plg.labels" . }}
+app.kubernetes.io/name: ches-adapter
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: notification
+{{- end }}
+
+{{/*
+CHES Adapter selector labels.
+*/}}
+{{- define "plg.chesAdapter.selectorLabels" -}}
+app.kubernetes.io/name: ches-adapter
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+CHES Adapter fullname.
+*/}}
+{{- define "plg.chesAdapter.fullname" -}}
+{{- printf "%s-ches-adapter" (include "plg.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}

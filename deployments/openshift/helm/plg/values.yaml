@@ -151,23 +151,43 @@ alertmanager:
     # Webhook URL for the Teams channel connector. Leave empty until org policy allows it.
     webhookUrl: ""
 
-  # CHES (BCGov Common Hosted Email Service) receiver stub.
-  # Auth pattern: OAuth2 client_credentials — Alertmanager sends Basic auth (base64 clientId:clientSecret)
-  # to the tokenUrl to get a Bearer token, then POSTs the webhook payload with that token.
-  # NOTE: Alertmanager webhook payload format differs from the CHES /email API format
-  # (which expects { from, to, subject, bodyType, body }). The apiUrl should therefore
-  # point at a webhook adapter that accepts Alertmanager payloads and calls CHES /email.
+  # CHES (BCGov Common Hosted Email Service) — delivered via the ches-adapter service.
+  # The ches-adapter (apps/ches-adapter) is deployed alongside Alertmanager when
+  # notificationChannel == "ches". It accepts webhook payloads, authenticates
+  # with CHES using OAuth2 client_credentials, and sends emails via CHES /api/v1/email.
   ches:
-    # URL of the webhook adapter endpoint that accepts Alertmanager webhook payloads
-    # and translates them into CHES /email API calls.
-    apiUrl: ""
-    # Keycloak token endpoint for CHES client_credentials authentication.
-    # Example: https://loginproxy.gov.bc.ca/auth/realms/comsvcauth/protocol/openid-connect/token
-    tokenUrl: ""
-    # OAuth2 client credentials for CHES service account. Override via --set from CI secrets.
-    clientId: ""
-    clientSecret: ""
-    # Sender address for alert notification emails (must be an approved CHES sender).
-    fromEmail: ""
-    # Subject line for alert notification emails.
-    subject: "[Alert] Prometheus alert fired"
+    # Internal ClusterIP URL of the ches-adapter service.
+    # With the default Helm release name this resolves to:
+    #   http://<release>-ches-adapter:<port>
+    # Override with --set alertmanager.ches.adapterUrl=http://... when deploying.
+    adapterUrl: ""
+    # Shared secret that Alertmanager sends as 'Authorization: Bearer <secret>'.
+    # Must match webhookSecret in the chesAdapter secret (see chesAdapter.secretName).
+    webhookSecret: ""
+
+# ches-adapter: CHES email adapter service.
+# Deployed only when alertmanager.notificationChannel == "ches".
+# All CHES credentials are read from a single Kubernetes Secret (secretName).
+chesAdapter:
+  image:
+    repository: ""
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # Port the service listens on (must match PORT env var passed to the container).
+  port: 3003
+  # Name of the Kubernetes Secret containing all sensitive values.
+  # The Secret must have keys: webhookSecret, chesClientId, chesClientSecret,
+  # chesAuthHost, chesHost, chesFromEmail, chesToEmails.
+  # Create it before deploying, e.g.:
+  #   oc create secret generic <name> \
+  #     --from-literal=webhookSecret=<value> \
+  #     --from-literal=chesClientId=<value> \
+  #     ... etc.
+  secretName: "ches-adapter-secrets"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

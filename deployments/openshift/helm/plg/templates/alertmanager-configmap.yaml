@@ -41,11 +41,10 @@ data:
       {{- if eq .Values.alertmanager.notificationChannel "ches" }}
       - name: "ches-notifications"
         webhook_configs:
-          - url: {{ .Values.alertmanager.ches.apiUrl | quote }}
+          - url: {{ .Values.alertmanager.ches.adapterUrl | quote }}
             send_resolved: true
             http_config:
-              oauth2:
-                client_id: {{ .Values.alertmanager.ches.clientId | quote }}
-                client_secret: {{ .Values.alertmanager.ches.clientSecret | quote }}
-                token_url: {{ .Values.alertmanager.ches.tokenUrl | quote }}
+              authorization:
+                type: Bearer
+                credentials: {{ .Values.alertmanager.ches.webhookSecret | quote }}
       {{- end }}

@@ -4,6 +4,7 @@
 	"private": true,
 	"description": "AI OCR Dashboard - Monorepo with backend services",
 	"workspaces": [
+		"apps/ches-adapter",
 		"apps/backend-services",
 		"apps/frontend",
 		"apps/temporal",
