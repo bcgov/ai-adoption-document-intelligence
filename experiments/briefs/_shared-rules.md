@@ -2,16 +2,34 @@
 
 These rules apply to every experiment branch (`experiment/01-...` through `experiment/05-...`) stacked on `feature/extraction-experiments`. Each per-experiment brief references this file.
 
+## Required reading before you implement
+
+The codebase already has detailed conventions for adding OCR providers and graph-workflow templates. These are authoritative — **align with them rather than inventing new patterns**:
+
+- `docs-md/graph-workflows/ADDING_OCR_PROVIDERS.md` — full recipe for adding a new provider end-to-end (folder structure, three registries, mock mode, naming conventions, common pitfalls)
+- `docs-md/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md` — adding new activity types
+- `docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md` — graph engine semantics (nodes, ports, ctx, switch/map/join/pollUntil)
+- `docs-md/graph-workflows/GRAPH_TYPES.md` — `GraphWorkflowConfig` TypeScript types
+- `docs-md/graph-workflows/templates/` — reference workflow JSONs (read `mistral-standard-ocr-workflow.json` and `standard-ocr-workflow.json` first; they're closest to what each experiment needs)
+- `docs-md/graph-workflows/MISTRAL_OCR.md` — sync-provider pattern reference
+- `docs-md/EXTRACTION_PROVIDER_ARCHITECTURE.md` — gaps audited in the existing Azure DI + Mistral providers; gaps marked "fix during EXX" are your responsibility
+
 ## Branch boundaries
 
 You are on `experiment/<slug>`, stacked on `feature/extraction-experiments`. **Stay in your engine's lane:**
 
 ### Files you MAY edit
 - `apps/temporal/src/ocr-providers/<engine>/**` — new provider folder for your engine
-- `apps/temporal/src/activity-registry.ts` — add your engine's activity types
-- `apps/temporal/src/activities/<engine>-*.ts` — new activities specific to your engine, if any
-- Workflow graph JSON for your engine, in seed or via the workflow CRUD API
-- Tests under your provider folder
+- `apps/temporal/src/activities/<engine>-*.ts` — new activities specific to your engine
+- **Three activity registries** (per `ADDING_OCR_PROVIDERS.md` § 3 step 3 — missing any one breaks workflow validation or worker resolution):
+  - `apps/temporal/src/activity-registry.ts` (runtime function registration)
+  - `apps/temporal/src/activity-types.ts` (workflow-safe constant list)
+  - `apps/backend-services/src/workflow/activity-registry.ts` (save-time validation allow-list)
+- `apps/temporal/src/activities.ts` — export your new activity functions
+- `docs-md/graph-workflows/templates/<slug>-workflow.json` — the workflow template for your experiment
+- `docs-md/graph-workflows/<slug>-OCR.md` — provider-specific doc (mapping, confidence, latency notes)
+- `apps/shared/prisma/seed.ts` — seed your `WorkflowLineage` + `WorkflowVersion` + `BenchmarkDefinition` (see item 11 below)
+- Tests under your provider folder + the affected registries
 - `experiments/results/<slug>/SUMMARY.md` — your results write-up
 - `docs-md/EXTRACTION_EXPERIMENTS.md` — fill in your experiment's row in the status table and the engine-integration checklist
 
@@ -30,19 +48,18 @@ If you find a gap that requires editing shared files, **stop and raise it back**
 Confirm and document these 12 items as you implement. Fill in the checklist row for your experiment in `docs-md/EXTRACTION_EXPERIMENTS.md`.
 
 1. **Map engine output to canonical `OCRResult`** — mapper at `apps/temporal/src/ocr-providers/<engine>/<engine>-to-ocr-result.ts`. Pages with words/lines/KVPs at the granularity downstream activities consume. Reference: `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts`.
-2. **Activity-type registration in `apps/temporal/src/activity-registry.ts`** — single sync activity (Mistral pattern, `mistralOcr.process`) or multi-step `submit`/`poll`/`extract` (Azure DI pattern). Set timeout + retry policy that matches engine's SLA.
+2. **Activity types registered in all three registries** (per `ADDING_OCR_PROVIDERS.md`): `apps/temporal/src/activity-registry.ts`, `apps/temporal/src/activity-types.ts`, and `apps/backend-services/src/workflow/activity-registry.ts`. Choose single sync activity (Mistral pattern, `mistralOcr.process`) or multi-step `submit`/`poll`/`extract` (Azure DI pattern, with `pollUntil` node). Naming: `<provider>Ocr.process` (sync) or `<provider>Ocr.{submit,poll,extract}` (async). Set timeout + retry policy that matches engine's SLA.
 3. **Field schema → engine format converter** — if engine takes a schema (Mistral, CU), file at `apps/temporal/src/ocr-providers/<engine>/field-definitions-to-<engine>.ts`. Convert `FieldDefinition[]` (with `field_type`, `field_format`) to engine format. Reference: `apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts`.
 4. **Confidence values 0–1** — `OCRResult` confidences must be 0–1 to interop with `apps/temporal/src/activities/check-ocr-confidence.ts` (default threshold 0.95).
 5. **Bounding-box coordinate convention** — Azure DI returns inches from top-left at API `2024-11-30`. If your engine returns pixels or page-relative coordinates, convert in the mapper.
 6. **Page indexing** — match the convention used in `OCRResult` and downstream activities. Document 0- or 1-indexed in your `SUMMARY.md`.
 7. **Auth & endpoint via env vars** — declared in `apps/{backend-services,temporal}/.env.sample` already (parent-branch deliverable). Document whether engine routes through APIM or direct in `SUMMARY.md`.
-8. **Workflow graph definition** — JSON wiring engine + applicable post-processing nodes (`ocr.cleanup`, `ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`, `ocr.enrich`, `ocr.checkConfidence`, `ocr.storeResults`). Persist via the dataset seed extension or workflow CRUD API.
+8. **Workflow graph template** at `docs-md/graph-workflows/templates/<slug>-workflow.json`, validated by the graph schema test suite (`graph-schema-validator.test.ts`). Follow the standard node sequence per `ADDING_OCR_PROVIDERS.md` § 3 step 4: `file.prepare` → provider OCR (sync activity, or `submit` → `pollUntil(poll)` → `extract`) → `ocr.cleanup` → `ocr.checkConfidence` → HITL switch/gate → `ocr.storeResults`. Add `ocr.enrich` after cleanup if the engine benefits from schema-aware LLM enrichment. Reference `templates/mistral-standard-ocr-workflow.json` for the sync pattern, `templates/standard-ocr-workflow.json` for the async pattern. Pass provider-specific options (model/version, template id, prompt overrides) via `initialCtx` keys, not new global env vars (per `ADDING_OCR_PROVIDERS.md` § 3 step 5).
 9. **Engine-internal preprocessing** — does the engine deskew/rotate/denoise internally? Document so we don't double-process. Upstream is `apps/backend-services/src/document/pdf-normalization.service.ts`.
 10. **Test coverage** — see dev loop below.
 11. **Benchmark integration** — extend `apps/shared/prisma/seed.ts` so the experiment is **runnable from the API without manual setup** after `npm run test:db:reset`. Specifically, seed:
-    - A `WorkflowLineage` + `WorkflowVersion` for your experiment's graph.
-    - A `BenchmarkDefinition` with id `seed-experiment-{slug}-definition` in the parent-seeded `BenchmarkProject` `seed-experiments-project` (project + a `Split` per local dataset are already seeded on the parent).
-    - The definition references your seeded workflow version + `seed-local-{folder}-{visibility}-split` + `seed-local-{folder}-{visibility}-v1` dataset version.
+    - A `WorkflowLineage` + `WorkflowVersion` for your experiment's graph (load the JSON template you wrote in step 8). Follow the existing pattern in `seedBenchmarkingData()` (search for `seedLineageVersion`).
+    - A `BenchmarkDefinition` with id `seed-experiment-{slug}-definition` in the parent-seeded `BenchmarkProject` `seed-experiments-project`. Reference the **full** dataset version `seed-local-{folder}-{visibility}-v1` directly via `datasetVersionId` (don't set `splitId` — we benchmark on the full dropped dataset, no train/test split needed for these experiments).
 
     Then run the benchmark via the existing API:
     ```
