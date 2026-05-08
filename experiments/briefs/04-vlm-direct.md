@@ -3,6 +3,20 @@
 **Branch**: `experiment/04-vlm-direct`
 **Read first**: `experiments/briefs/_shared-rules.md`
 
+## ⚠ Pre-work: gpt-5.5 quota request
+
+`gpt-5` (vanilla, 2025-08-07) is already deployed at `ai-jobstoreai2846` (westus). `gpt-5.5` (latest 5.x as of May 2026) requires a quota increase — `OpenAI.GlobalStandard.gpt-5.5` is currently 0 TPM in this subscription. Before E04 starts in earnest:
+
+1. File the quota request at https://aka.ms/oai/quotaincrease (subscription `Azure subscription 1`, resource `strukalex-8338-resource` eastus2, model `gpt-5.5` version `2026-04-24`, SKU `GlobalStandard`, requested TPM ≥ 10,000).
+2. Once approved (24–72h typical), deploy via:
+   ```
+   az cognitiveservices account deployment create \
+     --name strukalex-8338-resource --resource-group rg-strukalex-8338 \
+     --deployment-name gpt-5.5 --model-name gpt-5.5 --model-version 2026-04-24 \
+     --model-format OpenAI --sku-name GlobalStandard --sku-capacity 10
+   ```
+3. Add `gpt-5.5` to `AZURE_OPENAI_DEPLOYMENTS` in your override file. Endpoint+key for the eastus2 account differ from the existing westus one — workflow node may need both `azureOpenAiEndpoint` and `azureOpenAiKey` parameters threaded through (currently only `azureOpenAiDeployment` is — see parent-branch plumbing). If quota approval is delayed, run E04 with `gpt-4o` and `gpt-5` only and revisit once 5.5 is available.
+
 ## Goal
 
 Pure VLM extraction. Send the document image directly to a vision-language model with a structured-output prompt; receive structured JSON conforming to the canonical schema. No OCR pre-processing.
