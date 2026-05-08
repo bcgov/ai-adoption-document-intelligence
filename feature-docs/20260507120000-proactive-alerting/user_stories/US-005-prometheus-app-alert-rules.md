@@ -21,10 +21,10 @@
     - **When** the ratio of used heap to heap size exceeds `0.9`
     - **Then** an alert named `HighNodeHeapUsage` with severity `warning` enters the `firing` state
 
-- [x] **Scenario 4**: `app_alert_active` rule fires when any application alert gauge is set
+- [x] **Scenario 4**: `app_error_total` rules fire when application errors are logged
     - **Given** the alert rules are loaded by Prometheus
-    - **When** `app_alert_active > 0`
-    - **Then** an alert named `AppAlertActive` with the `severity` label inherited from the gauge label enters the `firing` state
+    - **When** `increase(app_error_total{job="backend-services"}[5m]) > 0` or `increase(app_error_total{job="temporal-worker"}[5m]) > 0`
+    - **Then** an alert named `AnyBackendServicesError` or `AnyTemporalWorkerError` (respectively) with severity `warning` enters the `firing` state; type-specific rules such as `ClassifierTrainingFailed` fire on rate thresholds
 
 ## Priority
 - [x] High (Must Have)
