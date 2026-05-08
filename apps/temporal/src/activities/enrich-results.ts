@@ -31,6 +31,12 @@ export interface EnrichResultsParams {
   documentType: string;
   confidenceThreshold?: number;
   enableLlmEnrichment?: boolean;
+  /**
+   * Override the Azure OpenAI deployment used for the LLM enrichment step.
+   * Set per workflow node to compare deployments (e.g. gpt-4o vs gpt-5) without
+   * redeploying. Falls back to AZURE_OPENAI_DEPLOYMENT when unset.
+   */
+  azureOpenAiDeployment?: string;
 }
 
 export async function enrichResults(
@@ -110,7 +116,8 @@ export async function enrichResults(
       if (lowConfidenceFields.length > 0) {
         const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
         const apiKey = process.env.AZURE_OPENAI_API_KEY;
-        const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+        const deployment =
+          params.azureOpenAiDeployment ?? process.env.AZURE_OPENAI_DEPLOYMENT;
         if (endpoint && apiKey && deployment) {
           try {
             const llmResponse = await callAzureOpenAI(

@@ -320,6 +320,93 @@ describe("enrichResults activity", () => {
       callSpy.mockRestore();
     });
 
+    it("uses params.azureOpenAiDeployment over AZURE_OPENAI_DEPLOYMENT env var when both are set", async () => {
+      const callSpy = jest
+        .spyOn(enrichmentLlm, "callAzureOpenAI")
+        .mockResolvedValue({
+          correctedValues: { Date: "2024-01-15" },
+          summary: "Corrected.",
+          changes: [],
+        });
+      const origEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+      const origKey = process.env.AZURE_OPENAI_API_KEY;
+      const origDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+      process.env.AZURE_OPENAI_ENDPOINT = "https://example.openai.azure.com";
+      process.env.AZURE_OPENAI_API_KEY = "key";
+      process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o";
+
+      prismaMock.templateModel.findUnique.mockResolvedValue(
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
+      );
+      const ocrResult = minimalOcrResult();
+      ocrResult.keyValuePairs[0].confidence = 0.5;
+
+      const result = await enrichResults({
+        documentId: "doc-1",
+        ocrResult,
+        documentType: "tm-1",
+        enableLlmEnrichment: true,
+        azureOpenAiDeployment: "gpt-5",
+      });
+
+      expect(callSpy).toHaveBeenCalled();
+      // Second arg to callAzureOpenAI is the deployment name.
+      expect(callSpy.mock.calls[0][1]).toBe("gpt-5");
+      expect(result.summary?.llmModel).toBe("gpt-5");
+
+      if (origEndpoint !== undefined)
+        process.env.AZURE_OPENAI_ENDPOINT = origEndpoint;
+      else delete process.env.AZURE_OPENAI_ENDPOINT;
+      if (origKey !== undefined) process.env.AZURE_OPENAI_API_KEY = origKey;
+      else delete process.env.AZURE_OPENAI_API_KEY;
+      if (origDeployment !== undefined)
+        process.env.AZURE_OPENAI_DEPLOYMENT = origDeployment;
+      else delete process.env.AZURE_OPENAI_DEPLOYMENT;
+      callSpy.mockRestore();
+    });
+
+    it("falls back to AZURE_OPENAI_DEPLOYMENT env var when params.azureOpenAiDeployment is undefined", async () => {
+      const callSpy = jest
+        .spyOn(enrichmentLlm, "callAzureOpenAI")
+        .mockResolvedValue({
+          correctedValues: { Date: "2024-01-15" },
+          summary: "Corrected.",
+          changes: [],
+        });
+      const origEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+      const origKey = process.env.AZURE_OPENAI_API_KEY;
+      const origDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+      process.env.AZURE_OPENAI_ENDPOINT = "https://example.openai.azure.com";
+      process.env.AZURE_OPENAI_API_KEY = "key";
+      process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o-fallback";
+
+      prismaMock.templateModel.findUnique.mockResolvedValue(
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
+      );
+      const ocrResult = minimalOcrResult();
+      ocrResult.keyValuePairs[0].confidence = 0.5;
+
+      await enrichResults({
+        documentId: "doc-1",
+        ocrResult,
+        documentType: "tm-1",
+        enableLlmEnrichment: true,
+        // azureOpenAiDeployment intentionally omitted
+      });
+
+      expect(callSpy.mock.calls[0][1]).toBe("gpt-4o-fallback");
+
+      if (origEndpoint !== undefined)
+        process.env.AZURE_OPENAI_ENDPOINT = origEndpoint;
+      else delete process.env.AZURE_OPENAI_ENDPOINT;
+      if (origKey !== undefined) process.env.AZURE_OPENAI_API_KEY = origKey;
+      else delete process.env.AZURE_OPENAI_API_KEY;
+      if (origDeployment !== undefined)
+        process.env.AZURE_OPENAI_DEPLOYMENT = origDeployment;
+      else delete process.env.AZURE_OPENAI_DEPLOYMENT;
+      callSpy.mockRestore();
+    });
+
     it("on LLM error returns rule result only and does not throw", async () => {
       jest
         .spyOn(enrichmentLlm, "callAzureOpenAI")
