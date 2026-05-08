@@ -45,7 +45,7 @@ After implementing a user story, check it off at the bottom of this file.
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1 — Backend Metric (no dependencies)
-- [ ] **US-001** (Add `app_alert_active` gauge + `recordAlert`/`clearAlert` to `MetricsService`) — foundation for all in-app alerting
+- [x] **US-001** (Add `app_alert_active` gauge + `recordAlert`/`clearAlert` to `MetricsService`) — foundation for all in-app alerting
 
 ### Phase 2 — Alertmanager Deployment (depends on Phase 1 for test data; can proceed in parallel)
 - [ ] **US-003** (Alertmanager in local Docker Compose) — enables local testing of routing
@@ -61,7 +61,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [ ] **US-009** (Swappable channel + severity/enabled flags) — ties together US-007 and US-008 routing logic
 
 ### Phase 5 — In-App Usage, Persistence & CI/CD (depends on Phases 1–4)
-- [ ] **US-002** (Demonstrate in-app alerting in backend service and Temporal activity) — requires US-001
+- [x] **US-002** (Demonstrate in-app alerting in backend service and Temporal activity) — requires US-001
 - [ ] **US-010** (Grafana PVC for persistent alert history) — independent of alerting logic, can be done any time after US-004
 - [ ] **US-011** (Wire Alertmanager secrets into deploy-instance.yml) — requires all Helm values from US-004, US-007, US-008, US-009 to be defined
 

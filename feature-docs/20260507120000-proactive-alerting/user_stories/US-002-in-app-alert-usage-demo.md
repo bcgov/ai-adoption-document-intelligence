@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Backend service calls `recordAlert` on a relevant error condition
+- [x] **Scenario 1**: Backend service calls `recordAlert` on a relevant error condition
     - **Given** a backend service encounters a known failure condition (e.g., a critical dependency is unreachable or an operation fails in a way worth alerting on)
     - **When** that failure is caught
     - **Then** `metricsService.recordAlert(type, severity)` is called with an appropriate `type` string and severity
 
-- [ ] **Scenario 2**: Backend service calls `clearAlert` when the condition resolves
+- [x] **Scenario 2**: Backend service calls `clearAlert` when the condition resolves
     - **Given** the same backend service that raised an alert previously has a code path where the condition is no longer present
     - **When** that recovery path is executed
     - **Then** `metricsService.clearAlert(type)` is called with the same `type` used to record the alert
 
-- [ ] **Scenario 3**: Temporal activity calls `recordAlert` on an activity failure
+- [x] **Scenario 3**: Temporal activity calls `recordAlert` on an activity failure
     - **Given** a Temporal activity encounters an unrecoverable error (e.g., an external service call fails beyond retries)
     - **When** the error is handled in the activity
     - **Then** `metricsService.recordAlert(type, "critical")` is called before propagating or returning the error
 
-- [ ] **Scenario 4**: Temporal activity calls `clearAlert` on successful completion
+- [x] **Scenario 4**: Temporal activity calls `clearAlert` on successful completion
     - **Given** a Temporal activity that previously could raise an alert
     - **When** the activity completes successfully
     - **Then** `metricsService.clearAlert(type)` is called to ensure the gauge is cleared
