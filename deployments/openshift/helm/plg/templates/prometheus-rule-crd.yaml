@@ -21,8 +21,8 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "High CPU usage on pod {{ $labels.pod }}"
-            description: "Pod {{ $labels.pod }} in namespace {{ .Release.Namespace }} is using more than 80% of its CPU limit."
+            summary: High CPU usage detected on a pod
+            description: A pod in namespace {{ .Release.Namespace }} is using more than 80% of its CPU limit. Check the pod labels in this alert for the affected pod name.
 
         - alert: HighPodMemoryUsage
           expr: >-
@@ -35,8 +35,8 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "High memory usage on pod {{ $labels.pod }}"
-            description: "Pod {{ $labels.pod }} in namespace {{ .Release.Namespace }} is using more than 90% of its memory limit."
+            summary: High memory usage detected on a pod
+            description: A pod in namespace {{ .Release.Namespace }} is using more than 90% of its memory limit. Check the pod labels in this alert for the affected pod name.
 
         - alert: PodInErrorState
           expr: >-
@@ -47,8 +47,8 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "Pod {{ $labels.pod }} is in an error state"
-            description: "Pod {{ $labels.pod }} in namespace {{ .Release.Namespace }} is in CrashLoopBackOff or was OOMKilled."
+            summary: Pod is in a crash or OOM error state
+            description: A pod in namespace {{ .Release.Namespace }} is in CrashLoopBackOff or was OOMKilled. Check the pod labels in this alert for the affected pod name.
 
         - alert: TemporalTaskQueueDepthHigh
           expr: >-

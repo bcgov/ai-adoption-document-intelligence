@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: CHES receiver block renders in the Alertmanager ConfigMap when channel is `ches`
+- [x] **Scenario 1**: CHES receiver block renders in the Alertmanager ConfigMap when channel is `ches`
     - **Given** the Helm chart is templated with `alertmanager.notificationChannel: ches`
     - **When** `helm template` is run
     - **Then** the Alertmanager ConfigMap contains a receiver named `ches-notifications` with CHES connection parameters populated from Helm values
@@ -15,8 +15,9 @@
     - **Given** `alertmanager.ches.recipients` is set to a list of email addresses
     - **When** the ConfigMap is rendered
     - **Then** the receiver config references those addresses and does not hard-code any email
+    - **Note**: CHES uses OAuth2/REST API (`webhook_configs`) — recipient handling depends on confirmed integration approach; deferred until test credentials provided
 
-- [ ] **Scenario 3**: CHES credentials are sourced from Helm values
+- [x] **Scenario 3**: CHES credentials are sourced from Helm values
     - **Given** `alertmanager.ches.clientId` and `alertmanager.ches.clientSecret` are set
     - **When** the ConfigMap is rendered
     - **Then** the receiver config references those values
@@ -25,8 +26,9 @@
     - **Given** CHES test credentials are configured and `notificationsEnabled: true`
     - **When** an alert fires and routes to the `ches-notifications` receiver
     - **Then** an email is received at the configured recipient addresses with the alert name, severity, and summary
+    - **Note**: Deferred — requires test credentials from team
 
-- [ ] **Scenario 5**: CHES receiver is absent when `notificationChannel` is not `ches`
+- [x] **Scenario 5**: CHES receiver is absent when `notificationChannel` is not `ches`
     - **Given** the Helm chart is templated with `alertmanager.notificationChannel: teams`
     - **When** `helm template` is run
     - **Then** the Alertmanager ConfigMap does not contain a `ches-notifications` receiver block

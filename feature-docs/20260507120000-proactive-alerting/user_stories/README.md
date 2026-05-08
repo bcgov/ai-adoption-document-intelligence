@@ -56,9 +56,9 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-006** (PrometheusRule CRDs for infrastructure alerts) — requires Helm chart from US-004
 
 ### Phase 4 — Notification Channels (depends on Alertmanager ConfigMap structure from Phase 2)
-- [ ] **US-007** (Teams webhook receiver) — builds on the ConfigMap template from US-004
-- [ ] **US-008** (CHES email receiver stub) — builds on the ConfigMap template from US-004
-- [ ] **US-009** (Swappable channel + severity/enabled flags) — ties together US-007 and US-008 routing logic
+- [x] **US-007** (Teams webhook receiver) — builds on the ConfigMap template from US-004
+- [x] **US-008** (CHES email receiver stub) — builds on the ConfigMap template from US-004
+- [x] **US-009** (Swappable channel + severity/enabled flags) — ties together US-007 and US-008 routing logic
 
 ### Phase 5 — In-App Usage, Persistence & CI/CD (depends on Phases 1–4)
 - [x] **US-002** (Demonstrate in-app alerting in backend service and Temporal activity) — requires US-001

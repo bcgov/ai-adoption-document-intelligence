@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Teams receiver block renders in the Alertmanager ConfigMap when channel is `teams`
+- [x] **Scenario 1**: Teams receiver block renders in the Alertmanager ConfigMap when channel is `teams`
     - **Given** the Helm chart is templated with `alertmanager.notificationChannel: teams`
     - **When** `helm template` is run
     - **Then** the Alertmanager ConfigMap contains a receiver named `teams-notifications` with a Teams webhook configuration block
 
-- [ ] **Scenario 2**: Teams webhook URL is sourced from Helm values
+- [x] **Scenario 2**: Teams webhook URL is sourced from Helm values
     - **Given** `alertmanager.teams.webhookUrl` is set (or defaults to a placeholder string)
     - **When** the ConfigMap is rendered
     - **Then** the webhook URL in the config matches the provided value and is not hard-coded
 
-- [ ] **Scenario 3**: Teams receiver is absent when `notificationChannel` is not `teams`
+- [x] **Scenario 3**: Teams receiver is absent when `notificationChannel` is not `teams`
     - **Given** the Helm chart is templated with `alertmanager.notificationChannel: ches`
     - **When** `helm template` is run
     - **Then** the Alertmanager ConfigMap does not contain a `teams-notifications` receiver block
 
-- [ ] **Scenario 4**: Default `values.yaml` does not set Teams as the active channel
+- [x] **Scenario 4**: Default `values.yaml` does not set Teams as the active channel
     - **Given** `values.yaml` is reviewed
     - **When** `alertmanager.notificationChannel` is checked
     - **Then** the default value is `ches`, not `teams`

@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `notificationsEnabled: false` suppresses routing to any external receiver
+- [x] **Scenario 1**: `notificationsEnabled: false` suppresses routing to any external receiver
     - **Given** the Helm chart is templated with `alertmanager.notificationsEnabled: false`
     - **When** `helm template` is run
     - **Then** the Alertmanager route config sends all alerts to a `null` (drop) receiver instead of any external channel
 
-- [ ] **Scenario 2**: `notificationsEnabled: true` routes alerts to the configured channel receiver
+- [x] **Scenario 2**: `notificationsEnabled: true` routes alerts to the configured channel receiver
     - **Given** the Helm chart is templated with `alertmanager.notificationsEnabled: true` and `alertmanager.notificationChannel: ches`
     - **When** `helm template` is run
     - **Then** the Alertmanager route config sends alerts to the `ches-notifications` receiver
 
-- [ ] **Scenario 3**: Alerts below `minNotificationSeverity` are not forwarded externally
+- [x] **Scenario 3**: Alerts below `minNotificationSeverity` are not forwarded externally
     - **Given** `alertmanager.minNotificationSeverity: warning` and `notificationsEnabled: true`
     - **When** an `info`-severity alert fires
     - **Then** the Alertmanager routing tree matches it to the `null` receiver, not the external channel
 
-- [ ] **Scenario 4**: Alerts at or above `minNotificationSeverity` are forwarded
+- [x] **Scenario 4**: Alerts at or above `minNotificationSeverity` are forwarded
     - **Given** `alertmanager.minNotificationSeverity: warning` and `notificationsEnabled: true`
     - **When** a `warning`-severity alert fires
     - **Then** the Alertmanager routing tree matches it to the configured external receiver
 
-- [ ] **Scenario 5**: Switching `notificationChannel` and redeploying changes the active receiver
+- [x] **Scenario 5**: Switching `notificationChannel` and redeploying changes the active receiver
     - **Given** the Helm release is deployed with `notificationChannel: ches`
     - **When** `helm upgrade` is run with `notificationChannel: teams`
     - **Then** the updated ConfigMap contains the `teams-notifications` receiver block and the route points to it

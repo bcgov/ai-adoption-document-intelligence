@@ -127,10 +127,18 @@ alertmanager:
   # How long to wait before declaring an alert resolved.
   resolveTimeout: "5m"
 
-  # Alert routing configuration.
+  # Whether to route alerts to an external notification channel.
+  # Set to true only after the chosen channel is verified end-to-end.
+  notificationsEnabled: false
+
+  # Active notification channel. Must be one of: ches, teams.
+  notificationChannel: ches
+
+  # Minimum severity level to route externally: warning (warning + critical) or critical (only critical).
+  minNotificationSeverity: warning
+
+  # Alert routing grouping/timing configuration.
   route:
-    # Default receiver when no specific route matches.
-    receiver: "null"
     groupBy:
       - alertname
       - job
@@ -138,6 +146,28 @@ alertmanager:
     groupInterval: "1m"
     repeatInterval: "1h"
 
-  # Receiver definitions. Add real receivers (Teams, email) via values-openshift.yaml.
-  receivers:
-    - name: "null"
+  # Teams receiver stub (disabled by default — org policy blocks external webhooks).
+  teams:
+    # Webhook URL for the Teams channel connector. Leave empty until org policy allows it.
+    webhookUrl: ""
+
+  # CHES (BCGov Common Hosted Email Service) receiver stub.
+  # Auth pattern: OAuth2 client_credentials — Alertmanager sends Basic auth (base64 clientId:clientSecret)
+  # to the tokenUrl to get a Bearer token, then POSTs the webhook payload with that token.
+  # NOTE: Alertmanager webhook payload format differs from the CHES /email API format
+  # (which expects { from, to, subject, bodyType, body }). The apiUrl should therefore
+  # point at a webhook adapter that accepts Alertmanager payloads and calls CHES /email.
+  ches:
+    # URL of the webhook adapter endpoint that accepts Alertmanager webhook payloads
+    # and translates them into CHES /email API calls.
+    apiUrl: ""
+    # Keycloak token endpoint for CHES client_credentials authentication.
+    # Example: https://loginproxy.gov.bc.ca/auth/realms/comsvcauth/protocol/openid-connect/token
+    tokenUrl: ""
+    # OAuth2 client credentials for CHES service account. Override via --set from CI secrets.
+    clientId: ""
+    clientSecret: ""
+    # Sender address for alert notification emails (must be an approved CHES sender).
+    fromEmail: ""
+    # Subject line for alert notification emails.
+    subject: "[Alert] Prometheus alert fired"

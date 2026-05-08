@@ -10,7 +10,7 @@ data:
       resolve_timeout: {{ .Values.alertmanager.resolveTimeout }}
 
     route:
-      receiver: {{ .Values.alertmanager.route.receiver | quote }}
+      receiver: "drop"
       group_by:
         {{- range .Values.alertmanager.route.groupBy }}
         - {{ . | quote }}
@@ -18,22 +18,34 @@ data:
       group_wait: {{ .Values.alertmanager.route.groupWait }}
       group_interval: {{ .Values.alertmanager.route.groupInterval }}
       repeat_interval: {{ .Values.alertmanager.route.repeatInterval }}
+      {{- if .Values.alertmanager.notificationsEnabled }}
+      routes:
+        - receiver: {{ printf "%s-notifications" .Values.alertmanager.notificationChannel | quote }}
+          matchers:
+          {{- if eq .Values.alertmanager.minNotificationSeverity "critical" }}
+            - 'severity = "critical"'
+          {{- else }}
+            - 'severity =~ "warning|critical"'
+          {{- end }}
+        - receiver: "drop"
+      {{- end }}
 
     receivers:
-      {{- range .Values.alertmanager.receivers }}
-      - name: {{ .name | quote }}
-        {{- if .webhookConfigs }}
+      - name: "drop"
+      {{- if eq .Values.alertmanager.notificationChannel "teams" }}
+      - name: "teams-notifications"
         webhook_configs:
-          {{- range .webhookConfigs }}
-          - url: {{ .url | quote }}
-            send_resolved: {{ .sendResolved | default true }}
-          {{- end }}
-        {{- end }}
-        {{- if .emailConfigs }}
-        email_configs:
-          {{- range .emailConfigs }}
-          - to: {{ .to | quote }}
-            send_resolved: {{ .sendResolved | default true }}
-          {{- end }}
-        {{- end }}
+          - url: {{ .Values.alertmanager.teams.webhookUrl | quote }}
+            send_resolved: true
+      {{- end }}
+      {{- if eq .Values.alertmanager.notificationChannel "ches" }}
+      - name: "ches-notifications"
+        webhook_configs:
+          - url: {{ .Values.alertmanager.ches.apiUrl | quote }}
+            send_resolved: true
+            http_config:
+              oauth2:
+                client_id: {{ .Values.alertmanager.ches.clientId | quote }}
+                client_secret: {{ .Values.alertmanager.ches.clientSecret | quote }}
+                token_url: {{ .Values.alertmanager.ches.tokenUrl | quote }}
       {{- end }}
