@@ -237,11 +237,15 @@ export async function syncLocalDatasetToBlobStorage(
 
   // Update DatasetVersion to point at the blob storage (in case the seed
   // initially wrote a local path, or to keep documentCount in sync).
+  // manifestPath is stored relative to storagePrefix — same convention as
+  // dataset.service.ts createVersion (defaults to "dataset-manifest.json").
+  // The benchmark materializer downloads files relative to the full storage
+  // prefix and joins materializedPath + manifestPath to find the manifest.
   await prisma.datasetVersion.update({
     where: { id: versionId },
     data: {
       storagePrefix: blobStoragePrefix,
-      manifestPath: manifestKey,
+      manifestPath: "dataset-manifest.json",
       documentCount: samples.length,
     },
   });
