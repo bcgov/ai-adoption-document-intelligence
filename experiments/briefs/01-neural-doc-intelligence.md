@@ -10,7 +10,7 @@ Wire the existing trained neural model into a workflow alongside the relevant po
 ## What's already done (per the user)
 
 - Neural training capability shipped in PR #134 (`BuildMode = neural`, training-hours, `/training/info` endpoint, UI mode selector).
-- A neural model is **already trained** — model id is `"test"`.
+- A neural model is **already trained** — model id is `"test-model"`.
 - The user's 33-sample dataset is seeded and synced to blob storage at `seed-local-samples-mix-private-v1`.
 
 So this experiment is mostly **wiring** — no training, no new providers. The Azure DI activities (`azureOcr.submit/poll/extract`) already exist and are registered. You're composing them with the right post-processing nodes for handwritten input.
@@ -19,7 +19,7 @@ So this experiment is mostly **wiring** — no training, no new providers. The A
 
 1. **Define the workflow graph** at `docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`. **Start by copying `docs-md/graph-workflows/templates/standard-ocr-workflow-with-corrections.json`**, then:
    - Set `metadata.name` to `"Experiment 01 - Neural DI + Post-Processing"`.
-   - Set `ctx.modelId.defaultValue` to `"test"` (the existing trained neural model).
+   - Set `ctx.modelId.defaultValue` to `"test-model"` (the existing trained neural model).
    - **Drop the `spellcheck` node and its edges** (replace `e7c: characterConfusion → spellcheck` and `e7d: spellcheck → checkConfidence` with a single edge `characterConfusion → checkConfidence`). Spellcheck isn't valuable for our handwritten field set.
    - **Don't add `ocr.enrich`** (LLM enrichment is out of scope for E01).
    - **Don't add `ocr.documentValidateFields`** / cross-field validation (out of scope for E01).
@@ -42,7 +42,7 @@ So this experiment is mostly **wiring** — no training, no new providers. The A
 
 4. **Write mock-based tests** once stable. Record the trained-neural-model OCR response from step 2, replay in tests under `apps/temporal/src/ocr-providers/` (or a sensible neighbor location) verifying the workflow + post-processors run correctly.
 
-5. **Write `experiments/results/01-neural-doc-intelligence/SUMMARY.md`** with: trained model id (`test`), nodes wired, observations from step 2, benchmark run id from step 3, any gaps found in `cleanup`/`normalizeFields`/`characterConfusion` against neural output.
+5. **Write `experiments/results/01-neural-doc-intelligence/SUMMARY.md`** with: trained model id (`test-model`), nodes wired, observations from step 2, benchmark run id from step 3, any gaps found in `cleanup`/`normalizeFields`/`characterConfusion` against neural output.
 
 ## TODOs captured here
 
