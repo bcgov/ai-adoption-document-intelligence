@@ -16,6 +16,7 @@ import * as fs from "fs";
 import * as path from "path";
 import {
   ALERT_THRESHOLDS,
+  STATIC_ALERT_RULES,
   type AlertThresholdConfig,
 } from "./alert-thresholds";
 
@@ -139,6 +140,26 @@ function generateRulesYaml(): string {
     })
     .join("\n\n");
 
+  const staticRules = STATIC_ALERT_RULES.map((rule) =>
+    [
+      `    - alert: ${rule.name}`,
+      `      expr: >-`,
+      `        ${rule.expr}`,
+      `      for: ${rule.forDuration}`,
+      `      labels:`,
+      `        severity: ${rule.severity}`,
+      `      annotations:`,
+      `        summary: "${rule.summary}"`,
+      `        description: "${rule.description}"`,
+    ].join("\n")
+  ).join("\n\n");
+
+  const staticGroup = [
+    `  - name: backend_services_static_alerts`,
+    `    rules:`,
+    staticRules,
+  ].join("\n");
+
   return [
     `# ============================================================`,
     `# AUTO-GENERATED — do not edit directly.`,
@@ -158,6 +179,8 @@ function generateRulesYaml(): string {
     `#`,
     `groups:`,
     groups,
+    ``,
+    staticGroup,
   ].join("\n");
 }
 

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plg.alertmanager.fullname" . }}-config
+  labels:
+    {{- include "plg.alertmanager.labels" . | nindent 4 }}
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: {{ .Values.alertmanager.resolveTimeout }}
+
+    route:
+      receiver: {{ .Values.alertmanager.route.receiver | quote }}
+      group_by:
+        {{- range .Values.alertmanager.route.groupBy }}
+        - {{ . | quote }}
+        {{- end }}
+      group_wait: {{ .Values.alertmanager.route.groupWait }}
+      group_interval: {{ .Values.alertmanager.route.groupInterval }}
+      repeat_interval: {{ .Values.alertmanager.route.repeatInterval }}
+
+    receivers:
+      {{- range .Values.alertmanager.receivers }}
+      - name: {{ .name | quote }}
+        {{- if .webhookConfigs }}
+        webhook_configs:
+          {{- range .webhookConfigs }}
+          - url: {{ .url | quote }}
+            send_resolved: {{ .sendResolved | default true }}
+          {{- end }}
+        {{- end }}
+        {{- if .emailConfigs }}
+        email_configs:
+          {{- range .emailConfigs }}
+          - to: {{ .to | quote }}
+            send_resolved: {{ .sendResolved | default true }}
+          {{- end }}
+        {{- end }}
+      {{- end }}

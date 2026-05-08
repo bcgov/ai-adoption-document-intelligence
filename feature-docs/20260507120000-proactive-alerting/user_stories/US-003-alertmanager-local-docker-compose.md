@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Alertmanager container starts healthy
+- [x] **Scenario 1**: Alertmanager container starts healthy
     - **Given** `docker compose -f docker-compose.monitoring.yml up` is run
     - **When** the stack starts
     - **Then** an `ai-doc-intelligence-alertmanager` container reaches a healthy state and the Alertmanager UI is accessible on a local port (e.g., `9093`)
 
-- [ ] **Scenario 2**: Prometheus is configured to send alerts to Alertmanager
+- [x] **Scenario 2**: Prometheus is configured to send alerts to Alertmanager
     - **Given** the local `prometheus.yml` is mounted into the Prometheus container
     - **When** Prometheus starts
     - **Then** the config contains an `alerting:` block pointing at `ai-doc-intelligence-alertmanager:9093`
 
-- [ ] **Scenario 3**: Prometheus loads alert rule files
+- [x] **Scenario 3**: Prometheus loads alert rule files
     - **Given** alert rule YAML files are mounted into the Prometheus container
     - **When** Prometheus starts
     - **Then** the config contains a `rule_files:` section referencing the mounted rule files, and Prometheus reports them as loaded
 
-- [ ] **Scenario 4**: Alertmanager config file is mounted from the local filesystem
+- [x] **Scenario 4**: Alertmanager config file is mounted from the local filesystem
     - **Given** an `alertmanager.yml` config file exists under `deployments/local/alertmanager/`
     - **When** the Alertmanager container starts
     - **Then** Alertmanager reads that file and its status page shows the configured receivers

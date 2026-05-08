@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: High pod CPU usage rule fires when usage exceeds 80%
+- [x] **Scenario 1**: High pod CPU usage rule fires when usage exceeds 80%
     - **Given** the `PrometheusRule` CRD is applied to the namespace and User Workload Monitoring is enabled
     - **When** a pod's CPU usage exceeds 80% of its limit
     - **Then** an alert named `HighPodCpuUsage` with severity `warning` enters the `firing` state
 
-- [ ] **Scenario 2**: High pod memory usage rule fires when usage exceeds 90%
+- [x] **Scenario 2**: High pod memory usage rule fires when usage exceeds 90%
     - **Given** the `PrometheusRule` CRD is applied to the namespace
     - **When** a pod's memory usage exceeds 90% of its limit
     - **Then** an alert named `HighPodMemoryUsage` with severity `critical` enters the `firing` state
 
-- [ ] **Scenario 3**: Pod error state rule fires on CrashLoopBackOff or OOMKilled
+- [x] **Scenario 3**: Pod error state rule fires on CrashLoopBackOff or OOMKilled
     - **Given** the `PrometheusRule` CRD is applied to the namespace
     - **When** a pod enters `CrashLoopBackOff` or has been OOMKilled
     - **Then** an alert named `PodInErrorState` with severity `critical` enters the `firing` state
 
-- [ ] **Scenario 4**: Temporal task queue depth rule fires when depth exceeds 1000
+- [x] **Scenario 4**: Temporal task queue depth rule fires when depth exceeds 1000
     - **Given** the `PrometheusRule` CRD is applied and Prometheus scrapes the Temporal server
     - **When** `temporal_task_queue_depth` exceeds `1000`
     - **Then** an alert named `TemporalTaskQueueDepthHigh` with severity `warning` enters the `firing` state
 
-- [ ] **Scenario 5**: PrometheusRule CRD is deployed as part of the Helm chart
+- [x] **Scenario 5**: PrometheusRule CRD is deployed as part of the Helm chart
     - **Given** the PLG Helm chart is applied to the OpenShift namespace
     - **When** `helm upgrade --install` completes
     - **Then** the `PrometheusRule` resource is present in the namespace and has the correct `role: alert-rules` label required by OpenShift User Workload Monitoring

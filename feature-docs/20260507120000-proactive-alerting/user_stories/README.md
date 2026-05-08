@@ -52,8 +52,8 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-004** (Alertmanager in PLG Helm chart) — enables OpenShift deployment
 
 ### Phase 3 — Alert Rules (depends on Alertmanager being deployed)
-- [ ] **US-005** (Application-level Prometheus alert rules) — requires Prometheus/Alertmanager wired together
-- [ ] **US-006** (PrometheusRule CRDs for infrastructure alerts) — requires Helm chart from US-004
+- [x] **US-005** (Application-level Prometheus alert rules) — requires Prometheus/Alertmanager wired together
+- [x] **US-006** (PrometheusRule CRDs for infrastructure alerts) — requires Helm chart from US-004
 
 ### Phase 4 — Notification Channels (depends on Alertmanager ConfigMap structure from Phase 2)
 - [ ] **US-007** (Teams webhook receiver) — builds on the ConfigMap template from US-004

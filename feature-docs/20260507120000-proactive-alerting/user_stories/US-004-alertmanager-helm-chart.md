@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Alertmanager StatefulSet template renders correctly
+- [x] **Scenario 1**: Alertmanager StatefulSet template renders correctly
     - **Given** the Helm chart is templated with valid values
     - **When** `helm template` is run
     - **Then** a `StatefulSet` for Alertmanager is included in the output with the correct image, port, volume mounts, and resource limits from `values.yaml`
 
-- [ ] **Scenario 2**: Alertmanager Service template renders correctly
+- [x] **Scenario 2**: Alertmanager Service template renders correctly
     - **Given** the Helm chart is templated
     - **When** `helm template` is run
     - **Then** a `ClusterIP` Service for Alertmanager is included, exposing port `9093`
 
-- [ ] **Scenario 3**: Alertmanager ConfigMap template renders with the correct structure
+- [x] **Scenario 3**: Alertmanager ConfigMap template renders with the correct structure
     - **Given** the Helm chart is templated
     - **When** `helm template` is run
     - **Then** a ConfigMap containing `alertmanager.yml` is included, with route and receiver blocks populated from Helm values
 
-- [ ] **Scenario 4**: Prometheus ConfigMap is updated with alerting and rule_files sections
+- [x] **Scenario 4**: Prometheus ConfigMap is updated with alerting and rule_files sections
     - **Given** the Helm chart is templated
     - **When** `helm template` is run
     - **Then** the existing Prometheus ConfigMap includes an `alerting:` block pointing at the Alertmanager Service and a `rule_files:` section
 
-- [ ] **Scenario 5**: Alert rule files are provided via a separate ConfigMap mounted into Prometheus
+- [x] **Scenario 5**: Alert rule files are provided via a separate ConfigMap mounted into Prometheus
     - **Given** the Helm chart is templated
     - **When** `helm template` is run
     - **Then** a dedicated ConfigMap containing application-level alert rule YAML is present and the Prometheus StatefulSet mounts it at the `rule_files` path

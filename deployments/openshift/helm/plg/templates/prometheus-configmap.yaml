@@ -10,6 +10,12 @@ data:
       scrape_interval: {{ .Values.prometheus.scrapeInterval }}
       evaluation_interval: {{ .Values.prometheus.scrapeInterval }}
 
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - "{{ include "plg.alertmanager.fullname" . }}:{{ .Values.alertmanager.httpPort }}"
+
     rule_files:
       - "rules/*.yml"
 
