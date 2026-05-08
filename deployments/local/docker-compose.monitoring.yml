@@ -28,6 +28,25 @@ services:
       loki:
         condition: service_healthy
 
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: ai-doc-intelligence-alertmanager
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9093/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   prometheus:
     image: prom/prometheus:v3.2.1
     container_name: ai-doc-intelligence-prometheus
@@ -42,6 +61,9 @@ services:
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
+    depends_on:
+      alertmanager:
+        condition: service_healthy
     extra_hosts:
       - "host.containers.internal:host-gateway"
     healthcheck:
@@ -73,3 +95,4 @@ services:
 volumes:
   loki_data:
   prometheus_data:
+  alertmanager_data:

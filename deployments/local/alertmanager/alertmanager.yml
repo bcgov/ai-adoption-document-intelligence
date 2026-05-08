@@ -1,0 +1,16 @@
+# Local Alertmanager configuration
+# Routes all alerts to the null receiver so no real notifications fire locally.
+# Override receivers here when testing notification channels during development.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: "null"
+  group_by: ["alertname", "job"]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+
+receivers:
+  - name: "null"

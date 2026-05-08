@@ -100,3 +100,44 @@ grafana:
 
   # Port Grafana listens on.
   httpPort: 3001
+
+alertmanager:
+  image:
+    repository: prom/alertmanager
+    tag: "v0.28.1"
+    pullPolicy: IfNotPresent
+
+  # PVC size for Alertmanager silence/notification state storage.
+  pvcSize: 2Gi
+
+  # Storage class for the PVC. Empty string uses the cluster default.
+  storageClassName: ""
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+  # Port Alertmanager listens on.
+  httpPort: 9093
+
+  # How long to wait before declaring an alert resolved.
+  resolveTimeout: "5m"
+
+  # Alert routing configuration.
+  route:
+    # Default receiver when no specific route matches.
+    receiver: "null"
+    groupBy:
+      - alertname
+      - job
+    groupWait: "10s"
+    groupInterval: "1m"
+    repeatInterval: "1h"
+
+  # Receiver definitions. Add real receivers (Teams, email) via values-openshift.yaml.
+  receivers:
+    - name: "null"

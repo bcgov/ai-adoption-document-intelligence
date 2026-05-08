@@ -48,8 +48,8 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-001** (Add `app_alert_active` gauge + `recordAlert`/`clearAlert` to `MetricsService`) — foundation for all in-app alerting
 
 ### Phase 2 — Alertmanager Deployment (depends on Phase 1 for test data; can proceed in parallel)
-- [ ] **US-003** (Alertmanager in local Docker Compose) — enables local testing of routing
-- [ ] **US-004** (Alertmanager in PLG Helm chart) — enables OpenShift deployment
+- [x] **US-003** (Alertmanager in local Docker Compose) — enables local testing of routing
+- [x] **US-004** (Alertmanager in PLG Helm chart) — enables OpenShift deployment
 
 ### Phase 3 — Alert Rules (depends on Alertmanager being deployed)
 - [ ] **US-005** (Application-level Prometheus alert rules) — requires Prometheus/Alertmanager wired together

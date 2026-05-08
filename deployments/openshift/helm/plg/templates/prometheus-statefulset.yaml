@@ -17,6 +17,7 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/prometheus-configmap.yaml") . | sha256sum }}
         checksum/rules: {{ include (print $.Template.BasePath "/prometheus-rules-configmap.yaml") . | sha256sum }}
+        checksum/alertmanager-config: {{ include (print $.Template.BasePath "/alertmanager-configmap.yaml") . | sha256sum }}
     spec:
       containers:
         - name: prometheus

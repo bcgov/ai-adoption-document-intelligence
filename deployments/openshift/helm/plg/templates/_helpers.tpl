@@ -111,3 +111,28 @@ Grafana fullname.
 {{- define "plg.grafana.fullname" -}}
 {{- printf "%s-grafana" (include "plg.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/*
+Alertmanager labels.
+*/}}
+{{- define "plg.alertmanager.labels" -}}
+{{ include "plg.labels" . }}
+app.kubernetes.io/name: alertmanager
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: alerting
+{{- end }}
+
+{{/*
+Alertmanager selector labels.
+*/}}
+{{- define "plg.alertmanager.selectorLabels" -}}
+app.kubernetes.io/name: alertmanager
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Alertmanager fullname.
+*/}}
+{{- define "plg.alertmanager.fullname" -}}
+{{- printf "%s-alertmanager" (include "plg.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
