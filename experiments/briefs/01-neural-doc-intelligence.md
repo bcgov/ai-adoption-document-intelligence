@@ -1,49 +1,48 @@
-# E01 — Neural Document Intelligence + post-processing inventory
+# E01 — Neural Document Intelligence + post-processing
 
-**Branch**: `experiment/01-neural-doc-intelligence`
-**Stack**: `develop → feature/neural-model-training (PR #134) → feature/extraction-experiments → experiment/01-neural-doc-intelligence`
+**Branch**: `experiment/01-neural-doc-intelligence` — branched from `feature/extraction-experiments` (first in the chained stack)
 **Read first**: `experiments/briefs/_shared-rules.md`
 
 ## Goal
 
-Use the neural-model training capability shipped in PR #134 to extract fields from the seeded handwritten-form dataset, audit and wire all applicable post-processing activities into the workflow, run a benchmark, compare against the existing template-model baseline.
+Wire the existing trained neural model into a workflow alongside the relevant post-processing activities, and run a benchmark against the user's seeded dataset.
 
-## Why this is the first experiment
+## What's already done (per the user)
 
-PR #134 already added `BuildMode = neural` for template models, training-hours, the `/training/info` endpoint, and the UI mode selector. What that PR did *not* do is benchmark a trained neural model against the existing template baseline with full post-processing wired in. That's E01.
+- Neural training capability shipped in PR #134 (`BuildMode = neural`, training-hours, `/training/info` endpoint, UI mode selector).
+- A neural model is **already trained** — model id is `"test"`.
+- The user's 33-sample dataset is seeded and synced to blob storage at `seed-local-samples-mix-private-v1`.
+
+So this experiment is mostly **wiring** — no training, no new providers. The Azure DI activities (`azureOcr.submit/poll/extract`) already exist and are registered. You're composing them with the right post-processing nodes for handwritten input.
 
 ## Tasks
 
-1. **Audit the 9 existing post-processing activities** for compatibility with neural-model output:
-   - `apps/temporal/src/activities/post-ocr-cleanup.ts` (Unicode, dehyphenation)
-   - `apps/temporal/src/activities/ocr-spellcheck.ts` (dictionary-based)
-   - `apps/temporal/src/activities/ocr-character-confusion.ts` (built-in confusion rules + `ConfusionProfile` DB model)
-   - `apps/temporal/src/activities/ocr-normalize-fields.ts` (field-format application)
-   - `apps/temporal/src/activities/enrichment-rules.ts` (type-aware: trim, char-confusion, date, number)
-   - `apps/temporal/src/activities/enrichment-llm.ts` (Azure OpenAI semantic correction)
-   - `apps/temporal/src/activities/enrich-results.ts` (orchestrator)
-   - `apps/temporal/src/activities/check-ocr-confidence.ts` (threshold routing)
-   - `apps/temporal/src/activities/document-validate-fields.ts` (cross-field validation)
+1. **Define the workflow graph** at `docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`. **Start by copying `docs-md/graph-workflows/templates/standard-ocr-workflow-with-corrections.json`**, then:
+   - Set `metadata.name` to `"Experiment 01 - Neural DI + Post-Processing"`.
+   - Set `ctx.modelId.defaultValue` to `"test"` (the existing trained neural model).
+   - **Drop the `spellcheck` node and its edges** (replace `e7c: characterConfusion → spellcheck` and `e7d: spellcheck → checkConfidence` with a single edge `characterConfusion → checkConfidence`). Spellcheck isn't valuable for our handwritten field set.
+   - **Don't add `ocr.enrich`** (LLM enrichment is out of scope for E01).
+   - **Don't add `ocr.documentValidateFields`** / cross-field validation (out of scope for E01).
+   - Keep: `file.prepare → azureOcr.submit/poll/extract → ocr.cleanup → ocr.normalizeFields → ocr.characterConfusion → ocr.checkConfidence → reviewSwitch → humanReview/storeResults`.
+   - No activity-type changes — Azure DI activities already exist; no new registrations needed.
 
-   For each: confirm it operates correctly on neural-model output. Where neural output shape differs from template output, document the gap and decide: (a) fix in the activity, or (b) fix in the OCR mapper that produces `OCRResult` before post-processing runs.
+   Once dropped in, `seedExperimentWorkflows()` auto-discovers it on the next `npm run test:db:reset` and creates `WorkflowLineage` + `WorkflowVersion` + `BenchmarkDefinition` in `seed-experiments-project`.
 
-2. **Train a neural model** against the seeded dataset's training split (or use an already-trained one if the user has one).
+2. **Run the workflow on one real document** end-to-end via the real Azure DI API. Confirm `OCRResult` is produced and the cleanup → normalize → character-confusion chain runs without errors.
 
-3. **Define a workflow graph** at `docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`. **Start by copying `docs-md/graph-workflows/templates/standard-ocr-workflow-with-corrections.json`** — it's the closest base (already wires `file.prepare → azureOcr.submit/poll/extract → ocr.cleanup → ocr.normalizeFields → ocr.characterConfusion → ocr.spellcheck → ocr.checkConfidence → reviewSwitch → humanReview/storeResults`). Modifications:
-   - `metadata.name`: "Experiment 01 - Neural DI + Post-Processing"
-   - `ctx.modelId.defaultValue`: the neural model id you trained (or the user's existing one — see `feature/neural-model-training` PR #134 docs)
-   - Add `ocr.enrich` node after `ocr.spellcheck` if you want to evaluate LLM-based enrichment alongside rule-based corrections
-   - Don't change the activity types or three-registry registration (Azure DI activities already exist).
+3. **Run the benchmark programmatically** against the full seeded dataset (33 samples):
+   ```bash
+   ./scripts/run-experiment-benchmarks.sh 01
+   ```
+   …or directly:
+   ```
+   POST /api/benchmark/projects/seed-experiments-project/definitions/seed-experiment-01-neural-doc-intelligence-definition/runs
+   ```
+   Tag the run with `experiment-01-neural-doc-intelligence`.
 
-   `seedExperimentWorkflows()` in `apps/shared/prisma/seed.ts` will auto-discover this file on the next `npm run test:db:reset` and create the `WorkflowLineage` + `WorkflowVersion` + `BenchmarkDefinition` automatically.
+4. **Write mock-based tests** once stable. Record the trained-neural-model OCR response from step 2, replay in tests under `apps/temporal/src/ocr-providers/` (or a sensible neighbor location) verifying the workflow + post-processors run correctly.
 
-4. **Run the workflow** on one real document end-to-end. Confirm `OCRResult` produced, post-processing activities ran, no errors.
-
-5. **Run a benchmark programmatically** via `POST /api/benchmark/projects/:projectId/runs` (user provides the API key) against the seeded dataset's test split. Tag the run with `experiment-01-neural`.
-
-6. **Mock-based tests** — record the trained-neural-model OCR response once, replay in tests verifying the workflow + post-processors operate end-to-end against the mock.
-
-7. **Write `experiments/results/01-neural-doc-intelligence/SUMMARY.md`** with: trained model ID, post-processors wired, gaps found per activity, benchmark run ID, observations.
+5. **Write `experiments/results/01-neural-doc-intelligence/SUMMARY.md`** with: trained model id (`test`), nodes wired, observations from step 2, benchmark run id from step 3, any gaps found in `cleanup`/`normalizeFields`/`characterConfusion` against neural output.
 
 ## TODOs captured here
 
@@ -59,12 +58,13 @@ Today, the app's existing DI calls go through APIM (`api.gov.bc.ca`). Experiment
 ## Watch for
 
 - **Confidence threshold recalibration** — neural-model output may have different confidence distribution than template output. The `check-ocr-confidence.ts` default threshold of 0.95 was tuned for templates; document and adjust if needed.
-- **Date/number normalizers tuned for printed text** — may over-correct on handwriting. Each `enrichment-rules.ts` rule should be evaluated; some may need to be per-field-class enabled.
-- **`ConfusionProfile` integration** — the `ocr-character-confusion.ts` activity supports DB-stored profiles. If the user has uploaded a confusion profile for this document type, wire it in.
-- **Worse on a field-class** is a finding, not a failure. Document it.
+- **Date/number normalizers tuned for printed text** — may over-correct on handwriting. Document any rules that misbehave; user can per-field-class disable later.
+- **`ConfusionProfile` integration** — `ocr-character-confusion.ts` supports DB-stored profiles. If the user has uploaded a confusion profile for this document type, the activity will pick it up automatically; if not, the built-in rules apply.
 
-## Reference: Mistral provider as a pattern source
+## Out of scope for E01 (do NOT implement here)
 
-For mapper / converter patterns:
-- `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts`
-- `apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts`
+- LLM-based enrichment (`ocr.enrich` activity / `enrichment-llm.ts`)
+- Spellcheck (`ocr.spellcheck` activity)
+- Cross-field validation (`document-validate-fields.ts`)
+
+These activities exist in the codebase but the user isn't evaluating them in this experiment. If a later experiment needs them, that experiment adds the node back.
