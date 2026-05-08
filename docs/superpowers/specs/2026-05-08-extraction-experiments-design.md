@@ -45,29 +45,52 @@ PR strategy: each experiment opens its own draft PR targeting the parent. Parent
 
 Each brief is a markdown checklist I follow when implementing that experiment. The shared rules are appended to every brief by reference.
 
-- `_shared-rules.md` — file-edit boundaries, the 12-item cross-engine checklist, "no mocks for engine integration tests," result-storage conventions
+- `_shared-rules.md` — file-edit boundaries, the codebase-derived engine-integration checklist (below), the dev loop, result-storage conventions
 - `01-neural-doc-intelligence.md`
 - `02-mistral-doc-ai-azure.md`
 - `03-azure-content-understanding.md`
 - `04-vlm-direct.md`
 - `05-vlm-ocr-hybrid.md`
 
-#### The 12-item cross-engine checklist (from AI feedback)
+#### Engine-integration checklist (derived from this codebase)
 
-Every new engine integration confirms and documents:
+Every new engine integration confirms and documents these items, each tied to actual files / patterns in our codebase:
 
-1. Coordinate system (pixel/inch, top-left vs bottom-left origin)
-2. Page indexing (0 or 1)
-3. Confidence score scale; whether comparable across engines
-4. Table representation (flat cells / nested rows / markdown / HTML)
-5. Sync vs async API; polling timeout handling
-6. Auth pattern (key vs Entra) and regional endpoint
-7. 429 / retry semantics
-8. Schema-aware vs schema-naive output; post-validation needed?
-9. Image preprocessing the engine does internally (deskew, rotate)
-10. Multi-page chunking limit per call
-11. Field name mapping to canonical schema
-12. Per-call cost telemetry shape
+1. **Map engine output to canonical `OCRResult`** — mapper at `apps/temporal/src/ocr-providers/<engine>/<engine>-to-ocr-result.ts` (Mistral has the reference implementation). Must produce pages with words/lines/KVPs at the granularity downstream activities expect.
+
+2. **Activity-type registration in `apps/temporal/src/activity-registry.ts`** — choose single sync activity (Mistral pattern) or multi-step `submit`/`poll`/`extract` (Azure DI pattern). Set timeout + retry policy that matches engine's SLA.
+
+3. **Field schema → engine format converter** — if the engine accepts a schema (Mistral, CU), file at `apps/temporal/src/ocr-providers/<engine>/field-definitions-to-<engine>.ts`. Convert the DB's `FieldDefinition[]` (with `field_type`, `field_format`) to engine format.
+
+4. **Confidence values on a 0–1 scale** — `OCRResult` confidences must be 0–1 to interop with `apps/temporal/src/activities/check-ocr-confidence.ts` (default threshold 0.95) and downstream HITL routing.
+
+5. **Bounding-box coordinate convention** — match what post-processing activities consume. Azure DI returns inches from top-left at API `2024-11-30`. Other engines return pixels / page-relative — convert in the mapper.
+
+6. **Page indexing convention** — match the indexing used in `OCRResult` and in `apps/temporal/src/activities/ocr-normalize-fields.ts`. Document 0- or 1-indexed.
+
+7. **Auth & endpoint via env vars** — declare in `apps/{backend-services,temporal}/.env.sample`. Document whether engine is routed through APIM (`api.gov.bc.ca`) or direct (`*.cognitiveservices.azure.com` / similar). Existing app routes Azure DI through APIM; experiments use direct access.
+
+8. **Workflow graph definition** — provide a graph-workflow JSON that wires the engine + applicable post-processing nodes (`ocr.cleanup`, `ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`, `ocr.enrich`, `ocr.checkConfidence`, `ocr.storeResults`). Persist via the dataset seed extension or the workflow CRUD API.
+
+9. **Engine-internal preprocessing acknowledgment** — does the engine deskew / rotate / denoise internally? If yes, document so we don't double-process. The existing PDF normalization at `apps/backend-services/src/document/pdf-normalization.service.ts` is the upstream step every engine receives.
+
+10. **Test coverage** — see the dev loop below: one real-API integration test on bring-up, then mock-based workflow tests once stable.
+
+11. **Benchmark integration** — run via the existing `BenchmarkRun` flow against a seeded `Dataset`. Tag the run with `experiment-XX`. Use the existing benchmark API endpoint (user provides the API key for programmatic runs).
+
+12. **Cost/usage telemetry** — record per-call usage on the run's `metrics` JSON. Engines have different shapes: DI bills per page, Mistral per page/char, Azure OpenAI per input/output token, CU has both content-extraction and generative-model components.
+
+#### Dev loop per experiment
+
+Per the user's clarification — this is **not an accuracy-iterate-until-pass loop**. The discipline is:
+
+1. **Implement** the engine integration (provider folder + mapper + activity registration + workflow graph + env vars).
+2. **Run the workflow on one real document** via the real API. Confirm it produces an `OCRResult` end-to-end with no errors.
+3. **Run a benchmark programmatically** via the backend's benchmark API endpoint against the seeded dataset. Confirm results land in `BenchmarkRun` with metrics filled in.
+4. **Stable point reached** when steps 2 and 3 succeed without manual intervention.
+5. **Write Jest tests that mock the engine API** (record actual responses once, replay in tests) and verify the workflow runs correctly against the mocks. These tests live in `apps/temporal/src/ocr-providers/<engine>/__tests__/` (or alongside).
+
+Accuracy comparison across engines happens **after** all experiments land, by reading their `BenchmarkRun` records side-by-side. No threshold gates an experiment's "done" status — only the dev-loop steps 1–5.
 
 ### 2. Experiment hub doc at `docs-md/EXTRACTION_EXPERIMENTS.md`
 
@@ -76,6 +99,20 @@ Index of experiments with status table, how to run each, where results live in t
 ### 3. Provider architecture assessment at `docs-md/EXTRACTION_PROVIDER_ARCHITECTURE.md`
 
 Documents current state (activity-registry, no formal interface, divergent lifecycles) and the explicit decision to defer formalization. Each new engine adds its folder under `apps/temporal/src/ocr-providers/<name>/` following the Mistral pattern.
+
+**Audit of existing providers against the engine-integration checklist.** Per the user's ask ("check if any considerations were missed when adding new OCR engines"), this doc audits both existing providers — Azure DI (template models) and Mistral (public API) — against the 12-item codebase-derived checklist. Each gap found is captured as either:
+
+- A small fix on the parent branch (if it's a documentation gap or a missed mapper concern that affects all engines)
+- A scoped TODO inside the experiment brief that is most affected (if it's specific to that engine's flow)
+
+Expected gaps to surface (not exhaustive):
+
+- Mistral's confidence values may not all be 0–1 calibrated against `check-ocr-confidence.ts`'s threshold semantics — confirm during audit.
+- Cost/usage telemetry isn't recorded today on either provider — fix scope decided during audit.
+- Bounding-box coordinate convention is implicit; needs explicit documentation.
+- The current Mistral provider's annotation-format converter may not handle all `field_type` / `field_format` permutations — confirm and capture gaps.
+
+The audit is documentation only on the parent. Code fixes for any gaps that block experiments happen on the relevant experiment branch.
 
 ### 4. `.env.sample` updates (templates only — never the override file)
 
@@ -186,14 +223,17 @@ The user drops their documents into either `public/` (when the dataset is sharea
 
 ## Experiment-branch deliverables (one per branch)
 
-Each experiment branch follows the same shape:
+Each experiment branch follows the same shape, executed sequentially:
 
 - New provider folder under `apps/temporal/src/ocr-providers/<engine>/` (or extension of an existing folder)
+- Response mapper at `<engine>-to-ocr-result.ts` and (if applicable) field-schema converter at `field-definitions-to-<engine>.ts`
 - New activity types registered in `apps/temporal/src/activity-registry.ts`
-- A workflow definition (graph) committed to seed, wiring the engine into the existing pipeline
-- Jest tests, including at least one **real-API integration test** per engine (no mocks)
-- Benchmark run against the seeded dataset, results stored as `BenchmarkRun` records with `tags: ["experiment-XX"]`
-- Cross-engine checklist filled in inside `docs-md/EXTRACTION_EXPERIMENTS.md`
+- A workflow definition (graph) committed to seed, wiring the engine into the existing pipeline alongside applicable post-processing activities
+- **Real-API workflow run** end-to-end on at least one document
+- **Programmatic benchmark run** via the backend benchmark API against the seeded dataset (user provides API key)
+- Once stable, **Jest tests with mocked engine responses** verifying the workflow runs correctly
+- Engine-integration checklist (12 items) filled in inside `docs-md/EXTRACTION_EXPERIMENTS.md` for that experiment
+- Brief `SUMMARY.md` per experiment in `experiments/results/<slug>/SUMMARY.md` recording: which post-processors are wired, observations from the real-API run, benchmark run ID(s), any gaps found in existing providers during audit
 
 ### E01: Neural DI + post-processing inventory
 
@@ -238,6 +278,8 @@ Test the Azure Content Understanding **product** (not custom Foundry infrastruct
 2. Per document: POST to the analyzer's analyze endpoint, poll, fetch result.
 3. Map CU's structured output to canonical `OCRResult` shape.
 
+**Architecture verification (per the user's ask).** CU is an OCR-first → generative-AI-extraction product. From Microsoft Learn: "Content Understanding performs machine learning-based OCR ... Azure OpenAI with GPT Vision processes the extracted content, maps it to custom or industry-defined schemas, and generates a structured JSON output." Pricing explicitly separates content-extraction charges (OCR layer) from generative-model token charges (LLM layer). Brief includes the full citation. This confirms the OCR-then-LLM-with-schema pattern that E05 will recreate explicitly.
+
 Auth + endpoint resolved through `AZURE_CU_ENDPOINT` / `AZURE_CU_KEY` (the parent's `.env.sample` declares these; the user puts real values in their override file).
 
 ### E04: VLM-direct
@@ -258,6 +300,8 @@ Workflow node parameter `azureOpenAiDeployment` selects the underlying model. By
 **Branch**: `experiment/05-vlm-ocr-hybrid`
 
 Recreates the Mistral / CU pattern with components we control: Azure DI Read (plain layout, no field extraction) → markdown + bbox annotations → VLM with the original image + the schema. New provider `apps/temporal/src/ocr-providers/vlm-ocr-hybrid/`. Requires a "plain OCR" mode for Azure DI Read (added on this branch).
+
+**Verification of the underlying pattern (per the user's ask).** Mistral Document AI is an OCR-first system: per the Mistral docs, the OCR endpoint produces markdown + bboxes, and the `document_annotation` step runs an LLM over that with a user-provided schema. Azure CU follows the same shape (verified in E03). E05 replicates this pattern explicitly with our own components — DI for the OCR layer, an Azure OpenAI deployment for the LLM-annotation layer.
 
 Variants:
 - OCR markdown + image (primary)
@@ -290,11 +334,13 @@ Variants:
 
 - **APIM-vs-direct DI access**: today, the app's existing DI calls go through APIM (`api.gov.bc.ca`). Experiments need direct access (`*.cognitiveservices.azure.com`). Verify the existing DI client code (`apps/temporal/src/activities/submit-to-azure-ocr.ts`, `apps/backend-services/src/template-model/template-model-ocr.service.ts`) doesn't have APIM-specific path manipulation that breaks under direct access. Capture as a TODO inside `experiments/briefs/01-neural-doc-intelligence.md` so E01 catches it before benchmarking.
 
-## Cross-engine considerations the original Azure DI integration didn't anticipate
+## Cross-engine audit of existing providers
 
-(From AI feedback. The first integration didn't need to consider these because there was only one engine; now with 6, they matter.)
+The original Azure DI integration was added when DI was the only engine, so several considerations didn't apply at the time. Mistral was added second but with a different lifecycle (sync vs async) and didn't surface all gaps. With 4 more engines arriving, the codebase-derived checklist (above) becomes the canonical guard.
 
-The 12-item checklist (above) is the canonical list. Each new engine integration explicitly answers all 12 in its branch's `SUMMARY.md`.
+The audit of existing providers (Azure DI templates + Mistral public-API) against the 12-item codebase-derived checklist lives in `docs-md/EXTRACTION_PROVIDER_ARCHITECTURE.md` (parent-branch deliverable #3). Gaps surfaced there are either fixed on the parent (if documentation-only / shared concern) or captured as scoped TODOs in whichever experiment brief is most affected.
+
+Each new engine integration explicitly answers all 12 items in its branch's `SUMMARY.md`.
 
 ## Open questions / assumptions
 
@@ -307,11 +353,27 @@ The following decisions were made in-spec without explicit per-question approval
 5. **Mistral public-API path retained**: existing `ocr-providers/mistral/` stays in place; E02 adds `mistral-azure/` alongside it for direct comparison.
 6. **No formal `OcrProvider` interface on parent**: each engine continues to add its folder + activity-type registration. Re-evaluate after 2–3 land.
 
+## Candidates for future rounds
+
+Per the user's ask ("Check if I'm missing any other major trends"). These trends from the AI-feedback document and from `research.md` are **not** included in the core five experiments. They are candidates for follow-up rounds, surfaced here so they can be picked up after E01–E05 land. To be re-pitched at the end of the work as recommendations.
+
+| Candidate | One-line description | Why deferred |
+|-----------|----------------------|--------------|
+| **Confidence-based routing** | Cheap OCR (DI Read) handles high-confidence regions; low-confidence pages/fields escalate to VLM. | Builds on results from E01–E05; meaningful only after we know per-engine per-field error rates. The system already has `check-ocr-confidence.ts` for HITL routing — this would extend it for engine-routing. |
+| **Per-field calibration / engine routing** | Different field types (date, signature, handwritten amount) routed to different engines per their per-field accuracy. | Same: needs E01–E05 per-field benchmark numbers as input. |
+| **Multi-engine ensemble voting** | Run 3+ engines, vote per-field. Safety net for high-stakes extractions. | Needs E01–E05 in place before there's anything to vote across. |
+| **Agentic OCR correction loop** | "OCR agent" reviews low-confidence extractions, re-crops regions, retries with adjusted preprocessing, etc. | Out-of-scope for engine-comparison phase; valuable once we know which engine has which failure modes. |
+| **Open-source VLMs** (Qwen2.5-VL, Granite-Docling-258M, PaddleOCR-VL, MinerU 2.5) | Local / on-prem VLMs competitive with frontier models at lower cost. | Useful if cost or data-privacy becomes a driver; not aligned with current Azure-MaaS posture. |
+| **OCR-Free models** (Donut Document Understanding Transformer) | Bypass OCR entirely; model encodes document image and emits structured output. | Another architectural class; valuable as a non-OCR baseline. |
+| **DeepSeek OCR** | Released October 2025; alternative for on-prem / privacy-sensitive deployments. | Same posture rationale as open-source VLMs. |
+
+When E01–E05 are complete, the experiment hub doc surfaces this list as "Recommended next experiments."
+
 ## Sequence of work after spec approval
 
 1. Commit spec on `feature/extraction-experiments` (this branch already created)
 2. Output existing-resource keys + override-file instructions to user (DI direct, Mistral on Foundry, gpt-4o)
 3. Deploy `gpt-5.5` via `az`; output its key + override-file instructions
-4. Implement parent-branch deliverables (briefs, two docs, `.env.sample` updates, deployment-selection plumbing, dataset seed extension, `.gitignore` rules)
+4. Implement parent-branch deliverables (briefs, two docs incl. existing-engine audit, `.env.sample` updates, deployment-selection plumbing, dataset seed extension, `.gitignore` rules)
 5. Local sanity test: `npm run db:seed` runs without error against an empty dataset folder layout
 6. Hand off / start E01 on `experiment/01-neural-doc-intelligence`
