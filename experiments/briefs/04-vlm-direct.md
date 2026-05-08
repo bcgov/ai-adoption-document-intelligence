@@ -34,7 +34,9 @@ Pure VLM extraction. Send the document image directly to a vision-language model
 
 4. **No new env vars needed** — uses existing `AZURE_OPENAI_*`. Parent-branch already added `AZURE_OPENAI_DEPLOYMENTS=gpt-4o,gpt-5` and the `GET /api/azure-openai/deployments` endpoint.
 
-5. **Define workflow graphs** (one per variant):
+5. **Define workflow graphs** at `docs-md/graph-workflows/templates/experiment-04-vlm-direct-workflow.json` (primary) and one per variant if you split them out (e.g. `experiment-04-vlm-direct-cot-workflow.json`, `experiment-04-vlm-direct-self-consistency-workflow.json`). Use `mistral-standard-ocr-workflow.json` as the closest base (sync provider pattern: `file.prepare → vlmDirect.extract → ocr.cleanup → ocr.checkConfidence → reviewSwitch → store`). Add `pdf.renderToImages` between `file.prepare` and `vlmDirect.extract`. The auto-discovery seed picks up each JSON file matching `experiment-*-workflow.json` and creates a separate `BenchmarkDefinition` per variant — they all show up in `scripts/run-experiment-benchmarks.sh` with their leading `04` slug.
+
+   Variants (one workflow JSON each):
    - **Variant 1 (single-pass)**: `pdf.renderToImages` → `vlmDirect.extract` (single call, image + schema → JSON) → post-processing nodes (selectively — most are text-shape-oriented; `check-ocr-confidence.ts` is the most important).
    - **Variant 2 (chain-of-thought)**: same pipeline, prompt asks model to reason about layout first, then extract.
    - **Variant 3 (self-consistency)**: 3-pass + majority vote per field. Either run the activity 3 times in the workflow and add a vote node, or thread n-pass into the activity itself.

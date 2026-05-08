@@ -33,7 +33,7 @@ Pricing splits content-extraction charges (OCR layer) from generative-model toke
 
 4. **New env vars** are already declared in `.env.sample` on the parent: `AZURE_CU_ENDPOINT`, `AZURE_CU_KEY`, `AZURE_CU_ANALYZER_PREFIX`. User has populated their override file.
 
-5. **Define a workflow graph** wiring `azureContentUnderstanding.analyze` followed by post-processing nodes. Most post-processors expect text-level `OCRResult` shape; CU's structured output may bypass some of them — document which post-processors apply and which don't in `SUMMARY.md`.
+5. **Define a workflow graph** at `docs-md/graph-workflows/templates/experiment-03-content-understanding-workflow.json`. CU is async (analyze → poll → fetch), so use the **async pattern from `standard-ocr-workflow.json`** as the template (file.prepare → submit → pollUntil(poll) → extract → cleanup → checkConfidence → reviewSwitch → store). Replace the Azure DI nodes with `azureContentUnderstanding.deployAnalyzer` (one-time, idempotent) → `azureContentUnderstanding.analyze`. Most post-processors expect text-level `OCRResult` shape; CU's structured output may bypass some — document which post-processors apply and which don't in `SUMMARY.md`. The auto-discovery seed picks up the JSON automatically.
 
 6. **Run the workflow** on one real document end-to-end.
 

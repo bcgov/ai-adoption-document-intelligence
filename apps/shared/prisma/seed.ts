@@ -1901,6 +1901,169 @@ async function seedLocalDatasets() {
   }
 }
 
+/**
+ * Auto-discover experiment workflows. Scans
+ * `docs-md/graph-workflows/templates/experiment-*-workflow.json` and for each
+ * file derives a slug from the filename, then idempotently seeds:
+ *
+ *   - WorkflowLineage `seed-experiment-{slug}-workflow`
+ *   - WorkflowVersion `wv_seed-experiment-{slug}-workflow` with the JSON config
+ *   - BenchmarkDefinition `seed-experiment-{slug}-definition` in the parent's
+ *     `seed-experiments-project`, referencing the (single) local dataset
+ *     version. If multiple local datasets exist, the workflow can override
+ *     via `metadata.targetLocalDataset = "{folder}-{visibility}"`.
+ *
+ * This means each experiment branch only needs to drop a workflow JSON at
+ * `docs-md/graph-workflows/templates/experiment-{slug}-workflow.json` — no
+ * edits to seed.ts needed per experiment.
+ *
+ * Runs after `seedLocalDatasets()` so the dataset version row exists when we
+ * reference it from the BenchmarkDefinition.
+ */
+async function seedExperimentWorkflows() {
+  const repoRoot = path.resolve(__dirname, "../../..");
+  const templatesDir = path.join(
+    repoRoot,
+    "docs-md",
+    "graph-workflows",
+    "templates",
+  );
+
+  if (!fs.existsSync(templatesDir)) {
+    return;
+  }
+
+  const experimentFiles = fs
+    .readdirSync(templatesDir)
+    .filter((f) => f.startsWith("experiment-") && f.endsWith("-workflow.json"))
+    .sort();
+
+  if (experimentFiles.length === 0) {
+    console.log(
+      "🧪 No experiment workflow templates at docs-md/graph-workflows/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
+    );
+    return;
+  }
+
+  // Find local dataset versions to use as the BenchmarkDefinition target.
+  const localDatasetVersions = await prisma.datasetVersion.findMany({
+    where: { id: { startsWith: "seed-local-" } },
+  });
+
+  if (localDatasetVersions.length === 0) {
+    console.log(
+      `🧪 Found ${experimentFiles.length} experiment workflow(s) but no local dataset version to benchmark against — seeding workflows without BenchmarkDefinitions.`,
+    );
+  } else {
+    console.log(
+      `🧪 Auto-discovering ${experimentFiles.length} experiment workflow(s)...`,
+    );
+  }
+
+  for (const filename of experimentFiles) {
+    // experiment-04-vlm-direct-workflow.json → slug = 04-vlm-direct
+    const slug = filename
+      .replace(/^experiment-/, "")
+      .replace(/-workflow\.json$/, "");
+    const lineageId = `seed-experiment-${slug}-workflow`;
+    const versionId = `wv_${lineageId}`;
+    const definitionId = `seed-experiment-${slug}-definition`;
+
+    let config: {
+      metadata?: { name?: string; description?: string; targetLocalDataset?: string };
+    };
+    try {
+      config = JSON.parse(fs.readFileSync(path.join(templatesDir, filename), "utf-8"));
+    } catch (err) {
+      console.warn(
+        `  ⚠ Skipping ${filename}: invalid JSON (${(err as Error).message})`,
+      );
+      continue;
+    }
+
+    const workflowName = config.metadata?.name ?? `Experiment ${slug}`;
+    const workflowDescription = config.metadata?.description ?? null;
+
+    await prisma.workflowLineage.upsert({
+      where: { id: lineageId },
+      update: { name: workflowName, description: workflowDescription },
+      create: {
+        id: lineageId,
+        name: workflowName,
+        description: workflowDescription,
+        actor_id: TEST_ACTOR_ID,
+        group_id: SEED_GROUP_ID,
+      },
+    });
+    await prisma.workflowVersion.upsert({
+      where: { id: versionId },
+      update: { config: config as object },
+      create: {
+        id: versionId,
+        lineage_id: lineageId,
+        version_number: 1,
+        config: config as object,
+      },
+    });
+    await prisma.workflowLineage.update({
+      where: { id: lineageId },
+      data: { head_version_id: versionId },
+    });
+
+    if (localDatasetVersions.length === 0) {
+      console.log(`  ✓ ${slug} (workflow only — no dataset to bench against)`);
+      continue;
+    }
+
+    // Pick dataset to benchmark against. Default: first local dataset
+    // version. Override via workflow metadata.targetLocalDataset =
+    // "{folder}-{visibility}" (matching `seed-local-{folder}-{visibility}-v1`).
+    let targetVersion = localDatasetVersions[0];
+    const target = config.metadata?.targetLocalDataset;
+    if (target) {
+      const found = localDatasetVersions.find(
+        (v) => v.id === `seed-local-${target}-v1`,
+      );
+      if (found) {
+        targetVersion = found;
+      } else {
+        console.warn(
+          `  ⚠ ${slug}: metadata.targetLocalDataset="${target}" not found, falling back to ${targetVersion.id}`,
+        );
+      }
+    }
+
+    await prisma.benchmarkDefinition.upsert({
+      where: { id: definitionId },
+      update: {
+        name: `${workflowName} Benchmark`,
+        workflowVersionId: versionId,
+        workflowConfigHash: `seed-${slug}`,
+        evaluatorType: "field-accuracy",
+        evaluatorConfig: {
+          metrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+        },
+        runtimeSettings: { timeout: 600, retries: 2 },
+      },
+      create: {
+        id: definitionId,
+        projectId: EXPERIMENTS_PROJECT_ID,
+        name: `${workflowName} Benchmark`,
+        datasetVersionId: targetVersion.id,
+        workflowVersionId: versionId,
+        workflowConfigHash: `seed-${slug}`,
+        evaluatorType: "field-accuracy",
+        evaluatorConfig: {
+          metrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+        },
+        runtimeSettings: { timeout: 600, retries: 2 },
+      },
+    });
+
+    console.log(`  ✓ ${slug} → bench against ${targetVersion.id}`);
+  }
+}
+
 async function main() {
   console.log("🌱 Starting database seed...\n");
 
@@ -1911,6 +2074,7 @@ async function main() {
   await seedTemplateModelData();
   await seedBenchmarkingData();
   await seedLocalDatasets();
+  await seedExperimentWorkflows();
 
   console.log("\n✅ All seed data created successfully!");
 }

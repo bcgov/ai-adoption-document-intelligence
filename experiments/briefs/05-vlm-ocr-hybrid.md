@@ -32,7 +32,9 @@ E05 lets us see whether assembling the same pattern from raw components (Azure D
 
 5. **No new env vars needed**.
 
-6. **Define workflow graphs** for each variant:
+6. **Define workflow graphs** at `docs-md/graph-workflows/templates/experiment-05-vlm-ocr-hybrid-workflow.json` (primary) and one per variant if separated. Base on `standard-ocr-workflow.json` (async pattern for the DI Read step) — replace the extraction stage: `file.prepare → pdf.renderToImages + azureOcr.readPlain (parallel/sequential) → vlmOcrHybrid.extract → ocr.cleanup → ocr.checkConfidence → reviewSwitch → store`. The auto-discovery seed picks up each JSON automatically.
+
+   Variants (one workflow JSON each):
    - **Variant 1 (primary, image + OCR markdown)**: `pdf.renderToImages` + `azureOcr.readPlain` → `vlmOcrHybrid.extract` (with both inputs) → post-processing.
    - **Variant 2 (OCR markdown only, no image)**: `azureOcr.readPlain` → `vlmOcrHybrid.extract` (text-only) → post-processing. Control variant: how much does the image actually help?
    - **Variant 3 (image + OCR markdown + bbox spatial hints)**: same as Variant 1 but the markdown includes inline bbox annotations.
