@@ -57,15 +57,20 @@ Confirm and document these 12 items as you implement. Fill in the checklist row 
 8. **Workflow graph template** at `docs-md/graph-workflows/templates/<slug>-workflow.json`, validated by the graph schema test suite (`graph-schema-validator.test.ts`). Follow the standard node sequence per `ADDING_OCR_PROVIDERS.md` § 3 step 4: `file.prepare` → provider OCR (sync activity, or `submit` → `pollUntil(poll)` → `extract`) → `ocr.cleanup` → `ocr.checkConfidence` → HITL switch/gate → `ocr.storeResults`. Add `ocr.enrich` after cleanup if the engine benefits from schema-aware LLM enrichment. Reference `templates/mistral-standard-ocr-workflow.json` for the sync pattern, `templates/standard-ocr-workflow.json` for the async pattern. Pass provider-specific options (model/version, template id, prompt overrides) via `initialCtx` keys, not new global env vars (per `ADDING_OCR_PROVIDERS.md` § 3 step 5).
 9. **Engine-internal preprocessing** — does the engine deskew/rotate/denoise internally? Document so we don't double-process. Upstream is `apps/backend-services/src/document/pdf-normalization.service.ts`.
 10. **Test coverage** — see dev loop below.
-11. **Benchmark integration** — extend `apps/shared/prisma/seed.ts` so the experiment is **runnable from the API without manual setup** after `npm run test:db:reset`. Specifically, seed:
-    - A `WorkflowLineage` + `WorkflowVersion` for your experiment's graph (load the JSON template you wrote in step 8). Follow the existing pattern in `seedBenchmarkingData()` (search for `seedLineageVersion`).
-    - A `BenchmarkDefinition` with id `seed-experiment-{slug}-definition` in the parent-seeded `BenchmarkProject` `seed-experiments-project`. Reference the **full** dataset version `seed-local-{folder}-{visibility}-v1` directly via `datasetVersionId` (don't set `splitId` — we benchmark on the full dropped dataset, no train/test split needed for these experiments).
+11. **Benchmark integration — auto-discovered from your workflow JSON**. The seed (`seedExperimentWorkflows()` in `apps/shared/prisma/seed.ts`) scans `docs-md/graph-workflows/templates/experiment-*-workflow.json` and for each file idempotently creates:
+    - `WorkflowLineage` `seed-experiment-{slug}-workflow` (with `metadata.name` from the JSON)
+    - `WorkflowVersion` `wv_seed-experiment-{slug}-workflow` (full JSON config)
+    - `BenchmarkDefinition` `seed-experiment-{slug}-definition` in `seed-experiments-project`, targeting the (single) local dataset version. **No Split** — benchmarks run on the full user-dropped dataset.
 
-    Then run the benchmark via the existing API:
+    **You don't edit `seed.ts` per experiment.** Just drop the workflow JSON at `docs-md/graph-workflows/templates/experiment-{slug}-workflow.json`. After `npm run test:db:reset`, the seed handles the rest.
+
+    Override the dataset target via `metadata.targetLocalDataset = "{folder}-{visibility}"` if multiple local datasets exist and your experiment targets a non-default one.
+
+    Then run the benchmark via:
     ```
     POST /api/benchmark/projects/seed-experiments-project/definitions/seed-experiment-{slug}-definition/runs
     ```
-    Tag the run with `experiment-{slug}`. The user provides the API key for programmatic runs (`x-api-key: $TEST_API_KEY`). After your branch lands, `scripts/run-experiment-benchmarks.sh` will be able to trigger your experiment alongside the others.
+    Tag the run with `experiment-{slug}`. The user provides `TEST_API_KEY`. `scripts/run-experiment-benchmarks.sh` triggers all experiments at once.
 12. **Cost/usage telemetry** — record per-call usage on the run's `metrics` JSON. DI per page, Mistral per page/char, Azure OpenAI per token, CU has both content-extraction and generative-model components.
 
 ## Dev loop
