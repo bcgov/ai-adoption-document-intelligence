@@ -24,7 +24,7 @@ The existing Mistral provider is paired with a Mistral subscription and the publ
 
 4. **New env vars** are already declared in `.env.sample` on the parent: `MISTRAL_DOC_AI_AZURE_ENDPOINT`, `MISTRAL_DOC_AI_AZURE_KEY`. The user has already populated their override file.
 
-5. **Define a workflow graph** that mirrors the existing Mistral workflow but uses `mistralAzureOcr.process`. Persist via seed or workflow CRUD.
+5. **Define a workflow graph** at `docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`. **Start by copying `docs-md/graph-workflows/templates/mistral-standard-ocr-workflow.json`** — same node structure, but swap `activityType: "mistralOcr.process"` → `"mistralAzureOcr.process"` and update `metadata.name` / `metadata.description`. The auto-discovery seed (`seedExperimentWorkflows()`) will pick up the JSON and create lineage + version + benchmark definition automatically.
 
 6. **Run the workflow** on one real document via the real Foundry API. Confirm `OCRResult` produced.
 

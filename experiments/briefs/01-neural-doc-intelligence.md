@@ -29,7 +29,13 @@ PR #134 already added `BuildMode = neural` for template models, training-hours, 
 
 2. **Train a neural model** against the seeded dataset's training split (or use an already-trained one if the user has one).
 
-3. **Define a workflow graph** wiring `azureOcr.submit`/`poll`/`extract` (already exist) followed by every applicable post-processing activity, then `ocr.checkConfidence` and `ocr.storeResults`. Persist the graph via seed or workflow CRUD API.
+3. **Define a workflow graph** at `docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`. **Start by copying `docs-md/graph-workflows/templates/standard-ocr-workflow-with-corrections.json`** — it's the closest base (already wires `file.prepare → azureOcr.submit/poll/extract → ocr.cleanup → ocr.normalizeFields → ocr.characterConfusion → ocr.spellcheck → ocr.checkConfidence → reviewSwitch → humanReview/storeResults`). Modifications:
+   - `metadata.name`: "Experiment 01 - Neural DI + Post-Processing"
+   - `ctx.modelId.defaultValue`: the neural model id you trained (or the user's existing one — see `feature/neural-model-training` PR #134 docs)
+   - Add `ocr.enrich` node after `ocr.spellcheck` if you want to evaluate LLM-based enrichment alongside rule-based corrections
+   - Don't change the activity types or three-registry registration (Azure DI activities already exist).
+
+   `seedExperimentWorkflows()` in `apps/shared/prisma/seed.ts` will auto-discover this file on the next `npm run test:db:reset` and create the `WorkflowLineage` + `WorkflowVersion` + `BenchmarkDefinition` automatically.
 
 4. **Run the workflow** on one real document end-to-end. Confirm `OCRResult` produced, post-processing activities ran, no errors.
 
