@@ -24,7 +24,7 @@ develop
 | Experiment | Branch | Status | Benchmark run tags |
 |---|---|---|---|
 | E01 — Neural DI + post-processing | `experiment/01-neural-doc-intelligence` | ⏳ pending | `experiment-01-neural` |
-| E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ⏳ pending | `experiment-02-mistral-azure` |
+| E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ✅ implemented + live benchmark run; annotation gap on Foundry deployment is open follow-up (see SUMMARY) | `experiment-02-mistral-doc-ai-azure` |
 | E03 — Azure Content Understanding | `experiment/03-content-understanding` | ⏳ pending | `experiment-03-content-understanding` |
 | E04 — VLM-direct | `experiment/04-vlm-direct` | ⏳ pending | `experiment-04-vlm-direct-{variant}-{model}` |
 | E05 — VLM + OCR hybrid | `experiment/05-vlm-ocr-hybrid` | ⏳ pending | `experiment-05-hybrid-{variant}-{model}` |
@@ -114,7 +114,20 @@ Each experiment fills in this 12-item checklist as part of its work. See `experi
 
 ### E02 — Mistral Doc AI on Azure
 
-(Same template; filled during the experiment.)
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 1 | Map engine output to canonical `OCRResult` | ✅ | Shared mapper at `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts` (extended in E02 to populate per-word/per-line `polygon` from optional `bbox` corners — public-API path benefits too). |
+| 2 | Activity-type registration | ✅ | New `mistralAzureOcr.process` registered in all three registries (`activity-registry.ts`, `activity-types.ts`, backend allow-list). 20 m start-to-close timeout, 3 retries. Sync (single HTTP call) like the public-API Mistral path. |
+| 3 | Field schema → engine format | ✅ | Reuses `field-definitions-to-mistral-annotation-format.ts` from the public-API provider unchanged. |
+| 4 | Confidence values 0–1 | ✅ | `confidence_scores_granularity: "word"` requested; per-word scores ∈ [0,1]. Mapper falls back to `average_page_confidence_score` then `0.95`. |
+| 5 | Bounding-box convention | ✅ | Mistral returns axis-aligned bbox corners `{top_left_x, top_left_y, bottom_right_x, bottom_right_y}` in page-pixel space; mapper converts to canonical 8-element top-left-clockwise polygon. |
+| 6 | Page indexing | ✅ | `pages[].index` is 0-indexed in the response → `pageNumber = index + 1` (1-indexed in `OCRResult`, matches Azure DI mapper). |
+| 7 | Auth & endpoint via env vars | ✅ | `MISTRAL_DOC_AI_AZURE_ENDPOINT` + `MISTRAL_DOC_AI_AZURE_KEY`. URL = `{endpoint}/providers/mistral/azure/ocr`. Auth = `Authorization: Bearer <key>` (LiteLLM-confirmed; `api-key` header is **not** the Foundry convention for this route despite the brief preamble). |
+| 8 | Workflow graph | ✅ | `experiment-02-mistral-doc-ai-azure-workflow.json` (sync chain: prepareFileData → mistralAzureOcr → cleanup → checkConfidence → reviewSwitch → humanReview/storeResults). Auto-discovered by `seedExperimentWorkflows()`. |
+| 9 | Engine-internal preprocessing | ✅ | Mistral OCR 3 explicitly handles deskew, distortion, low DPI, and background noise internally (per Mistral release notes). The existing upstream `pdf-normalization.service.ts` (PDF→image rendering, DPI normalization) stays on; no separate deskew step needed. |
+| 10 | Test coverage | ✅ | `experiment-02-mistral-doc-ai-azure.test.ts` — 19 static + 2 runtime; 4 unit tests on `mistralAzureOcrProcess` (mock + URL/auth + missing-env errors); 3 mapper tests covering bbox population. CI gate via `process.env.CI` skips runtime suite on GitHub Actions. |
+| 11 | Benchmark integration | ✅ | Auto-discovered from JSON template; `seed-experiment-02-mistral-doc-ai-azure-definition` seeded against `seed-local-samples-mix-private-v1`. Trigger via `./scripts/run-experiment-benchmarks.sh 02`. |
+| 12 | Cost/usage telemetry | ⏳ | `usage_info.pages_processed` (and `doc_size_bytes` when present) returned per-page; cross-engine normalization deferred to post-E05 follow-up. |
 
 ### E03 — Azure Content Understanding
 

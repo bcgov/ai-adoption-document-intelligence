@@ -31,6 +31,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Mistral Document AI OCR (sync) with optional document annotation",
     },
+    "mistralAzureOcr.process": {
+      description:
+        "Mistral Document AI on Azure AI Foundry (sync) with optional document annotation",
+    },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {
       description: "Enrich OCR results using field schema and optional LLM",
