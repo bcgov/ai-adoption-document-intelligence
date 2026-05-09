@@ -2,17 +2,35 @@
   "schemaVersion": "1.0",
   "metadata": {
     "name": "Experiment 02 - Mistral Document AI on Azure Foundry",
-    "description": "E02: Mistral Document AI accessed via the Azure AI Foundry serverless deployment (mistral-document-ai-2512), parallel to the public-API path. Sync OCR + document_annotation in a single HTTP call; same canonical post-processing chain (cleanup → checkConfidence) and HITL gate as the public-API Mistral template. Forks the Mistral provider to keep the public-API path intact for fallback comparison.",
-    "tags": ["ocr", "mistral", "azure-foundry", "experiment", "experiment-02"],
+    "description": "E02: Mistral Document AI accessed via the Azure AI Foundry serverless deployment (mistral-document-ai-2512), parallel to the public-API path. Sync OCR + document_annotation in a single HTTP call; same canonical post-processing chain (cleanup \u2192 checkConfidence) and HITL gate as the public-API Mistral template. Forks the Mistral provider to keep the public-API path intact for fallback comparison.",
+    "tags": [
+      "ocr",
+      "mistral",
+      "azure-foundry",
+      "experiment",
+      "experiment-02"
+    ],
     "targetLocalDataset": "samples-mix-private"
   },
   "entryNodeId": "prepareFileData",
   "ctx": {
-    "documentId": { "type": "string", "description": "Document ID from database" },
-    "blobKey": { "type": "string", "description": "File reference on local storage" },
-    "fileName": { "type": "string" },
-    "fileType": { "type": "string" },
-    "contentType": { "type": "string" },
+    "documentId": {
+      "type": "string",
+      "description": "Document ID from database"
+    },
+    "blobKey": {
+      "type": "string",
+      "description": "File reference on local storage"
+    },
+    "fileName": {
+      "type": "string"
+    },
+    "fileType": {
+      "type": "string"
+    },
+    "contentType": {
+      "type": "string"
+    },
     "modelId": {
       "type": "string",
       "defaultValue": "mistral-document-ai-2512",
@@ -23,13 +41,31 @@
       "defaultValue": "seed-sdpr-monthly-report-template",
       "description": "Labeling TemplateModel id (documents table metadata.templateModelId overrides this when set). Mistral Document AI requests document_annotation from field_schema when non-empty. Default points at the seeded SDPR template that ships with the dataset."
     },
-    "confidenceThreshold": { "type": "number", "defaultValue": 0.95, "description": "OCR confidence threshold for human review" },
-    "preparedFileData": { "type": "object" },
-    "ocrResult": { "type": "object" },
-    "ocrResponse": { "type": "object", "description": "Raw Foundry OCR response, emitted alongside ocrResult so the benchmark sample workflow's persistOcrCache step can write it to benchmark_ocr_cache." },
-    "cleanedResult": { "type": "object" },
-    "averageConfidence": { "type": "number" },
-    "requiresReview": { "type": "boolean", "defaultValue": false }
+    "confidenceThreshold": {
+      "type": "number",
+      "defaultValue": 0.95,
+      "description": "OCR confidence threshold for human review"
+    },
+    "preparedFileData": {
+      "type": "object"
+    },
+    "ocrResult": {
+      "type": "object"
+    },
+    "ocrResponse": {
+      "type": "object",
+      "description": "Raw Foundry OCR response, emitted alongside ocrResult so the benchmark sample workflow's persistOcrCache step can write it to benchmark_ocr_cache."
+    },
+    "cleanedResult": {
+      "type": "object"
+    },
+    "averageConfidence": {
+      "type": "number"
+    },
+    "requiresReview": {
+      "type": "boolean",
+      "defaultValue": false
+    }
   },
   "nodes": {
     "prepareFileData": {
@@ -38,15 +74,39 @@
       "label": "Prepare File Data",
       "activityType": "file.prepare",
       "inputs": [
-        { "port": "blobKey", "ctxKey": "blobKey" },
-        { "port": "fileName", "ctxKey": "fileName" },
-        { "port": "fileType", "ctxKey": "fileType" },
-        { "port": "contentType", "ctxKey": "contentType" },
-        { "port": "modelId", "ctxKey": "modelId" }
+        {
+          "port": "blobKey",
+          "ctxKey": "blobKey"
+        },
+        {
+          "port": "fileName",
+          "ctxKey": "fileName"
+        },
+        {
+          "port": "fileType",
+          "ctxKey": "fileType"
+        },
+        {
+          "port": "contentType",
+          "ctxKey": "contentType"
+        },
+        {
+          "port": "modelId",
+          "ctxKey": "modelId"
+        }
       ],
-      "outputs": [{ "port": "preparedData", "ctxKey": "preparedFileData" }],
-      "timeout": { "startToClose": "1m" },
-      "retry": { "maximumAttempts": 3 }
+      "outputs": [
+        {
+          "port": "preparedData",
+          "ctxKey": "preparedFileData"
+        }
+      ],
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
     },
     "mistralAzureOcr": {
       "id": "mistralAzureOcr",
@@ -54,19 +114,113 @@
       "label": "Mistral Document AI (Azure Foundry)",
       "activityType": "mistralAzureOcr.process",
       "inputs": [
-        { "port": "fileData", "ctxKey": "preparedFileData" },
-        { "port": "templateModelId", "ctxKey": "templateModelId" }
+        {
+          "port": "fileData",
+          "ctxKey": "preparedFileData"
+        },
+        {
+          "port": "templateModelId",
+          "ctxKey": "templateModelId"
+        }
       ],
       "outputs": [
-        { "port": "ocrResult", "ctxKey": "ocrResult" },
-        { "port": "ocrResponse", "ctxKey": "ocrResponse" }
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResult"
+        },
+        {
+          "port": "ocrResponse",
+          "ctxKey": "ocrResponse"
+        }
       ],
-      "timeout": { "startToClose": "20m" },
+      "timeout": {
+        "startToClose": "20m"
+      },
       "retry": {
         "maximumAttempts": 30,
         "initialInterval": "15s",
         "backoffCoefficient": 1.5,
         "maximumInterval": "60s"
+      },
+      "parameters": {
+        "documentAnnotationPrompt": "Extract structured field values from this BC SDPR Monthly Report form.\n\nConventions:\n- The form has two parallel income columns: **Applicant** (left) and **Spouse** (right). Each `applicant_*` field reads the LEFT column; each `spouse_*` field reads the RIGHT column. Never mix columns.\n- **Numeric income fields:** Look at the cell carefully and distinguish two cases:\n  - If the cell is **completely blank** (no number written, no \"0\", no \"$0\", no dash), return **null**.\n  - If the cell explicitly shows `0`, `$0`, `$ 0`, `0.00`, or any literal zero, return the number `0`.\n  - Otherwise, return the dollar amount as a plain number with no `$`, no commas, no spaces (e.g., `1234.56`).\n  - This distinction matters: do NOT default empty cells to 0 \u2014 that loses information.\n- Checkbox fields ending in `_yes` or `_no`: return `selected` if the box is filled/checked, `unselected` otherwise. The form gives a Yes/No pair for every question \u2014 for any answered question exactly one of the pair is `selected` and the other is `unselected`. Some questions have separate Applicant and Spouse Yes/No pairs (suffix `_spouse_yes` / `_spouse_no`); read those from the spouse-specific row.\n- Text fields (`signature`, `name`, `phone`, `sin`, and their `spouse_*` counterparts): extract the visible text exactly as written, preserving punctuation, hyphens, and spacing where present. Use empty string `\"\"` if blank.\n- `signature` is the cursive/initial mark in the signature box. `name` is the printed full name. They are separate fields and must not be swapped.\n- Date fields (`date`, `spouse_date`): extract in `YYYY-MM-DD` format. The form prints date headers like `(yyyy-mmm-dd)` \u2014 interpret the value accordingly (`mmm` is a 3-letter month abbreviation, e.g. `MAR`).\n- `explain_changes`: free-text field. Capture the entire paragraph if present, otherwise empty string.\n- Officer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD, etc.) are NOT in the schema \u2014 ignore them.\n\nBe conservative: if a number is illegible, return null (treat as blank). Do NOT guess values that aren't visibly written on the form.",
+        "fieldDescriptions": {
+          "checkbox_need_assistance_yes": "Section 1, Question 1: 'Are you still in need of assistance?' \u2014 return 'selected' if the YES box is checked.",
+          "checkbox_need_assistance_no": "Section 1, Question 1: 'Are you still in need of assistance?' \u2014 return 'selected' if the NO box is checked.",
+          "checkbox_family_assets_yes": "Section 1, Question 2: 'Has your family unit received or disposed of any assets?' \u2014 return 'selected' if the YES box is checked.",
+          "checkbox_family_assets_no": "Section 1, Question 2: 'Has your family unit received or disposed of any assets?' \u2014 return 'selected' if the NO box is checked.",
+          "checkbox_shelter_yes": "Section 1, Question 3: 'Any changes to your shelter costs?' \u2014 return 'selected' if YES is checked.",
+          "checkbox_shelter_no": "Section 1, Question 3: 'Any changes to your shelter costs?' \u2014 return 'selected' if NO is checked.",
+          "checkbox_dependants_yes": "Section 1, Question 4: 'Any changes in Dependants or Persons living in the home?' \u2014 return 'selected' if YES is checked.",
+          "checkbox_dependants_no": "Section 1, Question 4: 'Any changes in Dependants or Persons living in the home?' \u2014 return 'selected' if NO is checked.",
+          "checkbox_employment_changes_yes": "Section 1, Question 5 (APPLICANT column, left): 'Any employment changes?' \u2014 return 'selected' if Applicant's YES is checked.",
+          "checkbox_employment_changes_no": "Section 1, Question 5 (APPLICANT column, left): 'Any employment changes?' \u2014 return 'selected' if Applicant's NO is checked.",
+          "checkbox_employment_changes_spouse_yes": "Section 1, Question 5 (SPOUSE column, right): 'Any employment changes?' \u2014 return 'selected' if Spouse's YES is checked.",
+          "checkbox_employment_changes_spouse_no": "Section 1, Question 5 (SPOUSE column, right): 'Any employment changes?' \u2014 return 'selected' if Spouse's NO is checked.",
+          "checkbox_school_yes": "Section 1, Question 6 (APPLICANT column): 'Are you attending / enrolled in school or training?' \u2014 return 'selected' if Applicant's YES is checked.",
+          "checkbox_school_no": "Section 1, Question 6 (APPLICANT column): same question \u2014 return 'selected' if Applicant's NO is checked.",
+          "checkbox_school_spouse_yes": "Section 1, Question 6 (SPOUSE column): same question \u2014 return 'selected' if Spouse's YES is checked.",
+          "checkbox_school_spouse_no": "Section 1, Question 6 (SPOUSE column): same question \u2014 return 'selected' if Spouse's NO is checked.",
+          "checkbox_work_yes": "Section 1, Question 7 (APPLICANT column): 'Are you looking for work?' \u2014 return 'selected' if Applicant's YES is checked.",
+          "checkbox_work_no": "Section 1, Question 7 (APPLICANT column): same question \u2014 return 'selected' if Applicant's NO is checked.",
+          "checkbox_work_spouse_yes": "Section 1, Question 7 (SPOUSE column): same question \u2014 return 'selected' if Spouse's YES is checked.",
+          "checkbox_work_spouse_no": "Section 1, Question 7 (SPOUSE column): same question \u2014 return 'selected' if Spouse's NO is checked.",
+          "checkbox_moved_yes": "Section 1, Question 8 (APPLICANT column): 'Have you moved or entered a facility?' \u2014 return 'selected' if Applicant's YES is checked.",
+          "checkbox_moved_no": "Section 1, Question 8 (APPLICANT column): same question \u2014 return 'selected' if Applicant's NO is checked.",
+          "checkbox_moved_spouse_yes": "Section 1, Question 8 (SPOUSE column): same question \u2014 return 'selected' if Spouse's YES is checked.",
+          "checkbox_moved_spouse_no": "Section 1, Question 8 (SPOUSE column): same question \u2014 return 'selected' if Spouse's NO is checked.",
+          "checkbox_warrant_yes": "Section 1, Question 9 (APPLICANT column): 'Any outstanding warrants for your arrest?' \u2014 return 'selected' if Applicant's YES is checked.",
+          "checkbox_warrant_no": "Section 1, Question 9 (APPLICANT column): same question \u2014 return 'selected' if Applicant's NO is checked.",
+          "checkbox_warrant_spouse_yes": "Section 1, Question 9 (SPOUSE column): same question \u2014 return 'selected' if Spouse's YES is checked.",
+          "checkbox_warrant_spouse_no": "Section 1, Question 9 (SPOUSE column): same question \u2014 return 'selected' if Spouse's NO is checked.",
+          "explain_changes": "Free-text paragraph immediately below 'Please explain all changes including income and submit proof:'. Capture the entire handwritten/typed paragraph verbatim. Empty string if blank.",
+          "signature": "APPLICANT's signature (cursive mark or initials) in the 'Applicant Signature' box at the bottom of the form. Distinct from the printed name. Empty string if blank.",
+          "spouse_signature": "SPOUSE's signature (cursive mark or initials) in the 'Spouse Signature' box at the bottom of the form. Empty string if blank.",
+          "date": "APPLICANT's signature date in the box labeled 'Date (yyyy-mmm-dd)' next to the Applicant Signature. Return as YYYY-MM-DD.",
+          "spouse_date": "SPOUSE's signature date in the box labeled 'Date (yyyy-mmm-dd)' next to the Spouse Signature. Return as YYYY-MM-DD.",
+          "name": "APPLICANT's printed full name in the 'Applicant Print Name' box at the bottom of the form. Empty string if blank.",
+          "spouse_name": "SPOUSE's printed full name in the 'Spouse Print Name' box at the bottom of the form. Empty string if blank.",
+          "phone": "APPLICANT's telephone number in the 'Applicant Telephone' box. Preserve formatting (parens, hyphens) as written. Empty string if blank.",
+          "spouse_phone": "SPOUSE's telephone number in the 'Spouse Telephone' box. Preserve formatting. Empty string if blank.",
+          "sin": "APPLICANT's Social Insurance Number, 9 digits. Strip any spaces or hyphens. Empty string if blank.",
+          "spouse_sin": "SPOUSE's Social Insurance Number, 9 digits. Strip any spaces or hyphens. Empty string if blank.",
+          "applicant_net_employment_income": "Section 2 income table, row 'Net Employment Income', APPLICANT column (left). Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_employment_insurance": "Section 2 income table, row 'Employment Insurance', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_spousal_support_alimony": "Section 2 income table, row 'Spousal Support / Alimony', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_child_support": "Section 2 income table, row 'Child Support', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_workbc_financial_support": "Section 2 income table, row 'WorkBC Financial Support', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_student_funding_loans_bursaries": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_rental_income": "Section 2, row 'Rental Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_room_board_income": "Section 2, row 'Room / Board Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_workers_compensation": "Section 2, row 'Worker's Compensation', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_private_pensions_retirement_disability": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_oas_gis": "Section 2, row 'OAS / GIS', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_trust_income": "Section 2, row 'Trust Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_canada_pension_plan_cpp": "Section 2, row 'Canada Pension Plan (CPP)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_tax_credits_gst_credit": "Section 2, row 'Tax Credits (eg: GST Credit)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_child_tax_benefits": "Section 2, row 'Child Tax Benefits', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_income_tax_refund": "Section 2, row 'Income Tax Refund', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_other_income_money_received": "Section 2, row 'All other income / money received', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "applicant_income_of_dependent_children": "Section 2, row 'Income of Dependent Children', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_net_employment_income": "Section 2 income table, row 'Net Employment Income', SPOUSE column (right). Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_employment_insurance": "Section 2, row 'Employment Insurance', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_spousal_support_alimony": "Section 2, row 'Spousal Support / Alimony', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_child_support": "Section 2, row 'Child Support', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_workbc_financial_support": "Section 2, row 'WorkBC Financial Support', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_student_funding_loans_bursaries": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_rental_income": "Section 2, row 'Rental Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_room_board_income": "Section 2, row 'Room / Board Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_workers_compensation": "Section 2, row 'Worker's Compensation', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_private_pensions_retirement_disability": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_oas_gis": "Section 2, row 'OAS / GIS', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_trust_income": "Section 2, row 'Trust Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_canada_pension_plan_cpp": "Section 2, row 'Canada Pension Plan (CPP)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_tax_credits_gst_credit": "Section 2, row 'Tax Credits (eg: GST Credit)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_child_tax_benefits": "Section 2, row 'Child Tax Benefits', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_income_tax_refund": "Section 2, row 'Income Tax Refund', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number.",
+          "spouse_other_income_money_received": "Section 2, row 'All other income / money received', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number."
+        },
+        "numericFieldsNullable": true
       }
     },
     "postOcrCleanup": {
@@ -74,10 +228,24 @@
       "type": "activity",
       "label": "Post-OCR Cleanup",
       "activityType": "ocr.cleanup",
-      "inputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
-      "outputs": [{ "port": "cleanedResult", "ctxKey": "cleanedResult" }],
-      "timeout": { "startToClose": "2m" },
-      "retry": { "maximumAttempts": 3 }
+      "inputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResult"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "cleanedResult",
+          "ctxKey": "cleanedResult"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
     },
     "checkConfidence": {
       "id": "checkConfidence",
@@ -85,28 +253,56 @@
       "label": "Check OCR Confidence",
       "activityType": "ocr.checkConfidence",
       "inputs": [
-        { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResult" },
-        { "port": "threshold", "ctxKey": "confidenceThreshold" }
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResult"
+        },
+        {
+          "port": "threshold",
+          "ctxKey": "confidenceThreshold"
+        }
       ],
       "outputs": [
-        { "port": "averageConfidence", "ctxKey": "averageConfidence" },
-        { "port": "requiresReview", "ctxKey": "requiresReview" }
+        {
+          "port": "averageConfidence",
+          "ctxKey": "averageConfidence"
+        },
+        {
+          "port": "requiresReview",
+          "ctxKey": "requiresReview"
+        }
       ],
-      "timeout": { "startToClose": "30s" },
-      "retry": { "maximumAttempts": 3 }
+      "timeout": {
+        "startToClose": "30s"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
     },
     "reviewSwitch": {
       "id": "reviewSwitch",
       "type": "switch",
       "label": "Needs Review?",
-      "inputs": [{ "port": "requiresReview", "ctxKey": "requiresReview" }],
+      "inputs": [
+        {
+          "port": "requiresReview",
+          "ctxKey": "requiresReview"
+        }
+      ],
       "cases": [
         {
           "condition": {
             "operator": "equals",
-            "left": { "ref": "ctx.requiresReview" },
-            "right": { "literal": true }
+            "left": {
+              "ref": "ctx.requiresReview"
+            },
+            "right": {
+              "literal": true
+            }
           },
           "edgeId": "edge-switch-to-humanGate"
         }
@@ -136,21 +332,68 @@
       "label": "Store Results",
       "activityType": "ocr.storeResults",
       "inputs": [
-        { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResult" }
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResult"
+        }
       ],
-      "timeout": { "startToClose": "2m" },
-      "retry": { "maximumAttempts": 5 }
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
     }
   },
   "edges": [
-    { "id": "e-mz1", "source": "prepareFileData", "target": "mistralAzureOcr", "type": "normal" },
-    { "id": "e-mz2", "source": "mistralAzureOcr", "target": "postOcrCleanup", "type": "normal" },
-    { "id": "e-mz3", "source": "postOcrCleanup", "target": "checkConfidence", "type": "normal" },
-    { "id": "e-mz4", "source": "checkConfidence", "target": "reviewSwitch", "type": "normal" },
-    { "id": "edge-switch-to-humanGate", "source": "reviewSwitch", "target": "humanReview", "type": "conditional", "condition": "requiresReview" },
-    { "id": "edge-switch-to-store", "source": "reviewSwitch", "target": "storeResults", "type": "conditional", "condition": "default" },
-    { "id": "e-mz7", "source": "humanReview", "target": "storeResults", "type": "normal" }
+    {
+      "id": "e-mz1",
+      "source": "prepareFileData",
+      "target": "mistralAzureOcr",
+      "type": "normal"
+    },
+    {
+      "id": "e-mz2",
+      "source": "mistralAzureOcr",
+      "target": "postOcrCleanup",
+      "type": "normal"
+    },
+    {
+      "id": "e-mz3",
+      "source": "postOcrCleanup",
+      "target": "checkConfidence",
+      "type": "normal"
+    },
+    {
+      "id": "e-mz4",
+      "source": "checkConfidence",
+      "target": "reviewSwitch",
+      "type": "normal"
+    },
+    {
+      "id": "edge-switch-to-humanGate",
+      "source": "reviewSwitch",
+      "target": "humanReview",
+      "type": "conditional",
+      "condition": "requiresReview"
+    },
+    {
+      "id": "edge-switch-to-store",
+      "source": "reviewSwitch",
+      "target": "storeResults",
+      "type": "conditional",
+      "condition": "default"
+    },
+    {
+      "id": "e-mz7",
+      "source": "humanReview",
+      "target": "storeResults",
+      "type": "normal"
+    }
   ],
   "nodeGroups": {
     "ocr-extraction": {
@@ -158,13 +401,18 @@
       "description": "Mistral Document AI synchronous OCR via the Azure AI Foundry deployment",
       "icon": "scan",
       "color": "#f97316",
-      "nodeIds": ["prepareFileData", "mistralAzureOcr"],
+      "nodeIds": [
+        "prepareFileData",
+        "mistralAzureOcr"
+      ],
       "exposedParams": [
         {
           "label": "Foundry Deployment",
           "path": "ctx.modelId.defaultValue",
           "type": "select",
-          "options": ["mistral-document-ai-2512"],
+          "options": [
+            "mistral-document-ai-2512"
+          ],
           "default": "mistral-document-ai-2512"
         }
       ]
@@ -174,14 +422,19 @@
       "description": "Clean and normalize OCR results",
       "icon": "cleanup",
       "color": "#22c55e",
-      "nodeIds": ["postOcrCleanup"]
+      "nodeIds": [
+        "postOcrCleanup"
+      ]
     },
     "quality-gate": {
       "label": "Quality Gate",
       "description": "Check OCR confidence and decide if human review is needed",
       "icon": "quality",
       "color": "#fb923c",
-      "nodeIds": ["checkConfidence", "reviewSwitch"],
+      "nodeIds": [
+        "checkConfidence",
+        "reviewSwitch"
+      ],
       "exposedParams": [
         {
           "label": "Confidence Threshold",
@@ -196,7 +449,9 @@
       "description": "Wait for human approval when confidence is low",
       "icon": "human",
       "color": "#ef4444",
-      "nodeIds": ["humanReview"],
+      "nodeIds": [
+        "humanReview"
+      ],
       "exposedParams": [
         {
           "label": "Review Timeout",
@@ -211,7 +466,9 @@
       "description": "Save processed results to database",
       "icon": "save",
       "color": "#8b5cf6",
-      "nodeIds": ["storeResults"]
+      "nodeIds": [
+        "storeResults"
+      ]
     }
   }
 }

@@ -46,42 +46,66 @@ The brief asked us to populate per-word/per-line polygons in the canonical mappe
 
 | field | value |
 |---|---|
-| Run id | `3b4baeaf-8a0a-48f6-a49d-4f265205a672` |
+| Run id | `21ce5b11-5f98-417e-a65a-95f420f23287` |
 | Definition | `seed-experiment-02-mistral-doc-ai-azure-definition` |
 | Tag | `experiment: 02-mistral-doc-ai-azure` |
 | Status | `completed` |
-| Wallclock | ~149 s for 33 samples (annotation ran on every sample, ~14 s/call median; 10 RPM Foundry quota is the bottleneck) |
+| Wallclock | ~145 s for 33 samples (annotation ran on every sample, ~14 s/call median; 10 RPM Foundry quota is the bottleneck) |
 | Evaluator | `schema-aware` (default rule fuzzy@0.85; pass threshold 0.8) |
+| Workflow params | `documentAnnotationPrompt` (2.1 KB), `fieldDescriptions` (74 fields), `numericFieldsNullable: true` — embedded in the workflow JSON's `mistralAzureOcr` node, sourced from the iteration kit |
 
 Aggregated metrics ([`experiments/results/02-mistral-doc-ai-azure/benchmark-run.json`](benchmark-run.json)):
 
 | metric | value |
 |---|---|
-| `pass_rate` | **0.273** (9/33 cleared the 0.8 schema-aware threshold) |
-| `f1.mean` | 0.559 |
-| `f1.median` | 0.563 |
-| `f1.max` | 0.965 (1 sample, near-perfect extraction) |
-| `f1.min` | 0.110 |
-| `precision.mean` | 0.840 |
+| `pass_rate` | **0.485** (16/33 cleared the 0.8 schema-aware threshold) |
+| `f1.mean` | 0.705 |
+| `f1.median` | 0.770 |
+| `f1.max` | 0.993 (near-perfect extraction on the cleanest sample) |
+| `f1.min` | 0.143 |
+| `precision.mean` | 0.900 |
 | `precision.median` | 1.000 |
-| `recall.mean` | 0.454 |
-| `recall.median` | 0.392 |
-| `matchedFields.median` | 29 (of 74 in schema) |
-| `falseNegatives.median` | 36 |
-| `falsePositives.mean` | 5.88 (Mistral does over-fill some fields with hallucinated values) |
+| `recall.mean` | 0.621 |
+| `recall.median` | 0.627 |
+| `matchedFields.median` | 47 (of 74 in schema) |
+| `falseNegatives.median` | 24 |
+| `falsePositives.mean` | 2.30 |
 
-Mistral Document AI on Foundry is a working extractor on this dataset, but trails the E01 trained-neural baseline — which is expected (E01's `sdpr_synth_test` is a custom-trained model on the SDPR field set, while Mistral is a general-purpose document AI). Comparison:
+### Comparison vs E01 (Neural Azure DI)
 
 | | E01 (Neural Azure DI) | E02 (Mistral on Foundry) |
 |---|---|---|
-| `pass_rate` | 0.515 (17/33) | 0.273 (9/33) |
-| `f1.median` | 0.806 | 0.563 |
-| `precision.mean` | 0.899 | 0.840 |
-| `recall.mean` | 0.587 | 0.454 |
-| `falsePositives.mean` | 0 | 5.88 |
-| Wallclock / 33 samples | ~83 s | ~149 s |
+| `pass_rate` | 0.515 (17/33) | 0.485 (16/33) |
+| `f1.median` | 0.806 | 0.770 |
+| `f1.mean` | 0.683 | **0.705** |
+| `precision.mean` | 0.899 | **0.900** |
+| `recall.mean` | 0.587 | **0.621** |
+| `falsePositives.mean` | 0 | 2.30 |
+| Wallclock / 33 samples | ~83 s | ~145 s |
 
-E01 is the better extractor on this dataset; E02 is precision-leaning but with substantially more hallucinated false positives and lower recall. Both engines are now running real extraction and produce comparable cross-engine metrics for the consolidated comparison at the end of the chained stack.
+With the iteration-kit prompts in place (`documentAnnotationPrompt` + per-field `description` overlay + nullable numerics so blank ≠ 0), E02 is **essentially even with E01** on this dataset:
+- `f1.mean` and `recall.mean` are slightly higher than E01.
+- `precision.mean` is identical.
+- `pass_rate` is within one sample of E01.
+
+Honest residual gap: `falsePositives.mean` 2.30 vs 0. Mistral is a general-purpose engine and occasionally fills in a field where the cell is actually blank; E01's narrow custom-trained model never does. Possible follow-ups (not in this branch): tighter "must-be-blank-when-blank" prompt instructions, or a confidence-gated post-pass that drops low-conviction predictions.
+
+### Earlier runs on this branch (for reference)
+
+- `9868a1f7-1178-4c99-b378-0007045b754d` — first end-to-end run after the `strict: true` fix, but `templateModelId` default was stale → activity logged "template not found" and skipped sending `document_annotation_format`. pass_rate 0.0, f1.median 0.45.
+- `0fd7eef6-caea-4c69-868d-f0038cfd4637` — cleared up the templateModelId default; auto-generated `field_key`-only schema (no descriptions, no nullable numerics). pass_rate 0.273, f1.median 0.563. annotation populated but field-level accuracy still well below E01.
+- `3b4baeaf-8a0a-48f6-a49d-4f265205a672` — same as above, ran from a clean DB. Same metrics.
+- **`21ce5b11-5f98-417e-a65a-95f420f23287`** — current canonical run with iteration-kit prompts embedded in the workflow JSON. pass_rate 0.485, f1.median 0.770. This is the run referenced everywhere else in this document.
+
+### Iteration kit
+
+The prompt and per-field description text used by this run live as editable artifacts in [`experiments/results/02-mistral-doc-ai-azure/iteration/`](iteration/):
+
+- `prompt.md` — global `document_annotation_prompt` text.
+- `field-descriptions.json` — per-field description overlay (keyed by `field_key`).
+- `README.md` — how to iterate.
+
+The same files are embedded into [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json) as parameters on the `mistralAzureOcr` node. To iterate: edit the iteration files, run [`apps/temporal/src/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts) for a single-document smoke test (~14 s, no benchmark), then re-copy the tuned content into the workflow JSON and re-seed before triggering the full benchmark.
 
 ## Confidence-distribution observations
 
