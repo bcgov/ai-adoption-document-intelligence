@@ -99,6 +99,10 @@ interface MistralAzureTemplateLoadResult {
 async function loadTemplateForAnnotation(
   templateModelId: string,
   log: ReturnType<typeof createActivityLogger>,
+  options: {
+    fieldDescriptions?: Record<string, string>;
+    numericFieldsNullable?: boolean;
+  } = {},
 ): Promise<MistralAzureTemplateLoadResult | null> {
   try {
     const prisma = getPrismaClient();
@@ -121,7 +125,10 @@ async function loadTemplateForAnnotation(
     }
 
     const fields = templateModel.field_schema.map(prismaFieldToAnnotationInput);
-    const format = fieldDefinitionsToMistralDocumentAnnotationFormat(fields);
+    const format = fieldDefinitionsToMistralDocumentAnnotationFormat(fields, {
+      descriptions: options.fieldDescriptions,
+      numericFieldsNullable: options.numericFieldsNullable,
+    });
     const fieldDefs = templateModel.field_schema.map(
       (f: {
         field_key: string;
@@ -209,6 +216,18 @@ export interface MistralAzureOcrProcessParams {
   templateModelId?: string;
   /** Optional prompt forwarded to Mistral `document_annotation_prompt`. */
   documentAnnotationPrompt?: string;
+  /**
+   * Optional per-field description overlay (keyed by `field_key`) attached
+   * to the JSON Schema's `description` properties to disambiguate ambiguous
+   * fields. Empty/missing entries skip the description for that field.
+   */
+  fieldDescriptions?: Record<string, string>;
+  /**
+   * When true, every numeric field in the JSON Schema becomes nullable
+   * (`["number", "null"]`). Lets Mistral return `null` for blank cells,
+   * distinct from `0` for cells that explicitly show `0`.
+   */
+  numericFieldsNullable?: boolean;
   requestId?: string;
 }
 
@@ -237,7 +256,12 @@ export async function mistralAzureOcrProcess(
   params: MistralAzureOcrProcessParams,
 ): Promise<MistralAzureOcrProcessResult> {
   const activityName = "mistralAzureOcrProcess";
-  const { fileData, documentAnnotationPrompt } = params;
+  const {
+    fileData,
+    documentAnnotationPrompt,
+    fieldDescriptions,
+    numericFieldsNullable,
+  } = params;
   const templateModelIdRaw = params.templateModelId?.trim();
   const log = createActivityLogger(activityName, {
     ...(params.requestId && { requestId: params.requestId }),
@@ -318,7 +342,10 @@ export async function mistralAzureOcrProcess(
   let documentAnnotationFormat: MistralDocumentAnnotationFormat | null = null;
   let mistralFieldDefs: MistralAzureTemplateLoadResult["fieldDefs"] = [];
   if (templateModelIdRaw) {
-    const loaded = await loadTemplateForAnnotation(templateModelIdRaw, log);
+    const loaded = await loadTemplateForAnnotation(templateModelIdRaw, log, {
+      fieldDescriptions,
+      numericFieldsNullable,
+    });
     if (loaded) {
       documentAnnotationFormat = loaded.format;
       mistralFieldDefs = loaded.fieldDefs;

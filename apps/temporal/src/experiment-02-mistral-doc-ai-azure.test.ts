@@ -328,6 +328,23 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
       expect(graph.ctx?.ocrResult).toBeDefined();
       expect(graph.ctx?.ocrResponse).toBeDefined();
     });
+
+    it("Foundry activity carries the iteration kit's prompt + per-field descriptions + numericFieldsNullable on its parameters", () => {
+      const graph = loadTemplate();
+      const node = graph.nodes?.mistralAzureOcr as ActivityNode | undefined;
+      const params = (node?.parameters ?? {}) as {
+        documentAnnotationPrompt?: string;
+        fieldDescriptions?: Record<string, string>;
+        numericFieldsNullable?: boolean;
+      };
+      expect(params.documentAnnotationPrompt?.length ?? 0).toBeGreaterThan(100);
+      expect(params.documentAnnotationPrompt).toMatch(/SDPR|Applicant|Spouse/);
+      // Per-field descriptions cover the full SDPR schema (74 fields).
+      expect(
+        Object.keys(params.fieldDescriptions ?? {}).length,
+      ).toBeGreaterThanOrEqual(70);
+      expect(params.numericFieldsNullable).toBe(true);
+    });
   });
 
   describe("graph schema validation", () => {
