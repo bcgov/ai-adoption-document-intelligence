@@ -97,25 +97,33 @@ broken `field-accuracy` evaluator; the OCR side completed successfully on
 all 33 samples — only post-evaluation failed with `evaluator not registered`.
 That run is not the canonical E01 result; `2295feed-…` is.
 
-## Step 4 — Mock-based tests
+## Step 4 — Tests
 
 [`apps/temporal/src/experiment-01-neural-doc-intelligence.test.ts`](../../../apps/temporal/src/experiment-01-neural-doc-intelligence.test.ts)
 loads the actual JSON template plus a recorded neural-model OCR poll
 response from sample `1 81` (saved at
 [`apps/temporal/src/__fixtures__/experiment-01/neural-ocr-response-1-81.json`](../../../apps/temporal/src/__fixtures__/experiment-01/neural-ocr-response-1-81.json)).
+Two layers:
 
-It covers:
+**Static (17 tests, no Temporal connection, runs in ~1 s):**
 
 - Template metadata: `metadata.name`, `targetLocalDataset`, model id default, entry node.
 - Brief scope rules: spellcheck/enrich/cross-field-validation absent; `characterConfusion → checkConfidence` direct edge present.
 - Chain wiring: `computeTopologicalOrder` orders the linear chain through `reviewSwitch` correctly; review switch routes `requiresReview` to humanReview, default to storeResults; characterConfusion carries the configured `fieldScope` (and includes the canonical income fields); `ocr.checkConfidence` reads `confidenceThreshold` from ctx.
 - Graph-schema validator (`validateGraphConfigForExecution`) accepts the template.
-- Recorded neural OCR fixture: trained model id matches the template default; per-field confidences land in [0,1]; the configured `fieldScope` overlaps with fields actually returned by the neural model (otherwise the corrector would be a no-op for the wrong reason).
+- Recorded neural OCR fixture: trained model id matches the template default; per-field confidences land in [0,1]; the configured `fieldScope` overlaps with fields actually returned by the neural model.
 
-**Note**: A workflow-runtime test using `TestWorkflowEnvironment.createTimeSkipping()` was also drafted, but the dev environment cannot reach `temporal.download` (TLS chain validation fails) so the temporal-test-server cannot be downloaded. The same blocker affects the existing `graph-workflow.test.ts`. Static + structural assertions plus the real benchmark run together cover the wiring: every activity in the chain has its own pre-existing unit test, the JSON template itself is what E01 is responsible for, and the real `2295feed-…` run is the live integration test.
+**Runtime (2 tests, against the local dev-stack Temporal at `localhost:7233`, ~4 s total):**
 
-`npx jest src/experiment-01-neural-doc-intelligence.test.ts` → 17/17 pass (~3 s).
-`npx jest src/seed/local-dataset-sync.service.spec.ts` (covered file) → 4/4 pass.
+- High-confidence sample (`averageConfidence=0.99`): runs the actual `graphWorkflow` against the template with mocked activities replaying the captured fixture. Asserts that all 10 chain activities ran in order, ctx.requiresReview is false, ctx.averageConfidence is 0.99, the cleanup activity received the real neural-OCR shape (modelId `sdpr_synth_test`, docType `sdpr_synth_test:...`), and characterConfusion received the configured `fieldScope`.
+- Low-confidence sample (`averageConfidence=0.42`, `requiresReview=true`): starts the workflow, signals `humanApproval`, waits for completion. Asserts that `storeResults` still runs (after the human gate) and that the cleanup → checkConfidence chain ran in order on the low-confidence path too.
+
+Both runtime tests patch the template's `pollOcrResults` `interval` and `initialDelay` to `1ms` for in-memory test execution; the production template uses `5s/10s`.
+
+**Why a real Temporal cluster instead of `TestWorkflowEnvironment`?** Both `createTimeSkipping()` and `createLocal()` lazily download Temporal binaries from `temporal.download`, which TLS-fails in this dev environment (also breaks the existing `graph-workflow.test.ts`). Connecting to the already-running dev-stack Temporal sidesteps the download entirely. Documented as the canonical pattern in `experiments/briefs/_shared-rules.md`.
+
+`cd apps/temporal && npx jest src/experiment-01-neural-doc-intelligence.test.ts` → 19/19 pass (~7 s).
+`cd apps/backend-services && npx jest src/seed/local-dataset-sync.service.spec.ts` → 4/4 pass.
 
 ## Gaps found / parent-branch fixes applied
 
@@ -145,17 +153,13 @@ loading path. The following parent-shared edits were applied:
      evaluator for structured ground-truth comparison and is what produces
      the precision/recall/F1 metrics surfaced above.
 
-3. **`./scripts/run-experiment-benchmarks.sh` (NOT fixed — flag for parent)** —
-   the script POSTs `tags: ["experiment-…"]` (array) but the
-   `CreateRunDto` validates `@IsObject()`, so the request returns HTTP 400.
-   Worked around by calling the API with `{"tags":{"experiment":"…"}}` for
-   the E01 run. **Recommend a one-line fix on the parent branch**:
-
-   ```bash
-   -d "{\"tags\": [\"experiment-${slug}\"]}" \
-   # →
-   -d "{\"tags\": {\"experiment\": \"${slug}\"}}" \
-   ```
+3. **`./scripts/run-experiment-benchmarks.sh`** — the script previously POSTed
+   `tags: ["experiment-…"]` (array) but the `CreateRunDto` validates
+   `@IsObject()`, so the request returned HTTP 400. Fixed in the E01 branch
+   to send `{"tags":{"experiment":"<slug>"},"persistOcrCache":true}`.
+   `persistOcrCache: true` is now the default so each experiment run
+   captures engine responses for the test fixture without needing a
+   separate flag.
 
 ## Gaps in `cleanup` / `normalizeFields` / `characterConfusion` against neural output
 
