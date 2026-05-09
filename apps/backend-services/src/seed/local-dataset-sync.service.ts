@@ -27,6 +27,7 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import {
   buildBlobFilePath,
+  buildBlobPrefixPath,
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { PrismaService } from "@/database/prisma.service";
@@ -99,6 +100,8 @@ export class LocalDatasetSyncService implements OnApplicationBootstrap {
       return;
     }
 
+    const force = process.env.FORCE_RESYNC_LOCAL_DATASETS === "true";
+
     const repoRoot = path.resolve(__dirname, "../../../..");
     const datasetsDir = path.join(repoRoot, "data", "datasets");
 
@@ -111,12 +114,12 @@ export class LocalDatasetSyncService implements OnApplicationBootstrap {
     }
 
     this.logger.log(
-      `Syncing ${parsed.length} local dataset version(s) to blob storage...`,
+      `Syncing ${parsed.length} local dataset version(s) to blob storage${force ? " (force mode: will delete + re-upload)" : ""}...`,
     );
 
     for (const entry of parsed) {
       try {
-        const result = await this.syncOne(entry, repoRoot);
+        const result = await this.syncOne(entry, repoRoot, { force });
         this.logger.log(
           `Synced ${result.folder}/${result.visibility}: ${result.uploaded} uploaded, ${result.skipped} skipped`,
         );
@@ -135,24 +138,34 @@ export class LocalDatasetSyncService implements OnApplicationBootstrap {
   async syncOne(
     entry: ParsedLocalDataset,
     repoRoot: string,
+    options: { force?: boolean } = {},
   ): Promise<LocalDatasetSyncResult> {
     return syncLocalDatasetToBlobStorage(
       entry,
       repoRoot,
       this.blobStorage,
       this.prisma.prisma as unknown as DatasetVersionUpdater,
+      options,
     );
   }
 }
 
 /**
  * Pure-ish sync function so it can be unit tested without spinning up NestJS.
+ *
+ * `options.force` (default false) — when true, deletes all blobs under the
+ * dataset's prefix before uploading. Use after local renames or content edits
+ * that the standard idempotent sync can't propagate (because it skips files
+ * that already exist on blob storage). The next benchmark run will also need
+ * a clean materialized cache; the temporal worker re-downloads on each run
+ * so blob is the source of truth.
  */
 export async function syncLocalDatasetToBlobStorage(
   entry: ParsedLocalDataset,
   repoRoot: string,
   blobStorage: BlobStorageInterface,
   prisma: DatasetVersionUpdater,
+  options: { force?: boolean } = {},
 ): Promise<LocalDatasetSyncResult> {
   const datasetId = localDatasetId(entry.folder, entry.visibility);
   const versionId = localDatasetVersionId(entry.folder, entry.visibility);
@@ -165,6 +178,19 @@ export async function syncLocalDatasetToBlobStorage(
   const samples = Array.isArray(manifest.samples) ? manifest.samples : [];
 
   const blobStoragePrefix = `datasets/${datasetId}/${versionId}`;
+
+  // Force mode: nuke the prefix so subsequent writes overwrite cleanly and
+  // any blobs not in the local manifest (orphans from prior layouts) are
+  // removed. Without this, the existence-skip below would leave stale files
+  // on cloud storage forever.
+  if (options.force) {
+    const fullPrefix = buildBlobPrefixPath(
+      SEED_GROUP_ID,
+      OperationCategory.BENCHMARK,
+      [blobStoragePrefix],
+    );
+    await blobStorage.deleteByPrefix(fullPrefix);
+  }
 
   let uploaded = 0;
   let skipped = 0;

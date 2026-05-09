@@ -24,7 +24,7 @@ develop
 | Experiment | Branch | Status | Benchmark run tags |
 |---|---|---|---|
 | E01 — Neural DI + post-processing | `experiment/01-neural-doc-intelligence` | ⏳ pending | `experiment-01-neural` |
-| E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ✅ implemented + live benchmark with tuned prompts; ≈ E01 on this dataset (f1.median 0.770, f1.mean 0.705, pass_rate 0.485, 16/33) | `experiment-02-mistral-doc-ai-azure` |
+| E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ✅ implemented + tuned + live benchmark on aligned 40-sample dataset (f1.median 0.943, f1.mean 0.907, pass_rate 0.875 = 35/40) | `experiment-02-mistral-doc-ai-azure` |
 | E03 — Azure Content Understanding | `experiment/03-content-understanding` | ⏳ pending | `experiment-03-content-understanding` |
 | E04 — VLM-direct | `experiment/04-vlm-direct` | ⏳ pending | `experiment-04-vlm-direct-{variant}-{model}` |
 | E05 — VLM + OCR hybrid | `experiment/05-vlm-ocr-hybrid` | ⏳ pending | `experiment-05-hybrid-{variant}-{model}` |
