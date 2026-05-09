@@ -359,7 +359,16 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
       expect(page.markdown.length).toBeGreaterThan(0);
       expect(page.dimensions?.width).toBeGreaterThan(0);
       expect(page.dimensions?.height).toBeGreaterThan(0);
-      expect(fixture.usage_info?.pages_processed).toBeGreaterThanOrEqual(1);
+      // Foundry overloads the usage counters: when annotation runs, the
+      // OCR-only `pages_processed` may be 0 and `pages_processed_annotation`
+      // carries the real page count. Assert at least one is non-zero.
+      const usage = fixture.usage_info as {
+        pages_processed?: number;
+        pages_processed_annotation?: number;
+      };
+      expect(
+        (usage.pages_processed ?? 0) + (usage.pages_processed_annotation ?? 0),
+      ).toBeGreaterThanOrEqual(1);
     });
 
     it("mapper produces a valid OCRResult from the real Foundry fixture (graceful degradation when bbox/confidence missing)", () => {
@@ -387,18 +396,30 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
       expect(ocr.pages[0].words.length).toBeGreaterThanOrEqual(1);
     });
 
-    it("document_annotation is null on the real Foundry deployment (annotation step is not running on this Foundry route — flagged in SUMMARY.md)", () => {
-      // The deployed Foundry route reports `usage_info.pages_processed_annotation = 0`
-      // even when `document_annotation_format` is sent in the request body —
-      // i.e., Foundry accepts the field but skips the annotation step on
-      // this deployment. The mapper handles this by returning empty
-      // `keyValuePairs`/`documents`. SUMMARY.md tracks this as a follow-up.
+    it("document_annotation is populated on the real Foundry deployment (requires `strict: true` in the JSON schema; see SUMMARY.md)", () => {
+      // Foundry runs the annotation step only when the `json_schema` wrapper
+      // includes `strict: true`. Without it, Foundry silently accepts the
+      // request, returns OCR markdown, and skips annotation
+      // (`pages_processed_annotation: 0`, `document_annotation: null`). The
+      // converter at `field-definitions-to-mistral-annotation-format.ts`
+      // emits `strict: true`, and the recorded fixture exercises the
+      // working path end-to-end.
       const fixture = loadFixture();
       const usage = fixture.usage_info as {
         pages_processed_annotation?: number;
       };
-      expect(fixture.document_annotation).toBeNull();
-      expect(usage.pages_processed_annotation).toBe(0);
+      expect(typeof fixture.document_annotation).toBe("string");
+      expect(usage.pages_processed_annotation).toBe(1);
+      const annotation = JSON.parse(fixture.document_annotation ?? "{}");
+      const populated = Object.entries(annotation).filter(
+        ([, v]) => v !== null && v !== "" && v !== undefined,
+      );
+      // Foundry returns the full SDPR field schema with most non-empty
+      // (~67/74 on this sample); assert at least half are non-empty as a
+      // sanity floor that won't false-fail on minor model output drift.
+      expect(populated.length).toBeGreaterThan(
+        Math.floor(Object.keys(annotation).length / 2),
+      );
     });
   });
 });

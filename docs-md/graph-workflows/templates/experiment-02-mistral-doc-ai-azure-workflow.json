@@ -20,8 +20,8 @@
     },
     "templateModelId": {
       "type": "string",
-      "defaultValue": "cmo8w9bsx0009loe5e1rxwhau",
-      "description": "Labeling TemplateModel id (documents table metadata.templateModelId overrides this when set). Mistral Document AI requests document_annotation from field_schema when non-empty."
+      "defaultValue": "seed-sdpr-monthly-report-template",
+      "description": "Labeling TemplateModel id (documents table metadata.templateModelId overrides this when set). Mistral Document AI requests document_annotation from field_schema when non-empty. Default points at the seeded SDPR template that ships with the dataset."
     },
     "confidenceThreshold": { "type": "number", "defaultValue": 0.95, "description": "OCR confidence threshold for human review" },
     "preparedFileData": { "type": "object" },

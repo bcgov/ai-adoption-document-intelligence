@@ -24,7 +24,7 @@ develop
 | Experiment | Branch | Status | Benchmark run tags |
 |---|---|---|---|
 | E01 — Neural DI + post-processing | `experiment/01-neural-doc-intelligence` | ⏳ pending | `experiment-01-neural` |
-| E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ✅ implemented + live benchmark run; annotation gap on Foundry deployment is open follow-up (see SUMMARY) | `experiment-02-mistral-doc-ai-azure` |
+| E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ✅ implemented + live benchmark run; annotation works on Foundry with `strict: true` schema flag (f1.median 0.563, pass_rate 0.273) | `experiment-02-mistral-doc-ai-azure` |
 | E03 — Azure Content Understanding | `experiment/03-content-understanding` | ⏳ pending | `experiment-03-content-understanding` |
 | E04 — VLM-direct | `experiment/04-vlm-direct` | ⏳ pending | `experiment-04-vlm-direct-{variant}-{model}` |
 | E05 — VLM + OCR hybrid | `experiment/05-vlm-ocr-hybrid` | ⏳ pending | `experiment-05-hybrid-{variant}-{model}` |
