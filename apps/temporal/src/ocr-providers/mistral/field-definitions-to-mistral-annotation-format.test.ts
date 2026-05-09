@@ -32,6 +32,9 @@ describe("fieldDefinitionsToMistralDocumentAnnotationFormat", () => {
       "approved",
     ]);
     expect(fmt!.json_schema.schema.additionalProperties).toBe(false);
+    // Required for the Foundry deployment to actually run the annotation
+    // step (otherwise document_annotation is silently null).
+    expect(fmt!.json_schema.strict).toBe(true);
   });
 
   it("skips blank field_key", () => {

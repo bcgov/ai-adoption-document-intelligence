@@ -23,6 +23,14 @@ export interface MistralDocumentAnnotationFormat {
   type: "json_schema";
   json_schema: {
     name: string;
+    /**
+     * Required by the Foundry deployment for the annotation step to actually
+     * run. Without `strict: true` at the `json_schema` wrapper level, Foundry
+     * accepts the request, returns OCR markdown, but silently skips
+     * annotation (`pages_processed_annotation: 0`, `document_annotation: null`).
+     * @see https://learn.microsoft.com/en-au/answers/questions/5767943/
+     */
+    strict: true;
     schema: {
       type: "object";
       title: string;
@@ -92,6 +100,7 @@ export function fieldDefinitionsToMistralDocumentAnnotationFormat(
     type: "json_schema",
     json_schema: {
       name: "document_annotation",
+      strict: true,
       schema: {
         type: "object",
         title: "DocumentAnnotation",
