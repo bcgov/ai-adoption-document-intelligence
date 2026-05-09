@@ -148,6 +148,9 @@ describe("mistralAzureOcrProcess", () => {
     const { ocrResult, ocrResponse } = await mistralAzureOcrProcess({
       fileData: baseFile,
       templateModelId: "tm-1",
+      documentAnnotationPrompt: "Extract values from this form.",
+      fieldDescriptions: { amount: "The total amount in dollars" },
+      numericFieldsNullable: true,
     });
 
     expect(axiosPost).toHaveBeenCalledTimes(1);
@@ -169,6 +172,26 @@ describe("mistralAzureOcrProcess", () => {
     // Raw response surfaced to ctx so persistOcrCache can write to benchmark_ocr_cache.
     expect(ocrResponse).toBeDefined();
     expect(ocrResponse.pages?.length).toBeGreaterThan(0);
+    // The activity must forward documentAnnotationPrompt + fieldDescriptions
+    // + numericFieldsNullable through to the schema sent to Foundry.
+    const fmt = body.document_annotation_format as {
+      json_schema: {
+        schema: {
+          properties: Record<string, { type: unknown; description?: string }>;
+        };
+      };
+    };
+    expect(body.document_annotation_prompt).toBe(
+      "Extract values from this form.",
+    );
+    expect(fmt.json_schema.schema.properties.amount.description).toBe(
+      "The total amount in dollars",
+    );
+    // numericFieldsNullable=true -> amount type is ["number","null"]
+    expect(fmt.json_schema.schema.properties.amount.type).toEqual([
+      "number",
+      "null",
+    ]);
   });
 
   it("throws when endpoint is missing and not mock", async () => {
