@@ -111,8 +111,14 @@ Not an accuracy-iterate-until-pass loop. Discipline:
    ```
 4. **Download the full benchmark export** to `experiments/results/<slug>/benchmark-run.json` via `GET /runs/{runId}/download`. Required deliverable.
 5. **Write workflow-level tests** at `apps/temporal/src/experiment-<slug>.test.ts`. Two layers:
-   - **Static** — load the JSON template, assert metadata + scope rules + chain wiring + graph-schema validation + fixture consistency. No Temporal connection needed; runs in <1 s.
+   - **Static** — load the JSON template, assert metadata + scope rules + chain wiring + graph-schema validation + fixture consistency. No Temporal connection needed; runs in <1 s. Always runs (locally + CI).
    - **Runtime** — connect to the local dev-stack Temporal at `localhost:7233`, run the actual `graphWorkflow` against the JSON template with mocked activities replaying the captured fixture. Cover both `reviewSwitch` branches (high-confidence skips humanReview; low-confidence + signal completes via storeResults). See `experiment-01-neural-doc-intelligence.test.ts` for the canonical pattern (it shrinks `pollUntil` durations to "1ms" so each runtime test runs in ~2s).
+   - **Gate the runtime suite on `process.env.CI`** so it skips in `.github/workflows/temporal-qa.yml` (which doesn't start a Temporal sidecar). Pattern:
+     ```typescript
+     const describeRuntime = process.env.CI ? describe.skip : describe;
+     describeRuntime("...runtime against local Temporal cluster", () => { ... });
+     ```
+     GitHub Actions sets `CI=true` automatically. Static tests still run on every CI build.
    - Do **not** use `TestWorkflowEnvironment.createTimeSkipping()` or `createLocal()` — they download Temporal binaries from `temporal.download` which TLS-fails in the dev environment. The local cluster pattern works because the dev stack is already running.
 
 Cross-engine accuracy comparison happens **after** all experiments land, by reading each `experiments/results/<slug>/benchmark-run.json` side-by-side. No threshold gates "done."

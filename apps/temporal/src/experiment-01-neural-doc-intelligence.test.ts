@@ -468,184 +468,193 @@ describe("Experiment 01 — neural DI workflow template (static)", () => {
 // Runtime tests against local Temporal cluster
 // ---------------------------------------------------------------------------
 
-describe("Experiment 01 — runtime against local Temporal cluster", () => {
-  let nativeConnection: NativeConnection | null = null;
-  let connection: Connection | null = null;
-  let client: Client | null = null;
+// CI runs `npm test` without a Temporal sidecar (see .github/workflows/temporal-qa.yml),
+// so the runtime layer would fail trying to connect to localhost:7233. Skip
+// the suite when CI=true (set by GitHub Actions automatically). The static
+// suite above still runs on every CI build.
+const describeRuntime = process.env.CI ? describe.skip : describe;
 
-  beforeAll(async () => {
-    nativeConnection = await NativeConnection.connect({
-      address: TEMPORAL_ADDRESS,
+describeRuntime(
+  "Experiment 01 — runtime against local Temporal cluster",
+  () => {
+    let nativeConnection: NativeConnection | null = null;
+    let connection: Connection | null = null;
+    let client: Client | null = null;
+
+    beforeAll(async () => {
+      nativeConnection = await NativeConnection.connect({
+        address: TEMPORAL_ADDRESS,
+      });
+      connection = await Connection.connect({ address: TEMPORAL_ADDRESS });
+      client = new Client({ connection, namespace: TEMPORAL_NAMESPACE });
+    }, 30000);
+
+    afterAll(async () => {
+      await nativeConnection?.close();
+      await connection?.close();
     });
-    connection = await Connection.connect({ address: TEMPORAL_ADDRESS });
-    client = new Client({ connection, namespace: TEMPORAL_NAMESPACE });
-  }, 30000);
 
-  afterAll(async () => {
-    await nativeConnection?.close();
-    await connection?.close();
-  });
+    it("high-confidence sample skips human review and runs the chain in order", async () => {
+      if (!nativeConnection || !client) {
+        throw new Error(
+          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+        );
+      }
+      const taskQueue = `e01-test-high-${process.pid}-${Date.now()}`;
+      const fixture = loadFixture();
+      const ocrResult = buildOcrResultFromFixture(fixture);
+      const calls: ActivityCall[] = [];
+      const activities = buildMockActivities({
+        ocrResult,
+        averageConfidence: 0.99,
+        requiresReview: false,
+        callsRef: calls,
+      });
 
-  it("high-confidence sample skips human review and runs the chain in order", async () => {
-    if (!nativeConnection || !client) {
-      throw new Error(
-        `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+      const worker = await Worker.create({
+        connection: nativeConnection,
+        namespace: TEMPORAL_NAMESPACE,
+        taskQueue,
+        workflowsPath: require.resolve("./graph-workflow"),
+        activities,
+      });
+
+      const graph = loadTemplateForRuntime();
+      const input = makeWorkflowInput(graph, {
+        documentId: "test-doc-high-confidence",
+        blobKey: "blobs/1-81.jpg",
+        fileName: "1 81.jpg",
+        fileType: "image",
+        contentType: "image/jpeg",
+      });
+
+      const result = await worker.runUntil(
+        client.workflow.execute(graphWorkflow, {
+          workflowId: `e01-test-high-${Date.now()}`,
+          taskQueue,
+          args: [input],
+        }),
       );
-    }
-    const taskQueue = `e01-test-high-${process.pid}-${Date.now()}`;
-    const fixture = loadFixture();
-    const ocrResult = buildOcrResultFromFixture(fixture);
-    const calls: ActivityCall[] = [];
-    const activities = buildMockActivities({
-      ocrResult,
-      averageConfidence: 0.99,
-      requiresReview: false,
-      callsRef: calls,
-    });
 
-    const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace: TEMPORAL_NAMESPACE,
-      taskQueue,
-      workflowsPath: require.resolve("./graph-workflow"),
-      activities,
-    });
+      expect(result.status).toBe("completed");
+      expect(result.ctx.requiresReview).toBe(false);
+      expect(result.ctx.averageConfidence).toBe(0.99);
 
-    const graph = loadTemplateForRuntime();
-    const input = makeWorkflowInput(graph, {
-      documentId: "test-doc-high-confidence",
-      blobKey: "blobs/1-81.jpg",
-      fileName: "1 81.jpg",
-      fileType: "image",
-      contentType: "image/jpeg",
-    });
+      // Note: pre-execution document.updateStatus runs first (graph engine
+      // overhead), so we filter to ctx-driven activities for ordering.
+      const ctxOrder = calls.map((c) => c.type);
+      expect(ctxOrder).toContain("file.prepare");
+      expect(ctxOrder).toContain("azureOcr.submit");
+      expect(ctxOrder).toContain("azureOcr.poll");
+      expect(ctxOrder).toContain("azureOcr.extract");
+      expect(ctxOrder).toContain("ocr.cleanup");
+      expect(ctxOrder).toContain("ocr.normalizeFields");
+      expect(ctxOrder).toContain("ocr.characterConfusion");
+      expect(ctxOrder).toContain("ocr.checkConfidence");
+      expect(ctxOrder).toContain("ocr.storeResults");
 
-    const result = await worker.runUntil(
-      client.workflow.execute(graphWorkflow, {
-        workflowId: `e01-test-high-${Date.now()}`,
+      // Verify the chain order: each post-OCR step should appear after its
+      // predecessor.
+      const idx = (t: string) => ctxOrder.indexOf(t);
+      expect(idx("file.prepare")).toBeLessThan(idx("azureOcr.submit"));
+      expect(idx("azureOcr.submit")).toBeLessThan(idx("azureOcr.poll"));
+      expect(idx("azureOcr.poll")).toBeLessThan(idx("azureOcr.extract"));
+      expect(idx("azureOcr.extract")).toBeLessThan(idx("ocr.cleanup"));
+      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.normalizeFields"));
+      expect(idx("ocr.normalizeFields")).toBeLessThan(
+        idx("ocr.characterConfusion"),
+      );
+      expect(idx("ocr.characterConfusion")).toBeLessThan(
+        idx("ocr.checkConfidence"),
+      );
+      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+
+      // Real neural-model OCR data flowed through cleanup unchanged.
+      const cleanupCall = calls.find((c) => c.type === "ocr.cleanup");
+      const cleanupOcr = cleanupCall?.params.ocrResult as OCRResult | undefined;
+      expect(cleanupOcr?.modelId).toBe("sdpr_synth_test");
+      expect(cleanupOcr?.documents?.[0]?.docType).toMatch(/^sdpr_synth_test/);
+
+      // characterConfusion received the full configured field scope.
+      const ccCall = calls.find((c) => c.type === "ocr.characterConfusion");
+      const ccFieldScope = ccCall?.params.fieldScope as string[] | undefined;
+      expect(Array.isArray(ccFieldScope)).toBe(true);
+      expect(ccFieldScope).toContain("applicant_oas_gis");
+    }, 60000);
+
+    it("low-confidence sample routes through humanReview before storeResults", async () => {
+      if (!nativeConnection || !client) {
+        throw new Error(
+          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+        );
+      }
+      const taskQueue = `e01-test-low-${process.pid}-${Date.now()}`;
+      const fixture = loadFixture();
+      const ocrResult = buildOcrResultFromFixture(fixture);
+      const calls: ActivityCall[] = [];
+      const activities = buildMockActivities({
+        ocrResult,
+        averageConfidence: 0.42,
+        requiresReview: true,
+        callsRef: calls,
+      });
+
+      const worker = await Worker.create({
+        connection: nativeConnection,
+        namespace: TEMPORAL_NAMESPACE,
+        taskQueue,
+        workflowsPath: require.resolve("./graph-workflow"),
+        activities,
+      });
+
+      const graph = loadTemplateForRuntime();
+      const input = makeWorkflowInput(graph, {
+        documentId: "test-doc-low-confidence",
+        blobKey: "blobs/1-81.jpg",
+        fileName: "1 81.jpg",
+        fileType: "image",
+        contentType: "image/jpeg",
+      });
+
+      const handle = await client.workflow.start(graphWorkflow, {
+        workflowId: `e01-test-low-${Date.now()}`,
         taskQueue,
         args: [input],
-      }),
-    );
+      });
 
-    expect(result.status).toBe("completed");
-    expect(result.ctx.requiresReview).toBe(false);
-    expect(result.ctx.averageConfidence).toBe(0.99);
+      const resultPromise = handle.result();
+      const runPromise = worker.runUntil(resultPromise);
 
-    // Note: pre-execution document.updateStatus runs first (graph engine
-    // overhead), so we filter to ctx-driven activities for ordering.
-    const ctxOrder = calls.map((c) => c.type);
-    expect(ctxOrder).toContain("file.prepare");
-    expect(ctxOrder).toContain("azureOcr.submit");
-    expect(ctxOrder).toContain("azureOcr.poll");
-    expect(ctxOrder).toContain("azureOcr.extract");
-    expect(ctxOrder).toContain("ocr.cleanup");
-    expect(ctxOrder).toContain("ocr.normalizeFields");
-    expect(ctxOrder).toContain("ocr.characterConfusion");
-    expect(ctxOrder).toContain("ocr.checkConfidence");
-    expect(ctxOrder).toContain("ocr.storeResults");
+      // Temporal queues the signal; humanGate consumes it once the workflow
+      // reaches that node.
+      await handle.signal("humanApproval", {
+        approved: true,
+        reviewer: "test-reviewer",
+        comments: "ok",
+        rejectionReason: "",
+        annotations: "",
+      });
 
-    // Verify the chain order: each post-OCR step should appear after its
-    // predecessor.
-    const idx = (t: string) => ctxOrder.indexOf(t);
-    expect(idx("file.prepare")).toBeLessThan(idx("azureOcr.submit"));
-    expect(idx("azureOcr.submit")).toBeLessThan(idx("azureOcr.poll"));
-    expect(idx("azureOcr.poll")).toBeLessThan(idx("azureOcr.extract"));
-    expect(idx("azureOcr.extract")).toBeLessThan(idx("ocr.cleanup"));
-    expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.normalizeFields"));
-    expect(idx("ocr.normalizeFields")).toBeLessThan(
-      idx("ocr.characterConfusion"),
-    );
-    expect(idx("ocr.characterConfusion")).toBeLessThan(
-      idx("ocr.checkConfidence"),
-    );
-    expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+      const result = await runPromise;
+      expect(result.status).toBe("completed");
+      expect(result.ctx.requiresReview).toBe(true);
+      expect(result.ctx.averageConfidence).toBe(0.42);
 
-    // Real neural-model OCR data flowed through cleanup unchanged.
-    const cleanupCall = calls.find((c) => c.type === "ocr.cleanup");
-    const cleanupOcr = cleanupCall?.params.ocrResult as OCRResult | undefined;
-    expect(cleanupOcr?.modelId).toBe("sdpr_synth_test");
-    expect(cleanupOcr?.documents?.[0]?.docType).toMatch(/^sdpr_synth_test/);
+      // storeResults must still run, but only after the humanReview gate.
+      expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
 
-    // characterConfusion received the full configured field scope.
-    const ccCall = calls.find((c) => c.type === "ocr.characterConfusion");
-    const ccFieldScope = ccCall?.params.fieldScope as string[] | undefined;
-    expect(Array.isArray(ccFieldScope)).toBe(true);
-    expect(ccFieldScope).toContain("applicant_oas_gis");
-  }, 60000);
-
-  it("low-confidence sample routes through humanReview before storeResults", async () => {
-    if (!nativeConnection || !client) {
-      throw new Error(
-        `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+      // The cleanup → checkConfidence chain ran in order even on the
+      // low-confidence path.
+      const ctxOrder = calls.map((c) => c.type);
+      const idx = (t: string) => ctxOrder.indexOf(t);
+      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.normalizeFields"));
+      expect(idx("ocr.normalizeFields")).toBeLessThan(
+        idx("ocr.characterConfusion"),
       );
-    }
-    const taskQueue = `e01-test-low-${process.pid}-${Date.now()}`;
-    const fixture = loadFixture();
-    const ocrResult = buildOcrResultFromFixture(fixture);
-    const calls: ActivityCall[] = [];
-    const activities = buildMockActivities({
-      ocrResult,
-      averageConfidence: 0.42,
-      requiresReview: true,
-      callsRef: calls,
-    });
-
-    const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace: TEMPORAL_NAMESPACE,
-      taskQueue,
-      workflowsPath: require.resolve("./graph-workflow"),
-      activities,
-    });
-
-    const graph = loadTemplateForRuntime();
-    const input = makeWorkflowInput(graph, {
-      documentId: "test-doc-low-confidence",
-      blobKey: "blobs/1-81.jpg",
-      fileName: "1 81.jpg",
-      fileType: "image",
-      contentType: "image/jpeg",
-    });
-
-    const handle = await client.workflow.start(graphWorkflow, {
-      workflowId: `e01-test-low-${Date.now()}`,
-      taskQueue,
-      args: [input],
-    });
-
-    const resultPromise = handle.result();
-    const runPromise = worker.runUntil(resultPromise);
-
-    // Temporal queues the signal; humanGate consumes it once the workflow
-    // reaches that node.
-    await handle.signal("humanApproval", {
-      approved: true,
-      reviewer: "test-reviewer",
-      comments: "ok",
-      rejectionReason: "",
-      annotations: "",
-    });
-
-    const result = await runPromise;
-    expect(result.status).toBe("completed");
-    expect(result.ctx.requiresReview).toBe(true);
-    expect(result.ctx.averageConfidence).toBe(0.42);
-
-    // storeResults must still run, but only after the humanReview gate.
-    expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
-
-    // The cleanup → checkConfidence chain ran in order even on the
-    // low-confidence path.
-    const ctxOrder = calls.map((c) => c.type);
-    const idx = (t: string) => ctxOrder.indexOf(t);
-    expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.normalizeFields"));
-    expect(idx("ocr.normalizeFields")).toBeLessThan(
-      idx("ocr.characterConfusion"),
-    );
-    expect(idx("ocr.characterConfusion")).toBeLessThan(
-      idx("ocr.checkConfidence"),
-    );
-    expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
-  }, 60000);
-});
+      expect(idx("ocr.characterConfusion")).toBeLessThan(
+        idx("ocr.checkConfidence"),
+      );
+      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+    }, 60000);
+  },
+);
