@@ -44,17 +44,6 @@ So this experiment is mostly **wiring** — no training, no new providers. The A
 
 5. **Write `experiments/results/01-neural-doc-intelligence/SUMMARY.md`** with: trained model id (`sdpr_synth_test`), nodes wired, observations from step 2, benchmark run id from step 3, any gaps found in `cleanup`/`normalizeFields`/`characterConfusion` against neural output.
 
-## TODOs captured here
-
-### APIM-vs-direct DI access (parent-spec TODO)
-
-Today, the app's existing DI calls go through APIM (`api.gov.bc.ca`). Experiments use direct (`*.cognitiveservices.azure.com`). Verify:
-
-- `apps/temporal/src/activities/submit-to-azure-ocr.ts`
-- `apps/backend-services/src/template-model/template-model-ocr.service.ts`
-
-…don't have APIM-specific path manipulation that breaks under direct access. If they do, abstract the path-prefix logic so direct works alongside APIM. Capture findings in `SUMMARY.md`.
-
 ## Watch for
 
 - **Confidence threshold recalibration** — neural-model output may have different confidence distribution than template output. The `check-ocr-confidence.ts` default threshold of 0.95 was tuned for templates; document and adjust if needed.
