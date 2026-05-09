@@ -46,56 +46,61 @@ The brief asked us to populate per-word/per-line polygons in the canonical mappe
 
 | field | value |
 |---|---|
-| Run id | `21ce5b11-5f98-417e-a65a-95f420f23287` |
+| Run id | `1b97de43-b06d-44da-a3ae-659340ea255f` |
 | Definition | `seed-experiment-02-mistral-doc-ai-azure-definition` |
 | Tag | `experiment: 02-mistral-doc-ai-azure` |
 | Status | `completed` |
-| Wallclock | ~145 s for 33 samples (annotation ran on every sample, ~14 s/call median; 10 RPM Foundry quota is the bottleneck) |
+| Wallclock | ~290 s for 40 samples (~7.3 s/sample average; 10 RPM Foundry quota throttle still in play) |
 | Evaluator | `schema-aware` (default rule fuzzy@0.85; pass threshold 0.8) |
+| Dataset | 40 samples (21 real HR + 9 synth-* aligned + 10 manual handwriting samples) |
 | Workflow params | `documentAnnotationPrompt` (2.1 KB), `fieldDescriptions` (74 fields), `numericFieldsNullable: true` — embedded in the workflow JSON's `mistralAzureOcr` node, sourced from the iteration kit |
 
 Aggregated metrics ([`experiments/results/02-mistral-doc-ai-azure/benchmark-run.json`](benchmark-run.json)):
 
 | metric | value |
 |---|---|
-| `pass_rate` | **0.485** (16/33 cleared the 0.8 schema-aware threshold) |
-| `f1.mean` | 0.705 |
-| `f1.median` | 0.770 |
-| `f1.max` | 0.993 (near-perfect extraction on the cleanest sample) |
-| `f1.min` | 0.143 |
-| `precision.mean` | 0.900 |
+| `pass_rate` | **0.875** (35/40 cleared the 0.8 schema-aware threshold) |
+| `f1.mean` | 0.907 |
+| `f1.median` | 0.943 |
+| `f1.max` | 0.993 |
+| `f1.min` | 0.598 |
+| `precision.mean` | 0.975 |
 | `precision.median` | 1.000 |
-| `recall.mean` | 0.621 |
-| `recall.median` | 0.627 |
-| `matchedFields.median` | 47 (of 74 in schema) |
-| `falseNegatives.median` | 24 |
-| `falsePositives.mean` | 2.30 |
+| `recall.mean` | 0.864 |
+| `recall.median` | 0.919 |
+| `matchedFields.median` | 66 (of 74 in schema) |
+| `falseNegatives.median` | 6 |
+| `falsePositives.mean` | 1.25 |
 
 ### Comparison vs E01 (Neural Azure DI)
 
-| | E01 (Neural Azure DI) | E02 (Mistral on Foundry) |
+E01 ran on the original 33-sample dataset before the synth-* alignment fix; E02's canonical run is on the corrected 40-sample dataset (orphans removed, +10 manual handwriting samples). Apples-to-apples requires re-running E01 on the same 40 samples — that hasn't happened yet, so the table below compares each engine's best result on its own dataset shape.
+
+| | E01 (33 samples) | E02 (40 samples, aligned + tuned prompts) |
 |---|---|---|
-| `pass_rate` | 0.515 (17/33) | 0.485 (16/33) |
-| `f1.median` | 0.806 | 0.770 |
-| `f1.mean` | 0.683 | **0.705** |
-| `precision.mean` | 0.899 | **0.900** |
-| `recall.mean` | 0.587 | **0.621** |
-| `falsePositives.mean` | 0 | 2.30 |
-| Wallclock / 33 samples | ~83 s | ~145 s |
+| `pass_rate` | 0.515 (17/33) | **0.875 (35/40)** |
+| `f1.median` | 0.806 | **0.943** |
+| `f1.mean` | 0.683 | **0.907** |
+| `precision.mean` | 0.899 | **0.975** |
+| `recall.mean` | 0.587 | **0.864** |
+| `matchedFields.median` | 50 (of 74) | **66 (of 74)** |
+| `falsePositives.mean` | 0 | 1.25 |
+| Wallclock / sample | ~2.5 s | ~7.3 s (gated by 10 RPM Foundry quota) |
 
-With the iteration-kit prompts in place (`documentAnnotationPrompt` + per-field `description` overlay + nullable numerics so blank ≠ 0), E02 is **essentially even with E01** on this dataset:
-- `f1.mean` and `recall.mean` are slightly higher than E01.
-- `precision.mean` is identical.
-- `pass_rate` is within one sample of E01.
+Most of the E02 improvement comes from three places: (1) iteration-kit prompts (per-field descriptions + global instructions + nullable numerics), (2) realigned synth-* dataset (the previous comparison was unfairly penalising E02 with a +1 GT/JPG shift), and (3) more samples to average over (the 10 hand-written manual samples Mistral handles cleanly add a chunk of high-f1 mass to the mean).
 
-Honest residual gap: `falsePositives.mean` 2.30 vs 0. Mistral is a general-purpose engine and occasionally fills in a field where the cell is actually blank; E01's narrow custom-trained model never does. Possible follow-ups (not in this branch): tighter "must-be-blank-when-blank" prompt instructions, or a confidence-gated post-pass that drops low-conviction predictions.
+The remaining `falsePositives.mean` of 1.25 vs E01's 0 is the honest gap — Mistral is a general-purpose engine and over-fills empty rows on a few sample shapes. The full benchmark export shows the pattern concentrates on `synth-no-spouse` and `synth-regular (2,3)` (10 FPs each — Mistral predicts a value in the spouse income column even though the form leaves it blank). Tightening the "must-be-blank-when-blank" instruction in the iteration-kit prompt would close this; not done in this branch (out of scope; flagged for the cross-engine comparison after E05).
+
+### Per-sample breakdown (synth alignment fixed)
+
+`synth-full (1-3)`: f1 0.986–0.993 (essentially perfect after alignment fix). `synth-regular (1)`: f1 0.979. `synth-no-spouse` and `synth-regular (2,3)`: f1 0.870–0.894 with 10 FPs each (the over-fill pattern above). All 10 manual handwriting samples land between 0.862 and 0.979 — substantially better than HR0081 series (which Mistral's underlying OCR doesn't read well due to handwriting density; flagged in earlier section).
 
 ### Earlier runs on this branch (for reference)
 
-- `9868a1f7-1178-4c99-b378-0007045b754d` — first end-to-end run after the `strict: true` fix, but `templateModelId` default was stale → activity logged "template not found" and skipped sending `document_annotation_format`. pass_rate 0.0, f1.median 0.45.
-- `0fd7eef6-caea-4c69-868d-f0038cfd4637` — cleared up the templateModelId default; auto-generated `field_key`-only schema (no descriptions, no nullable numerics). pass_rate 0.273, f1.median 0.563. annotation populated but field-level accuracy still well below E01.
-- `3b4baeaf-8a0a-48f6-a49d-4f265205a672` — same as above, ran from a clean DB. Same metrics.
-- **`21ce5b11-5f98-417e-a65a-95f420f23287`** — current canonical run with iteration-kit prompts embedded in the workflow JSON. pass_rate 0.485, f1.median 0.770. This is the run referenced everywhere else in this document.
+- `9868a1f7-...` — first end-to-end run after the `strict: true` fix, but `templateModelId` default was stale → annotation was skipped. pass_rate 0.0.
+- `0fd7eef6-...` / `3b4baeaf-...` — cleared up the templateModelId default; auto-generated `field_key`-only schema (no descriptions, no nullable numerics). pass_rate 0.273.
+- `21ce5b11-...` — iteration-kit prompts embedded in the workflow JSON. pass_rate 0.485 on the misaligned 33-sample set.
+- **`1b97de43-b06d-44da-a3ae-659340ea255f`** — current canonical run on the **aligned 40-sample dataset** (synth-* renames pushed to cloud via force-resync, +10 manual samples). pass_rate **0.875**, f1.median **0.943**. This is the run referenced everywhere else in this document.
 
 ### Iteration kit
 
@@ -181,3 +186,72 @@ docker exec ai-doc-intelligence-postgres psql -U postgres -d ai_doc_intelligence
   | python3 -m json.tool \
   > apps/temporal/src/__fixtures__/experiment-02/mistral-azure-ocr-response-1-81.json
 ```
+
+## Retrospective — what we learned setting up E02
+
+This is a candid record of the things that surprised us, the workarounds we built, and what should change in the spec / `_shared-rules.md` and downstream experiments so the next one goes smoother.
+
+### Schema-level Foundry quirks that were not in any documentation we found
+
+1. **`json_schema.strict: true` is mandatory on the Foundry route.** Without it, Foundry returns 200 OK, the OCR markdown comes back, but `document_annotation` is silently `null` and `usage_info.pages_processed_annotation` is 0 — i.e. no extraction happens but no error is raised. We chased "annotation gap" symptoms for two runs before finding [Microsoft Q&A 5767943](https://learn.microsoft.com/en-au/answers/questions/5767943/) which spelled it out. The public Mistral OCR API ignores the flag.
+
+2. **`confidence_scores_granularity` is rejected by Foundry with HTTP 422 (`extra_forbidden`).** The public Mistral OCR API accepts it. Same body shape, different acceptance — Foundry's stricter request schema isn't documented as a delta.
+
+3. **Foundry's response shape is a superset of the public API.** It adds `header`, `footer`, `hyperlinks`, `tables` per page, plus a `content_filter_results` Azure RAI hook at the top level. Confidence scores were absent on the deployment we hit, even when requested per the public-API convention.
+
+4. **Numeric fields with `"type": "number"` cannot represent "blank".** Mistral has to return *some* number, so blanks become 0 — the blank-vs-zero distinction is lost. Making each numeric field `["number", "null"]` with strict mode fixed it.
+
+5. **Bare `field_key`s as the only schema signal undersells the engine.** Going from "schema with field_keys only" → "schema with per-field `description` strings + a global `documentAnnotationPrompt`" lifted f1.median from 0.563 to 0.770 on the same data. The extraction quality is gated by how much the engine knows about the form, not by raw OCR capability.
+
+### Operational gotchas that cost us time
+
+6. **The `LocalDatasetSyncService` skips files that already exist on blob storage**, so any *local rename* or *content edit* never propagates to cloud. The benchmark reads from cloud (via the materializer activity), so misaligned ground-truth on disk looked fixed locally but produced unchanged metrics on the next run. We added a `FORCE_RESYNC_LOCAL_DATASETS=true` env-var mode that wipes the dataset prefix before re-uploading.
+
+7. **The `templateModelId` default in the workflow JSON is a stale UUID copied from the public-Mistral template.** The seed creates the SDPR template with id `seed-sdpr-monthly-report-template`, so the copy points at a non-existent record and the activity logs `template_not_found` and skips sending `document_annotation_format` entirely. Easy to miss because OCR markdown still came back fine.
+
+8. **Sync providers don't populate `benchmark_ocr_cache` by default.** The benchmark sample workflow's `persistOcrCache` step looks for `ctx.ocrResponse` specifically; a workflow that only emits `ctx.ocrResult` leaves the cache empty. This breaks fixture capture and the OCR-replay path. We made the activity emit both.
+
+9. **Foundry deployments default to 10 RPM** (per `Requests Per Minute - mistral-document-ai-2512` quota). 33 parallel child workflows with the public-API-style 3-attempt retry policy got blanket-429'd. The fix is provider-specific retry tuning (we landed on 30 attempts × 15 s/1.5x/60 s cap) — *not* a default that fits all engines.
+
+10. **Capacity bumps via `az resource update --set sku.capacity=N` are gated on the per-deployment quota.** Even with a fix-forward retry policy, you can't paper over the bottleneck if you're below the floor. Plan to either request an Azure quota uplift (support ticket) up-front or accept the latency cost and tune the retry policy.
+
+11. **Phone numbers and SINs come back with normalized punctuation.** Mistral re-formats `(575) 115-597` as `575.115.597`. Ground-truth fields keep the original formatting; matching either needs a lenient evaluator (digits-only) or post-processing.
+
+12. **Mistral OCR doesn't return per-word/per-line bbox data.** The brief stated otherwise. Only embedded-image bboxes (`pages[].images[]`) are returned, and only on responses where embedded images are present (rare on form documents). Code that relies on word polygons for downstream layout reasoning will get empty arrays from Mistral. The bbox-fix in the mapper is still correct — it populates polygons when they exist — but they don't exist in production traffic against Mistral.
+
+13. **Mistral's underlying OCR is weaker on dense handwriting** than custom-trained models. The HR0081 series (real handwritten samples) have entire bottom-of-form rows that Mistral's OCR pass doesn't read at all — so no amount of prompt tuning recovers fields like signature/name/SIN/date that aren't in the markdown to begin with. The 10 newly-added `manual sample (*)` files are clean enough that Mistral handles them well (f1 0.86–0.98); the HR0081 cluster is the floor of what Mistral can do.
+
+### Process improvements built into this branch
+
+- **Iteration kit pattern** — [`experiments/results/02-mistral-doc-ai-azure/iteration/`](iteration/) (prompt.md + field-descriptions.json + last-{request,response,diff}). One-shot smoke-test script at [`apps/temporal/src/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts) hits the engine for one sample (~14 s) so prompt tweaks can be validated without burning a 33+ sample run. The same prompt + descriptions are then embedded into the workflow JSON for benchmarks.
+- **Force-resync mode** — `FORCE_RESYNC_LOCAL_DATASETS=true` on the backend triggers a wipe-then-reupload of the dataset's blob prefix on next start, so local renames propagate to cloud.
+- **Real-fixture deliverable** — the canonical run dumps one sample's full Foundry response into `__fixtures__/experiment-02/` for replay tests; same pattern in E01.
+
+### What should change in `_shared-rules.md` and the spec
+
+These rules were learned the hard way on E02 and should be in the canonical brief before E03 starts:
+
+1. **Add a "production-grade prompt" subsection to checklist item 8 (workflow graph definition).** Bare schemas with field_keys-only are not enough on general-purpose engines; per-field descriptions and a global prompt are part of the deliverable, not a future iteration. Recommend the iteration-kit pattern (prompt.md + field-descriptions.json) as canonical. Document that engine schemas may need flags like `strict: true` (Foundry/OpenAI structured outputs) or equivalent (CU's analyzer config) to make the structured pass actually run.
+2. **Add a "schema-flag pre-flight" troubleshooting line to the runbook.** "If `pages_processed_annotation: 0` (or the equivalent on your engine) but the request returned 200 OK, the engine is silently skipping the structured pass — check provider-specific schema strictness flags before debugging anything else."
+3. **Expand item 7 (auth & endpoint via env vars).** The brief's "Auth" delta-callout for Foundry should not pre-judge `api-key` vs `Authorization: Bearer`; spell out that the actual header for Mistral on Foundry is `Authorization: Bearer` (matching the public API), and engines may have a stricter request body than their public-API counterpart (the `confidence_scores_granularity` 422 here).
+4. **Add a "blank vs zero" callout to item 1 (canonical OCRResult mapping).** Numeric fields' nullability is engine-dependent; default to nullable and document.
+5. **Add a "force-resync after dataset edits" pattern.** When local files are renamed/edited, the standard `LocalDatasetSyncService` doesn't propagate. Document the `FORCE_RESYNC_LOCAL_DATASETS=true` env-var workaround under the dev-loop section.
+6. **Standardize the iteration folder layout.** Make `experiments/results/<slug>/iteration/{prompt.md, field-descriptions.json, README.md}` part of the per-experiment scaffolding so prompt tuning has a consistent home.
+7. **Update item 11 (benchmark integration).** Sync providers must emit a raw-response output port for `benchmark_ocr_cache` to populate (otherwise fixture capture and replay break). Make this mandatory.
+8. **Add a "deployment quota check" pre-flight to item 7.** For Foundry/Azure deployments, document the default RPM and the retry-policy tuning required (vs the generic "3 attempts" default). The activity-registry default for `mistralAzureOcr.process` is the canonical example: 30 × 15 s / 1.5x / 60 s cap.
+9. **Drop the "bbox" claim from any future Mistral-derivative brief.** Mistral OCR doesn't return per-word/per-line bboxes. The mapper change in this branch is forward-looking but the field is empty in practice; downstream consumers (E05) shouldn't plan on Mistral providing spatial info.
+10. **Document the `templateModelId` gotcha.** When forking an existing template (`mistral-standard-ocr-workflow.json` → `experiment-02-...`), the `defaultValue` for `templateModelId` is a stale UUID; replace with the canonical seeded id (`seed-sdpr-monthly-report-template`) or add a "verify defaults" step to the brief.
+
+### Implications for E03 (Azure AI Content Understanding)
+
+E03's brief should bake in the lessons above. Specifically:
+
+- **CU has its own annotator config** (the analyzer JSON is a richer schema than `document_annotation_format`). Apply the same iteration-kit pattern: per-field descriptions + a global instruction. Don't ship with bare field_keys.
+- **CU has both content-extraction and generative components.** Each may need its own prompt; treat them as separate tunable surfaces.
+- **CU is also Foundry-deployed** — same quota model. Build the retry policy in from the start (30 × 15 s / 1.5x / 60 s cap is a reasonable starting point) and request a quota uplift up-front if the dataset is bigger than ~30 samples.
+- **CU likely has its own "annotation silently skipped" failure mode.** Pre-flight check: after the first benchmark run, inspect ONE cached response to confirm the structured pass actually ran (look at usage counters / `documents` length). If something looks empty, search MSFT Q&A for the analyzer-config strictness flag — there will be one.
+- **Use `FORCE_RESYNC_LOCAL_DATASETS=true` after any local dataset edits** before triggering CU's first benchmark. The materialized cache is also worth clearing (`rm -rf /tmp/benchmark-cache/<datasetId>-*`).
+- **Reuse the iteration kit pattern.** Copy `experiments/results/02-mistral-doc-ai-azure/iteration/` to `experiments/results/03-content-understanding/iteration/` as a starting point, edit prompt.md / field-descriptions.json for CU's idioms, smoke-test on `synth-full (1)` (~14 s per call), only then trigger the full benchmark.
+- **Plan for nullable numerics.** CU may need its own equivalent of `numericFieldsNullable` or it may default-handle blanks correctly — confirm against one sample before running 33+.
+- **Plan for cost / sample.** Foundry deployments bill per-request; running multiple 33-sample iterations during prompt tuning compounds. The single-sample iteration script is the cheap loop; bulk runs are for baseline + final.
+- **Don't trust the brief's preamble on engine response shape until you've inspected one real response.** Capture a fixture early. The "Mistral returns per-word bboxes" claim in E02's brief was wrong; equivalent wrong claims may exist in E03's preamble too.
