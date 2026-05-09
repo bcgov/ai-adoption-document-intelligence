@@ -120,3 +120,8 @@ export type {
   CorrectionResult,
   CorrectionToolParams,
 } from "./correction-types";
+export type { MistralAzureOcrProcessParams } from "./ocr-providers/mistral-azure/mistral-azure-ocr-process";
+export {
+  mistralAzureOcrProcess,
+  resolveMistralAzureDeploymentId,
+} from "./ocr-providers/mistral-azure/mistral-azure-ocr-process";

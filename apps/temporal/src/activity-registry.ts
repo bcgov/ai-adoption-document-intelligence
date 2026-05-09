@@ -24,6 +24,7 @@ import {
   getWorkflowGraphConfig,
   loadDatasetManifest,
   materializeDataset,
+  mistralAzureOcrProcess,
   mistralOcrProcess,
   pollOCRResults,
   postOcrCleanup,
@@ -131,6 +132,29 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Mistral Document AI OCR (sync) with optional document annotation",
+});
+
+register({
+  activityType: "mistralAzureOcr.process",
+  activityFn: mistralAzureOcrProcess as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  // Foundry's annotation step "can be slower and may result in timeouts" per
+  // Microsoft docs; allow generous wallclock plus extra retry attempts vs the
+  // public-API path. The deployment is rate-limited by per-minute requests
+  // (default 10 RPM on GlobalStandard) and a 33-sample benchmark fan-out
+  // gets sustained 429s — the retry policy is therefore tuned to spread
+  // retries across the quota window with backoff jitter rather than the
+  // public-API path's tighter 3-attempt policy.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "Mistral Document AI on Azure AI Foundry (sync) with optional document annotation",
 });
 
 register({
