@@ -60,11 +60,12 @@ for slug in "${SLUGS[@]}"; do
   definition_id="seed-experiment-${slug}-definition"
   url="${BACKEND_URL}/api/benchmark/projects/${PROJECT_ID}/definitions/${definition_id}/runs"
   echo "▶ Triggering ${slug}: POST ${url}"
+  # `tags` must be an object (CreateRunDto @IsObject), not an array.
   status=$(curl -s -o /tmp/run-experiment-${slug}.json -w "%{http_code}" \
     -X POST \
     -H "x-api-key: ${TEST_API_KEY}" \
     -H "Content-Type: application/json" \
-    -d "{\"tags\": [\"experiment-${slug}\"]}" \
+    -d "{\"tags\": {\"experiment\": \"${slug}\"}, \"persistOcrCache\": true}" \
     "${url}" || echo "000")
 
   if [[ "$status" == "201" || "$status" == "200" ]]; then
