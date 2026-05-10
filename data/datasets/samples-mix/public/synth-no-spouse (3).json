@@ -43,7 +43,11 @@
     ],
     "name": "John Bates",
     "phone": "577-550-603",
-    "sin": "149186038",
+    "sin": [
+        "149186038",
+        "149 186 038",
+        "149-186-038"
+    ],
     "checkbox_employment_changes_spouse_yes": "unselected",
     "checkbox_employment_changes_spouse_no": "unselected",
     "checkbox_school_spouse_yes": "unselected",
