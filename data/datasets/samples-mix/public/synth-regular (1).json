@@ -70,7 +70,11 @@
     ],
     "name": "Amanda Russell",
     "phone": "442-836-849",
-    "sin": "709732409",
+    "sin": [
+        "709732409",
+        "709 732 409",
+        "709-732-409"
+    ],
     "spouse_signature": "Alexandria Martinez",
     "spouse_date": [
         "2015-07-12",
@@ -80,6 +84,7 @@
     "spouse_phone": "307-124-414",
     "spouse_sin": [
         "170191504",
+        "170 191 504",
         "170-191-504"
     ]
 }
