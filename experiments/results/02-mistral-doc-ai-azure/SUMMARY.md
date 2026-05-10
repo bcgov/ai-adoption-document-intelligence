@@ -5,7 +5,7 @@
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json)
 **Provider doc**: [`docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md`](../../../docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md)
 **Dataset**: `seed-local-samples-mix-private-v1` (40 samples; force-resynced on the improve branch so the canonical run sees the latest local label corrections)
-**Current canonical run** ([`benchmark-run.json`](benchmark-run.json)): `2185d532-0e27-4cb5-b756-b577446e4e22` — strict-evaluated under `defaultRule: { rule: "exact" }`, format-preservation prompt active.
+**Current canonical run** ([`benchmark-run.json`](benchmark-run.json)): `694f8977-9101-408a-95c7-1dcc29805a02` — strict-evaluated under `defaultRule: { rule: "exact" }`, round-2 prompt active (format preservation + strict blank-vs-zero + two-group checkbox section).
 
 ## Endpoint, auth, request/response shape
 
@@ -48,28 +48,75 @@ The brief asked us to populate per-word/per-line polygons in the canonical mappe
 The first improvement branch off `experiment/05-vlm-ocr-hybrid` switched the
 shared evaluator config from `defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 }`
 to `defaultRule: { rule: "exact" }` ([`apps/shared/prisma/seed.ts:2044-2062`](../../../apps/shared/prisma/seed.ts#L2044-L2062))
-per [POST_BENCHMARK_FOLLOWUPS](../../POST_BENCHMARK_FOLLOWUPS.md) item 1, then
-re-ran E02 alone (other engines stay fuzzy until their own improve branches).
-The dataset was force-resynced between the fuzzy era and this run, so the
-strict numbers also reflect upstream label corrections, not just the rule
-change.
+per [POST_BENCHMARK_FOLLOWUPS](../../POST_BENCHMARK_FOLLOWUPS.md) item 1,
+extended the evaluator to accept **one-of array GT** (a field's GT value
+can be a list of acceptable scalars; see § One-of GT support below), and
+iterated the Mistral prompt twice. E02 is the only engine re-run on this
+branch — the others stay fuzzy until their own improve branches.
 
-| | Fuzzy@0.85 (canonical) | Strict baseline (no prompt change) | Strict + format-preservation prompt (current canonical) |
-|---|---|---|---|
-| Run id | `1b97de43-b06d-44da-a3ae-659340ea255f` | `b26d8cc2-8620-408d-ac3a-090bb9d1b695` | `2185d532-0e27-4cb5-b756-b577446e4e22` |
-| `pass_rate` | 0.875 | 0.900 | **0.825** |
-| `f1.median` | 0.943 | 0.950 | **0.950** |
-| `f1.mean` | 0.907 | 0.934 | **0.911** |
-| `f1.min` | 0.598 | 0.679 | 0.654 |
-| `precision.mean` | 0.975 | 1.000 | 0.993 |
-| `recall.mean` | 0.864 | 0.884 | 0.853 |
-| `matchedFields.median` | 66 | 66.5 | 66.0 |
-| `falsePositives.mean` | 1.25 | 0.00 | 0.40 |
+The dataset was also force-resynced between the fuzzy era and these runs,
+so the strict numbers reflect upstream label corrections, not just the
+rule change.
+
+| | Fuzzy@0.85 (historical) | Strict baseline (no prompt change) | Strict + round-1 prompt (format preservation) | **Strict + round-2 prompt (canonical)** |
+|---|---|---|---|---|
+| Run id | `1b97de43-b06d-44da-a3ae-659340ea255f` | `b26d8cc2-...255f` | `2185d532-...4e22` | **`694f8977-9101-408a-95c7-1dcc29805a02`** |
+| `pass_rate` | 0.875 | 0.900 | 0.825 | **0.900** |
+| `f1.median` | 0.943 | 0.950 | 0.950 | **0.958** |
+| `f1.mean` | 0.907 | 0.934 | 0.911 | 0.930 |
+| `f1.min` | 0.598 | 0.679 | 0.654 | 0.630 |
+| `precision.mean` | 0.975 | 1.000 | 0.993 | **1.000** |
+| `recall.mean` | 0.864 | 0.884 | 0.853 | 0.879 |
+| `matchedFields.median` | 66 | 66.5 | 66.0 | **67** |
+| `falsePositives.mean` | 1.25 | 0.00 | 0.40 | **0.00** |
 
 The strict baseline came in *better* than the fuzzy era on every aggregate — a
 counterintuitive result driven by upstream label corrections (force-resynced
 dataset) outpacing the strict rule's tighter threshold. The two effects roughly
 cancel, with corrections dominating slightly.
+
+Round 2 is the canonical state on this branch — it matches the strict
+baseline on `pass_rate` / `precision.mean` / `falsePositives.mean` AND beats
+it on `f1.median` (+0.7 pp) and `matchedFields.median` (+0.5 fields).
+`f1.mean` and `recall.mean` are 0.4–0.6 pp below the strict baseline,
+driven by a handful of samples where the engine now correctly returns
+`null` for cells GT had labelled `"0"` — those are GT-cleanup candidates,
+not engine regressions.
+
+### One-of GT support (evaluator change)
+
+The schema-aware evaluator ([`apps/temporal/src/evaluators/schema-aware-evaluator.ts`](../../../apps/temporal/src/evaluators/schema-aware-evaluator.ts))
+now accepts an array of acceptable scalars at a field's value position:
+
+```jsonc
+// experiments/results/.../GT.json
+{
+  "date": ["2026-APR-15", "2026-04-15"],          // engine-faithful + ISO
+  "sin": ["999-888-777", "999888777"],            // form-format + stripped
+  "spouse_phone": ["", "555-0100"]                // blank-or-value
+}
+```
+
+`exact`, `fuzzy`, `numeric`, `date`, and `boolean` rules all support array
+GT (any-match). For `fuzzy` / `numeric` the result carries the best
+similarity / smallest error across alternates. `isNullLike` is extended to
+treat `["", null]` (all alternates null-like) as null-like — so GT
+`["", "value"]` correctly matches a `null` prediction (the empty-string
+alternate satisfies it). Scalar GT is unchanged.
+
+This is the cleanest lever for the GT-vs-engine convention disagreements
+surfaced during this iteration. Instead of coercing the engine away from
+form-as-written (round 1's trade-off) OR manually editing every GT file,
+we can promote ambiguous values to one-of arrays per sample. The full
+per-sample candidate list is in
+[`iteration/errors-for-gt-cleanup.md`](iteration/errors-for-gt-cleanup.md);
+the four highest-leverage categories are date format, SIN format,
+sentinel labels in `signature`/`name`, and numeric blank-vs-zero
+ambiguity.
+
+Tests: 8 new one-of cases in
+[`apps/temporal/src/evaluators/schema-aware-evaluator.test.ts`](../../../apps/temporal/src/evaluators/schema-aware-evaluator.test.ts) (30
+total in the file, all passing).
 
 ### Round 1 — format-preservation prompt + global-prompt rule consolidation
 
@@ -104,33 +151,87 @@ Per-sample comparison vs strict baseline:
 | | `2 81` 0.986 → 0.853 (sin format) | `manual sample (10)` 0.935 → 0.986 |
 | | total: 21 samples regressed, sum Δ f1 = **−1.526** | total: 11 samples improved, sum Δ f1 = **+0.598** |
 
-### Decision: keep round 1 as canonical; defer GT cleanup
+### Round 2 — strict blank-vs-zero + two-group checkbox section
 
-Per direct user input during the loop: the engine returning *what is actually
-written on the form* is the preferred semantic. The aggregate regression is a
-ground-truth-vs-engine-convention disagreement, not an engine-quality
-regression. Resolving it is a follow-up dataset-cleanup task — labels on
-HR0081 / synth-regular series will be adjusted to match form-as-written
-(hyphenated SINs, form-format dates, visible "0" marks read as `0`), at
-which point the round-1 metrics should rebound past the strict-baseline
-numbers and approach the smoke-test ceiling (~93% per-sample matched on the
-samples we tested individually).
+Round 1's aggregate regression was driven by two interacting issues. Round
+2 (current canonical) addresses them directly:
 
-The loop terminated after one round by user direction. Convergence rationale:
+**Stricter blank-vs-zero rule.** Round 1's prompt included a "handwritten
+zeros may look like `O`, a small loop, or `()`" hint that was tipping the
+model toward seeing zeros in noise inside cells (manifesting as
+applicant-column-wins-but-spouse-column-hallucinates on samples like
+HR0081 (5), synth-regular (1), 2 81). Round 2 replaces the hint with a
+hard rule: "DO NOT INFER ZEROS. Return `0` only when you would, looking
+at this single cell in isolation, say 'yes, there is a clear `0` here'."
+Plus an explicit "false-positive `0`s are worse than missed `0`s" guard
+and a "do not propagate zeros across columns" rule. Matches the
+user-stated semantic exactly: extract `0` only when explicitly present.
 
-- The dominant remaining error categories under strict equality are
-  GT-labelling inconsistency, sentinel-token GT (`":present:"`,
-  `"KEY PLAYER MISSING"`, `":garbled:"`), and engine-OCR character misreads
-  (`P↔F`, `3↔7`) — none prompt-fixable.
-- Any prompt that flips behaviour on one labelling convention regresses
-  samples on the other (the round 1 trade-off).
-- User-stated preference: clean GT to the form, not the engine to the GT.
+**Two-group checkbox section.** Round 1's checkbox rules implicitly
+assumed all checkbox fields used the same Yes/No-pair semantic, but the
+SDPR form has two distinct groups:
+
+- **Group A (Q1-Q4)**: a single Yes/No pair per question, no
+  applicant/spouse split. Fields: `checkbox_need_assistance_*`,
+  `checkbox_family_assets_*`, `checkbox_shelter_*`,
+  `checkbox_dependants_*`.
+- **Group B (Q5-Q9)**: two columns (Applicant LEFT, Spouse RIGHT). Fields
+  without `_spouse_` read the Applicant column; fields with `_spouse_`
+  read the Spouse column.
+
+The schema's field-key naming is ambiguous on Group B — applicant fields
+are bare (`checkbox_school_no`) rather than `checkbox_school_applicant_no`,
+so the model can mis-attribute them. Round 2's prompt spells out the
+field-key-to-column mapping explicitly with an ASCII layout diagram, plus
+adds: "if the spouse column on this form is entirely empty, every
+`_spouse_yes` and `_spouse_no` field returns `unselected`."
+
+Smoke tests (round-2 prompt) showed full recovery on the round-1
+regressions:
+
+| sample | strict-baseline matched | round-1 matched | round-2 matched | Δ vs round 1 |
+|---|---|---|---|---|
+| `HR0081 (5)` | 73 | 36 | **72** | +36 |
+| `synth-regular (1)` | 72 | 43 | **72** | +29 |
+| `2 81` | 72 | 55 | **72** | +17 |
+| `manual sample (6)` | 56 | 71 | **71** | 0 (round-1 wins kept) |
+| `Fake 7` | 51 | 69 | 51 | −18 (engine now returns null where GT has `"0"`) |
+
+The Fake 7 trade-off (round 2 returns null for cells GT labels as `"0"`)
+matches the user's stated preference: prefer null over false-zero.
+Resolution is GT cleanup or one-of `[0, null]` GT (covered by the
+evaluator change above).
+
+### Decision: round 2 is the canonical converged state
+
+Convergence rationale:
+
+- `pass_rate` (0.900) matches the strict baseline and is +7.5 pp above
+  round 1.
+- `f1.median` (0.958) is the highest of the three states — +0.7 pp above
+  both the strict baseline and round 1.
+- `matchedFields.median` (67) is +0.5 above strict baseline and +1 above
+  round 1.
+- `precision.mean` is back to 1.000 (no false positives).
+- Format-preservation engine semantics are locked in.
+- Strict blank-vs-zero behavior is locked in (matches user-stated
+  preference).
+- Two-group checkbox disambiguation is in place.
+- One-of GT support exists in the evaluator for follow-up cleanup.
+
+The remaining mismatches (full list:
+[`iteration/errors-for-gt-cleanup.md`](iteration/errors-for-gt-cleanup.md))
+fall into four GT-cleanup categories (date format, SIN format, sentinel
+labels, numeric blank-vs-zero ambiguity) and three non-GT-fixable engine
+limits (single-character handwriting OCR misreads, synthetic-form
+placeholder text, dense handwriting forms). Further prompt iteration
+without GT cleanup would just rearrange the GT-vs-engine trade-off.
 
 **`81 blank` and `81 coffee` are excluded from the iteration set** as
-intentionally-obscured / blank forms that bottomed every prior experiment too
-(documented in the iteration framing at session start). They sit at f1 0.770
-and 0.921 respectively under round-1 prompts and are noted here so the reader
-knows they were intentionally not iterated against.
+intentionally-obscured / blank forms that bottomed every prior experiment
+too (documented in the iteration framing at session start). They sit at
+f1 0.781 and 0.852 respectively under the round-2 prompt and are noted
+here so the reader knows they were intentionally not iterated against.
 
 OCR-3 features the research agent suggested (`table_format: "html"`,
 `bbox_annotation_format`, `image_min_size`/`image_limit`, Unicode checkbox

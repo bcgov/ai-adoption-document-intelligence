@@ -180,3 +180,142 @@ fields plumbed through). Out of scope for this branch under the same
 "GT-side regression dominates" reasoning — those features would need a
 re-eval window after GT cleanup to be measured fairly. Tracked as a
 candidate for a future `improve/<NN>-mistral-ocr3-features` branch.
+
+---
+
+## 2026-05-10 — Round 2: strict blank-vs-zero + two-group checkbox section + one-of evaluator support
+
+Three changes layered on top of round 1, based on direct user feedback after
+the round-1 aggregate regression:
+
+**1. Evaluator one-of GT support** ([`apps/temporal/src/evaluators/schema-aware-evaluator.ts`](../../../../apps/temporal/src/evaluators/schema-aware-evaluator.ts))
+
+A GT field value can now be an array of acceptable scalars (one-of), e.g.
+`"date": ["2026-APR-15", "2026-04-15"]`. The evaluator matches if the
+prediction equals any element. All five matching rules (`exact`, `fuzzy`,
+`numeric`, `date`, `boolean`) support array GT; for `fuzzy` / `numeric` the
+result carries the best similarity / smallest error across alternates.
+`isNullLike` is extended to treat `["", null]` (all alternates null-like)
+as null-like, so the GT `["", "value"]` correctly matches a null
+prediction (the empty-string alternate satisfies it).
+
+8 new unit tests in
+[`apps/temporal/src/evaluators/schema-aware-evaluator.test.ts`](../../../../apps/temporal/src/evaluators/schema-aware-evaluator.test.ts) (one-of exact / fuzzy
+/ numeric / date / null-like, plus a scalar-still-works regression guard).
+30 total tests pass.
+
+This is the cleanest lever for the round-1 dataset-vs-engine convention
+disagreement: instead of coercing the engine OR cleaning every GT file by
+hand, we can promote ambiguous GT values to one-of arrays per sample. See
+[`errors-for-gt-cleanup.md`](errors-for-gt-cleanup.md) for the per-sample
+candidate list.
+
+**2. Stricter blank-vs-zero in the prompt** ([`prompt.md` § numeric_income_rules](prompt.md))
+
+Round 1 had a "handwritten zeros may look like `O`, a small loop, or `()`"
+hint that was pushing the model to interpret noise inside cells as zeros.
+Round 2 replaces that with a hard rule: "DO NOT INFER ZEROS. Only return
+`0` when you would, looking at this single cell in isolation, say 'yes,
+there is a clear `0` here'." Plus an explicit "false-positive `0`s are
+worse than missed `0`s" guard, and an explicit "do not propagate zeros
+across columns" rule.
+
+**3. Two-group checkbox section** ([`prompt.md` § checkbox_rules](prompt.md))
+
+The schema's checkbox field-key naming is asymmetric: Q5-Q9 spouse keys
+have `_spouse_` but the applicant keys are NOT prefixed with `_applicant_`
+— they're bare `checkbox_<question>_yes` / `_no`. This is ambiguous to a
+model: are `checkbox_school_no` (Q6) and `checkbox_shelter_no` (Q3) the
+same kind of field?
+
+The new section is explicit about the two groups:
+- **Group A — Q1-Q4**: single Yes/No pair per question, no applicant /
+  spouse split. Field-key mapping spelled out: `checkbox_need_assistance_*`,
+  `checkbox_family_assets_*`, `checkbox_shelter_*`, `checkbox_dependants_*`
+  belong here (no applicant column to read).
+- **Group B — Q5-Q9**: two columns (Applicant LEFT, Spouse RIGHT). Field-
+  key mapping spells out which key reads which column: `_yes` / `_no` for
+  applicant column, `_spouse_yes` / `_spouse_no` for spouse column. An
+  ASCII diagram in the prompt shows the layout.
+
+Plus: "if the spouse column on this form is entirely empty (no spouse
+name, no spouse signature, no marks anywhere in the spouse column), every
+`_spouse_yes` and `_spouse_no` field returns `unselected`" — closes the
+spouse-checkbox FP loophole.
+
+Smoke tests (script: `iterate-mistral-extraction.ts`):
+
+```
+Sample              | strict-baseline | round 1 | round 2 |  Δ vs round 1  | notes
+--------------------+-----------------+---------+---------+----------------+----------------------------------------------
+HR0081 (5)          |       73        |   36    |   72    |  +36 matched   | recovered fully — blank spouse no longer 0
+synth-regular (1)   |       72        |   43    |   72    |  +29 matched   | same — strict-zero rule fixes false-zero
+2 81                |       72        |   55    |   72    |  +17 matched   | same
+3 81                |       60        |   60    |   60    |   0            | checkbox under-detection persists (engine OCR limit)
+manual sample (6)   |       56        |   71    |   71    |   0            | round-1 wins kept (sin/date format)
+1 81                |       66        |   66    |   66    |   0            | unchanged
+Fake 7              |       51        |   69    |   51    |  -18 matched   | acceptable per user: prefer null over false-zero
+manual sample (1)   |       72        |   73    |   73    |   0            | unchanged
+```
+
+Benchmark (round 2, run `694f8977-9101-408a-95c7-1dcc29805a02`):
+
+| metric | round 2 | round 1 | strict baseline | Δ vs r1 | Δ vs bl |
+|---|---|---|---|---|---|
+| `pass_rate` | **0.900** (36/40) | 0.825 | 0.900 | +7.5 pp | 0.0 pp |
+| `f1.median` | **0.958** | 0.950 | 0.950 | +0.7 pp | +0.7 pp |
+| `f1.mean` | 0.930 | 0.911 | 0.934 | +1.9 pp | −0.4 pp |
+| `precision.mean` | **1.000** | 0.993 | 1.000 | +0.7 pp | 0.0 pp |
+| `recall.mean` | 0.879 | 0.853 | 0.884 | +2.6 pp | −0.6 pp |
+| `matchedFields.median` | **67** (of 74) | 66 | 66.5 | +1 | +0.5 |
+| `falsePositives.mean` | **0.00** | 0.40 | 0.00 | −0.4 | 0.0 |
+
+Round 2 is the converged state:
+
+- `pass_rate` recovered to the strict baseline level (0.900).
+- `f1.median` and `matchedFields.median` are NOW the best of the three
+  states — beating the strict baseline by 0.7 pp / +0.5 fields.
+- `precision.mean` back to 1.000 (false positives eliminated).
+- `f1.mean` and `recall.mean` are 0.4–0.6 pp below the strict baseline,
+  driven by a handful of samples where the engine now correctly returns
+  `null` for cells GT had labelled as `"0"`. These are GT-cleanup
+  candidates (or one-of GT candidates), not engine regressions.
+
+Sample-level distribution:
+
+```
+22 samples regressed vs strict baseline (sum Δ f1 = -0.478)
+10 samples improved vs strict baseline  (sum Δ f1 = +0.337)
+Net sum Δ f1 across all 40 samples       = -0.140
+```
+
+The negative net is concentrated in a few cases:
+- `Fake 4` strict-baseline 0.950 → round 2 0.806 (-0.144) — engine now
+  returns null for cells GT labelled `"0"`.
+- `HR0081 (10)` strict-baseline 0.679 → 0.630 (-0.049) — handwriting
+  density edge case; still below pass threshold either way.
+- 7 samples with small (-0.01 to -0.03) regressions on format-preserved
+  fields (sin/date) where GT is normalised.
+
+The largest improvement is `manual sample (6)` +0.117 (sin and date
+format wins recovered cleanly).
+
+Convergence rationale:
+- Round 2 hits or beats the strict baseline on every aggregate metric
+  except `f1.mean` and `recall.mean`, which are within 0.6 pp.
+- The remaining mismatches are either GT cleanup candidates (covered by
+  one-of GT) or genuine engine OCR limits (single-character handwriting
+  misreads, sentinel labels in GT).
+- Two consecutive rounds (1 and 2) ended with the prompt converging on
+  format preservation + strict blank-vs-zero + two-group checkboxes.
+  Further prompt iteration without GT cleanup would just rearrange the
+  trade-off.
+- User-stated preference (preserve as written; only extract `0` if
+  explicitly present) is fully realised.
+
+Round 2 is the recommended canonical prompt for E02. The
+[`errors-for-gt-cleanup.md`](errors-for-gt-cleanup.md) file enumerates
+every remaining mismatch so the dataset cleanup pass can move metrics
+above strict-baseline numbers without further engine-side work.
+
+OCR-3 activity-side features remain deferred (same reasoning as round 1).

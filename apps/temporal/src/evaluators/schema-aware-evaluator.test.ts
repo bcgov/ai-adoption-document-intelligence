@@ -863,4 +863,234 @@ describe("SchemaAwareEvaluator", () => {
       expect(result.pass).toBe(true); // F1 should be > 0.8
     });
   });
+
+  // -----------------------------------------------------------------------
+  // One-of alternate ground truth (array values)
+  // -----------------------------------------------------------------------
+  describe("one-of alternate ground truth", () => {
+    it("matches exact rule against any alternate in array GT", async () => {
+      const groundTruth = {
+        date: ["2026-APR-15", "2026-04-15"],
+        sin: ["999-888-777", "999888777"],
+      };
+      const prediction = {
+        date: "2026-04-15",
+        sin: "999-888-777",
+      };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-exact",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(2);
+      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
+      expect(result.metrics.recall).toBeCloseTo(1.0, 3);
+    });
+
+    it("does not match when prediction equals no alternate", async () => {
+      const groundTruth = {
+        date: ["2026-APR-15", "2026-04-15"],
+      };
+      const prediction = { date: "2026-Apr-15" }; // wrong case — neither alt matches
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-no-match",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(0);
+      const details = (
+        result.evaluationDetails as Array<Record<string, unknown>>
+      )[0];
+      expect(details.matched).toBe(false);
+      // Array preserved on output so downstream readers see the GT shape.
+      expect(details.expected).toEqual(["2026-APR-15", "2026-04-15"]);
+    });
+
+    it("treats null-like predicted as matched when any alternate is null-like", async () => {
+      const groundTruth = {
+        spouse_phone: ["", "555-0100"], // GT accepts blank OR a value
+      };
+      const prediction = { spouse_phone: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-null-like",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.recall).toBeCloseTo(1.0, 3);
+    });
+
+    it("treats all-null-like array as null-like (no field reported missing)", async () => {
+      const groundTruth = {
+        signature: ["", null],
+      };
+      const prediction = { signature: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-all-null",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      const diag = result.diagnostics as { missingFields: string[] };
+      expect(diag.missingFields).not.toContain("signature");
+    });
+
+    it("fuzzy rule returns best similarity across alternates and matches if any clears threshold", async () => {
+      const groundTruth = {
+        explain_changes: [
+          "Working part-time, started Oct 12, pay stubs attached.",
+          "Working part-time. Started Oct 12. Pay stubs attached.",
+        ],
+      };
+      const prediction = {
+        // Closer to the second alternate (different punctuation than first).
+        explain_changes:
+          "Working part-time. Started Oct 12. Pay stubs attached.",
+      };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-fuzzy",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.95 },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      const details = (
+        result.evaluationDetails as Array<Record<string, unknown>>
+      )[0];
+      expect(details.similarity).toBeCloseTo(1.0, 3);
+    });
+
+    it("numeric rule honours absolute tolerance against best alternate", async () => {
+      const groundTruth = {
+        applicant_net_employment_income: [0, "0", 0.0],
+      };
+      const prediction = { applicant_net_employment_income: 0 };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-numeric",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "numeric", numericAbsoluteTolerance: 0.01 },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("date rule matches if any alternate parses to the same calendar date", async () => {
+      const groundTruth = {
+        date: ["2026-APR-15", "2026-04-15", "2026-Apr-15"],
+      };
+      const prediction = { date: "2026-04-15" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-date",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "date" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("scalar GT continues to work unchanged (regression guard)", async () => {
+      const groundTruth = { sin: "123-456-789" };
+      const prediction = { sin: "123-456-789" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "scalar-still-works",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
+    });
+  });
 });
