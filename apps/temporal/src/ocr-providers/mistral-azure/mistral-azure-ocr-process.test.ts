@@ -192,6 +192,88 @@ describe("mistralAzureOcrProcess", () => {
       "number",
       "null",
     ]);
+    // ocr3Features omitted -> none of the OCR-3 fields are emitted (default
+    // behaviour matches the Foundry-supported request body).
+    expect(body.table_format).toBeUndefined();
+    expect(body.bbox_annotation_format).toBeUndefined();
+    expect(body.image_min_size).toBeUndefined();
+    expect(body.image_limit).toBeUndefined();
+  });
+
+  it("forwards ocr3Features into the Foundry request body when set", async () => {
+    process.env = {
+      ...originalEnv,
+      MOCK_MISTRAL_AZURE_OCR: "false",
+      MISTRAL_DOC_AI_AZURE_ENDPOINT:
+        "https://strukalex-8338-resource.services.ai.azure.com",
+      MISTRAL_DOC_AI_AZURE_KEY: "test-foundry-key",
+    };
+
+    mockFindUnique.mockResolvedValue({
+      id: "tm-1",
+      field_schema: [
+        {
+          field_key: "amount",
+          field_type: "number",
+          field_format: null,
+          display_order: 0,
+        },
+      ],
+    });
+
+    axiosPost.mockResolvedValue({
+      data: {
+        model: "mistral-document-ai-2512",
+        pages: [
+          {
+            index: 0,
+            markdown: "ok",
+            dimensions: { width: 10, height: 10, dpi: 72 },
+          },
+        ],
+        usage_info: { pages_processed: 1 },
+      },
+    });
+
+    // Build a tiny bbox annotation schema inline to avoid coupling the test
+    // to the converter — we only need to verify it gets forwarded verbatim.
+    const bboxFmt = {
+      type: "json_schema" as const,
+      json_schema: {
+        name: "bbox_annotation",
+        strict: true as const,
+        schema: {
+          type: "object" as const,
+          title: "BboxAnnotation",
+          properties: {
+            kind: { type: "string", enum: ["signature", "checkbox", "figure"] },
+          },
+          required: ["kind"],
+          additionalProperties: false as const,
+        },
+      },
+    };
+
+    await mistralAzureOcrProcess({
+      fileData: baseFile,
+      templateModelId: "tm-1",
+      documentAnnotationPrompt: "extract",
+      fieldDescriptions: {},
+      numericFieldsNullable: true,
+      ocr3Features: {
+        tableFormat: "html",
+        bboxAnnotationFormat: bboxFmt,
+        imageMinSize: 64,
+        imageLimit: 8,
+      },
+    });
+
+    const [, calledBody] = axiosPost.mock.calls[0];
+    const body = calledBody as Record<string, unknown>;
+    expect(body.table_format).toBe("html");
+    expect(body.bbox_annotation_format).toBe(bboxFmt);
+    expect(body.image_min_size).toBe(64);
+    expect(body.image_limit).toBe(8);
   });
 
   it("throws when endpoint is missing and not mock", async () => {

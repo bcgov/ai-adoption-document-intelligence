@@ -319,3 +319,138 @@ every remaining mismatch so the dataset cleanup pass can move metrics
 above strict-baseline numbers without further engine-side work.
 
 OCR-3 activity-side features remain deferred (same reasoning as round 1).
+
+---
+
+## 2026-05-10 — Round 3: OCR-3 features probed; FOUNDRY DOESN'T HONOR THEM
+
+User direction after round-2 GT cleanup: "apply OCR-3 features as you see
+fit to improve on our checkbox situation; if any of those can also improve
+our 0's situation, that would be a plus."
+
+**Activity plumbing** (kept; future-proof):
+
+[`apps/temporal/src/ocr-providers/mistral-azure/mistral-azure-ocr-process.ts`](../../../../apps/temporal/src/ocr-providers/mistral-azure/mistral-azure-ocr-process.ts)
+now accepts an optional `ocr3Features` param on
+`MistralAzureOcrProcessParams`:
+
+```ts
+ocr3Features?: {
+  tableFormat?: "html";
+  bboxAnnotationFormat?: MistralDocumentAnnotationFormat;
+  imageMinSize?: number;
+  imageLimit?: number;
+};
+```
+
+Set values are forwarded verbatim to the Mistral request body as
+`table_format`, `bbox_annotation_format`, `image_min_size`, `image_limit`.
+Unit-tested (10 passing in
+[`mistral-azure-ocr-process.test.ts`](../../../../apps/temporal/src/ocr-providers/mistral-azure/mistral-azure-ocr-process.test.ts))
+including the "ocr3Features omitted → none of the fields are emitted"
+default-behaviour case.
+
+[`iterate-mistral-extraction.ts`](../../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts)
+gained env-var probes (`OCR3_TABLE_FORMAT`, `OCR3_IMAGE_MIN_SIZE`,
+`OCR3_IMAGE_LIMIT`, `OCR3_BBOX_ANNOTATION_FORMAT=1`) so future iteration
+loops can flip them without touching the script.
+
+**Smoke-probing results**:
+
+| OCR-3 feature | Foundry response | `synth-full (1)` Δ | `3 81` Δ | `HR0081 (10)` Δ |
+|---|---|---|---|---|
+| `table_format: "html"` | **200 OK** | 73 → **18** (CATASTROPHIC) | 60 → **~18** (CATASTROPHIC) | — |
+| `bbox_annotation_format` | **200 OK** | 73 → 73 (unchanged) | 60 → 60 | 38 → 38 |
+| `image_min_size: 64` | **200 OK** | 73 → 73 | 60 → 60 | 38 → 38 |
+| `image_limit: 8` | **200 OK** | 73 → 73 | 60 → 60 | — |
+| all 4 combined (minus `table_format`) | **200 OK** | 73 → 73 | 60 → 60 | — |
+
+The Foundry deployment `mistral-document-ai-2512` silently ignores
+`bbox_annotation_format`, `image_min_size`, and `image_limit` —
+`document_annotation` length is byte-identical across all variants
+(`3 81`: 2881 bytes; `HR0081 (10)`: 2950 bytes; `synth-full (1)`: 3278
+bytes regardless of which OCR-3 params are set). The response shape
+stays the same:
+
+- `pages_processed_annotation: 1` (annotation step ran)
+- `pages[0].images: []` (no bbox crops surfaced — annotation LMM has
+  no image context to lean on)
+- no `bbox_annotations` key on `pages[0]`
+
+`table_format: "html"` is the only param Foundry actually applies, and
+it produces useless output — the income table renders as malformed HTML
+and the annotation model returns `null` for every income field. Rolled
+back; not enabling on the canonical workflow.
+
+**Image preprocessing probes** (also tested, also no impact):
+
+Tried client-side upscaling (2× lanczos3), sharpening, and contrast
+multipliers (1.3, 1.5) on `3 81` and `HR0081 (10)` via a temporary
+`OCR3_UPSCALE_2X` / `OCR3_SHARPEN` / `OCR3_CONTRAST` env-var path in the
+iteration script. Mistral's OCR output is byte-identical across every
+preprocessing variant (`3 81`: 2881 bytes regardless of 2× resize +
+sharpen + contrast=1.3). `HR0081 (10)` actually drops 2 matched fields
+under contrast=1.5 / contrast=1.3+upscale (38 → 36 matched). The
+Foundry OCR layer normalises to its own internal preprocessing pipeline,
+washing out client-side changes. Image-preprocessing additions reverted
+from the iteration script.
+
+**What this means for the remaining ceiling**:
+
+The OCR markdown the annotation pass receives is degenerate on the
+problem samples:
+
+```
+# 2. Declare all income and submit proof. Enter "0" if none.
+
+|   | Applicant | Spouse  |
+| --- | --- | --- |
+|  Net Employment Income | $ | $  |
+|  Employment Insurance | $ | $  |
+...
+```
+
+```
+Since your last declaration:
+Are you still in need of assistance?
+☐ Yes ☐ No
+Has your family unit received or disposed of any assets?
+☐ Yes ☐ No
+```
+
+Mistral's OCR layer reads the printed `$` template character but NOT the
+handwritten/printed `0`s next to it. Same on checkboxes: every box renders
+as `☐` regardless of what's marked. The annotation LMM then has no
+information to recover — it sees `$` (no number) so it returns `null`,
+and `☐ Yes ☐ No` so it returns `unselected/unselected`.
+
+This isn't a prompt problem. The annotation pass on Foundry has empty
+`pages[0].images` in every response — no image context the model could
+fall back on. The prompt cannot tell the model "trust the image over the
+OCR markdown" because there is no image visible to the model.
+
+Convergence: **the Mistral Document AI Foundry SKU is at its engine
+ceiling on this dataset's harder samples.** Remaining options (each
+its own future `improve/<NN>-...` branch):
+
+1. **Switch engines.** E03 (Azure CU + gpt-5.2) and E05 (Azure DI prebuilt-
+   layout + gpt-5.4 hybrid) already get 0.95 / 0.975 pass_rate on the
+   same dataset because their OCR layers preserve the handwritten zero
+   marks and X-marks in checkbox boxes.
+2. **Wait for Foundry to expose OCR-3 controls.** If/when the
+   `mistral-document-ai-XXXX` SKU adds support for `bbox_annotation_format`
+   and image-preprocessing knobs, the `ocr3Features` plumbing in this
+   branch is ready to use them.
+3. **File a Mistral support case** asking what knobs the
+   `mistral-document-ai-2512` SKU honours. Response so far is silent
+   acceptance + no behaviour change.
+4. **Hand-crop + retry** — send only the income table region as a
+   separate OCR call so the small handwritten characters fill more of the
+   model's internal resolution budget. Substantial architectural change;
+   not pursued.
+
+No round-3 benchmark run was triggered — every smoke-probe established
+that nothing in the OCR-3 toolkit moves the needle on Foundry, so a paid
+full benchmark would confirm `pass_rate: 0.900` / `f1.median: 0.958`
+unchanged from round-2's canonical run `694f8977-...`. Round-2 stays as
+the canonical state.

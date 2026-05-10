@@ -228,6 +228,37 @@ export interface MistralAzureOcrProcessParams {
    * distinct from `0` for cells that explicitly show `0`.
    */
   numericFieldsNullable?: boolean;
+  /**
+   * Mistral OCR-3 feature opt-ins. Each one is a knob on the OCR request
+   * body documented by the public Mistral OCR API; the Foundry deployment
+   * (`mistral-document-ai-2512`) is stricter than the public API on body
+   * shape so each one is gated behind smoke-testing. Pass through verbatim
+   * when set; omit otherwise. See
+   * [iteration/CHANGELOG.md round-3 entry](../../../../../experiments/results/02-mistral-doc-ai-azure/iteration/CHANGELOG.md)
+   * for per-feature acceptance + impact notes.
+   */
+  ocr3Features?: {
+    /**
+     * `"html"` renders tables in the OCR markdown as `<table><tr><td>...`
+     * with explicit cell boundaries (preserves colspan/rowspan). The income
+     * table on the SDPR form is the obvious beneficiary: each cell is its
+     * own `<td>` so the model sees applicant-column vs spouse-column
+     * unambiguously, and blank cells render as `<td></td>` distinct from
+     * `<td>$0</td>`.
+     */
+    tableFormat?: "html";
+    /**
+     * Wrapping JSON Schema for the per-bbox annotation pass. Foundry's OCR
+     * layer picks up to 8 bbox crops from the page and runs a vision LMM
+     * on each; supplying a typed `{kind, value}` schema gives those crops
+     * a stronger prior. Most relevant for checkbox / signature recall.
+     */
+    bboxAnnotationFormat?: MistralDocumentAnnotationFormat;
+    /** Min crop dimension (px) for the bbox / image preprocessor. */
+    imageMinSize?: number;
+    /** Max number of bbox crops the LMM sees on each call. */
+    imageLimit?: number;
+  };
   requestId?: string;
 }
 
@@ -261,6 +292,7 @@ export async function mistralAzureOcrProcess(
     documentAnnotationPrompt,
     fieldDescriptions,
     numericFieldsNullable,
+    ocr3Features,
   } = params;
   const templateModelIdRaw = params.templateModelId?.trim();
   const log = createActivityLogger(activityName, {
@@ -372,6 +404,20 @@ export async function mistralAzureOcrProcess(
     }
     if (annotationPrompt) {
       requestBody.document_annotation_prompt = annotationPrompt;
+    }
+    if (ocr3Features) {
+      if (ocr3Features.tableFormat !== undefined) {
+        requestBody.table_format = ocr3Features.tableFormat;
+      }
+      if (ocr3Features.bboxAnnotationFormat !== undefined) {
+        requestBody.bbox_annotation_format = ocr3Features.bboxAnnotationFormat;
+      }
+      if (ocr3Features.imageMinSize !== undefined) {
+        requestBody.image_min_size = ocr3Features.imageMinSize;
+      }
+      if (ocr3Features.imageLimit !== undefined) {
+        requestBody.image_limit = ocr3Features.imageLimit;
+      }
     }
 
     const { data } = await axios.post<MistralOcrApiResponse>(url, requestBody, {
