@@ -17,11 +17,34 @@ import {
 import { parseToCalendarParts } from "../form-field-normalization";
 
 /**
- * Check if a value represents "no value" — null, undefined, empty string, or the string "null"
- * are all treated as semantically equivalent.
+ * Check if a scalar value represents "no value" — null, undefined, empty string,
+ * or the string "null" are all treated as semantically equivalent.
+ */
+function isNullLikeScalar(v: unknown): boolean {
+  return v === null || v === undefined || v === "" || v === "null";
+}
+
+/**
+ * Check if a value represents "no value". For arrays (one-of GT alternates),
+ * returns true only when every alternate is itself null-like (or the array is
+ * empty), so `["", null]` is treated as "blank is acceptable" but
+ * `["", "real_value"]` is treated as a real expected value.
  */
 export function isNullLike(v: unknown): boolean {
-  return v === null || v === undefined || v === "" || v === "null";
+  if (Array.isArray(v)) {
+    return v.length === 0 || v.every((item) => isNullLikeScalar(item));
+  }
+  return isNullLikeScalar(v);
+}
+
+/**
+ * Return the list of acceptable expected values. If `expected` is a plain
+ * scalar, returns a one-element array; if `expected` is an array (one-of
+ * alternates), returns it unchanged. Lets every matcher treat single-value
+ * and multi-value GT uniformly.
+ */
+function alternativesOf(expected: unknown): unknown[] {
+  return Array.isArray(expected) ? expected : [expected];
 }
 
 /**
@@ -163,9 +186,15 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       extraFields.length,
     );
 
-    // Build diagnostics
+    // Build diagnostics. A field is "missing" when the GT carries a real
+    // (non-null-like) value and the prediction is null-like AND the match
+    // failed — the `r.matched` guard handles one-of GT where an empty-string
+    // alternate exists alongside a real value (predicted=null can match the
+    // empty-string alternate, so it isn't missing).
     const missingFields = comparisonResults
-      .filter((r) => !isNullLike(r.expected) && isNullLike(r.predicted))
+      .filter(
+        (r) => !r.matched && !isNullLike(r.expected) && isNullLike(r.predicted),
+      )
       .map((r) => r.field);
 
     const mismatchedFields = comparisonResults
@@ -225,23 +254,17 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         rule: "exact" as const,
       };
 
-    if (isNullLike(predicted) && isNullLike(expected)) {
-      return {
-        field,
-        matched: true,
-        predicted,
-        expected,
-      };
-    }
-
-    // Handle missing prediction (only predicted is null-like, expected has a real value)
+    // Handle null-like prediction. When `expected` is a one-of array, predicted
+    // is considered matched if ANY alternate is itself null-like (e.g. GT is
+    // `["", "value"]` and the engine returned null — the empty-string alternate
+    // satisfies it). Otherwise the prediction is treated as missing.
     if (isNullLike(predicted)) {
-      return {
-        field,
-        matched: false,
-        predicted: undefined,
-        expected,
-      };
+      const anyExpectedNullLike =
+        alternativesOf(expected).some(isNullLikeScalar);
+      if (anyExpectedNullLike) {
+        return { field, matched: true, predicted, expected };
+      }
+      return { field, matched: false, predicted: undefined, expected };
     }
 
     // Apply matching rule
@@ -273,7 +296,8 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   }
 
   /**
-   * Exact match comparison
+   * Exact match comparison. When `expected` is an array of one-of alternates,
+   * predicted matches if it stringifies to any alternate.
    */
   private exactMatch(
     field: string,
@@ -281,14 +305,16 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     expected: unknown,
   ): FieldComparisonResult {
     const predictedStr = String(predicted);
-    const expectedStr = String(expected);
-
-    const matched = predictedStr === expectedStr;
+    const matched = alternativesOf(expected).some(
+      (alt) => String(alt) === predictedStr,
+    );
     return { field, matched, predicted, expected };
   }
 
   /**
-   * Fuzzy match comparison using Levenshtein similarity
+   * Fuzzy match comparison using Levenshtein similarity. When `expected` is
+   * an array of one-of alternates, the result carries the BEST similarity
+   * across the alternates and matches if any alternate clears the threshold.
    */
   private fuzzyMatch(
     field: string,
@@ -297,17 +323,17 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     threshold: number,
   ): FieldComparisonResult {
     const predictedStr = String(predicted);
-    const expectedStr = String(expected);
-
-    const similarity = this.levenshteinSimilarity(predictedStr, expectedStr);
-    const matched = similarity >= threshold;
-
+    let bestSimilarity = 0;
+    for (const alt of alternativesOf(expected)) {
+      const s = this.levenshteinSimilarity(predictedStr, String(alt));
+      if (s > bestSimilarity) bestSimilarity = s;
+    }
     return {
       field,
-      matched,
+      matched: bestSimilarity >= threshold,
       predicted,
       expected,
-      similarity,
+      similarity: bestSimilarity,
     };
   }
 
@@ -351,7 +377,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   }
 
   /**
-   * Numeric match comparison
+   * Numeric match comparison. When `expected` is an array of one-of
+   * alternates, the smallest absolute / relative error across the alternates
+   * is kept, and `matched` is true if any alternate clears tolerances.
    */
   private numericMatch(
     field: string,
@@ -360,34 +388,44 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     absoluteTolerance?: number,
     relativeTolerance?: number,
   ): FieldComparisonResult {
-    // Parse numeric values (handle commas in numbers)
     const predictedNum = this.parseNumeric(String(predicted));
-    const expectedNum = this.parseNumeric(String(expected));
 
-    if (
-      predictedNum === null ||
-      expectedNum === null ||
-      Number.isNaN(predictedNum) ||
-      Number.isNaN(expectedNum)
-    ) {
-      // Fall back to exact match if not numeric
+    let matched = false;
+    let bestAbsError: number | undefined;
+    let bestRelError: number | undefined;
+    let allAltsNonNumeric = true;
+
+    for (const alt of alternativesOf(expected)) {
+      const expectedNum = this.parseNumeric(String(alt));
+      if (
+        predictedNum === null ||
+        expectedNum === null ||
+        Number.isNaN(predictedNum) ||
+        Number.isNaN(expectedNum)
+      ) {
+        continue; // this alternate is non-numeric; defer to exact-match fallback
+      }
+      allAltsNonNumeric = false;
+      const absErr = Math.abs(predictedNum - expectedNum);
+      const relErr = expectedNum !== 0 ? absErr / Math.abs(expectedNum) : 0;
+      let altMatched = predictedNum === expectedNum;
+      if (absoluteTolerance !== undefined && absErr <= absoluteTolerance) {
+        altMatched = true;
+      }
+      if (relativeTolerance !== undefined && relErr <= relativeTolerance) {
+        altMatched = true;
+      }
+      if (altMatched) matched = true;
+      if (bestAbsError === undefined || absErr < bestAbsError) {
+        bestAbsError = absErr;
+        bestRelError = relErr;
+      }
+    }
+
+    if (allAltsNonNumeric) {
+      // No alternate parsed as numeric — fall back to exact comparison so
+      // mixed-type alternates (e.g. ["N/A", 100]) still work.
       return this.exactMatch(field, predicted, expected);
-    }
-
-    const absoluteError = Math.abs(predictedNum - expectedNum);
-    const relativeError =
-      expectedNum !== 0 ? absoluteError / Math.abs(expectedNum) : 0;
-
-    let matched = predictedNum === expectedNum;
-
-    // Check absolute tolerance
-    if (absoluteTolerance !== undefined && absoluteError <= absoluteTolerance) {
-      matched = true;
-    }
-
-    // Check relative tolerance
-    if (relativeTolerance !== undefined && relativeError <= relativeTolerance) {
-      matched = true;
     }
 
     return {
@@ -395,8 +433,8 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       matched,
       predicted,
       expected,
-      absoluteError,
-      relativeError,
+      absoluteError: bestAbsError,
+      relativeError: bestRelError,
     };
   }
 
@@ -411,7 +449,8 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   }
 
   /**
-   * Date match comparison
+   * Date match comparison. When `expected` is an array of one-of alternates,
+   * predicted matches if any alternate parses to the same calendar date.
    */
   private dateMatch(
     field: string,
@@ -420,25 +459,31 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     _formats?: string[],
   ): FieldComparisonResult {
     const pCal = parseToCalendarParts(String(predicted));
-    const eCal = parseToCalendarParts(String(expected));
-
-    if (pCal === null || eCal === null) {
+    if (pCal === null) {
+      // Predicted isn't parseable as a date — fall back to exact-string match
+      // (which still honours one-of array semantics).
       return this.exactMatch(field, predicted, expected);
     }
-
-    const matched =
-      pCal.y === eCal.y && pCal.m === eCal.m && pCal.day === eCal.day;
-
-    return {
-      field,
-      matched,
-      predicted,
-      expected,
-    };
+    let matched = false;
+    let anyAltParsed = false;
+    for (const alt of alternativesOf(expected)) {
+      const eCal = parseToCalendarParts(String(alt));
+      if (eCal === null) continue;
+      anyAltParsed = true;
+      if (pCal.y === eCal.y && pCal.m === eCal.m && pCal.day === eCal.day) {
+        matched = true;
+        break;
+      }
+    }
+    if (!anyAltParsed) {
+      return this.exactMatch(field, predicted, expected);
+    }
+    return { field, matched, predicted, expected };
   }
 
   /**
-   * Boolean match comparison
+   * Boolean match comparison. When `expected` is an array, predicted matches
+   * if it equals any alternate after boolean coercion.
    */
   private booleanMatch(
     field: string,
@@ -446,16 +491,10 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     expected: unknown,
   ): FieldComparisonResult {
     const predictedBool = this.parseBoolean(predicted);
-    const expectedBool = this.parseBoolean(expected);
-
-    const matched = predictedBool === expectedBool;
-
-    return {
-      field,
-      matched,
-      predicted,
-      expected,
-    };
+    const matched = alternativesOf(expected).some(
+      (alt) => this.parseBoolean(alt) === predictedBool,
+    );
+    return { field, matched, predicted, expected };
   }
 
   /**
