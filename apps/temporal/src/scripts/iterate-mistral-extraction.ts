@@ -37,7 +37,7 @@ const SAMPLES_DIR = path.join(
   "data",
   "datasets",
   "samples-mix",
-  "private",
+  "public",
 );
 const ITERATION_DIR = path.join(
   REPO_ROOT,
@@ -82,7 +82,7 @@ interface DiffRow {
   matched: boolean;
 }
 
-function valuesEqual(a: unknown, b: unknown): boolean {
+function valuesEqualScalar(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   // Both empty/null
   const aEmpty = a === null || a === undefined || a === "";
@@ -104,6 +104,17 @@ function valuesEqual(a: unknown, b: unknown): boolean {
       .toLowerCase()
       .replace(/[\s\-_.]/g, "");
   return norm(a) === norm(b);
+}
+
+function valuesEqual(a: unknown, b: unknown): boolean {
+  // One-of array GT support — matches if predicted equals any alternate.
+  if (Array.isArray(b)) {
+    return b.some((alt) => valuesEqualScalar(a, alt));
+  }
+  if (Array.isArray(a)) {
+    return a.some((alt) => valuesEqualScalar(alt, b));
+  }
+  return valuesEqualScalar(a, b);
 }
 
 function buildDiff(
@@ -252,6 +263,32 @@ async function main(): Promise<void> {
   }
   if (promptText) {
     requestBody.document_annotation_prompt = promptText;
+  }
+
+  // OCR-3 features opt-in via env vars so the smoke-test loop can probe each
+  // one without rewriting the script. The Foundry deployment is stricter
+  // than the public Mistral API (e.g. it rejects `confidence_scores_granularity`
+  // with HTTP 422) — set these once you've confirmed Foundry accepts them.
+  //
+  //   OCR3_TABLE_FORMAT=html                  → table_format: "html"
+  //   OCR3_IMAGE_MIN_SIZE=64                  → image_min_size: 64
+  //   OCR3_IMAGE_LIMIT=8                      → image_limit: 8
+  //   OCR3_BBOX_ANNOTATION_FORMAT=1           → bbox_annotation_format derived
+  //                                             from the same schema as the
+  //                                             document annotation (small
+  //                                             typed schema is the simplest
+  //                                             credible signal for the LMM)
+  if (process.env.OCR3_TABLE_FORMAT) {
+    requestBody.table_format = process.env.OCR3_TABLE_FORMAT;
+  }
+  if (process.env.OCR3_IMAGE_MIN_SIZE) {
+    requestBody.image_min_size = Number(process.env.OCR3_IMAGE_MIN_SIZE);
+  }
+  if (process.env.OCR3_IMAGE_LIMIT) {
+    requestBody.image_limit = Number(process.env.OCR3_IMAGE_LIMIT);
+  }
+  if (process.env.OCR3_BBOX_ANNOTATION_FORMAT === "1" && annotationFormat) {
+    requestBody.bbox_annotation_format = annotationFormat;
   }
 
   // Persist the request body (with the data URL truncated for readability).
