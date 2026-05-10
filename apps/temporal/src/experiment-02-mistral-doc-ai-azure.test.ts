@@ -209,7 +209,7 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
       const graph = loadTemplate() as GraphWorkflowConfig & {
         metadata?: { targetLocalDataset?: string };
       };
-      expect(graph.metadata?.targetLocalDataset).toBe("samples-mix-private");
+      expect(graph.metadata?.targetLocalDataset).toBe("samples-mix-public");
     });
 
     it("uses the Foundry deployment id as the modelId default", () => {

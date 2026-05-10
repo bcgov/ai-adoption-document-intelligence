@@ -15,7 +15,7 @@
  *      tiny test image (1×1 PNG submitted, polled, succeeded).
  *   4. The chosen Azure OpenAI deployment is reachable + image-capable
  *      + strict-mode round-trips on a 1×1 PNG.
- *   5. The dataset version `seed-local-samples-mix-private-v1` is
+ *   5. The dataset version `seed-local-samples-mix-public-v1` is
  *      present in the DB.
  *   6. The seeded SDPR template (`seed-sdpr-monthly-report-template`)
  *      has a populated `field_schema`.
@@ -50,7 +50,7 @@ for (const p of candidates) {
 }
 
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
-const DATASET_VERSION_ID = "seed-local-samples-mix-private-v1";
+const DATASET_VERSION_ID = "seed-local-samples-mix-public-v1";
 const MIN_API_VERSION = "2024-12-01-preview";
 // 1×1 white PNG — small enough for the VLM probe (it doesn't care
 // about image dimensions for a "describe the image" prompt).
