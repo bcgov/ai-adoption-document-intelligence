@@ -21,6 +21,11 @@ export type {
   AzureClassifySubmitOutput,
 } from "./activities/azure-classify-submit";
 export { azureClassifySubmit } from "./activities/azure-classify-submit";
+export type {
+  AzureOcrReadPlainParams,
+  AzureOcrReadPlainResult,
+} from "./activities/azure-di-read-plain";
+export { azureDiReadPlain } from "./activities/azure-di-read-plain";
 export type { BenchmarkBaselineComparisonInput } from "./activities/benchmark-baseline-comparison";
 export { benchmarkCompareAgainstBaseline } from "./activities/benchmark-baseline-comparison";
 export type { BenchmarkCleanupInput } from "./activities/benchmark-cleanup";
@@ -140,3 +145,8 @@ export type {
   VlmDirectExtractResult,
 } from "./ocr-providers/vlm-direct/vlm-direct-extract";
 export { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
+export type {
+  VlmHybridExtractParams,
+  VlmHybridExtractResult,
+} from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";
+export { vlmHybridExtract } from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";
