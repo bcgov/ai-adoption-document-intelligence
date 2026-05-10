@@ -169,26 +169,35 @@ PRE-EMPTIVE LESSONS FROM E03 (apply these from day 1):
       surprised when biome reformats files outside your changeset on
       commit. Pure formatting fixes are fine to include.
 
-SCOPE (the brief has 10 explicit tasks). Three are non-obvious:
+SCOPE (the brief has 10 explicit tasks; per the SCOPE REDUCTION at the
+top of this prompt, only the single-pass + gpt-5.4 path is in scope —
+two non-obvious bits remain):
 
-  - Task 1 (PDF→image rendering): use `pdf2pic` (server-side) or
-    `pdfjs-dist` + sharp. The activity is per-document and emits one
-    JPEG per page. 200 DPI default; document if higher is needed.
-    Register as `pdf.renderToImages` in all three activity registries
-    (per E03's lesson: register everywhere).
+  - Task 1 (PDF→image rendering): **SKIP THE STANDALONE ACTIVITY.**
+    All 40 samples in seed-local-samples-mix-private-v1 are JPEGs;
+    nothing in this benchmark exercises a PDF render. Instead, add a
+    runtime guard at the top of the VLM-direct activity:
+        if (fileData.fileType === "pdf") {
+          throw new Error("VLM-direct currently supports image inputs only;
+            PDF rendering deferred to a follow-up experiment. See E04
+            SUMMARY.md for context.");
+        }
+    Document the deferral explicitly in SUMMARY.md ("Gaps") so the
+    contract stays honest. Production-PDF support gets added when there's
+    an actual workload that needs it (or by E05's hybrid). Saves ~30-45
+    minutes + a new dependency (pdf2pic / pdfjs-dist + sharp) that no
+    sample triggers.
 
   - Task 2 (provider folder): prompt-builder + activity + mapper. The
     activity calls Azure OpenAI's chat completions. Keep the response_
     format strict + sourceQuote per field as a hallucination guard
     (the brief flags this).
 
-  - Task 5 (3 workflow JSON variants): each variant is a separate JSON
-    file under templates/. Auto-discovery picks them up — each becomes
-    its own BenchmarkDefinition. Tag the per-variant runs distinctly
-    in the trigger script's `tags` (e.g.
-    `experiment-04-vlm-direct-cot-gpt-5`). The poll script saves
-    per-variant exports to experiments/results/04-vlm-direct/
-    benchmark-run-{variant}-{model}.json.
+  - Task 5 (workflow JSON): **SINGLE workflow JSON only**, not three.
+    Auto-discovery picks it up — becomes its own BenchmarkDefinition.
+    Tag the run as `experiment-04-vlm-direct-gpt-5.4`. The poll script
+    saves the export to experiments/results/04-vlm-direct/
+    benchmark-run.json.
 
 DO NOT touch:
   - apps/temporal/src/ocr-providers/{mistral,mistral-azure,azure-content-
@@ -200,28 +209,29 @@ DO NOT touch:
   - .env override files
   - CLAUDE.md, _shared-rules.md, other experiment briefs
 
-TYPICAL FLOW (~3-5 hours wall, depending on iteration):
-  1. preflight-vlm.ts (15 min) — confirm prereqs
-  2. Capture a fixture from one real call (15 min)
-  3. Write provider files: prompt-builder, activity, mapper (60 min)
-  4. Register activities in 3 registries + activities.ts re-export
-  5. Write iterate-vlm-extraction.ts (30 min, lifted from
+TYPICAL FLOW (~1.5-2 hours wallclock, scoped-down version):
+  1. preflight-vlm.ts (15 min) — confirm prereqs (incl. gpt-5.4 deployed)
+  2. Capture a fixture from one real call to gpt-5.4 (10 min)
+  3. Write provider files: prompt-builder, activity (with PDF guard),
+     mapper (45 min)
+  4. Register activity in 3 registries + activities.ts re-export
+  5. Write iterate-vlm-extraction.ts (20 min, lifted from
      iterate-cu-extraction.ts)
-  6. Iterate on synth-full (1) until ≥ 95% per-field accuracy (15-30 min)
-  7. Build 3 workflow JSON variants (20 min)
+  6. Iterate on synth-full (1) until ≥ 95% per-field accuracy (15 min)
+  7. Build SINGLE workflow JSON (10 min)
   8. Embed iteration kit content into workflow JSON, npm run test:db:reset
-  9. Trigger benchmark variant×model matrix (~10 min × 6 = 60 min if
-     done sequentially; can run in parallel if quota allows)
-  10. Capture per-sample fixture from cache (5 min)
-  11. Write tests (60 min)
-  12. Write SUMMARY.md (30 min on top of skeleton)
+  9. Trigger benchmark on gpt-5.4 (~5-10 min wallclock at capacity 100)
+  10. Capture per-sample fixture from cache (2 min)
+  11. Write tests (40 min) — same 3-layer pattern as E03 but smaller
+      (no variant matrix to assert)
+  12. Write SUMMARY.md (20 min on top of skeleton)
   13. Commit on experiment/04-vlm-direct
   14. STOP — E05 will branch from your tip in a separate session.
 
 When done, verify:
   - All 12 EXTRACTION_EXPERIMENTS.md checklist items have ✅ or
-    documented ⚠ for E04
-  - benchmark-run-{variant}-{model}.json saved for each cell
+    documented ⚠ for E04 (the "PDF support" row will be ⚠ — deferred)
+  - benchmark-run.json saved
   - benchmark_ocr_cache populated (run the cache-row count assertion)
   - Tests pass: cd apps/temporal && CI=true npx jest src/experiment-04
     src/ocr-providers/vlm-direct/
