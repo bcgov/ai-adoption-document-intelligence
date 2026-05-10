@@ -1,10 +1,11 @@
 # E02 — Mistral Document AI on Azure AI Foundry — Results
 
-**Branch**: `experiment/02-mistral-doc-ai-azure` (chained on `experiment/01-neural-doc-intelligence`)
+**Branch**: `experiment/02-mistral-doc-ai-azure` (chained on `experiment/01-neural-doc-intelligence`); strict re-evaluation continued on `improve/01-strict-eval-and-mistral-tune`.
 **Foundry deployment**: `mistral-document-ai-2512` on `strukalex-8338-resource` (eastus2), GlobalStandard SKU
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json)
 **Provider doc**: [`docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md`](../../../docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md)
-**Dataset**: `seed-local-samples-mix-private-v1` (33 samples)
+**Dataset**: `seed-local-samples-mix-private-v1` (40 samples; force-resynced on the improve branch so the canonical run sees the latest local label corrections)
+**Current canonical run** ([`benchmark-run.json`](benchmark-run.json)): `2185d532-0e27-4cb5-b756-b577446e4e22` — strict-evaluated under `defaultRule: { rule: "exact" }`, format-preservation prompt active.
 
 ## Endpoint, auth, request/response shape
 
@@ -42,7 +43,109 @@ The default GlobalStandard deployment is **10 RPM**. The 33-sample benchmark fan
 
 The brief asked us to populate per-word/per-line polygons in the canonical mapper. **Mistral OCR does not return per-word or per-line bounding boxes** — only embedded-image bboxes via `pages[].images[]` (charts/figures). This holds on both the public API and the Foundry deployment. The mapper change in this branch is still correct: it now populates polygons from any per-word `bbox` corners *if present*, with the existing behavior (empty polygons synthesized from markdown) as the documented fallback. Verified by mapper-level unit tests with synthetic bbox input. **In production traffic against Mistral, polygons stay empty** — this isn't a deployment misconfiguration, it's the engine's actual response shape. The brief's preamble overstated what Mistral returns.
 
-## Real-API benchmark run
+## Strict-equality re-evaluation + improvement loop (improve/01)
+
+The first improvement branch off `experiment/05-vlm-ocr-hybrid` switched the
+shared evaluator config from `defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 }`
+to `defaultRule: { rule: "exact" }` ([`apps/shared/prisma/seed.ts:2044-2062`](../../../apps/shared/prisma/seed.ts#L2044-L2062))
+per [POST_BENCHMARK_FOLLOWUPS](../../POST_BENCHMARK_FOLLOWUPS.md) item 1, then
+re-ran E02 alone (other engines stay fuzzy until their own improve branches).
+The dataset was force-resynced between the fuzzy era and this run, so the
+strict numbers also reflect upstream label corrections, not just the rule
+change.
+
+| | Fuzzy@0.85 (canonical) | Strict baseline (no prompt change) | Strict + format-preservation prompt (current canonical) |
+|---|---|---|---|
+| Run id | `1b97de43-b06d-44da-a3ae-659340ea255f` | `b26d8cc2-8620-408d-ac3a-090bb9d1b695` | `2185d532-0e27-4cb5-b756-b577446e4e22` |
+| `pass_rate` | 0.875 | 0.900 | **0.825** |
+| `f1.median` | 0.943 | 0.950 | **0.950** |
+| `f1.mean` | 0.907 | 0.934 | **0.911** |
+| `f1.min` | 0.598 | 0.679 | 0.654 |
+| `precision.mean` | 0.975 | 1.000 | 0.993 |
+| `recall.mean` | 0.864 | 0.884 | 0.853 |
+| `matchedFields.median` | 66 | 66.5 | 66.0 |
+| `falsePositives.mean` | 1.25 | 0.00 | 0.40 |
+
+The strict baseline came in *better* than the fuzzy era on every aggregate — a
+counterintuitive result driven by upstream label corrections (force-resynced
+dataset) outpacing the strict rule's tighter threshold. The two effects roughly
+cancel, with corrections dominating slightly.
+
+### Round 1 — format-preservation prompt + global-prompt rule consolidation
+
+Round 1 rewrote the iteration kit ([`iteration/prompt.md`](iteration/prompt.md), [`iteration/field-descriptions.json`](iteration/field-descriptions.json), and the workflow JSON's `mistralAzureOcr.parameters`) along three axes informed by the [aggregate per-field analysis](iteration/CHANGELOG.md#strict-baseline-reference-phase-2--no-prompt-change) and the web-research agent's [Mistral Document AI prompting guidance](iteration/CHANGELOG.md#web-research-findings-pre-iteration-informs-the-loop):
+
+1. **Multi-rule guidance moved into the global prompt** as XML-tagged sections (`<form_layout>`, `<numeric_income_rules>`, `<checkbox_rules>`, `<text_field_rules>`, `<scope>`). Per-field descriptions (especially the 36 income fields) collapsed to one-liner keyword anchors, removing 36 repetitions of the same blank-vs-zero paragraph. Mistral's annotation pass is a vision LMM seeing OCR markdown, not a long-context LLM — long descriptions compete with the OCR text for attention ([Mistral prompting](https://docs.mistral.ai/capabilities/completion/prompting_capabilities)).
+2. **Format-preservation rules** for `sin`, `phone`, `date`, `name`, `signature`, and `explain_changes` — the engine returns whatever is on the form character-for-character, with no normalisation (no SIN hyphen-stripping, no date ISO-conversion, no signature defaulting to `""`).
+3. **Tighter blank-vs-zero rules** on numeric income fields, with explicit "do not infer 0 from context" + "if you can see no marks in the entire spouse column, prefer null" guards added after the first smoke test showed the model over-applying zero in genuinely blank columns.
+
+Smoke tests (script: [`apps/temporal/src/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts), ~14 s / sample):
+
+| sample | strict-baseline matched | round-1 matched | Δ | comment |
+|---|---|---|---|---|
+| `Fake 7` | 51 | 69 | **+18** | format wins on `sin`, `date`; spouse blanks correctly stay null |
+| `manual sample (6)` | 56 | 71 | **+15** | hyphenated SIN preserved, form-format date preserved, checkbox over-detection gone |
+| `1 81` | 66 | 66 | 0 | no net change (signature now extracts an "X" mark; date day-month swap on the synthetic format) |
+
+The smoke set was biased toward samples with known format issues. The full
+benchmark surfaced regressions on samples whose GT *had been normalised* by the
+labelers (HR0081 series uses ISO dates and stripped SINs; synth-regular GT uses
+`null` for income blanks). Round 1's "preserve form-as-written" prompt won
+those samples on the form side but lost them on the GT-comparison side.
+
+Per-sample comparison vs strict baseline:
+
+| | Top regressions (Δ f1 < 0) | Top improvements (Δ f1 > 0) |
+|---|---|---|
+| | `HR0081 (5)` 0.993 → 0.655 (sin/date format, all-spouse-zeros) | `HR0081 (10)` 0.679 → **0.965** (handwritten zeros now read) |
+| | `manual sample (2)` 0.972 → 0.679 (all-spouse-zeros + signature/name now-extracted) | `81 coffee` 0.929 → 0.921 (was already passing) |
+| | `synth-regular (3)` 1.000 → 0.729 (sin/date format, all-zeros) | `manual sample (6)` 0.862 → **0.979** (sin/date wins) |
+| | `synth-regular (1)` 0.986 → 0.735 (all-zeros) | `Fake 7` 0.816 → 0.825 (format wins) |
+| | `2 81` 0.986 → 0.853 (sin format) | `manual sample (10)` 0.935 → 0.986 |
+| | total: 21 samples regressed, sum Δ f1 = **−1.526** | total: 11 samples improved, sum Δ f1 = **+0.598** |
+
+### Decision: keep round 1 as canonical; defer GT cleanup
+
+Per direct user input during the loop: the engine returning *what is actually
+written on the form* is the preferred semantic. The aggregate regression is a
+ground-truth-vs-engine-convention disagreement, not an engine-quality
+regression. Resolving it is a follow-up dataset-cleanup task — labels on
+HR0081 / synth-regular series will be adjusted to match form-as-written
+(hyphenated SINs, form-format dates, visible "0" marks read as `0`), at
+which point the round-1 metrics should rebound past the strict-baseline
+numbers and approach the smoke-test ceiling (~93% per-sample matched on the
+samples we tested individually).
+
+The loop terminated after one round by user direction. Convergence rationale:
+
+- The dominant remaining error categories under strict equality are
+  GT-labelling inconsistency, sentinel-token GT (`":present:"`,
+  `"KEY PLAYER MISSING"`, `":garbled:"`), and engine-OCR character misreads
+  (`P↔F`, `3↔7`) — none prompt-fixable.
+- Any prompt that flips behaviour on one labelling convention regresses
+  samples on the other (the round 1 trade-off).
+- User-stated preference: clean GT to the form, not the engine to the GT.
+
+**`81 blank` and `81 coffee` are excluded from the iteration set** as
+intentionally-obscured / blank forms that bottomed every prior experiment too
+(documented in the iteration framing at session start). They sit at f1 0.770
+and 0.921 respectively under round-1 prompts and are noted here so the reader
+knows they were intentionally not iterated against.
+
+OCR-3 features the research agent suggested (`table_format: "html"`,
+`bbox_annotation_format`, `image_min_size`/`image_limit`, Unicode checkbox
+glyphs `☐`/`☑` in the prompt) are NOT applied on this branch. They would
+require activity-side code changes (new fields in the
+`mistralAzureOcrProcess` request body) and a clean re-eval window post-GT
+cleanup to be measured fairly. Tracked for a future
+`improve/<NN>-mistral-ocr3-features` branch.
+
+### Iteration changelog
+
+Full per-iteration log including web-research findings, smoke-test deltas, and
+intermediate prompt versions is at [`iteration/CHANGELOG.md`](iteration/CHANGELOG.md).
+
+## Real-API benchmark run (historical fuzzy-era reference)
 
 | field | value |
 |---|---|

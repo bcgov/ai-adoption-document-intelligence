@@ -2043,7 +2043,7 @@ async function seedExperimentWorkflows() {
         workflowConfigHash: `seed-${slug}`,
         evaluatorType: "schema-aware",
         evaluatorConfig: {
-          defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 },
+          defaultRule: { rule: "exact" },
           passThreshold: 0.8,
         },
         runtimeSettings: { timeout: 600, retries: 2 },
@@ -2057,7 +2057,7 @@ async function seedExperimentWorkflows() {
         workflowConfigHash: `seed-${slug}`,
         evaluatorType: "schema-aware",
         evaluatorConfig: {
-          defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 },
+          defaultRule: { rule: "exact" },
           passThreshold: 0.8,
         },
         runtimeSettings: { timeout: 600, retries: 2 },
