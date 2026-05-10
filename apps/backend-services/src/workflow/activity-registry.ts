@@ -35,6 +35,14 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Mistral Document AI on Azure AI Foundry (sync) with optional document annotation",
     },
+    "azureContentUnderstanding.deployAnalyzer": {
+      description:
+        "Deploy (idempotent PUT) an Azure Content Understanding analyzer derived from a TemplateModel field schema",
+    },
+    "azureContentUnderstanding.analyze": {
+      description:
+        "Azure Content Understanding analyze (async; polls until terminal); deploys analyzer first if a template schema is supplied",
+    },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {
       description: "Enrich OCR results using field schema and optional LLM",

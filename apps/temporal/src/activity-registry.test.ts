@@ -14,6 +14,8 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.checkConfidence",
   "mistralOcr.process",
   "mistralAzureOcr.process",
+  "azureContentUnderstanding.deployAnalyzer",
+  "azureContentUnderstanding.analyze",
   "ocr.storeResults",
   "document.storeRejection",
   "getWorkflowGraphConfig",
