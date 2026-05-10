@@ -110,20 +110,30 @@ Aggregated metrics ([`experiments/results/05-vlm-ocr-hybrid/benchmark-run.json`]
 
 ### Cross-experiment comparison (E01–E05)
 
-E01 ran on the original 33-sample dataset before the synth-* alignment fix; E02–E05 ran on the corrected 40-sample dataset. **All five experiments are evaluated by the identical `schema-aware` + `fuzzy@0.85` + `passThreshold: 0.8` rule** ([`apps/shared/prisma/seed.ts:2044-2062`](../../../apps/shared/prisma/seed.ts#L2044-L2062)). The comparison is apples-to-apples; a stricter view (re-evaluation under `rule: "exact"`) is tracked as an explicit follow-up in [POST_BENCHMARK_FOLLOWUPS.md](../../POST_BENCHMARK_FOLLOWUPS.md) item 1.
+E01 ran on the original 33-sample dataset before the synth-* alignment fix; E02–E05 ran on the corrected 40-sample dataset. **E01, E03, E04, and E05 are evaluated under `schema-aware` + `fuzzy@0.85` + `passThreshold: 0.8`. E02 has been re-run under `rule: "exact"` on the [improve/01-strict-eval-and-mistral-tune](../02-mistral-doc-ai-azure/SUMMARY.md#strict-equality-re-evaluation--improvement-loop-improve01) branch and the row below reflects the strict numbers** — the rule itself was changed in [`apps/shared/prisma/seed.ts:2044-2062`](../../../apps/shared/prisma/seed.ts#L2044-L2062) on that branch and the other four engines will follow in subsequent `improve/<NN>-` branches per [POST_BENCHMARK_FOLLOWUPS.md](../../POST_BENCHMARK_FOLLOWUPS.md) item 1.
 
-| | E01 (33s, Neural DI) | E02 (40s, Mistral on Foundry) | E03 (40s, Azure CU + gpt-5.2) | E04 (40s, gpt-5.4 VLM-direct) | **E05 (40s, gpt-5.4 VLM + OCR hybrid)** |
+| | E01 (33s, Neural DI, fuzzy) | E02 (40s, Mistral on Foundry, **strict**) | E03 (40s, Azure CU + gpt-5.2, fuzzy) | E04 (40s, gpt-5.4 VLM-direct, fuzzy) | **E05 (40s, gpt-5.4 VLM + OCR hybrid, fuzzy)** |
 |---|---|---|---|---|---|
-| `pass_rate` | 0.515 | 0.875 | 0.95 | 0.925 | **0.975** |
-| `f1.median` | 0.806 | 0.943 | 0.965 | 0.943 | **0.965** (tied with CU) |
-| `f1.mean` | 0.683 | 0.907 | 0.927 | 0.911 | **0.941** |
-| `precision.mean` | 0.899 | 0.975 | 0.975 | 0.972 | **0.976** |
-| `recall.mean` | 0.587 | 0.864 | 0.903 | 0.864 | **0.917** |
-| `matchedFields.median` | 50 (of 74) | 66 (of 74) | 69 (of 74) | 66 (of 74) | **69 (of 74)** (tied with CU) |
-| `falsePositives.mean` | 0 | 1.25 | 1.25 | 1.25 | 1.25 |
+| `pass_rate` | 0.515 | 0.825 ¹ | 0.95 | 0.925 | **0.975** |
+| `f1.median` | 0.806 | 0.950 ¹ | 0.965 | 0.943 | **0.965** (tied with CU) |
+| `f1.mean` | 0.683 | 0.911 ¹ | 0.927 | 0.911 | **0.941** |
+| `precision.mean` | 0.899 | 0.993 ¹ | 0.975 | 0.972 | **0.976** |
+| `recall.mean` | 0.587 | 0.853 ¹ | 0.903 | 0.864 | **0.917** |
+| `matchedFields.median` | 50 (of 74) | 66.0 (of 74) ¹ | 69 (of 74) | 66 (of 74) | **69 (of 74)** (tied with CU) |
+| `falsePositives.mean` | 0 | 0.40 ¹ | 1.25 | 1.25 | 1.25 |
 | Wallclock / sample | ~2.5 s | ~7.3 s | ~22 s | ~5.8 s | ~6.8 s wallclock (parallel) / ~22 s serial |
 
-**Caveat: every cell above is computed under the `fuzzy@0.85` evaluator — close-but-not-exact OCR misreads (`2326.4` vs `2326.47`) score as matched. The strict-equality re-evaluation is a single follow-up script away (no paid calls; reads the preserved per-pair `similarity` from each `benchmark-run.json`); see [POST_BENCHMARK_FOLLOWUPS.md](../../POST_BENCHMARK_FOLLOWUPS.md) item 1. Initial estimate (from E04's per-sample distribution): the rank order stays the same; the gap between E03/E05 and E04/E02 widens slightly under strict equality because hybrid + CU both benefit from a dedicated OCR layer that transcribes digits exactly more often.**
+¹ E02 row is strict-evaluated AND uses the round-1 format-preservation prompt
+from `improve/01-strict-eval-and-mistral-tune`. The aggregate pass_rate /
+recall.mean / matchedFields drops vs the fuzzy-era E02 row reflect a
+ground-truth-vs-engine-convention disagreement (some labels normalised SINs
+and dates while the round-1 prompt preserves form-format), not engine quality.
+Resolution is GT cleanup, tracked separately. Pre-prompt-change strict
+baseline numbers (preserved for reference): pass_rate 0.900, f1.median 0.950,
+f1.mean 0.934, precision.mean 1.000, matchedFields.median 66.5,
+falsePositives.mean 0. See [E02 SUMMARY § Strict-equality re-evaluation](../02-mistral-doc-ai-azure/SUMMARY.md#strict-equality-re-evaluation--improvement-loop-improve01) for the full per-sample breakdown.
+
+**Caveat: cells in the E01/E03/E04/E05 columns are still computed under the `fuzzy@0.85` evaluator — close-but-not-exact OCR misreads (`2326.4` vs `2326.47`) score as matched there. Each engine's strict re-evaluation will land in its own `improve/` branch (E02 was first); see [POST_BENCHMARK_FOLLOWUPS.md](../../POST_BENCHMARK_FOLLOWUPS.md) item 1. The seed config is now `rule: "exact"` so any benchmark re-trigger from `improve/01-...` onward measures against strict — running the other four engines without bringing them onto an improve branch first would mix this strict eval with their unconverged prompts.**
 
 E05's headline finding: **the hybrid is the best (or tied-best) on every aggregate metric.** It matches CU on `f1.median` and `matchedFields.median` (the two metrics where CU led the previous four experiments), beats it on `f1.mean` (+1.4 pp), `precision.mean` (+0.1 pp), `recall.mean` (+1.4 pp), and `pass_rate` (+2.5 pp = +1 sample). The single failing sample is `81 coffee` (F1 0.750), which is the same edge case (intentionally obscured/blacked-out form) that bottomed every other experiment too.
 
