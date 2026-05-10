@@ -207,7 +207,7 @@ describe("Experiment 03 — Azure Content Understanding workflow template (stati
       const graph = loadTemplate() as GraphWorkflowConfig & {
         metadata?: { targetLocalDataset?: string };
       };
-      expect(graph.metadata?.targetLocalDataset).toBe("samples-mix-private");
+      expect(graph.metadata?.targetLocalDataset).toBe("samples-mix-public");
     });
 
     it("entry node is prepareFileData", () => {

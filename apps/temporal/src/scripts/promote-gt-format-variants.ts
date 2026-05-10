@@ -45,7 +45,7 @@
  *     src/scripts/promote-gt-format-variants.ts <slug> --write
  *
  *   # Override the dataset folder (default detects from the workflow JSON's
- *   # metadata.targetLocalDataset, falling back to samples-mix/private).
+ *   # metadata.targetLocalDataset, falling back to samples-mix/public).
  *   npx tsx -r tsconfig-paths/register \
  *     src/scripts/promote-gt-format-variants.ts <slug> --write \
  *     --dataset-dir data/datasets/samples-mix/public
@@ -137,7 +137,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 
   // Resolve dataset dir from the workflow JSON's metadata.targetLocalDataset
-  // (format "<folder>-<visibility>"), falling back to samples-mix/private if
+  // (format "<folder>-<visibility>"), falling back to samples-mix/public if
   // the JSON or field is missing. Override with --dataset-dir.
   let datasetDir: string;
   if (datasetDirOverride) {
@@ -151,7 +151,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       `experiment-${slug}-workflow.json`,
     );
     let folder = "samples-mix";
-    let visibility = "private";
+    let visibility = "public";
     if (fs.existsSync(workflowPath)) {
       const wf = JSON.parse(
         fs.readFileSync(workflowPath, "utf-8"),
