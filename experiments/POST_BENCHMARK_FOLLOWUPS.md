@@ -17,6 +17,11 @@ Tasks that cut across all five experiments — defer until E05 lands and the cha
 
 The raw `similarity`, `predicted`, `expected`, `confidence` values are preserved per evaluation pair — re-evaluation only needs to recompute `matched` and the aggregates downstream of it. **No re-running the model.**
 
+**Tooling for the per-improve-branch loop**:
+
+- `apps/temporal/src/scripts/dump-errors-for-gt-cleanup.ts <slug>` — reads `experiments/results/<slug>/benchmark-run.json` and writes a per-sample mismatch table to `experiments/results/<slug>/iteration/errors-for-gt-cleanup.md`. Sorted by ascending F1 so the worst samples land at the top. Each row pairs the engine's prediction (i.e. what's actually written on the form) with the current GT, so dataset-cleanup passes can scan and either edit GT or promote it to a one-of array (`["original", "predicted-variant"]`) using the evaluator's array-GT support. Pure data-munging — no env loading, no DB, no network. Safe to run any time after a benchmark export lands. See the script's header comment for flags (`--known-hard "id1,id2"`, `--out <path>`).
+- `apps/temporal/src/scripts/promote-gt-format-variants.ts <slug>` — auto-detects pure format-variant mismatches on `sin` / `*sin` / `date` / `*date` / `phone` / `*phone` fields where the engine's prediction has the same digits / same calendar date as the current GT and promotes the GT to a one-of `[<original>, <engine-form>]`. Skips fields where the digits differ (genuine OCR misreads) and sentinel-token GT (e.g. `":present:"`).
+
 **Chosen path: Option A — re-run the benchmarks under a tighter rule** (one experiment at a time on the `improve/` stack):
 
 ```ts
