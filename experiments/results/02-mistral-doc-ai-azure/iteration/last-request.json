@@ -2,7 +2,7 @@
   "model": "mistral-document-ai-2512",
   "document": {
     "type": "document_url",
-    "document_url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAAMCAgMCA…[truncated, 1552119 chars total]"
+    "document_url": "data:image/jpeg;base64,/9j/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEB…[truncated, 1734459 chars total]"
   },
   "document_annotation_format": {
     "type": "json_schema",
