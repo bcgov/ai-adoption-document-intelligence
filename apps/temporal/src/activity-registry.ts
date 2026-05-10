@@ -54,6 +54,7 @@ import { splitAndClassifyDocument } from "./activities/split-and-classify-docume
 import { splitDocument } from "./activities/split-document";
 import { tablesLookup } from "./activities/tables-lookup";
 import type { RetryPolicy } from "./graph-workflow-types";
+import { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -186,6 +187,25 @@ register({
   },
   description:
     "Azure Content Understanding analyze (async, polls until terminal); deploys analyzer first if a template schema is supplied",
+});
+
+register({
+  activityType: "vlmDirect.extract",
+  activityFn: vlmDirectExtract as (...args: unknown[]) => Promise<unknown>,
+  // Vision chat-completions on gpt-5.x is rate-limited at the deployment
+  // level (default 100K TPM at GlobalStandard capacity 100; ~10 calls/min
+  // for a 200-DPI form image at ~10K input tokens/call). Apply the same
+  // 30 attempts × 15 s × 1.5x × 60 s cap retry shape we use for the other
+  // Foundry-quota-gated activities.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "VLM-direct extraction (Azure OpenAI chat completions with vision input + strict JSON schema response_format)",
 });
 
 register({
