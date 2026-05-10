@@ -38,6 +38,7 @@ import {
 } from "./activities";
 import { azureClassifyPoll } from "./activities/azure-classify-poll";
 import { azureClassifySubmit } from "./activities/azure-classify-submit";
+import { azureDiReadPlain } from "./activities/azure-di-read-plain";
 import { blobRead } from "./activities/blob-read";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
@@ -56,6 +57,7 @@ import { splitDocument } from "./activities/split-document";
 import { tablesLookup } from "./activities/tables-lookup";
 import type { RetryPolicy } from "./graph-workflow-types";
 import { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
+import { vlmHybridExtract } from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -207,6 +209,40 @@ register({
   },
   description:
     "VLM-direct extraction (Azure OpenAI chat completions with vision input + strict JSON schema response_format)",
+});
+
+register({
+  activityType: "vlmOcrHybrid.extract",
+  activityFn: vlmHybridExtract as (...args: unknown[]) => Promise<unknown>,
+  // Same retry shape as vlmDirect.extract — the bottleneck is the same
+  // Azure OpenAI deployment quota. The DI read-plain leg upstream owns
+  // its own (lighter) retry policy.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
+});
+
+register({
+  activityType: "azureOcr.readPlain",
+  activityFn: azureDiReadPlain as (...args: unknown[]) => Promise<unknown>,
+  // Sync wrapper around DI prebuilt-layout submit + poll. Single-page
+  // wallclock is ~1–3 s; allow generous startToClose for multi-page
+  // documents and DI cold starts.
+  defaultTimeout: "10m",
+  defaultRetry: {
+    maximumAttempts: 5,
+    initialInterval: "5s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "30s",
+  },
+  description:
+    "Azure DI prebuilt-layout (markdown content + per-line/per-word polygons; no field extraction). Sync submit+poll wrapper for the VLM hybrid pre-pass.",
 });
 
 register({

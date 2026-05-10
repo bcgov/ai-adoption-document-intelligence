@@ -27,7 +27,7 @@ develop
 | E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ✅ implemented + tuned + live benchmark on aligned 40-sample dataset (f1.median 0.943, f1.mean 0.907, pass_rate 0.875 = 35/40) | `experiment-02-mistral-doc-ai-azure` |
 | E03 — Azure Content Understanding | `experiment/03-content-understanding` | ✅ implemented + tuned + live benchmark on aligned 40-sample dataset (f1.median 0.965, f1.mean 0.927, pass_rate 0.95 = 38/40) | `experiment-03-content-understanding` |
 | E04 — VLM-direct (single-pass, gpt-5.4) | `experiment/04-vlm-direct` | ✅ implemented + benchmark on 40-sample dataset (f1.median 0.943, f1.mean 0.911, pass_rate 0.925 = 37/40). Scope reduced to variant 1 + gpt-5.4 only; cot/self-consistency/4o/5/5.5 deferred. | `experiment-04-vlm-direct` |
-| E05 — VLM + OCR hybrid | `experiment/05-vlm-ocr-hybrid` | ⏳ pending | `experiment-05-hybrid-{variant}-{model}` |
+| E05 — VLM + OCR hybrid (gpt-5.4) | `experiment/05-vlm-ocr-hybrid` | ✅ implemented + benchmark on 40-sample dataset (f1.median 0.965, f1.mean 0.941, pass_rate 0.975 = 39/40). Scope reduced to variant 1 (image + OCR markdown) + gpt-5.4 only; variants 2/3 + gpt-4o/gpt-5 deferred. | `experiment-05-vlm-ocr-hybrid` |
 
 ## How to run an experiment
 
@@ -163,9 +163,22 @@ Each experiment fills in this 12-item checklist as part of its work. See `experi
 | 11 | Benchmark integration | ✅ | Auto-discovered from JSON template; `seed-experiment-04-vlm-direct-definition` seeded against `seed-local-samples-mix-private-v1`. Trigger via `./scripts/run-experiment-benchmarks.sh 04` or `npx tsx src/scripts/trigger-experiment-benchmark.ts 04`. |
 | 12 | Cost/usage telemetry | ⏳ | Activity logs `usage.{prompt_tokens, completion_tokens, total_tokens}` per call. Cross-engine cost normalisation deferred to the post-E05 follow-up. |
 
-### E05 — VLM + OCR hybrid
+### E05 — VLM + OCR hybrid (gpt-5.4)
 
-(Same template; filled during the experiment.)
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 1 | Map engine output to canonical `OCRResult` | ✅ | `apps/temporal/src/ocr-providers/vlm-ocr-hybrid/vlm-hybrid-to-ocr-result.ts`; reuses E04's structured-fields path then overrides `pages[]` / `paragraphs[]` / `tables[]` from the upstream DI prebuilt-layout response so word/line polygons survive into `OCRResult` (a genuine improvement over E04). `documents[0].docType = "vlm-ocr-hybrid"`. |
+| 2 | Activity-type registration | ✅ | Two new types: `azureOcr.readPlain` (DI prebuilt-layout sync wrapper) + `vlmOcrHybrid.extract`. Both registered in all three registries (runtime function, workflow-safe constant, backend allow-list). VLM activity uses the same 30 attempts × 15 s × 1.5x × 60 s cap retry as `vlmDirect.extract`; DI activity uses a lighter 5 attempts × 5 s × 1.5x × 30 s cap (sync wrapper, no quota fan-out). |
+| 3 | Field schema → engine format | ✅ | `vlm-hybrid-prompt-builder.ts` delegates to E04's `buildVlmExtractionRequest` for the strict-mode JSON Schema (identical shape) and overrides only the messages: hybrid system preamble + image + OCR markdown wrapped in `<ocr_text>` delimiters. Trust hierarchy ("prefer the image when image and OCR text disagree") is encoded in both the system prompt and the user directive. |
+| 4 | Confidence values 0–1 | ⚠️ | Inherits E04's bimodal 0.95/0.50 evidence-based confidence (source_quote presence). Hybrid does **not** synthesise per-word confidence from the DI layout (those values exist on `pages[].words[].confidence` after the layout copy, but the canonical mean is still computed from the structured-fields evidence signal). Re-calibration deferred. |
+| 5 | Bounding-box convention | ✅ | `OCRResult.pages[].words[].polygon` and `pages[].lines[].polygon` are populated from DI prebuilt-layout (inches at API `2024-11-30`, top-left origin). The `ocr-to-markdown.ts` converter normalises to 0–1 page-relative when bbox annotations are enabled. Closes the gap E04 documented as "VLM-direct returns no per-word/per-line polygons." |
+| 6 | Page indexing | ✅ | `OCRResult.pages[*].pageNumber` is 1-indexed (matches DI). Multi-page support is structurally there in `ocrLayoutToMarkdown` (page separators) but un-exercised on the canonical single-page dataset. |
+| 7 | Auth & endpoint via env vars | ✅ | Two engines: `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` + `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` (DI; reused from E01) and `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_DEPLOYMENT` + `AZURE_OPENAI_API_VERSION` (Azure OpenAI; reused from E04). No new env vars. **Pre-flight**: `preflight-hybrid.ts` validates env + DI markdown round-trip on a 60×60 PNG + Azure OpenAI strict-mode round-trip on a 1×1 PNG before any paid call. |
+| 8 | Workflow graph | ✅ | `experiment-05-vlm-ocr-hybrid-workflow.json` (sync chain: `prepareFileData → azureDiReadPlain → vlmOcrHybridExtract → cleanup → checkConfidence → reviewSwitch → humanReview/storeResults`). The DI step's `layoutResponse` output port wires into the hybrid step's `layoutResponse` input port via ctx. Auto-discovered by `seedExperimentWorkflows()`. |
+| 9 | Engine-internal preprocessing | ✅ | DI prebuilt-layout owns its own deskew/rotate/OCR pre-processing internally; Azure OpenAI vision applies its own image normalisation. Upstream `pdf-normalization.service.ts` is **bypassed** because the activity throws on PDF inputs (deferred to a follow-up; canonical dataset is 100% JPEG). |
+| 10 | Test coverage | ✅ | `experiment-05-vlm-ocr-hybrid.test.ts` — 18 static + scope + chain-wiring + trust-hierarchy stress test + 4 fixture-aware (DI layout + hybrid response) + 2 runtime against local Temporal. CI-gated. Plus 9 unit tests on `vlm-hybrid-prompt-builder` + 7 on `ocr-to-markdown` + 7 on `vlm-hybrid-to-ocr-result`. |
+| 11 | Benchmark integration | ✅ | Auto-discovered from JSON template; `seed-experiment-05-vlm-ocr-hybrid-definition` seeded against `seed-local-samples-mix-private-v1`. Trigger via `./scripts/run-experiment-benchmarks.sh 05` or `npx tsx src/scripts/trigger-experiment-benchmark.ts 05`. Cache rows verified: 40/40. |
+| 12 | Cost/usage telemetry | ⏳ | Hybrid activity logs `usage.{prompt_tokens, completion_tokens, total_tokens}` from the VLM leg + `vlmDurationMs` separately. DI cost (per-page) is implicit from `azureOcr.readPlain` invocation count. Cross-engine normalisation deferred to the post-E05 follow-up — see [`experiments/POST_BENCHMARK_FOLLOWUPS.md`](../experiments/POST_BENCHMARK_FOLLOWUPS.md). |
 
 ## Where results live
 
