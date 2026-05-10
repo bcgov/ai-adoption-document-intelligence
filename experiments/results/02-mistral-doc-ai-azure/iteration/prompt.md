@@ -18,42 +18,119 @@ Children. Section 1 has Yes/No checkbox pairs for nine questions; questions
 </form_layout>
 
 <numeric_income_rules>
-For every `applicant_*` and `spouse_*` numeric field in Section 2:
+For every `applicant_*` and `spouse_*` numeric field in Section 2, decide
+between three outputs:
 
-- If the cell is COMPLETELY EMPTY (no ink, no print, no mark of any kind in
-  the cell), return `null`.
-- If the cell visibly contains `0`, `$0`, `$ 0`, `0.00`, a written-out zero,
-  a dash `-`, `nil`, `none`, or `N/A` written/printed inside it, return the
-  number `0`. Handwritten zeros may look like `O`, a small loop, or `()` —
-  treat those as `0` when they sit inside an income cell.
-- Otherwise return the dollar amount as a plain number (no `$`, no commas,
-  no spaces). `1,234.56` becomes `1234.56`.
+1. The dollar amount as a plain number (no `$`, no commas, no spaces) —
+   `1,234.56` → `1234.56`. Use this when the cell clearly shows a non-zero
+   amount.
+2. The number `0` — use this ONLY when the cell VISIBLY contains one of:
+   the digit `0` (printed or handwritten), `$0`, `$ 0`, `0.00`, a written-out
+   "zero" / "nil" / "none", a horizontal dash `-` written in the cell, or the
+   literal text `N/A` written in the cell. The mark must be unambiguously
+   inside the cell's bounding box.
+3. `null` — for any other case, including:
+   - The cell is completely empty (no ink, no print, no mark inside the
+     cell's bounding box).
+   - The cell has stray pen marks, smudges, dots, light shadows, faint
+     printing residue, or scanner noise that you cannot confidently
+     identify as a `0` or any other digit. **When in doubt, return `null`.**
+   - The entire column appears unused (e.g. spouse column where no spouse
+     fields are filled in elsewhere on the form).
 
-Important: only return `0` when you can SEE a zero / dash / "N/A" mark
-INSIDE the cell. Do NOT infer `0` from context — for example, do not assume
-the spouse column is `0` just because the applicant column is. An empty
-cell with no ink stays `null`. If you can see no marks in the entire spouse
-column on this form (no spouse name, no spouse signature, no spouse
-checkboxes filled), prefer `null` for every spouse_* income field.
+Hard rule: **DO NOT INFER ZEROS.** Do not return `0` just because the cell
+*looks* like it might have a zero — only return `0` when you would, looking
+at this single cell in isolation, say "yes, there is a clear `0` here". If
+adjacent cells in the same column all show clear zeros and this cell is
+ambiguous, the ambiguous cell still returns `null`, not `0`. False-positive
+`0`s are worse than missed `0`s — they corrupt the financial data.
+
+Do NOT propagate zeros across columns: if the applicant column is filled
+with `0`s and the spouse column has no marks at all, the spouse cells
+return `null`, not `0`.
 </numeric_income_rules>
 
 <checkbox_rules>
-Checkbox fields end in `_yes` or `_no`. The form's checkbox style is a small
-square ☐ that becomes filled (☑, ☒, X-mark, tick, scribble, dot inside) when
-selected. Read each checkbox INDEPENDENTLY:
+Section 1 has nine numbered questions. The checkbox LAYOUT differs between
+two groups — read each group with its own rule.
 
-- If the box visibly contains ANY mark (X, ✓, scribble, blacked-out fill,
-  dot), return `selected` for THAT field.
-- If the box is empty/clean, return `unselected` for THAT field.
+**Group A — Questions 1-4 (single Yes/No pair, no applicant/spouse split):**
 
-The Yes and No boxes are separate fields — do not assume "if YES is selected
+Each of these four questions has exactly ONE Yes box and ONE No box on the
+form, spanning the full width of the row. There is no separate applicant
+or spouse column for these questions.
+
+Field-key mapping for Group A (NOTE: even though these field keys do not
+contain the word "applicant", they belong to this single-pair group, NOT
+to the applicant column of Group B):
+
+```
+Q1 "Are you still in need of assistance?"   → checkbox_need_assistance_yes / _no
+Q2 "Has your family unit received or disposed of any assets?"  → checkbox_family_assets_yes / _no
+Q3 "Any changes to your shelter costs?"     → checkbox_shelter_yes / _no
+Q4 "Any changes in Dependants or Persons living in the home?"  → checkbox_dependants_yes / _no
+```
+
+Read the single Yes box and the single No box for these four questions.
+
+**Group B — Questions 5-9 (TWO COLUMNS: Applicant column on the left,
+Spouse column on the right):**
+
+Each of these five questions has FOUR boxes laid out as:
+
+```
+                                         APPLICANT col    SPOUSE col
+                                         [Yes] [No]       [Yes] [No]
+Q5 Any employment changes?
+Q6 Are you attending school/training?
+Q7 Are you looking for work?
+Q8 Have you moved or entered a facility?
+Q9 Any outstanding warrants for arrest?
+```
+
+Field-key mapping for Group B — the `_yes` / `_no` keys WITHOUT `_spouse_`
+read the APPLICANT (left) column; the keys WITH `_spouse_` read the SPOUSE
+(right) column:
+
+```
+Q5: checkbox_employment_changes_yes / _no       → APPLICANT column boxes (left)
+    checkbox_employment_changes_spouse_yes / _no → SPOUSE column boxes (right)
+Q6: checkbox_school_yes / _no                    → APPLICANT (left)
+    checkbox_school_spouse_yes / _no             → SPOUSE (right)
+Q7: checkbox_work_yes / _no                      → APPLICANT (left)
+    checkbox_work_spouse_yes / _no               → SPOUSE (right)
+Q8: checkbox_moved_yes / _no                     → APPLICANT (left)
+    checkbox_moved_spouse_yes / _no              → SPOUSE (right)
+Q9: checkbox_warrant_yes / _no                   → APPLICANT (left)
+    checkbox_warrant_spouse_yes / _no            → SPOUSE (right)
+```
+
+**Read each box INDEPENDENTLY using these rules:**
+
+The form's checkbox style is a small square `☐` that becomes filled (`☑`,
+`☒`, X-mark `×`, tick `✓`, scribble, blacked-out fill, clear dot inside)
+when selected.
+
+- If the box visibly contains ANY clear mark inside it (X, ✓, scribble,
+  fill, clear dot), return `selected` for THAT field.
+- If the box is empty/clean (no ink inside the box's borders), return
+  `unselected` for THAT field.
+
+Yes and No boxes are SEPARATE fields. Do not assume "if YES is selected,
 then NO is unselected" without looking at NO. Some respondents check both,
-some leave both blank, some check neither in error. Return what you literally
-see in each box.
+some leave both blank, some check neither in error. Return what you
+literally see in each box.
 
-For questions 5-9 there are separate Applicant and Spouse rows. Read them as
-independent pairs — Applicant's row drives `_yes` / `_no`, Spouse's row drives
-`_spouse_yes` / `_spouse_no`.
+For Group B, **do not swap the columns**: read the APPLICANT (left) pair
+ONLY for `_yes` / `_no` keys, and the SPOUSE (right) pair ONLY for
+`_spouse_yes` / `_spouse_no` keys. If the spouse column on this form is
+entirely empty (no spouse name, no spouse signature, no marks anywhere in
+the spouse column), every `_spouse_yes` and `_spouse_no` field returns
+`unselected`.
+
+Stray marks outside the box (e.g. ink that touches the box border from
+outside, signature loops that cross over the box) are NOT selections —
+only marks visibly INSIDE the box count.
 </checkbox_rules>
 
 <text_field_rules>
