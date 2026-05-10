@@ -1,0 +1,285 @@
+{
+  "raw": {
+    "id": "chatcmpl-DdqxXYns4QwT3EcpuwH90URvSvVhd",
+    "model": "gpt-5.4-2026-03-05",
+    "usage": {
+      "total_tokens": 11503,
+      "prompt_tokens": 10288,
+      "completion_tokens": 1215,
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 242,
+        "engine_ttlt_ms": 10485,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 953,
+        "service_ttlt_ms": 11193,
+        "pre_inference_ms": 660,
+        "total_duration_ms": 10545,
+        "user_visible_ttft_ms": 293
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 9216
+      },
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "{\"fields\":{\"checkbox_need_assistance_yes\":\"selected\",\"checkbox_need_assistance_no\":\"unselected\",\"checkbox_family_assets_yes\":\"unselected\",\"checkbox_family_assets_no\":\"selected\",\"checkbox_shelter_yes\":\"unselected\",\"checkbox_shelter_no\":\"selected\",\"checkbox_dependants_yes\":\"unselected\",\"checkbox_dependants_no\":\"selected\",\"checkbox_employment_changes_yes\":\"unselected\",\"checkbox_employment_changes_no\":\"unselected\",\"checkbox_employment_changes_spouse_yes\":\"unselected\",\"checkbox_employment_changes_spouse_no\":\"selected\",\"checkbox_school_yes\":\"unselected\",\"checkbox_school_no\":\"unselected\",\"checkbox_school_spouse_yes\":\"unselected\",\"checkbox_school_spouse_no\":\"selected\",\"checkbox_work_yes\":\"unselected\",\"checkbox_work_no\":\"unselected\",\"checkbox_work_spouse_yes\":\"unselected\",\"checkbox_work_spouse_no\":\"selected\",\"checkbox_moved_yes\":\"unselected\",\"checkbox_moved_no\":\"unselected\",\"checkbox_moved_spouse_yes\":\"unselected\",\"checkbox_moved_spouse_no\":\"selected\",\"checkbox_warrant_yes\":\"unselected\",\"checkbox_warrant_no\":\"unselected\",\"checkbox_warrant_spouse_yes\":\"unselected\",\"checkbox_warrant_spouse_no\":\"selected\",\"explain_changes\":\"\",\"signature\":\"REF LAYER MISSING\",\"spouse_signature\":\"\",\"date\":\"2026-25-07\",\"spouse_date\":\"\",\"name\":\"X\",\"spouse_name\":\"\",\"phone\":\"\",\"spouse_phone\":\"\",\"sin\":\"96789954\",\"spouse_sin\":\"\",\"applicant_net_employment_income\":0,\"applicant_employment_insurance\":700,\"applicant_spousal_support_alimony\":0,\"applicant_child_support\":0,\"applicant_workbc_financial_support\":0,\"applicant_student_funding_loans_bursaries\":0,\"applicant_rental_income\":0,\"applicant_room_board_income\":0,\"applicant_workers_compensation\":0,\"applicant_private_pensions_retirement_disability\":0,\"applicant_oas_gis\":0,\"applicant_trust_income\":0,\"applicant_canada_pension_plan_cpp\":0,\"applicant_tax_credits_gst_credit\":0,\"applicant_child_tax_benefits\":0,\"applicant_income_tax_refund\":60,\"applicant_other_income_money_received\":0,\"applicant_income_of_dependent_children\":0,\"spouse_net_employment_income\":null,\"spouse_employment_insurance\":null,\"spouse_spousal_support_alimony\":null,\"spouse_child_support\":null,\"spouse_workbc_financial_support\":null,\"spouse_student_funding_loans_bursaries\":null,\"spouse_rental_income\":null,\"spouse_room_board_income\":null,\"spouse_workers_compensation\":null,\"spouse_private_pensions_retirement_disability\":null,\"spouse_oas_gis\":null,\"spouse_trust_income\":null,\"spouse_canada_pension_plan_cpp\":null,\"spouse_tax_credits_gst_credit\":null,\"spouse_child_tax_benefits\":null,\"spouse_income_tax_refund\":null,\"spouse_other_income_money_received\":null},\"source_quotes\":{\"checkbox_need_assistance_yes\":\"Yes\",\"checkbox_need_assistance_no\":\"No\",\"checkbox_family_assets_yes\":\"Yes\",\"checkbox_family_assets_no\":\"No\",\"checkbox_shelter_yes\":\"Yes\",\"checkbox_shelter_no\":\"No\",\"checkbox_dependants_yes\":\"Yes\",\"checkbox_dependants_no\":\"No\",\"checkbox_employment_changes_yes\":\"Yes\",\"checkbox_employment_changes_no\":\"No\",\"checkbox_employment_changes_spouse_yes\":\"Yes\",\"checkbox_employment_changes_spouse_no\":\"No\",\"checkbox_school_yes\":\"Yes\",\"checkbox_school_no\":\"No\",\"checkbox_school_spouse_yes\":\"Yes\",\"checkbox_school_spouse_no\":\"No\",\"checkbox_work_yes\":\"Yes\",\"checkbox_work_no\":\"No\",\"checkbox_work_spouse_yes\":\"Yes\",\"checkbox_work_spouse_no\":\"No\",\"checkbox_moved_yes\":\"Yes\",\"checkbox_moved_no\":\"No\",\"checkbox_moved_spouse_yes\":\"Yes\",\"checkbox_moved_spouse_no\":\"No\",\"checkbox_warrant_yes\":\"Yes\",\"checkbox_warrant_no\":\"No\",\"checkbox_warrant_spouse_yes\":\"Yes\",\"checkbox_warrant_spouse_no\":\"No\",\"explain_changes\":\"\",\"signature\":\"REF LAYER MISSING\",\"spouse_signature\":\"\",\"date\":\"2026-25-07\",\"spouse_date\":\"\",\"name\":\"X\",\"spouse_name\":\"\",\"phone\":\"\",\"spouse_phone\":\"\",\"sin\":\"967 89-954\",\"spouse_sin\":\"\",\"applicant_net_employment_income\":\"0\",\"applicant_employment_insurance\":\"700.00\",\"applicant_spousal_support_alimony\":\"0\",\"applicant_child_support\":\"0\",\"applicant_workbc_financial_support\":\"0\",\"applicant_student_funding_loans_bursaries\":\"0\",\"applicant_rental_income\":\"0\",\"applicant_room_board_income\":\"0\",\"applicant_workers_compensation\":\"0\",\"applicant_private_pensions_retirement_disability\":\"0\",\"applicant_oas_gis\":\"0\",\"applicant_trust_income\":\"0\",\"applicant_canada_pension_plan_cpp\":\"0\",\"applicant_tax_credits_gst_credit\":\"0\",\"applicant_child_tax_benefits\":\"0\",\"applicant_income_tax_refund\":\"60.00\",\"applicant_other_income_money_received\":\"0\",\"applicant_income_of_dependent_children\":\"0\",\"spouse_net_employment_income\":\"\",\"spouse_employment_insurance\":\"\",\"spouse_spousal_support_alimony\":\"\",\"spouse_child_support\":\"\",\"spouse_workbc_financial_support\":\"\",\"spouse_student_funding_loans_bursaries\":\"\",\"spouse_rental_income\":\"\",\"spouse_room_board_income\":\"\",\"spouse_workers_compensation\":\"\",\"spouse_private_pensions_retirement_disability\":\"\",\"spouse_oas_gis\":\"\",\"spouse_trust_income\":\"\",\"spouse_canada_pension_plan_cpp\":\"\",\"spouse_tax_credits_gst_credit\":\"\",\"spouse_child_tax_benefits\":\"\",\"spouse_income_tax_refund\":\"\",\"spouse_other_income_money_received\":\"\"}}",
+          "refusal": null,
+          "annotations": []
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "content_filter_results": {
+          "hate": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "sexual": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "violence": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "self_harm": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "protected_material_code": {
+            "detected": false,
+            "filtered": false
+          },
+          "protected_material_text": {
+            "detected": false,
+            "filtered": false
+          }
+        }
+      }
+    ],
+    "created": 1778390739,
+    "service_tier": "default",
+    "system_fingerprint": null,
+    "prompt_filter_results": [
+      {
+        "prompt_index": 0,
+        "content_filter_results": {
+          "hate": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "sexual": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "violence": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "jailbreak": {
+            "detected": false,
+            "filtered": false
+          },
+          "self_harm": {
+            "filtered": false,
+            "severity": "safe"
+          }
+        }
+      }
+    ]
+  },
+  "usage": {
+    "total_tokens": 11503,
+    "prompt_tokens": 10288,
+    "completion_tokens": 1215,
+    "latency_checkpoint": {
+      "engine_tbt_ms": 8,
+      "engine_ttft_ms": 242,
+      "engine_ttlt_ms": 10485,
+      "service_tbt_ms": 8,
+      "service_ttft_ms": 953,
+      "service_ttlt_ms": 11193,
+      "pre_inference_ms": 660,
+      "total_duration_ms": 10545,
+      "user_visible_ttft_ms": 293
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 9216
+    },
+    "completion_tokens_details": {
+      "audio_tokens": 0,
+      "reasoning_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "parsed": {
+    "fields": {
+      "sin": "96789954",
+      "date": "2026-25-07",
+      "name": "X",
+      "phone": "",
+      "signature": "REF LAYER MISSING",
+      "spouse_sin": "",
+      "spouse_date": "",
+      "spouse_name": "",
+      "spouse_phone": "",
+      "spouse_oas_gis": null,
+      "explain_changes": "",
+      "checkbox_work_no": "unselected",
+      "spouse_signature": "",
+      "applicant_oas_gis": 0,
+      "checkbox_moved_no": "unselected",
+      "checkbox_work_yes": "unselected",
+      "checkbox_moved_yes": "unselected",
+      "checkbox_school_no": "unselected",
+      "checkbox_school_yes": "unselected",
+      "checkbox_shelter_no": "selected",
+      "checkbox_warrant_no": "unselected",
+      "spouse_trust_income": null,
+      "checkbox_shelter_yes": "unselected",
+      "checkbox_warrant_yes": "unselected",
+      "spouse_child_support": null,
+      "spouse_rental_income": null,
+      "applicant_trust_income": 0,
+      "checkbox_dependants_no": "selected",
+      "applicant_child_support": 0,
+      "applicant_rental_income": 0,
+      "checkbox_dependants_yes": "unselected",
+      "checkbox_work_spouse_no": "selected",
+      "checkbox_moved_spouse_no": "selected",
+      "checkbox_work_spouse_yes": "unselected",
+      "spouse_income_tax_refund": null,
+      "spouse_room_board_income": null,
+      "checkbox_family_assets_no": "selected",
+      "checkbox_moved_spouse_yes": "unselected",
+      "checkbox_school_spouse_no": "selected",
+      "spouse_child_tax_benefits": null,
+      "checkbox_family_assets_yes": "unselected",
+      "checkbox_school_spouse_yes": "unselected",
+      "checkbox_warrant_spouse_no": "selected",
+      "applicant_income_tax_refund": 60,
+      "applicant_room_board_income": 0,
+      "checkbox_need_assistance_no": "unselected",
+      "checkbox_warrant_spouse_yes": "unselected",
+      "spouse_employment_insurance": null,
+      "spouse_workers_compensation": null,
+      "applicant_child_tax_benefits": 0,
+      "checkbox_need_assistance_yes": "selected",
+      "spouse_net_employment_income": null,
+      "spouse_tax_credits_gst_credit": null,
+      "applicant_employment_insurance": 700,
+      "applicant_workers_compensation": 0,
+      "checkbox_employment_changes_no": "unselected",
+      "spouse_canada_pension_plan_cpp": null,
+      "spouse_spousal_support_alimony": null,
+      "applicant_net_employment_income": 0,
+      "checkbox_employment_changes_yes": "unselected",
+      "spouse_workbc_financial_support": null,
+      "applicant_tax_credits_gst_credit": 0,
+      "applicant_canada_pension_plan_cpp": 0,
+      "applicant_spousal_support_alimony": 0,
+      "applicant_workbc_financial_support": 0,
+      "spouse_other_income_money_received": null,
+      "applicant_other_income_money_received": 0,
+      "checkbox_employment_changes_spouse_no": "selected",
+      "applicant_income_of_dependent_children": 0,
+      "checkbox_employment_changes_spouse_yes": "unselected",
+      "spouse_student_funding_loans_bursaries": null,
+      "applicant_student_funding_loans_bursaries": 0,
+      "spouse_private_pensions_retirement_disability": null,
+      "applicant_private_pensions_retirement_disability": 0
+    },
+    "source_quotes": {
+      "sin": "967 89-954",
+      "date": "2026-25-07",
+      "name": "X",
+      "phone": "",
+      "signature": "REF LAYER MISSING",
+      "spouse_sin": "",
+      "spouse_date": "",
+      "spouse_name": "",
+      "spouse_phone": "",
+      "spouse_oas_gis": "",
+      "explain_changes": "",
+      "checkbox_work_no": "No",
+      "spouse_signature": "",
+      "applicant_oas_gis": "0",
+      "checkbox_moved_no": "No",
+      "checkbox_work_yes": "Yes",
+      "checkbox_moved_yes": "Yes",
+      "checkbox_school_no": "No",
+      "checkbox_school_yes": "Yes",
+      "checkbox_shelter_no": "No",
+      "checkbox_warrant_no": "No",
+      "spouse_trust_income": "",
+      "checkbox_shelter_yes": "Yes",
+      "checkbox_warrant_yes": "Yes",
+      "spouse_child_support": "",
+      "spouse_rental_income": "",
+      "applicant_trust_income": "0",
+      "checkbox_dependants_no": "No",
+      "applicant_child_support": "0",
+      "applicant_rental_income": "0",
+      "checkbox_dependants_yes": "Yes",
+      "checkbox_work_spouse_no": "No",
+      "checkbox_moved_spouse_no": "No",
+      "checkbox_work_spouse_yes": "Yes",
+      "spouse_income_tax_refund": "",
+      "spouse_room_board_income": "",
+      "checkbox_family_assets_no": "No",
+      "checkbox_moved_spouse_yes": "Yes",
+      "checkbox_school_spouse_no": "No",
+      "spouse_child_tax_benefits": "",
+      "checkbox_family_assets_yes": "Yes",
+      "checkbox_school_spouse_yes": "Yes",
+      "checkbox_warrant_spouse_no": "No",
+      "applicant_income_tax_refund": "60.00",
+      "applicant_room_board_income": "0",
+      "checkbox_need_assistance_no": "No",
+      "checkbox_warrant_spouse_yes": "Yes",
+      "spouse_employment_insurance": "",
+      "spouse_workers_compensation": "",
+      "applicant_child_tax_benefits": "0",
+      "checkbox_need_assistance_yes": "Yes",
+      "spouse_net_employment_income": "",
+      "spouse_tax_credits_gst_credit": "",
+      "applicant_employment_insurance": "700.00",
+      "applicant_workers_compensation": "0",
+      "checkbox_employment_changes_no": "No",
+      "spouse_canada_pension_plan_cpp": "",
+      "spouse_spousal_support_alimony": "",
+      "applicant_net_employment_income": "0",
+      "checkbox_employment_changes_yes": "Yes",
+      "spouse_workbc_financial_support": "",
+      "applicant_tax_credits_gst_credit": "0",
+      "applicant_canada_pension_plan_cpp": "0",
+      "applicant_spousal_support_alimony": "0",
+      "applicant_workbc_financial_support": "0",
+      "spouse_other_income_money_received": "",
+      "applicant_other_income_money_received": "0",
+      "checkbox_employment_changes_spouse_no": "No",
+      "applicant_income_of_dependent_children": "0",
+      "checkbox_employment_changes_spouse_yes": "Yes",
+      "spouse_student_funding_loans_bursaries": "",
+      "applicant_student_funding_loans_bursaries": "0",
+      "spouse_private_pensions_retirement_disability": "",
+      "applicant_private_pensions_retirement_disability": "0"
+    }
+  },
+  "apiVersion": "2024-12-01-preview",
+  "deployment": "gpt-5.4",
+  "durationMs": 15648
+}
