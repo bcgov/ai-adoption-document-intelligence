@@ -76,7 +76,7 @@ These specific gotchas tripped us up on E02 — apply ahead of time:
 
 5. **Sync vs async cache emission.** Whether CU's activity is sync or async, return `{ ocrResult, cuResponse }` and wire `cuResponse → ctx.ocrResponse` so `benchmark-sample-workflow.ts`'s `persistOcrCache` step writes a row per sample. Without this, fixture capture and replay break.
 
-6. **Force-resync after dataset edits.** If you add or rename samples in `data/datasets/samples-mix/private/`, run `FORCE_RESYNC_LOCAL_DATASETS=true npm run start:dev` once. Drop the env var on the next start.
+6. **Force-resync after dataset edits.** If you add or rename samples in `data/datasets/samples-mix/public/`, run `FORCE_RESYNC_LOCAL_DATASETS=true npm run start:dev` once. Drop the env var on the next start.
 
 7. **Capture a real CU response before writing the mapper.** The brief's preamble below describes what CU *should* return; reality may differ by API version. Run a one-shot curl or the iteration script first; build the mapper against the captured fixture; replay it in the unit tests.
 

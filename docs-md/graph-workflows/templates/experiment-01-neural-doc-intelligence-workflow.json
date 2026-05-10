@@ -4,7 +4,7 @@
     "name": "Experiment 01 - Neural DI + Post-Processing",
     "description": "E01: Trained neural Azure DI model + cleanup, normalizeFields, characterConfusion, and confidence-gated HITL. Spellcheck dropped vs the base corrections template (not valuable for the handwritten field set). LLM enrichment and cross-field validation are out of scope for E01.",
     "tags": ["ocr", "azure", "experiment", "experiment-01", "neural"],
-    "targetLocalDataset": "samples-mix-private"
+    "targetLocalDataset": "samples-mix-public"
   },
   "entryNodeId": "prepareFileData",
   "ctx": {

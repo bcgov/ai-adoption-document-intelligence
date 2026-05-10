@@ -4,7 +4,7 @@
 **CU resource**: `strukalex-8338-resource` (Foundry, eastus2). Model deployments: `gpt-5.2` GlobalStandard cap 100 (= 100K TPM), `text-embedding-3-large` Standard cap 120
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-03-content-understanding-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-03-content-understanding-workflow.json)
 **Provider doc**: [`docs-md/graph-workflows/03-content-understanding-OCR.md`](../../../docs-md/graph-workflows/03-content-understanding-OCR.md)
-**Dataset**: `seed-local-samples-mix-private-v1` (40 samples, same as E02)
+**Dataset**: `seed-local-samples-mix-public-v1` (40 samples, same as E02)
 **CU API version**: `2025-11-01`
 
 ## What CU is

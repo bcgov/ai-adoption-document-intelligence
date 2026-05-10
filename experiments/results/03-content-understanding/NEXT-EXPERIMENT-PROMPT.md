@@ -86,7 +86,7 @@ without these):
      Then PATCH the override env to add gpt-5.4 to AZURE_OPENAI_DEPLOYMENTS
      (the user will run the az command; just include it in your preflight
      check output if missing).
-  ✅ Dataset registered: seed-local-samples-mix-private-v1 (40 samples)
+  ✅ Dataset registered: seed-local-samples-mix-public-v1 (40 samples)
   ✅ Backend + Temporal worker running (verify with `ps aux | grep -E
      "nest|ts-node-dev" | grep -v grep`)
   ✅ TEST_API_KEY available in apps/backend-services/.env (the trigger
@@ -174,7 +174,7 @@ top of this prompt, only the single-pass + gpt-5.4 path is in scope —
 two non-obvious bits remain):
 
   - Task 1 (PDF→image rendering): **SKIP THE STANDALONE ACTIVITY.**
-    All 40 samples in seed-local-samples-mix-private-v1 are JPEGs;
+    All 40 samples in seed-local-samples-mix-public-v1 are JPEGs;
     nothing in this benchmark exercises a PDF render. Instead, add a
     runtime guard at the top of the VLM-direct activity:
         if (fileData.fileType === "pdf") {
@@ -251,7 +251,7 @@ When done, verify:
 - ✅ gpt-4o-mini deployed at same resource — capacity 100
 - ✅ gpt-5.2 deployed at `strukalex-8338-resource` — eastus2, capacity 100 (usable as a 4th model variant)
 - ⚠ gpt-5.5 unavailable — `OpenAI.GlobalStandard.gpt-5.5` quota is 0K TPM (the *only* gpt-5.x model gated this way; siblings like gpt-5.4 have 1M TPM available). User has decided to use **gpt-5.4** instead and may file a 5.5 quota request to revisit later.
-- ✅ Dataset `seed-local-samples-mix-private-v1` (40 samples) registered
+- ✅ Dataset `seed-local-samples-mix-public-v1` (40 samples) registered
 - ✅ Backend + Temporal worker running
 - ✅ `TEST_API_KEY` in `apps/backend-services/.env`
 - ⚠ Verify `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_KEY` in your override file point at `ai-jobstoreai2846` (westus), NOT `strukalex-8338-resource` (eastus2). The two accounts have different endpoints + keys.

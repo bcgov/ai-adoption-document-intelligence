@@ -4,7 +4,7 @@
 **Foundry deployment**: `mistral-document-ai-2512` on `strukalex-8338-resource` (eastus2), GlobalStandard SKU
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json)
 **Provider doc**: [`docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md`](../../../docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md)
-**Dataset**: `seed-local-samples-mix-private-v1` (40 samples; force-resynced on the improve branch so the canonical run sees the latest local label corrections)
+**Dataset**: `seed-local-samples-mix-public-v1` (40 samples; force-resynced on the improve branch so the canonical run sees the latest local label corrections)
 **Current canonical run** ([`benchmark-run.json`](benchmark-run.json)): `694f8977-9101-408a-95c7-1dcc29805a02` — strict-evaluated under `defaultRule: { rule: "exact" }`, round-2 prompt active (format preservation + strict blank-vs-zero + two-group checkbox section).
 
 ## Endpoint, auth, request/response shape
