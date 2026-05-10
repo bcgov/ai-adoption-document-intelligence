@@ -323,6 +323,92 @@ These rules were learned the hard way on E03 and should be in the canonical brie
 7. **Use inline `data` + `mimeType`, not `data:` URLs** — for any CU-derivative engine. The doc accepts the URL form for public URLs but rejects `data:` URLs.
 8. **Note the supported-model list per page version** — CU's supportedModels list updates over time. Future experiments should call GET `/analyzers/{analyzerId}` and read the `supportedModels` block before assuming a model alias is wired.
 
+### Meta-process lessons (engine-independent — apply to E04 + E05)
+
+These are the things that wasted time on E03 *not* because of CU itself but
+because of how the experiment was sequenced or how the harness/repo/scripts
+behaved. Worth baking in before the next experiment starts.
+
+1. **Pre-flight as a runnable script** — E03 had four conditions that had
+   to hold before the first iteration call (env vars set, model
+   deployments exist, `PATCH /defaults` ran, deployment capacity ≥ X).
+   Three of them surfaced as runtime errors *during* iteration; each
+   cost a re-run. Future experiments should ship a `preflight-<engine>.ts`
+   that asserts every precondition upfront. E03 has a partial version at
+   [`setup-cu-defaults.ts`](../../../apps/temporal/src/scripts/setup-cu-defaults.ts);
+   E04 should write a fuller one (capacity check, deployment-list check,
+   env-var presence, dataset version present, etc.).
+
+2. **Cloud-resource setup belongs in the brief, pre-listed.** The harness
+   blocks paid `az ... create` calls. The brief should pre-list the exact
+   commands the *user* runs ahead of time (and ideally before the agent
+   starts). E04's brief already does this for `gpt-5.5` quota request +
+   deployment; future experiments should follow that template.
+
+3. **Workflow output-port ↔ activity-return-field contract should have a
+   static test.** The `cuResponse → ocrResponse` typo in E03 was a silent
+   failure: metrics looked fine, `benchmark_ocr_cache` stayed empty.
+   A repo-wide test asserting *"for every activity in the registry, every
+   workflow JSON's `outputs[].port` is present in the activity's
+   return-type"* would have caught it pre-commit. Easy to add, prevents
+   a class of bugs across all engines.
+
+4. **The iteration kit copy is now the standard starting move.** E02 → E03
+   copy got us to 97.3% per-field accuracy on `synth-full (1)` in a
+   single iteration. E04 → copy E03's iteration kit. The pattern works
+   because the SDPR-form quirks (column conventions, blank-vs-zero, etc.)
+   are engine-agnostic; only field-name → field-purpose mapping
+   transfers. Future experiment briefs should explicitly say "step 0 is
+   to `cp -r ../03-content-understanding/iteration ../<slug>/iteration`."
+
+5. **Draft SUMMARY.md skeleton on day 1.** Sections that don't depend on
+   benchmark numbers (provider doc, vocabulary mapping, parent-shared
+   infra fixes, retrospective) can be drafted while the iteration kit is
+   tuning and again while the canonical run is running. By the time
+   metrics are in, the SUMMARY is 70% done. Saved an hour at the end of
+   E03.
+
+6. **Trust the latest official doc, not external AI on rapidly-evolving
+   APIs.** During E03 setup we bounced between three sources (an external
+   AI assistant working from stale Microsoft Learn pages, my prior
+   knowledge, the actual API reference). For the next CU/Foundry-style
+   engine, spend the first 5 minutes WebFetching the current Microsoft
+   Learn / API reference page; treat anything else as hypothesis until
+   verified.
+
+7. **`trigger-experiment-benchmark.ts` + `poll-experiment-run.ts` are
+   reusable.** They live at `apps/temporal/src/scripts/`, accept any slug
+   matching `seed-experiment-{slug}-definition`, and pass
+   `runtimeSettingsOverride` for per-sample timeout (default 3600 s).
+   The bash equivalent in `scripts/run-experiment-benchmarks.sh` doesn't
+   accept the override, so prefer the TS wrapper for any
+   generative-engine experiment. E04 should reuse them as-is.
+
+8. **`TEST_API_KEY` env-loading is a three-file dance.** It actually
+   lives in `apps/backend-services/.env` (repo-local), not the override
+   file as the shared rules implied. Both the trigger and poll TS scripts
+   load all three files in order — E04 reusing them won't hit this. Only
+   relevant if you write a new TS script that needs the key.
+
+9. **There may be silent post-success failures.** Like E03's empty-cache
+   bug. Add explicit "cache row count" assertion to the canonical run
+   validation: after the run completes, query `benchmark_ocr_cache` and
+   refuse to mark the run "canonical" if `total_samples != cache row
+   count`. Worth folding into `poll-experiment-run.ts`.
+
+10. **Pre-existing `graph-workflow.test.ts` failure** (29/29 fail on the
+    parent-tip) blocks confidence in "all tests pass." Worth fixing on
+    the chained stack so E04+E05 don't have to filter it out manually.
+    Not E03's scope to fix; flagged for the cross-experiment cleanup
+    after E05.
+
+11. **Capacity bumps are cheap and reversible.** Bumping `gpt-5.2`
+    capacity from 10 → 100 cut benchmark wallclock from 40 min (with 31
+    timeouts) to 6:44 (zero timeouts). Capacity is a throughput cap, not
+    a reservation — billing is per-token-used regardless. Future
+    experiments should bump capacity to whatever the regional quota
+    allows as a pre-flight step.
+
 ### Implications for E04 (VLM-direct)
 
 E04's brief should bake in the lessons above. Specifically:
