@@ -1,0 +1,665 @@
+# E02 round-2 — mismatches per sample (for GT cleanup)
+
+Run id: `694f8977-9101-408a-95c7-1dcc29805a02`  •  status: `completed`  •  evaluator: `schema-aware` `{rule: "exact"}` `passThreshold: 0.8`
+
+Aggregate (round 2 — converged): pass_rate **0.900** (36/40), f1.median **0.958**, f1.mean **0.930**, matchedFields.median **67**.
+
+Round 2 prompt active: format preservation (engine returns form-as-written for sin/date/phone/name/signature/explain_changes) + strict blank-vs-zero (engine returns `0` only when visibly present; `null` for empty or ambiguous cells) + two-group checkbox section (Q1-Q4 single Yes/No pair; Q5-Q9 Applicant/Spouse columns with explicit field-key mapping).
+
+Each sample below lists every field where the engine prediction did NOT exactly match the current GT, sorted by ascending f1 (worst samples at top). For each row:
+
+- `predicted` is what the engine returned (i.e. what is *actually written / drawn on the form*, modulo any engine-OCR misreads we know it makes).
+- `expected` is the **current GT** for that field. Adjust the GT JSON in `data/datasets/samples-mix/private/<sample>.json` if `predicted` matches the form better.
+- **Alternative GT support is available**: a GT field value can be an array of acceptable scalars (one-of), e.g. `"date": ["2026-APR-15", "2026-04-15"]`. The evaluator will accept any element. Use this for ambiguous fields where multiple form-faithful renderings are acceptable (date format, SIN with/without hyphens, etc.). The remaining mismatches across this run fall almost entirely into 4 categories that are good candidates for one-of GT or per-sample GT edits:
+
+  1. **Date format**: GT is ISO (`2026-03-16`) but engine reads form's printed format (`2026-Mar-16`). Make GT `["2026-03-16", "2026-Mar-16"]` if both are acceptable.
+  2. **SIN format**: GT is stripped (`999888777`) but engine reads form's hyphenated form (`999-888-777`). Make GT `["999888777", "999-888-777"]`.
+  3. **Sentinel labels** (`:present:`, `:garbled:`, `KEY PLAYER MISSING`, `Spouse Missing`, `Missed Box`, `Blank Declaration`, `Homeless`): these are NEVER on the form. Either change GT to what's actually on the form, or use one-of `[":present:", "<actual signature>"]` if the sentinel has a separate semantic.
+  4. **Numeric blank-vs-zero**: where GT is `"0"` / `0` but engine returns `null` (engine couldn't see a clear `0` mark on the form). Either edit the form image to make the zero clearer, change GT to `null`, or accept both with `[0, null]`.
+
+Non-GT-fixable categories (genuine engine OCR limits):
+
+- Single-character digit/letter swaps in handwriting (`Saintan` vs `:garbled:`, `2026FFA02` vs `2026APR02` (P↔F), `2026-25-07` vs `2026-07-25`, `Sim Halpert` vs `Jim Halpert` (S↔J), `Ore` vs `Joe`/`Lace` (handwriting OCR).
+- Synthetic samples where the form ITSELF prints `SIGNATURE` placeholder text — engine reads it as `51GNATLPE`; not GT-fixable.
+
+**Excluded from iteration: `81 blank` and `81 coffee`** — known-hard obscured/blank forms documented in the brief; their mismatches are listed but flagged ⚠️ KNOWN-HARD.
+
+---
+
+## HR0081 (10)
+
+f1 **0.630**, precision 1.000, recall 0.459, matched 34 of 74, pass=`False`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "978-987-989" | "978987989" |
+| `date` | "26-MAR-2026" | "2026-03-26" |
+| `signature` | "Ore" | "Joe" |
+| `spouse_sin` | "481-841-841" | "481841841" |
+| `spouse_date` | "1988-may-10" | "1988-05-10" |
+| `spouse_oas_gis` | "" | "0" |
+| `applicant_oas_gis` | "" | 0 |
+| `spouse_trust_income` | "" | "0" |
+| `spouse_child_support` | "" | "0" |
+| `spouse_rental_income` | "" | "0" |
+| `applicant_trust_income` | "" | 0 |
+| `applicant_child_support` | "" | "0" |
+| `applicant_rental_income` | "" | "0" |
+| `spouse_income_tax_refund` | "" | "0" |
+| `spouse_room_board_income` | "" | "0" |
+| `spouse_child_tax_benefits` | "" | "0" |
+| `applicant_income_tax_refund` | "" | "0" |
+| `applicant_room_board_income` | "" | 0 |
+| `spouse_employment_insurance` | "" | "0" |
+| `spouse_workers_compensation` | "" | "0" |
+| `applicant_child_tax_benefits` | "" | "0" |
+| `spouse_net_employment_income` | "" | "0" |
+| `spouse_tax_credits_gst_credit` | "" | "0" |
+| `applicant_employment_insurance` | "" | "0" |
+| `applicant_workers_compensation` | "" | "0" |
+| `spouse_canada_pension_plan_cpp` | "" | "0" |
+| `spouse_spousal_support_alimony` | "" | 0 |
+| `applicant_net_employment_income` | "" | "0" |
+| `spouse_workbc_financial_support` | "" | "0" |
+| `applicant_tax_credits_gst_credit` | "" | 0 |
+| `applicant_canada_pension_plan_cpp` | "" | "0" |
+| `applicant_spousal_support_alimony` | "" | "0" |
+| `applicant_workbc_financial_support` | "" | "0" |
+| `spouse_other_income_money_received` | "" | "0" |
+| `applicant_other_income_money_received` | "" | 0 |
+| `applicant_income_of_dependent_children` | "" | "0" |
+| `spouse_student_funding_loans_bursaries` | "" | "0" |
+| `applicant_student_funding_loans_bursaries` | "" | "0" |
+| `spouse_private_pensions_retirement_disability` | "" | "0" |
+| `applicant_private_pensions_retirement_disability` | "" | 0 |
+
+## Fake 3
+
+f1 **0.756**, precision 1.000, recall 0.608, matched 45 of 74, pass=`False`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "7783224959" |
+| `date` | "2024 FEB 12" | "2024-02-12" |
+| `applicant_oas_gis` | 0 | "N/A" |
+| `checkbox_moved_no` | "unselected" | "selected" |
+| `checkbox_work_yes` | "unselected" | "selected" |
+| `checkbox_school_no` | "unselected" | "selected" |
+| `checkbox_shelter_no` | "unselected" | "selected" |
+| `checkbox_warrant_no` | "unselected" | "selected" |
+| `applicant_trust_income` | 0 | "N/A" |
+| `checkbox_dependants_no` | "unselected" | "selected" |
+| `applicant_child_support` | 0 | "N/A" |
+| `applicant_rental_income` | 0 | "N/A" |
+| `checkbox_family_assets_no` | "unselected" | "selected" |
+| `applicant_income_tax_refund` | 0 | "N/A" |
+| `applicant_room_board_income` | 0 | "N/A" |
+| `applicant_child_tax_benefits` | 0 | "N/A" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+| `applicant_employment_insurance` | 0 | "N/A" |
+| `applicant_workers_compensation` | 0 | "N/A" |
+| `checkbox_employment_changes_no` | "unselected" | "selected" |
+| `applicant_net_employment_income` | 0 | "N/A" |
+| `applicant_tax_credits_gst_credit` | 0 | "N/A" |
+| `applicant_canada_pension_plan_cpp` | 0 | "N/A" |
+| `applicant_spousal_support_alimony` | 0 | "N/A" |
+| `applicant_workbc_financial_support` | 0 | "N/A" |
+| `applicant_other_income_money_received` | 0 | "N/A" |
+| `applicant_income_of_dependent_children` | 0 | "N/A" |
+| `applicant_student_funding_loans_bursaries` | 0 | "N/A" |
+| `applicant_private_pensions_retirement_disability` | 0 | "N/A" |
+
+## 81 blank ⚠️ KNOWN-HARD
+
+f1 **0.770**, precision 1.000, recall 0.627, matched 47 of 75, pass=`False`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "789-654-812" |
+| `date` | "1/28/2017" | "" |
+| `name` | "James P. DeLarsson" | "Blank Declaration" |
+| `phone` | "789-654-812" | "" |
+| `signature` | "PHILIP" | "Blank Declration" |
+| `spouse_name` | "James P. DeLarsson" | "" |
+| `applicant_oas_gis` | 10 | "0" |
+| `checkbox_shelter_no` | "selected" | "unselected" |
+| `checkbox_warrant_no` | "selected" | "unselected" |
+| `checkbox_shelter_yes` | "unselected" | "selected" |
+| `applicant_trust_income` | 10 | "0" |
+| `applicant_child_support` | 12 | "0" |
+| `applicant_rental_income` | 10 | "0" |
+| `checkbox_family_assets_yes` | "unselected" | "selected" |
+| `applicant_income_tax_refund` | 10 | "0" |
+| `applicant_room_board_income` | 10 | "0" |
+| `applicant_child_tax_benefits` | 10 | "0" |
+| `applicant_employment_insurance` | 12 | "0" |
+| `applicant_workers_compensation` | 10 | "0" |
+| `applicant_net_employment_income` | 12 | "0" |
+| `applicant_tax_credits_gst_credit` | 10 | "0" |
+| `applicant_canada_pension_plan_cpp` | 10 | "0" |
+| `applicant_spousal_support_alimony` | 12 | "0" |
+| `applicant_workbc_financial_support` | 10 | "0" |
+| `applicant_other_income_money_received` | 10 | "0" |
+| `applicant_income_of_dependent_children` | 10 | "0" |
+| `applicant_student_funding_loans_bursaries` | 10 | "0" |
+| `applicant_private_pensions_retirement_disability` | 10 | "0" |
+
+## Fake 1
+
+f1 **0.797**, precision 1.000, recall 0.662, matched 49 of 74, pass=`False`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `date` | "" | "1985JAN4" |
+| `name` | "" | "Pam Beesly" |
+| `signature` | "" | ":present:" |
+| `applicant_oas_gis` | "" | "0" |
+| `checkbox_shelter_no` | "unselected" | "selected" |
+| `applicant_trust_income` | "" | "0" |
+| `checkbox_dependants_no` | "unselected" | "selected" |
+| `applicant_child_support` | "" | "0" |
+| `applicant_rental_income` | "" | "0" |
+| `checkbox_family_assets_no` | "unselected" | "selected" |
+| `applicant_income_tax_refund` | "" | "0" |
+| `applicant_room_board_income` | "" | "0" |
+| `applicant_child_tax_benefits` | "" | "0" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+| `applicant_employment_insurance` | "" | "0" |
+| `applicant_workers_compensation` | "" | "0" |
+| `applicant_net_employment_income` | "" | "0" |
+| `applicant_tax_credits_gst_credit` | "" | "0" |
+| `applicant_canada_pension_plan_cpp` | "" | "0" |
+| `applicant_spousal_support_alimony` | "" | "0" |
+| `applicant_workbc_financial_support` | "" | "0" |
+| `applicant_other_income_money_received` | "" | "0" |
+| `applicant_income_of_dependent_children` | "" | "0" |
+| `applicant_student_funding_loans_bursaries` | "" | "0" |
+| `applicant_private_pensions_retirement_disability` | "" | "0" |
+
+## Fake 4
+
+f1 **0.806**, precision 1.000, recall 0.676, matched 50 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "581922151" |
+| `date` | "19ar 2/26" | "2026-03-02" |
+| `name` | "Sim Halpert" | "Jim Halpert" |
+| `phone` | "" | "604-892-3251" |
+| `signature` | "" | "Jim Halpert" |
+| `applicant_oas_gis` | "" | "0" |
+| `applicant_trust_income` | "" | "0" |
+| `applicant_child_support` | "" | "0" |
+| `applicant_rental_income` | "" | "0" |
+| `applicant_income_tax_refund` | "" | "0" |
+| `applicant_room_board_income` | "" | "0" |
+| `checkbox_need_assistance_no` | "selected" | "unselected" |
+| `applicant_child_tax_benefits` | "" | "0" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+| `applicant_employment_insurance` | "" | "0" |
+| `applicant_workers_compensation` | "" | "0" |
+| `applicant_tax_credits_gst_credit` | "" | "0" |
+| `applicant_canada_pension_plan_cpp` | "" | "0" |
+| `applicant_spousal_support_alimony` | "" | "0" |
+| `applicant_workbc_financial_support` | "" | "0" |
+| `applicant_other_income_money_received` | "" | "0" |
+| `applicant_income_of_dependent_children` | "" | "0" |
+| `applicant_student_funding_loans_bursaries` | "" | "0" |
+| `applicant_private_pensions_retirement_disability` | "" | "0" |
+
+## Fake 7
+
+f1 **0.806**, precision 1.000, recall 0.676, matched 50 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "123 321 213" | "123321213" |
+| `date` | "2026FFR02" | "2026APR02" |
+| `name` | "Saintain" | ":garbled:" |
+| `signature` | "51GNATLPE" | "SIGNATURE" |
+| `applicant_oas_gis` | "" | "0" |
+| `applicant_trust_income` | "" | 0 |
+| `applicant_child_support` | "" | 0 |
+| `applicant_rental_income` | "" | "0" |
+| `applicant_income_tax_refund` | "" | 0 |
+| `applicant_room_board_income` | "" | "0" |
+| `checkbox_need_assistance_no` | "selected" | "unselected" |
+| `applicant_child_tax_benefits` | "" | "0" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+| `applicant_employment_insurance` | "" | "0" |
+| `applicant_workers_compensation` | "" | 0 |
+| `applicant_net_employment_income` | "" | 0 |
+| `applicant_tax_credits_gst_credit` | "" | 0 |
+| `applicant_canada_pension_plan_cpp` | "" | "0" |
+| `applicant_spousal_support_alimony` | "" | "0" |
+| `applicant_workbc_financial_support` | "" | "0" |
+| `applicant_other_income_money_received` | "" | "0" |
+| `applicant_income_of_dependent_children` | "" | 0 |
+| `applicant_student_funding_loans_bursaries` | "" | "0" |
+| `applicant_private_pensions_retirement_disability` | "" | "0" |
+
+## 3 81
+
+f1 **0.896**, precision 1.000, recall 0.811, matched 60 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `checkbox_work_no` | "unselected" | "selected" |
+| `checkbox_moved_no` | "unselected" | "selected" |
+| `checkbox_school_no` | "unselected" | "selected" |
+| `checkbox_shelter_no` | "unselected" | "selected" |
+| `checkbox_warrant_no` | "unselected" | "selected" |
+| `checkbox_dependants_no` | "unselected" | "selected" |
+| `checkbox_work_spouse_no` | "unselected" | "selected" |
+| `checkbox_moved_spouse_no` | "unselected" | "selected" |
+| `checkbox_family_assets_no` | "unselected" | "selected" |
+| `checkbox_school_spouse_no` | "unselected" | "selected" |
+| `checkbox_warrant_spouse_no` | "unselected" | "selected" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+| `checkbox_employment_changes_no` | "unselected" | "selected" |
+| `checkbox_employment_changes_spouse_no` | "unselected" | "selected" |
+
+## Fake 2
+
+f1 **0.896**, precision 1.000, recall 0.811, matched 60 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "798529321" |
+| `date` | "" | "2026-04-02" |
+| `signature` | "" | "Smith Fake" |
+| `checkbox_shelter_no` | "unselected" | "selected" |
+| `checkbox_dependants_no` | "unselected" | "selected" |
+| `checkbox_work_spouse_no` | "unselected" | "selected" |
+| `checkbox_moved_spouse_no` | "unselected" | "selected" |
+| `checkbox_family_assets_no` | "unselected" | "selected" |
+| `checkbox_school_spouse_no` | "unselected" | "selected" |
+| `checkbox_warrant_spouse_no` | "unselected" | "selected" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+| `spouse_net_employment_income` | "" | "0" |
+| `applicant_net_employment_income` | "" | "0" |
+| `checkbox_employment_changes_spouse_no` | "unselected" | "selected" |
+
+## Fake 6
+
+f1 **0.912**, precision 1.000, recall 0.838, matched 62 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "555231979" |
+| `name` | "Schaute, Dwight" | "Schrute, Dwight" |
+| `signature` | "Schaute" | "DSchrute" |
+| `checkbox_shelter_no` | "unselected" | "selected" |
+| `checkbox_dependants_no` | "unselected" | "selected" |
+| `checkbox_work_spouse_no` | "unselected" | "selected" |
+| `checkbox_moved_spouse_no` | "unselected" | "selected" |
+| `checkbox_family_assets_no` | "unselected" | "selected" |
+| `checkbox_school_spouse_no` | "unselected" | "selected" |
+| `checkbox_warrant_spouse_no` | "unselected" | "selected" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+| `checkbox_employment_changes_spouse_no` | "unselected" | "selected" |
+
+## 81 coffee ⚠️ KNOWN-HARD
+
+f1 **0.921**, precision 1.000, recall 0.853, matched 64 of 75, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "123 11 2008" | "749-868-080" |
+| `date` | "2020-02-26" | "2026-03-24" |
+| `name` | "Ward O. D." | "Missed Box" |
+| `phone` | "449-868-080" | "" |
+| `signature` | "" | "Missed Box" |
+| `spouse_sin` | "123 11 2008" | "" |
+| `spouse_name` | "Spouse Fulfillment" | "" |
+| `explain_changes` | "HONESTS" | "Homeless" |
+| `checkbox_shelter_no` | "selected" | "unselected" |
+| `checkbox_need_assistance_no` | "selected" | "unselected" |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" |
+
+## 1 81
+
+f1 **0.928**, precision 1.000, recall 0.865, matched 64 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "967-89-954" | "96789954" |
+| `date` | "2026-25-07" | "2026-07-25" |
+| `signature` | "" | "KEY PLAYER MISSING" |
+| `checkbox_work_no` | "selected" | "unselected" |
+| `checkbox_moved_no` | "selected" | "unselected" |
+| `checkbox_school_no` | "selected" | "unselected" |
+| `checkbox_warrant_no` | "selected" | "unselected" |
+| `applicant_income_tax_refund` | 60 | "60.00" |
+| `checkbox_employment_changes_no` | "selected" | "unselected" |
+| `applicant_spousal_support_alimony` | 0 | "" |
+
+## manual sample (7)
+
+f1 **0.935**, precision 1.000, recall 0.878, matched 65 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `phone` | "1234)-568-7890" | "(234)-568-7890" |
+| `signature` | "Patrick O'Connor" | "POConnor" |
+| `spouse_sin` | "" | "123-456-788" |
+| `spouse_date` | "2025-Nov-23" | "" |
+| `spouse_name` | "" | "Lisa O'connor" |
+| `spouse_phone` | "1321)-246-2143" | "(321)-246-2143" |
+| `explain_changes` | "*Changed address, proof of move*" | "Changed address, proof of move" |
+| `spouse_signature` | "O'Connor" | "LOConnor" |
+| `spouse_income_tax_refund` | 26.8 | "26.80" |
+
+## HR0081 (4)
+
+f1 **0.943**, precision 1.000, recall 0.892, matched 66 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "999-999 999" | "999999999" |
+| `date` | "2026-15-Mar" | "2026-03-15" |
+| `signature` | "" | "Abe" |
+| `spouse_sin` | "888888 888" | "888888888" |
+| `spouse_date` | "2026-APR-15" | "2026-04-15" |
+| `spouse_name` | "" | ":garbled:" |
+| `applicant_income_of_dependent_children` | 900 | "900.00" |
+| `spouse_student_funding_loans_bursaries` | 900 | "900.00" |
+
+## synth-no-spouse (1)
+
+f1 **0.949**, precision 1.000, recall 0.904, matched 47 of 52, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `explain_changes` | "Area to the notice government behavior note step. Computer cup value war before local action practice stay. Our late add cat language involve admit million front play million drug. Strategy." | "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy." |
+| `applicant_trust_income` | 5433.76 | 543.76 |
+| `applicant_other_income_money_received` | 4008.29 | 408.29 |
+| `signature` | "" | "Thomas Andrade" |
+| `date` | "2015-Mar-21" | "2015-03-21" |
+
+## Fake 5
+
+f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "321798231" |
+| `date` | "X 26-4-2" | "2026-04-02" |
+| `name` | "X Kelly Kapoor" | "Kelly Kapoor" |
+| `signature` | "X Kelly" | "Kelly" |
+| `applicant_child_support` | 2 | "250.50" |
+| `applicant_net_employment_income` | 0 | "500" |
+| `spouse_other_income_money_received` | "" | "$" |
+
+## HR0081 (3)
+
+f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "777021000" |
+| `date` | "" | "2026-03-17" |
+| `name` | "" | "Ann Jones" |
+| `signature` | "" | "Ann" |
+| `explain_changes` | "M" | "N/A" |
+| `applicant_net_employment_income` | "" | "0" |
+| `applicant_income_of_dependent_children` | "" | "0" |
+
+## HR0081 (8)
+
+f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "984-984-984" | "984984984" |
+| `signature` | "Oce" | "lece" |
+| `spouse_sin` | "789-789-789" | "789789789" |
+| `spouse_name` | "Loce" | "lece" |
+| `checkbox_warrant_no` | "selected" | "unselected" |
+| `spouse_employment_insurance` | 15 | "" |
+| `spouse_spousal_support_alimony` | 17 | "16" |
+
+## HR0081 (9)
+
+f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "789-788-425" | "789788425" |
+| `signature` | "" | "pr" |
+| `spouse_sin` | "285-859-698" | "285859698" |
+| `spouse_date` | "2026-mar-26" | "2026-03-26" |
+| `spouse_employment_insurance` | 6 | 0 |
+| `applicant_net_employment_income` | 82 | 52 |
+| `applicant_canada_pension_plan_cpp` | 0 | 5 |
+
+## manual sample (4)
+
+f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `date` | "2025-Jul-13" | "2025-07-13" |
+| `signature` | "Jdee" | "JLee" |
+| `explain_changes` | "No changes. Continue to receive CPP. OAS, Private pension" | "No changes, Continue to receive CPP, OAS, private pension" |
+| `applicant_child_support` | 90 | "0" |
+| `applicant_rental_income` | "" | "N/A" |
+| `applicant_student_funding_loans_bursaries` | "" | "none" |
+
+## manual sample (8)
+
+f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "122-456-789" | "123-456-789" |
+| `date` | "2025- Nov-23" | "2025-Nov-23" |
+| `name` | "Amanda Martinez-Jones" | "Amanda Martinez - Jones" |
+| `phone` | "326-783-4854" | "226-783-4854" |
+| `signature` | "AMINTO" | "A.M.J" |
+| `explain_changes` | "Received EF, statement submitted" | "Received EI, statement submitted" |
+
+## synth-full (1)
+
+f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `explain_changes` | "Against really decision short nothing interest particularly level summer list go shake woman white boat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never." | "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never." |
+| `date` | "2014-Sep-06" | "2014-09-06" |
+| `sin` | "350-887-408" | "350887408" |
+| `spouse_date` | "2014-Jun-10" | "2014-06-10" |
+| `spouse_phone` | "(348) 984 086" | "(348) 984-086" |
+| `spouse_sin` | "612-767-866" | "612767866" |
+
+## synth-full (2)
+
+f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `explain_changes` | "Effort situation writer finish future standard back expect process through idea Business body term media wife environment. Performance final control material require better police skin determine yourself because Mr reason however specific although." | "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although." |
+| `date` | "2009-Jan-14" | "2009-01-14" |
+| `phone` | "(467) 923 624" | "(467) 923-624" |
+| `sin` | "209-721-664" | "209721664" |
+| `spouse_date` | "05/01/2003" | "05-01-2003" |
+| `spouse_sin` | "643-016-433" | "643016433" |
+
+## HR0081 (6)
+
+f1 **0.965**, precision 1.000, recall 0.932, matched 69 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `signature` | "Tunna" | "Trung" |
+| `spouse_sin` | "604-514-4444" | "6045144444" |
+| `spouse_date` | "2026-mar-27" | "2026-03-27" |
+| `spouse_signature` | "Akn 00" | "AKM De" |
+| `applicant_spousal_support_alimony` | 3 | "0" |
+
+## synth-regular (2)
+
+f1 **0.970**, precision 1.000, recall 0.942, matched 49 of 52, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `explain_changes` | "Play half a year memory event stock than bit could. Alone first or so anything inside total third affect modern." | "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern." |
+| `date` | "26-01-2019" | "2019-01-26" |
+| `sin` | "089 714 425" | "089714425" |
+
+## manual sample (2)
+
+f1 **0.972**, precision 1.000, recall 0.946, matched 70 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "" | "234-456-112" |
+| `name` | "" | "Sarah Thompson" |
+| `signature` | "" | "SThompson" |
+| `explain_changes` | "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12, pay stubs attached" | "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached" |
+
+## synth-regular (1)
+
+f1 **0.972**, precision 1.000, recall 0.946, matched 70 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `explain_changes` | "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must." | "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must." |
+| `date` | "2009-Apr-22" | "2009-04-22" |
+| `spouse_date` | "2015-Jul-12" | "2015-07-12" |
+| `spouse_sin` | "170-191-504" | "170191504" |
+
+## 2 81
+
+f1 **0.979**, precision 1.000, recall 0.959, matched 71 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "965-89-753" | "96589753" |
+| `name` | "" | "Spouse Missing" |
+| `signature` | "" | "Spouse Missing" |
+
+## HR0081 (5)
+
+f1 **0.979**, precision 1.000, recall 0.959, matched 71 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "999-888-777" | "999888777" |
+| `date` | "2026-Mar-16" | "2026-03-16" |
+| `name` | "Ore" | "Lace" |
+
+## manual sample (3)
+
+f1 **0.979**, precision 1.000, recall 0.959, matched 71 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `signature` | "" | "JSmith" |
+| `spouse_phone` | "224-567-8890" | "234-567-8890" |
+| `spouse_signature` | "" | "MSmith" |
+
+## manual sample (5)
+
+f1 **0.979**, precision 1.000, recall 0.959, matched 71 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `signature` | "Dw. lson" | "Dwilson" |
+| `explain_changes` | "Kent increased, see lease update" | "Rent increased, see lease update" |
+| `spouse_signature` | "Mukon" | "HWilson" |
+
+## manual sample (6)
+
+f1 **0.979**, precision 1.000, recall 0.959, matched 71 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `phone` | "123-456-7389" | "123-456-7789" |
+| `signature` | "" | "RChen" |
+| `checkbox_school_yes` | "selected" | "unselected" |
+
+## synth-full (3)
+
+f1 **0.979**, precision 1.000, recall 0.959, matched 71 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `date` | "27/03/2018" | "2018-03-27" |
+| `spouse_date` | "25/06/2011" | "2011-06-25" |
+| `spouse_sin` | "647 788 730" | "647788730" |
+
+## synth-no-spouse (2)
+
+f1 **0.980**, precision 1.000, recall 0.962, matched 50 of 52, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `explain_changes` | "Learn choose throw footing season assume work up next. Land state military public wrong film hope realty. Worker task which white price else world." | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world." |
+| `date` | "2012-Nov-06" | "2012-11-06" |
+
+## synth-no-spouse (3)
+
+f1 **0.980**, precision 1.000, recall 0.962, matched 50 of 52, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `explain_changes` | "Occur yourself, few single expert his middle age similar pressure lawyer entire again Democrat floor green. Stop walk head later tillion word example success student during fight become. Outside they." | "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they." |
+| `date` | "2025-Nov-30" | "2025-11-30" |
+
+## synth-regular (3)
+
+f1 **0.980**, precision 1.000, recall 0.962, matched 50 of 52, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `date` | "2006-Apr-16" | "2006-04-16" |
+| `sin` | "745-411-049" | "745411049" |
+
+## HR0081 (2)
+
+f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "999-999-999" | "999999999" |
+| `signature` | "" | "Lace" |
+
+## HR0081 (7)
+
+f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `sin` | "898-888-798" | "898888798" |
+| `signature` | "" | "Jace" |
+
+## manual sample (10)
+
+f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `signature` | "Mharan" | "MBrown" |
+| `explain_changes` | "New roommate, room / board income enclosed" | "New roommate, room /board income enclosed" |
+
+## manual sample (9)
+
+f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `signature` | "S.J." | "J.J." |
+| `explain_changes` | "*Child support started, record attached*" | "Child support started, record attached" |
+
+## manual sample (1)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`True`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `signature` | "KPadel" | "KPatel" |
+
+---
+
+**Total mismatches listed: 354 across 40 samples** (2 of which are known-hard and tagged).

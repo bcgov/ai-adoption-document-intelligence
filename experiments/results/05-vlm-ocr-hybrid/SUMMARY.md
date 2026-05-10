@@ -114,24 +114,24 @@ E01 ran on the original 33-sample dataset before the synth-* alignment fix; E02�
 
 | | E01 (33s, Neural DI, fuzzy) | E02 (40s, Mistral on Foundry, **strict**) | E03 (40s, Azure CU + gpt-5.2, fuzzy) | E04 (40s, gpt-5.4 VLM-direct, fuzzy) | **E05 (40s, gpt-5.4 VLM + OCR hybrid, fuzzy)** |
 |---|---|---|---|---|---|
-| `pass_rate` | 0.515 | 0.825 ¹ | 0.95 | 0.925 | **0.975** |
-| `f1.median` | 0.806 | 0.950 ¹ | 0.965 | 0.943 | **0.965** (tied with CU) |
-| `f1.mean` | 0.683 | 0.911 ¹ | 0.927 | 0.911 | **0.941** |
-| `precision.mean` | 0.899 | 0.993 ¹ | 0.975 | 0.972 | **0.976** |
-| `recall.mean` | 0.587 | 0.853 ¹ | 0.903 | 0.864 | **0.917** |
-| `matchedFields.median` | 50 (of 74) | 66.0 (of 74) ¹ | 69 (of 74) | 66 (of 74) | **69 (of 74)** (tied with CU) |
-| `falsePositives.mean` | 0 | 0.40 ¹ | 1.25 | 1.25 | 1.25 |
+| `pass_rate` | 0.515 | 0.900 ¹ | 0.95 | 0.925 | **0.975** |
+| `f1.median` | 0.806 | 0.958 ¹ | 0.965 | 0.943 | **0.965** (tied with CU) |
+| `f1.mean` | 0.683 | 0.930 ¹ | 0.927 | 0.911 | **0.941** |
+| `precision.mean` | 0.899 | 1.000 ¹ | 0.975 | 0.972 | **0.976** |
+| `recall.mean` | 0.587 | 0.879 ¹ | 0.903 | 0.864 | **0.917** |
+| `matchedFields.median` | 50 (of 74) | 67 (of 74) ¹ | 69 (of 74) | 66 (of 74) | **69 (of 74)** (tied with CU) |
+| `falsePositives.mean` | 0 | 0.00 ¹ | 1.25 | 1.25 | 1.25 |
 | Wallclock / sample | ~2.5 s | ~7.3 s | ~22 s | ~5.8 s | ~6.8 s wallclock (parallel) / ~22 s serial |
 
-¹ E02 row is strict-evaluated AND uses the round-1 format-preservation prompt
-from `improve/01-strict-eval-and-mistral-tune`. The aggregate pass_rate /
-recall.mean / matchedFields drops vs the fuzzy-era E02 row reflect a
-ground-truth-vs-engine-convention disagreement (some labels normalised SINs
-and dates while the round-1 prompt preserves form-format), not engine quality.
-Resolution is GT cleanup, tracked separately. Pre-prompt-change strict
-baseline numbers (preserved for reference): pass_rate 0.900, f1.median 0.950,
-f1.mean 0.934, precision.mean 1.000, matchedFields.median 66.5,
-falsePositives.mean 0. See [E02 SUMMARY § Strict-equality re-evaluation](../02-mistral-doc-ai-azure/SUMMARY.md#strict-equality-re-evaluation--improvement-loop-improve01) for the full per-sample breakdown.
+¹ E02 row is strict-evaluated AND uses the round-2 prompt from
+`improve/01-strict-eval-and-mistral-tune` (format preservation + strict
+blank-vs-zero + two-group checkbox section), and the schema-aware
+evaluator was extended to accept one-of array GT values on the same
+branch (no E02 GT files yet use the array form — that's a follow-up
+dataset-cleanup pass). E02 now matches E03 on `precision.mean` and is
+within 1 pp on `f1.median` despite being strict-evaluated while E03 is
+still fuzzy; under strict E03 should drop slightly and the gap should
+narrow further. See [E02 SUMMARY § Strict-equality re-evaluation](../02-mistral-doc-ai-azure/SUMMARY.md#strict-equality-re-evaluation--improvement-loop-improve01) for the full per-round breakdown.
 
 **Caveat: cells in the E01/E03/E04/E05 columns are still computed under the `fuzzy@0.85` evaluator — close-but-not-exact OCR misreads (`2326.4` vs `2326.47`) score as matched there. Each engine's strict re-evaluation will land in its own `improve/` branch (E02 was first); see [POST_BENCHMARK_FOLLOWUPS.md](../../POST_BENCHMARK_FOLLOWUPS.md) item 1. The seed config is now `rule: "exact"` so any benchmark re-trigger from `improve/01-...` onward measures against strict — running the other four engines without bringing them onto an improve branch first would mix this strict eval with their unconverged prompts.**
 
