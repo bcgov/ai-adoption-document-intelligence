@@ -454,3 +454,79 @@ that nothing in the OCR-3 toolkit moves the needle on Foundry, so a paid
 full benchmark would confirm `pass_rate: 0.900` / `f1.median: 0.958`
 unchanged from round-2's canonical run `694f8977-...`. Round-2 stays as
 the canonical state.
+
+---
+
+## 2026-05-10 — Round 4: re-benchmark on cleaned GT (new canonical)
+
+After the dataset move (commit `8bd2ccb1`) + sin/date/phone format-variant
+GT promotions (`d635dc96`) + three-variant SIN expansion (`4f900c04`),
+re-ran E02 with the canonical round-2 prompt against the cleaned GT.
+This isolates the engine + prompt from GT-format noise.
+
+Workflow JSON unchanged from round-2 (8618-char prompt, 74-field
+descriptions, `numericFieldsNullable: true`, no OCR-3 features).
+Re-seeded so the `mistral-document-ai-2512` deployment picks up the new
+`samples-mix-public` dataset id. No paid retries beyond the standard
+40-sample run (~5 min wallclock under the 10 RPM Foundry quota).
+
+Run id: `372fdc8d-9601-4a70-835f-98f710f0e458`
+
+| metric | r2+GT cleanup | r2 pre-cleanup | Δ |
+|---|---|---|---|
+| `pass_rate` | **0.925** (37/40) | 0.900 (36/40) | +2.5 pp |
+| `f1.median` | **0.972** | 0.958 | +1.5 pp |
+| `f1.mean` | **0.942** | 0.930 | +1.2 pp |
+| `f1.min` | **0.679** | 0.630 | +4.9 pp |
+| `precision.mean` | **1.000** | 1.000 | unchanged |
+| `recall.mean` | **0.899** | 0.879 | +2.0 pp |
+| `matchedFields.median` | **69** (of 74) | 67 | +2 fields |
+| `falsePositives.mean` | **0.000** | 0.000 | unchanged |
+| `truePositives.mean` | **63.875** | 62.45 | +1.43 fields/sample |
+
+Top per-sample improvements (vs round-2 pre-cleanup):
+
+| sample | pre-cleanup f1 | r2+GT cleanup f1 | Δ | comment |
+|---|---|---|---|---|
+| `81 blank` | 0.781 | **0.897** | +0.116 | SIN + date variants now accepted; KNOWN-HARD sample now passing |
+| `HR0081 (10)` | 0.630 | **0.679** | +0.049 | sin/date variants accepted; still below 0.8 threshold due to remaining handwritten-zero OCR misses |
+| `2 81` | 0.943 | **0.986** | +0.043 | hyphenated SIN now accepted |
+| `synth-full (2)` | 0.958 | **0.993** | +0.035 | date format variant accepted |
+| `HR0081 (4)` | 0.943 | **0.972** | +0.029 | sin + date variants |
+| `synth-full (1)` | 0.958 | **0.986** | +0.028 | full panel of sin/date/phone variants accepted |
+| `HR0081 (9)` | 0.950 | **0.972** | +0.022 | sin + spouse_sin + spouse_date variants |
+| `synth-regular (1)` | 0.972 | **0.993** | +0.021 | date + spouse_date + spouse_sin variants |
+| `HR0081 (5)` | 0.972 | **0.993** | +0.021 | sin + date variants |
+| `HR0081 (7)` | 0.972 | **0.993** | +0.021 | sin variant |
+| `synth-full (3)` | 0.979 | **1.000** | +0.021 | spouse_sin + date variants |
+| `synth-regular (2)` | 0.970 | **0.990** | +0.020 | date + sin variants |
+| (… ~10 more samples in the +0.005 to +0.015 range) | | | | |
+
+Per-sample regressions (run-to-run variance in Mistral OCR output):
+
+| sample | pre f1 | now f1 | Δ | note |
+|---|---|---|---|---|
+| `Fake 1` | 0.797 | 0.746 | -0.051 | Same matched=44; FN count varied between runs (30 vs ~22). All remaining mismatches are engine-OCR-ceiling (handwritten zeros + X-marked checkboxes); same shape, different sample of misses. |
+| `manual sample (7)` | 0.943 | 0.935 | -0.008 | One additional field below the run-to-run noise floor. |
+
+Failing samples (3 of 40, all engine-OCR-ceiling cases not GT-fixable):
+
+| sample | f1 | matched / 74 | dominant miss pattern |
+|---|---|---|---|
+| `HR0081 (10)` | 0.679 | 38 | handwritten `0`s in income table not surfaced; some checkbox misses |
+| `Fake 1` | 0.746 | 44 | engine reads income cells as `$` (no number); all checkboxes return as unselected |
+| `Fake 3` | 0.767 | 46 | same shape — engine misses zeros / checkboxes / dates |
+
+This is the strongest E02 result on record. The new canonical metrics
+beat E03 (Azure CU + gpt-5.2) on `matchedFields.median` (69 of 74) AND
+match E03 on `pass_rate` (within 2.5 pp) while being strict-evaluated —
+E03 is still fuzzy-evaluated.
+
+Convergence holds: every remaining mismatch falls into one of the
+engine-ceiling categories diagnosed in round 3 (handwritten zeros not
+read; checkbox X-marks not detected; sentinel-token GT). Further
+improvement on E02 needs either an engine swap, a Foundry SKU upgrade
+that exposes OCR-3 controls, or a Mistral support ticket — all
+documented at the bottom of round 3.
+
+Round 4 is the new canonical state for E02 on `improve/01-strict-eval-and-mistral-tune`.
