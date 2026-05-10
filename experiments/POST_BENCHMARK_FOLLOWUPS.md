@@ -4,7 +4,9 @@ Tasks that cut across all five experiments — defer until E05 lands and the cha
 
 ## 1. Re-evaluate every run under strict equality
 
-**Why.** All five experiments are evaluated with the same `schema-aware` evaluator using `defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 }, passThreshold: 0.8` (wired in [`apps/shared/prisma/seed.ts:2044-2062`](../apps/shared/prisma/seed.ts#L2044-L2062)). This is correct for cross-experiment comparison — same rule, same dataset, same evaluator — but fuzzy@0.85 is forgiving on close-but-not-exact OCR misreads (e.g. predicted `2326.4` vs ground truth `2326.47`). For a stricter view of "the model got the value exactly right," re-evaluate every run with the rule changed to `"exact"` (or `fuzzyThreshold: 1.0`).
+**Status (improve/01-strict-eval-and-mistral-tune):** Option A (re-run under strict) chosen by the user. The seed config in [`apps/shared/prisma/seed.ts:2044-2062`](../apps/shared/prisma/seed.ts#L2044-L2062) is now `defaultRule: { rule: "exact" }, passThreshold: 0.8`. Re-runs are happening one experiment at a time on the `improve/<NN>-...` stack, not as a single batch, so we don't burn paid calls re-running engines that aren't being iterated on. **E02 is the first experiment being re-evaluated under strict** (this branch); E01/E03/E04/E05 stay fuzzy-evaluated until each is picked up in a follow-up `improve/` branch. Their existing `benchmark-run.json` files are unchanged. The cross-experiment table in [`experiments/results/05-vlm-ocr-hybrid/SUMMARY.md`](results/05-vlm-ocr-hybrid/SUMMARY.md) is annotated to flag E02's row as strict-evaluated and the rest as still fuzzy.
+
+**Why.** All five experiments were evaluated with the same `schema-aware` evaluator using `defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 }, passThreshold: 0.8`. This was correct for cross-experiment comparison — same rule, same dataset, same evaluator — but fuzzy@0.85 is forgiving on close-but-not-exact OCR misreads (e.g. predicted `2326.4` vs ground truth `2326.47`). The user wants a stricter view of "the model got the value exactly right," so the rule is changed to `"exact"`.
 
 **What this affects** ([detailed in `experiments/results/04-vlm-direct/SUMMARY.md` "Gaps"](results/04-vlm-direct/SUMMARY.md)):
 
@@ -15,49 +17,22 @@ Tasks that cut across all five experiments — defer until E05 lands and the cha
 
 The raw `similarity`, `predicted`, `expected`, `confidence` values are preserved per evaluation pair — re-evaluation only needs to recompute `matched` and the aggregates downstream of it. **No re-running the model.**
 
-**Two ways to do it:**
-
-### Option A — re-run the benchmarks under a tighter rule
-
-Change the seed config:
+**Chosen path: Option A — re-run the benchmarks under a tighter rule** (one experiment at a time on the `improve/` stack):
 
 ```ts
-// apps/shared/prisma/seed.ts L2044-L2062
+// apps/shared/prisma/seed.ts L2044-L2062 (now applied)
 evaluatorType: "schema-aware",
 evaluatorConfig: {
-  defaultRule: { rule: "exact" },        // <- was { rule: "fuzzy", fuzzyThreshold: 0.85 }
+  defaultRule: { rule: "exact" },        // was { rule: "fuzzy", fuzzyThreshold: 0.85 }
   passThreshold: 0.8,
 },
 ```
 
-`npm run test:db:reset` to re-seed, then re-trigger every experiment via:
+`npm run test:db:reset` to re-seed, then re-trigger only the experiment(s) being iterated on the current improve branch. **Do NOT re-run all five at once** — the per-experiment improvement cycles use the same seed config, so each branch's full benchmark run is also that experiment's strict re-evaluation. The other experiments stay fuzzy-evaluated until their respective improve branches pick them up.
 
-```bash
-cd apps/temporal
-for slug in 01 02 03 04 05; do
-  npx tsx -r tsconfig-paths/register src/scripts/trigger-experiment-benchmark.ts $slug
-done
-```
+Save each new export to `experiments/results/<slug>/benchmark-run.json` (overwrites the fuzzy-era file; git history retains the prior numbers).
 
-Save the new exports to `experiments/results/<slug>/benchmark-run-strict.json` (parallel to `benchmark-run.json` so we keep both). Cost: full benchmark re-run for all five experiments (~$15-25, ~30 min wallclock).
-
-### Option B — re-evaluate the existing exports without re-running
-
-Write a script that reads each `benchmark-run.json` and recomputes metrics from the preserved `evaluationDetails[].similarity`. No paid calls, instant turnaround:
-
-```ts
-// experiments/scripts/reevaluate-strict.ts (sketch)
-//
-// For each run:
-//   - read perSampleResults[].evaluationDetails
-//   - recompute matched = (similarity == 1.0)   // or some other rule
-//   - re-aggregate truePositives, falseNegatives, falsePositives per sample
-//   - recompute precision, recall, f1 per sample
-//   - re-aggregate to top-level metrics, perFieldResults, errorDetectionAnalysis
-//   - write benchmark-run-strict.json
-```
-
-Option B is the recommended path — it's lossless w.r.t. raw model output, runs in seconds, and produces a parallel comparison artifact you can diff against the fuzzy-evaluated original.
+> Option B (lossless re-eval script reading the preserved per-pair `similarity` values from the existing `benchmark-run.json` files, no paid calls) was considered and explicitly **not** taken. The user prefers re-running each engine fresh under strict so the strict numbers reflect any iteration changes on that engine's branch, not just a relabel of the fuzzy-era prediction set.
 
 **Expected impact** (estimated from E04's distribution):
 
