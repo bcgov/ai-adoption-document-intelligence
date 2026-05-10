@@ -57,10 +57,23 @@ without these):
   ✅ gpt-4o-mini deployed at same resource (capacity 100)
   ✅ gpt-5.2 deployed at strukalex-8338-resource (eastus2,
      capacity 100) — usable as a 4th variant if you want
-  ⚠ gpt-5.5 NOT available (subscription quota 0K TPM); the brief notes
-     "If quota approval is delayed, run E04 with gpt-4o and gpt-5 only
-     and revisit once 5.5 is available." — start with gpt-5 + gpt-4o,
-     skip 5.5 unless the user requests + the quota uplift lands
+  ⚠ **The brief mentions gpt-5.5; SUPERSEDED by gpt-5.4.** gpt-5.5 is
+     the only gpt-5.x model in this subscription gated behind a quota
+     uplift ticket (0K TPM in every region for both GlobalStandard and
+     DataZoneStandard). Every other gpt-5.x sibling has 1M+ TPM
+     available immediately. **Use gpt-5.4 instead of 5.5** — released
+     2026-03-05, GA, no ticket required. The user may file a quota
+     request for 5.5 to revisit later, but do NOT block on it.
+
+     Deploy gpt-5.4 if not yet present (verify via
+     `az cognitiveservices account deployment list ... | grep gpt-5.4`):
+       az cognitiveservices account deployment create \
+         --resource-group rg-strukalex-8338 --name strukalex-8338-resource \
+         --deployment-name gpt-5.4 --model-name gpt-5.4 --model-version 2026-03-05 \
+         --model-format OpenAI --sku-name GlobalStandard --sku-capacity 100
+     Then PATCH the override env to add gpt-5.4 to AZURE_OPENAI_DEPLOYMENTS
+     (the user will run the az command; just include it in your preflight
+     check output if missing).
   ✅ Dataset registered: seed-local-samples-mix-private-v1 (40 samples)
   ✅ Backend + Temporal worker running (verify with `ps aux | grep -E
      "nest|ts-node-dev" | grep -v grep`)
@@ -215,33 +228,41 @@ When done, verify:
 - ✅ gpt-4o deployed at same resource — capacity 50
 - ✅ gpt-4o-mini deployed at same resource — capacity 100
 - ✅ gpt-5.2 deployed at `strukalex-8338-resource` — eastus2, capacity 100 (usable as a 4th model variant)
-- ⚠ gpt-5.5 unavailable — `OpenAI.GlobalStandard.gpt-5.5` quota is 0K TPM; quota uplift request needed (24-72h)
+- ⚠ gpt-5.5 unavailable — `OpenAI.GlobalStandard.gpt-5.5` quota is 0K TPM (the *only* gpt-5.x model gated this way; siblings like gpt-5.4 have 1M TPM available). User has decided to use **gpt-5.4** instead and may file a 5.5 quota request to revisit later.
 - ✅ Dataset `seed-local-samples-mix-private-v1` (40 samples) registered
 - ✅ Backend + Temporal worker running
 - ✅ `TEST_API_KEY` in `apps/backend-services/.env`
 - ⚠ Verify `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_KEY` in your override file point at `ai-jobstoreai2846` (westus), NOT `strukalex-8338-resource` (eastus2). The two accounts have different endpoints + keys.
 
-## Optional pre-work (user-driven; not required to start E04)
+## Pre-work (user-driven; do this BEFORE starting E04 if you don't already have gpt-5.4 deployed)
 
-If you want gpt-5.5 in the variant matrix, file the quota request now so the 24-72h Microsoft turnaround overlaps with E04 iteration:
-
-```bash
-# Quota request: file at https://aka.ms/oai/quotaincrease
-#   Subscription:    Azure subscription 1
-#   Resource:        strukalex-8338-resource (eastus2)
-#   Model:           gpt-5.5, version 2026-04-24, SKU GlobalStandard
-#   Requested TPM:   ≥ 10,000
-```
-
-Once approved (subscription quota will read > 0):
+The current plan is gpt-5.4 + gpt-4o + gpt-5 as the variant matrix.
+gpt-5.4 is the closest model to gpt-5.5 (the latest as of May 2026)
+that doesn't require a quota uplift. Released 2026-03-05, GA, 1M TPM
+available immediately.
 
 ```bash
 az cognitiveservices account deployment create \
   --resource-group rg-strukalex-8338 --name strukalex-8338-resource \
-  --deployment-name gpt-5.5 --model-name gpt-5.5 --model-version 2026-04-24 \
-  --model-format OpenAI --sku-name GlobalStandard --sku-capacity 10
+  --deployment-name gpt-5.4 --model-name gpt-5.4 --model-version 2026-03-05 \
+  --model-format OpenAI --sku-name GlobalStandard --sku-capacity 100
 ```
 
-Then add `gpt-5.5` to `AZURE_OPENAI_DEPLOYMENTS` in the override file.
+Then add `gpt-5.4` to `AZURE_OPENAI_DEPLOYMENTS` in the override env file.
 
-If quota stays at 0 by the time E04 starts, the brief explicitly allows running with `gpt-4o + gpt-5` only.
+## Optional follow-up (track separately; not blocking E04)
+
+If you want gpt-5.5 in the matrix later, file the quota request:
+
+```
+https://aka.ms/oai/quotaincrease
+  Subscription:    Azure subscription 1
+  Resource:        strukalex-8338-resource (eastus2)
+  Model:           gpt-5.5, version 2026-04-24, SKU GlobalStandard
+  Requested TPM:   ≥ 10,000
+```
+
+24-72h Microsoft turnaround. Once approved, deploy with the same
+`az cognitiveservices account deployment create ...` template (replace
+gpt-5.4 → gpt-5.5, version → 2026-04-24). Add to AZURE_OPENAI_DEPLOYMENTS,
+then re-run a single-variant benchmark to compare against gpt-5.4.
