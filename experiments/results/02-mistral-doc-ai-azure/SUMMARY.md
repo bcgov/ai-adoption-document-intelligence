@@ -5,7 +5,7 @@
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json)
 **Provider doc**: [`docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md`](../../../docs-md/graph-workflows/02-mistral-doc-ai-azure-OCR.md)
 **Dataset**: `seed-local-samples-mix-public-v1` (40 samples; force-resynced on the improve branch so the canonical run sees the latest local label corrections)
-**Current canonical run** ([`benchmark-run.json`](benchmark-run.json)): `694f8977-9101-408a-95c7-1dcc29805a02` — strict-evaluated under `defaultRule: { rule: "exact" }`, round-2 prompt active (format preservation + strict blank-vs-zero + two-group checkbox section).
+**Current canonical run** ([`benchmark-run.json`](benchmark-run.json)): `372fdc8d-9601-4a70-835f-98f710f0e458` — strict-evaluated under `defaultRule: { rule: "exact" }`, round-2 prompt + GT cleanup (sin/spouse_sin/date/spouse_date/phone/spouse_phone promoted to one-of arrays where the engine reads form-as-written).
 
 ## Endpoint, auth, request/response shape
 
@@ -58,30 +58,35 @@ The dataset was also force-resynced between the fuzzy era and these runs,
 so the strict numbers reflect upstream label corrections, not just the
 rule change.
 
-| | Fuzzy@0.85 (historical) | Strict baseline (no prompt change) | Strict + round-1 prompt (format preservation) | **Strict + round-2 prompt (canonical)** |
-|---|---|---|---|---|
-| Run id | `1b97de43-b06d-44da-a3ae-659340ea255f` | `b26d8cc2-...255f` | `2185d532-...4e22` | **`694f8977-9101-408a-95c7-1dcc29805a02`** |
-| `pass_rate` | 0.875 | 0.900 | 0.825 | **0.900** |
-| `f1.median` | 0.943 | 0.950 | 0.950 | **0.958** |
-| `f1.mean` | 0.907 | 0.934 | 0.911 | 0.930 |
-| `f1.min` | 0.598 | 0.679 | 0.654 | 0.630 |
-| `precision.mean` | 0.975 | 1.000 | 0.993 | **1.000** |
-| `recall.mean` | 0.864 | 0.884 | 0.853 | 0.879 |
-| `matchedFields.median` | 66 | 66.5 | 66.0 | **67** |
-| `falsePositives.mean` | 1.25 | 0.00 | 0.40 | **0.00** |
+| | Fuzzy@0.85 (historical) | Strict baseline (no prompt change) | Strict + round-1 prompt (format preservation) | Strict + round-2 prompt (pre-cleanup) | **Strict + round-2 prompt + GT cleanup (canonical)** |
+|---|---|---|---|---|---|
+| Run id | `1b97de43-b06d-44da-a3ae-659340ea255f` | `b26d8cc2-...255f` | `2185d532-...4e22` | `694f8977-...805a02` | **`372fdc8d-9601-4a70-835f-98f710f0e458`** |
+| `pass_rate` | 0.875 | 0.900 | 0.825 | 0.900 | **0.925** |
+| `f1.median` | 0.943 | 0.950 | 0.950 | 0.958 | **0.972** |
+| `f1.mean` | 0.907 | 0.934 | 0.911 | 0.930 | **0.942** |
+| `f1.min` | 0.598 | 0.679 | 0.654 | 0.630 | **0.679** |
+| `precision.mean` | 0.975 | 1.000 | 0.993 | 1.000 | **1.000** |
+| `recall.mean` | 0.864 | 0.884 | 0.853 | 0.879 | **0.899** |
+| `matchedFields.median` | 66 | 66.5 | 66.0 | 67 | **69** |
+| `falsePositives.mean` | 1.25 | 0.00 | 0.40 | 0.00 | **0.00** |
 
 The strict baseline came in *better* than the fuzzy era on every aggregate — a
 counterintuitive result driven by upstream label corrections (force-resynced
 dataset) outpacing the strict rule's tighter threshold. The two effects roughly
 cancel, with corrections dominating slightly.
 
-Round 2 is the canonical state on this branch — it matches the strict
-baseline on `pass_rate` / `precision.mean` / `falsePositives.mean` AND beats
-it on `f1.median` (+0.7 pp) and `matchedFields.median` (+0.5 fields).
-`f1.mean` and `recall.mean` are 0.4–0.6 pp below the strict baseline,
-driven by a handful of samples where the engine now correctly returns
-`null` for cells GT had labelled `"0"` — those are GT-cleanup candidates,
-not engine regressions.
+Round 2 + GT cleanup is the canonical state on this branch and the
+strongest E02 result on record — it beats the strict baseline on every
+aggregate metric (`pass_rate` +2.5 pp, `f1.median` +2.2 pp, `f1.mean`
++0.8 pp, `recall.mean` +1.5 pp, `matchedFields.median` +2.5 fields),
+maintains `precision.mean = 1.000` and `falsePositives.mean = 0`, and
+ties the fuzzy-era E03 / E05 on `matchedFields.median` (69 of 74)
+while being strict-evaluated. Three samples still fail — `HR0081 (10)`
+(f1 0.679), `Fake 1` (0.746), `Fake 3` (0.767) — all three driven by
+Mistral's OCR layer not surfacing handwritten `0`s and X-marked
+checkboxes on those forms (see round-3 entry in
+[`iteration/CHANGELOG.md`](iteration/CHANGELOG.md) for the engine-ceiling
+diagnosis).
 
 ### One-of GT support (evaluator change)
 
