@@ -4,7 +4,7 @@
 **Resource**: `strukalex-8338-resource` (Foundry, eastus2). Model deployment: `gpt-5.4` GlobalStandard cap 100 (= 100K TPM)
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-04-vlm-direct-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-04-vlm-direct-workflow.json)
 **Provider doc**: [`docs-md/graph-workflows/04-vlm-direct-OCR.md`](../../../docs-md/graph-workflows/04-vlm-direct-OCR.md)
-**Dataset**: `seed-local-samples-mix-private-v1` (40 samples)
+**Dataset**: `seed-local-samples-mix-public-v1` (40 samples)
 **Azure OpenAI API version**: `2024-12-01-preview`
 
 ## Scope

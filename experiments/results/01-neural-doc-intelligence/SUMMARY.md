@@ -3,7 +3,7 @@
 **Branch**: `experiment/01-neural-doc-intelligence` (stacked on `feature/extraction-experiments`)
 **Trained model id**: `sdpr_synth_test`
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json)
-**Dataset**: `seed-local-samples-mix-private-v1` (33 samples)
+**Dataset**: `seed-local-samples-mix-public-v1` (33 samples)
 
 ## Nodes wired
 

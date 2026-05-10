@@ -13,7 +13,7 @@
       "experiment",
       "experiment-05"
     ],
-    "targetLocalDataset": "samples-mix-private"
+    "targetLocalDataset": "samples-mix-public"
   },
   "entryNodeId": "prepareFileData",
   "ctx": {

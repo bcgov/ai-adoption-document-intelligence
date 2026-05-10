@@ -17,7 +17,7 @@
  *      `humanApproval` signal, then completes via `storeResults`.
  *
  * The OCR fixture is a real Azure DI poll response from
- * `seed-local-samples-mix-private-v1` sample "1 81" run against
+ * `seed-local-samples-mix-public-v1` sample "1 81" run against
  * model `sdpr_synth_test` during benchmark run
  * `2295feed-1c99-493e-ae20-546499b5d685`.
  *
@@ -292,7 +292,7 @@ describe("Experiment 01 — neural DI workflow template (static)", () => {
       const graph = loadTemplate() as GraphWorkflowConfig & {
         metadata?: { targetLocalDataset?: string };
       };
-      expect(graph.metadata?.targetLocalDataset).toBe("samples-mix-private");
+      expect(graph.metadata?.targetLocalDataset).toBe("samples-mix-public");
     });
 
     it("uses the trained neural model id as the modelId default", () => {
