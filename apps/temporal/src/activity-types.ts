@@ -17,6 +17,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "mistralAzureOcr.process",
   "azureContentUnderstanding.deployAnalyzer",
   "azureContentUnderstanding.analyze",
+  "vlmDirect.extract",
   "ocr.storeResults",
   "ocr.enrich",
   "document.storeRejection",

@@ -142,3 +142,8 @@ export {
   mistralAzureOcrProcess,
   resolveMistralAzureDeploymentId,
 } from "./ocr-providers/mistral-azure/mistral-azure-ocr-process";
+export type {
+  VlmDirectExtractParams,
+  VlmDirectExtractResult,
+} from "./ocr-providers/vlm-direct/vlm-direct-extract";
+export { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
