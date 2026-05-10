@@ -43,7 +43,11 @@
     ],
     "name": "Thomas Andrade",
     "phone": "(386) 046-869",
-    "sin": "008 243 511",
+    "sin": [
+        "008243511",
+        "008 243 511",
+        "008-243-511"
+    ],
     "checkbox_employment_changes_spouse_yes": "unselected",
     "checkbox_employment_changes_spouse_no": "unselected",
     "checkbox_school_spouse_yes": "unselected",

@@ -43,7 +43,11 @@
     ],
     "name": "Lauren Campbell",
     "phone": "006 915 427",
-    "sin": "886 637 515",
+    "sin": [
+        "886637515",
+        "886 637 515",
+        "886-637-515"
+    ],
     "checkbox_employment_changes_spouse_yes": "unselected",
     "checkbox_employment_changes_spouse_no": "unselected",
     "checkbox_school_spouse_yes": "unselected",
