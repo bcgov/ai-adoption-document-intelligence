@@ -9,6 +9,18 @@ to branch from, and which lessons from E03 to apply pre-emptively.
 ```
 Implement experiment E04 from experiments/briefs/04-vlm-direct.md.
 
+**SCOPE REDUCTION (user request, overrides the brief):** the brief
+defines a 3-variant × 2-model matrix (single-pass, chain-of-thought,
+self-consistency × gpt-4o, gpt-5). The user has scoped this experiment
+down to **ONE run only**: variant 1 (single-pass) on **gpt-5.4** only.
+Skip variants 2 (chain-of-thought) and 3 (self-consistency); skip
+gpt-4o, gpt-5, and gpt-5.5. Build the provider + workflow JSON + tests
+for the single-pass variant, run the canonical 40-sample benchmark
+once, write the SUMMARY, commit, stop. Do NOT create the cot/
+self-consistency workflow JSON variants — they're explicitly out of
+scope. The "3 workflow JSON variants" task in the brief is reduced to
+"1 workflow JSON variant".
+
 START BY READING (in this order):
   1. experiments/briefs/_shared-rules.md  (canonical patterns; iteration
      kit + sync-provider cache emission + Foundry quota retry sections
@@ -250,19 +262,22 @@ az cognitiveservices account deployment create \
 
 Then add `gpt-5.4` to `AZURE_OPENAI_DEPLOYMENTS` in the override env file.
 
-## Optional follow-up (track separately; not blocking E04)
+## Optional follow-up: gpt-5.5 access
 
-If you want gpt-5.5 in the matrix later, file the quota request:
+**The standard quota uplift form at `https://aka.ms/oai/quotaincrease`
+does NOT list gpt-5.5** as of the time of writing — its dropdowns for
+"Azure OpenAI > Model Deployment (PTU/RPM/TPM) > Global Standard >
+Global Standard Model" only go up to gpt-5.4. This suggests gpt-5.5
+access is gated through a different path than the standard quota
+uplift, possibly:
 
-```
-https://aka.ms/oai/quotaincrease
-  Subscription:    Azure subscription 1
-  Resource:        strukalex-8338-resource (eastus2)
-  Model:           gpt-5.5, version 2026-04-24, SKU GlobalStandard
-  Requested TPM:   ≥ 10,000
-```
+- A Microsoft preview / early-access registration program for gpt-5.5
+  specifically (not the generic OpenAI quota form)
+- Microsoft Foundry's "Models sold directly by Azure" allowlist (some
+  newer models route through there before hitting the standard quota
+  catalog)
+- Direct outreach to a Microsoft Azure account manager
 
-24-72h Microsoft turnaround. Once approved, deploy with the same
-`az cognitiveservices account deployment create ...` template (replace
-gpt-5.4 → gpt-5.5, version → 2026-04-24). Add to AZURE_OPENAI_DEPLOYMENTS,
-then re-run a single-variant benchmark to compare against gpt-5.4.
+Until that path is identified, **gpt-5.4 is the most capable model
+deployable in this subscription without any approvals**. gpt-5.5 is
+deferred to a future experiment / cross-engine comparison.
