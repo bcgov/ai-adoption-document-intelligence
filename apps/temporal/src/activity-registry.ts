@@ -9,6 +9,8 @@
  */
 
 import {
+  azureCuAnalyze,
+  azureCuDeployAnalyzer,
   benchmarkAggregate,
   benchmarkCleanup,
   benchmarkCompareAgainstBaseline,
@@ -155,6 +157,35 @@ register({
   },
   description:
     "Mistral Document AI on Azure AI Foundry (sync) with optional document annotation",
+});
+
+register({
+  activityType: "azureContentUnderstanding.deployAnalyzer",
+  activityFn: azureCuDeployAnalyzer as (...args: unknown[]) => Promise<unknown>,
+  // Idempotent PUT against the CU control plane; the in-memory cache + GET
+  // probe make repeats cheap. Short timeout, three attempts is enough.
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Deploy (idempotent PUT) an Azure Content Understanding analyzer; in-memory cache short-circuits no-ops",
+});
+
+register({
+  activityType: "azureContentUnderstanding.analyze",
+  activityFn: azureCuAnalyze as (...args: unknown[]) => Promise<unknown>,
+  // CU is async (POST 202 + poll). The Foundry deployment shares the
+  // ~10 RPM quota model with Mistral on Foundry, so the retry policy
+  // mirrors `mistralAzureOcr.process`: 30 attempts × 15 s / 1.5x / 60 s
+  // cap. Generous startToClose to absorb slow analyses.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "Azure Content Understanding analyze (async, polls until terminal); deploys analyzer first if a template schema is supplied",
 });
 
 register({

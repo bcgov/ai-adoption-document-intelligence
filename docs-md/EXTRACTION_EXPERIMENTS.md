@@ -25,7 +25,7 @@ develop
 |---|---|---|---|
 | E01 — Neural DI + post-processing | `experiment/01-neural-doc-intelligence` | ⏳ pending | `experiment-01-neural` |
 | E02 — Mistral Document AI on Azure | `experiment/02-mistral-doc-ai-azure` | ✅ implemented + tuned + live benchmark on aligned 40-sample dataset (f1.median 0.943, f1.mean 0.907, pass_rate 0.875 = 35/40) | `experiment-02-mistral-doc-ai-azure` |
-| E03 — Azure Content Understanding | `experiment/03-content-understanding` | ⏳ pending | `experiment-03-content-understanding` |
+| E03 — Azure Content Understanding | `experiment/03-content-understanding` | ✅ implemented + tuned + live benchmark on aligned 40-sample dataset (f1.median 0.965, f1.mean 0.927, pass_rate 0.95 = 38/40) | `experiment-03-content-understanding` |
 | E04 — VLM-direct | `experiment/04-vlm-direct` | ⏳ pending | `experiment-04-vlm-direct-{variant}-{model}` |
 | E05 — VLM + OCR hybrid | `experiment/05-vlm-ocr-hybrid` | ⏳ pending | `experiment-05-hybrid-{variant}-{model}` |
 
@@ -131,7 +131,20 @@ Each experiment fills in this 12-item checklist as part of its work. See `experi
 
 ### E03 — Azure Content Understanding
 
-(Same template; filled during the experiment.)
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 1 | Map engine output to canonical `OCRResult` | ✅ | `apps/temporal/src/ocr-providers/azure-content-understanding/cu-to-ocr-result.ts`; produces `documents[0].fields` (Azure-shape) + parallel `keyValuePairs` from `result.contents[0].fields`, anchored against the captured fixture. |
+| 2 | Activity-type registration | ✅ | `azureContentUnderstanding.deployAnalyzer` (idempotent PUT, 3 retries) and `azureContentUnderstanding.analyze` (async, polls internally; 30 attempts × 15 s × 1.5x × 60 s cap retry; 20 m start-to-close) registered in all three registries. |
+| 3 | Field schema → engine format | ✅ | `analyzer-schema-builder.ts` maps `FieldDefinition[]` → CU analyzer JSON (`fieldSchema.fields`) with descriptions + classify-with-enum for selection marks + nullable-numeric description hint. |
+| 4 | Confidence values 0–1 | ✅ | CU per-field `confidence` ∈ [0,1] when `estimateFieldSourceAndConfidence: true`. Mapper computes page-level mean confidence; falls back to 0.95 when missing. |
+| 5 | Bounding-box convention | ⚠️ | CU's `contents[*].fields[*]` shape exposes `spans` (offset/length into markdown) + a `source` descriptor — no per-word polygon. The mapper synthesises one Word per page from markdown with empty polygon (matches the Mistral fallback). |
+| 6 | Page indexing | ✅ | `result.contents[0].pages[*].pageNumber` is 1-indexed → `OCRResult.pages[*].pageNumber` is 1-indexed too. |
+| 7 | Auth & endpoint via env vars | ✅ | `AZURE_CU_ENDPOINT` + `AZURE_CU_KEY` + `AZURE_CU_ANALYZER_PREFIX`. URL = `{endpoint}/contentunderstanding/...?api-version=2025-11-01`. Default auth = `Ocp-Apim-Subscription-Key` (Microsoft Learn quickstart); `AZURE_CU_AUTH_MODE=bearer` switches to Foundry-style Bearer. **Pre-flight**: `PATCH /contentunderstanding/defaults` must wire the `gpt-5.2`/`gpt-4.1-mini`/`text-embedding-3-large` aliases — without it, PUT analyzer returns `DefaultsNotSet`. |
+| 8 | Workflow graph | ✅ | `experiment-03-content-understanding-workflow.json` (sync-shape chain: prepareFileData → azureCuAnalyze → cleanup → checkConfidence → reviewSwitch → humanReview/storeResults). The CU activity is async server-side but polls internally. Auto-discovered by `seedExperimentWorkflows()`. |
+| 9 | Engine-internal preprocessing | ✅ | CU's content-extraction layer handles deskew/rotation/OCR internally; upstream `pdf-normalization.service.ts` stays on. |
+| 10 | Test coverage | ✅ | `experiment-03-content-understanding.test.ts` — 16 static (template + scope + chain wiring + fixture-aware mapper assertions) + 2 runtime against local Temporal. CI gate via `process.env.CI`. Plus 7 unit tests on `analyzer-schema-builder` + 9 on `cu-to-ocr-result`. |
+| 11 | Benchmark integration | ✅ | Auto-discovered from JSON template; `seed-experiment-03-content-understanding-definition` seeded against `seed-local-samples-mix-private-v1`. Trigger via `./scripts/run-experiment-benchmarks.sh 03`. |
+| 12 | Cost/usage telemetry | ⏳ | CU bills two layers (content-extraction per-page + generative per-token); cross-engine cost normalisation deferred to the post-E05 follow-up. |
 
 ### E04 — VLM-direct
 

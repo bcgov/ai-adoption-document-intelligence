@@ -1,0 +1,513 @@
+{
+  "analyzerId": "diexperimentseedsdprmonthlyreporttemplate",
+  "bodyHash": "f134bb95",
+  "analyzer": {
+    "description": "Extract structured field values from this BC SDPR Monthly Report form.\n\nConventions:\n- The form has two parallel income columns: **Applicant** (left) and **Spouse** (right). Each `applicant_*` field reads the LEFT column; each `spouse_*` field reads the RIGHT column. Never mix columns.\n- **Numeric income fields:** Look at the cell carefully and distinguish two cases:\n  - If the cell is **completely blank** (no number written, no \"0\", no \"$0\", no dash), return **null**.\n  - If the cell explicitly shows `0`, `$0`, `$ 0`, `0.00`, or any literal zero, return the number `0`.\n  - Otherwise, return the dollar amount as a plain number with no `$`, no commas, no spaces (e.g., `1234.56`).\n  - This distinction matters: do NOT default empty cells to 0 — that loses information.\n- Checkbox fields ending in `_yes` or `_no`: return `selected` if the box is filled/checked, `unselected` otherwise. The form gives a Yes/No pair for every question — for any answered question exactly one of the pair is `selected` and the other is `unselected`. Some questions have separate Applicant and Spouse Yes/No pairs (suffix `_spouse_yes` / `_spouse_no`); read those from the spouse-specific row.\n- Text fields (`signature`, `name`, `phone`, `sin`, and their `spouse_*` counterparts): extract the visible text exactly as written, preserving punctuation, hyphens, and spacing where present. Use empty string `\"\"` if blank.\n- `signature` is the cursive/initial mark in the signature box. `name` is the printed full name. They are separate fields and must not be swapped.\n- Date fields (`date`, `spouse_date`): extract in `YYYY-MM-DD` format. The form prints date headers like `(yyyy-mmm-dd)` — interpret the value accordingly (`mmm` is a 3-letter month abbreviation, e.g. `MAR`).\n- `explain_changes`: free-text field. Capture the entire paragraph if present, otherwise empty string.\n- Officer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD, etc.) are NOT in the schema — ignore them.\n\nBe conservative: if a number is illegible, return null (treat as blank). Do NOT guess values that aren't visibly written on the form.",
+    "baseAnalyzerId": "prebuilt-document",
+    "models": {
+      "completion": "prebuilt-analyzer-completion",
+      "embedding": "prebuilt-analyzer-embedding"
+    },
+    "config": {
+      "returnDetails": true,
+      "estimateFieldSourceAndConfidence": true
+    },
+    "fieldSchema": {
+      "fields": {
+        "checkbox_need_assistance_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 1: 'Are you still in need of assistance?' — return 'selected' if the YES box is checked."
+        },
+        "checkbox_need_assistance_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 1: 'Are you still in need of assistance?' — return 'selected' if the NO box is checked."
+        },
+        "checkbox_family_assets_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 2: 'Has your family unit received or disposed of any assets?' — return 'selected' if the YES box is checked."
+        },
+        "checkbox_family_assets_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 2: 'Has your family unit received or disposed of any assets?' — return 'selected' if the NO box is checked."
+        },
+        "checkbox_shelter_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 3: 'Any changes to your shelter costs?' — return 'selected' if YES is checked."
+        },
+        "checkbox_shelter_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 3: 'Any changes to your shelter costs?' — return 'selected' if NO is checked."
+        },
+        "checkbox_dependants_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 4: 'Any changes in Dependants or Persons living in the home?' — return 'selected' if YES is checked."
+        },
+        "checkbox_dependants_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 4: 'Any changes in Dependants or Persons living in the home?' — return 'selected' if NO is checked."
+        },
+        "checkbox_employment_changes_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 5 (APPLICANT column, left): 'Any employment changes?' — return 'selected' if Applicant's YES is checked."
+        },
+        "checkbox_employment_changes_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 5 (APPLICANT column, left): 'Any employment changes?' — return 'selected' if Applicant's NO is checked."
+        },
+        "checkbox_employment_changes_spouse_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 5 (SPOUSE column, right): 'Any employment changes?' — return 'selected' if Spouse's YES is checked."
+        },
+        "checkbox_employment_changes_spouse_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 5 (SPOUSE column, right): 'Any employment changes?' — return 'selected' if Spouse's NO is checked."
+        },
+        "checkbox_school_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 6 (APPLICANT column): 'Are you attending / enrolled in school or training?' — return 'selected' if Applicant's YES is checked."
+        },
+        "checkbox_school_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 6 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+        },
+        "checkbox_school_spouse_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 6 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+        },
+        "checkbox_school_spouse_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 6 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+        },
+        "checkbox_work_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 7 (APPLICANT column): 'Are you looking for work?' — return 'selected' if Applicant's YES is checked."
+        },
+        "checkbox_work_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 7 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+        },
+        "checkbox_work_spouse_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 7 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+        },
+        "checkbox_work_spouse_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 7 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+        },
+        "checkbox_moved_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 8 (APPLICANT column): 'Have you moved or entered a facility?' — return 'selected' if Applicant's YES is checked."
+        },
+        "checkbox_moved_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 8 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+        },
+        "checkbox_moved_spouse_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 8 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+        },
+        "checkbox_moved_spouse_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 8 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+        },
+        "checkbox_warrant_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 9 (APPLICANT column): 'Any outstanding warrants for your arrest?' — return 'selected' if Applicant's YES is checked."
+        },
+        "checkbox_warrant_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 9 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+        },
+        "checkbox_warrant_spouse_yes": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 9 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+        },
+        "checkbox_warrant_spouse_no": {
+          "type": "string",
+          "method": "classify",
+          "enum": [
+            "selected",
+            "unselected"
+          ],
+          "description": "Section 1, Question 9 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+        },
+        "explain_changes": {
+          "type": "string",
+          "method": "extract",
+          "description": "Free-text paragraph immediately below 'Please explain all changes including income and submit proof:'. Capture the entire handwritten/typed paragraph verbatim. Empty string if blank."
+        },
+        "signature": {
+          "type": "string",
+          "method": "extract",
+          "description": "APPLICANT's signature (cursive mark or initials) in the 'Applicant Signature' box at the bottom of the form. Distinct from the printed name. Empty string if blank."
+        },
+        "spouse_signature": {
+          "type": "string",
+          "method": "extract",
+          "description": "SPOUSE's signature (cursive mark or initials) in the 'Spouse Signature' box at the bottom of the form. Empty string if blank."
+        },
+        "date": {
+          "type": "date",
+          "method": "extract",
+          "description": "APPLICANT's signature date in the box labeled 'Date (yyyy-mmm-dd)' next to the Applicant Signature. Return as YYYY-MM-DD."
+        },
+        "spouse_date": {
+          "type": "date",
+          "method": "extract",
+          "description": "SPOUSE's signature date in the box labeled 'Date (yyyy-mmm-dd)' next to the Spouse Signature. Return as YYYY-MM-DD."
+        },
+        "name": {
+          "type": "string",
+          "method": "extract",
+          "description": "APPLICANT's printed full name in the 'Applicant Print Name' box at the bottom of the form. Empty string if blank."
+        },
+        "spouse_name": {
+          "type": "string",
+          "method": "extract",
+          "description": "SPOUSE's printed full name in the 'Spouse Print Name' box at the bottom of the form. Empty string if blank."
+        },
+        "phone": {
+          "type": "string",
+          "method": "extract",
+          "description": "APPLICANT's telephone number in the 'Applicant Telephone' box. Preserve formatting (parens, hyphens) as written. Empty string if blank."
+        },
+        "spouse_phone": {
+          "type": "string",
+          "method": "extract",
+          "description": "SPOUSE's telephone number in the 'Spouse Telephone' box. Preserve formatting. Empty string if blank."
+        },
+        "sin": {
+          "type": "string",
+          "method": "extract",
+          "description": "APPLICANT's Social Insurance Number, 9 digits. Strip any spaces or hyphens. Empty string if blank."
+        },
+        "spouse_sin": {
+          "type": "string",
+          "method": "extract",
+          "description": "SPOUSE's Social Insurance Number, 9 digits. Strip any spaces or hyphens. Empty string if blank."
+        },
+        "applicant_net_employment_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2 income table, row 'Net Employment Income', APPLICANT column (left). Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_employment_insurance": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2 income table, row 'Employment Insurance', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_spousal_support_alimony": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2 income table, row 'Spousal Support / Alimony', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_child_support": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2 income table, row 'Child Support', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_workbc_financial_support": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2 income table, row 'WorkBC Financial Support', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_student_funding_loans_bursaries": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_rental_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Rental Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_room_board_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Room / Board Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_workers_compensation": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Worker's Compensation', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_private_pensions_retirement_disability": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_oas_gis": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'OAS / GIS', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_trust_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Trust Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_canada_pension_plan_cpp": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Canada Pension Plan (CPP)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_tax_credits_gst_credit": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Tax Credits (eg: GST Credit)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_child_tax_benefits": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Child Tax Benefits', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_income_tax_refund": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Income Tax Refund', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_other_income_money_received": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'All other income / money received', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "applicant_income_of_dependent_children": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Income of Dependent Children', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_net_employment_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2 income table, row 'Net Employment Income', SPOUSE column (right). Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_employment_insurance": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Employment Insurance', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_spousal_support_alimony": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Spousal Support / Alimony', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_child_support": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Child Support', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_workbc_financial_support": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'WorkBC Financial Support', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_student_funding_loans_bursaries": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_rental_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Rental Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_room_board_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Room / Board Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_workers_compensation": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Worker's Compensation', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_private_pensions_retirement_disability": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_oas_gis": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'OAS / GIS', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_trust_income": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Trust Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_canada_pension_plan_cpp": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Canada Pension Plan (CPP)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_tax_credits_gst_credit": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Tax Credits (eg: GST Credit)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_child_tax_benefits": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Child Tax Benefits', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_income_tax_refund": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'Income Tax Refund', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        },
+        "spouse_other_income_money_received": {
+          "type": "number",
+          "method": "extract",
+          "description": "Section 2, row 'All other income / money received', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+        }
+      }
+    }
+  },
+  "submission": {
+    "url": "/contentunderstanding/analyzers/diexperimentseedsdprmonthlyreporttemplate:analyze?api-version=2025-11-01",
+    "body": {
+      "inputs": [
+        {
+          "data": "[base64, 785824 chars]",
+          "mimeType": "image/jpeg"
+        }
+      ]
+    }
+  }
+}

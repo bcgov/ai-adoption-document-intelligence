@@ -120,6 +120,16 @@ export type {
   CorrectionResult,
   CorrectionToolParams,
 } from "./correction-types";
+export type {
+  AzureCuAnalyzeParams,
+  AzureCuAnalyzeResult,
+} from "./ocr-providers/azure-content-understanding/azure-cu-analyze";
+export { azureCuAnalyze } from "./ocr-providers/azure-content-understanding/azure-cu-analyze";
+export type {
+  AzureCuDeployAnalyzerParams,
+  AzureCuDeployAnalyzerResult,
+} from "./ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
+export { azureCuDeployAnalyzer } from "./ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
 export type { MistralAzureOcrProcessParams } from "./ocr-providers/mistral-azure/mistral-azure-ocr-process";
 export {
   mistralAzureOcrProcess,
