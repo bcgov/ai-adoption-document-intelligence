@@ -2,35 +2,45 @@
 # By default all alerts are routed to the 'drop' receiver (no notifications).
 #
 # To test CHES email delivery locally:
-#   1. Set CHES_* and CHES_ADAPTER_SECRET env vars in backend-services.
-#   2. Uncomment the ches-notifications receiver below.
+#   1. Copy CHES_ADAPTER_SECRET from deployments/local/.env and paste it into
+#      the `credentials:` field in the ches-notifications receiver below.
+#   2. Uncomment the ches-notifications receiver block and the routes block.
 #   3. Change the default receiver to "ches-notifications".
-#   4. Restart the monitoring stack: podman compose -f deployments/local/docker-compose.monitoring.yml restart alertmanager
+#   4. Reload alertmanager:
+#        podman compose -f deployments/local/docker-compose.monitoring.yml restart alertmanager
+#   5. POST a test alert to fire immediately (no need to wait for Prometheus):
+#        curl -s -X POST http://localhost:9093/api/v2/alerts \
+#          -H "Content-Type: application/json" \
+#          -d '[{"labels":{"alertname":"TestAlert","severity":"warning"},"annotations":{"summary":"Local test alert","description":"Fired manually to verify CHES delivery."}}]'
+#   6. Check ches-adapter logs: podman logs ai-doc-intelligence-ches-adapter -f
+#
+# NOTE: Do NOT commit this file with a real secret in `credentials:` — it is tracked by git.
+#       Remove the secret and re-comment the receiver before committing.
 
 global:
   resolve_timeout: 5m
 
 route:
-  receiver: "drop"
+  receiver: "drop" # Fallback
   group_by: ["alertname", "job"]
   group_wait: 10s
   group_interval: 1m
   repeat_interval: 1h
-  # Uncomment to route firing alerts to CHES:
-  # routes:
-  #   - receiver: "ches-notifications"
-  #     matchers:
-  #       - 'severity =~ "warning|critical"'
-  #   - receiver: "drop"
+  routes:
+    - receiver: "ches-notifications"
+      matchers:
+        - 'severity =~ "warning|critical"'
 
 receivers:
   - name: "drop"
-  # Uncomment and fill in to enable CHES notifications locally:
-  # - name: "ches-notifications"
-  #   webhook_configs:
-  #     - url: "http://host.containers.internal:3002/api/ches-adapter"
-  #       send_resolved: true
-  #       http_config:
-  #         authorization:
-  #           type: Bearer
-  #           credentials: "<CHES_ADAPTER_SECRET value>"
+  # Uncomment and fill in to enable CHES notifications locally.
+  # The ches-adapter runs in the same docker network as alertmanager, so use
+  # the container name + port 3003 (NOT the backend at port 3002).
+  - name: "ches-notifications"
+    webhook_configs:
+      - url: "http://ai-doc-intelligence-ches-adapter:3003/"
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials: "<CHES_ADAPTER_SECRET value>"

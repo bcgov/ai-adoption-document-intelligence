@@ -3,6 +3,7 @@ import { Injectable, type OnModuleInit } from "@nestjs/common";
 import {
   Counter,
   collectDefaultMetrics,
+  Gauge,
   Histogram,
   Registry,
 } from "prom-client";
@@ -16,8 +17,12 @@ export class MetricsService implements OnModuleInit {
   private readonly appErrorTotal: Counter;
   private readonly appRecoveryTotal: Counter;
   private readonly appSuccessTotal: Counter;
-  /** Tracks alert types currently in an error state for transition detection. */
-  private readonly activeErrorTypes = new Set<string>();
+  private readonly appAlertActive: Gauge;
+  /**
+   * Tracks alert types currently in an error state and their severity.
+   * Used for transition detection and to clear the correct gauge label set on recovery.
+   */
+  private readonly activeErrorTypes = new Map<string, "warning" | "critical">();
 
   constructor() {
     this.registry = new Registry();
@@ -64,6 +69,13 @@ export class MetricsService implements OnModuleInit {
       labelNames: ["type"] as const,
       registers: [this.registry],
     });
+
+    this.appAlertActive = new Gauge({
+      name: "app_alert_active",
+      help: "1 while an in-app alert of the given type is active, 0 when resolved. Set by the logging hook on warn/error; cleared on info/debug (recovery transition).",
+      labelNames: ["type", "severity"] as const,
+      registers: [this.registry],
+    });
   }
 
   onModuleInit(): void {
@@ -90,14 +102,28 @@ export class MetricsService implements OnModuleInit {
   handleLogAlert(level: LogLevel, alertType: string): void {
     if (level === "warn") {
       this.appErrorTotal.labels({ type: alertType, severity: "warning" }).inc();
-      this.activeErrorTypes.add(alertType);
+      if (!this.activeErrorTypes.has(alertType)) {
+        this.appAlertActive
+          .labels({ type: alertType, severity: "warning" })
+          .set(1);
+        this.activeErrorTypes.set(alertType, "warning");
+      }
     } else if (level === "error") {
       this.appErrorTotal
         .labels({ type: alertType, severity: "critical" })
         .inc();
-      this.activeErrorTypes.add(alertType);
+      if (!this.activeErrorTypes.has(alertType)) {
+        this.appAlertActive
+          .labels({ type: alertType, severity: "critical" })
+          .set(1);
+        this.activeErrorTypes.set(alertType, "critical");
+      }
     } else if (level === "info" || level === "debug") {
-      if (this.activeErrorTypes.has(alertType)) {
+      const activeSeverity = this.activeErrorTypes.get(alertType);
+      if (activeSeverity !== undefined) {
+        this.appAlertActive
+          .labels({ type: alertType, severity: activeSeverity })
+          .set(0);
         this.appRecoveryTotal.labels({ type: alertType }).inc();
         this.activeErrorTypes.delete(alertType);
       }
