@@ -3,7 +3,24 @@ name: Deploy Instance
 on:
   push:
     branches: [develop, main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - test
+      namespace:
+        description: Optional OpenShift namespace override
+        required: false
+        type: string
+      instance_name:
+        description: Optional instance name override
+        required: false
+        type: string
 
 env:
   DEPLOY_PLG: "true"
@@ -24,6 +41,7 @@ jobs:
       image-tag: ${{ steps.meta.outputs.image-tag }}
       sha-tag: ${{ steps.meta.outputs.sha-tag }}
       environment: ${{ steps.meta.outputs.environment }}
+      namespace: ${{ steps.meta.outputs.namespace }}
       checkout-ref: ${{ steps.meta.outputs.checkout-ref }}
     steps:
       - name: Compute instance, image tag, environment
@@ -32,6 +50,7 @@ jobs:
           set -euo pipefail
 
           SHA_TAG=""
+          NAMESPACE="${{ inputs.namespace }}"
 
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "develop" ]]; then
             # push to develop → shared test instance, single floating tag
@@ -45,7 +64,7 @@ jobs:
             SHA_TAG="bcgov-di-${GITHUB_SHA::12}"
             ENV="prod"
           else
-            # workflow_dispatch: derive from branch, deploy to dev
+            # workflow_dispatch: derive from branch unless overridden by inputs
             RAW_BRANCH="${{ github.ref_name }}"
             IMAGE_TAG=$(echo "$RAW_BRANCH" \
               | tr '[:upper:]' '[:lower:]' \
@@ -56,7 +75,14 @@ jobs:
               | sed 's/[^a-z0-9-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' \
               | cut -c1-20 \
               | sed 's/-$//')
-            ENV="dev"
+            if [[ -n "${{ inputs.instance_name }}" ]]; then
+              INSTANCE=$(echo "${{ inputs.instance_name }}" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sed 's/[^a-z0-9-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' \
+                | cut -c1-20 \
+                | sed 's/-$//')
+            fi
+            ENV="${{ inputs.environment || 'dev' }}"
           fi
 
           CHECKOUT_REF="${{ github.sha }}"
@@ -65,6 +91,7 @@ jobs:
           echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "sha-tag=$SHA_TAG" >> "$GITHUB_OUTPUT"
           echo "environment=$ENV" >> "$GITHUB_OUTPUT"
+          echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
           echo "checkout-ref=$CHECKOUT_REF" >> "$GITHUB_OUTPUT"
 
           echo "Event:        ${{ github.event_name }}"
@@ -72,6 +99,7 @@ jobs:
           echo "Image tag:    $IMAGE_TAG"
           echo "SHA tag:      ${SHA_TAG:-(none)}"
           echo "Environment:  $ENV"
+          echo "Namespace:    ${NAMESPACE:-(default from environment secret)}"
           echo "Checkout ref: $CHECKOUT_REF"
 
   build:
@@ -190,7 +218,7 @@ jobs:
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
           IMAGE_TAG: ${{ needs.metadata.outputs.image-tag }}
-          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           CLUSTER_DOMAIN: ${{ secrets.CLUSTER_DOMAIN }}
           SSO_AUTH_SERVER_URL: ${{ secrets.SSO_AUTH_SERVER_URL }}
@@ -272,7 +300,7 @@ jobs:
       - name: Create instance secrets
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
-          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
           ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
@@ -341,7 +369,7 @@ jobs:
         if: env.DEPLOY_PLG == 'true'
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
-          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           LOKI_RETENTION_DAYS: ${{ secrets.LOKI_RETENTION_DAYS }}
           LOKI_PVC_SIZE: ${{ secrets.LOKI_PVC_SIZE }}
@@ -368,7 +396,7 @@ jobs:
       - name: Restart deployments and wait
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
-          OC_NAMESPACE: ${{ secrets.OPENSHIFT_NAMESPACE }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
 

@@ -5,7 +5,6 @@ import "multer";
 import * as path from "node:path";
 import { AzureService } from "@/azure/azure.service";
 import {
-  type ClassifierConfig,
   ClassifierDbService,
   type ClassifierEditableProperties,
   type ClassifierModelWithGroup,
@@ -28,11 +27,7 @@ import {
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
-export type {
-  ClassifierConfig,
-  ClassifierEditableProperties,
-  ClassifierModelWithGroup,
-};
+export type { ClassifierEditableProperties, ClassifierModelWithGroup };
 
 interface DocType {
   azureBlobSource: {
@@ -124,6 +119,7 @@ export class ClassifierService {
             (result) => {
               this.logger.error("Analyze operation failed", { result });
             },
+            { intervalMs: 10000, maxRetries: 30 },
           );
         } else if (analyzeResponse.status === "404") {
           // Possible fallback if the url doesn't work. Download and analyze via upload.
@@ -327,6 +323,9 @@ export class ClassifierService {
 
     // Verify the shared "other" training data exists in Azure blob storage
     // before attempting to build the classifier.
+    this.logger.debug(
+      `Verifying "other" training blobs exist for classifier "${classifierName}"`,
+    );
     const otherBlobs = await this.azureStorage.listBlobs(
       this.containerName,
       CLASSIFIER_OTHER_AZURE_PREFIX,
@@ -337,6 +336,9 @@ export class ClassifierService {
           `Upload sample documents there before training.`,
       );
     }
+    this.logger.debug(
+      `Found ${otherBlobs.length} "other" training blob(s). Building training config.`,
+    );
 
     const trainingConfig = await this.generateTrainingConfig(
       groupId,
@@ -344,33 +346,46 @@ export class ClassifierService {
       existingClassifier.description,
       containerUrl,
     );
+    this.logger.debug(
+      `Training config built for classifier "${classifierName}". Submitting build request to Azure DI.`,
+    );
 
     // Run training of classifier
     const response = await this.client.path("/documentClassifiers:build").post({
       body: trainingConfig,
       queryParameters: { "api-version": "2024-11-30" },
     });
+    this.logger.debug(
+      `Azure DI build response: status=${response.status} for classifier "${classifierName}"`,
+    );
 
     // Poll operation status if 202 Accepted
-    let operationLocation =
+    const operationLocation =
       response.headers["operation-location"] ||
       response.headers["Operation-Location"];
     if (response.status === "202" && operationLocation) {
-      // Returned operation-location header uses wrong domain.
-      // Must replace with our actual Azure endpoint
-      const docIntelligenceEndpoint = this.azureService.getEndpoint();
-      operationLocation = operationLocation.replace(
-        /https:\/\/[^/]+/,
-        docIntelligenceEndpoint.replace(/\/$/, ""),
+      // Extract just the operation ID from the URL to store endpoint-agnostically.
+      // The full URL origin may differ between APIM and the backing Cognitive Services
+      // host depending on whether the APIM rewrite policy fired, so we never store
+      // the raw URL — only the final path segment (the UUID operation ID).
+      const operationId = new URL(operationLocation).pathname
+        .split("/")
+        .filter(Boolean)
+        .pop();
+      if (!operationId) {
+        const message = `Could not extract operation ID from operation-location header: ${operationLocation}`;
+        this.logger.error(message);
+        throw new Error(message);
+      }
+      this.logger.debug(
+        `Classifier training submitted. Operation ID: ${operationId}`,
       );
-
-      // Update classifier record
       return await this.classifierDb.updateClassifierModel(
         classifierName,
         groupId,
         {
           status: ClassifierStatus.TRAINING,
-          operation_location: operationLocation,
+          operation_location: operationId,
         },
         actorId,
       );
