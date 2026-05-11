@@ -50,7 +50,6 @@ import { selectClassifiedPages } from "./activities/select-classified-pages";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
 import { tablesLookup } from "./activities/tables-lookup";
-import { testAlertMetrics } from "./activities/test-alert-metrics";
 import type { RetryPolicy } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
@@ -444,28 +443,6 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Extract a page range from a PDF blob and return it as base64 (no blob write)",
-});
-
-// -- Test utilities (remove after alert pipeline is validated) -------------
-
-register({
-  activityType: "test.alertMetrics",
-  activityFn: testAlertMetrics as (...args: unknown[]) => Promise<unknown>,
-  defaultTimeout: "30s",
-  defaultRetry: { maximumAttempts: 1 },
-  description:
-    "Emit alertType logs for Prometheus alert pipeline validation. Remove after validation.",
-});
-
-// -- Test utilities (remove after alert pipeline is validated) -------------
-
-register({
-  activityType: "test.alertMetrics",
-  activityFn: testAlertMetrics as (...args: unknown[]) => Promise<unknown>,
-  defaultTimeout: "30s",
-  defaultRetry: { maximumAttempts: 1 },
-  description:
-    "Emit alertType logs for Prometheus alert pipeline validation. Remove after validation.",
 });
 
 // ---------------------------------------------------------------------------
