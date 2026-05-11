@@ -33,11 +33,17 @@ const mockDocumentLock = {
   findFirst: jest.fn(),
 };
 
+const mockTemplateModel = {
+  findFirst: jest.fn(),
+  findUnique: jest.fn(),
+};
+
 const mockPrismaClient = {
   reviewSession: mockReviewSession,
   fieldCorrection: mockFieldCorrection,
   document: mockDocument,
   documentLock: mockDocumentLock,
+  templateModel: mockTemplateModel,
 };
 
 const mockPrismaService = {
@@ -752,6 +758,86 @@ describe("ReviewDbService", () => {
       expect(result).toBe(true);
       expect(mockTxFieldCorrection.deleteMany).toHaveBeenCalled();
       expect(mockFieldCorrection.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findFieldDefinitionsForDocument", () => {
+    const fieldSchema = [
+      { field_key: "invoice_number", format_spec: null },
+      { field_key: "total", format_spec: '{"canonicalize":"digits"}' },
+    ];
+
+    it("looks up by templateModelId when provided, ignoring groupId", async () => {
+      mockTemplateModel.findUnique.mockResolvedValue({
+        field_schema: fieldSchema,
+      });
+
+      const result = await service.findFieldDefinitionsForDocument({
+        templateModelId: "tmpl-1",
+        groupId: "group-1",
+      });
+
+      expect(mockTemplateModel.findUnique).toHaveBeenCalledWith({
+        where: { id: "tmpl-1" },
+        include: {
+          field_schema: {
+            orderBy: { display_order: "asc" },
+            select: { field_key: true, format_spec: true },
+          },
+        },
+      });
+      expect(mockTemplateModel.findFirst).not.toHaveBeenCalled();
+      expect(result).toEqual(fieldSchema);
+    });
+
+    it("falls back to groupId findFirst when templateModelId is missing", async () => {
+      mockTemplateModel.findFirst.mockResolvedValue({
+        field_schema: fieldSchema,
+      });
+
+      const result = await service.findFieldDefinitionsForDocument({
+        groupId: "group-1",
+      });
+
+      expect(mockTemplateModel.findUnique).not.toHaveBeenCalled();
+      expect(mockTemplateModel.findFirst).toHaveBeenCalledWith({
+        where: { group_id: "group-1" },
+        include: {
+          field_schema: {
+            orderBy: { display_order: "asc" },
+            select: { field_key: true, format_spec: true },
+          },
+        },
+      });
+      expect(result).toEqual(fieldSchema);
+    });
+
+    it("returns [] when templateModelId resolves to no template", async () => {
+      mockTemplateModel.findUnique.mockResolvedValue(null);
+
+      const result = await service.findFieldDefinitionsForDocument({
+        templateModelId: "missing",
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("returns [] when neither templateModelId nor groupId is provided", async () => {
+      const result = await service.findFieldDefinitionsForDocument({});
+
+      expect(mockTemplateModel.findUnique).not.toHaveBeenCalled();
+      expect(mockTemplateModel.findFirst).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+
+    it("returns [] when fallback group has no template models", async () => {
+      mockTemplateModel.findFirst.mockResolvedValue(null);
+
+      const result = await service.findFieldDefinitionsForDocument({
+        groupId: "empty-group",
+      });
+
+      expect(result).toEqual([]);
     });
   });
 });
