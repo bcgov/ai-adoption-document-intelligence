@@ -79,6 +79,14 @@ RUN mkdir -p node_modules/@generated && cp -r src/generated node_modules/@genera
 # Prisma schema for any runtime resolve
 COPY --from=builder /app/shared/prisma ./shared/prisma
 
+# Tesseract OSD trained data for the document.normalizeOrientation activity.
+# tesseract.js's first lookup is `fs.readFile(${cachePath||'.'}/osd.traineddata)`,
+# which resolves to ${process.cwd()}/osd.traineddata. The worker is started as
+# `node dist/worker.js` with WORKDIR=/app, so the file must sit at /app/osd.traineddata.
+# Without this COPY, tesseract.js silently falls back to fetching from the
+# jsdelivr CDN on every cold container start.
+COPY apps/temporal/osd.traineddata ./osd.traineddata
+
 RUN chown -R nodeuser:nodejs /app
 USER nodeuser
 

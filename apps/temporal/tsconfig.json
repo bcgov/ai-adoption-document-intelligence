@@ -21,7 +21,8 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "@generated/*": ["src/generated/*"]
+      "@generated/*": ["src/generated/*"],
+      "mupdf": ["../../node_modules/mupdf/dist/mupdf"]
     }
   },
   "include": ["**/*.ts", "../shared/prisma.config.ts"],

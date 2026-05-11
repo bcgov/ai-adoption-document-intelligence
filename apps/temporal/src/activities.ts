@@ -83,6 +83,13 @@ export {
   mistralOcrProcess,
   resolveMistralOcrModelId,
 } from "./activities/mistral-ocr-process";
+// Orientation normalization (mupdf + Tesseract OSD)
+export type {
+  NormalizeDocumentOrientationInput,
+  NormalizeDocumentOrientationOutput,
+  PageOrientationResult,
+} from "./activities/normalize-document-orientation";
+export { normalizeDocumentOrientation } from "./activities/normalize-document-orientation";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 // OCR correction tools (Feature 008)

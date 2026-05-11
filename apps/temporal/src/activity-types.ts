@@ -46,6 +46,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "tables.lookup",
   "blob.read",
   "document.extractToBase64",
+  "document.normalizeOrientation",
 ] as const;
 
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];
