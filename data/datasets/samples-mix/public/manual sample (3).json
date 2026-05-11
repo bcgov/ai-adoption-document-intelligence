@@ -4,7 +4,10 @@
         "123 456 789",
         "123-456-789"
     ],
-    "date": "2025-Nov-12",
+    "date": [
+        "2025-Nov-12",
+        "2025-11-12"
+    ],
     "name": "John Smith",
     "phone": "123-456-7789",
     "signature": "JSmith",
@@ -13,7 +16,10 @@
         "456 789 012",
         "456-789-012"
     ],
-    "spouse_date": "2025-Nov-12",
+    "spouse_date": [
+        "2025-Nov-12",
+        "2025-11-12"
+    ],
     "spouse_name": "Maria Smith",
     "spouse_phone": "234-567-8890",
     "spouse_oas_gis": 0,
