@@ -4,7 +4,10 @@
         "123 456 789",
         "123-456-789"
     ],
-    "date": "2025-OCT-22",
+    "date": [
+        "2025-OCT-22",
+        "2025-10-22"
+    ],
     "name": "Patrick O'Connor",
     "phone": "(234)-568-7890",
     "signature": "POConnor",
