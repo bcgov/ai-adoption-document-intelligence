@@ -390,15 +390,6 @@ f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
 | `signature` | "Isma" | "JSmith" |
 | `spouse_signature` | "Matth" | "MSmith" |
 
-## manual sample (8)
-
-f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
-
-| field_key | predicted (engine, on the form) | expected (current GT) |
-|---|---|---|
-| `date` | "2025-11-23" | ["2025-Nov-23", "2025- Nov-23"] |
-| `signature` | "A.M.D" | "A.M.J" |
-
 ## synth-full (3)
 
 f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
@@ -425,6 +416,14 @@ f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
 |---|---|---|
 | `signature` | "Dw Schrute" | "DSchrute" |
 
+## manual sample (8)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `signature` | "A.M.D" | "A.M.J" |
+
 ## manual sample (9)
 
 f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
@@ -441,14 +440,6 @@ f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
 |---|---|---|
 | `explain_changes` | "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never." | "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never." |
 
-## synth-full (2)
-
-f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
-
-| field_key | predicted (engine, on the form) | expected (current GT) |
-|---|---|---|
-| `spouse_date` | "2003-01-05" | ["05-01-2003", "05/01/2003"] |
-
 ---
 
-**Total mismatches listed: 190 across 35 samples** (2 known-hard samples flagged inline).
+**Total mismatches listed: 188 across 34 samples** (2 known-hard samples flagged inline).
