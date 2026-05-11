@@ -30,7 +30,9 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 RESULTS_DIR = REPO_ROOT / "experiments" / "results"
-OUT_DIR = RESULTS_DIR / "06-engine-ensemble"
+# Comparison report (plots + per-engine analysis) lives in results/report/ so
+# the E06 folder can focus on the ensemble combiner specifically.
+OUT_DIR = RESULTS_DIR / "report"
 PLOTS_DIR = OUT_DIR / "plots"
 DATA_DIR = OUT_DIR / "data"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
