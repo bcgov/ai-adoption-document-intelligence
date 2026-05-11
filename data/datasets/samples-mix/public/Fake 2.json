@@ -4,7 +4,10 @@
         "798 529 321",
         "798-529-321"
     ],
-    "date": "2026-04-02",
+    "date": [
+        "2026-04-02",
+        "April 2,2026"
+    ],
     "name": "Smith Fake",
     "phone": "",
     "signature": "Smith Fake",
