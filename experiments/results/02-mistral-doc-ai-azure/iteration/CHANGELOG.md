@@ -530,3 +530,95 @@ that exposes OCR-3 controls, or a Mistral support ticket — all
 documented at the bottom of round 3.
 
 Round 4 is the new canonical state for E02 on `improve/01-strict-eval-and-mistral-tune`.
+
+---
+
+## 2026-05-10 — Round 5: naming-asymmetry probe + circle-checkbox prompt probe
+
+Two user-direct hypotheses tested via env-var probes in
+`iterate-mistral-extraction.ts`. Both REJECTED on the Foundry SKU.
+
+**Probe 1 — Naming-asymmetry (`OCR3_APPLICANT_PREFIX=1`)**
+
+Hypothesis: the Q5-Q9 applicant checkbox field-keys are bare
+(`checkbox_school_no`) while spouse ones have `_spouse_`
+(`checkbox_school_spouse_no`) and Q1-Q4 ones have no
+applicant/spouse distinction. Possibly the model conflates the bare-
+applicant naming with the Q1-Q4-no-distinction naming. Fix: rename
+the 10 Q5-Q9 applicant keys to mirror the spouse pattern:
+
+  checkbox_school_no  →  checkbox_school_applicant_no
+  (etc. for employment_changes / work / moved / warrant ✕ yes/no)
+
+The probe renames the schema keys + descriptions before sending and
+reverses the rename on the response before computing the diff.
+
+Result on `Fake 2` (round-4 baseline 60/74 matched, 9 checkbox misses
+spread across Group A + Group B spouse, zero misses on Group B
+applicant): **60/74 matched with or without the prefix** — identical
+f1, identical mismatch set, just the response field names differ
+(predicted comes back as `checkbox_school_applicant_no` instead of
+`checkbox_school_no`). Schema rename clearly took (`document_annotation`
+length 2891 → 2991, ~100 chars more from longer field names), but the
+model produced semantically identical output: every box it thought
+was unselected stayed unselected; every box it thought was selected
+stayed selected. The model is not confused by the naming asymmetry;
+it's failing to read the marks at all on Group A + Group B spouse
+for this sample (same engine-OCR-ceiling diagnosis from round 3).
+
+**Probe 2 — Circle-checkbox prompt (`OCR3_CIRCLE_RULE=1`)**
+
+Hypothesis (per user-supplied research from a Mistral support
+conversation): the SDPR form sometimes has checkboxes that are
+CIRCLED rather than X-marked / filled / ticked. The OCR pass produces
+`☐` either way (circle around the box doesn't change the character
+inside it). The workaround: tell the document-annotation LMM in the
+prompt that circling counts as a selection, and rely on the LMM's
+vision pass to see the circles directly.
+
+The probe appends an `<form_specific_marks>` clause to the prompt:
+"selections may be indicated by ANY of these marks: an X inside the
+box, a checkmark, a filled box, a dot inside the box, OR a circle
+drawn AROUND the entire checkbox or AROUND the Yes/No label next to
+it. Treat ALL of these as 'selected'. ... If the OCR markdown shows
+`☐` for a box that the image clearly shows is circled, prefer the
+image."
+
+Result on `Fake 3` (round-4 baseline 46/74, 13 checkbox misses, ~13
+income misses on the `0` vs `"N/A"` GT-type mismatch):
+`document_annotation` byte-identical with vs without the circle
+clause (2925 chars in both runs). **Not just no improvement — no
+change at all in the model's response.** The model produced identical
+output character-for-character.
+
+This is consistent with the round-3 diagnosis that the Foundry
+annotation pass does NOT actually have meaningful image context to
+work with (`pages[0].images: []` in every Foundry response). The
+user-research's premise — "the LMM has enough visual context to see
+circled items if you prompt it to look" — holds on the public
+api.mistral.ai path, but the Foundry SKU `mistral-document-ai-2512`
+appears to route through a degraded annotation pipeline where the
+LMM either doesn't see the image at all, or sees it at such low
+resolution / via such limited crops that circle-vs-no-circle is
+below its detection threshold.
+
+Same conclusion as round 3, now with one more piece of supporting
+evidence: byte-identical response with prompt changes that would
+require image vision to act on. Strong confirmation that the Foundry
+annotation pass is text-only (OCR markdown + schema + prompt → no
+image context the prompt can redirect attention to).
+
+**Iteration-script changes kept** (opt-in env vars; no behavioural
+change unless set):
+
+- `OCR3_APPLICANT_PREFIX=1` — apply applicant-prefix schema rename
+- `OCR3_CIRCLE_RULE=1` — append circled-checkbox clause to prompt
+
+Both probes can be re-run against any future Foundry SKU upgrade or
+direct public-API testing without re-writing scaffolding.
+
+Round 4 (run `372fdc8d-...`) remains the canonical E02 state. No new
+benchmark was triggered for round 5; smoke-probing alone established
+that neither change perturbs the engine's output on the harder
+samples, so a paid full benchmark would just confirm round-4 metrics
+unchanged.
