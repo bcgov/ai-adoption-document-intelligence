@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-05-11T02:15:04.358Z",
+  "exportedAt": "2026-05-11T22:49:23.098Z",
   "exportFormatVersion": 1,
   "run": {
     "id": "10fabff5-97ef-46c9-abda-1d7e20b55658",
@@ -26,27 +26,27 @@
       "precision.p95": 1,
       "precision.min": 1,
       "precision.max": 1,
-      "recall.mean": 0.9367685377685382,
-      "recall.median": 0.9594594594594594,
-      "recall.stdDev": 0.062330666548415695,
+      "recall.mean": 0.9371063756063759,
+      "recall.median": 0.9604989604989604,
+      "recall.stdDev": 0.06248915856368469,
       "recall.p5": 0.7985135135135136,
       "recall.p25": 0.9155405405405406,
       "recall.p75": 0.9749220374220375,
       "recall.p95": 0.9864864864864865,
       "recall.min": 0.7297297297297297,
       "recall.max": 1,
-      "f1.mean": 0.966216801762331,
-      "f1.median": 0.9793103448275862,
-      "f1.stdDev": 0.03530399079327622,
+      "f1.mean": 0.9663915773882167,
+      "f1.median": 0.9798512508451656,
+      "f1.stdDev": 0.035385589504161985,
       "f1.p5": 0.8879558948261239,
       "f1.p25": 0.9558985116371992,
       "f1.p75": 0.9872988429312409,
       "f1.p95": 0.9931972789115647,
       "f1.min": 0.8437499999999999,
       "f1.max": 1,
-      "truePositives.mean": 66.675,
+      "truePositives.mean": 66.7,
       "truePositives.median": 70,
-      "truePositives.stdDev": 7.437699577154215,
+      "truePositives.stdDev": 7.453858061433689,
       "truePositives.p5": 51,
       "truePositives.p25": 64.75,
       "truePositives.p75": 72,
@@ -62,9 +62,9 @@
       "falsePositives.p95": 0,
       "falsePositives.min": 0,
       "falsePositives.max": 0,
-      "falseNegatives.mean": 4.625,
-      "falseNegatives.median": 3,
-      "falseNegatives.stdDev": 4.672726720021191,
+      "falseNegatives.mean": 4.6,
+      "falseNegatives.median": 2.5,
+      "falseNegatives.stdDev": 4.684015371452148,
       "falseNegatives.p5": 1,
       "falseNegatives.p25": 1.75,
       "falseNegatives.p75": 6.25,
@@ -80,9 +80,9 @@
       "totalGroundTruthFields.p95": 74.05,
       "totalGroundTruthFields.min": 52,
       "totalGroundTruthFields.max": 75,
-      "matchedFields.mean": 66.675,
+      "matchedFields.mean": 66.7,
       "matchedFields.median": 70,
-      "matchedFields.stdDev": 7.437699577154215,
+      "matchedFields.stdDev": 7.453858061433689,
       "matchedFields.p5": 51,
       "matchedFields.p25": 64.75,
       "matchedFields.p75": 72,
@@ -129,27 +129,27 @@
     "precision.p95": 1,
     "precision.min": 1,
     "precision.max": 1,
-    "recall.mean": 0.9367685377685382,
-    "recall.median": 0.9594594594594594,
-    "recall.stdDev": 0.062330666548415695,
+    "recall.mean": 0.9371063756063759,
+    "recall.median": 0.9604989604989604,
+    "recall.stdDev": 0.06248915856368469,
     "recall.p5": 0.7985135135135136,
     "recall.p25": 0.9155405405405406,
     "recall.p75": 0.9749220374220375,
     "recall.p95": 0.9864864864864865,
     "recall.min": 0.7297297297297297,
     "recall.max": 1,
-    "f1.mean": 0.966216801762331,
-    "f1.median": 0.9793103448275862,
-    "f1.stdDev": 0.03530399079327622,
+    "f1.mean": 0.9663915773882167,
+    "f1.median": 0.9798512508451656,
+    "f1.stdDev": 0.035385589504161985,
     "f1.p5": 0.8879558948261239,
     "f1.p25": 0.9558985116371992,
     "f1.p75": 0.9872988429312409,
     "f1.p95": 0.9931972789115647,
     "f1.min": 0.8437499999999999,
     "f1.max": 1,
-    "truePositives.mean": 66.675,
+    "truePositives.mean": 66.7,
     "truePositives.median": 70,
-    "truePositives.stdDev": 7.437699577154215,
+    "truePositives.stdDev": 7.453858061433689,
     "truePositives.p5": 51,
     "truePositives.p25": 64.75,
     "truePositives.p75": 72,
@@ -165,9 +165,9 @@
     "falsePositives.p95": 0,
     "falsePositives.min": 0,
     "falsePositives.max": 0,
-    "falseNegatives.mean": 4.625,
-    "falseNegatives.median": 3,
-    "falseNegatives.stdDev": 4.672726720021191,
+    "falseNegatives.mean": 4.6,
+    "falseNegatives.median": 2.5,
+    "falseNegatives.stdDev": 4.684015371452148,
     "falseNegatives.p5": 1,
     "falseNegatives.p25": 1.75,
     "falseNegatives.p75": 6.25,
@@ -183,9 +183,9 @@
     "totalGroundTruthFields.p95": 74.05,
     "totalGroundTruthFields.min": 52,
     "totalGroundTruthFields.max": 75,
-    "matchedFields.mean": 66.675,
+    "matchedFields.mean": 66.7,
     "matchedFields.median": 70,
-    "matchedFields.stdDev": 7.437699577154215,
+    "matchedFields.stdDev": 7.453858061433689,
     "matchedFields.p5": 51,
     "matchedFields.p25": 64.75,
     "matchedFields.p75": 72,
@@ -479,7 +479,8 @@
           "expected": [
             "321798231",
             "321 798 231",
-            "321-798-231"
+            "321-798-231",
+            "X321798231"
           ]
         },
         {
@@ -593,10 +594,10 @@
       "field": "date",
       "fieldType": "string",
       "totalCount": 40,
-      "correctCount": 33,
-      "errorCount": 7,
-      "accuracy": 0.825,
-      "errorRate": 0.17500000000000004,
+      "correctCount": 34,
+      "errorCount": 6,
+      "accuracy": 0.85,
+      "errorRate": 0.15000000000000002,
       "errors": [
         {
           "sampleId": "1 81",
@@ -629,14 +630,6 @@
           "sampleId": "Fake 7",
           "predicted": "2026-01-07",
           "expected": "2026APR02"
-        },
-        {
-          "sampleId": "manual sample (8)",
-          "predicted": "2025-11-23",
-          "expected": [
-            "2025-Nov-23",
-            "2025- Nov-23"
-          ]
         }
       ]
     },
@@ -1170,7 +1163,8 @@
           "predicted": "2003-05-01",
           "expected": [
             "05-01-2003",
-            "05/01/2003"
+            "05/01/2003",
+            "2003-01-05"
           ]
         }
       ]
@@ -13261,7 +13255,8 @@
             "expected": [
               "321798231",
               "321 798 231",
-              "321-798-231"
+              "321-798-231",
+              "X321798231"
             ],
             "predicted": "321198281"
           },
@@ -13309,7 +13304,8 @@
             "expected": [
               "321798231",
               "321 798 231",
-              "321-798-231"
+              "321-798-231",
+              "X321798231"
             ],
             "confidence": null
           },
@@ -13829,7 +13825,8 @@
         "sin": [
           "321798231",
           "321 798 231",
-          "321-798-231"
+          "321-798-231",
+          "X321798231"
         ],
         "date": "2026-04-02",
         "name": "Kelly Kapoor",
@@ -13989,7 +13986,8 @@
           "expected": [
             "321798231",
             "321 798 231",
-            "321-798-231"
+            "321-798-231",
+            "X321798231"
           ],
           "confidence": null
         },
@@ -14541,7 +14539,8 @@
             "expected": [
               "555231979",
               "555 231 979",
-              "555-231-979"
+              "555-231-979",
+              "555 231979"
             ],
             "confidence": null
           },
@@ -15062,7 +15061,8 @@
         "sin": [
           "555231979",
           "555 231 979",
-          "555-231-979"
+          "555-231-979",
+          "555 231979"
         ],
         "date": "2026-04-02",
         "name": "Schrute, Dwight",
@@ -15222,7 +15222,8 @@
           "expected": [
             "555231979",
             "555 231 979",
-            "555-231-979"
+            "555-231-979",
+            "555 231979"
           ],
           "confidence": null
         },
@@ -37074,7 +37075,8 @@
             "predicted": "2025-10-22",
             "expected": [
               "2025-OCT-22",
-              "2025-10-22"
+              "2025-10-22",
+              "2025-OCT- 22"
             ],
             "confidence": null
           },
@@ -37596,7 +37598,8 @@
         ],
         "date": [
           "2025-OCT-22",
-          "2025-10-22"
+          "2025-10-22",
+          "2025-OCT- 22"
         ],
         "name": "Patrick O'Connor",
         "phone": "(234)-568-7890",
@@ -37769,7 +37772,8 @@
           "predicted": "2025-10-22",
           "expected": [
             "2025-OCT-22",
-            "2025-10-22"
+            "2025-10-22",
+            "2025-OCT- 22"
           ],
           "confidence": null
         },
@@ -38289,30 +38293,22 @@
       "metadata": {},
       "metrics": {
         "precision": 1,
-        "recall": 0.9594594594594594,
-        "f1": 0.9793103448275862,
-        "truePositives": 71,
+        "recall": 0.972972972972973,
+        "f1": 0.9863013698630138,
+        "truePositives": 72,
         "falsePositives": 0,
-        "falseNegatives": 3,
+        "falseNegatives": 2,
         "totalGroundTruthFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 72,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 72,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
-          {
-            "field": "date",
-            "expected": [
-              "2025-Nov-23",
-              "2025- Nov-23"
-            ],
-            "predicted": "2025-11-23"
-          },
           {
             "field": "signature",
             "expected": "A.M.J",
@@ -38338,11 +38334,12 @@
           },
           {
             "field": "date",
-            "matched": false,
+            "matched": true,
             "predicted": "2025-11-23",
             "expected": [
               "2025-Nov-23",
-              "2025- Nov-23"
+              "2025- Nov-23",
+              "2025-11-23"
             ],
             "confidence": null
           },
@@ -38860,7 +38857,8 @@
         ],
         "date": [
           "2025-Nov-23",
-          "2025- Nov-23"
+          "2025- Nov-23",
+          "2025-11-23"
         ],
         "name": "Amanda Martinez - Jones",
         "phone": "226-783-4854",
@@ -39025,11 +39023,12 @@
         },
         {
           "field": "date",
-          "matched": false,
+          "matched": true,
           "predicted": "2025-11-23",
           "expected": [
             "2025-Nov-23",
-            "2025- Nov-23"
+            "2025- Nov-23",
+            "2025-11-23"
           ],
           "confidence": null
         },
@@ -42096,7 +42095,8 @@
             "field": "spouse_date",
             "expected": [
               "05-01-2003",
-              "05/01/2003"
+              "05/01/2003",
+              "2003-01-05"
             ],
             "predicted": "2003-05-01"
           }
@@ -42608,7 +42608,8 @@
             "predicted": "2003-05-01",
             "expected": [
               "05-01-2003",
-              "05/01/2003"
+              "05/01/2003",
+              "2003-01-05"
             ],
             "confidence": null
           },
@@ -42722,7 +42723,8 @@
         "spouse_signature": "Kathryn M.",
         "spouse_date": [
           "05-01-2003",
-          "05/01/2003"
+          "05/01/2003",
+          "2003-01-05"
         ],
         "spouse_name": "Kathryn Macias",
         "spouse_phone": "564642185",
@@ -43315,7 +43317,8 @@
           "predicted": "2003-05-01",
           "expected": [
             "05-01-2003",
-            "05/01/2003"
+            "05/01/2003",
+            "2003-01-05"
           ],
           "confidence": null
         },
@@ -43856,7 +43859,10 @@
             "field": "phone",
             "matched": true,
             "predicted": "575.115.597",
-            "expected": "575.115.597",
+            "expected": [
+              "575.115.597",
+              "575 . 115 . 597"
+            ],
             "confidence": null
           },
           {
@@ -43985,7 +43991,10 @@
           "27/03/2018"
         ],
         "name": "Destiny Floyd",
-        "phone": "575.115.597",
+        "phone": [
+          "575.115.597",
+          "575 . 115 . 597"
+        ],
         "sin": [
           "343664230",
           "343 664 230",
@@ -44557,7 +44566,10 @@
           "field": "phone",
           "matched": true,
           "predicted": "575.115.597",
-          "expected": "575.115.597",
+          "expected": [
+            "575.115.597",
+            "575 . 115 . 597"
+          ],
           "confidence": null
         },
         {
@@ -47896,7 +47908,8 @@
             "predicted": "2015-07-12",
             "expected": [
               "2015-07-12",
-              "2015-Jul-12"
+              "2015-Jul-12",
+              "2015-JUL-12"
             ],
             "confidence": null
           },
@@ -47921,7 +47934,8 @@
             "expected": [
               "170191504",
               "170 191 504",
-              "170-191-504"
+              "170-191-504",
+              "170- 191- 504"
             ],
             "confidence": null
           }
@@ -48007,14 +48021,16 @@
         "spouse_signature": "Alexandria Martinez",
         "spouse_date": [
           "2015-07-12",
-          "2015-Jul-12"
+          "2015-Jul-12",
+          "2015-JUL-12"
         ],
         "spouse_name": "Alexandria Martinez",
         "spouse_phone": "307-124-414",
         "spouse_sin": [
           "170191504",
           "170 191 504",
-          "170-191-504"
+          "170-191-504",
+          "170- 191- 504"
         ]
       },
       "prediction": {
@@ -48597,7 +48613,8 @@
           "predicted": "2015-07-12",
           "expected": [
             "2015-07-12",
-            "2015-Jul-12"
+            "2015-Jul-12",
+            "2015-JUL-12"
           ],
           "confidence": null
         },
@@ -48622,7 +48639,8 @@
           "expected": [
             "170191504",
             "170 191 504",
-            "170-191-504"
+            "170-191-504",
+            "170- 191- 504"
           ],
           "confidence": null
         }
