@@ -121,7 +121,7 @@ f1 **0.844**, precision 1.000, recall 0.730, matched 54 of 74, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `sin` | "7783324959" | "7783224959" |
+| `sin` | "7783324959" | ["7783224959", "778 3224959"] |
 | `signature` | "Miche" | "Michael Scott" |
 | `applicant_oas_gis` | null | "N/A" |
 | `applicant_trust_income` | null | "N/A" |
@@ -254,34 +254,13 @@ f1 **0.889**, precision 1.000, recall 0.800, matched 60 of 75, pass=`true`
 | `checkbox_need_assistance_yes` | "unselected" | "selected" |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" |
 
-## manual sample (1)
-
-f1 **0.896**, precision 1.000, recall 0.811, matched 60 of 74, pass=`true`
-
-| field_key | predicted (engine, on the form) | expected (current GT) |
-|---|---|---|
-| `sin` | "12345678" | "123-456-78" |
-| `date` | "2023-09-13" | "2025-09-13" |
-| `phone` | "(219)-78-1111" | "234-789-1111" |
-| `signature` | "Kpafl" | "KPatel" |
-| `explain_changes` | "Started part time job, documents attached." | "Started part time job, documents attached" |
-| `checkbox_warrant_no` | "unselected" | "selected" |
-| `checkbox_warrant_yes` | "selected" | "unselected" |
-| `checkbox_work_spouse_no` | "selected" | "unselected" |
-| `checkbox_moved_spouse_no` | "selected" | "unselected" |
-| `checkbox_school_spouse_no` | "selected" | "unselected" |
-| `checkbox_warrant_spouse_no` | "selected" | "unselected" |
-| `applicant_room_board_income` | 7300 | 1380 |
-| `applicant_workbc_financial_support` | 2567 | 25.67 |
-| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" |
-
 ## manual sample (6)
 
 f1 **0.896**, precision 1.000, recall 0.811, matched 60 of 74, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `date` | "2023-11-12" | "2025-Nov-12" |
+| `date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] |
 | `signature` | "[illegible]" | "RChen" |
 | `checkbox_moved_no` | "selected" | "unselected" |
 | `checkbox_work_yes` | "selected" | "unselected" |
@@ -295,6 +274,26 @@ f1 **0.896**, precision 1.000, recall 0.811, matched 60 of 74, pass=`true`
 | `checkbox_employment_changes_no` | "selected" | "unselected" |
 | `applicant_canada_pension_plan_cpp` | 823 | 223 |
 | `applicant_private_pensions_retirement_disability` | 482.23 | 480.23 |
+
+## manual sample (1)
+
+f1 **0.904**, precision 1.000, recall 0.824, matched 61 of 74, pass=`true`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `date` | "2023-09-13" | "2025-09-13" |
+| `phone` | "(219)-78-1111" | "234-789-1111" |
+| `signature` | "Kpafl" | "KPatel" |
+| `explain_changes` | "Started part time job, documents attached." | "Started part time job, documents attached" |
+| `checkbox_warrant_no` | "unselected" | "selected" |
+| `checkbox_warrant_yes` | "selected" | "unselected" |
+| `checkbox_work_spouse_no` | "selected" | "unselected" |
+| `checkbox_moved_spouse_no` | "selected" | "unselected" |
+| `checkbox_school_spouse_no` | "selected" | "unselected" |
+| `checkbox_warrant_spouse_no` | "selected" | "unselected" |
+| `applicant_room_board_income` | 7300 | 1380 |
+| `applicant_workbc_financial_support` | 2567 | 25.67 |
+| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" |
 
 ## manual sample (2)
 
@@ -358,7 +357,7 @@ f1 **0.912**, precision 1.000, recall 0.838, matched 62 of 74, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `date` | "2023-05-22" | "2025-OCT-22" |
+| `date` | "2023-05-22" | ["2025-OCT-22", "2025-10-22"] |
 | `phone` | "(134)-568-8990" | "(234)-568-7890" |
 | `signature` | "O'Connor" | "POConnor" |
 | `spouse_sin` | "123456790" | ["123456788", "123 456 788", "123-456-788"] |
@@ -458,7 +457,7 @@ f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] |
-| `date` | "2020-APR-22" | "2026-04-02" |
+| `date` | "2020-APR-22" | ["2026-04-02", "April 2,2026"] |
 | `name` | "Smith Faye" | "Smith Fake" |
 | `signature` | "Nwflhic" | "Smith Fake" |
 | `checkbox_dependants_no` | "unselected" | "selected" |
@@ -485,9 +484,9 @@ f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `date` | "2023-11-12" | "2025-Nov-12" |
+| `date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] |
 | `signature` | "John" | "JSmith" |
-| `spouse_date` | "2023-11-12" | "2025-Nov-12" |
+| `spouse_date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] |
 | `spouse_phone` | "224-567-8890" | "234-567-8890" |
 | `spouse_signature` | "Maria" | "MSmith" |
 | `checkbox_school_spouse_no` | "unselected" | "selected" |
@@ -516,7 +515,7 @@ f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`true`
 | `date` | "2024-11-12" | "2025-11-12" |
 | `phone` | "345-78765-31" | "345-765-31" |
 | `signature` | "N. Krah" | "Dwilson" |
-| `spouse_date` | "2025-03-25" | "Nov 25, 2025" |
+| `spouse_date` | "2025-03-25" | ["Nov 25, 2025", "2025-11-25"] |
 | `spouse_signature` | "Nwilson" | "HWilson" |
 | `spouse_employment_insurance` | 602.5 | 650.25 |
 | `applicant_net_employment_income` | 1384 | 1389 |
@@ -535,20 +534,6 @@ f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`true`
 | `checkbox_warrant_yes` | "selected" | "unselected" |
 | `applicant_student_funding_loans_bursaries` | 505.25 | 525.25 |
 
-## manual sample (9)
-
-f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`true`
-
-| field_key | predicted (engine, on the form) | expected (current GT) |
-|---|---|---|
-| `date` | "2025-11-23" | "2025-Nov-23" |
-| `phone` | "123-456-7899" | "123-456-7789" |
-| `signature` | "JJ" | "J.J." |
-| `explain_changes` | "child support started, record attached" | "Child support started, record attached" |
-| `checkbox_warrant_spouse_no` | "selected" | "unselected" |
-| `checkbox_warrant_spouse_yes` | "unselected" | "selected" |
-| `applicant_canada_pension_plan_cpp` | 191 | 111 |
-
 ## Fake 4
 
 f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`true`
@@ -556,7 +541,7 @@ f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `sin` | "509922151" | ["581922151", "581 922 151", "581-922-151"] |
-| `date` | "2020-03-26" | "2026-03-02" |
+| `date` | "2020-03-26" | ["2026-03-02", "Mar 2/26"] |
 | `name` | "Kim Halpert" | "Jim Halpert" |
 | `phone` | "227-892-336" | "604-892-3251" |
 | `signature` | "Kim Halpertt" | "Jim Halpert" |
@@ -575,6 +560,19 @@ f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`true`
 | `spouse_rental_income` | 25 | "52" |
 | `spouse_employment_insurance` | 5 | "" |
 
+## manual sample (9)
+
+f1 **0.958**, precision 1.000, recall 0.919, matched 68 of 74, pass=`true`
+
+| field_key | predicted (engine, on the form) | expected (current GT) |
+|---|---|---|
+| `phone` | "123-456-7899" | "123-456-7789" |
+| `signature` | "JJ" | "J.J." |
+| `explain_changes` | "child support started, record attached" | "Child support started, record attached" |
+| `checkbox_warrant_spouse_no` | "selected" | "unselected" |
+| `checkbox_warrant_spouse_yes` | "unselected" | "selected" |
+| `applicant_canada_pension_plan_cpp` | 191 | 111 |
+
 ## HR0081 (3)
 
 f1 **0.965**, precision 1.000, recall 0.932, matched 69 of 74, pass=`true`
@@ -582,7 +580,7 @@ f1 **0.965**, precision 1.000, recall 0.932, matched 69 of 74, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `sin` | "771321000" | ["777021000", "777 021 000", "777-021-000"] |
-| `date` | "2017-03-17" | "2026-03-17" |
+| `date` | "2017-03-17" | ["2026-03-17", "March 17/26"] |
 | `name` | "Am Jones" | "Ann Jones" |
 | `signature` | "~" | "Ann" |
 | `applicant_income_of_dependent_children` | null | "0" |
@@ -594,7 +592,7 @@ f1 **0.965**, precision 1.000, recall 0.932, matched 69 of 74, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `sin` | "234256799" | ["234256789", "234 256 789", "234-256-789"] |
-| `date` | "2023-11-12" | "2025-Nov-12" |
+| `date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] |
 | `phone` | "225-567-8895" | "234-567-8895" |
 | `signature` | "Milan" | "MBrown" |
 | `explain_changes` | "New roommate, room/board income enclosed." | "New roommate, room /board income enclosed" |
@@ -670,4 +668,4 @@ f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
 
 ---
 
-**Total mismatches listed: 381 across 39 samples** (2 known-hard samples flagged inline).
+**Total mismatches listed: 379 across 39 samples** (2 known-hard samples flagged inline).

@@ -100,7 +100,7 @@ f1 **0.767**, precision 1.000, recall 0.622, matched 46 of 74, pass=`false`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `sin` | null | "7783224959" |
+| `sin` | null | ["7783224959", "778 3224959"] |
 | `applicant_oas_gis` | 0 | "N/A" |
 | `checkbox_moved_no` | "unselected" | "selected" |
 | `checkbox_work_yes` | "unselected" | "selected" |
@@ -136,7 +136,7 @@ f1 **0.806**, precision 1.000, recall 0.676, matched 50 of 74, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `sin` | null | ["581922151", "581 922 151", "581-922-151"] |
-| `date` | "19ar 2/26" | "2026-03-02" |
+| `date` | "19ar 2/26" | ["2026-03-02", "Mar 2/26"] |
 | `name` | "Sim Halpert" | "Jim Halpert" |
 | `phone` | null | "604-892-3251" |
 | `signature` | null | "Jim Halpert" |
@@ -218,7 +218,7 @@ f1 **0.896**, precision 1.000, recall 0.811, matched 60 of 74, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `sin` | null | ["798529321", "798 529 321", "798-529-321"] |
-| `date` | null | "2026-04-02" |
+| `date` | null | ["2026-04-02", "April 2,2026"] |
 | `signature` | null | "Smith Fake" |
 | `checkbox_shelter_no` | "unselected" | "selected" |
 | `checkbox_dependants_no` | "unselected" | "selected" |
@@ -343,7 +343,7 @@ f1 **0.950**, precision 1.000, recall 0.905, matched 67 of 74, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `sin` | null | ["777021000", "777 021 000", "777-021-000"] |
-| `date` | null | "2026-03-17" |
+| `date` | null | ["2026-03-17", "March 17/26"] |
 | `name` | null | "Ann Jones" |
 | `signature` | null | "Ann" |
 | `explain_changes` | "M" | "N/A" |
