@@ -259,7 +259,7 @@ f1 **0.912**, precision 1.000, recall 0.838, matched 62 of 74, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `sin` | null | ["555231979", "555 231 979", "555-231-979"] |
+| `sin` | null | ["555231979", "555 231 979", "555-231-979", "555 231979"] |
 | `name` | "Schaute, Dwight" | "Schrute, Dwight" |
 | `signature` | "Schaute" | "DSchrute" |
 | `checkbox_shelter_no` | "unselected" | "selected" |
@@ -327,7 +327,7 @@ f1 **0.943**, precision 1.000, recall 0.892, matched 66 of 74, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `sin` | null | ["321798231", "321 798 231", "321-798-231"] |
+| `sin` | null | ["321798231", "321 798 231", "321-798-231", "X321798231"] |
 | `date` | "26-4-2" | "2026-04-02" |
 | `name` | "X Kelly Kapoor" | "Kelly Kapoor" |
 | `phone` | "X" | "" |
