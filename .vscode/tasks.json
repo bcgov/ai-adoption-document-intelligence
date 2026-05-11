@@ -2,12 +2,12 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "temporal: docker up",
+      "label": "docker: infra up",
       "type": "shell",
       "command": "docker",
       "args": ["compose", "up", "-d"],
       "options": {
-        "cwd": "${workspaceFolder}/apps/temporal"
+        "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [],
       "presentation": {
@@ -30,20 +30,7 @@
         "reveal": "always"
       }
     },
-    {
-      "label": "backend-services: docker up",
-      "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "-d"],
-      "options": {
-        "cwd": "${workspaceFolder}/apps/backend-services"
-      },
-      "problemMatcher": [],
-      "presentation": {
-        "panel": "new",
-        "reveal": "always"
-      }
-    },
+
     {
       "label": "wait: temporal ready",
       "type": "shell",
@@ -89,9 +76,8 @@
     {
       "label": "Dev: prerequisites",
       "dependsOn": [
-        "temporal: docker up",
+        "docker: infra up",
         "wait: temporal ready",
-        "backend-services: docker up",
         "wait: backend postgres ready",
         "wait: minio ready"
       ],

@@ -1,0 +1,367 @@
+services:
+  # ── Backend infrastructure ────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: ai-doc-intelligence-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ai_doc_intelligence
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_doc_intelligence"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  minio:
+    image: minio/minio
+    container_name: ai-doc-intelligence-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  minio-init:
+    image: minio/mc
+    container_name: ai-doc-intelligence-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./apps/backend-services/scripts/init-minio.sh:/init-minio.sh
+    entrypoint: /bin/sh
+    command: /init-minio.sh
+
+  # ── Temporal infrastructure ───────────────────────────────────────────────
+  temporal-postgresql:
+    image: postgres:12-alpine
+    container_name: temporal-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    ports:
+      - "5433:5432"
+    volumes:
+      - temporal_postgresql_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: temporal
+    restart: unless-stopped
+    ports:
+      - "7233:7233"
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      POSTGRES_SEEDS: temporal-postgresql
+      SKIP_DEFAULT_NAMESPACE_CREATION: "false"
+      BIND_ON_IP: 0.0.0.0
+    depends_on:
+      temporal-postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "describe", "--address", "localhost:7233", "--namespace", "default"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  temporal-ui:
+    image: temporalio/ui:2.25.0
+    container_name: temporal-ui
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    depends_on:
+      - temporal
+
+  # ── Application containers (opt-in via --profile app) ────────────────────
+  # Runs Prisma migrations before the backend starts.
+  # The backend-services image ships prisma + engines specifically for this step.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/backend-services/Dockerfile
+    container_name: ai-doc-intelligence-migrate
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ai_doc_intelligence?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    profiles: [app]
+
+  backend-services:
+    build:
+      context: .
+      dockerfile: apps/backend-services/Dockerfile
+    container_name: ai-doc-intelligence-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ai_doc_intelligence?schema=public
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-ocr-processing}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_DOCUMENT_BUCKET: ${MINIO_DOCUMENT_BUCKET:-document-blobs}
+      BLOB_STORAGE_PROVIDER: ${BLOB_STORAGE_PROVIDER:-minio}
+      FRONTEND_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:3002
+      SSO_AUTH_SERVER_URL: ${SSO_AUTH_SERVER_URL}
+      SSO_REALM: ${SSO_REALM}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID}
+      SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET}
+      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
+      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}
+      AZURE_DOC_INTELLIGENCE_MODELS: ${AZURE_DOC_INTELLIGENCE_MODELS:-prebuilt-layout}
+      TRAINING_SAS_EXPIRY_DAYS: ${TRAINING_SAS_EXPIRY_DAYS:-7}
+      TRAINING_MIN_DOCUMENTS: ${TRAINING_MIN_DOCUMENTS:-5}
+      TRAINING_POLL_INTERVAL_SECONDS: ${TRAINING_POLL_INTERVAL_SECONDS:-10}
+      TRAINING_MAX_POLL_ATTEMPTS: ${TRAINING_MAX_POLL_ATTEMPTS:-60}
+      BENCHMARK_TASK_QUEUE: ${BENCHMARK_TASK_QUEUE:-benchmark-processing}
+      ENABLE_BENCHMARK_QUEUE: ${ENABLE_BENCHMARK_QUEUE:-true}
+      SEED_USER_SUB: ${SEED_USER_SUB}
+      SEED_USER_EMAIL: ${SEED_USER_EMAIL}
+      TEST_API_KEY: ${TEST_API_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles: [app]
+
+  temporal-worker:
+    build:
+      context: .
+      dockerfile: apps/temporal/Dockerfile
+    container_name: ai-doc-intelligence-temporal-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ai_doc_intelligence?schema=public
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-ocr-processing}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      BLOB_STORAGE_PROVIDER: ${BLOB_STORAGE_PROVIDER:-minio}
+      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
+      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      MOCK_MISTRAL_OCR: ${MOCK_MISTRAL_OCR:-false}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+      BENCHMARK_TASK_QUEUE: ${BENCHMARK_TASK_QUEUE:-benchmark-processing}
+      ENABLE_BENCHMARK_QUEUE: ${ENABLE_BENCHMARK_QUEUE:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    profiles: [app]
+
+  frontend:
+    build:
+      context: apps/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_SSO_AUTH_SERVER_URL: ${VITE_SSO_AUTH_SERVER_URL}
+        VITE_SSO_REALM: ${VITE_SSO_REALM}
+        VITE_SSO_CLIENT_ID: ${VITE_SSO_CLIENT_ID}
+        VITE_APP_NAME: ${VITE_APP_NAME:-AI OCR Frontend}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-1.0.0}
+    container_name: ai-doc-intelligence-frontend
+    restart: unless-stopped
+    environment:
+      # nginx proxies /api/ to this URL at container startup
+      BACKEND_SERVICE_URL: http://backend-services:3002
+    ports:
+      - "3000:8080"
+    depends_on:
+      - backend-services
+    profiles: [app]
+
+  # ── Monitoring stack (opt-in via --profile monitoring) ────────────────────
+  loki:
+    image: grafana/loki:3.4.0
+    container_name: ai-doc-intelligence-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki.yaml
+    volumes:
+      - ./deployments/local/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    profiles: [monitoring]
+
+  promtail:
+    image: grafana/promtail:3.4.0
+    container_name: ai-doc-intelligence-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./deployments/local/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - ./logs:/var/log/host-apps:ro
+      - ches_adapter_logs:/var/log/ches-adapter:ro
+    depends_on:
+      loki:
+        condition: service_healthy
+    profiles: [monitoring]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: ai-doc-intelligence-alertmanager
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "printf '%s' \"$$CHES_ADAPTER_SECRET\" > /tmp/alertmanager-token && exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager"
+    environment:
+      CHES_ADAPTER_SECRET: ${CHES_ADAPTER_SECRET}
+    volumes:
+      - ./deployments/local/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9093/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    profiles: [monitoring]
+
+  ches-adapter:
+    build:
+      context: .
+      dockerfile: apps/ches-adapter/Dockerfile
+    container_name: ai-doc-intelligence-ches-adapter
+    restart: unless-stopped
+    command: ["/bin/sh", "-c", "node dist/index.js 2>&1 | tee -a /var/log/app/ches-adapter.log"]
+    environment:
+      PORT: 3003
+      CHES_ADAPTER_SECRET: ${CHES_ADAPTER_SECRET}
+      CHES_CLIENT_ID: ${CHES_CLIENT_ID}
+      CHES_CLIENT_SECRET: ${CHES_CLIENT_SECRET}
+      CHES_AUTH_HOST: ${CHES_AUTH_HOST}
+      CHES_HOST: ${CHES_HOST}
+      CHES_FROM_EMAIL: ${CHES_FROM_EMAIL}
+      CHES_TO_EMAILS: ${CHES_TO_EMAILS}
+    volumes:
+      - ches_adapter_logs:/var/log/app
+    ports:
+      - "3003:3003"
+    profiles: [monitoring]
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: ai-doc-intelligence-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./deployments/local/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deployments/local/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      alertmanager:
+        condition: service_healthy
+    extra_hosts:
+      - "host.containers.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    profiles: [monitoring]
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: ai-doc-intelligence-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./deployments/local/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployments/openshift/helm/plg/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      loki:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    profiles: [monitoring]
+
+volumes:
+  postgres_data:
+  minio_data:
+  temporal_postgresql_data:
+  loki_data:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+  ches_adapter_logs:

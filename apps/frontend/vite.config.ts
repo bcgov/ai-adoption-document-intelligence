@@ -18,6 +18,8 @@ const PDFJS_WASM_ROUTE = "/pdfjs-wasm";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Load .env from the monorepo root (../../) so all apps share one env file.
+  envDir: fileURLToPath(new URL("../..", import.meta.url)),
   plugins: [
     react(),
     // Plugin to ensure PDF.js worker is served with correct MIME type

@@ -1,4 +1,14 @@
-import "dotenv/config";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { config as dotenvConfig } from "dotenv";
+
+// Load root .env first (monorepo root, two levels up from apps/ches-adapter),
+// then fall back to app-local .env. dotenv never overwrites already-set vars.
+const rootEnv = resolve(__dirname, "../../../.env");
+if (existsSync(rootEnv)) {
+  dotenvConfig({ path: rootEnv, quiet: true });
+}
+dotenvConfig({ quiet: true });
 
 /** Validated configuration read from environment variables at startup. */
 export interface Config {
