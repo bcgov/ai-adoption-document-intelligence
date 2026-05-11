@@ -217,7 +217,29 @@ interface Promotion {
   field: string;
   expectedScalar: string;
   predictedScalar: string;
-  newArray: [string, string];
+  newArray: string[];
+  /**
+   * True when the GT was already an array and we are extending it with
+   * one additional alternate (rather than promoting a scalar to a 2-element array).
+   */
+  extending: boolean;
+}
+
+function isVariantOfAny(
+  field: string,
+  predicted: string,
+  expectedAlternates: string[],
+): boolean {
+  if (field === "sin" || field === "spouse_sin") {
+    return expectedAlternates.some((e) => isSinFormatVariant(predicted, e));
+  }
+  if (field === "date" || field === "spouse_date") {
+    return expectedAlternates.some((e) => isDateFormatVariant(predicted, e));
+  }
+  if (field === "phone" || field === "spouse_phone") {
+    return expectedAlternates.some((e) => isPhoneFormatVariant(predicted, e));
+  }
+  return false;
 }
 
 function classifyPromotion(
@@ -232,10 +254,28 @@ function classifyPromotion(
   if (expected === null || expected === undefined || expected === "") {
     return null;
   }
-  // Already a one-of array — skip.
-  if (Array.isArray(expected)) return null;
-  const expectedScalar = String(expected);
   const predictedScalar = String(predicted);
+
+  if (Array.isArray(expected)) {
+    // GT is already an array — extend it if the prediction is a calendar-/
+    // digit-equivalent variant of any existing alternate that isn't already
+    // listed verbatim.
+    const alternates = expected.map(String).filter((s) => s.length > 0);
+    if (alternates.length === 0) return null;
+    if (alternates.includes(predictedScalar)) return null;
+    if (alternates.some((s) => SENTINEL_GT_VALUES.has(s))) return null;
+    if (!isVariantOfAny(field, predictedScalar, alternates)) return null;
+    return {
+      sampleId: "",
+      field,
+      expectedScalar: alternates[0],
+      predictedScalar,
+      newArray: [...alternates, predictedScalar],
+      extending: true,
+    };
+  }
+
+  const expectedScalar = String(expected);
   if (SENTINEL_GT_VALUES.has(expectedScalar)) return null;
   if (expectedScalar === predictedScalar) return null;
 
@@ -255,6 +295,7 @@ function classifyPromotion(
     expectedScalar,
     predictedScalar,
     newArray: [expectedScalar, predictedScalar],
+    extending: false,
   };
 }
 

@@ -208,7 +208,7 @@ f1 **0.979**, precision 1.000, recall 0.959, matched 71 of 74, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `sin` | "321198281" | ["321798231", "321 798 231", "321-798-231"] |
+| `sin` | "321198281" | ["321798231", "321 798 231", "321-798-231", "X321798231"] |
 | `applicant_child_support` | 250 | "250.50" |
 | `spouse_other_income_money_received` | null | "$" |
 
