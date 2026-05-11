@@ -98,7 +98,7 @@ export class PdfNormalizationService {
    * Encoding policy:
    *  - Single-page JPEG with no EXIF orientation transform → embedded verbatim.
    *  - Everything else (PNG, TIFF, WebP, GIF, BMP, multi-page, oriented JPEG)
-   *    → re-encoded to JPEG q=100 after applying EXIF rotation and flattening
+   *    → re-encoded to JPEG q=85 after applying EXIF rotation and flattening
    *    any alpha onto white.
    *
    * pdf-lib's `embedPng` is intentionally avoided: it decodes PNG to raw RGB
@@ -135,7 +135,7 @@ export class PdfNormalizationService {
           const jpegBuffer = await pipeline
             .rotate()
             .flatten({ background: "#ffffff" })
-            .jpeg({ quality: 100 })
+            .jpeg({ quality: 85 })
             .toBuffer();
           embedded = await pdfDoc.embedJpg(jpegBuffer);
         }
