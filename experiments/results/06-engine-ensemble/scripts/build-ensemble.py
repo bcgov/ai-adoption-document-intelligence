@@ -357,6 +357,12 @@ STRATEGIES = {
 
 
 def evaluate_predictions(preds_by_sample: dict, sample_ids: list) -> dict:
+    """Mirror of apps/temporal/src/evaluators/schema-aware-evaluator.ts'
+    calculateMetrics in Python. A substitution (pred non-null, GT non-null,
+    values differ) increments BOTH FP and FN; a deletion (pred null, GT
+    non-null) increments FN only; an insertion (pred non-null, GT null)
+    increments FP only; extra-key non-null predictions increment FP.
+    """
     per_sample = {}
     for sid in sample_ids:
         gt = load_gt(sid)
@@ -364,8 +370,8 @@ def evaluate_predictions(preds_by_sample: dict, sample_ids: list) -> dict:
         total_gt = len(gt)
         matched = 0
         false_negatives = 0
+        false_positives = 0
         true_positives = 0
-        extra_fields = 0
         details = []
         for field, expected in gt.items():
             predicted = pred.get(field)
@@ -374,12 +380,19 @@ def evaluate_predictions(preds_by_sample: dict, sample_ids: list) -> dict:
             if m:
                 matched += 1
                 true_positives += 1
+                continue
+            pred_null = is_null_like(predicted)
+            exp_null = is_null_like(expected)
+            if pred_null:
+                false_negatives += 1            # deletion: FN only
+            elif exp_null:
+                false_positives += 1            # insertion: FP only
             else:
+                false_positives += 1            # substitution: FP + FN
                 false_negatives += 1
         for field, value in pred.items():
             if field not in gt and not is_null_like(value):
-                extra_fields += 1
-        false_positives = extra_fields
+                false_positives += 1            # extra-key hallucination
         precision = (true_positives / (true_positives + false_positives)
                      if (true_positives + false_positives) > 0 else 0)
         recall = (true_positives / (true_positives + false_negatives)

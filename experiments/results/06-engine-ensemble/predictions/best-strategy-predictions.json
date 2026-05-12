@@ -4,14 +4,14 @@
     "pass_rate": 1.0,
     "passing_samples": 40,
     "total_samples": 40,
-    "f1.median": 0.9863013698630138,
-    "f1.mean": 0.974440810526062,
-    "f1.min": 0.8437499999999999,
+    "f1.median": 0.972972972972973,
+    "f1.mean": 0.9621511254867103,
+    "f1.min": 0.8307692307692307,
     "f1.max": 1.0,
-    "precision.mean": 1.0,
-    "recall.mean": 0.9520826403326403,
+    "precision.mean": 0.972727501076451,
+    "recall.mean": 0.9533023737647025,
     "matchedFields.median": 71.0,
-    "falsePositives.mean": 0
+    "falsePositives.mean": 1.925
   },
   "predictions": {
     "1 81": {
