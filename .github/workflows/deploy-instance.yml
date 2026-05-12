@@ -120,6 +120,9 @@ jobs:
           - service: temporal
             context: "."
             dockerfile: apps/temporal/Dockerfile
+          - service: ches-adapter
+            context: "."
+            dockerfile: apps/ches-adapter/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -407,6 +410,8 @@ jobs:
             --set "alertmanager.notificationChannel=${ALERTMANAGER_NOTIFICATION_CHANNEL:-ches}" \
             --set "alertmanager.notificationsEnabled=${ALERTMANAGER_NOTIFICATIONS_ENABLED:-false}" \
             --set "alertmanager.minNotificationSeverity=${ALERTMANAGER_MIN_SEVERITY:-warning}" \
+            --set "chesAdapter.image.repository=${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/ches-adapter" \
+            --set "chesAdapter.image.tag=${{ needs.metadata.outputs.image-tag }}" \
             --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
             --set "alertmanager.ches.webhookSecret=${ALERTMANAGER_CHES_ADAPTER_SECRET:-}" \
             --set "alertmanager.teams.webhookUrl=${ALERTMANAGER_TEAMS_WEBHOOK_URL:-placeholder}" \
