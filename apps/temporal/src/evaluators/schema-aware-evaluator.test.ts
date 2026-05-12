@@ -120,19 +120,22 @@ describe("SchemaAwareEvaluator", () => {
 
       const result = await evaluator.evaluate(input);
 
-      // True positives: field1, field3 (2)
-      // False positives: field5 (1)
-      // False negatives: field2, field4 (2)
-      // Precision = 2 / (2 + 1) = 0.6667
-      // Recall = 2 / (2 + 2) = 0.5
-      // F1 = 2 * 0.6667 * 0.5 / (0.6667 + 0.5) = 0.5714
+      // True positives: field1, field3 (2 matched fields)
+      // False positives: field2 substitution (wrong value produced) +
+      //                  field5 extra-key hallucination (non-null value
+      //                  outside schema) = 2
+      // False negatives: field2 substitution (correct value missed) +
+      //                  field4 deletion (correct value missed) = 2
+      // Precision = 2 / (2 + 2) = 0.5
+      // Recall    = 2 / (2 + 2) = 0.5
+      // F1        = 2 * 0.5 * 0.5 / (0.5 + 0.5) = 0.5
 
       expect(result.metrics.truePositives).toBe(2);
-      expect(result.metrics.falsePositives).toBe(1);
+      expect(result.metrics.falsePositives).toBe(2);
       expect(result.metrics.falseNegatives).toBe(2);
-      expect(result.metrics.precision).toBeCloseTo(0.6667, 3);
+      expect(result.metrics.precision).toBeCloseTo(0.5, 3);
       expect(result.metrics.recall).toBeCloseTo(0.5, 3);
-      expect(result.metrics.f1).toBeCloseTo(0.5714, 3);
+      expect(result.metrics.f1).toBeCloseTo(0.5, 3);
     });
   });
 
@@ -856,11 +859,14 @@ describe("SchemaAwareEvaluator", () => {
 
       expect(result.sampleId).toBe("sample-013");
       expect(result.metrics.matchedFields).toBe(5); // All except checkbox_family_assets_no
-      // Precision = 5 / (5 + 0) = 1.0 (no extra fields)
-      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
-      // Recall = 5 / (5 + 1) = 0.8333 (one mismatched field)
+      // checkbox_family_assets_no is a substitution (pred=false, GT=true),
+      // so it increments both FP and FN:
+      //   Precision = 5 / (5 + 1) = 0.8333
+      //   Recall    = 5 / (5 + 1) = 0.8333
+      //   F1        = 0.8333 (passes the 0.8 threshold)
+      expect(result.metrics.precision).toBeCloseTo(5 / 6, 3);
       expect(result.metrics.recall).toBeCloseTo(5 / 6, 3);
-      expect(result.pass).toBe(true); // F1 should be > 0.8
+      expect(result.pass).toBe(true);
     });
   });
 

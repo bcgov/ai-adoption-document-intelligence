@@ -510,7 +510,36 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   }
 
   /**
-   * Calculate precision, recall, and F1 metrics
+   * Calculate precision, recall, and F1 metrics.
+   *
+   * Per the standard OCR / information-extraction definitions:
+   *
+   *   - TP: prediction matches GT (correct).
+   *   - FN: the engine MISSED a GT value. This happens when (a) the engine
+   *     returned null where GT had a real value (deletion), or (b) the
+   *     engine returned a wrong non-null value where GT had a real value
+   *     (substitution — the correct answer was missed). Per the literature
+   *     ("characters that are in the GT but not present in OCR output"), a
+   *     substitution counts toward FN because the correct value did not
+   *     appear in the output.
+   *   - FP: the engine PRODUCED a value that wasn't correct. This happens
+   *     when (a) the engine emitted a non-null value where GT was null
+   *     (insertion / hallucination), (b) the engine emitted a wrong
+   *     non-null value where GT had a real value (substitution — wrong
+   *     value produced), or (c) the engine emitted a field outside the GT
+   *     schema with a non-null value (extra-key hallucination).
+   *
+   * So a substitution increments BOTH FP and FN (it's a precision miss AND
+   * a recall miss). Pure deletions are FN-only; pure insertions are FP-only.
+   * This is the formulation that lets F1 actually do its job: punish
+   * lopsided performance. Under the prior implementation FP was nearly
+   * always zero because substitutions weren't counted, which pinned
+   * precision at ≈1.000 and made F1 a monotone function of recall.
+   *
+   * Note: `r.predicted` is set to `undefined` by `compareField` when the
+   * raw prediction was null-like and the GT was a real value (the
+   * deletion case). Using `isNullLike(r.predicted)` here therefore picks
+   * up both real-null and undefined.
    */
   private calculateMetrics(
     results: FieldComparisonResult[],
@@ -518,9 +547,41 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     extraFieldCount: number,
   ): Record<string, number> {
     const groundTruthFields = Object.keys(groundTruth);
-    const truePositives = results.filter((r) => r.matched).length;
-    const falsePositives = extraFieldCount;
-    const falseNegatives = results.filter((r) => !r.matched).length;
+    let truePositives = 0;
+    let falsePositives = 0;
+    let falseNegatives = 0;
+
+    for (const r of results) {
+      if (r.matched) {
+        truePositives++;
+        continue;
+      }
+      const predictedIsNullLike = isNullLike(r.predicted);
+      const expectedIsNullLike = isNullLike(r.expected);
+
+      if (predictedIsNullLike) {
+        // Deletion: GT had a real value, engine returned null. The correct
+        // value did not appear in the output → FN only (precision is not
+        // hit because the engine didn't produce a wrong answer; it didn't
+        // produce an answer at all).
+        falseNegatives++;
+      } else if (expectedIsNullLike) {
+        // Insertion: GT was null, engine produced something. The engine
+        // hallucinated → FP only (recall is not hit because there was no
+        // GT value to miss).
+        falsePositives++;
+      } else {
+        // Substitution: both non-null, values differ. The correct value
+        // didn't appear in the output (FN) AND the engine produced a wrong
+        // value (FP). Both counted.
+        falsePositives++;
+        falseNegatives++;
+      }
+    }
+
+    // Extra-key hallucinations: fields the engine emitted that aren't in
+    // the GT schema at all (and are non-null). These are FP-only.
+    falsePositives += extraFieldCount;
 
     const precision =
       truePositives + falsePositives > 0
