@@ -12,6 +12,7 @@
 
 import { validateActivityParameters } from "./activity-parameter-schema-registry";
 import { isRegisteredActivityType } from "./activity-types";
+import { getCtxRootKey, getRefCtxRootKey } from "./graph-engine/context-utils";
 import type {
   ActivityNode,
   ConditionExpression,
@@ -416,7 +417,7 @@ function validatePortBindings(
     if (node.inputs) {
       for (let i = 0; i < node.inputs.length; i++) {
         const binding = node.inputs[i];
-        const rootKey = binding.ctxKey.split(".")[0];
+        const rootKey = getCtxRootKey(binding.ctxKey);
         if (!declaredCtxKeys.has(rootKey)) {
           errors.push({
             path: `nodes.${nodeId}.inputs[${i}].ctxKey`,
@@ -430,7 +431,7 @@ function validatePortBindings(
     if (node.outputs) {
       for (let i = 0; i < node.outputs.length; i++) {
         const binding = node.outputs[i];
-        const rootKey = binding.ctxKey.split(".")[0];
+        const rootKey = getCtxRootKey(binding.ctxKey);
         if (!declaredCtxKeys.has(rootKey)) {
           errors.push({
             path: `nodes.${nodeId}.outputs[${i}].ctxKey`,
@@ -557,18 +558,7 @@ function validateValueRef(
   if (!ref || typeof ref !== "object") return;
 
   if ("ref" in ref && ref.ref) {
-    const parts = ref.ref.split(".");
-    const namespace = parts[0];
-    let rootCtxKey: string | undefined;
-
-    if (namespace === "ctx" && parts.length >= 2) {
-      rootCtxKey = parts[1];
-    } else if (namespace === "doc") {
-      rootCtxKey = "documentMetadata";
-    } else if (namespace === "segment") {
-      rootCtxKey = "currentSegment";
-    }
-
+    const rootCtxKey = getRefCtxRootKey(ref.ref);
     if (rootCtxKey && !declaredCtxKeys.has(rootCtxKey)) {
       errors.push({
         path,

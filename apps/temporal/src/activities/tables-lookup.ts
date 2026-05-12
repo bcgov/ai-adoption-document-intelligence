@@ -1,0 +1,92 @@
+import { ApplicationFailure } from "@temporalio/common";
+import { executeLookup, LookupError } from "../tables/lookup-engine";
+import type { LookupDef } from "../tables/types";
+import { getPrismaClient } from "./database-client";
+
+// Hard cap on how many rows the activity will load and filter in memory.
+// Reference tables are intended for human-curated data (rate cards, lookup
+// codes, payment schedules); workloads above this are an architectural
+// mismatch and would risk OOMing the worker.
+export const MAX_LOOKUP_ROWS = 50_000;
+
+export interface TablesLookupInput {
+  groupId: string;
+  tableId: string;
+  lookupName: string;
+  // Lookup parameters arrive as additional fields on the input object
+  // (params, e.g. submissionDate, are passed alongside the routing fields).
+  [paramName: string]: unknown;
+}
+
+export interface TablesLookupOutput {
+  result: Record<string, unknown> | Array<Record<string, unknown>> | null;
+}
+
+export async function tablesLookup(
+  input: TablesLookupInput,
+): Promise<TablesLookupOutput> {
+  const { groupId, tableId, lookupName, ...params } = input;
+
+  if (!groupId) {
+    throw ApplicationFailure.create({
+      type: "TABLES_GROUP_ID_MISSING",
+      message:
+        "tables.lookup invoked without groupId. Workflows must be started with input.groupId so the runner can inject it; if you see this, check that the workflow caller sets groupId.",
+      nonRetryable: true,
+    });
+  }
+
+  const prisma = getPrismaClient();
+
+  const table = await prisma.referenceTable.findUnique({
+    where: { group_id_table_id: { group_id: groupId, table_id: tableId } },
+  });
+  if (!table) {
+    throw ApplicationFailure.create({
+      type: "TABLES_NOT_FOUND",
+      message: `table not found: groupId=${groupId} tableId=${tableId}`,
+      nonRetryable: true,
+    });
+  }
+
+  const lookups = (table.lookups as unknown as LookupDef[]) ?? [];
+  const lookup = lookups.find((l) => l.name === lookupName);
+  if (!lookup) {
+    throw ApplicationFailure.create({
+      type: "TABLES_LOOKUP_NOT_FOUND",
+      message: `lookup not found: ${lookupName} on table ${tableId}`,
+      nonRetryable: true,
+    });
+  }
+
+  // Take MAX_LOOKUP_ROWS + 1 so we can detect overflow without an extra count query.
+  const rows = await prisma.referenceTableRow.findMany({
+    where: { group_id: groupId, table_id: tableId },
+    take: MAX_LOOKUP_ROWS + 1,
+  });
+  if (rows.length > MAX_LOOKUP_ROWS) {
+    throw ApplicationFailure.create({
+      type: "TABLES_TOO_MANY_ROWS",
+      message: `table ${tableId} has more than ${MAX_LOOKUP_ROWS} rows; lookups load rows into worker memory and are not designed for tables this large`,
+      nonRetryable: true,
+    });
+  }
+
+  try {
+    const result = executeLookup(
+      lookup,
+      params,
+      rows.map((r) => r.data as unknown as Record<string, unknown>),
+    );
+    return { result };
+  } catch (e) {
+    if (e instanceof LookupError) {
+      throw ApplicationFailure.create({
+        type: e.code,
+        message: e.message,
+        nonRetryable: true,
+      });
+    }
+    throw e;
+  }
+}

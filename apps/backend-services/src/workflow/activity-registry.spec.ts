@@ -31,8 +31,10 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.selectClassifiedPages",
   "document.flattenClassifiedDocuments",
   "data.transform",
+  "tables.lookup",
   "blob.read",
   "document.extractToBase64",
+  "document.normalizeOrientation",
 ];
 
 describe("activity-registry (backend)", () => {

@@ -66,8 +66,8 @@ output "env_config" {
     # Use: terraform output -raw apim_subscription_key
     # APIM_SUBSCRIPTION_KEY=<run above command>
 
-    # Azure Document Intelligence (via APIM: $${APIM_GATEWAY_URL}/documentintelligence/...)
-    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=${module.services.document_intelligence_endpoint}
+    # Azure Document Intelligence (via APIM - SDK appends /documentintelligence/ automatically)
+    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=${module.apim.apim_gateway_url}
 
     # Azure OpenAI / AI Foundry (via APIM: $${APIM_GATEWAY_URL}/openai/...)
     AZURE_OPENAI_ENDPOINT=${module.foundry.ai_foundry_endpoint}

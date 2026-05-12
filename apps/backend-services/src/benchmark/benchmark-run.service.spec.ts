@@ -8,8 +8,10 @@
 import { Prisma } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { BLOB_STORAGE } from "@/blob-storage/blob-storage.interface";
 import { PrismaService } from "@/database/prisma.service";
 import { AuditLogService } from "./audit-log.service";
+import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
@@ -178,6 +180,29 @@ describe("BenchmarkRunService", () => {
           useValue: {
             logRunStarted: jest.fn().mockResolvedValue({}),
             logBaselinePromoted: jest.fn().mockResolvedValue({}),
+          },
+        },
+        {
+          provide: BLOB_STORAGE,
+          useValue: {
+            read: jest.fn().mockResolvedValue(Buffer.from("{}", "utf-8")),
+            write: jest.fn().mockResolvedValue(undefined),
+            exists: jest.fn().mockResolvedValue(false),
+            delete: jest.fn().mockResolvedValue(undefined),
+            list: jest.fn().mockResolvedValue([]),
+            deleteByPrefix: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: BenchmarkErrorDetectionService,
+          useValue: {
+            getAnalysis: jest.fn().mockResolvedValue({
+              runId: "run-1",
+              notReady: false,
+              fields: [],
+              excludedFields: [],
+            }),
+            invalidate: jest.fn(),
           },
         },
       ],
@@ -1817,6 +1842,383 @@ describe("BenchmarkRunService", () => {
       );
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("exportFullRun", () => {
+    function exportableRun(overrides: Record<string, unknown> = {}) {
+      return {
+        ...mockRun,
+        status: "completed",
+        completedAt: new Date("2026-04-15T10:30:00Z"),
+        startedAt: new Date("2026-04-15T10:00:00Z"),
+        metrics: {
+          accuracy: 0.92,
+          _aggregate: {
+            totalSamples: 2,
+            failureAnalysis: { worstSamples: [] },
+          },
+          perSampleResults: [
+            {
+              sampleId: "s1",
+              metadata: { docType: "invoice" },
+              metrics: { accuracy: 0.95 },
+              pass: true,
+              evaluationDetails: [
+                { field: "name", matched: true, confidence: 0.95 },
+                { field: "total", matched: false, confidence: 0.42 },
+              ],
+            },
+            {
+              sampleId: "s2",
+              metadata: { docType: "receipt" },
+              metrics: { accuracy: 0.88 },
+              pass: false,
+              evaluationDetails: [
+                { field: "name", matched: false, confidence: 0.5 },
+              ],
+            },
+          ],
+        },
+        definition: { name: "Test Definition" },
+        baselineThresholds: null,
+        baselineComparison: null,
+        ...overrides,
+      };
+    }
+
+    it("returns full export with run metadata, raw metrics, and per-sample results", async () => {
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        exportableRun(),
+      );
+
+      const result = await service.exportFullRun("project-1", "run-1");
+
+      expect(result.exportFormatVersion).toBe(1);
+      expect(typeof result.exportedAt).toBe("string");
+      expect(result.run.id).toBe("run-1");
+      expect(result.run.definitionName).toBe("Test Definition");
+      // Raw metrics include _aggregate and perSampleResults (unlike RunDetails which strips them).
+      expect(result.metrics).toHaveProperty("_aggregate");
+      expect(result.metrics).toHaveProperty("perSampleResults");
+      expect(result.perSampleResults).toHaveLength(2);
+      expect(result.perSampleResults[0].sampleId).toBe("s1");
+      expect(result.perSampleResults[0].evaluationDetails).toEqual([
+        { field: "name", matched: true, confidence: 0.95 },
+        { field: "total", matched: false, confidence: 0.42 },
+      ]);
+      // perFieldResults built from evaluation details across all samples
+      expect(result.perFieldResults).toHaveLength(2);
+      const nameField = result.perFieldResults.find((f) => f.name === "name")!;
+      expect(nameField.evaluatedCount).toBe(2);
+      expect(nameField.correctCount).toBe(1);
+      expect(nameField.errorCount).toBe(1);
+      expect(nameField.errors).toHaveLength(1);
+      expect(nameField.errors[0].sampleId).toBe("s2");
+      const totalField = result.perFieldResults.find(
+        (f) => f.name === "total",
+      )!;
+      expect(totalField.evaluatedCount).toBe(1);
+      expect(totalField.errorCount).toBe(1);
+      expect(totalField.errors).toHaveLength(1);
+      expect(totalField.errors[0].sampleId).toBe("s1");
+      expect(result.errorDetectionAnalysis).toBeDefined();
+    });
+
+    it("resolves evaluationDetails from blob storage when only blobPath is set", async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          BenchmarkRunService,
+          BenchmarkRunDbService,
+          { provide: PrismaService, useValue: { prisma: mockPrismaClient } },
+          {
+            provide: BenchmarkTemporalService,
+            useValue: {
+              startBenchmarkRunWorkflow: jest.fn(),
+              cancelBenchmarkRunWorkflow: jest.fn(),
+              getWorkflowStatus: jest.fn(),
+            },
+          },
+          {
+            provide: DatasetService,
+            useValue: { validateDatasetVersion: jest.fn() },
+          },
+          {
+            provide: AuditLogService,
+            useValue: {
+              logRunStarted: jest.fn(),
+              logBaselinePromoted: jest.fn(),
+            },
+          },
+          {
+            provide: BLOB_STORAGE,
+            useValue: {
+              read: jest.fn().mockResolvedValue(
+                Buffer.from(
+                  JSON.stringify({
+                    groundTruth: { name: "Acme" },
+                    prediction: { name: "Acme Inc" },
+                    evaluationDetails: [
+                      { field: "name", matched: false, confidence: 0.6 },
+                    ],
+                  }),
+                  "utf-8",
+                ),
+              ),
+              write: jest.fn(),
+              exists: jest.fn(),
+              delete: jest.fn(),
+              list: jest.fn(),
+              deleteByPrefix: jest.fn(),
+            },
+          },
+          {
+            provide: BenchmarkErrorDetectionService,
+            useValue: {
+              getAnalysis: jest.fn().mockResolvedValue({
+                runId: "run-1",
+                notReady: false,
+                fields: [],
+                excludedFields: [],
+              }),
+              invalidate: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+      const blobSvc = moduleRef.get<BenchmarkRunService>(BenchmarkRunService);
+
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        exportableRun({
+          metrics: {
+            perSampleResults: [
+              {
+                sampleId: "s1",
+                metadata: {},
+                metrics: {},
+                pass: false,
+                evaluationBlobPath: "g1/benchmark/runs/run-1/s1.json",
+              },
+            ],
+          },
+        }),
+      );
+
+      const result = await blobSvc.exportFullRun("project-1", "run-1");
+
+      expect(result.perSampleResults).toHaveLength(1);
+      expect(result.perSampleResults[0].groundTruth).toEqual({ name: "Acme" });
+      expect(result.perSampleResults[0].evaluationDetails).toEqual([
+        { field: "name", matched: false, confidence: 0.6 },
+      ]);
+      expect(result.perSampleResults[0].evaluationBlobPath).toBe(
+        "g1/benchmark/runs/run-1/s1.json",
+      );
+      expect(result.perSampleResults[0].blobReadError).toBeUndefined();
+    });
+
+    it("includes blobReadError on samples whose blob fails to load", async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          BenchmarkRunService,
+          BenchmarkRunDbService,
+          { provide: PrismaService, useValue: { prisma: mockPrismaClient } },
+          {
+            provide: BenchmarkTemporalService,
+            useValue: {
+              startBenchmarkRunWorkflow: jest.fn(),
+              cancelBenchmarkRunWorkflow: jest.fn(),
+              getWorkflowStatus: jest.fn(),
+            },
+          },
+          {
+            provide: DatasetService,
+            useValue: { validateDatasetVersion: jest.fn() },
+          },
+          {
+            provide: AuditLogService,
+            useValue: {
+              logRunStarted: jest.fn(),
+              logBaselinePromoted: jest.fn(),
+            },
+          },
+          {
+            provide: BLOB_STORAGE,
+            useValue: {
+              read: jest.fn().mockRejectedValue(new Error("blob missing")),
+              write: jest.fn(),
+              exists: jest.fn(),
+              delete: jest.fn(),
+              list: jest.fn(),
+              deleteByPrefix: jest.fn(),
+            },
+          },
+          {
+            provide: BenchmarkErrorDetectionService,
+            useValue: {
+              getAnalysis: jest.fn().mockResolvedValue({
+                runId: "run-1",
+                notReady: false,
+                fields: [],
+                excludedFields: [],
+              }),
+              invalidate: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+      const blobSvc = moduleRef.get<BenchmarkRunService>(BenchmarkRunService);
+
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        exportableRun({
+          metrics: {
+            perSampleResults: [
+              {
+                sampleId: "s1",
+                metadata: {},
+                metrics: {},
+                pass: false,
+                evaluationBlobPath: "g1/benchmark/runs/run-1/s1.json",
+              },
+            ],
+          },
+        }),
+      );
+
+      const result = await blobSvc.exportFullRun("project-1", "run-1");
+
+      expect(result.perSampleResults[0].blobReadError).toBe("blob missing");
+      expect(result.perSampleResults[0].evaluationDetails).toBeUndefined();
+    });
+
+    it("exports a failed run with error info and skips analysis when no samples", async () => {
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        status: "failed",
+        error: "Worker crashed during evaluation",
+        metrics: {},
+        definition: { name: "Test Definition" },
+        baselineThresholds: null,
+        baselineComparison: null,
+      });
+
+      const result = await service.exportFullRun("project-1", "run-1");
+
+      expect(result.run.status).toBe("failed");
+      expect(result.run.error).toBe("Worker crashed during evaluation");
+      expect(result.perSampleResults).toEqual([]);
+      expect(result.perFieldResults).toEqual([]);
+      expect(result.errorDetectionAnalysis).toBeUndefined();
+    });
+
+    it("throws NotFoundException when run does not exist", async () => {
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
+      await expect(
+        service.exportFullRun("project-1", "missing"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("merges suggested thresholds from analysis and strips curves", async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          BenchmarkRunService,
+          BenchmarkRunDbService,
+          { provide: PrismaService, useValue: { prisma: mockPrismaClient } },
+          {
+            provide: BenchmarkTemporalService,
+            useValue: {
+              startBenchmarkRunWorkflow: jest.fn(),
+              cancelBenchmarkRunWorkflow: jest.fn(),
+              getWorkflowStatus: jest.fn(),
+            },
+          },
+          {
+            provide: DatasetService,
+            useValue: { validateDatasetVersion: jest.fn() },
+          },
+          {
+            provide: AuditLogService,
+            useValue: {
+              logRunStarted: jest.fn(),
+              logBaselinePromoted: jest.fn(),
+            },
+          },
+          {
+            provide: BLOB_STORAGE,
+            useValue: {
+              read: jest.fn(),
+              write: jest.fn(),
+              exists: jest.fn(),
+              delete: jest.fn(),
+              list: jest.fn(),
+              deleteByPrefix: jest.fn(),
+            },
+          },
+          {
+            provide: BenchmarkErrorDetectionService,
+            useValue: {
+              getAnalysis: jest.fn().mockResolvedValue({
+                runId: "run-1",
+                notReady: false,
+                fields: [
+                  {
+                    name: "name",
+                    evaluatedCount: 10,
+                    errorCount: 2,
+                    errorRate: 0.2,
+                    curve: [
+                      { threshold: 0, tp: 0, fp: 0, fn: 2, tn: 8 },
+                      { threshold: 0.5, tp: 1, fp: 1, fn: 1, tn: 7 },
+                    ],
+                    suggestedCatch90: 0.3,
+                    suggestedBestBalance: 0.5,
+                    suggestedMinimizeReview: 0.7,
+                  },
+                ],
+                excludedFields: ["signature"],
+              }),
+              invalidate: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+      const svc = moduleRef.get<BenchmarkRunService>(BenchmarkRunService);
+
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        exportableRun(),
+      );
+
+      const result = await svc.exportFullRun("project-1", "run-1");
+
+      // perFieldResults is built from evaluation details and enriched with thresholds
+      const nameField = result.perFieldResults.find((f) => f.name === "name")!;
+      expect(nameField).toBeDefined();
+      expect(nameField.suggestedCatch90).toBe(0.3);
+      expect(nameField.suggestedBestBalance).toBe(0.5);
+      expect(nameField.suggestedMinimizeReview).toBe(0.7);
+      expect(nameField.errors).toBeDefined();
+      expect(nameField.errors.length).toBeGreaterThan(0);
+      // Error instances include source sample info
+      expect(nameField.errors[0]).toHaveProperty("sampleId");
+      expect(nameField.errors[0]).toHaveProperty("sampleMetadata");
+      expect(nameField.errors[0]).toHaveProperty("expected");
+      expect(nameField.errors[0]).toHaveProperty("predicted");
+      expect(nameField.errors[0]).toHaveProperty("confidence");
+
+      // "total" field doesn't have a matching analysis entry, keeps default thresholds
+      const totalField = result.perFieldResults.find(
+        (f) => f.name === "total",
+      )!;
+      expect(totalField.suggestedCatch90).toBeNull();
+      expect(totalField.suggestedBestBalance).toBe(0);
+
+      // errorDetectionAnalysis fields have empty curve arrays
+      expect(result.errorDetectionAnalysis).toBeDefined();
+      expect(result.errorDetectionAnalysis!.fields[0].curve).toEqual([]);
+      expect(result.errorDetectionAnalysis!.fields[0].name).toBe("name");
+      expect(result.errorDetectionAnalysis!.excludedFields).toEqual([
+        "signature",
+      ]);
     });
   });
 });

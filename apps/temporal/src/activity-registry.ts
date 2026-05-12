@@ -14,6 +14,7 @@ import {
   benchmarkCompareAgainstBaseline,
   benchmarkEvaluate,
   benchmarkLoadOcrCache,
+  benchmarkPersistEvaluationDetails,
   benchmarkPersistOcrCache,
   benchmarkUpdateRunStatus,
   benchmarkWritePrediction,
@@ -42,12 +43,14 @@ import { validateDocumentFields } from "./activities/document-validate-fields";
 import { extractPageRange } from "./activities/extract-page-range";
 import { extractPagesBase64 } from "./activities/extract-pages-base64";
 import { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
+import { normalizeDocumentOrientation } from "./activities/normalize-document-orientation";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
 import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
 import { selectClassifiedPages } from "./activities/select-classified-pages";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
+import { tablesLookup } from "./activities/tables-lookup";
 import type { RetryPolicy } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
@@ -342,6 +345,17 @@ register({
   description: "Persist Azure OCR poll JSON for a benchmark sample",
 });
 
+register({
+  activityType: "benchmark.persistEvaluationDetails",
+  activityFn: benchmarkPersistEvaluationDetails as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Persist per-sample evaluation details (groundTruth/prediction/evaluationDetails) to blob storage",
+});
+
 // -- Azure Classifier activities -------------------------------------------
 
 register({
@@ -405,6 +419,16 @@ register({
     "Execute data transformation: parse input, resolve field-mapping bindings, render output",
 });
 
+// -- Tables activities ------------------------------------------------------
+
+register({
+  activityType: "tables.lookup",
+  activityFn: tablesLookup as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Look up a row from a Tables-managed reference table",
+});
+
 register({
   activityType: "blob.read",
   activityFn: blobRead as (...args: unknown[]) => Promise<unknown>,
@@ -420,6 +444,17 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Extract a page range from a PDF blob and return it as base64 (no blob write)",
+});
+
+register({
+  activityType: "document.normalizeOrientation",
+  activityFn: normalizeDocumentOrientation as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "5m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Detect and correct per-page orientation using mupdf rendering and Tesseract OSD",
 });
 
 // ---------------------------------------------------------------------------

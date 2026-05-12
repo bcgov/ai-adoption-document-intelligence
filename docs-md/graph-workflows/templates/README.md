@@ -7,6 +7,7 @@ This folder holds example [graph workflow](../DAG_WORKFLOW_ENGINE.md) configurat
 | `standard-ocr-workflow.json` | Standard OCR processing: file prepare → Azure OCR submit/poll → result cleaning and confidence checks. Equivalent to the legacy single-document OCR workflow. |
 | `multi-page-report-workflow.json` | Multi-page report: initial full-document OCR, keyword-based split/classify, type-specific child workflows per segment, and field validation. Demonstrates map/join and switch patterns. |
 | `azure-classifier-extraction-workflow.json` | Azure classifier-based page extraction: submit a document to Azure Document Intelligence for classification, poll for labeled page ranges, then extract a single segment. Starting point for classifier-driven split workflows. |
+| `orientation-detection-workflow.json` | Per-page orientation detection and correction via Tesseract OSD (`document.normalizeOrientation`). Detects rotated pages from pixel content and rewrites the PDF in place; per-page angle, confidence, and correction decision are exposed in `ctx`. Use as a starting point or drop the node into other pipelines. |
 
 These templates are validated by the graph schema validator tests in `apps/backend-services`.
 

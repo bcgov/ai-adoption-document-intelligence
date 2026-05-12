@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Orientation Detection",
+    "description": "Detects and corrects per-page orientation using Tesseract OSD. Stores per-page angle, confidence, and correction decision in ctx for inspection via the workflow status query.",
+    "tags": ["orientation", "normalization", "diagnostic"]
+  },
+  "entryNodeId": "markProcessing",
+  "ctx": {
+    "documentId": { "type": "string", "description": "Document ID from database" },
+    "blobKey": { "type": "string", "description": "Blob key of the normalized PDF" },
+    "orientationConfidenceThreshold": {
+      "type": "number",
+      "defaultValue": 2.0,
+      "description": "Minimum Tesseract OSD confidence before applying a rotation correction. Lower = more aggressive; higher = more conservative."
+    },
+    "correctedBlobKey": { "type": "string", "description": "Blob key after orientation correction (same as input when no corrections needed)" },
+    "pageCorrections": {
+      "type": "array",
+      "description": "Per-page results: [{ pageNumber, detectedAngle, confidence, corrected }]"
+    }
+  },
+  "nodes": {
+    "markProcessing": {
+      "id": "markProcessing",
+      "type": "activity",
+      "label": "Mark Processing",
+      "activityType": "document.updateStatus",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "parameters": { "status": "ongoing_ocr" },
+      "timeout": { "startToClose": "30s" },
+      "retry": { "maximumAttempts": 3 }
+    },
+    "detectOrientation": {
+      "id": "detectOrientation",
+      "type": "activity",
+      "label": "Detect & Correct Orientation",
+      "activityType": "document.normalizeOrientation",
+      "inputs": [
+        { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "confidenceThreshold", "ctxKey": "orientationConfidenceThreshold" }
+      ],
+      "outputs": [
+        { "port": "correctedBlobKey", "ctxKey": "correctedBlobKey" },
+        { "port": "pageCorrections", "ctxKey": "pageCorrections" }
+      ],
+      "timeout": { "startToClose": "5m" },
+      "retry": { "maximumAttempts": 2 }
+    },
+    "markComplete": {
+      "id": "markComplete",
+      "type": "activity",
+      "label": "Mark Complete",
+      "activityType": "document.updateStatus",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "parameters": { "status": "completed_ocr" },
+      "timeout": { "startToClose": "30s" },
+      "retry": { "maximumAttempts": 3 }
+    }
+  },
+  "edges": [
+    { "id": "e1", "source": "markProcessing", "target": "detectOrientation", "type": "normal" },
+    { "id": "e2", "source": "detectOrientation", "target": "markComplete", "type": "normal" }
+  ],
+  "nodeGroups": {
+    "orientation": {
+      "label": "Orientation Detection",
+      "description": "Detects and corrects page rotation using Tesseract OSD",
+      "nodeIds": ["detectOrientation"],
+      "exposedParams": [
+        {
+          "label": "Confidence Threshold",
+          "path": "orientationConfidenceThreshold",
+          "type": "number",
+          "default": 2.0
+        }
+      ]
+    }
+  }
+}

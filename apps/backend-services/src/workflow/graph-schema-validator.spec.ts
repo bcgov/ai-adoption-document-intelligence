@@ -840,6 +840,81 @@ describe("graph-schema-validator", () => {
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(true);
     });
+
+    it("accepts `doc.X` port binding when documentMetadata is declared", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "start",
+        ctx: { documentMetadata: { type: "object" } },
+        nodes: {
+          start: {
+            id: "start",
+            type: "activity",
+            label: "Start",
+            activityType: "tables.lookup",
+            parameters: { tableId: "t", lookupName: "byDate" },
+            inputs: [{ port: "submissionDate", ctxKey: "doc.receivedAt" }],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("rejects `doc.X` port binding when documentMetadata is NOT declared", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "start",
+        ctx: {},
+        nodes: {
+          start: {
+            id: "start",
+            type: "activity",
+            label: "Start",
+            activityType: "tables.lookup",
+            parameters: { tableId: "t", lookupName: "byDate" },
+            inputs: [{ port: "submissionDate", ctxKey: "doc.receivedAt" }],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              'root key "documentMetadata" not in ctx declarations',
+            ),
+          }),
+        ]),
+      );
+    });
+
+    it("accepts `segment.X` port binding when currentSegment is declared", () => {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "start",
+        ctx: { currentSegment: { type: "object" } },
+        nodes: {
+          start: {
+            id: "start",
+            type: "activity",
+            label: "Start",
+            activityType: "document.updateStatus",
+            inputs: [{ port: "p", ctxKey: "segment.payload" }],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+    });
   });
 
   // -----------------------------------------------------------------------

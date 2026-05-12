@@ -192,6 +192,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     documentId: string,
     workflowConfigId: string,
     initialCtx: Record<string, unknown>,
+    groupId: string | null,
     graphOverride?: GraphWorkflowConfig,
   ): Promise<string> {
     this.ensureClientInitialized();
@@ -225,6 +226,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             initialCtx,
             configHash,
             runnerVersion,
+            groupId,
             ...(requestId && { requestId }),
           },
         ],
