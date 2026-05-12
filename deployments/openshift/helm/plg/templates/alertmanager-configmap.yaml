@@ -20,6 +20,16 @@ data:
       repeat_interval: {{ .Values.alertmanager.route.repeatInterval }}
       {{- if .Values.alertmanager.notificationsEnabled }}
       routes:
+        # AppAlertActive is a sticky gauge — repeat at most once per day.
+        - receiver: {{ printf "%s-notifications" .Values.alertmanager.notificationChannel | quote }}
+          matchers:
+            - 'alertname = "AppAlertActive"'
+          {{- if eq .Values.alertmanager.minNotificationSeverity "critical" }}
+            - 'severity = "critical"'
+          {{- else }}
+            - 'severity =~ "warning|critical"'
+          {{- end }}
+          repeat_interval: 24h
         - receiver: {{ printf "%s-notifications" .Values.alertmanager.notificationChannel | quote }}
           matchers:
           {{- if eq .Values.alertmanager.minNotificationSeverity "critical" }}

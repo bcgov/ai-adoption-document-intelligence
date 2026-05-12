@@ -36,6 +36,13 @@ route:
   group_interval: 1m
   repeat_interval: 1h
   routes:
+    # AppAlertActive is a sticky gauge — it stays active until a recovery log
+    # is emitted. Repeat at most once per day to avoid hourly spam.
+    - receiver: "ches-notifications"
+      matchers:
+        - 'alertname = "AppAlertActive"'
+        - 'severity =~ "warning|critical"'
+      repeat_interval: 24h
     - receiver: "ches-notifications"
       matchers:
         - 'severity =~ "warning|critical"'
