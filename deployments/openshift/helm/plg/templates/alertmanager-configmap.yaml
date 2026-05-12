@@ -30,6 +30,15 @@ data:
         - receiver: "drop"
       {{- end }}
 
+    # Suppress generic catch-all alerts when a specific named alert is already
+    # firing for the same alertType.
+    inhibit_rules:
+      - source_matchers:
+          - 'type != ""'
+        target_matchers:
+          - 'alertname =~ "AnyBackendServicesError|AnyTemporalWorkerError|AppAlertActive"'
+        equal: ['type']
+
     receivers:
       - name: "drop"
       {{- if eq .Values.alertmanager.notificationChannel "teams" }}

@@ -53,7 +53,12 @@ function buildExpr(alertType: string, config: AlertThresholdConfig): string {
   const threshold = config.errorRateThreshold ?? 0.01;
   const errRate = `rate(app_error_total{type="${alertType}"}[${w}])`;
   const successRate = `rate(app_success_total{type="${alertType}"}[${w}])`;
-  return `${errRate} / (${errRate} + ${successRate}) > ${threshold}`;
+  // Also fire when there are errors but app_success_total has never been
+  // recorded (series absent), which makes the ratio expression return no data.
+  return (
+    `(${errRate} / (${errRate} + ${successRate}) > ${threshold})` +
+    ` or (${errRate} > 0 unless ${successRate} > 0)`
+  );
 }
 
 /**
@@ -89,16 +94,22 @@ function generateRulesYaml(): string {
   /**
    * Builds a catch-all rule that fires for any app_error_total on a given job.
    */
-  function buildCatchAll(job: string): string {
+  function buildCatchAll(job: string, jobEntries: typeof entries): string {
     const jobLabel = job
       .split("-")
       .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
       .join("");
+    // The catch-all must wait at least as long as the longest specific alert's
+    // `for` duration so that specific alerts are always firing before the
+    // catch-all fires — allowing inhibition rules to suppress the generic alert.
+    const maxFor = jobEntries.some((e) => e[1].mode === "error-rate")
+      ? "2m"
+      : "0m";
     return [
       `    - alert: Any${jobLabel}Error`,
       `      expr: >-`,
       `        increase(app_error_total{job="${job}"}[5m]) > 0`,
-      `      for: 0m`,
+      `      for: ${maxFor}`,
       `      labels:`,
       `        severity: warning`,
       `      annotations:`,
@@ -121,6 +132,7 @@ function generateRulesYaml(): string {
             `      for: ${forDuration}`,
             `      labels:`,
             `        severity: ${config.severity}`,
+            `        type: ${alertType}`,
             `      annotations:`,
             `        summary: "${config.summary}"`,
             `        description: "${config.description}"`,
@@ -128,7 +140,7 @@ function generateRulesYaml(): string {
         })
         .join("\n\n");
 
-      const catchAll = buildCatchAll(job);
+      const catchAll = buildCatchAll(job, jobEntries);
       const groupName = job.replace(/-/g, "_") + "_alerts";
 
       const rules =

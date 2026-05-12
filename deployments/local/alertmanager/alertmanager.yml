@@ -4,21 +4,30 @@
 # To test CHES email delivery locally:
 #   1. Copy CHES_ADAPTER_SECRET from deployments/local/.env and paste it into
 #      the `credentials:` field in the ches-notifications receiver below.
-#   2. Uncomment the ches-notifications receiver block and the routes block.
-#   3. Change the default receiver to "ches-notifications".
-#   4. Reload alertmanager:
+#   2. Restart alertmanager:
 #        podman compose -f deployments/local/docker-compose.monitoring.yml restart alertmanager
-#   5. POST a test alert to fire immediately (no need to wait for Prometheus):
+#   3. POST a test alert to fire immediately (no need to wait for Prometheus):
 #        curl -s -X POST http://localhost:9093/api/v2/alerts \
 #          -H "Content-Type: application/json" \
 #          -d '[{"labels":{"alertname":"TestAlert","severity":"warning"},"annotations":{"summary":"Local test alert","description":"Fired manually to verify CHES delivery."}}]'
-#   6. Check ches-adapter logs: podman logs ai-doc-intelligence-ches-adapter -f
+#   4. Check ches-adapter logs: podman logs ai-doc-intelligence-ches-adapter -f
 #
 # NOTE: Do NOT commit this file with a real secret in `credentials:` — it is tracked by git.
-#       Remove the secret and re-comment the receiver before committing.
+#       Remove the secret before committing.
 
 global:
   resolve_timeout: 5m
+
+# Suppress generic catch-all alerts when a specific named alert is already
+# firing for the same alertType. The specific rules carry a `type` label;
+# AnyBackendServicesError and AnyTemporalWorkerError carry the same label
+# from the metric. AppAlertActive carries `type` from app_alert_active labels.
+inhibit_rules:
+  - source_matchers:
+      - 'type != ""'
+    target_matchers:
+      - 'alertname =~ "AnyBackendServicesError|AnyTemporalWorkerError|AppAlertActive"'
+    equal: ['type']
 
 route:
   receiver: "drop" # Fallback
