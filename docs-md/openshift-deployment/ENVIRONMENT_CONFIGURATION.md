@@ -106,15 +106,19 @@ These values are derived automatically by the deploy script — do not set them 
 
 See [LOAD_TESTING.md](../LOAD_TESTING.md) for load-test usage of `mock`.
 
-### Azure Blob Storage
+### Blob Storage
 
 | Variable | Secret | Description |
 |----------|--------|-------------|
-| `BLOB_STORAGE_PROVIDER` | No | Storage backend (`azure` for cloud) |
+| `BLOB_STORAGE_PROVIDER` | No | Storage backend (`azure` for cloud, `minio` for in-cluster MinIO mock — load-test only) |
 | `AZURE_STORAGE_CONTAINER_NAME` | No | Azure blob container name |
 | `AZURE_STORAGE_CONNECTION_STRING` | Yes | Azure storage connection string |
 | `AZURE_STORAGE_ACCOUNT_NAME` | Yes | Azure storage account name |
 | `AZURE_STORAGE_ACCOUNT_KEY` | Yes | Azure storage account key |
+| `MINIO_DOCUMENT_BUCKET` | No | Bucket created on the per-instance MinIO when `BLOB_STORAGE_PROVIDER=minio` (default `document-blobs`) |
+| `MINIO_PVC_SIZE` | No | PVC size for the per-instance MinIO data volume (default `5Gi`); CLI override: `scripts/oc-deploy-instance.sh --minio-pvc-size` |
+
+`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, and `MINIO_SECRET_KEY` are not configured through `dev.env`/`prod.env`. The deploy script renders `MINIO_ENDPOINT` from the per-instance Service name and seeds a random `<instance>-minio-credentials` Secret when `--blob-storage-provider minio` is used. See [MANUAL_LOAD_TEST_INSTANCE.md](./MANUAL_LOAD_TEST_INSTANCE.md) for the full opt-in flow.
 
 ### Azure OpenAI (LLM Enrichment)
 
@@ -134,6 +138,7 @@ See [LOAD_TESTING.md](../LOAD_TESTING.md) for load-test usage of `mock`.
 | `TEMPORAL_TASK_QUEUE` | Temporal task queue name |
 | `BENCHMARK_TASK_QUEUE` | Benchmark processing task queue |
 | `ENABLE_BENCHMARK_QUEUE` | Enable separate benchmark worker |
+| `MOCK_AZURE_OCR` | Worker OCR stub (`true` / `false`). Use `true` only on disposable stacks (see [LOAD_TESTING.md](../LOAD_TESTING.md)); substituted into the worker ConfigMap by [`scripts/lib/generate-overlay.sh`](../../scripts/lib/generate-overlay.sh). CLI override: `scripts/oc-deploy-instance.sh --mock-azure-ocr`. |
 
 ### Database Storage
 

@@ -40,7 +40,10 @@
 		"load-test:k6:blob-storage": "npm run k6:blob-storage -w @ai-di/load-testing",
 		"load-test:k6:review-hitl": "npm run k6:review-hitl -w @ai-di/load-testing",
 		"load-test:temporal:saturation": "npm run temporal:saturation -w @ai-di/load-testing",
-		"load-test:temporal:saturation:cleanup": "npm run temporal:saturation:cleanup -w @ai-di/load-testing"
+		"load-test:temporal:saturation:cleanup": "npm run temporal:saturation:cleanup -w @ai-di/load-testing",
+		"load-test:matrix": "npm run matrix -w @ai-di/load-testing --",
+		"load-test:suite": "npm run suite -w @ai-di/load-testing --",
+		"load-test:setup-fixtures": "npm run setup-fixtures -w @ai-di/load-testing --"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.58.2",

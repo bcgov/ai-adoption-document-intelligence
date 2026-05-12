@@ -363,3 +363,137 @@ Only `blob-storage-pressure` hits `/api/azure/classifier/documents`; the other b
 - Pods: CPU/memory, OOMKilled, restart count.
 
 Full runbook and HA checklist: [docs-md/LOAD_TESTING.md](../docs-md/LOAD_TESTING.md).
+
+## Test matrix tracker
+
+`run-matrix.sh` wraps the existing `npm run k6:*` scripts: it runs the scenario, parses the resulting `results/k6-<scenario>-summary.json`, and appends a single row to `tools/load-testing/test-matrix.csv`. Use it to track parameter sweeps (VUs, duration, dataset size, instance) over time and across operators.
+
+Run from `tools/load-testing/` (or via the root npm alias):
+
+```bash
+# Workspace
+npm run matrix -- documents --vus 5 --duration 60s --seeded-rows 10000 \
+  --instance loadtest-1 --namespace fd34fb-test \
+  --notes "5 VU baseline against 10k seeded rows"
+
+# Repo root
+npm run load-test:matrix -- documents --vus 5 --duration 60s --seeded-rows 10000 \
+  --instance loadtest-1 --namespace fd34fb-test
+```
+
+Set `--namespace` to the OpenShift project that hosts the instance (for example `fd34fb-test` when using the manual extra-instance flow in [MANUAL_LOAD_TEST_INSTANCE.md](../../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md), or `fd34fb-dev` when targeting the CI `develop` auto-deploy namespace).
+
+`BASE_URL`, `LOAD_TEST_API_KEY`, `LOAD_TEST_GROUP_ID`, and any other scenario env (`LOAD_TEST_WORKFLOW_VERSION_ID`, `LOAD_TEST_BLOB_CLASSIFIER_NAME`, ...) are read from the environment exactly as for the underlying `npm run k6:*` scripts. `--vus`/`--duration` are forwarded as `LOAD_TEST_VUS` / `LOAD_TEST_DURATION` for scenarios that respect them; the values you pass are recorded in the matrix as the *requested* parameters even if the underlying script uses a different default (the `iterations` and `req_total` columns reflect what k6 actually executed).
+
+Useful flags:
+
+| Flag | Purpose |
+|------|---------|
+| `--vus N` | Override `LOAD_TEST_VUS` for this run |
+| `--duration STR` | Override `LOAD_TEST_DURATION` (`60s`, `5m`, ...) |
+| `--seeded-rows N` | Recorded as-is; useful for documents/datasets/hitl reproducibility |
+| `--instance NAME` | Records the OpenShift instance name (e.g. `loadtest-1`) |
+| `--namespace NAME` | Records the OpenShift namespace |
+| `--notes "..."` | Free-text column |
+| `--extra-params "..."` | Free-text column for scenario-specific overrides (e.g. `LOAD_TEST_PAYLOAD_SIZE_TIER=large`) |
+| `--no-run` | Skip the k6 run; just parse the existing summary JSON and append a row |
+| `--matrix-csv PATH` | Override the CSV path (default `tools/load-testing/test-matrix.csv`) |
+| `--summary-json PATH` | Override the summary JSON path |
+
+Columns recorded:
+
+`timestamp_utc, run_id, scenario, instance, namespace, base_url, group_id, api_key_present, vus_requested, duration_requested, seeded_rows, extra_params, iterations, req_total, req_per_sec, failure_rate, latency_avg_ms, latency_p50_ms, latency_p95_ms, latency_max_ms, data_received_mb, data_sent_kb, thresholds_pass, k6_exit_code, git_branch, git_sha, notes, result_summary`
+
+`thresholds_pass=true` when every k6 threshold expression in the summary did not cross its bound (i.e. all green); `k6_exit_code=0` is the equivalent signal directly from k6. `api_key_present` only records *whether* `LOAD_TEST_API_KEY` was set — never the value. `notes` is the free-text value from `--notes`; `result_summary` is auto-generated for each row, e.g. `26 reqs · 0.4213 req/s · 0.00% fail · p50 1.37s · p95 1.60s · max 1.62s · thresholds pass` — no operator typing required. The CSV is plain RFC-4180 (`,` separator, quoted fields with embedded quotes/commas/newlines) so it opens cleanly in spreadsheets and `awk -F,`.
+
+The CSV lives outside `results/` (which is gitignored) so a team can choose to commit it for shared history; it is appended chronologically by run completion order. Reorder by run timestamp with:
+
+```bash
+( head -1 test-matrix.csv && tail -n +2 test-matrix.csv | sort ) > test-matrix.sorted.csv
+```
+
+Requirements: `bash`, `jq`, the same k6 binary or Docker fallback used by the regular npm scripts.
+
+### One-time fixture provisioning
+
+Two scenarios — `upload-ocr` / `payload-sizes` and `blob-storage` — need API-side fixtures (a workflow version and a classifier) that the matrix runner cannot generate from k6 alone. `setup-fixtures.sh` provisions them once and is fully idempotent: subsequent runs reuse the existing resources by name.
+
+```bash
+# Workspace (from tools/load-testing/)
+BASE_URL=https://<instance>-backend-<ns>.apps... \
+LOAD_TEST_API_KEY=<key> \
+LOAD_TEST_GROUP_ID=<group> \
+eval "$(./setup-fixtures.sh)"
+
+# Repo root
+BASE_URL=... LOAD_TEST_API_KEY=... LOAD_TEST_GROUP_ID=... \
+  eval "$(npm run --silent load-test:setup-fixtures)"
+```
+
+Stdout is a pair of `export KEY=VALUE` lines, suitable for `eval "$(...)"` (the script must be sourced via `eval` for child processes — npm scripts and the k6 Docker container — to inherit the values):
+
+```text
+export LOAD_TEST_WORKFLOW_VERSION_ID=<workflow_version_id>
+export LOAD_TEST_BLOB_CLASSIFIER_NAME=<classifier_name>
+```
+
+What it does:
+
+| Resource | Default name | Source if missing |
+|----------|--------------|-------------------|
+| Workflow + initial version | `loadtest-standard-ocr` | `POST /api/workflows` with the JSON template at [`docs-md/graph-workflows/templates/standard-ocr-workflow.json`](../../docs-md/graph-workflows/templates/standard-ocr-workflow.json) (the same template the prisma seed uses) |
+| Classifier | `loadtest-blob-classifier` | `POST /api/azure/classifier` (PRETRAINING, source AZURE) |
+
+Useful flags:
+
+| Flag | Purpose |
+|------|---------|
+| `--workflow-name NAME` | Override the workflow lookup/create name |
+| `--classifier-name NAME` | Override the classifier lookup/create name |
+| `--workflow-template PATH` | Override the JSON template used when the workflow is missing |
+| `--workflows-only` / `--classifier-only` | Skip the other half (e.g. when only one scenario is gated) |
+| `--quiet` | Suppress info messages on stderr; only print the `export` lines |
+
+`run-suite.sh` calls this script automatically when the corresponding env var is unset and at least one selected scenario depends on it; pass `--no-auto-fixtures` to opt out.
+
+### Run every applicable scenario in one shot
+
+`run-suite.sh` iterates a configurable list of scenarios, calls `run-matrix.sh` for each, and prints a final per-row summary. Auto-fixtures provisioning runs first when needed (see above). Scenarios whose prerequisites are missing — and cannot be auto-provisioned — are skipped (not failed), so a single command works regardless of which optional features are present in the target instance.
+
+```bash
+# Workspace (from tools/load-testing/)
+npm run suite -- \
+  --instance loadtest-1 --namespace fd34fb-test \
+  --vus 1 --duration 60s --seeded-rows 100000 \
+  --notes "Full sweep against loadtest-1"
+
+# Repo root
+npm run load-test:suite -- \
+  --instance loadtest-1 --namespace fd34fb-test \
+  --vus 1 --duration 60s --seeded-rows 100000
+```
+
+Required env (forwarded to underlying k6 scripts): `BASE_URL`, `LOAD_TEST_API_KEY`, `LOAD_TEST_GROUP_ID`. Optional env gates which scenarios are runnable:
+
+| Scenario | Gate | Auto-provisioned? |
+|----------|------|-------------------|
+| `smoke`, `datasets`, `documents` | always runnable when required env is set | n/a |
+| `upload-ocr`, `payload-sizes` | `LOAD_TEST_WORKFLOW_VERSION_ID` set to an existing workflow version in the group | yes — auto-created via `setup-fixtures.sh` if unset |
+| `blob-storage` | `LOAD_TEST_BLOB_CLASSIFIER_NAME` set to an existing classifier in the group | yes — auto-created via `setup-fixtures.sh` if unset |
+| `review-hitl` | requires HITL fixtures (run `npm run load-test:hitl-fixtures` first) and the `--include-hitl` flag | no — fixture seeder writes directly to the database |
+
+Useful flags (suite-level; all are forwarded to `run-matrix.sh`):
+
+| Flag | Purpose |
+|------|---------|
+| `--scenarios LIST` | Comma-separated subset (e.g. `smoke,datasets,documents`); default is every auto-detected scenario |
+| `--vus N` / `--duration STR` | Forwarded as `LOAD_TEST_VUS` / `LOAD_TEST_DURATION` for scenarios that respect them |
+| `--seeded-rows N` | Recorded in every matrix row for reproducibility (no DB action) |
+| `--instance NAME` / `--namespace NAME` | Recorded in every matrix row |
+| `--notes "..."` | Free-text recorded in every matrix row |
+| `--include-hitl` | Force-include `review-hitl` (HITL fixtures must already be seeded) |
+| `--matrix-csv PATH` | Override the CSV path |
+| `--stop-on-fail` | Abort after the first scenario whose thresholds fail (default: continue) |
+| `--no-auto-fixtures` | Skip the automatic call to `setup-fixtures.sh`; rely on existing env vars |
+
+The suite exit code is `0` when every executed scenario passed its k6 thresholds, otherwise the exit code of the last failing scenario. Skipped scenarios do not affect the suite exit code.

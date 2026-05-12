@@ -188,6 +188,30 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: BLOB_STORAGE_PROVIDER
+        - name: MINIO_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: MINIO_ENDPOINT
+              optional: true
+        - name: MINIO_DOCUMENT_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: MINIO_DOCUMENT_BUCKET
+              optional: true
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: MINIO_ROOT_USER
+              optional: true
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: MINIO_ROOT_PASSWORD
+              optional: true
         - name: AZURE_STORAGE_CONTAINER_NAME
           valueFrom:
             configMapKeyRef:

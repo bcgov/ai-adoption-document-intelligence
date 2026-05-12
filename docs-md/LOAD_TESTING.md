@@ -18,9 +18,10 @@ This document describes how to run bulk data generation and API load tests, how 
 5. **Start** backend (and Temporal worker if exercising workflows separately).
 6. **Export** `LOAD_TEST_API_KEY` (and optional `BASE_URL`, `LOAD_TEST_GROUP_ID`).
 7. **Run k6** via `npm run load-test:k6:smoke` (then datasets / documents / upload OCR / blob storage / review HITL scenarios as needed), or run the direct Temporal saturation harness for queue-focused tests.
-8. **Collect** k6/Temporal harness summary JSON from `tools/load-testing/results/`, database metrics, and pod metrics.
-9. **Clean up** generated rows after the run:
-   - `npm run load-test:seed -- --delete-by-prefix --count=0 --group-id=seed-default-group`
+8. **Track parameter sweeps** with `npm run load-test:matrix -- <scenario> --vus N --duration STR --seeded-rows N --instance NAME --namespace NAME --notes "..."`. The runner wraps the `npm run load-test:k6:<scenario>` script, parses the resulting `tools/load-testing/results/k6-<scenario>-summary.json`, and appends one row per run to `tools/load-testing/test-matrix.csv` (timestamp, requested params, iterations, throughput, failure rate, p50/p95/max latency, threshold pass, git branch/sha, free-text notes, auto-generated `result_summary`). Use `--no-run` to record an existing summary without re-executing k6. To run every applicable scenario in a single invocation use `npm run load-test:suite -- --instance NAME --namespace NAME --vus N --duration STR` — scenarios whose prerequisites are missing (`LOAD_TEST_WORKFLOW_VERSION_ID`, `LOAD_TEST_BLOB_CLASSIFIER_NAME`, HITL fixtures) are skipped and reported, not failed. Full options: [tools/load-testing/README.md](../tools/load-testing/README.md#test-matrix-tracker).
+9. **Collect** k6/Temporal harness summary JSON from `tools/load-testing/results/`, database metrics, and pod metrics.
+10. **Clean up** generated rows after the run:
+    - `npm run load-test:seed -- --delete-by-prefix --count=0 --group-id=seed-default-group`
 
 Detailed flags and Docker notes: [tools/load-testing/README.md](../tools/load-testing/README.md).
 Stress parameter matrix and execution order: [docs-md/LOAD_TEST_STRESS_RUN_SHEET.md](./LOAD_TEST_STRESS_RUN_SHEET.md).
@@ -322,6 +323,12 @@ Mock-mode compatibility:
 
 - The direct Temporal hold-graph harness does not call OCR activities, backend DI routes, blob storage, or Azure; `MOCK_AZURE_OCR` is not required for the harness itself.
 - For combined saturation plus upload/OCR exercises, keep Temporal worker `MOCK_AZURE_OCR=true` and backend-services `DOCUMENT_INTELLIGENCE_MODE=mock` so live Azure or backend DI errors are not misread as queue capacity limits.
+
+## OpenShift: disposable stack in `fd34fb-test`
+
+To deploy an extra isolated instance (separate Postgres / Temporal) in **`fd34fb-test`** with images built from your branch, follow **[MANUAL_LOAD_TEST_INSTANCE.md](./openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md)** (`scripts/oc-build-push.sh` + `scripts/oc-deploy-instance.sh`).
+
+For blob-heavy scenarios (`npm run load-test:k6:upload-ocr`, `:blob-storage`, `:payload-sizes`) you can keep all object I/O **inside the cluster** by passing **`--blob-storage-provider minio`** to the deploy script. The instance then includes a per-instance `<instance>-minio` Deployment + PVC and routes backend / worker writes to it instead of the shared Azure container — see the **Mock blob storage with in-cluster MinIO** section of [MANUAL_LOAD_TEST_INSTANCE.md](./openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md).
 
 ## OpenShift: in-cluster k6 (egress blocked)
 

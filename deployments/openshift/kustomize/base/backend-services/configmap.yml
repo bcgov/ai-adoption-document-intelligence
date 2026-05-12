@@ -20,6 +20,10 @@ data:
   # Blob storage
   BLOB_STORAGE_PROVIDER: "minio"
   AZURE_STORAGE_CONTAINER_NAME: "document-blobs"
+  # MinIO configuration; only consumed when BLOB_STORAGE_PROVIDER=minio.
+  # The instance-template overlay rewrites these for per-instance MinIO Services.
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_DOCUMENT_BUCKET: "document-blobs"
   # Benchmarking
   BENCHMARK_TASK_QUEUE: "benchmark-processing"
   ENABLE_BENCHMARK_QUEUE: "true"
