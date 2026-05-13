@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Cross-engine comparison analysis for E00 / E02 / E03 / E04 / E05 (+ E06 when
-INCLUDE_E06=1).
+Cross-engine comparison analysis for E00 / E02 / E03 / E04 / E05 / E07 / E08
+(+ E06 when INCLUDE_E06=1).
 
 Reads each engine's `experiments/results/<slug>/benchmark-run.json` (already
 re-evaluated against the current local GT by
@@ -47,6 +47,8 @@ ENGINES = [
     ("E03", "03-content-understanding", "Azure CU + gpt-5.2", "E03 — Azure Content Understanding + gpt-5.2"),
     ("E04", "04-vlm-direct", "gpt-5.4 VLM-direct", "E04 — gpt-5.4 vision-language model (direct)"),
     ("E05", "05-vlm-ocr-hybrid", "gpt-5.4 VLM + Azure DI layout", "E05 — gpt-5.4 VLM + Azure DI prebuilt-layout (hybrid)"),
+    ("E07", "07-vlm-ocr-hybrid-gpt-4o", "gpt-4o VLM + Azure DI layout", "E07 — gpt-4o VLM + Azure DI prebuilt-layout (hybrid)"),
+    ("E08", "08-vlm-ocr-hybrid-gpt-5.2", "gpt-5.2 VLM + Azure DI layout", "E08 — gpt-5.2 VLM + Azure DI prebuilt-layout (hybrid)"),
 ]
 INCLUDE_E06 = os.environ.get("INCLUDE_E06", "0") == "1"
 if INCLUDE_E06:
@@ -65,6 +67,8 @@ ENGINE_COLORS = {
     "E04": "#d62728",
     "E05": "#9467bd",
     "E06": "#ff7f0e",
+    "E07": "#e377c2",
+    "E08": "#17becf",
 }
 
 TOTAL_FIELDS_PER_SAMPLE = 74  # SDPR template schema size
@@ -222,11 +226,14 @@ def main() -> None:
     plt.close(fig)
 
     # ---- 5. Per-field accuracy
+    # Schema note: older exports use "field", newer exports use "name". Accept both.
     per_field = defaultdict(dict)
     all_fields: set[str] = set()
     for tag, _, _, _ in ENGINES:
         for pf in runs[tag].get("perFieldResults", []):
-            field = pf["field"]
+            field = pf.get("field") or pf.get("name")
+            if not field:
+                continue
             per_field[field][tag] = pf.get("accuracy", 0.0)
             all_fields.add(field)
     sorted_fields = sorted(all_fields, key=lambda f: (classify_field(f), f))
