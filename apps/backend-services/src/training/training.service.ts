@@ -271,6 +271,19 @@ export class TrainingService {
       await this.templateModelService.getTemplateModel(templateModelId);
     const baseModelId = templateModel.model_id;
 
+    // Refuse to start a second training while one is already in flight for
+    // this template. Without this, two concurrent starts would compute the
+    // same nextVersion, both upload to Azure under the same versioned model
+    // id, and the loser's poller would later hit the @@unique constraint —
+    // leaving an orphaned Azure model and a confusing partial-state job row.
+    const inFlight =
+      await this.trainingDb.findInFlightJobForTemplate(templateModelId);
+    if (inFlight) {
+      throw new ConflictException(
+        `A training job is already in progress for this template (job ${inFlight.id}, status ${inFlight.status}). Wait for it to finish or cancel it before starting a new one.`,
+      );
+    }
+
     const nextVersion =
       await this.trainingDb.getNextVersionNumber(templateModelId);
     const versionedModelId = mintVersionedModelId(baseModelId, nextVersion);

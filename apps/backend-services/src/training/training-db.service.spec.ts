@@ -14,6 +14,7 @@ describe("TrainingDbService", () => {
     trainingJob: {
       create: jest.Mock;
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       findMany: jest.Mock;
       update: jest.Mock;
     };
@@ -71,6 +72,7 @@ describe("TrainingDbService", () => {
       trainingJob: {
         create: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
       },
@@ -183,6 +185,41 @@ describe("TrainingDbService", () => {
         where: { template_model_id: "tm-1" },
         orderBy: { started_at: "desc" },
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // findInFlightJobForTemplate
+  // ---------------------------------------------------------------------------
+
+  describe("findInFlightJobForTemplate", () => {
+    it("queries for any non-terminal status scoped to the template, newest first", async () => {
+      const inFlight = { ...mockTrainingJob, status: TrainingStatus.TRAINING };
+      mockPrisma.trainingJob.findFirst.mockResolvedValueOnce(inFlight);
+
+      const result = await service.findInFlightJobForTemplate("tm-1");
+
+      expect(result).toEqual(inFlight);
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith({
+        where: {
+          template_model_id: "tm-1",
+          status: {
+            in: [
+              TrainingStatus.PENDING,
+              TrainingStatus.UPLOADING,
+              TrainingStatus.UPLOADED,
+              TrainingStatus.TRAINING,
+            ],
+          },
+        },
+        orderBy: { started_at: "desc" },
+      });
+    });
+
+    it("returns null when no in-flight job exists", async () => {
+      mockPrisma.trainingJob.findFirst.mockResolvedValueOnce(null);
+      const result = await service.findInFlightJobForTemplate("tm-1");
+      expect(result).toBeNull();
     });
   });
 

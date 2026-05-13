@@ -42,6 +42,7 @@ describe("TrainingService", () => {
     findTrainingJob: jest.Mock;
     findAllTrainingJobs: jest.Mock;
     findAllActiveTrainingJobs: jest.Mock;
+    findInFlightJobForTemplate: jest.Mock;
     findAllTrainedModels: jest.Mock;
     findTrainedModelForTemplate: jest.Mock;
     findActiveTrainedModel: jest.Mock;
@@ -158,6 +159,7 @@ describe("TrainingService", () => {
       findTrainingJob: jest.fn(),
       findAllTrainingJobs: jest.fn(),
       findAllActiveTrainingJobs: jest.fn(),
+      findInFlightJobForTemplate: jest.fn().mockResolvedValue(null),
       findAllTrainedModels: jest.fn(),
       findTrainedModelForTemplate: jest.fn(),
       findActiveTrainedModel: jest.fn(),
@@ -565,6 +567,26 @@ describe("TrainingService", () => {
           target_version: 1,
         }),
       );
+    });
+
+    it("refuses to start when an in-flight job already exists for the template", async () => {
+      const dto = { description: "Test model" };
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTrainingDb.findInFlightJobForTemplate.mockResolvedValueOnce({
+        id: "job-already-running",
+        template_model_id: "tm-1",
+        status: TrainingStatus.TRAINING,
+      });
+
+      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
+        ConflictException,
+      );
+      // Guard fires before version computation and job creation.
+      expect(mockTrainingDb.getNextVersionNumber).not.toHaveBeenCalled();
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
     });
   });
 

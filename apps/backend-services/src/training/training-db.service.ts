@@ -119,6 +119,32 @@ export class TrainingDbService {
   }
 
   /**
+   * Returns the most recent in-flight training job for a template (any status
+   * that has not yet reached a terminal SUCCEEDED/FAILED), or null. Used by
+   * startTraining to refuse concurrent retrains on the same template.
+   */
+  async findInFlightJobForTemplate(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainingJob | null> {
+    const client = tx ?? this.prisma;
+    return client.trainingJob.findFirst({
+      where: {
+        template_model_id: templateModelId,
+        status: {
+          in: [
+            TrainingStatus.PENDING,
+            TrainingStatus.UPLOADING,
+            TrainingStatus.UPLOADED,
+            TrainingStatus.TRAINING,
+          ],
+        },
+      },
+      orderBy: { started_at: "desc" },
+    });
+  }
+
+  /**
    * Finds all training jobs that are actively training or uploaded (awaiting polling).
    * @param tx Optional transaction client.
    * @returns An array of active TrainingJob records.
