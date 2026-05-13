@@ -319,6 +319,22 @@ export class TrainingDbService {
   }
 
   /**
+   * Demotes the currently-active version for a template and inserts the new
+   * one as active in a single transaction. Without this, a crash between the
+   * two writes would leave the template with zero active versions and the
+   * OCR picker / `findActiveTrainedModel` would silently return nothing.
+   */
+  async replaceActiveTrainedModel(
+    templateModelId: string,
+    data: TrainedModelCreateData,
+  ): Promise<TrainedModel> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.demoteActiveTrainedModels(templateModelId, tx);
+      return this.createTrainedModel(data, tx);
+    });
+  }
+
+  /**
    * Tombstones a trained model: clears `is_active`, sets `deleted_at`. The
    * row is kept so audit views ("vN — deleted on …") still resolve, but the
    * Azure artifact is expected to be removed by the caller.

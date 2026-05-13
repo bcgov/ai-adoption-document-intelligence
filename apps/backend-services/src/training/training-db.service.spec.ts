@@ -441,6 +441,69 @@ describe("TrainingDbService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // replaceActiveTrainedModel
+  // ---------------------------------------------------------------------------
+
+  describe("replaceActiveTrainedModel", () => {
+    const createData: TrainedModelCreateData = {
+      template_model_id: "tm-1",
+      training_job_id: "job-1",
+      model_id: "custom-model-1-v2",
+      version: 2,
+      is_active: true,
+      description: "v2",
+      doc_types: {} as never,
+      field_count: 1,
+      dataset_snapshot: { documents: [] } as never,
+    };
+
+    it("demotes active rows and creates the new row inside a single transaction", async () => {
+      const created = { ...mockTrainedModel, ...createData };
+      const txClient = {
+        trainedModel: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          create: jest.fn().mockResolvedValue(created),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      const result = await service.replaceActiveTrainedModel(
+        "tm-1",
+        createData,
+      );
+
+      expect(result).toEqual(created);
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(txClient.trainedModel.updateMany).toHaveBeenCalledWith({
+        where: { template_model_id: "tm-1", is_active: true },
+        data: { is_active: false },
+      });
+      expect(txClient.trainedModel.create).toHaveBeenCalledWith({
+        data: createData,
+      });
+    });
+
+    it("does not create when the demote step throws", async () => {
+      const txClient = {
+        trainedModel: {
+          updateMany: jest.fn().mockRejectedValue(new Error("db down")),
+          create: jest.fn(),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      await expect(
+        service.replaceActiveTrainedModel("tm-1", createData),
+      ).rejects.toThrow("db down");
+      expect(txClient.trainedModel.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // tombstoneTrainedModel
   // ---------------------------------------------------------------------------
 
