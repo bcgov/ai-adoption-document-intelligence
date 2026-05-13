@@ -1,0 +1,288 @@
+{
+  "durationMs": 54046,
+  "ocrDurationMs": 5244,
+  "vlmDurationMs": 48802,
+  "deployment": "gpt-5.2",
+  "apiVersion": "2024-12-01-preview",
+  "usage": {
+    "completion_tokens": 2094,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "audio_tokens": 0,
+      "reasoning_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "latency_checkpoint": {
+      "engine_tbt_ms": 21,
+      "engine_ttft_ms": 392,
+      "engine_ttlt_ms": 45190,
+      "pre_inference_ms": 396,
+      "service_tbt_ms": 21,
+      "service_ttft_ms": 936,
+      "service_ttlt_ms": 45719,
+      "total_duration_ms": 45339,
+      "user_visible_ttft_ms": 540
+    },
+    "prompt_tokens": 12165,
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 9344
+    },
+    "total_tokens": 14259
+  },
+  "parsed": {
+    "fields": {
+      "checkbox_need_assistance_yes": "selected",
+      "checkbox_need_assistance_no": "unselected",
+      "checkbox_family_assets_yes": "unselected",
+      "checkbox_family_assets_no": "selected",
+      "checkbox_shelter_yes": "unselected",
+      "checkbox_shelter_no": "selected",
+      "checkbox_dependants_yes": "selected",
+      "checkbox_dependants_no": "unselected",
+      "checkbox_employment_changes_yes": "selected",
+      "checkbox_employment_changes_no": "unselected",
+      "checkbox_employment_changes_spouse_yes": "unselected",
+      "checkbox_employment_changes_spouse_no": "selected",
+      "checkbox_school_yes": "unselected",
+      "checkbox_school_no": "selected",
+      "checkbox_school_spouse_yes": "selected",
+      "checkbox_school_spouse_no": "unselected",
+      "checkbox_work_yes": "selected",
+      "checkbox_work_no": "unselected",
+      "checkbox_work_spouse_yes": "selected",
+      "checkbox_work_spouse_no": "unselected",
+      "checkbox_moved_yes": "unselected",
+      "checkbox_moved_no": "selected",
+      "checkbox_moved_spouse_yes": "selected",
+      "checkbox_moved_spouse_no": "unselected",
+      "checkbox_warrant_yes": "selected",
+      "checkbox_warrant_no": "unselected",
+      "checkbox_warrant_spouse_yes": "selected",
+      "checkbox_warrant_spouse_no": "unselected",
+      "explain_changes": "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never.",
+      "signature": "Kimberly Fuentes",
+      "spouse_signature": "D. Harrell",
+      "date": "2014-09-06",
+      "spouse_date": "2014-06-10",
+      "name": "Kimberly Fuentes",
+      "spouse_name": "Duane Harrell",
+      "phone": "227 837 843",
+      "spouse_phone": "(348) 984 086",
+      "sin": "350887408",
+      "spouse_sin": "612767866",
+      "applicant_net_employment_income": 1594.65,
+      "applicant_employment_insurance": 8740.25,
+      "applicant_spousal_support_alimony": 289,
+      "applicant_child_support": 2326.47,
+      "applicant_workbc_financial_support": 4218.92,
+      "applicant_student_funding_loans_bursaries": 2477,
+      "applicant_rental_income": 8007,
+      "applicant_room_board_income": 8641,
+      "applicant_workers_compensation": 9906.37,
+      "applicant_private_pensions_retirement_disability": 8281.78,
+      "applicant_oas_gis": 1297.16,
+      "applicant_trust_income": 9181,
+      "applicant_canada_pension_plan_cpp": 5057.31,
+      "applicant_tax_credits_gst_credit": 7986.99,
+      "applicant_child_tax_benefits": 3181.38,
+      "applicant_income_tax_refund": 1143.66,
+      "applicant_other_income_money_received": 6578.34,
+      "applicant_income_of_dependent_children": 9495.78,
+      "spouse_net_employment_income": 3472,
+      "spouse_employment_insurance": 655,
+      "spouse_spousal_support_alimony": 3791.02,
+      "spouse_child_support": 6793.84,
+      "spouse_workbc_financial_support": 7649,
+      "spouse_student_funding_loans_bursaries": 4463.95,
+      "spouse_rental_income": 8963.36,
+      "spouse_room_board_income": 6973,
+      "spouse_workers_compensation": 7431.61,
+      "spouse_private_pensions_retirement_disability": 9433.75,
+      "spouse_oas_gis": 2326.11,
+      "spouse_trust_income": 4269,
+      "spouse_canada_pension_plan_cpp": 4637.71,
+      "spouse_tax_credits_gst_credit": 76.59,
+      "spouse_child_tax_benefits": 4533.52,
+      "spouse_income_tax_refund": 6530.16,
+      "spouse_other_income_money_received": 4455.12
+    },
+    "source_quotes": {
+      "checkbox_need_assistance_yes": "Are you still in need of assistance?  Yes",
+      "checkbox_need_assistance_no": "Are you still in need of assistance?  No",
+      "checkbox_family_assets_yes": "Has your family unit received or disposed of any assets?  Yes",
+      "checkbox_family_assets_no": "Has your family unit received or disposed of any assets?  No",
+      "checkbox_shelter_yes": "Any changes to your shelter costs?  Yes",
+      "checkbox_shelter_no": "Any changes to your shelter costs?  No",
+      "checkbox_dependants_yes": "Any changes in Dependants or Persons living in the home?  Yes",
+      "checkbox_dependants_no": "Any changes in Dependants or Persons living in the home?  No",
+      "checkbox_employment_changes_yes": "Any employment changes?  Yes",
+      "checkbox_employment_changes_no": "Any employment changes?  No",
+      "checkbox_employment_changes_spouse_yes": "Spouse  Yes",
+      "checkbox_employment_changes_spouse_no": "Spouse  No",
+      "checkbox_school_yes": "Are you attending / enrolled in school or training?  Yes",
+      "checkbox_school_no": "Are you attending / enrolled in school or training?  No",
+      "checkbox_school_spouse_yes": "Spouse  Yes",
+      "checkbox_school_spouse_no": "Spouse  No",
+      "checkbox_work_yes": "Are you looking for work?  Yes",
+      "checkbox_work_no": "Are you looking for work?  No",
+      "checkbox_work_spouse_yes": "Spouse  Yes",
+      "checkbox_work_spouse_no": "Spouse  No",
+      "checkbox_moved_yes": "Have you moved or entered a facility?  Yes",
+      "checkbox_moved_no": "Have you moved or entered a facility?  No",
+      "checkbox_moved_spouse_yes": "Spouse  Yes",
+      "checkbox_moved_spouse_no": "Spouse  No",
+      "checkbox_warrant_yes": "Any outstanding warrants for your arrest?  Yes",
+      "checkbox_warrant_no": "Any outstanding warrants for your arrest?  No",
+      "checkbox_warrant_spouse_yes": "Spouse  Yes",
+      "checkbox_warrant_spouse_no": "Spouse  No",
+      "explain_changes": "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never.",
+      "signature": "Applicant Signature  Kimberly Fuentes",
+      "spouse_signature": "Spouse Signature  D. Harrell",
+      "date": "Date (yyyy-mmm-dd)  2014-Sep-06",
+      "spouse_date": "Date (yyyy-mmm-dd)  2014-Jun-10",
+      "name": "Applicant Print Name  Kimberly Fuentes",
+      "spouse_name": "Spouse Print Name  Duane Harrell",
+      "phone": "Applicant Telephone  227 837 843",
+      "spouse_phone": "Spouse Telephone  (348) 984 086",
+      "sin": "Social Insurance Number  350-887-408",
+      "spouse_sin": "Social Insurance Number  612-767-866",
+      "applicant_net_employment_income": "Net Employment Income  $ 1,594.65",
+      "applicant_employment_insurance": "Employment Insurance  $ 8740.25",
+      "applicant_spousal_support_alimony": "Spousal Support / Alimony  $ 289",
+      "applicant_child_support": "Child Support  $ 2,326.47",
+      "applicant_workbc_financial_support": "WorkBC Financial Support  $ 4,218.92",
+      "applicant_student_funding_loans_bursaries": "Student Funding (eg: Loans, Bursaries)  $ 2,477",
+      "applicant_rental_income": "Rental Income  $ 8007",
+      "applicant_room_board_income": "Room / Board Income  $ 8,641",
+      "applicant_workers_compensation": "Worker's Compensation  $ 9906.37",
+      "applicant_private_pensions_retirement_disability": "Private Pensions (eg: Retirement, Disability)  $ 8281.78",
+      "applicant_oas_gis": "OAS / GIS  $ 1297.16",
+      "applicant_trust_income": "Trust Income  $ 9181",
+      "applicant_canada_pension_plan_cpp": "Canada Pension Plan (CPP)  $ 5057.31",
+      "applicant_tax_credits_gst_credit": "Tax Credits (eg: GST Credit)  $ 7,986.99",
+      "applicant_child_tax_benefits": "Child Tax Benefits  $ 3181.38",
+      "applicant_income_tax_refund": "Income Tax Refund  $ 1,143.66",
+      "applicant_other_income_money_received": "All other income / money received  $ 6,578.34",
+      "applicant_income_of_dependent_children": "Income of Dependent Children  $ 9,495.78",
+      "spouse_net_employment_income": "Net Employment Income  $ 3472",
+      "spouse_employment_insurance": "Employment Insurance  $ 655",
+      "spouse_spousal_support_alimony": "Spousal Support / Alimony  $ 3,791.02",
+      "spouse_child_support": "Child Support  $ 6,793.84",
+      "spouse_workbc_financial_support": "WorkBC Financial Support  $ 7649",
+      "spouse_student_funding_loans_bursaries": "Student Funding (eg: Loans, Bursaries)  $ 4,463.95",
+      "spouse_rental_income": "Rental Income  $ 8963.36",
+      "spouse_room_board_income": "Room / Board Income  $ 6973",
+      "spouse_workers_compensation": "Worker's Compensation  $ 7431.61",
+      "spouse_private_pensions_retirement_disability": "Private Pensions (eg: Retirement, Disability)  $ 9,433.75",
+      "spouse_oas_gis": "OAS / GIS  $ 2,326.11",
+      "spouse_trust_income": "Trust Income  $ 4269",
+      "spouse_canada_pension_plan_cpp": "Canada Pension Plan (CPP)  $ 4,637.71",
+      "spouse_tax_credits_gst_credit": "Tax Credits (eg: GST Credit)  $ 76.59",
+      "spouse_child_tax_benefits": "Child Tax Benefits  $ 4533.52",
+      "spouse_income_tax_refund": "Income Tax Refund  $ 6,530.16",
+      "spouse_other_income_money_received": "All other income / money received  $ 4,455.12"
+    }
+  },
+  "raw": {
+    "choices": [
+      {
+        "content_filter_results": {
+          "hate": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "protected_material_code": {
+            "detected": false,
+            "filtered": false
+          },
+          "protected_material_text": {
+            "detected": false,
+            "filtered": false
+          },
+          "self_harm": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "sexual": {
+            "filtered": false,
+            "severity": "low"
+          },
+          "violence": {
+            "filtered": false,
+            "severity": "safe"
+          }
+        },
+        "finish_reason": "stop",
+        "index": 0,
+        "logprobs": null,
+        "message": {
+          "annotations": [],
+          "content": "{\"fields\":{\"checkbox_need_assistance_yes\":\"selected\",\"checkbox_need_assistance_no\":\"unselected\",\"checkbox_family_assets_yes\":\"unselected\",\"checkbox_family_assets_no\":\"selected\",\"checkbox_shelter_yes\":\"unselected\",\"checkbox_shelter_no\":\"selected\",\"checkbox_dependants_yes\":\"selected\",\"checkbox_dependants_no\":\"unselected\",\"checkbox_employment_changes_yes\":\"selected\",\"checkbox_employment_changes_no\":\"unselected\",\"checkbox_employment_changes_spouse_yes\":\"unselected\",\"checkbox_employment_changes_spouse_no\":\"selected\",\"checkbox_school_yes\":\"unselected\",\"checkbox_school_no\":\"selected\",\"checkbox_school_spouse_yes\":\"selected\",\"checkbox_school_spouse_no\":\"unselected\",\"checkbox_work_yes\":\"selected\",\"checkbox_work_no\":\"unselected\",\"checkbox_work_spouse_yes\":\"selected\",\"checkbox_work_spouse_no\":\"unselected\",\"checkbox_moved_yes\":\"unselected\",\"checkbox_moved_no\":\"selected\",\"checkbox_moved_spouse_yes\":\"selected\",\"checkbox_moved_spouse_no\":\"unselected\",\"checkbox_warrant_yes\":\"selected\",\"checkbox_warrant_no\":\"unselected\",\"checkbox_warrant_spouse_yes\":\"selected\",\"checkbox_warrant_spouse_no\":\"unselected\",\"explain_changes\":\"Against really decision short nothing interest\\nparticularly level summer list go shake woman\\nwhile beat. Investment include with view story\\nyourself why color treatment prove summer full\\nlearn actually among marriage church. Never.\",\"signature\":\"Kimberly Fuentes\",\"spouse_signature\":\"D. Harrell\",\"date\":\"2014-09-06\",\"spouse_date\":\"2014-06-10\",\"name\":\"Kimberly Fuentes\",\"spouse_name\":\"Duane Harrell\",\"phone\":\"227 837 843\",\"spouse_phone\":\"(348) 984 086\",\"sin\":\"350887408\",\"spouse_sin\":\"612767866\",\"applicant_net_employment_income\":1594.65,\"applicant_employment_insurance\":8740.25,\"applicant_spousal_support_alimony\":289,\"applicant_child_support\":2326.47,\"applicant_workbc_financial_support\":4218.92,\"applicant_student_funding_loans_bursaries\":2477,\"applicant_rental_income\":8007,\"applicant_room_board_income\":8641,\"applicant_workers_compensation\":9906.37,\"applicant_private_pensions_retirement_disability\":8281.78,\"applicant_oas_gis\":1297.16,\"applicant_trust_income\":9181,\"applicant_canada_pension_plan_cpp\":5057.31,\"applicant_tax_credits_gst_credit\":7986.99,\"applicant_child_tax_benefits\":3181.38,\"applicant_income_tax_refund\":1143.66,\"applicant_other_income_money_received\":6578.34,\"applicant_income_of_dependent_children\":9495.78,\"spouse_net_employment_income\":3472,\"spouse_employment_insurance\":655,\"spouse_spousal_support_alimony\":3791.02,\"spouse_child_support\":6793.84,\"spouse_workbc_financial_support\":7649,\"spouse_student_funding_loans_bursaries\":4463.95,\"spouse_rental_income\":8963.36,\"spouse_room_board_income\":6973,\"spouse_workers_compensation\":7431.61,\"spouse_private_pensions_retirement_disability\":9433.75,\"spouse_oas_gis\":2326.11,\"spouse_trust_income\":4269,\"spouse_canada_pension_plan_cpp\":4637.71,\"spouse_tax_credits_gst_credit\":76.59,\"spouse_child_tax_benefits\":4533.52,\"spouse_income_tax_refund\":6530.16,\"spouse_other_income_money_received\":4455.12},\"source_quotes\":{\"checkbox_need_assistance_yes\":\"Are you still in need of assistance?  Yes\",\"checkbox_need_assistance_no\":\"Are you still in need of assistance?  No\",\"checkbox_family_assets_yes\":\"Has your family unit received or disposed of any assets?  Yes\",\"checkbox_family_assets_no\":\"Has your family unit received or disposed of any assets?  No\",\"checkbox_shelter_yes\":\"Any changes to your shelter costs?  Yes\",\"checkbox_shelter_no\":\"Any changes to your shelter costs?  No\",\"checkbox_dependants_yes\":\"Any changes in Dependants or Persons living in the home?  Yes\",\"checkbox_dependants_no\":\"Any changes in Dependants or Persons living in the home?  No\",\"checkbox_employment_changes_yes\":\"Any employment changes?  Yes\",\"checkbox_employment_changes_no\":\"Any employment changes?  No\",\"checkbox_employment_changes_spouse_yes\":\"Spouse  Yes\",\"checkbox_employment_changes_spouse_no\":\"Spouse  No\",\"checkbox_school_yes\":\"Are you attending / enrolled in school or training?  Yes\",\"checkbox_school_no\":\"Are you attending / enrolled in school or training?  No\",\"checkbox_school_spouse_yes\":\"Spouse  Yes\",\"checkbox_school_spouse_no\":\"Spouse  No\",\"checkbox_work_yes\":\"Are you looking for work?  Yes\",\"checkbox_work_no\":\"Are you looking for work?  No\",\"checkbox_work_spouse_yes\":\"Spouse  Yes\",\"checkbox_work_spouse_no\":\"Spouse  No\",\"checkbox_moved_yes\":\"Have you moved or entered a facility?  Yes\",\"checkbox_moved_no\":\"Have you moved or entered a facility?  No\",\"checkbox_moved_spouse_yes\":\"Spouse  Yes\",\"checkbox_moved_spouse_no\":\"Spouse  No\",\"checkbox_warrant_yes\":\"Any outstanding warrants for your arrest?  Yes\",\"checkbox_warrant_no\":\"Any outstanding warrants for your arrest?  No\",\"checkbox_warrant_spouse_yes\":\"Spouse  Yes\",\"checkbox_warrant_spouse_no\":\"Spouse  No\",\"explain_changes\":\"Against really decision short nothing interest\\nparticularly level summer list go shake woman\\nwhile beat. Investment include with view story\\nyourself why color treatment prove summer full\\nlearn actually among marriage church. Never.\",\"signature\":\"Applicant Signature  Kimberly Fuentes\",\"spouse_signature\":\"Spouse Signature  D. Harrell\",\"date\":\"Date (yyyy-mmm-dd)  2014-Sep-06\",\"spouse_date\":\"Date (yyyy-mmm-dd)  2014-Jun-10\",\"name\":\"Applicant Print Name  Kimberly Fuentes\",\"spouse_name\":\"Spouse Print Name  Duane Harrell\",\"phone\":\"Applicant Telephone  227 837 843\",\"spouse_phone\":\"Spouse Telephone  (348) 984 086\",\"sin\":\"Social Insurance Number  350-887-408\",\"spouse_sin\":\"Social Insurance Number  612-767-866\",\"applicant_net_employment_income\":\"Net Employment Income  $ 1,594.65\",\"applicant_employment_insurance\":\"Employment Insurance  $ 8740.25\",\"applicant_spousal_support_alimony\":\"Spousal Support / Alimony  $ 289\",\"applicant_child_support\":\"Child Support  $ 2,326.47\",\"applicant_workbc_financial_support\":\"WorkBC Financial Support  $ 4,218.92\",\"applicant_student_funding_loans_bursaries\":\"Student Funding (eg: Loans, Bursaries)  $ 2,477\",\"applicant_rental_income\":\"Rental Income  $ 8007\",\"applicant_room_board_income\":\"Room / Board Income  $ 8,641\",\"applicant_workers_compensation\":\"Worker's Compensation  $ 9906.37\",\"applicant_private_pensions_retirement_disability\":\"Private Pensions (eg: Retirement, Disability)  $ 8281.78\",\"applicant_oas_gis\":\"OAS / GIS  $ 1297.16\",\"applicant_trust_income\":\"Trust Income  $ 9181\",\"applicant_canada_pension_plan_cpp\":\"Canada Pension Plan (CPP)  $ 5057.31\",\"applicant_tax_credits_gst_credit\":\"Tax Credits (eg: GST Credit)  $ 7,986.99\",\"applicant_child_tax_benefits\":\"Child Tax Benefits  $ 3181.38\",\"applicant_income_tax_refund\":\"Income Tax Refund  $ 1,143.66\",\"applicant_other_income_money_received\":\"All other income / money received  $ 6,578.34\",\"applicant_income_of_dependent_children\":\"Income of Dependent Children  $ 9,495.78\",\"spouse_net_employment_income\":\"Net Employment Income  $ 3472\",\"spouse_employment_insurance\":\"Employment Insurance  $ 655\",\"spouse_spousal_support_alimony\":\"Spousal Support / Alimony  $ 3,791.02\",\"spouse_child_support\":\"Child Support  $ 6,793.84\",\"spouse_workbc_financial_support\":\"WorkBC Financial Support  $ 7649\",\"spouse_student_funding_loans_bursaries\":\"Student Funding (eg: Loans, Bursaries)  $ 4,463.95\",\"spouse_rental_income\":\"Rental Income  $ 8963.36\",\"spouse_room_board_income\":\"Room / Board Income  $ 6973\",\"spouse_workers_compensation\":\"Worker's Compensation  $ 7431.61\",\"spouse_private_pensions_retirement_disability\":\"Private Pensions (eg: Retirement, Disability)  $ 9,433.75\",\"spouse_oas_gis\":\"OAS / GIS  $ 2,326.11\",\"spouse_trust_income\":\"Trust Income  $ 4269\",\"spouse_canada_pension_plan_cpp\":\"Canada Pension Plan (CPP)  $ 4,637.71\",\"spouse_tax_credits_gst_credit\":\"Tax Credits (eg: GST Credit)  $ 76.59\",\"spouse_child_tax_benefits\":\"Child Tax Benefits  $ 4533.52\",\"spouse_income_tax_refund\":\"Income Tax Refund  $ 6,530.16\",\"spouse_other_income_money_received\":\"All other income / money received  $ 4,455.12\"}}",
+          "refusal": null,
+          "role": "assistant"
+        }
+      }
+    ],
+    "created": 1778642021,
+    "id": "chatcmpl-DeuKTzFZVDl6mml6IE2rrBgtVx99c",
+    "model": "gpt-5.2-2025-12-11",
+    "object": "chat.completion",
+    "prompt_filter_results": [
+      {
+        "prompt_index": 0,
+        "content_filter_results": {
+          "hate": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "jailbreak": {
+            "detected": false,
+            "filtered": false
+          },
+          "self_harm": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "sexual": {
+            "filtered": false,
+            "severity": "safe"
+          },
+          "violence": {
+            "filtered": false,
+            "severity": "safe"
+          }
+        }
+      }
+    ],
+    "service_tier": "default",
+    "system_fingerprint": null,
+    "usage": {
+      "completion_tokens": 2094,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 21,
+        "engine_ttft_ms": 392,
+        "engine_ttlt_ms": 45190,
+        "pre_inference_ms": 396,
+        "service_tbt_ms": 21,
+        "service_ttft_ms": 936,
+        "service_ttlt_ms": 45719,
+        "total_duration_ms": 45339,
+        "user_visible_ttft_ms": 540
+      },
+      "prompt_tokens": 12165,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 9344
+      },
+      "total_tokens": 14259
+    }
+  },
+  "ocrMarkdown": "<figure>\n\n<!-- PageNumber=\"000 5th\" -->\n<!-- PageHeader=\"Monthly Report Avoid delays, submit by the 5th\" -->\n\n</figure>\n\n\n<figure>\n\nBRITISH\nCOLUMBIA\n\nMinistry of\nSocial Development\nand Poverty Reduction\n\n</figure>\n\n\nThe personal information requested on this form is collected by the Ministry of Social Development and\nPoverty Reduction pursuant to sections 26(c) of the Freedom of Information and Protection of Privacy Act\nfor the purpose of administering the Employment and Assistance Act and Employment and Assistance for\nPersons with Disabilities Act. If you have any questions about the collection, use or disclosure of this\ninformation, please contact the Ministry of Social Development and Poverty Reduction at 1-866-866-0800.\n\n\n# 1. Since your last declaration:\n\n\n<table>\n<tr>\n<td>Are you still in need of assistance?</td>\n<td>☒ Yes</td>\n<td>☐ No</td>\n</tr>\n<tr>\n<td>Has your family unit received or disposed of any assets?</td>\n<td>☐ Yes</td>\n<td>☒ No</td>\n</tr>\n<tr>\n<td>Any changes to your shelter costs?</td>\n<td>☐ Yes</td>\n<td>☒ No</td>\n</tr>\n<tr>\n<td>Any changes in Dependants or Persons living in the home?</td>\n<td>☒ Yes</td>\n<td>☐ No</td>\n</tr>\n</table>\n\n\n<table>\n<tr>\n<th></th>\n<th colspan=\"2\">Applicant</th>\n<th colspan=\"3\">Spouse</th>\n</tr>\n<tr>\n<td>Any employment changes?</td>\n<td>☒ Yes</td>\n<td>☐ No</td>\n<td>☐ Yes</td>\n<td>☒</td>\n<td>No</td>\n</tr>\n<tr>\n<td>Are you attending / enrolled in school or training?</td>\n<td>☐ Yes</td>\n<td>☒ No</td>\n<td>☒ Yes</td>\n<td>☐</td>\n<td>No</td>\n</tr>\n<tr>\n<td>Are you looking for work?</td>\n<td>☒ Yes</td>\n<td>☐ No</td>\n<td>☒ Yes</td>\n<td>☐</td>\n<td>No</td>\n</tr>\n<tr>\n<td>Have you moved or entered a facility?</td>\n<td>☐ Yes</td>\n<td>☒ No</td>\n<td>☒ Yes</td>\n<td>☐</td>\n<td>No</td>\n</tr>\n<tr>\n<td>Any outstanding warrants for your arrest?</td>\n<td>☒ Yes</td>\n<td>☐ No</td>\n<td>☒ Yes</td>\n<td>☐</td>\n<td>No</td>\n</tr>\n</table>\n\n\n<table>\n<tr>\n<th colspan=\"3\">2. Declare all income and submit proof. Enter \"0\" if none.</th>\n</tr>\n<tr>\n<th></th>\n<th>Applicant</th>\n<th>Spouse</th>\n</tr>\n<tr>\n<td>Net Employment Income</td>\n<td>$1,594.65</td>\n<td>$ 3472</td>\n</tr>\n<tr>\n<td>Employment Insurance</td>\n<td>$ 8740.25</td>\n<td>$ 655</td>\n</tr>\n<tr>\n<td>Spousal Support / Alimony</td>\n<td>$ 289</td>\n<td>$ 3,791.02</td>\n</tr>\n<tr>\n<td>Child Support</td>\n<td>$ 2,326.47</td>\n<td>$ 6,793.84</td>\n</tr>\n<tr>\n<td>WorkBC Financial Support</td>\n<td>$ 4218.92</td>\n<td>$ 7649</td>\n</tr>\n<tr>\n<td>Student Funding (eg: Loans, Bursaries)</td>\n<td>$ 2,477</td>\n<td>$ 4,463.95</td>\n</tr>\n<tr>\n<td>Rental Income</td>\n<td>$ 8007</td>\n<td>$ 8963.36</td>\n</tr>\n<tr>\n<td>Room / Board Income</td>\n<td>$ 8,641</td>\n<td>$ 6973</td>\n</tr>\n<tr>\n<td>Worker's Compensation</td>\n<td>$ 9906.37</td>\n<td>$ 7431.61</td>\n</tr>\n<tr>\n<td>Private Pensions (eg: Retirement, Disability)</td>\n<td>$ 8281.78</td>\n<td>$ 9,433.75</td>\n</tr>\n<tr>\n<td>OAS / GIS</td>\n<td>$1297.16</td>\n<td>$ 2, 326 . 11</td>\n</tr>\n<tr>\n<td>Trust Income</td>\n<td>$ 9181</td>\n<td>$ 4269</td>\n</tr>\n<tr>\n<td>Canada Pension Plan (CPP)</td>\n<td>$ 5057.31</td>\n<td>$ 4,637.71</td>\n</tr>\n<tr>\n<td>Tax Credits (eg: GST Credit)</td>\n<td>$ 7,986.99</td>\n<td>$ 76.59</td>\n</tr>\n<tr>\n<td>Child Tax Benefits</td>\n<td>$3181.38</td>\n<td>$ 4533.52</td>\n</tr>\n<tr>\n<td>Income Tax Refund</td>\n<td>$1,143.66</td>\n<td>$ 6,530.16</td>\n</tr>\n<tr>\n<td>All other income / money received</td>\n<td>$ 6,578.34</td>\n<td>$ 4,455.12</td>\n</tr>\n<tr>\n<td>Income of Dependent Children</td>\n<td>$ 9,495.78</td>\n<td></td>\n</tr>\n</table>\n\n\nPlease explain all changes including income and submit proof:\nAgainst really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never.\n\n3\\. Declaration: I understand that the ministry may disclose this information to verify continuing eligibility for assistance under the above Acts and\nRegulations. I declare that all of the information provided on this form to the Ministry of Social Development and Poverty Reduction is true and complete.\n\n\n<table>\n<tr>\n<th>Applicant Signature</th>\n<th>Date (yyyy-mmm-dd)</th>\n<th>Spouse Signature</th>\n<th>Date (yyyy-mmm-dd)</th>\n</tr>\n<tr>\n<td>Kimberly Fuentes</td>\n<td>2014-Sep-06</td>\n<td>D. Harrell</td>\n<td>2014-Jun-10</td>\n</tr>\n</table>\n\n\nApplicant Print Name\nKimberly Fuentes\n\nSpouse Print Name\n\nDuane Harrell\n\n\n<table>\n<tr>\n<th>Applicant Telephone</th>\n<th>Social Insurance Number</th>\n<th>Spouse Telephone</th>\n<th>Social Insurance Number</th>\n</tr>\n<tr>\n<td>227 837 843</td>\n<td>350-887-408</td>\n<td>(348) 984 086</td>\n<td>612-767-866</td>\n</tr>\n</table>\n\n\nNEXT CHEQUE\nISSUE\n\n\n<table>\n<tr>\n<th>BENEFIT MONTH</th>\n<th>TOTAL ALLOWANCE</th>\n<th>SHELTER PORTION</th>\n<th>INCOME DECLARED</th>\n<th>INCOME DEDUCTED</th>\n<th>OTHER DEDUCTIONS TOTAL CHEQUE</th>\n</tr>\n<tr>\n<td>CASE ID</td>\n<td></td>\n<td>CASELOAD</td>\n<td></td>\n<td></td>\n<td></td>\n</tr>\n</table>\n\n\nHR0081 (2021/09/13) OPC 7530903053 (250/Pk)\n"
+}
