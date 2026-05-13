@@ -390,5 +390,13 @@ describe("createLogger", () => {
         out.restore();
       }
     });
+
+    it("calls the hook even when the line is filtered by LOG_LEVEL", () => {
+      process.env.LOG_LEVEL = "error";
+      const hook = jest.fn();
+      const log = createLogger(SERVICE, undefined, hook);
+      log.warn("filtered", { alertType: "x" });
+      expect(hook).toHaveBeenCalledWith("warn", "x");
+    });
   });
 });

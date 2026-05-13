@@ -232,6 +232,14 @@ function emitWithBaseMap(
   context: LogContext | undefined,
   metricsHook: MetricsHook | undefined,
 ): void {
+  // Metrics fire regardless of log filtering — alerting is independent of log verbosity
+  if (metricsHook !== undefined) {
+    const alertType = context?.alertType ?? (baseMap.get("alertType") as string | undefined);
+    if (typeof alertType === "string") {
+      metricsHook(level, alertType);
+    }
+  }
+
   const configured = getConfiguredLevel();
   if (!shouldEmit(configured, level)) return;
 
@@ -249,13 +257,6 @@ function emitWithBaseMap(
     writeStdout(line);
   } else {
     fallbackStderr("serialization returned empty", message);
-  }
-
-  if (metricsHook !== undefined) {
-    const alertType = context?.alertType ?? (baseMap.get("alertType") as string | undefined);
-    if (typeof alertType === "string") {
-      metricsHook(level, alertType);
-    }
   }
 }
 
