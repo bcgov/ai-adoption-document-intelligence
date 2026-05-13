@@ -152,8 +152,15 @@ function generateRulesYaml(): string {
     })
     .join("\n\n");
 
-  const staticRules = STATIC_ALERT_RULES.map((rule) =>
-    [
+  const staticRulesByJob = new Map<string, typeof STATIC_ALERT_RULES>();
+  for (const rule of STATIC_ALERT_RULES) {
+    const key = rule.job ?? "shared";
+    if (!staticRulesByJob.has(key)) staticRulesByJob.set(key, []);
+    staticRulesByJob.get(key)!.push(rule);
+  }
+
+  function renderStaticRule(rule: (typeof STATIC_ALERT_RULES)[number]): string {
+    return [
       `    - alert: ${rule.name}`,
       `      expr: >-`,
       `        ${rule.expr}`,
@@ -164,14 +171,22 @@ function generateRulesYaml(): string {
       `      annotations:`,
       `        summary: "${rule.summary}"`,
       `        description: "${rule.description}"`,
-    ].join("\n")
-  ).join("\n\n");
+    ].join("\n");
+  }
 
-  const staticGroup = [
-    `  - name: backend_services_static_alerts`,
-    `    rules:`,
-    staticRules,
-  ].join("\n");
+  const staticGroups = [...staticRulesByJob.entries()]
+    .map(([job, rules]) => {
+      const groupName =
+        job === "shared"
+          ? "shared_static_alerts"
+          : job.replace(/-/g, "_") + "_static_alerts";
+      return [
+        `  - name: ${groupName}`,
+        `    rules:`,
+        rules.map(renderStaticRule).join("\n\n"),
+      ].join("\n");
+    })
+    .join("\n\n");
 
   return [
     `# ============================================================`,
@@ -193,7 +208,7 @@ function generateRulesYaml(): string {
     `groups:`,
     groups,
     ``,
-    staticGroup,
+    staticGroups,
   ].join("\n");
 }
 

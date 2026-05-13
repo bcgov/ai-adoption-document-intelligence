@@ -20,10 +20,11 @@ data:
       repeat_interval: {{ .Values.alertmanager.route.repeatInterval }}
       {{- if .Values.alertmanager.notificationsEnabled }}
       routes:
-        # AppAlertActive is a sticky gauge — repeat at most once per day.
+        # BackendServicesAlertActive and TemporalWorkerAlertActive are sticky
+        # gauges — repeat at most once per day.
         - receiver: {{ printf "%s-notifications" .Values.alertmanager.notificationChannel | quote }}
           matchers:
-            - 'alertname = "AppAlertActive"'
+            - 'alertname =~ "BackendServicesAlertActive|TemporalWorkerAlertActive"'
           {{- if eq .Values.alertmanager.minNotificationSeverity "critical" }}
             - 'severity = "critical"'
           {{- else }}
@@ -46,7 +47,7 @@ data:
       - source_matchers:
           - 'type != ""'
         target_matchers:
-          - 'alertname =~ "AnyBackendServicesError|AnyTemporalWorkerError|AppAlertActive"'
+          - 'alertname =~ "AnyBackendServicesError|AnyTemporalWorkerError|BackendServicesAlertActive|TemporalWorkerAlertActive"'
         equal: ['type']
 
     receivers:
