@@ -11,11 +11,11 @@
     - **When** the `Deploy PLG monitoring stack` step runs
     - **Then** the `helm upgrade` command includes `--set alertmanager.notificationChannel=...`, `--set alertmanager.notificationsEnabled=...`, and `--set alertmanager.minNotificationSeverity=...`
 
-- [x] **Scenario 2**: ches-adapter webhook secret is passed via `--set` flag
+- [x] **Scenario 2**: ches-adapter bearer secret is provisioned as a Kubernetes Secret
     - **Given** `ALERTMANAGER_CHES_ADAPTER_SECRET` is set as a GitHub Environment secret
-    - **When** the `Deploy PLG monitoring stack` step runs
-    - **Then** the `helm upgrade` command includes `--set alertmanager.ches.webhookSecret=...`
-    - **Note**: Other CHES credentials (`clientId`, `clientSecret`, `authHost`, `host`, `fromEmail`, `toEmails`) are stored in a Kubernetes Secret (`ches-adapter-secrets`) provisioned by the operator, not passed via `--set`
+    - **When** the `Create ches-adapter secret` and `Create alertmanager webhook secret` steps run
+    - **Then** the bearer token is written to Kubernetes Secrets via `--from-env-file` / `--from-file` (never on the process command line), and Alertmanager reads it from a mounted file via `credentials_file:`
+    - **Note**: Other CHES credentials (`chesClientId`, `chesClientSecret`, `chesAuthHost`, `chesHost`, `chesFromEmail`, `toEmails`) are also written to the same `<instance>-ches-adapter-secrets` Kubernetes Secret by the workflow
 
 - [x] **Scenario 3**: Teams webhook URL placeholder is passed for stub completeness
     - **Given** `ALERTMANAGER_TEAMS_WEBHOOK_URL` is set as a GitHub Environment secret (may be a placeholder string)

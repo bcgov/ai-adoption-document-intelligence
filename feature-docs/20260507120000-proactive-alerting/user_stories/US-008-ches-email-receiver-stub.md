@@ -14,12 +14,12 @@
 - [x] **Scenario 2**: Recipient list and CHES credentials are stored in a Kubernetes Secret
     - **Given** a Kubernetes Secret named `ches-adapter-secrets` is created in the namespace
     - **When** the ches-adapter pod starts
-    - **Then** it reads `chesToEmails`, `chesClientId`, `chesClientSecret`, `chesAuthHost`, `chesHost`, `chesFromEmail`, and `webhookSecret` from the Secret via environment variables
+    - **Then** it reads `chesToEmails`, `chesClientId`, `chesClientSecret`, `chesAuthHost`, `chesHost`, `chesFromEmail`, and `chesAdapterSecret` from the Secret via environment variables
 
-- [x] **Scenario 3**: Alertmanager authenticates to ches-adapter using the shared webhook secret
-    - **Given** `alertmanager.ches.webhookSecret` is set in Helm values
+- [x] **Scenario 3**: Alertmanager authenticates to ches-adapter using the shared adapter secret
+    - **Given** the `ALERTMANAGER_CHES_ADAPTER_SECRET` GitHub secret is provisioned as a Kubernetes Secret
     - **When** Alertmanager fires an alert to the ches-adapter
-    - **Then** the request includes `Authorization: Bearer <webhookSecret>` and ches-adapter validates it before forwarding to CHES
+    - **Then** the request includes `Authorization: Bearer <adapterSecret>` and ches-adapter validates it before forwarding to CHES
 
 - [ ] **Scenario 4**: A test alert is successfully delivered via CHES using test credentials
     - **Given** CHES test credentials are configured and `notificationsEnabled: true`
@@ -40,6 +40,6 @@
 ## Technical Notes / Assumptions
 - CHES integration uses a standalone `apps/ches-adapter` Node.js service (not Alertmanager's built-in email/smtp config). Alertmanager posts its webhook payload to ches-adapter via `webhook_configs`.
 - ches-adapter authenticates Alertmanager requests via a shared Bearer token (`CHES_ADAPTER_SECRET`), then authenticates to CHES using OAuth2 `client_credentials` grant.
-- All CHES credentials (`chesClientId`, `chesClientSecret`, `chesAuthHost`, `chesHost`, `chesFromEmail`, `chesToEmails`, `webhookSecret`) are stored in a single Kubernetes Secret referenced by `chesAdapter.secretName` (default: `ches-adapter-secrets`). The operator creates this secret before deploying.
-- `alertmanager.ches.webhookSecret` in Helm values is passed as `--set` from `ALERTMANAGER_CHES_ADAPTER_SECRET` GitHub secret; it is the same value stored as `webhookSecret` in the k8s Secret.
+- All CHES credentials (`chesClientId`, `chesClientSecret`, `chesAuthHost`, `chesHost`, `chesFromEmail`, `chesToEmails`, `chesAdapterSecret`) are stored in a single Kubernetes Secret referenced by `chesAdapter.secretName`. The secret is created automatically by the deploy workflow.
+- The `ALERTMANAGER_CHES_ADAPTER_SECRET` GitHub secret is written to the K8s Secret as `chesAdapterSecret` and also mounted as a file into the Alertmanager pod via a separate `<release>-alertmanager-adapter-secret` Secret, allowing Alertmanager to read it from disk via `credentials_file:` rather than having it rendered into the ConfigMap.
 - `notificationsEnabled` defaults to `false` until CHES delivery is verified end-to-end.

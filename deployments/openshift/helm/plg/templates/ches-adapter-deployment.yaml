@@ -30,7 +30,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.chesAdapter.secretName }}
-                  key: webhookSecret
+                  key: chesAdapterSecret
             - name: CHES_CLIENT_ID
               valueFrom:
                 secretKeyRef:

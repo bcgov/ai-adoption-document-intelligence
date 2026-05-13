@@ -3,7 +3,7 @@ import "dotenv/config";
 /** Validated configuration read from environment variables at startup. */
 export interface Config {
   port: number;
-  webhookSecret: string;
+  adapterSecret: string;
   chesClientId: string;
   chesClientSecret: string;
   chesAuthHost: string;
@@ -36,7 +36,7 @@ export function getConfig(): Config {
 
   return {
     port: parseInt(process.env["PORT"] ?? "3003", 10),
-    webhookSecret: process.env["CHES_ADAPTER_SECRET"]!,
+    adapterSecret: process.env["CHES_ADAPTER_SECRET"]!,
     chesClientId: process.env["CHES_CLIENT_ID"]!,
     chesClientSecret: process.env["CHES_CLIENT_SECRET"]!,
     chesAuthHost: process.env["CHES_AUTH_HOST"]!,

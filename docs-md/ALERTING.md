@@ -52,7 +52,7 @@ CHES credentials are stored in a Kubernetes Secret referenced by `chesAdapter.se
 
 | Key | Description |
 |-----|-------------|
-| `webhookSecret` | Shared Bearer token between Alertmanager and ches-adapter (`CHES_ADAPTER_SECRET`) |
+| `chesAdapterSecret` | Shared Bearer token between Alertmanager and ches-adapter (`CHES_ADAPTER_SECRET`) |
 | `chesClientId` | CHES OAuth2 client ID |
 | `chesClientSecret` | CHES OAuth2 client secret |
 | `chesAuthHost` | CHES token endpoint host (e.g. `https://loginproxy.gov.bc.ca`) |
@@ -71,7 +71,6 @@ Alertmanager routing is controlled by Helm values set via GitHub Environment sec
 | `alertmanager.notificationsEnabled` | `ALERTMANAGER_NOTIFICATIONS_ENABLED` | `false` | Enable external notifications. Keep `false` until CHES delivery is verified. |
 | `alertmanager.notificationChannel` | `ALERTMANAGER_NOTIFICATION_CHANNEL` | `ches` | Active channel: `ches` or `teams`. |
 | `alertmanager.minNotificationSeverity` | `ALERTMANAGER_MIN_SEVERITY` | `warning` | Minimum severity to route externally: `warning` (warning + critical) or `critical`. |
-| `alertmanager.ches.webhookSecret` | `ALERTMANAGER_CHES_ADAPTER_SECRET` | `""` | Bearer token sent by Alertmanager to ches-adapter. |
 | `alertmanager.teams.webhookUrl` | `ALERTMANAGER_TEAMS_WEBHOOK_URL` | `placeholder` | Teams connector URL (blocked by org policy — stub only). |
 
 When `notificationsEnabled=false`, Alertmanager still runs and alerts are visible in Grafana — no external notification is sent.

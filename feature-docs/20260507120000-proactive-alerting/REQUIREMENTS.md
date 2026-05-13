@@ -173,18 +173,22 @@ The following secrets are set per environment (`dev`, `test`, `prod`) and passed
 
 ### Kubernetes Secret (provisioned manually before deployment)
 
-CHES credentials are **not** passed as `--set` flags. They are stored in a Kubernetes Secret in the target namespace, referenced by the Helm value `chesAdapter.secretName` (default: `ches-adapter-secrets`). This secret must be created by the operator before deploying with `notificationChannel=ches`:
+CHES credentials are **not** passed as `--set` flags. They are stored in a Kubernetes Secret in the target namespace, created automatically by the deploy workflow. The secret is named `<instance>-ches-adapter-secrets` and its name is passed to Helm via `--set chesAdapter.secretName=...`.
+
+The workflow creates the secret using `--from-env-file` so values never appear as process arguments:
 
 ```bash
-oc create secret generic ches-adapter-secrets \
-  --from-literal=webhookSecret=<CHES_ADAPTER_SECRET value> \
-  --from-literal=chesClientId=<CHES client ID> \
-  --from-literal=chesClientSecret=<CHES client secret> \
-  --from-literal=chesAuthHost=https://loginproxy.gov.bc.ca \
-  --from-literal=chesHost=https://ches.api.gov.bc.ca \
-  --from-literal=chesFromEmail=<sender address registered with CHES> \
-  --from-literal=chesToEmails=<comma-separated recipient list>
+# Keys written by the deploy workflow:
+# chesAdapterSecret  — Bearer token Alertmanager sends to ches-adapter (ALERTMANAGER_CHES_ADAPTER_SECRET)
+# chesClientId       — CHES OAuth2 client ID (CHES_CLIENT_ID)
+# chesClientSecret   — CHES OAuth2 client secret (CHES_CLIENT_SECRET)
+# chesAuthHost       — CHES token endpoint host (CHES_AUTH_HOST)
+# chesHost           — CHES API host (CHES_HOST)
+# chesFromEmail      — Sender address registered with CHES (CHES_FROM_EMAIL)
+# chesToEmails       — Comma-separated recipient list (CHES_TO_EMAILS)
 ```
+
+The Alertmanager bearer token is also written to a separate `<release>-alertmanager-adapter-secret` K8s Secret and mounted as a file into the Alertmanager pod; Alertmanager reads it via `credentials_file:` so it never appears in the ConfigMap.
 
 **Notes:**
 - `GRAFANA_PVC_SIZE` is **not** a configurable secret — Grafana's PVC is hardcoded to `1Gi` in `values.yaml`. Unlike Loki and Prometheus, Grafana only stores its SQLite database (alert annotations, dashboard state) which stays small regardless of environment.

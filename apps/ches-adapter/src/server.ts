@@ -52,7 +52,7 @@ export function createServer(config: Config): http.Server {
     }
 
     // Validate shared webhook secret
-    if (!isAuthorized(req.headers["authorization"], config.webhookSecret)) {
+    if (!isAuthorized(req.headers["authorization"], config.adapterSecret)) {
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Invalid webhook secret" }));
       return;

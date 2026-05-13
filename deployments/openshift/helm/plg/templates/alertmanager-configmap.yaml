@@ -66,5 +66,5 @@ data:
             http_config:
               authorization:
                 type: Bearer
-                credentials: {{ .Values.alertmanager.ches.webhookSecret | quote }}
+                credentials_file: /etc/alertmanager-secrets/token
       {{- end }}

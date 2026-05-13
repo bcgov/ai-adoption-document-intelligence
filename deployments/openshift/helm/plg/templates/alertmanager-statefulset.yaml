@@ -47,6 +47,11 @@ spec:
               mountPath: /etc/alertmanager
             - name: data
               mountPath: /alertmanager
+            {{- if and .Values.alertmanager.notificationsEnabled (eq .Values.alertmanager.notificationChannel "ches") }}
+            - name: adapter-credentials
+              mountPath: /etc/alertmanager-secrets
+              readOnly: true
+            {{- end }}
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -55,6 +60,11 @@ spec:
         - name: config
           configMap:
             name: {{ include "plg.alertmanager.fullname" . }}-config
+        {{- if and .Values.alertmanager.notificationsEnabled (eq .Values.alertmanager.notificationChannel "ches") }}
+        - name: adapter-credentials
+          secret:
+            secretName: {{ include "plg.alertmanager.adapterSecretName" . }}
+        {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: data

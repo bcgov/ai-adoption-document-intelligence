@@ -5,7 +5,7 @@ import * as ches from "./ches";
 
 const baseConfig: Config = {
   port: 3003,
-  webhookSecret: "test-secret",
+  adapterSecret: "test-secret",
   chesClientId: "client-id",
   chesClientSecret: "client-secret",
   chesAuthHost: "https://auth.example.com",

@@ -167,9 +167,16 @@ alertmanager:
     #   http://<release>-ches-adapter:<port>
     # Override with --set alertmanager.ches.adapterUrl=http://... when deploying.
     adapterUrl: ""
-    # Shared secret that Alertmanager sends as 'Authorization: Bearer <secret>'.
-    # Must match webhookSecret in the chesAdapter secret (see chesAdapter.secretName).
-    webhookSecret: ""
+    # Name of the Kubernetes Secret containing the bearer token Alertmanager
+    # uses to authenticate to the ches-adapter. The Secret must have a single
+    # key named "token" whose value is the raw token.
+    #
+    # Create it before deploying (the deploy workflow does this automatically):
+    #   oc create secret generic <name> --from-file=token=<token-file>
+    #
+    # Defaults to <release>-alertmanager-adapter-secret when left empty.
+    # Must match CHES_ADAPTER_SECRET in the chesAdapter secret.
+    adapterSecret: ""
 
 # ches-adapter: CHES email adapter service.
 # Deployed only when alertmanager.notificationChannel == "ches".
@@ -182,11 +189,11 @@ chesAdapter:
   # Port the service listens on (must match PORT env var passed to the container).
   port: 3003
   # Name of the Kubernetes Secret containing all sensitive values.
-  # The Secret must have keys: webhookSecret, chesClientId, chesClientSecret,
+  # The Secret must have keys: chesAdapterSecret, chesClientId, chesClientSecret,
   # chesAuthHost, chesHost, chesFromEmail, chesToEmails.
   # Create it before deploying, e.g.:
   #   oc create secret generic <name> \
-  #     --from-literal=webhookSecret=<value> \
+  #     --from-literal=chesAdapterSecret=<value> \
   #     --from-literal=chesClientId=<value> \
   #     ... etc.
   secretName: "ches-adapter-secrets"

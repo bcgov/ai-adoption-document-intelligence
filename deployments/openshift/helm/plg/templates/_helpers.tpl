@@ -138,6 +138,18 @@ Alertmanager fullname.
 {{- end }}
 
 {{/*
+Name of the Kubernetes Secret holding the Alertmanager → ches-adapter bearer
+token. Can be overridden via alertmanager.ches.adapterSecret in values.
+*/}}
+{{- define "plg.alertmanager.adapterSecretName" -}}
+{{- if .Values.alertmanager.ches.adapterSecret }}
+{{- .Values.alertmanager.ches.adapterSecret | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-adapter-secret" (include "plg.alertmanager.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{/*
 CHES Adapter labels.
 */}}
 {{- define "plg.chesAdapter.labels" -}}
