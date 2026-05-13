@@ -172,6 +172,7 @@ export class UploadController {
           filePath: uploadedDocument.normalized_file_path ?? "",
           fileType: "pdf",
           metadata: uploadedDocument.metadata,
+          ctxOverrides: uploadDto.ctx_overrides,
           timestamp: new Date(),
         })
         .catch((error) => {

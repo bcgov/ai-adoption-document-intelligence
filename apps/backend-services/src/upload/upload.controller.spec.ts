@@ -148,6 +148,31 @@ describe("UploadController", () => {
       );
     });
 
+    it("forwards ctx_overrides through to the queue message", async () => {
+      workflowService.resolveWorkflowVersionId.mockResolvedValue("wv-x");
+      documentService.uploadDocument.mockResolvedValue({
+        kind: "success",
+        document: uploadedDoc,
+      });
+      const dto: UploadDocumentDto = {
+        title: "Test",
+        file: "ZmFrZUJhc2U2NA==",
+        file_type: FileType.PDF,
+        original_filename: "test.pdf",
+        model_id: "test-model-id",
+        group_id: "group-1",
+        workflow_slug: "ocr-only-minimal",
+        ctx_overrides: { outputFormat: "markdown" },
+      };
+      await controller.uploadDocument(dto, mockReq);
+      expect(queueService.processOcrForDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentId: "1",
+          ctxOverrides: { outputFormat: "markdown" },
+        }),
+      );
+    });
+
     it("infers group_id from the API key when not in the body", async () => {
       workflowService.getModelIdDefault.mockResolvedValue("prebuilt-read");
       workflowService.resolveWorkflowVersionId.mockResolvedValue("wv-2");

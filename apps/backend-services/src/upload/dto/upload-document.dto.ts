@@ -86,4 +86,14 @@ export class UploadDocumentDto {
       "Accepts a WorkflowVersion.id or a WorkflowLineage.id (resolved to head). Mutually exclusive with workflow_slug.",
   })
   workflow_config_id?: string;
+
+  @IsObject()
+  @IsOptional()
+  @ApiPropertyOptional({
+    type: Object,
+    description:
+      "Per-upload overrides for the workflow's ctx defaults. Keys are ctx field names from the workflow config (e.g. outputFormat, confidenceThreshold). Values shallowly override the workflow's ctx.<key>.defaultValue at start time.",
+    example: { outputFormat: "markdown" },
+  })
+  ctx_overrides?: Record<string, unknown>;
 }
