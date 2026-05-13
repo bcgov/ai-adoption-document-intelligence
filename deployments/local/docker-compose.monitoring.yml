@@ -32,9 +32,11 @@ services:
     image: prom/alertmanager:v0.28.1
     container_name: ai-doc-intelligence-alertmanager
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/alertmanager"
+      - "printf '%s' \"$$CHES_ADAPTER_SECRET\" > /tmp/alertmanager-token && exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager"
+    environment:
+      CHES_ADAPTER_SECRET: ${CHES_ADAPTER_SECRET}
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager

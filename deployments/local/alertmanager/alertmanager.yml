@@ -2,18 +2,18 @@
 # By default all alerts are routed to the 'drop' receiver (no notifications).
 #
 # To test CHES email delivery locally:
-#   1. Copy CHES_ADAPTER_SECRET from deployments/local/.env and paste it into
-#      the `credentials:` field in the ches-notifications receiver below.
-#   2. Restart alertmanager:
-#        podman compose -f deployments/local/docker-compose.monitoring.yml restart alertmanager
+#   1. Ensure CHES_ADAPTER_SECRET is set in deployments/local/.env
+#      (copy .env.sample → .env and fill it in — .env is gitignored).
+#   2. Recreate alertmanager (required to pick up new env vars):
+#        podman compose -f deployments/local/docker-compose.monitoring.yml up -d --force-recreate alertmanager
 #   3. POST a test alert to fire immediately (no need to wait for Prometheus):
 #        curl -s -X POST http://localhost:9093/api/v2/alerts \
 #          -H "Content-Type: application/json" \
 #          -d '[{"labels":{"alertname":"TestAlert","severity":"warning"},"annotations":{"summary":"Local test alert","description":"Fired manually to verify CHES delivery."}}]'
 #   4. Check ches-adapter logs: podman logs ai-doc-intelligence-ches-adapter -f
 #
-# NOTE: Do NOT commit this file with a real secret in `credentials:` — it is tracked by git.
-#       Remove the secret before committing.
+# The Bearer token is written to /tmp/alertmanager-token at container startup
+# from the CHES_ADAPTER_SECRET env var (set in .env). This file is safe to commit as-is.
 
 global:
   resolve_timeout: 5m
@@ -51,9 +51,6 @@ route:
 
 receivers:
   - name: "drop"
-  # Uncomment and fill in to enable CHES notifications locally.
-  # The ches-adapter runs in the same docker network as alertmanager, so use
-  # the container name + port 3003 (NOT the backend at port 3002).
   - name: "ches-notifications"
     webhook_configs:
       - url: "http://ai-doc-intelligence-ches-adapter:3003/"
@@ -61,4 +58,4 @@ receivers:
         http_config:
           authorization:
             type: Bearer
-            credentials: "<CHES_ADAPTER_SECRET value>"
+            credentials_file: /tmp/alertmanager-token
