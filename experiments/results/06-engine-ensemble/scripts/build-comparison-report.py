@@ -50,7 +50,8 @@ ENGINES = [
     ("E07", "07-vlm-ocr-hybrid-gpt-4o", "gpt-4o VLM + Azure DI layout", "E07 — gpt-4o VLM + Azure DI prebuilt-layout (hybrid)"),
     ("E08", "08-vlm-ocr-hybrid-gpt-5.2", "gpt-5.2 VLM + Azure DI layout", "E08 — gpt-5.2 VLM + Azure DI prebuilt-layout (hybrid)"),
 ]
-INCLUDE_E06 = os.environ.get("INCLUDE_E06", "0") == "1"
+# E06 is included by default — pass INCLUDE_E06=0 to skip it (rarely useful).
+INCLUDE_E06 = os.environ.get("INCLUDE_E06", "1") == "1"
 if INCLUDE_E06:
     ENGINES = ENGINES + [
         (
