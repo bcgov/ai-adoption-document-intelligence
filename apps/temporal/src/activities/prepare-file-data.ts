@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
-import type { PreparedFileData } from "../types";
+import type { OcrOutputFormat, PreparedFileData } from "../types";
 
 export interface PrepareFileDataInput {
   documentId: string;
@@ -12,6 +12,7 @@ export interface PrepareFileDataInput {
   fileType?: "pdf" | "image";
   contentType?: string;
   modelId?: string;
+  outputFormat?: OcrOutputFormat;
   requestId?: string;
 }
 
@@ -120,6 +121,7 @@ export async function prepareFileData(
     contentType,
     blobKey,
     modelId,
+    outputFormat: input.outputFormat,
   };
 
   log.info("Prepare file data complete", {

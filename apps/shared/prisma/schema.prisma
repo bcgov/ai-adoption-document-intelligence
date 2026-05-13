@@ -83,6 +83,10 @@ model OcrResult {
   document_id        String   @unique
   document           Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
   keyValuePairs      Json?
+  /// Structured OCR output: { format: "text"|"markdown", text: string,
+  /// markdown?: string, pages: [{ pageNumber, content, lines }] }. Populated
+  /// for prebuilt read/layout/document models where there are no fields to extract.
+  content            Json?
   enrichment_summary Json?
   processed_at       DateTime @default(now())
 
@@ -150,6 +154,9 @@ model Actor {
 model WorkflowLineage {
   id                   String            @id @default(cuid())
   name                 String
+  /// URL/CLI-friendly stable handle for the workflow, unique within the group.
+  /// Auto-derived from `name` on create (kebab-case, deduped). Immutable across renames.
+  slug                 String
   description          String?
   actor_id             String
   actor                Actor             @relation(fields: [actor_id], references: [id])
@@ -165,6 +172,7 @@ model WorkflowLineage {
   versions             WorkflowVersion[] @relation("LineageVersions")
   benchmarkCandidateLineages WorkflowLineage[] @relation("LineageSource")
 
+  @@unique([group_id, slug])
   @@index([group_id])
   @@map("workflow_lineages")
 }

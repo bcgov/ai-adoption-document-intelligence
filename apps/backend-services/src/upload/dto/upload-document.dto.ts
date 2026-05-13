@@ -1,10 +1,13 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
+  Min,
 } from "class-validator";
 
 export enum FileType {
@@ -31,30 +34,56 @@ export class UploadDocumentDto {
 
   @IsString()
   @IsOptional()
-  @ApiProperty()
+  @ApiPropertyOptional()
   original_filename?: string;
 
   @IsObject()
   @IsOptional()
-  @ApiProperty({ type: Object })
+  @ApiPropertyOptional({ type: Object })
   metadata?: Record<string, unknown>;
 
   @IsString()
-  @IsNotEmpty()
-  @ApiProperty()
-  model_id!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @ApiProperty()
-  group_id!: string;
+  @IsOptional()
+  @ApiPropertyOptional({
+    description:
+      "Azure model id to run against. If omitted, the workflow's ctx.modelId.defaultValue is used.",
+    example: "prebuilt-read",
+  })
+  model_id?: string;
 
   @IsString()
   @IsOptional()
-  workflow_id?: string; // @deprecated Use workflow_config_id; resolved server-side if lineage id
+  @ApiPropertyOptional({
+    description:
+      "Target group. Optional when authenticating with an API key (inferred from the key's group).",
+  })
+  group_id?: string;
 
   @IsString()
   @IsOptional()
-  /** WorkflowVersion.id, or WorkflowLineage.id (resolved to head version server-side). */
+  @ApiPropertyOptional({
+    description:
+      "Stable workflow handle, unique within the group. Resolves to the head version unless workflow_version is set.",
+    example: "ocr-only-minimal",
+  })
+  workflow_slug?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  @Type(() => Number)
+  @ApiPropertyOptional({
+    description:
+      "Pin to a specific workflow_version of the slug. Ignored without workflow_slug.",
+    example: 3,
+  })
+  workflow_version?: number;
+
+  @IsString()
+  @IsOptional()
+  @ApiPropertyOptional({
+    description:
+      "Accepts a WorkflowVersion.id or a WorkflowLineage.id (resolved to head). Mutually exclusive with workflow_slug.",
+  })
   workflow_config_id?: string;
 }
