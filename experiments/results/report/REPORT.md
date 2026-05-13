@@ -288,6 +288,8 @@ Errors by category: sin 6/75 (8.0%), date 5/75 (6.7%), phone 7/75 (9.3%), name 1
 
 **Why E08 beats E03 despite using the same generative model.** E03 (CU + gpt-5.2) and E08 (Azure DI prebuilt-layout + gpt-5.2) share the GPT-5.2 model — but differ on the OCR layer (CU's proprietary content-extraction layer vs Azure DI's prebuilt-layout). On this dataset E08 beats E03 by ~1.3 pp F1.mean, 1.8 pp recall, and 0.5 lower FP.mean, while losing only on the `pass_rate` (E03 1.000 vs E08 0.975). The implication is that the **OCR layer matters less than the generative model on this task**: the gap between the two engines is comparable to or smaller than the gpt-5.2-vs-gpt-5.4 gap inside the hybrid pipeline (E08 vs E05).
 
+**Replication check.** E05 (gpt-5.4 hybrid) was re-run independently after E08 landed to confirm E08's lead wasn't an artifact of E05's canonical run. The replication agreed within sampling noise: `pass_rate` identical (0.975), `f1.mean` 0.942 → 0.944 (+0.002), `f1.median` 0.961 → 0.964 (+0.003), `matchedFields.median` identical (71). Per-sample variance averaged out across the 40 samples — some samples improved by up to 0.14 F1 on the re-run, others regressed by up to 0.10 F1, but the aggregate ranking against E08 / E03 was unchanged. **E08's lead over both E03 and E05 is not a flake.**
+
 Errors by category: sin 4/75 (5.3%), date 7/75 (9.3%), phone 2/75 (2.7%), name 9/75 (12.0%), signature 26/75 (34.7%), freeform 14/40 (35.0%), checkboxes 30/1120 (2.7%), income 42/1317 (3.2%).
 
 ## Same-pipeline model bake-off (E05 / E07 / E08)
