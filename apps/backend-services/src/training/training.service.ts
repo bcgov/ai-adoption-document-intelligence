@@ -12,6 +12,7 @@ import {
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
   Inject,
   Injectable,
   NotFoundException,
@@ -74,6 +75,7 @@ export class TrainingService {
     private readonly trainingDb: TrainingDbService,
     private readonly azureStorage: AzureStorageService,
     private readonly templateModelService: TemplateModelService,
+    @Inject(forwardRef(() => BenchmarkDefinitionDbService))
     private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
