@@ -23,6 +23,12 @@ export interface StaticAlertRule {
    * directly from the metric series (e.g. AppAlertActive).
    */
   severity?: "info" | "warning" | "critical";
+  /**
+   * Prometheus scrape job this rule belongs to.
+   * Controls which static rule group the alert is placed in by the generator.
+   * Omit only for rules that intentionally span all jobs.
+   */
+  job?: "backend-services" | "temporal-worker";
   /** Short summary annotation. */
   summary: string;
   /** Detailed description annotation. */
@@ -41,6 +47,7 @@ export const NODE_HEAP_RATIO_THRESHOLD = 0.9;
 export const STATIC_ALERT_RULES: StaticAlertRule[] = [
   {
     name: "HighHttpErrorRate",
+    job: "backend-services",
     expr: `rate(http_request_errors_total[5m]) > ${HTTP_ERROR_RATE_THRESHOLD}`,
     forDuration: "2m",
     severity: "warning",
@@ -49,6 +56,7 @@ export const STATIC_ALERT_RULES: StaticAlertRule[] = [
   },
   {
     name: "SlowHttpResponses",
+    job: "backend-services",
     expr: `histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > ${HTTP_P95_LATENCY_THRESHOLD_S}`,
     forDuration: "2m",
     severity: "warning",
@@ -57,6 +65,7 @@ export const STATIC_ALERT_RULES: StaticAlertRule[] = [
   },
   {
     name: "HighNodeHeapUsage",
+    job: "backend-services",
     expr: `process_heap_bytes / process_heap_size_bytes > ${NODE_HEAP_RATIO_THRESHOLD}`,
     forDuration: "2m",
     severity: "warning",
@@ -64,11 +73,21 @@ export const STATIC_ALERT_RULES: StaticAlertRule[] = [
     description: `Node.js heap usage has exceeded ${NODE_HEAP_RATIO_THRESHOLD * 100}% of heap size for 2 minutes.`,
   },
   {
-    name: "AppAlertActive",
-    expr: `app_alert_active > 0`,
+    name: "BackendServicesAlertActive",
+    job: "backend-services",
+    expr: `app_alert_active{job="backend-services"} > 0`,
     forDuration: "0m",
-    summary: "In-app alert flag is active ({{ $labels.type }}, {{ $labels.severity }})",
+    summary: "In-app alert active on backend-services ({{ $labels.type }}, {{ $labels.severity }})",
     description:
-      "An in-app alert of type {{ $labels.type }} with severity {{ $labels.severity }} has been raised via recordAlert().",
+      "An in-app alert of type {{ $labels.type }} with severity {{ $labels.severity }} is active on backend-services.",
+  },
+  {
+    name: "TemporalWorkerAlertActive",
+    job: "temporal-worker",
+    expr: `app_alert_active{job="temporal-worker"} > 0`,
+    forDuration: "0m",
+    summary: "In-app alert active on temporal-worker ({{ $labels.type }}, {{ $labels.severity }})",
+    description:
+      "An in-app alert of type {{ $labels.type }} with severity {{ $labels.severity }} is active on temporal-worker.",
   },
 ];

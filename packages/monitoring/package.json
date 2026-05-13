@@ -1,13 +1,19 @@
 {
-  "name": "@ai-di/alert-config",
+  "name": "@ai-di/monitoring",
   "version": "1.0.0",
-  "description": "Shared alert type configuration used by backend-services and the Prometheus rule generator",
+  "description": "Shared alert configuration and Prometheus app-metrics for backend-services and temporal-worker",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
     "prepare": "npm run build"
+  },
+  "dependencies": {
+    "prom-client": "15.1.3"
+  },
+  "peerDependencies": {
+    "@ai-di/shared-logging": "*"
   },
   "devDependencies": {
     "typescript": "5.9.3"

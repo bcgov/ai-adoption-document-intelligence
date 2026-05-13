@@ -1,3 +1,4 @@
+import { type AppMetrics, createAppMetrics } from "@ai-di/monitoring";
 import type { LogLevel, MetricsHook } from "@ai-di/shared-logging";
 import {
   Inject,
@@ -8,7 +9,6 @@ import {
 import {
   Counter,
   collectDefaultMetrics,
-  Gauge,
   Histogram,
   Registry,
 } from "prom-client";
@@ -35,15 +35,7 @@ export class MetricsService implements OnModuleInit {
   readonly httpRequestsTotal: Counter;
   readonly httpRequestErrorsTotal: Counter;
   readonly httpRequestDurationSeconds: Histogram;
-  private readonly appErrorTotal: Counter;
-  private readonly appRecoveryTotal: Counter;
-  private readonly appSuccessTotal: Counter;
-  private readonly appAlertActive: Gauge;
-  /**
-   * Tracks alert types currently in an error state and their severity.
-   * Used for transition detection and to clear the correct gauge label set on recovery.
-   */
-  private readonly activeErrorTypes = new Map<string, "warning" | "critical">();
+  private readonly appMetrics: AppMetrics;
 
   constructor(
     @Optional()
@@ -74,33 +66,7 @@ export class MetricsService implements OnModuleInit {
       registers: [this.registry],
     });
 
-    this.appErrorTotal = new Counter({
-      name: "app_error_total",
-      help: "Total number of application-level alertable errors by type and severity",
-      labelNames: ["type", "severity"] as const,
-      registers: [this.registry],
-    });
-
-    this.appRecoveryTotal = new Counter({
-      name: "app_recovery_total",
-      help: "Total number of application-level alert recoveries (transition from error state)",
-      labelNames: ["type"] as const,
-      registers: [this.registry],
-    });
-
-    this.appSuccessTotal = new Counter({
-      name: "app_success_total",
-      help: "Total number of successful completions for alertable operation types. Used as denominator for error-rate alert rules.",
-      labelNames: ["type"] as const,
-      registers: [this.registry],
-    });
-
-    this.appAlertActive = new Gauge({
-      name: "app_alert_active",
-      help: "1 while an in-app alert of the given type is active, 0 when resolved. Set by the logging hook on warn/error; cleared on info/debug (recovery transition).",
-      labelNames: ["type", "severity"] as const,
-      registers: [this.registry],
-    });
+    this.appMetrics = createAppMetrics(this.registry);
   }
 
   onModuleInit(): void {
@@ -110,9 +76,13 @@ export class MetricsService implements OnModuleInit {
     // first scrape after a cold start, causing alerts to silently miss the
     // first failure event.
     for (const { alertType, severity } of this.alertPrefillTypes ?? []) {
-      this.appErrorTotal.labels({ type: alertType, severity }).inc(0);
-      this.appSuccessTotal.labels({ type: alertType }).inc(0);
-      this.appAlertActive.labels({ type: alertType, severity }).set(0);
+      this.appMetrics.appErrorTotal
+        .labels({ type: alertType, severity })
+        .inc(0);
+      this.appMetrics.appSuccessTotal.labels({ type: alertType }).inc(0);
+      this.appMetrics.appAlertActive
+        .labels({ type: alertType, severity })
+        .set(0);
     }
   }
 
@@ -125,44 +95,12 @@ export class MetricsService implements OnModuleInit {
   }
 
   /**
-   * Called by the logger metrics hook. Increments the appropriate counter
-   * based on log level and tracks error state transitions.
-   * warn  → app_error_total{severity="warning"} + marks type as errored
-   * error → app_error_total{severity="critical"} + marks type as errored
-   * info/debug → app_recovery_total if type was previously in error state
-   * @param level The log level of the emitted line.
+   * Called by the logger metrics hook. Delegates to the shared state machine.
+   * @param level     The log level of the emitted line.
    * @param alertType The alert type identifier from log context.
    */
   handleLogAlert(level: LogLevel, alertType: string): void {
-    if (level === "warn") {
-      this.appErrorTotal.labels({ type: alertType, severity: "warning" }).inc();
-      if (!this.activeErrorTypes.has(alertType)) {
-        this.appAlertActive
-          .labels({ type: alertType, severity: "warning" })
-          .set(1);
-        this.activeErrorTypes.set(alertType, "warning");
-      }
-    } else if (level === "error") {
-      this.appErrorTotal
-        .labels({ type: alertType, severity: "critical" })
-        .inc();
-      if (!this.activeErrorTypes.has(alertType)) {
-        this.appAlertActive
-          .labels({ type: alertType, severity: "critical" })
-          .set(1);
-        this.activeErrorTypes.set(alertType, "critical");
-      }
-    } else if (level === "info" || level === "debug") {
-      const activeSeverity = this.activeErrorTypes.get(alertType);
-      if (activeSeverity !== undefined) {
-        this.appAlertActive
-          .labels({ type: alertType, severity: activeSeverity })
-          .set(0);
-        this.appRecoveryTotal.labels({ type: alertType }).inc();
-        this.activeErrorTypes.delete(alertType);
-      }
-      this.appSuccessTotal.labels({ type: alertType }).inc();
-    }
+    this.appMetrics.handleLogAlert(level, alertType);
   }
 
   /**

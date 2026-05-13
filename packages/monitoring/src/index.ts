@@ -7,3 +7,5 @@ export {
   NODE_HEAP_RATIO_THRESHOLD,
   STATIC_ALERT_RULES,
 } from "./static-alert-rules";
+export type { AppMetrics } from "./app-metrics";
+export { createAppMetrics } from "./app-metrics";

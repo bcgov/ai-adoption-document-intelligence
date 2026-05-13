@@ -1,4 +1,4 @@
-import { ALERT_THRESHOLDS } from "@ai-di/alert-config";
+import { ALERT_THRESHOLDS } from "@ai-di/monitoring";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
