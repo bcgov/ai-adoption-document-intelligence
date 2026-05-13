@@ -1,4 +1,4 @@
-import { buildEmail, getChesToken, sendEmail } from "./ches";
+import { buildEmail, getChesToken, resetTokenCache, sendEmail } from "./ches";
 import type { AlertmanagerPayload } from "./ches";
 import type { Config } from "./config";
 
@@ -46,10 +46,14 @@ const firingPayload: AlertmanagerPayload = {
 };
 
 describe("getChesToken", () => {
+  beforeEach(() => {
+    resetTokenCache();
+  });
+
   it("returns the access_token from a successful response", async () => {
     global.fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ access_token: "token-abc" }),
+      json: async () => ({ access_token: "token-abc", expires_in: 300 }),
     } as unknown as Response);
 
     const token = await getChesToken(baseConfig);
@@ -66,6 +70,40 @@ describe("getChesToken", () => {
     await expect(getChesToken(baseConfig)).rejects.toThrow(
       "CHES token request failed: 401 Unauthorized",
     );
+  });
+
+  it("reuses the cached token without a second fetch", async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ access_token: "token-cached", expires_in: 300 }),
+    } as unknown as Response);
+
+    const first = await getChesToken(baseConfig);
+    const second = await getChesToken(baseConfig);
+
+    expect(first).toBe("token-cached");
+    expect(second).toBe("token-cached");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes the token when it is within the expiry margin", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "token-old", expires_in: 30 }), // expires in 30s < 60s margin
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "token-new", expires_in: 300 }),
+      } as unknown as Response);
+
+    const first = await getChesToken(baseConfig);
+    const second = await getChesToken(baseConfig);
+
+    expect(first).toBe("token-old");
+    expect(second).toBe("token-new");
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 });
 

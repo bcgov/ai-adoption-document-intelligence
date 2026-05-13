@@ -25,6 +25,23 @@ export interface AlertmanagerPayload {
 
 interface ChesTokenResponse {
   access_token: string;
+  expires_in: number; // seconds
+}
+
+interface CachedToken {
+  value: string;
+  expiresAt: number;
+}
+
+const REFRESH_MARGIN_MS = 60_000;
+
+let cachedToken: CachedToken | null = null;
+
+/**
+ * Resets the in-memory token cache. Exposed for testing only.
+ */
+export function resetTokenCache(): void {
+  cachedToken = null;
 }
 
 interface ChesEmailResponse {
@@ -42,13 +59,18 @@ interface ChesEmailPayload {
 }
 
 /**
- * Fetches a CHES OAuth2 access token using the client_credentials flow.
+ * Fetches a CHES OAuth2 access token using the client_credentials flow,
+ * caching the result until 60 seconds before expiry.
  * POSTs to `{chesAuthHost}/auth/realms/comsvcauth/protocol/openid-connect/token`
  * with Basic auth derived from clientId and clientSecret.
  * @param config - Validated service config.
  * @returns A short-lived CHES Bearer access token.
  */
 export async function getChesToken(config: Config): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt - REFRESH_MARGIN_MS > Date.now()) {
+    return cachedToken.value;
+  }
+
   const credentials = Buffer.from(
     `${config.chesClientId}:${config.chesClientSecret}`,
   ).toString("base64");
@@ -71,7 +93,11 @@ export async function getChesToken(config: Config): Promise<string> {
   }
 
   const data = (await response.json()) as ChesTokenResponse;
-  return data.access_token;
+  cachedToken = {
+    value: data.access_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+  };
+  return cachedToken.value;
 }
 
 /**
