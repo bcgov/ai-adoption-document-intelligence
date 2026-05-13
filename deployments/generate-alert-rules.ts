@@ -158,8 +158,9 @@ function generateRulesYaml(): string {
       `      expr: >-`,
       `        ${rule.expr}`,
       `      for: ${rule.forDuration}`,
-      `      labels:`,
-      `        severity: ${rule.severity}`,
+      ...(rule.severity !== undefined
+        ? [`      labels:`, `        severity: ${rule.severity}`]
+        : []),
       `      annotations:`,
       `        summary: "${rule.summary}"`,
       `        description: "${rule.description}"`,

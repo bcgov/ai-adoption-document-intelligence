@@ -1,4 +1,4 @@
-import { LabelingStatus, TrainingStatus } from "@generated/client";
+import { BuildMode, LabelingStatus, TrainingStatus } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -113,6 +113,10 @@ describe("TrainingService", () => {
     container_name: "training-tm-1",
     sas_url: null,
     blob_count: 0,
+    build_mode: BuildMode.template,
+    max_training_hours: null,
+    target_model_id: null,
+    target_version: null,
     operation_id: null,
     error_message: null,
     started_at: new Date(),
@@ -126,9 +130,16 @@ describe("TrainingService", () => {
     template_model_id: "tm-1",
     training_job_id: "job-1",
     model_id: "custom-model-1",
+    version: 1,
+    is_active: true,
+    deleted_at: null,
+    dataset_snapshot: null,
     description: "Test Model",
     doc_types: { custom: { fieldSchema: { field1: {} } } },
     field_count: 1,
+    build_mode: BuildMode.template,
+    max_training_hours: null,
+    actual_training_hours: null,
     created_at: new Date(),
   };
 

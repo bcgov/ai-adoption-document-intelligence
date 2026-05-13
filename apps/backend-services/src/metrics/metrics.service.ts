@@ -1,5 +1,10 @@
 import type { LogLevel, MetricsHook } from "@ai-di/shared-logging";
-import { Injectable, type OnModuleInit } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  type OnModuleInit,
+  Optional,
+} from "@nestjs/common";
 import {
   Counter,
   collectDefaultMetrics,
@@ -7,6 +12,22 @@ import {
   Histogram,
   Registry,
 } from "prom-client";
+
+/**
+ * Injection token for alert types to pre-initialize in MetricsService.
+ * Provide this in the app module to ensure Prometheus always has a baseline
+ * series before the first failure occurs, preventing increase() from returning
+ * no data on the first scrape after a cold start.
+ */
+export const ALERT_PREFILL_TYPES = "ALERT_PREFILL_TYPES";
+
+/**
+ * Pre-initialization entry for a known alert type.
+ */
+export interface AlertPrefillEntry {
+  alertType: string;
+  severity: "warning" | "critical";
+}
 
 @Injectable()
 export class MetricsService implements OnModuleInit {
@@ -24,7 +45,11 @@ export class MetricsService implements OnModuleInit {
    */
   private readonly activeErrorTypes = new Map<string, "warning" | "critical">();
 
-  constructor() {
+  constructor(
+    @Optional()
+    @Inject(ALERT_PREFILL_TYPES)
+    private readonly alertPrefillTypes?: AlertPrefillEntry[],
+  ) {
     this.registry = new Registry();
 
     this.httpRequestsTotal = new Counter({
@@ -80,6 +105,15 @@ export class MetricsService implements OnModuleInit {
 
   onModuleInit(): void {
     collectDefaultMetrics({ register: this.registry });
+    // Pre-initialize known alert type series with 0 so Prometheus always has a
+    // prior data point. Without this, increase() cannot compute a value on the
+    // first scrape after a cold start, causing alerts to silently miss the
+    // first failure event.
+    for (const { alertType, severity } of this.alertPrefillTypes ?? []) {
+      this.appErrorTotal.labels({ type: alertType, severity }).inc(0);
+      this.appSuccessTotal.labels({ type: alertType }).inc(0);
+      this.appAlertActive.labels({ type: alertType, severity }).set(0);
+    }
   }
 
   async getMetrics(): Promise<string> {
