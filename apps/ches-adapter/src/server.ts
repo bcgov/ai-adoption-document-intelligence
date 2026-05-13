@@ -82,7 +82,7 @@ export function createServer(config: Config): http.Server {
       res.writeHead(204);
       res.end();
     } catch (err) {
-      console.error("Failed to send CHES notification", err);
+      console.error(new Date().toISOString(), "Failed to send CHES notification", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }
