@@ -26,3 +26,8 @@ scrape_configs:
           service: temporal-worker
           project: host
           __path__: /var/log/host-apps/temporal-worker.log
+      - targets: [localhost]
+        labels:
+          service: ches-adapter
+          project: monitoring
+          __path__: /var/log/ches-adapter/ches-adapter.log

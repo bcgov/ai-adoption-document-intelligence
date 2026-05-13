@@ -24,6 +24,7 @@ services:
     volumes:
       - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - ../../logs:/var/log/host-apps:ro
+      - ches_adapter_logs:/var/log/ches-adapter:ro
     depends_on:
       loki:
         condition: service_healthy
@@ -55,6 +56,7 @@ services:
       dockerfile: apps/ches-adapter/Dockerfile
     container_name: ai-doc-intelligence-ches-adapter
     restart: unless-stopped
+    command: ["/bin/sh", "-c", "node dist/index.js 2>&1 | tee -a /var/log/app/ches-adapter.log"]
     environment:
       PORT: 3003
       CHES_ADAPTER_SECRET: ${CHES_ADAPTER_SECRET}
@@ -64,6 +66,8 @@ services:
       CHES_HOST: ${CHES_HOST}
       CHES_FROM_EMAIL: ${CHES_FROM_EMAIL}
       CHES_TO_EMAILS: ${CHES_TO_EMAILS}
+    volumes:
+      - ches_adapter_logs:/var/log/app
     ports:
       - "3003:3003"
 
@@ -118,3 +122,4 @@ volumes:
   prometheus_data:
   alertmanager_data:
   grafana_data:
+  ches_adapter_logs:

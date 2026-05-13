@@ -204,3 +204,8 @@ chesAdapter:
     limits:
       cpu: 100m
       memory: 128Mi
+  sidecars:
+    promtail:
+      image: grafana/promtail:3.4.2
+    logrotate:
+      image: debian:bookworm-slim

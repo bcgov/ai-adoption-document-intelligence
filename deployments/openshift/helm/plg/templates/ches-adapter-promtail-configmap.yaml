@@ -1,0 +1,25 @@
+{{- if eq .Values.alertmanager.notificationChannel "ches" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plg.chesAdapter.fullname" . }}-promtail
+  labels:
+    {{- include "plg.chesAdapter.labels" . | nindent 4 }}
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 0
+      grpc_listen_port: 0
+    positions:
+      filename: /tmp/positions.yaml
+    clients:
+      - url: http://loki:{{ .Values.loki.httpPort }}/loki/api/v1/push
+    scrape_configs:
+      - job_name: ches-adapter
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              service: ches-adapter
+              __path__: /var/log/app/*.log
+{{- end }}

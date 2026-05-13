@@ -1,4 +1,5 @@
 import type { Config } from "./config";
+import { logger } from "./logger";
 
 /** Alertmanager v4 alert object. */
 export interface AlertmanagerAlert {
@@ -186,7 +187,7 @@ export async function sendEmail(
   const url = `${config.chesHost}/api/v1/email`;
   const correlationId = Math.random().toString(36).slice(2, 10);
 
-  console.log(new Date().toISOString(), "Sending CHES email", {
+  logger.info("Sending CHES email", {
     correlationId,
     to: email.to,
     subject: email.subject,
@@ -210,5 +211,5 @@ export async function sendEmail(
 
   const result = (await response.json()) as ChesEmailResponse;
   const msgIds = result.messages.map((m) => m.msgId);
-  console.log(new Date().toISOString(), "CHES email queued", { correlationId, txId: result.txId, msgIds });
+  logger.info("CHES email queued", { correlationId, txId: result.txId, msgIds });
 }

@@ -1,5 +1,6 @@
 import http from "node:http";
 import type { Config } from "./config";
+import { logger } from "./logger";
 import {
   buildEmail,
   getChesToken,
@@ -82,7 +83,9 @@ export function createServer(config: Config): http.Server {
       res.writeHead(204);
       res.end();
     } catch (err) {
-      console.error(new Date().toISOString(), "Failed to send CHES notification", err);
+      logger.error("Failed to send CHES notification", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }
