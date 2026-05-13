@@ -350,6 +350,53 @@ describe("TrainingDbService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // findTrainedModelForTemplate
+  // ---------------------------------------------------------------------------
+
+  describe("findTrainedModelForTemplate", () => {
+    it("scopes the lookup to the parent template and excludes tombstoned by default", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(mockTrainedModel);
+
+      const result = await service.findTrainedModelForTemplate(
+        "tm-1",
+        "trained-1",
+      );
+
+      expect(result).toEqual(mockTrainedModel);
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "trained-1",
+          template_model_id: "tm-1",
+          deleted_at: null,
+        },
+      });
+    });
+
+    it("includes tombstoned versions when requested", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(mockTrainedModel);
+
+      await service.findTrainedModelForTemplate("tm-1", "trained-1", {
+        includeDeleted: true,
+      });
+
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: { id: "trained-1", template_model_id: "tm-1" },
+      });
+    });
+
+    it("returns null when the id belongs to a different template", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(null);
+
+      const result = await service.findTrainedModelForTemplate(
+        "tm-1",
+        "trained-from-other-template",
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // getNextVersionNumber
   // ---------------------------------------------------------------------------
 

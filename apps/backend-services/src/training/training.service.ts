@@ -658,10 +658,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<unknown | null> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,
@@ -678,10 +679,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<TrainedModelDto> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,
@@ -705,10 +707,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<TrainedModelDto> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,

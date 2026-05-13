@@ -205,6 +205,27 @@ export class TrainingDbService {
   }
 
   /**
+   * Finds a single trained model scoped to its parent template. Used by the
+   * per-version mutators (activate / delete / snapshot) so they cannot
+   * accidentally act on a row belonging to a different template.
+   */
+  async findTrainedModelForTemplate(
+    templateModelId: string,
+    trainedModelId: string,
+    opts: { includeDeleted?: boolean } = {},
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainedModel | null> {
+    const client = tx ?? this.prisma;
+    return client.trainedModel.findFirst({
+      where: {
+        id: trainedModelId,
+        template_model_id: templateModelId,
+        ...(opts.includeDeleted ? {} : { deleted_at: null }),
+      },
+    });
+  }
+
+  /**
    * Finds the currently active (non-deleted) trained model for a template.
    */
   async findActiveTrainedModel(
