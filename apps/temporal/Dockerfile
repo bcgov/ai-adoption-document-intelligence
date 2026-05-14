@@ -46,21 +46,8 @@ RUN npx prisma generate --schema=./shared/prisma/schema.prisma
 # `paths` here to point at the in-container location. `paths` in an extending config
 # replaces — not merges with — the parent's, so `@generated/*` must be repeated.
 COPY apps/temporal/src ./src
-RUN cat > tsconfig.build.json <<'EOF'
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "rootDir": "./src",
-    "baseUrl": ".",
-    "paths": {
-      "@generated/*": ["src/generated/*"],
-      "mupdf": ["./node_modules/mupdf/dist/mupdf"]
-    }
-  },
-  "include": ["src/**/*.ts"]
-}
-EOF
-RUN npx tsc -p tsconfig.build.json
+RUN echo '{"extends":"./tsconfig.json","compilerOptions":{"rootDir":"./src","baseUrl":".","paths":{"@generated/*":["src/generated/*"],"mupdf":["./node_modules/mupdf/dist/mupdf"]}},"include":["src/**/*.ts"]}' > tsconfig.build.json && \
+    npx tsc -p tsconfig.build.json
 
 # Production stage
 FROM node:24-bookworm-slim AS production
