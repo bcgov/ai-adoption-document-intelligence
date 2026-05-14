@@ -148,7 +148,9 @@ export async function upsertOcrResult(params: {
       ocrResult.extractedText && ocrResult.extractedText.length > 0
         ? ocrResult.extractedText
         : pagesPayload.map((p) => p.content).join("\n\n");
-    const format = ocrResult.contentFormat ?? "text";
+    const format: "text" | "markdown" = ocrResult.markdown
+      ? "markdown"
+      : "text";
     const hasAnyContent =
       text.length > 0 || pagesPayload.length > 0 || !!ocrResult.markdown;
     const contentBlob = hasAnyContent
