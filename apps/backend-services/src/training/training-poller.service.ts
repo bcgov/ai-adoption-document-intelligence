@@ -256,12 +256,10 @@ export class TrainingPollerService {
         const targetModelId =
           job.target_model_id ?? job.template_model.model_id;
 
-        // Demote any currently-active version for this template so the new
-        // one becomes the unique active version.
-        await this.trainingDb.demoteActiveTrainedModels(job.template_model_id);
-
-        // Create trained model record for this version.
-        await this.trainingDb.createTrainedModel({
+        // Atomically demote the prior active version and create the new one.
+        // Wrapping these together avoids leaving the template with zero
+        // active versions if the process dies between writes.
+        await this.trainingDb.replaceActiveTrainedModel(job.template_model_id, {
           template_model_id: job.template_model_id,
           training_job_id: jobId,
           model_id: targetModelId,

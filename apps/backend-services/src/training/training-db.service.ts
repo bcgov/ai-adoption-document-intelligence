@@ -124,6 +124,32 @@ export class TrainingDbService {
   }
 
   /**
+   * Returns the most recent in-flight training job for a template (any status
+   * that has not yet reached a terminal SUCCEEDED/FAILED), or null. Used by
+   * startTraining to refuse concurrent retrains on the same template.
+   */
+  async findInFlightJobForTemplate(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainingJob | null> {
+    const client = tx ?? this.prisma;
+    return client.trainingJob.findFirst({
+      where: {
+        template_model_id: templateModelId,
+        status: {
+          in: [
+            TrainingStatus.PENDING,
+            TrainingStatus.UPLOADING,
+            TrainingStatus.UPLOADED,
+            TrainingStatus.TRAINING,
+          ],
+        },
+      },
+      orderBy: { started_at: "desc" },
+    });
+  }
+
+  /**
    * Finds all training jobs that are actively training or uploaded (awaiting polling).
    * @param tx Optional transaction client.
    * @returns An array of active TrainingJob records.
@@ -206,6 +232,27 @@ export class TrainingDbService {
         ...(opts.includeDeleted ? {} : { deleted_at: null }),
       },
       orderBy: { version: "desc" },
+    });
+  }
+
+  /**
+   * Finds a single trained model scoped to its parent template. Used by the
+   * per-version mutators (activate / delete / snapshot) so they cannot
+   * accidentally act on a row belonging to a different template.
+   */
+  async findTrainedModelForTemplate(
+    templateModelId: string,
+    trainedModelId: string,
+    opts: { includeDeleted?: boolean } = {},
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainedModel | null> {
+    const client = tx ?? this.prisma;
+    return client.trainedModel.findFirst({
+      where: {
+        id: trainedModelId,
+        template_model_id: templateModelId,
+        ...(opts.includeDeleted ? {} : { deleted_at: null }),
+      },
     });
   }
 
@@ -300,6 +347,22 @@ export class TrainingDbService {
       data: { is_active: false },
     });
     return result.count;
+  }
+
+  /**
+   * Demotes the currently-active version for a template and inserts the new
+   * one as active in a single transaction. Without this, a crash between the
+   * two writes would leave the template with zero active versions and the
+   * OCR picker / `findActiveTrainedModel` would silently return nothing.
+   */
+  async replaceActiveTrainedModel(
+    templateModelId: string,
+    data: TrainedModelCreateData,
+  ): Promise<TrainedModel> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.demoteActiveTrainedModels(templateModelId, tx);
+      return this.createTrainedModel(data, tx);
+    });
   }
 
   /**

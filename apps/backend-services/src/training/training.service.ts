@@ -77,6 +77,8 @@ export class TrainingService {
     private readonly trainingDb: TrainingDbService,
     private readonly azureStorage: AzureStorageService,
     private readonly templateModelService: TemplateModelService,
+    // forwardRef pairs with the module-level forwardRef on BenchmarkModule in
+    // training.module.ts — see the comment there for the cycle path.
     @Inject(forwardRef(() => BenchmarkDefinitionDbService))
     private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
     private readonly configService: ConfigService,
@@ -274,6 +276,19 @@ export class TrainingService {
     const templateModel =
       await this.templateModelService.getTemplateModel(templateModelId);
     const baseModelId = templateModel.model_id;
+
+    // Refuse to start a second training while one is already in flight for
+    // this template. Without this, two concurrent starts would compute the
+    // same nextVersion, both upload to Azure under the same versioned model
+    // id, and the loser's poller would later hit the @@unique constraint —
+    // leaving an orphaned Azure model and a confusing partial-state job row.
+    const inFlight =
+      await this.trainingDb.findInFlightJobForTemplate(templateModelId);
+    if (inFlight) {
+      throw new ConflictException(
+        `A training job is already in progress for this template (job ${inFlight.id}, status ${inFlight.status}). Wait for it to finish or cancel it before starting a new one.`,
+      );
+    }
 
     const nextVersion =
       await this.trainingDb.getNextVersionNumber(templateModelId);
@@ -703,10 +718,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<unknown | null> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,
@@ -723,10 +739,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<TrainedModelDto> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,
@@ -750,10 +767,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<TrainedModelDto> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,

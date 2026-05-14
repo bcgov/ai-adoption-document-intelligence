@@ -1,9 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "../../../../data/services/api.service";
+import type { ApiResponse } from "../../../../shared/types";
 import {
   TrainedModelSnapshot,
   TrainedModelVersion,
 } from "../types/training.types";
+
+function unwrap<T>(response: ApiResponse<T>, fallbackError: string): T {
+  if (!response.success) {
+    throw new Error(response.message || fallbackError);
+  }
+  return response.data;
+}
 
 export function useTrainedVersions(
   templateModelId: string,
@@ -25,48 +33,39 @@ export function useTrainedVersions(
     refetchInterval: opts.pollWhileTraining ? 5000 : false,
   });
 
+  // Header on the detail/list page reads active_trained_model from the
+  // template-model query — keep it in sync alongside the versions list.
+  const onMutationSuccess = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["trained-versions", templateModelId],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["template-model", templateModelId],
+    });
+    queryClient.invalidateQueries({ queryKey: ["template-models"] });
+  };
+
   const activateMutation = useMutation({
-    mutationFn: async (versionId: string) => {
-      const response = await apiService.post<TrainedModelVersion>(
-        `/template-models/${templateModelId}/training/versions/${versionId}/activate`,
-        {},
-      );
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["trained-versions", templateModelId],
-      });
-      // Header on the detail/list page reads active_trained_model from the
-      // template-model query — keep it in sync.
-      queryClient.invalidateQueries({
-        queryKey: ["template-model", templateModelId],
-      });
-      queryClient.invalidateQueries({ queryKey: ["template-models"] });
-    },
+    mutationFn: async (versionId: string) =>
+      unwrap(
+        await apiService.post<TrainedModelVersion>(
+          `/template-models/${templateModelId}/training/versions/${versionId}/activate`,
+          {},
+        ),
+        "Failed to activate version",
+      ),
+    onSuccess: onMutationSuccess,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (versionId: string) => {
-      const response = await apiService.delete<TrainedModelVersion>(
-        `/template-models/${templateModelId}/training/versions/${versionId}`,
-      );
-      if (!response.success) {
-        throw new Error(response.message || "Failed to delete version");
-      }
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["trained-versions", templateModelId],
-      });
-      // Header on the detail/list page reads active_trained_model from the
-      // template-model query — keep it in sync.
-      queryClient.invalidateQueries({
-        queryKey: ["template-model", templateModelId],
-      });
-      queryClient.invalidateQueries({ queryKey: ["template-models"] });
-    },
+    mutationFn: async (versionId: string) =>
+      unwrap(
+        await apiService.delete<TrainedModelVersion>(
+          `/template-models/${templateModelId}/training/versions/${versionId}`,
+        ),
+        "Failed to delete version",
+      ),
+    onSuccess: onMutationSuccess,
   });
 
   return {

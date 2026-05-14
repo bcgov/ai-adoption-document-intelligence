@@ -42,7 +42,9 @@ describe("TrainingService", () => {
     findTrainingJob: jest.Mock;
     findAllTrainingJobs: jest.Mock;
     findAllActiveTrainingJobs: jest.Mock;
+    findInFlightJobForTemplate: jest.Mock;
     findAllTrainedModels: jest.Mock;
+    findTrainedModelForTemplate: jest.Mock;
     findActiveTrainedModel: jest.Mock;
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
@@ -162,7 +164,9 @@ describe("TrainingService", () => {
       findTrainingJob: jest.fn(),
       findAllTrainingJobs: jest.fn(),
       findAllActiveTrainingJobs: jest.fn(),
+      findInFlightJobForTemplate: jest.fn().mockResolvedValue(null),
       findAllTrainedModels: jest.fn(),
+      findTrainedModelForTemplate: jest.fn(),
       findActiveTrainedModel: jest.fn(),
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
@@ -801,6 +805,26 @@ describe("TrainingService", () => {
       const sentBody = mockPost.mock.calls[0][0].body;
       expect(sentBody.maxTrainingHours).toBeUndefined();
     });
+
+    it("refuses to start when an in-flight job already exists for the template", async () => {
+      const dto = { description: "Test model" };
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTrainingDb.findInFlightJobForTemplate.mockResolvedValueOnce({
+        id: "job-already-running",
+        template_model_id: "tm-1",
+        status: TrainingStatus.TRAINING,
+      });
+
+      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
+        ConflictException,
+      );
+      // Guard fires before version computation and job creation.
+      expect(mockTrainingDb.getNextVersionNumber).not.toHaveBeenCalled();
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
+    });
   });
 
   describe("listTrainedVersions", () => {
@@ -829,9 +853,12 @@ describe("TrainingService", () => {
 
   describe("setActiveTrainedVersion", () => {
     it("activates a non-deleted version", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        { ...mockTrainedModel, id: "v2", version: 2, is_active: false },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v2",
+        version: 2,
+        is_active: false,
+      });
       mockTrainingDb.setActiveTrainedModel.mockResolvedValueOnce({
         ...mockTrainedModel,
         id: "v2",
@@ -842,17 +869,20 @@ describe("TrainingService", () => {
       const result = await service.setActiveTrainedVersion("tm-1", "v2");
 
       expect(result.isActive).toBe(true);
+      expect(mockTrainingDb.findTrainedModelForTemplate).toHaveBeenCalledWith(
+        "tm-1",
+        "v2",
+        { includeDeleted: true },
+      );
       expect(mockTrainingDb.setActiveTrainedModel).toHaveBeenCalledWith("v2");
     });
 
     it("rejects activating a deleted version", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        {
-          ...mockTrainedModel,
-          id: "v1",
-          deleted_at: new Date(),
-        },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        deleted_at: new Date(),
+      });
 
       await expect(
         service.setActiveTrainedVersion("tm-1", "v1"),
@@ -860,7 +890,7 @@ describe("TrainingService", () => {
     });
 
     it("throws NotFound when the version doesn't belong to the template", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(null);
       await expect(
         service.setActiveTrainedVersion("tm-1", "missing"),
       ).rejects.toThrow(NotFoundException);
@@ -869,9 +899,11 @@ describe("TrainingService", () => {
 
   describe("deleteTrainedVersion", () => {
     it("blocks deletion when the version is currently active", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        { ...mockTrainedModel, id: "v1", is_active: true },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: true,
+      });
 
       await expect(service.deleteTrainedVersion("tm-1", "v1")).rejects.toThrow(
         ConflictException,
@@ -879,9 +911,11 @@ describe("TrainingService", () => {
     });
 
     it("blocks deletion when a benchmark definition references the version", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        { ...mockTrainedModel, id: "v1", is_active: false },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: false,
+      });
       mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mockResolvedValueOnce(
         2,
       );
@@ -901,7 +935,9 @@ describe("TrainingService", () => {
         ...inactive,
         deleted_at: new Date("2026-05-01"),
       };
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([inactive]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(
+        inactive,
+      );
       mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mockResolvedValueOnce(
         0,
       );
@@ -924,7 +960,9 @@ describe("TrainingService", () => {
         is_active: false,
         deleted_at: new Date("2026-04-01"),
       };
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([tombstoned]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(
+        tombstoned,
+      );
 
       const result = await service.deleteTrainedVersion("tm-1", "v1");
 

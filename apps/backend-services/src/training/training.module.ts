@@ -8,6 +8,9 @@ import { TrainingDbService } from "./training-db.service";
 import { TrainingPollerService } from "./training-poller.service";
 
 @Module({
+  // forwardRef breaks a file-evaluation cycle: TrainingModule → BenchmarkModule
+  // → OcrModule → TrainingModule (OcrModule imports TrainingModule because the
+  // OCR controller depends on TrainingService for trained-model lookup).
   imports: [
     BlobStorageModule,
     TemplateModelModule,

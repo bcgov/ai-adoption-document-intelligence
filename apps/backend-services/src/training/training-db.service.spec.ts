@@ -14,6 +14,7 @@ describe("TrainingDbService", () => {
     trainingJob: {
       create: jest.Mock;
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       findMany: jest.Mock;
       update: jest.Mock;
     };
@@ -71,6 +72,7 @@ describe("TrainingDbService", () => {
       trainingJob: {
         create: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
       },
@@ -183,6 +185,41 @@ describe("TrainingDbService", () => {
         where: { template_model_id: "tm-1" },
         orderBy: { started_at: "desc" },
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // findInFlightJobForTemplate
+  // ---------------------------------------------------------------------------
+
+  describe("findInFlightJobForTemplate", () => {
+    it("queries for any non-terminal status scoped to the template, newest first", async () => {
+      const inFlight = { ...mockTrainingJob, status: TrainingStatus.TRAINING };
+      mockPrisma.trainingJob.findFirst.mockResolvedValueOnce(inFlight);
+
+      const result = await service.findInFlightJobForTemplate("tm-1");
+
+      expect(result).toEqual(inFlight);
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith({
+        where: {
+          template_model_id: "tm-1",
+          status: {
+            in: [
+              TrainingStatus.PENDING,
+              TrainingStatus.UPLOADING,
+              TrainingStatus.UPLOADED,
+              TrainingStatus.TRAINING,
+            ],
+          },
+        },
+        orderBy: { started_at: "desc" },
+      });
+    });
+
+    it("returns null when no in-flight job exists", async () => {
+      mockPrisma.trainingJob.findFirst.mockResolvedValueOnce(null);
+      const result = await service.findInFlightJobForTemplate("tm-1");
+      expect(result).toBeNull();
     });
   });
 
@@ -350,6 +387,53 @@ describe("TrainingDbService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // findTrainedModelForTemplate
+  // ---------------------------------------------------------------------------
+
+  describe("findTrainedModelForTemplate", () => {
+    it("scopes the lookup to the parent template and excludes tombstoned by default", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(mockTrainedModel);
+
+      const result = await service.findTrainedModelForTemplate(
+        "tm-1",
+        "trained-1",
+      );
+
+      expect(result).toEqual(mockTrainedModel);
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "trained-1",
+          template_model_id: "tm-1",
+          deleted_at: null,
+        },
+      });
+    });
+
+    it("includes tombstoned versions when requested", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(mockTrainedModel);
+
+      await service.findTrainedModelForTemplate("tm-1", "trained-1", {
+        includeDeleted: true,
+      });
+
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: { id: "trained-1", template_model_id: "tm-1" },
+      });
+    });
+
+    it("returns null when the id belongs to a different template", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(null);
+
+      const result = await service.findTrainedModelForTemplate(
+        "tm-1",
+        "trained-from-other-template",
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // getNextVersionNumber
   // ---------------------------------------------------------------------------
 
@@ -390,6 +474,69 @@ describe("TrainingDbService", () => {
         where: { template_model_id: "tm-1", is_active: true },
         data: { is_active: false },
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // replaceActiveTrainedModel
+  // ---------------------------------------------------------------------------
+
+  describe("replaceActiveTrainedModel", () => {
+    const createData: TrainedModelCreateData = {
+      template_model_id: "tm-1",
+      training_job_id: "job-1",
+      model_id: "custom-model-1-v2",
+      version: 2,
+      is_active: true,
+      description: "v2",
+      doc_types: {} as never,
+      field_count: 1,
+      dataset_snapshot: { documents: [] } as never,
+    };
+
+    it("demotes active rows and creates the new row inside a single transaction", async () => {
+      const created = { ...mockTrainedModel, ...createData };
+      const txClient = {
+        trainedModel: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          create: jest.fn().mockResolvedValue(created),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      const result = await service.replaceActiveTrainedModel(
+        "tm-1",
+        createData,
+      );
+
+      expect(result).toEqual(created);
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(txClient.trainedModel.updateMany).toHaveBeenCalledWith({
+        where: { template_model_id: "tm-1", is_active: true },
+        data: { is_active: false },
+      });
+      expect(txClient.trainedModel.create).toHaveBeenCalledWith({
+        data: createData,
+      });
+    });
+
+    it("does not create when the demote step throws", async () => {
+      const txClient = {
+        trainedModel: {
+          updateMany: jest.fn().mockRejectedValue(new Error("db down")),
+          create: jest.fn(),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      await expect(
+        service.replaceActiveTrainedModel("tm-1", createData),
+      ).rejects.toThrow("db down");
+      expect(txClient.trainedModel.create).not.toHaveBeenCalled();
     });
   });
 
