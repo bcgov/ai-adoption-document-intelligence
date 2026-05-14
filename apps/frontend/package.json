@@ -17,6 +17,9 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@bcgov/bc-sans": "2.1.0",
+		"@bcgov/design-system-react-components": "0.7.0",
+		"@bcgov/design-tokens": "4.0.0",
 		"@codemirror/lang-json": "6.0.2",
 		"@codemirror/lint": "6.9.3",
 		"@mantine/core": "8.3.9",

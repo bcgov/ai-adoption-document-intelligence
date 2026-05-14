@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Header uses B.C. Design System pattern
+- [x] **Scenario 1**: Header uses B.C. Design System pattern
     - **Given** the app renders its root layout
     - **When** the header is displayed
     - **Then** it uses the B.C. Design System `Header` component or a documented local wrapper around it
 
-- [ ] **Scenario 2**: Skip link is available
+- [x] **Scenario 2**: Skip link is available
     - **Given** a keyboard user opens the app
     - **When** they tab from the top of the page
     - **Then** a skip link allows moving directly to the main content region
 
-- [ ] **Scenario 3**: Footer follows B.C. Design System guidance
+- [x] **Scenario 3**: Footer follows B.C. Design System guidance
     - **Given** a page with enough vertical space
     - **When** the footer is displayed
     - **Then** it uses the B.C. Design System `Footer` component or a documented local wrapper with the required acknowledgement and copyright content
 
-- [ ] **Scenario 4**: Sidebar navigation remains usable
+- [x] **Scenario 4**: Sidebar navigation remains usable
     - **Given** the app currently uses product-specific sidebar navigation
     - **When** the app shell is migrated
     - **Then** navigation labels, active states, collapsed states, and keyboard access continue to work
 
-- [ ] **Scenario 5**: Auth and group controls are preserved
+- [x] **Scenario 5**: Auth and group controls are preserved
     - **Given** an authenticated user has profile and group context
     - **When** the migrated header renders
     - **Then** logout, user identity, and group selector functionality remain available

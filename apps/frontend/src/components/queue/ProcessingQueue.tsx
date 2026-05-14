@@ -1,33 +1,28 @@
-import {
-  ActionIcon,
-  Badge,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Modal,
-  Paper,
-  Select,
-  SimpleGrid,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-  Tooltip,
-} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconEye,
-  IconRefresh,
-  IconSearch,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconEye, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useDeleteDocument } from "../../data/hooks/useDeleteDocument";
 import { useDocuments } from "../../data/hooks/useDocuments";
 import type { Document, DocumentStatus } from "../../shared/types";
 import { formatDate, formatFileSize } from "../../shared/utils";
+import {
+  Button,
+  Center,
+  Group,
+  IconActionButton,
+  Loader,
+  Modal,
+  PanelCard,
+  SearchField,
+  SimpleGrid,
+  Stack,
+  StatCard,
+  StatusBadge,
+  StatusSelect,
+  Table,
+  Text,
+  Title,
+} from "../../ui";
 
 interface ProcessingQueueProps {
   onSelectDocument?: (doc: Document) => void;
@@ -132,7 +127,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
   }, [documents]);
 
   return (
-    <Paper shadow="sm" radius="md" p="lg" withBorder>
+    <PanelCard>
       <Stack gap="lg">
         <Group justify="space-between">
           <div>
@@ -141,68 +136,44 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               Track OCR progress and open any document to review.
             </Text>
           </div>
-          <Tooltip label="Refresh now">
-            <ActionIcon
-              variant="light"
-              onClick={() => refetch()}
-              loading={isFetching}
-            >
-              <IconRefresh size={18} />
-            </ActionIcon>
-          </Tooltip>
+          <IconActionButton
+            tooltip="Refresh now"
+            variant="light"
+            onClick={() => refetch()}
+            loading={isFetching}
+            icon={<IconRefresh size={18} />}
+          />
         </Group>
 
         <SimpleGrid cols={{ base: 1, sm: 4 }}>
-          <Paper radius="md" p="md" withBorder>
-            <Text size="xs" c="dimmed">
-              Total
-            </Text>
-            <Text fw={600} size="lg">
-              {stats.total}
-            </Text>
-          </Paper>
-          <Paper radius="md" p="md" withBorder>
-            <Text size="xs" c="dimmed">
-              Completed
-            </Text>
-            <Text fw={600} size="lg" c="green">
-              {stats.completed}
-            </Text>
-          </Paper>
-          <Paper radius="md" p="md" withBorder>
-            <Text size="xs" c="dimmed">
-              Needs Review
-            </Text>
-            <Text fw={600} size="lg" c="orange">
-              {stats.needsValidation}
-            </Text>
-          </Paper>
-          <Paper radius="md" p="md" withBorder>
-            <Text size="xs" c="dimmed">
-              Processing / Failed
-            </Text>
-            <Text fw={600} size="lg">
-              {stats.processing} / {stats.failed}
-            </Text>
-          </Paper>
+          <StatCard label="Total" value={stats.total} />
+          <StatCard
+            label="Completed"
+            value={stats.completed}
+            valueColor="green"
+          />
+          <StatCard
+            label="Needs Review"
+            value={stats.needsValidation}
+            valueColor="orange"
+          />
+          <StatCard
+            label="Processing / Failed"
+            value={`${stats.processing} / ${stats.failed}`}
+          />
         </SimpleGrid>
 
         <Group gap="md" align="flex-end">
-          <TextInput
-            placeholder="Search title or filename"
+          <SearchField
             value={search}
-            onChange={(event) => setSearch(event.currentTarget.value)}
-            leftSection={<IconSearch size={16} />}
-            flex={1}
+            onChange={(value) => setSearch(value)}
           />
-          <Select
+          <StatusSelect
             data={statusOptions}
             value={statusFilter}
             onChange={(value) =>
               setStatusFilter((value as DocumentStatus | "all") ?? "all")
             }
-            placeholder="Status"
-            w={180}
           />
         </Group>
 
@@ -266,57 +237,51 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                       </Stack>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={status.color} variant="light">
+                      <StatusBadge color={status.color}>
                         {status.label}
-                      </Badge>
+                      </StatusBadge>
                     </Table.Td>
                     <Table.Td>{formatFileSize(doc.file_size)}</Table.Td>
                     <Table.Td>{doc.source ?? "—"}</Table.Td>
                     <Table.Td>{formatDate(new Date(doc.created_at))}</Table.Td>
                     <Table.Td>
                       <Group gap="xs" wrap="nowrap">
-                        <Tooltip label="Open details">
-                          <ActionIcon
-                            variant="subtle"
-                            color="blue"
-                            disabled={
-                              doc.status !== "completed_ocr" &&
-                              doc.status !== "needs_validation"
+                        <IconActionButton
+                          tooltip="Open details"
+                          variant="subtle"
+                          color="blue"
+                          disabled={
+                            doc.status !== "completed_ocr" &&
+                            doc.status !== "needs_validation"
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (
+                              doc.status === "completed_ocr" ||
+                              doc.status === "needs_validation"
+                            ) {
+                              onSelectDocument?.(doc);
                             }
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (
-                                doc.status === "completed_ocr" ||
-                                doc.status === "needs_validation"
-                              ) {
-                                onSelectDocument?.(doc);
-                              }
-                            }}
-                          >
-                            <IconEye size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip
-                          label={
+                          }}
+                          icon={<IconEye size={18} />}
+                        />
+                        <IconActionButton
+                          tooltip={
                             isInFlight(doc.status)
                               ? "Cannot delete while processing"
                               : "Delete document"
                           }
-                        >
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            disabled={isInFlight(doc.status)}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (!isInFlight(doc.status)) {
-                                setDocPendingDelete(doc);
-                              }
-                            }}
-                          >
-                            <IconTrash size={18} />
-                          </ActionIcon>
-                        </Tooltip>
+                          variant="subtle"
+                          color="red"
+                          disabled={isInFlight(doc.status)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (!isInFlight(doc.status)) {
+                              setDocPendingDelete(doc);
+                            }
+                          }}
+                          icon={<IconTrash size={18} />}
+                        />
                       </Group>
                     </Table.Td>
                   </Table.Tr>
@@ -363,6 +328,6 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
           </Group>
         </Stack>
       </Modal>
-    </Paper>
+    </PanelCard>
   );
 }

@@ -1,3 +1,4 @@
+import { Footer, Header } from "@bcgov/design-system-react-components";
 import {
   ActionIcon,
   AppShell,
@@ -9,7 +10,6 @@ import {
   ScrollArea,
   Stack,
   Text,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -37,6 +37,8 @@ import { GroupSelector } from "../components/group/GroupSelector";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
+
+const MAIN_CONTENT_ID = "main-content";
 
 export function RootLayout() {
   const location = useLocation();
@@ -120,26 +122,29 @@ export function RootLayout() {
 
   return (
     <AppShell
-      header={{ height: 64 }}
+      header={{ height: 65 }}
       navbar={{
         width: navbarOpened ? NAV_EXPANDED : NAV_COLLAPSED,
         breakpoint: "sm",
         collapsed: { mobile: !navbarOpened },
       }}
       padding="md"
-      withBorder
       transitionDuration={200}
       transitionTimingFunction="ease"
     >
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <Title order={3}>Document intelligence</Title>
+      <AppShell.Header p={0}>
+        <Header
+          title="Document intelligence"
+          skipLinks={[
+            <a key="skip-main" href={`#${MAIN_CONTENT_ID}`}>
+              Skip to main content
+            </a>,
+          ]}
+        >
+          <Group gap="sm">
             <Badge variant="light" color="blue">
               Live OCR
             </Badge>
-          </Group>
-          <Group>
             <GroupSelector />
             <Stack gap={0}>
               <Text size="sm" fw={600}>
@@ -160,7 +165,7 @@ export function RootLayout() {
               Logout
             </Button>
           </Group>
-        </Group>
+        </Header>
       </AppShell.Header>
 
       <AppShell.Navbar style={{ overflow: "visible" }}>
@@ -323,10 +328,14 @@ export function RootLayout() {
         </ScrollArea>
       </AppShell.Navbar>
 
-      <AppShell.Main>
-        <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
+      <AppShell.Main
+        id={MAIN_CONTENT_ID}
+        style={{ display: "flex", flexDirection: "column" }}
+      >
+        <Stack gap="lg" style={{ minHeight: "100dvh" }}>
           <Outlet />
         </Stack>
+        <Footer hideLogoAndLinks />
       </AppShell.Main>
     </AppShell>
   );

@@ -1,8 +1,8 @@
-import { Badge, Group, Stack, Text, Title } from "@mantine/core";
 import { useState } from "react";
 import { DocumentViewerModal } from "../components/document/DocumentViewerModal";
 import { ProcessingQueue } from "../components/queue/ProcessingQueue";
 import type { Document } from "../shared/types";
+import { Badge, Group, Stack, Text, Title } from "../ui";
 
 export function QueuePage() {
   const [viewerOpened, setViewerOpened] = useState(false);

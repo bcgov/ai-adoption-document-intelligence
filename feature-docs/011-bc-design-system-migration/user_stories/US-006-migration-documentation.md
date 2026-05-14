@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Migration document exists
+- [x] **Scenario 1**: Migration document exists
     - **Given** the repo documentation
     - **When** this story is implemented
     - **Then** `docs-md/BC_DESIGN_SYSTEM_MIGRATION.md` describes the migration strategy, architecture, and decision rules
 
-- [ ] **Scenario 2**: Compatibility matrix is complete for migrated components
+- [x] **Scenario 2**: Compatibility matrix is complete for migrated components
     - **Given** components are used by the reference implementation
     - **When** the documentation is reviewed
     - **Then** the matrix documents current usage, target component, interim approach, and classification
 
-- [ ] **Scenario 3**: Fallback rules are clear
+- [x] **Scenario 3**: Fallback rules are clear
     - **Given** a developer needs a component that B.C. Design System does not provide
     - **When** they read the documentation
     - **Then** they know when to use a styled Mantine fallback, React Aria primitive, or application-specific component
 
-- [ ] **Scenario 4**: Verification guidance is included
+- [x] **Scenario 4**: Verification guidance is included
     - **Given** a migration story changes frontend code
     - **When** a developer completes the work
     - **Then** the documentation lists the expected type-check, lint, unit test, and visual verification steps
 
-- [ ] **Scenario 5**: Open questions are tracked
+- [x] **Scenario 5**: Open questions are tracked
     - **Given** unresolved design-system decisions remain
     - **When** the migration documentation is updated
     - **Then** it lists open questions for dark mode, sidebar navigation, component library ownership, and Code Connect location

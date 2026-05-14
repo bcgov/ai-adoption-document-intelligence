@@ -6,6 +6,9 @@ import { createRoot } from "react-dom/client";
 import { AuthProvider } from "./auth/AuthContext";
 import { GroupProvider } from "./auth/GroupContext";
 import { queryClient } from "./data/queryClient";
+import { appTheme } from "./theme/appTheme";
+import "@bcgov/bc-sans/css/BC_Sans.css";
+import "@bcgov/design-tokens/css/variables.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import App from "./App";
@@ -15,7 +18,7 @@ createRoot(document.getElementById("root")!).render(
     <AuthProvider>
       <GroupProvider>
         <QueryClientProvider client={queryClient}>
-          <MantineProvider defaultColorScheme="dark">
+          <MantineProvider defaultColorScheme="light" theme={appTheme}>
             <Notifications position="top-right" />
             <App />
           </MantineProvider>

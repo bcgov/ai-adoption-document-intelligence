@@ -1,9 +1,1 @@
-/* Make AppShell.Main a flex container so children can use flex: 1 */
-.mantine-AppShell-main {
-  display: flex;
-  flex-direction: column;
-}
 
-main {
-  height: 100dvh;
-}
