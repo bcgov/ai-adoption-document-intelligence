@@ -42,6 +42,7 @@ interface AzureModelResponse {
 export class TrainingPollerService {
   private adminClient!: DocumentIntelligenceClient;
   private readonly pollInterval: number;
+  private readonly maxWallClockHours: number;
 
   constructor(
     private readonly trainingDb: TrainingDbService,
@@ -74,6 +75,15 @@ export class TrainingPollerService {
     this.pollInterval = this.configService.get<number>(
       "TRAINING_POLL_INTERVAL_SECONDS",
       10,
+    );
+    // Local safety net: if Azure never returns a terminal status (operation
+    // wedged in "running", or repeated 404s on /operations/:id), stop polling
+    // after this many wall-clock hours and mark the job FAILED. Default is
+    // ~2x the neural cap of 10h to absorb queueing/finalisation; template
+    // builds finish in minutes so this only ever fires for pathological cases.
+    this.maxWallClockHours = this.configService.get<number>(
+      "TRAINING_MAX_WALL_CLOCK_HOURS",
+      24,
     );
   }
 
@@ -138,6 +148,23 @@ export class TrainingPollerService {
         (Date.now() - job.started_at.getTime()) / 1000,
       );
       const attempts = Math.floor(elapsedSeconds / this.pollInterval);
+      const elapsedHours = elapsedSeconds / 3600;
+
+      // Local wall-clock safety net. The poller otherwise defers to Azure's
+      // terminal status — if Azure never delivers one, we'd poll forever.
+      // Mark FAILED here so the job leaves the "TRAINING" state; the Azure
+      // side may still be running, but it's the user's call to follow up.
+      if (elapsedHours > this.maxWallClockHours) {
+        this.logger.error(
+          `Job ${jobId} exceeded local wall-clock cap of ${this.maxWallClockHours}h (elapsed ${elapsedHours.toFixed(1)}h); marking FAILED. Azure operation ${operationId} may still be running — check Azure portal.`,
+        );
+        await this.trainingDb.updateTrainingJob(jobId, {
+          status: TrainingStatus.FAILED,
+          error_message: `Training exceeded local wall-clock cap of ${this.maxWallClockHours}h. Azure operation may still be running — check the Azure portal.`,
+          completed_at: new Date(),
+        });
+        return;
+      }
 
       this.logger.debug(
         `Polling operation ${operationId} for job ${jobId} (model ${modelId})`,
@@ -191,8 +218,14 @@ export class TrainingPollerService {
         const resultModel = operation.result;
         let docTypes = resultModel?.docTypes || {};
         let description = resultModel?.description;
+        // Gate on neural at the source — the schema documents this column as
+        // "always null for template", and Azure could in principle return
+        // trainingHours on a template result. Belt-and-braces matches the
+        // fallback path below.
         let actualTrainingHours: number | null =
-          resultModel?.trainingHours ?? null;
+          job.build_mode === BuildMode.neural
+            ? (resultModel?.trainingHours ?? null)
+            : null;
 
         if (
           !resultModel ||
@@ -256,12 +289,10 @@ export class TrainingPollerService {
         const targetModelId =
           job.target_model_id ?? job.template_model.model_id;
 
-        // Demote any currently-active version for this template so the new
-        // one becomes the unique active version.
-        await this.trainingDb.demoteActiveTrainedModels(job.template_model_id);
-
-        // Create trained model record for this version.
-        await this.trainingDb.createTrainedModel({
+        // Atomically demote the prior active version and create the new one.
+        // Wrapping these together avoids leaving the template with zero
+        // active versions if the process dies between writes.
+        await this.trainingDb.replaceActiveTrainedModel(job.template_model_id, {
           template_model_id: job.template_model_id,
           training_job_id: jobId,
           model_id: targetModelId,

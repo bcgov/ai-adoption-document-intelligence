@@ -49,6 +49,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "tables.lookup",
   "blob.read",
   "document.extractToBase64",
+  "document.normalizeOrientation",
 ];
 
 describe("activity-registry", () => {

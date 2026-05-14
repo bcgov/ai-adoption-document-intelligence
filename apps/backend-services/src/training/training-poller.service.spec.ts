@@ -30,6 +30,7 @@ describe("TrainingPollerService", () => {
     findAllTrainedModels: jest.Mock;
     buildTrainedModelSnapshot: jest.Mock;
     demoteActiveTrainedModels: jest.Mock;
+    replaceActiveTrainedModel: jest.Mock;
   };
   let mockAdminClient: Record<string, jest.Mock>;
 
@@ -71,6 +72,7 @@ describe("TrainingPollerService", () => {
       findAllTrainedModels: jest.fn(),
       buildTrainedModelSnapshot: jest.fn().mockResolvedValue({ documents: [] }),
       demoteActiveTrainedModels: jest.fn().mockResolvedValue(0),
+      replaceActiveTrainedModel: jest.fn(),
     };
 
     // Mock Azure client methods
@@ -197,6 +199,31 @@ describe("TrainingPollerService", () => {
       await service.pollActiveJobs();
 
       expect(mockTrainingDb.findAllActiveTrainingJobs).toHaveBeenCalled();
+    });
+
+    it("marks a job FAILED when it exceeds the wall-clock cap and skips Azure call", async () => {
+      // started_at well beyond the default 24h cap.
+      const stuckJob = {
+        ...mockTrainingJob,
+        started_at: new Date(Date.now() - 25 * 3600 * 1000),
+      };
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValueOnce([
+        stuckJob,
+      ]);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(stuckJob);
+      const operationGet = jest.fn();
+      mockAdminClient.path = jest.fn(() => ({ get: operationGet }));
+
+      await service.pollActiveJobs();
+
+      expect(operationGet).not.toHaveBeenCalled();
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith(
+        stuckJob.id,
+        expect.objectContaining({
+          status: TrainingStatus.FAILED,
+          error_message: expect.stringContaining("wall-clock cap"),
+        }),
+      );
     });
 
     it("should poll all active jobs", async () => {
@@ -418,7 +445,7 @@ describe("TrainingPollerService", () => {
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
-      mockTrainingDb.createTrainedModel.mockResolvedValue({
+      mockTrainingDb.replaceActiveTrainedModel.mockResolvedValue({
         id: "trained-1",
         model_id: "model-123",
       });
@@ -434,7 +461,8 @@ describe("TrainingPollerService", () => {
         completed_at: expect.any(Date),
       });
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
         expect.objectContaining({
           template_model_id: "tm-1",
           training_job_id: "job-1",
@@ -485,7 +513,7 @@ describe("TrainingPollerService", () => {
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
-      mockTrainingDb.createTrainedModel.mockResolvedValue({
+      mockTrainingDb.replaceActiveTrainedModel.mockResolvedValue({
         id: "trained-1",
         model_id: "model-123",
       });
@@ -497,7 +525,8 @@ describe("TrainingPollerService", () => {
       );
 
       expect(mockGetModel).toHaveBeenCalled();
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
         expect.objectContaining({
           template_model_id: "tm-1",
           training_job_id: "job-1",
@@ -593,7 +622,8 @@ describe("TrainingPollerService", () => {
 
       await service.pollActiveJobs();
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
         expect.objectContaining({
           build_mode: "neural",
           max_training_hours: 2,
@@ -640,7 +670,8 @@ describe("TrainingPollerService", () => {
 
       await service.pollActiveJobs();
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
         expect.objectContaining({
           build_mode: BuildMode.template,
           actual_training_hours: null,
@@ -686,7 +717,8 @@ describe("TrainingPollerService", () => {
 
       await service.pollActiveJobs();
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
         expect.objectContaining({
           build_mode: "template",
           max_training_hours: null,
@@ -694,6 +726,46 @@ describe("TrainingPollerService", () => {
         }),
       );
       expect(documentModelsGet).not.toHaveBeenCalled();
+    });
+
+    it("ignores trainingHours from operation.result on template builds", async () => {
+      // Schema invariant: actual_training_hours is always null for template.
+      // If Azure ever surfaces trainingHours on a template result body, the
+      // poller must drop it rather than persist it.
+      const templateJob = {
+        ...mockTrainingJob,
+        build_mode: BuildMode.template,
+        max_training_hours: null,
+      };
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValue([templateJob]);
+      mockTrainingDb.findTrainingJob.mockResolvedValue(templateJob);
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const operationGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          status: "succeeded",
+          result: {
+            docTypes: { doc1: { fieldSchema: { f1: {} } } },
+            description: "template-model",
+            trainingHours: 0.5, // Hypothetical leak — must be ignored.
+          },
+        },
+      });
+      mockAdminClient.path = jest.fn((p: string) => {
+        if (p.includes("/operations/")) return { get: operationGet };
+        return { get: jest.fn() };
+      });
+
+      await service.pollActiveJobs();
+
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          build_mode: BuildMode.template,
+          actual_training_hours: null,
+        }),
+      );
     });
 
     it("uses trainingHours from operation.result when present and skips the model GET", async () => {
@@ -726,7 +798,8 @@ describe("TrainingPollerService", () => {
 
       await service.pollActiveJobs();
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
         expect.objectContaining({
           build_mode: "neural",
           max_training_hours: 2,
@@ -754,7 +827,7 @@ describe("TrainingPollerService", () => {
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
-      mockTrainingDb.createTrainedModel.mockResolvedValue({
+      mockTrainingDb.replaceActiveTrainedModel.mockResolvedValue({
         id: "trained-1",
         model_id: "model-123",
       });
@@ -765,7 +838,8 @@ describe("TrainingPollerService", () => {
         "operation-123",
       );
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith(
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
         expect.objectContaining({
           template_model_id: "tm-1",
           training_job_id: "job-1",

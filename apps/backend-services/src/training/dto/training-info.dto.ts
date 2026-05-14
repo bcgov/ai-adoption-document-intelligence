@@ -24,12 +24,4 @@ export class TrainingInfoDto {
     type: CustomNeuralBuildsDto,
   })
   customNeuralDocumentModelBuilds?: CustomNeuralBuildsDto;
-
-  @ApiPropertyOptional({
-    description:
-      "Raw Azure /info response — passes through any fields not explicitly modelled above for forward-compat (e.g. free-hours quota when Azure adds one).",
-    type: "object",
-    additionalProperties: true,
-  })
-  raw?: Record<string, unknown>;
 }

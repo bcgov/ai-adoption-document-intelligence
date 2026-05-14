@@ -90,5 +90,4 @@ export interface TrainingInfo {
     quota: number;
     quotaResetDateTime: string;
   };
-  raw?: Record<string, unknown>;
 }

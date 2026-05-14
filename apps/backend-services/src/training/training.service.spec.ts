@@ -2,7 +2,9 @@ import { BuildMode, LabelingStatus, TrainingStatus } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -42,7 +44,9 @@ describe("TrainingService", () => {
     findTrainingJob: jest.Mock;
     findAllTrainingJobs: jest.Mock;
     findAllActiveTrainingJobs: jest.Mock;
+    findInFlightJobForTemplate: jest.Mock;
     findAllTrainedModels: jest.Mock;
+    findTrainedModelForTemplate: jest.Mock;
     findActiveTrainedModel: jest.Mock;
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
@@ -162,7 +166,9 @@ describe("TrainingService", () => {
       findTrainingJob: jest.fn(),
       findAllTrainingJobs: jest.fn(),
       findAllActiveTrainingJobs: jest.fn(),
+      findInFlightJobForTemplate: jest.fn().mockResolvedValue(null),
       findAllTrainedModels: jest.fn(),
+      findTrainedModelForTemplate: jest.fn(),
       findActiveTrainedModel: jest.fn(),
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
@@ -801,6 +807,26 @@ describe("TrainingService", () => {
       const sentBody = mockPost.mock.calls[0][0].body;
       expect(sentBody.maxTrainingHours).toBeUndefined();
     });
+
+    it("refuses to start when an in-flight job already exists for the template", async () => {
+      const dto = { description: "Test model" };
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTrainingDb.findInFlightJobForTemplate.mockResolvedValueOnce({
+        id: "job-already-running",
+        template_model_id: "tm-1",
+        status: TrainingStatus.TRAINING,
+      });
+
+      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
+        ConflictException,
+      );
+      // Guard fires before version computation and job creation.
+      expect(mockTrainingDb.getNextVersionNumber).not.toHaveBeenCalled();
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
+    });
   });
 
   describe("listTrainedVersions", () => {
@@ -829,9 +855,12 @@ describe("TrainingService", () => {
 
   describe("setActiveTrainedVersion", () => {
     it("activates a non-deleted version", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        { ...mockTrainedModel, id: "v2", version: 2, is_active: false },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v2",
+        version: 2,
+        is_active: false,
+      });
       mockTrainingDb.setActiveTrainedModel.mockResolvedValueOnce({
         ...mockTrainedModel,
         id: "v2",
@@ -842,17 +871,20 @@ describe("TrainingService", () => {
       const result = await service.setActiveTrainedVersion("tm-1", "v2");
 
       expect(result.isActive).toBe(true);
+      expect(mockTrainingDb.findTrainedModelForTemplate).toHaveBeenCalledWith(
+        "tm-1",
+        "v2",
+        { includeDeleted: true },
+      );
       expect(mockTrainingDb.setActiveTrainedModel).toHaveBeenCalledWith("v2");
     });
 
     it("rejects activating a deleted version", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        {
-          ...mockTrainedModel,
-          id: "v1",
-          deleted_at: new Date(),
-        },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        deleted_at: new Date(),
+      });
 
       await expect(
         service.setActiveTrainedVersion("tm-1", "v1"),
@@ -860,7 +892,7 @@ describe("TrainingService", () => {
     });
 
     it("throws NotFound when the version doesn't belong to the template", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(null);
       await expect(
         service.setActiveTrainedVersion("tm-1", "missing"),
       ).rejects.toThrow(NotFoundException);
@@ -869,9 +901,11 @@ describe("TrainingService", () => {
 
   describe("deleteTrainedVersion", () => {
     it("blocks deletion when the version is currently active", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        { ...mockTrainedModel, id: "v1", is_active: true },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: true,
+      });
 
       await expect(service.deleteTrainedVersion("tm-1", "v1")).rejects.toThrow(
         ConflictException,
@@ -879,9 +913,11 @@ describe("TrainingService", () => {
     });
 
     it("blocks deletion when a benchmark definition references the version", async () => {
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
-        { ...mockTrainedModel, id: "v1", is_active: false },
-      ]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: false,
+      });
       mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mockResolvedValueOnce(
         2,
       );
@@ -901,7 +937,9 @@ describe("TrainingService", () => {
         ...inactive,
         deleted_at: new Date("2026-05-01"),
       };
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([inactive]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(
+        inactive,
+      );
       mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mockResolvedValueOnce(
         0,
       );
@@ -924,7 +962,9 @@ describe("TrainingService", () => {
         is_active: false,
         deleted_at: new Date("2026-04-01"),
       };
-      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([tombstoned]);
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(
+        tombstoned,
+      );
 
       const result = await service.deleteTrainedVersion("tm-1", "v1");
 
@@ -1144,14 +1184,15 @@ describe("TrainingService", () => {
         quota: 20,
         quotaResetDateTime: "2026-06-01T00:00:00Z",
       });
-      expect(result.raw).toEqual(
-        expect.objectContaining({
-          customDocumentModels: { count: 1, limit: 100 },
-        }),
+      // Allow-listed fields only — Azure body fields we don't model must not leak.
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(["customNeuralDocumentModelBuilds"]),
       );
+      expect(result).not.toHaveProperty("raw");
+      expect(result).not.toHaveProperty("customDocumentModels");
     });
 
-    it("throws when Azure returns an error response", async () => {
+    it("throws a generic 500 when Azure returns an error (does not leak Azure message)", async () => {
       const mockGet = jest.fn().mockResolvedValue({
         status: "401",
         body: { error: { message: "Invalid api-key" } },
@@ -1159,12 +1200,19 @@ describe("TrainingService", () => {
       mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await expect(service.getTrainingInfo()).rejects.toThrow(
-        "Invalid api-key",
+      const promise = service.getTrainingInfo();
+      await expect(promise).rejects.toThrow(InternalServerErrorException);
+      // Azure's message must be logged but not raised through.
+      await expect(promise).rejects.toThrow(
+        "Failed to fetch Azure training info",
+      );
+      await expect(promise).rejects.not.toThrow("Invalid api-key");
+      expect(mockAppLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid api-key"),
       );
     });
 
-    it("throws when the Azure client is not configured", async () => {
+    it("throws 503 when the Azure client is not configured", async () => {
       const moduleNoCreds: TestingModule = await Test.createTestingModule({
         providers: [
           TrainingService,
@@ -1194,8 +1242,10 @@ describe("TrainingService", () => {
       const unconfiguredService =
         moduleNoCreds.get<TrainingService>(TrainingService);
 
-      await expect(unconfiguredService.getTrainingInfo()).rejects.toThrow(
-        "Azure Document Intelligence client is not configured",
+      const promise = unconfiguredService.getTrainingInfo();
+      await expect(promise).rejects.toThrow(ServiceUnavailableException);
+      await expect(promise).rejects.toThrow(
+        "Azure Document Intelligence is not configured",
       );
     });
   });

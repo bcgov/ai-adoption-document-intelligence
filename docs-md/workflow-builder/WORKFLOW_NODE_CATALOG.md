@@ -467,6 +467,29 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 # Document Handling
 
+## 🧭 Correct Orientation
+
+- **Category:** Document Handling
+- **Visual:** Indigo, compass icon
+- **Activity ID (internal):** `document.normalizeOrientation`
+- **One-line description:** Detects sideways or upside-down pages on the rendered pixels (Tesseract OSD) and rewrites the PDF with each page rotated upright.
+- **When to use it:** After the document has been normalized to PDF and stored, before OCR. Pairs with the upload-time metadata-driven correction in `PdfNormalizationService` — that one acts on EXIF / `/Rotate` metadata only; this one inspects the actual pixels and is the only step that can fix scans whose pixels are rotated but whose metadata says nothing.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.** Defaults: 5m start-to-close, 2 attempts. Cost is roughly 500 ms per page; bump the timeout for very long documents.
+- **Inputs ("This step reads"):**
+  - **File reference (blob key)** *(required)* — The normalized PDF blob to inspect. The activity overwrites this same key when corrections are applied.
+- **Outputs ("This step produces"):**
+  - **Corrected file reference (blob key)** *(required)* — Same as the input key when no corrections were needed, or after a rewrite that left it in place.
+  - **Per-page corrections** *(optional)* — A list. Each entry has `pageNumber`, `detectedAngle` (0/90/180/270), `confidence`, and `corrected` (boolean). Useful for diagnostics and the workflow status query.
+- **Static parameters:**
+  - **Confidence threshold** *(number, optional, default `2.0`)* — Minimum Tesseract OSD confidence required before applying a rotation correction. Lower values correct more aggressively at the risk of false positives on sparse / decorative pages; higher values are more conservative.
+
+The activity loads `osd.traineddata` from `apps/temporal/osd.traineddata` (committed in-tree and copied into the production container) so OSD runs without an internet connection.
+
+---
+
 ## ✂ Split Document
 
 - **Category:** Document Handling

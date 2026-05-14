@@ -45,8 +45,10 @@
 		"dotenv": "17.2.3",
 		"fast-xml-parser": "5.5.8",
 		"json-rules-engine": "4.0.0",
+		"mupdf": "1.27.0",
 		"nspell": "2.1.5",
-		"pdf-lib": "1.17.1"
+		"pdf-lib": "1.17.1",
+		"tesseract.js": "7.0.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",

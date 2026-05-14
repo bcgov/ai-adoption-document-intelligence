@@ -46,6 +46,14 @@ npm start
 - Validator/expression tests
 - Activity tests: `src/activities/*.test.ts`
 
-## Source Documentation
+## Static Assets
 
-See `src/README.md` for detailed source structure and runtime behavior.
+### `osd.traineddata`
+
+This file is Tesseract's **Orientation and Script Detection** trained model, required by the `document.normalizeOrientation` activity. It must be present in `apps/temporal/` at runtime.
+
+Without it, `createWorker("osd", OEM.TESSERACT_ONLY)` will fail when the activity attempts to detect page rotation. Tesseract.js can download language data at runtime, but committing this file avoids network dependency in containers and local dev.
+
+**Do not delete this file.**
+
+

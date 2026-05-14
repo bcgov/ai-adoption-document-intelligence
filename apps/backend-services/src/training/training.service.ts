@@ -16,7 +16,9 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
@@ -77,6 +79,8 @@ export class TrainingService {
     private readonly trainingDb: TrainingDbService,
     private readonly azureStorage: AzureStorageService,
     private readonly templateModelService: TemplateModelService,
+    // forwardRef pairs with the module-level forwardRef on BenchmarkModule in
+    // training.module.ts — see the comment there for the cycle path.
     @Inject(forwardRef(() => BenchmarkDefinitionDbService))
     private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
     private readonly configService: ConfigService,
@@ -274,6 +278,19 @@ export class TrainingService {
     const templateModel =
       await this.templateModelService.getTemplateModel(templateModelId);
     const baseModelId = templateModel.model_id;
+
+    // Refuse to start a second training while one is already in flight for
+    // this template. Without this, two concurrent starts would compute the
+    // same nextVersion, both upload to Azure under the same versioned model
+    // id, and the loser's poller would later hit the @@unique constraint —
+    // leaving an orphaned Azure model and a confusing partial-state job row.
+    const inFlight =
+      await this.trainingDb.findInFlightJobForTemplate(templateModelId);
+    if (inFlight) {
+      throw new ConflictException(
+        `A training job is already in progress for this template (job ${inFlight.id}, status ${inFlight.status}). Wait for it to finish or cancel it before starting a new one.`,
+      );
+    }
 
     const nextVersion =
       await this.trainingDb.getNextVersionNumber(templateModelId);
@@ -654,31 +671,40 @@ export class TrainingService {
   }
 
   /**
-   * Proxy of Azure Document Intelligence `GET /info`. Surfaces the Azure
-   * region and neural model quota so the frontend can show an FYI banner
-   * when the user picks neural mode. Any fields Azure exposes beyond what
-   * we explicitly model are returned under `raw` for forward-compat.
+   * Proxy of Azure Document Intelligence `GET /info`. Surfaces only the
+   * Azure region and neural model quota so the frontend can show an FYI
+   * banner when the user picks neural mode. The full Azure body is not
+   * passed through — any new field must be modelled explicitly here so we
+   * never expose resource-level metadata through this endpoint.
    */
   async getTrainingInfo(): Promise<TrainingInfoDto> {
     if (!this.adminClient) {
-      throw new Error("Azure Document Intelligence client is not configured");
+      // 503: the service-level dependency is missing config, not a client error.
+      throw new ServiceUnavailableException(
+        "Azure Document Intelligence is not configured",
+      );
     }
     const response = await this.adminClient.path("/info").get();
     if (isUnexpected(response)) {
-      const errorMessage =
+      // Log Azure's own message for diagnostics, but never surface it to the
+      // caller — it can include resource names, region detail, or quota hints
+      // that we don't want to expose through a generic /info endpoint.
+      const azureMessage =
         (response.body as AzureErrorResponse)?.error?.message ||
-        `Azure /info request failed with status ${response.status}`;
-      throw new Error(errorMessage);
+        `status ${response.status}`;
+      this.logger.error(`Azure /info request failed: ${azureMessage}`);
+      throw new InternalServerErrorException(
+        "Failed to fetch Azure training info",
+      );
     }
     const body = (response.body ?? {}) as unknown as Record<string, unknown>;
     return {
       region: typeof body.region === "string" ? body.region : undefined,
-      // Passthrough — Azure's response is documented but not strongly schema-validated here;
-      // the consumer (frontend) is responsible for reading what it needs from the shape.
+      // Allow-list passthrough: only fields we've consciously decided to surface.
+      // Azure's response shape is documented but not validated here.
       customNeuralDocumentModelBuilds: body.customNeuralDocumentModelBuilds as
         | TrainingInfoDto["customNeuralDocumentModelBuilds"]
         | undefined,
-      raw: body,
     };
   }
 
@@ -703,10 +729,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<unknown | null> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,
@@ -723,10 +750,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<TrainedModelDto> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,
@@ -750,10 +778,11 @@ export class TrainingService {
     templateModelId: string,
     trainedModelId: string,
   ): Promise<TrainedModelDto> {
-    const all = await this.trainingDb.findAllTrainedModels(templateModelId, {
-      includeDeleted: true,
-    });
-    const target = all.find((m) => m.id === trainedModelId);
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
     if (!target) {
       throw new NotFoundException(
         `Trained model ${trainedModelId} not found for template ${templateModelId}`,

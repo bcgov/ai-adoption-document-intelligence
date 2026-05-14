@@ -8,6 +8,14 @@ patches:
   target:
     kind: ConfigMap
     name: backend-services-config
+- path: route-whitelist-patch.yml
+  target:
+    kind: Route
+    name: backend-services
+- path: route-whitelist-patch.yml
+  target:
+    kind: Route
+    name: frontend
 images:
 - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
   newTag: main-latest
