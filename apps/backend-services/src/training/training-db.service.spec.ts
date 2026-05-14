@@ -14,15 +14,23 @@ describe("TrainingDbService", () => {
     trainingJob: {
       create: jest.Mock;
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       findMany: jest.Mock;
       update: jest.Mock;
     };
     trainedModel: {
       create: jest.Mock;
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       findMany: jest.Mock;
-      delete: jest.Mock;
+      update: jest.Mock;
+      updateMany: jest.Mock;
+      aggregate: jest.Mock;
     };
+    labeledDocument: {
+      findMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
 
   const mockTrainingJob = {
@@ -40,6 +48,8 @@ describe("TrainingDbService", () => {
     dataset_id: null,
     created_at: new Date(),
     updated_at: new Date(),
+    target_model_id: null,
+    target_version: null,
   };
 
   const mockTrainedModel = {
@@ -50,6 +60,10 @@ describe("TrainingDbService", () => {
     description: "Test Model",
     doc_types: { custom: { fieldSchema: { field1: {} } } },
     field_count: 1,
+    version: 1,
+    is_active: true,
+    deleted_at: null,
+    dataset_snapshot: null,
     created_at: new Date(),
   };
 
@@ -58,15 +72,23 @@ describe("TrainingDbService", () => {
       trainingJob: {
         create: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
       },
       trainedModel: {
         create: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
-        delete: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+        aggregate: jest.fn(),
       },
+      labeledDocument: {
+        findMany: jest.fn(),
+      },
+      $transaction: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -167,6 +189,41 @@ describe("TrainingDbService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // findInFlightJobForTemplate
+  // ---------------------------------------------------------------------------
+
+  describe("findInFlightJobForTemplate", () => {
+    it("queries for any non-terminal status scoped to the template, newest first", async () => {
+      const inFlight = { ...mockTrainingJob, status: TrainingStatus.TRAINING };
+      mockPrisma.trainingJob.findFirst.mockResolvedValueOnce(inFlight);
+
+      const result = await service.findInFlightJobForTemplate("tm-1");
+
+      expect(result).toEqual(inFlight);
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith({
+        where: {
+          template_model_id: "tm-1",
+          status: {
+            in: [
+              TrainingStatus.PENDING,
+              TrainingStatus.UPLOADING,
+              TrainingStatus.UPLOADED,
+              TrainingStatus.TRAINING,
+            ],
+          },
+        },
+        orderBy: { started_at: "desc" },
+      });
+    });
+
+    it("returns null when no in-flight job exists", async () => {
+      mockPrisma.trainingJob.findFirst.mockResolvedValueOnce(null);
+      const result = await service.findInFlightJobForTemplate("tm-1");
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // findAllActiveTrainingJobs
   // ---------------------------------------------------------------------------
 
@@ -234,9 +291,12 @@ describe("TrainingDbService", () => {
         template_model_id: "project-1",
         training_job_id: "job-1",
         model_id: "custom-model-1",
+        version: 1,
+        is_active: true,
         description: "Test Model",
         doc_types: { custom: {} },
         field_count: 1,
+        dataset_snapshot: { documents: [] },
       };
 
       mockPrisma.trainedModel.create.mockResolvedValueOnce(mockTrainedModel);
@@ -257,8 +317,10 @@ describe("TrainingDbService", () => {
           template_model_id: "p1",
           training_job_id: "j1",
           model_id: "m1",
+          version: 1,
           doc_types: {},
           field_count: 0,
+          dataset_snapshot: { documents: [] },
         }),
       ).rejects.toThrow("Prisma error");
     });
@@ -296,47 +358,314 @@ describe("TrainingDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("findAllTrainedModels", () => {
-    it("should return all trained models for a template model", async () => {
-      const models = [
+    it("excludes tombstoned versions by default and orders by version desc", async () => {
+      mockPrisma.trainedModel.findMany.mockResolvedValueOnce([
         mockTrainedModel,
-        { ...mockTrainedModel, id: "trained-2" },
-      ];
-      mockPrisma.trainedModel.findMany.mockResolvedValueOnce(models);
+      ]);
 
       const result = await service.findAllTrainedModels("tm-1");
 
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
+        where: { template_model_id: "tm-1", deleted_at: null },
+        orderBy: { version: "desc" },
+      });
+    });
+
+    it("includes tombstoned versions when requested", async () => {
+      mockPrisma.trainedModel.findMany.mockResolvedValueOnce([
+        mockTrainedModel,
+      ]);
+
+      await service.findAllTrainedModels("tm-1", { includeDeleted: true });
+
       expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
         where: { template_model_id: "tm-1" },
-        orderBy: { created_at: "desc" },
+        orderBy: { version: "desc" },
       });
     });
   });
 
   // ---------------------------------------------------------------------------
-  // deleteTrainedModel
+  // findTrainedModelForTemplate
   // ---------------------------------------------------------------------------
 
-  describe("deleteTrainedModel", () => {
-    it("should delete and return the trained model", async () => {
-      mockPrisma.trainedModel.delete.mockResolvedValueOnce(mockTrainedModel);
+  describe("findTrainedModelForTemplate", () => {
+    it("scopes the lookup to the parent template and excludes tombstoned by default", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(mockTrainedModel);
 
-      const result = await service.deleteTrainedModel("custom-model-1");
+      const result = await service.findTrainedModelForTemplate(
+        "tm-1",
+        "trained-1",
+      );
 
       expect(result).toEqual(mockTrainedModel);
-      expect(mockPrisma.trainedModel.delete).toHaveBeenCalledWith({
-        where: { model_id: "custom-model-1" },
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "trained-1",
+          template_model_id: "tm-1",
+          deleted_at: null,
+        },
       });
     });
 
-    it("should re-throw errors from Prisma", async () => {
-      mockPrisma.trainedModel.delete.mockRejectedValueOnce(
-        new Error("Prisma error"),
+    it("includes tombstoned versions when requested", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(mockTrainedModel);
+
+      await service.findTrainedModelForTemplate("tm-1", "trained-1", {
+        includeDeleted: true,
+      });
+
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: { id: "trained-1", template_model_id: "tm-1" },
+      });
+    });
+
+    it("returns null when the id belongs to a different template", async () => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValueOnce(null);
+
+      const result = await service.findTrainedModelForTemplate(
+        "tm-1",
+        "trained-from-other-template",
       );
 
-      await expect(service.deleteTrainedModel("non-existent")).rejects.toThrow(
-        "Prisma error",
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getNextVersionNumber
+  // ---------------------------------------------------------------------------
+
+  describe("getNextVersionNumber", () => {
+    it("returns max(version)+1 across all rows including tombstoned", async () => {
+      mockPrisma.trainedModel.aggregate.mockResolvedValueOnce({
+        _max: { version: 4 },
+      });
+
+      const result = await service.getNextVersionNumber("tm-1");
+
+      expect(result).toBe(5);
+      expect(mockPrisma.trainedModel.aggregate).toHaveBeenCalledWith({
+        where: { template_model_id: "tm-1" },
+        _max: { version: true },
+      });
+    });
+
+    it("returns 1 for templates with no prior trained versions", async () => {
+      mockPrisma.trainedModel.aggregate.mockResolvedValueOnce({
+        _max: { version: null },
+      });
+      const result = await service.getNextVersionNumber("tm-1");
+      expect(result).toBe(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // demoteActiveTrainedModels
+  // ---------------------------------------------------------------------------
+
+  describe("demoteActiveTrainedModels", () => {
+    it("clears is_active on every active row for the template", async () => {
+      mockPrisma.trainedModel.updateMany.mockResolvedValueOnce({ count: 1 });
+      const result = await service.demoteActiveTrainedModels("tm-1");
+      expect(result).toBe(1);
+      expect(mockPrisma.trainedModel.updateMany).toHaveBeenCalledWith({
+        where: { template_model_id: "tm-1", is_active: true },
+        data: { is_active: false },
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // replaceActiveTrainedModel
+  // ---------------------------------------------------------------------------
+
+  describe("replaceActiveTrainedModel", () => {
+    const createData: TrainedModelCreateData = {
+      template_model_id: "tm-1",
+      training_job_id: "job-1",
+      model_id: "custom-model-1-v2",
+      version: 2,
+      is_active: true,
+      description: "v2",
+      doc_types: {} as never,
+      field_count: 1,
+      dataset_snapshot: { documents: [] } as never,
+    };
+
+    it("demotes active rows and creates the new row inside a single transaction", async () => {
+      const created = { ...mockTrainedModel, ...createData };
+      const txClient = {
+        trainedModel: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          create: jest.fn().mockResolvedValue(created),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
       );
+
+      const result = await service.replaceActiveTrainedModel(
+        "tm-1",
+        createData,
+      );
+
+      expect(result).toEqual(created);
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(txClient.trainedModel.updateMany).toHaveBeenCalledWith({
+        where: { template_model_id: "tm-1", is_active: true },
+        data: { is_active: false },
+      });
+      expect(txClient.trainedModel.create).toHaveBeenCalledWith({
+        data: createData,
+      });
+    });
+
+    it("does not create when the demote step throws", async () => {
+      const txClient = {
+        trainedModel: {
+          updateMany: jest.fn().mockRejectedValue(new Error("db down")),
+          create: jest.fn(),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      await expect(
+        service.replaceActiveTrainedModel("tm-1", createData),
+      ).rejects.toThrow("db down");
+      expect(txClient.trainedModel.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // tombstoneTrainedModel
+  // ---------------------------------------------------------------------------
+
+  describe("tombstoneTrainedModel", () => {
+    it("sets deleted_at and clears is_active", async () => {
+      const tombstoned = {
+        ...mockTrainedModel,
+        is_active: false,
+        deleted_at: new Date("2026-05-01"),
+      };
+      mockPrisma.trainedModel.update.mockResolvedValueOnce(tombstoned);
+
+      const result = await service.tombstoneTrainedModel("trained-1");
+
+      expect(result).toEqual(tombstoned);
+      expect(mockPrisma.trainedModel.update).toHaveBeenCalledWith({
+        where: { id: "trained-1" },
+        data: { is_active: false, deleted_at: expect.any(Date) },
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // setActiveTrainedModel
+  // ---------------------------------------------------------------------------
+
+  describe("setActiveTrainedModel", () => {
+    it("demotes other versions and activates the target via $transaction", async () => {
+      const target = { ...mockTrainedModel, is_active: false };
+      const txClient = {
+        trainedModel: {
+          findUnique: jest.fn().mockResolvedValue(target),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          update: jest.fn().mockResolvedValue({ ...target, is_active: true }),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      const result = await service.setActiveTrainedModel("trained-1");
+
+      expect(result.is_active).toBe(true);
+      expect(txClient.trainedModel.updateMany).toHaveBeenCalledWith({
+        where: { template_model_id: "project-1", NOT: { id: "trained-1" } },
+        data: { is_active: false },
+      });
+    });
+
+    it("refuses to activate a tombstoned version", async () => {
+      const target = { ...mockTrainedModel, deleted_at: new Date() };
+      const txClient = {
+        trainedModel: {
+          findUnique: jest.fn().mockResolvedValue(target),
+          updateMany: jest.fn(),
+          update: jest.fn(),
+        },
+      };
+      mockPrisma.$transaction.mockImplementationOnce(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient),
+      );
+
+      await expect(service.setActiveTrainedModel("trained-1")).rejects.toThrow(
+        /deleted/,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // findAllTrainedModelIds
+  // ---------------------------------------------------------------------------
+
+  describe("findAllTrainedModelIds", () => {
+    it("excludes tombstoned versions from the OCR picker list", async () => {
+      mockPrisma.trainedModel.findMany.mockResolvedValueOnce([
+        { model_id: "km-invoice" },
+        { model_id: "km-invoice-v2" },
+      ]);
+
+      const result = await service.findAllTrainedModelIds();
+
+      expect(result).toEqual(["km-invoice", "km-invoice-v2"]);
+      expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
+        where: { deleted_at: null },
+        select: { model_id: true },
+        distinct: ["model_id"],
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // buildTrainedModelSnapshot
+  // ---------------------------------------------------------------------------
+
+  describe("buildTrainedModelSnapshot", () => {
+    it("returns labeled documents with their labels in snapshot shape", async () => {
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce([
+        {
+          labeling_document: {
+            id: "ldoc-1",
+            original_filename: "invoice-1.pdf",
+          },
+          labels: [
+            {
+              field_key: "total",
+              label_name: "total",
+              value: "100.00",
+              page_number: 1,
+              bounding_box: { x: 0, y: 0, w: 1, h: 1 },
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.buildTrainedModelSnapshot("tm-1");
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0].labelingDocumentId).toBe("ldoc-1");
+      expect(result.documents[0].labels[0].fieldKey).toBe("total");
+    });
+
+    it("returns an empty snapshot when no labeled documents exist", async () => {
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce([]);
+      const result = await service.buildTrainedModelSnapshot("tm-1");
+      expect(result.documents).toEqual([]);
     });
   });
 });

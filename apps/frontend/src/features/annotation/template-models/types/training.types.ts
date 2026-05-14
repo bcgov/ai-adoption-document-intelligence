@@ -32,3 +32,41 @@ export interface ValidationResult {
 export interface StartTrainingRequest {
   description?: string;
 }
+
+/**
+ * One trained version of a template model. Each retrain produces a new row;
+ * `version` is the sequential version number, `isActive` flags the version
+ * resolved by OCR/benchmarks against the bare template model_id, and
+ * `deletedAt` is set on tombstoned versions.
+ */
+export interface TrainedModelVersion {
+  id: string;
+  templateModelId: string;
+  trainingJobId: string;
+  modelId: string;
+  version: number;
+  isActive: boolean;
+  deletedAt?: string;
+  description?: string;
+  docTypes?: Record<string, unknown>;
+  fieldCount: number;
+  createdAt: string;
+}
+
+export interface TrainedModelSnapshotLabel {
+  fieldKey: string;
+  labelName: string;
+  value: string | null;
+  pageNumber: number;
+  boundingBox: unknown;
+}
+
+export interface TrainedModelSnapshotDocument {
+  labelingDocumentId: string;
+  originalFilename: string;
+  labels: TrainedModelSnapshotLabel[];
+}
+
+export interface TrainedModelSnapshot {
+  documents: TrainedModelSnapshotDocument[];
+}

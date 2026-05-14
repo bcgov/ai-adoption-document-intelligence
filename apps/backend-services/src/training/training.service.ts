@@ -11,12 +11,15 @@ import {
 } from "@generated/client";
 import {
   BadRequestException,
+  ConflictException,
+  forwardRef,
   Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
+import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -49,6 +52,19 @@ interface ErrorWithRequest {
   message: string;
 }
 
+/**
+ * Produces the Azure model ID for a given training version. Version 1 keeps
+ * the bare base ID so existing single-version templates continue to resolve
+ * after the schema upgrade; version 2+ append "-v<n>" so retrains don't clash
+ * with prior versions.
+ */
+export function mintVersionedModelId(
+  baseModelId: string,
+  version: number,
+): string {
+  return version <= 1 ? baseModelId : `${baseModelId}-v${version}`;
+}
+
 @Injectable()
 export class TrainingService {
   private adminClient!: DocumentIntelligenceClient;
@@ -59,6 +75,10 @@ export class TrainingService {
     private readonly trainingDb: TrainingDbService,
     private readonly azureStorage: AzureStorageService,
     private readonly templateModelService: TemplateModelService,
+    // forwardRef pairs with the module-level forwardRef on BenchmarkModule in
+    // training.module.ts — see the comment there for the cycle path.
+    @Inject(forwardRef(() => BenchmarkDefinitionDbService))
+    private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
     @Inject(BLOB_STORAGE)
@@ -241,7 +261,11 @@ export class TrainingService {
   }
 
   /**
-   * Start the training process
+   * Start the training process. Each invocation produces a new version of the
+   * trained model — prior versions are kept so existing benchmarks/documents
+   * pointing at them stay resolvable. Version 1 keeps the bare
+   * TemplateModel.model_id for backwards compatibility; version 2+ append
+   * "-v<n>".
    */
   async startTraining(
     templateModelId: string,
@@ -249,10 +273,27 @@ export class TrainingService {
   ): Promise<TrainingJobDto> {
     const templateModel =
       await this.templateModelService.getTemplateModel(templateModelId);
-    const modelId = templateModel.model_id;
+    const baseModelId = templateModel.model_id;
+
+    // Refuse to start a second training while one is already in flight for
+    // this template. Without this, two concurrent starts would compute the
+    // same nextVersion, both upload to Azure under the same versioned model
+    // id, and the loser's poller would later hit the @@unique constraint —
+    // leaving an orphaned Azure model and a confusing partial-state job row.
+    const inFlight =
+      await this.trainingDb.findInFlightJobForTemplate(templateModelId);
+    if (inFlight) {
+      throw new ConflictException(
+        `A training job is already in progress for this template (job ${inFlight.id}, status ${inFlight.status}). Wait for it to finish or cancel it before starting a new one.`,
+      );
+    }
+
+    const nextVersion =
+      await this.trainingDb.getNextVersionNumber(templateModelId);
+    const versionedModelId = mintVersionedModelId(baseModelId, nextVersion);
 
     this.logger.log(
-      `Starting training for template model ${templateModelId} with model ID: ${modelId}`,
+      `Starting training v${nextVersion} for template model ${templateModelId} with Azure model ID: ${versionedModelId}`,
     );
 
     // Validate training data
@@ -264,33 +305,39 @@ export class TrainingService {
       });
     }
 
-    // Remove existing Azure model if present to avoid conflicts
-    await this.deleteModelIfExists(modelId);
-
-    // Remove any local record with the same model ID
-    const existingModel =
-      await this.trainingDb.findTrainedModelByModelId(modelId);
-    if (existingModel) {
-      await this.trainingDb.deleteTrainedModel(modelId);
+    // Defensive: if the Azure model name is somehow already in use (orphaned
+    // from a prior aborted run, or external creation), remove it. We never
+    // delete an actively-tracked TrainedModel row here.
+    const existingTrackedModel =
+      await this.trainingDb.findTrainedModelByModelId(versionedModelId);
+    if (!existingTrackedModel) {
+      await this.deleteModelIfExists(versionedModelId);
     }
 
-    // Create training job record
-    const containerName = `training-${templateModelId}`;
+    // Create training job record. target_model_id + target_version pin the
+    // job's intended output so the poller doesn't have to re-derive the
+    // versioning later.
+    const containerName = `training-${templateModelId}-v${nextVersion}`;
     const trainingJob = await this.trainingDb.createTrainingJob({
       template_model_id: templateModelId,
       status: TrainingStatus.PENDING,
       container_name: containerName,
+      target_model_id: versionedModelId,
+      target_version: nextVersion,
     });
 
     // Start async upload and training process
-    this.uploadAndTrain(trainingJob.id, templateModelId, modelId, dto).catch(
-      (error) => {
-        this.logger.error(
-          `Training job ${trainingJob.id} failed: ${error.message}`,
-          error.stack,
-        );
-      },
-    );
+    this.uploadAndTrain(
+      trainingJob.id,
+      templateModelId,
+      versionedModelId,
+      dto,
+    ).catch((error) => {
+      this.logger.error(
+        `Training job ${trainingJob.id} failed: ${error.message}`,
+        error.stack,
+      );
+    });
 
     return this.mapTrainingJobToDto(trainingJob);
   }
@@ -607,12 +654,128 @@ export class TrainingService {
     return this.trainingDb.findAllTrainedModelIds();
   }
 
+  /**
+   * Lists every trained version (including tombstoned) for a template.
+   */
+  async listTrainedVersions(
+    templateModelId: string,
+  ): Promise<TrainedModelDto[]> {
+    const versions = await this.trainingDb.findAllTrainedModels(
+      templateModelId,
+      { includeDeleted: true },
+    );
+    return versions.map((m) => this.mapTrainedModelToDto(m));
+  }
+
+  /**
+   * Returns the dataset snapshot stored on a specific trained version, or
+   * null when the version predates snapshotting (legacy v1 rows).
+   */
+  async getTrainedVersionSnapshot(
+    templateModelId: string,
+    trainedModelId: string,
+  ): Promise<unknown | null> {
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
+    if (!target) {
+      throw new NotFoundException(
+        `Trained model ${trainedModelId} not found for template ${templateModelId}`,
+      );
+    }
+    return target.dataset_snapshot ?? null;
+  }
+
+  /**
+   * Sets a specific trained version active for its template, demoting any
+   * other active versions in the same template.
+   */
+  async setActiveTrainedVersion(
+    templateModelId: string,
+    trainedModelId: string,
+  ): Promise<TrainedModelDto> {
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
+    if (!target) {
+      throw new NotFoundException(
+        `Trained model ${trainedModelId} not found for template ${templateModelId}`,
+      );
+    }
+    if (target.deleted_at !== null) {
+      throw new BadRequestException(
+        "Cannot activate a deleted version. Re-train to create a new version instead.",
+      );
+    }
+    const updated = await this.trainingDb.setActiveTrainedModel(trainedModelId);
+    return this.mapTrainedModelToDto(updated);
+  }
+
+  /**
+   * Tombstones a trained version and removes the Azure artifact. Refuses to
+   * delete the active version, or any version still referenced by a benchmark
+   * definition.
+   */
+  async deleteTrainedVersion(
+    templateModelId: string,
+    trainedModelId: string,
+  ): Promise<TrainedModelDto> {
+    const target = await this.trainingDb.findTrainedModelForTemplate(
+      templateModelId,
+      trainedModelId,
+      { includeDeleted: true },
+    );
+    if (!target) {
+      throw new NotFoundException(
+        `Trained model ${trainedModelId} not found for template ${templateModelId}`,
+      );
+    }
+    if (target.deleted_at !== null) {
+      // Already tombstoned — return current state, no Azure call.
+      return this.mapTrainedModelToDto(target);
+    }
+    if (target.is_active) {
+      throw new ConflictException(
+        "Cannot delete the active version. Activate another version first.",
+      );
+    }
+
+    const referencingDefinitions =
+      await this.benchmarkDefinitionDb.countDefinitionsReferencingModelId(
+        target.model_id,
+      );
+    if (referencingDefinitions > 0) {
+      throw new ConflictException(
+        `Cannot delete: ${referencingDefinitions} benchmark definition(s) reference this version. Detach them first.`,
+      );
+    }
+
+    // Best-effort Azure delete; if Azure is misconfigured we still tombstone
+    // locally so the row stops appearing in the OCR picker.
+    try {
+      await this.deleteModelIfExists(target.model_id);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to delete Azure model ${target.model_id} during version delete: ${(error as Error).message}`,
+      );
+    }
+    const updated = await this.trainingDb.tombstoneTrainedModel(trainedModelId);
+    return this.mapTrainedModelToDto(updated);
+  }
+
   mapTrainedModelToDto(model: TrainedModel): TrainedModelDto {
     return {
       id: model.id,
       templateModelId: model.template_model_id,
       trainingJobId: model.training_job_id,
       modelId: model.model_id,
+      version: model.version,
+      isActive: model.is_active,
+      deletedAt: model.deleted_at ?? undefined,
       description: model.description ?? undefined,
       docTypes: model.doc_types as Record<string, unknown> | undefined,
       fieldCount: model.field_count,

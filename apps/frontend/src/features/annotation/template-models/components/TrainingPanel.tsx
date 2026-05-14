@@ -4,7 +4,6 @@ import {
   Badge,
   Button,
   Code,
-  CopyButton,
   Group,
   Loader,
   Paper,
@@ -19,7 +18,6 @@ import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconCheck,
-  IconCopy,
   IconPlayerStop,
   IconX,
 } from "@tabler/icons-react";
@@ -187,27 +185,13 @@ export function TrainingPanel({
           {templateModelModelId && (
             <Group gap="xs">
               <Text size="sm" fw={500}>
-                Azure Model ID:
+                Template Model ID:
               </Text>
               <Code>{templateModelModelId}</Code>
-              <CopyButton value={templateModelModelId}>
-                {({ copied, copy }) => (
-                  <Tooltip label={copied ? "Copied!" : "Copy model ID"}>
-                    <ActionIcon
-                      color={copied ? "green" : "blue"}
-                      variant="subtle"
-                      size="sm"
-                      onClick={copy}
-                    >
-                      {copied ? (
-                        <IconCheck size={14} />
-                      ) : (
-                        <IconCopy size={14} />
-                      )}
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-              </CopyButton>
+              <Text size="xs" c="dimmed">
+                — the actual Azure model name will be versioned (e.g.
+                {` ${templateModelModelId}-v2`}) for retrains.
+              </Text>
             </Group>
           )}
           <Textarea

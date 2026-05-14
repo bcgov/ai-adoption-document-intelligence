@@ -27,8 +27,10 @@ describe("TrainingPollerService", () => {
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
     findTrainedModelByModelId: jest.Mock;
-    deleteTrainedModel: jest.Mock;
     findAllTrainedModels: jest.Mock;
+    buildTrainedModelSnapshot: jest.Mock;
+    demoteActiveTrainedModels: jest.Mock;
+    replaceActiveTrainedModel: jest.Mock;
   };
   let mockAdminClient: Record<string, jest.Mock>;
 
@@ -46,6 +48,8 @@ describe("TrainingPollerService", () => {
     container_name: "training-project-1",
     sas_url: null,
     blob_count: null,
+    target_model_id: "model-123",
+    target_version: 1,
     started_at: new Date(),
     completed_at: null,
     error_message: null,
@@ -63,8 +67,10 @@ describe("TrainingPollerService", () => {
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
       findTrainedModelByModelId: jest.fn(),
-      deleteTrainedModel: jest.fn(),
       findAllTrainedModels: jest.fn(),
+      buildTrainedModelSnapshot: jest.fn().mockResolvedValue({ documents: [] }),
+      demoteActiveTrainedModels: jest.fn().mockResolvedValue(0),
+      replaceActiveTrainedModel: jest.fn(),
     };
 
     // Mock Azure client methods
@@ -435,7 +441,7 @@ describe("TrainingPollerService", () => {
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
-      mockTrainingDb.createTrainedModel.mockResolvedValue({
+      mockTrainingDb.replaceActiveTrainedModel.mockResolvedValue({
         id: "trained-1",
         model_id: "model-123",
       });
@@ -451,14 +457,20 @@ describe("TrainingPollerService", () => {
         completed_at: expect.any(Date),
       });
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
-        template_model_id: "tm-1",
-        training_job_id: "job-1",
-        model_id: "model-123",
-        description: "Test model",
-        doc_types: expect.any(Object),
-        field_count: 2,
-      });
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          template_model_id: "tm-1",
+          training_job_id: "job-1",
+          model_id: "model-123",
+          version: 1,
+          is_active: true,
+          description: "Test model",
+          doc_types: expect.any(Object),
+          field_count: 2,
+          dataset_snapshot: { documents: [] },
+        }),
+      );
     });
 
     it("should handle succeeded status without result by fetching model", async () => {
@@ -497,7 +509,7 @@ describe("TrainingPollerService", () => {
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
-      mockTrainingDb.createTrainedModel.mockResolvedValue({
+      mockTrainingDb.replaceActiveTrainedModel.mockResolvedValue({
         id: "trained-1",
         model_id: "model-123",
       });
@@ -509,14 +521,20 @@ describe("TrainingPollerService", () => {
       );
 
       expect(mockGetModel).toHaveBeenCalled();
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
-        template_model_id: "tm-1",
-        training_job_id: "job-1",
-        model_id: "model-123",
-        description: "Fetched model",
-        doc_types: expect.any(Object),
-        field_count: 3,
-      });
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          template_model_id: "tm-1",
+          training_job_id: "job-1",
+          model_id: "model-123",
+          version: 1,
+          is_active: true,
+          description: "Fetched model",
+          doc_types: expect.any(Object),
+          field_count: 3,
+          dataset_snapshot: { documents: [] },
+        }),
+      );
     });
 
     it("should handle model fetch error when no result", async () => {
@@ -582,7 +600,7 @@ describe("TrainingPollerService", () => {
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
       mockTrainingDb.updateTrainingJob.mockResolvedValue(mockTrainingJob);
-      mockTrainingDb.createTrainedModel.mockResolvedValue({
+      mockTrainingDb.replaceActiveTrainedModel.mockResolvedValue({
         id: "trained-1",
         model_id: "model-123",
       });
@@ -593,14 +611,19 @@ describe("TrainingPollerService", () => {
         "operation-123",
       );
 
-      expect(mockTrainingDb.createTrainedModel).toHaveBeenCalledWith({
-        template_model_id: "tm-1",
-        training_job_id: "job-1",
-        model_id: "model-123",
-        description: "Model without docTypes",
-        doc_types: {},
-        field_count: 0,
-      });
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          template_model_id: "tm-1",
+          training_job_id: "job-1",
+          model_id: "model-123",
+          version: 1,
+          is_active: true,
+          description: "Model without docTypes",
+          doc_types: {},
+          field_count: 0,
+        }),
+      );
     });
   });
 
