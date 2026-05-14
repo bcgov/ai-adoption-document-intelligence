@@ -191,8 +191,14 @@ export class TrainingPollerService {
         const resultModel = operation.result;
         let docTypes = resultModel?.docTypes || {};
         let description = resultModel?.description;
+        // Gate on neural at the source — the schema documents this column as
+        // "always null for template", and Azure could in principle return
+        // trainingHours on a template result. Belt-and-braces matches the
+        // fallback path below.
         let actualTrainingHours: number | null =
-          resultModel?.trainingHours ?? null;
+          job.build_mode === BuildMode.neural
+            ? (resultModel?.trainingHours ?? null)
+            : null;
 
         if (
           !resultModel ||

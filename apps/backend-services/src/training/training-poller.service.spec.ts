@@ -703,6 +703,46 @@ describe("TrainingPollerService", () => {
       expect(documentModelsGet).not.toHaveBeenCalled();
     });
 
+    it("ignores trainingHours from operation.result on template builds", async () => {
+      // Schema invariant: actual_training_hours is always null for template.
+      // If Azure ever surfaces trainingHours on a template result body, the
+      // poller must drop it rather than persist it.
+      const templateJob = {
+        ...mockTrainingJob,
+        build_mode: BuildMode.template,
+        max_training_hours: null,
+      };
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValue([templateJob]);
+      mockTrainingDb.findTrainingJob.mockResolvedValue(templateJob);
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const operationGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          status: "succeeded",
+          result: {
+            docTypes: { doc1: { fieldSchema: { f1: {} } } },
+            description: "template-model",
+            trainingHours: 0.5, // Hypothetical leak — must be ignored.
+          },
+        },
+      });
+      mockAdminClient.path = jest.fn((p: string) => {
+        if (p.includes("/operations/")) return { get: operationGet };
+        return { get: jest.fn() };
+      });
+
+      await service.pollActiveJobs();
+
+      expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          build_mode: BuildMode.template,
+          actual_training_hours: null,
+        }),
+      );
+    });
+
     it("uses trainingHours from operation.result when present and skips the model GET", async () => {
       const neuralJob = {
         ...mockTrainingJob,
