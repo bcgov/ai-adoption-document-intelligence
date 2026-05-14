@@ -671,10 +671,11 @@ export class TrainingService {
   }
 
   /**
-   * Proxy of Azure Document Intelligence `GET /info`. Surfaces the Azure
-   * region and neural model quota so the frontend can show an FYI banner
-   * when the user picks neural mode. Any fields Azure exposes beyond what
-   * we explicitly model are returned under `raw` for forward-compat.
+   * Proxy of Azure Document Intelligence `GET /info`. Surfaces only the
+   * Azure region and neural model quota so the frontend can show an FYI
+   * banner when the user picks neural mode. The full Azure body is not
+   * passed through — any new field must be modelled explicitly here so we
+   * never expose resource-level metadata through this endpoint.
    */
   async getTrainingInfo(): Promise<TrainingInfoDto> {
     if (!this.adminClient) {
@@ -699,12 +700,11 @@ export class TrainingService {
     const body = (response.body ?? {}) as unknown as Record<string, unknown>;
     return {
       region: typeof body.region === "string" ? body.region : undefined,
-      // Passthrough — Azure's response is documented but not strongly schema-validated here;
-      // the consumer (frontend) is responsible for reading what it needs from the shape.
+      // Allow-list passthrough: only fields we've consciously decided to surface.
+      // Azure's response shape is documented but not validated here.
       customNeuralDocumentModelBuilds: body.customNeuralDocumentModelBuilds as
         | TrainingInfoDto["customNeuralDocumentModelBuilds"]
         | undefined,
-      raw: body,
     };
   }
 

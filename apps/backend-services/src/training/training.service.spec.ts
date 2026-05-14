@@ -1184,11 +1184,12 @@ describe("TrainingService", () => {
         quota: 20,
         quotaResetDateTime: "2026-06-01T00:00:00Z",
       });
-      expect(result.raw).toEqual(
-        expect.objectContaining({
-          customDocumentModels: { count: 1, limit: 100 },
-        }),
+      // Allow-listed fields only — Azure body fields we don't model must not leak.
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(["customNeuralDocumentModelBuilds"]),
       );
+      expect(result).not.toHaveProperty("raw");
+      expect(result).not.toHaveProperty("customDocumentModels");
     });
 
     it("throws a generic 500 when Azure returns an error (does not leak Azure message)", async () => {
