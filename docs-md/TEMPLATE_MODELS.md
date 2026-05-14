@@ -182,7 +182,7 @@ apps/frontend/src/features/annotation/template-models/
 - **Training panel**: No model_id input — just click "Train" with optional description
 - **Model card**: Shows both friendly name and copyable `model_id`
 - **Status badges**: draft (blue), training (yellow), trained (green), failed (red)
-- **Build mode**: TrainingPanel exposes a Template/Neural segmented selector. When Neural is selected, an FYI banner shows region + neural quota and the `Max training hours` input appears (default 1h).
+- **Build mode**: TrainingPanel exposes a Template/Neural segmented selector. When Neural is selected, an FYI banner shows region + neural quota and the `Max training hours` input appears (default 1h). The backend caps `maxTrainingHours` at 10 — Azure's free-tier ceiling. Anything above 10 hours requires a configured Azure budget; the API rejects such requests as a guardrail against unintended spend.
 - **Suggest Formats**: On the Field Schema tab, clicking "Suggest Formats" calls the AI endpoint with HITL corrections. Accepts an optional `suggestFromRun` query param to also include benchmark run mismatch data — when present, the suggestion runs automatically on page load.
 
 ### Format Suggestions with Benchmark Data

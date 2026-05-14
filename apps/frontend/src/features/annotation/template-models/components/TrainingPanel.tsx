@@ -270,8 +270,9 @@ export function TrainingPanel({
 
               <NumberInput
                 label="Max training hours"
-                description="Default 1h. Training stops at this budget and returns the best model so far — it does not fail."
+                description="Default 1h. Capped at 10h — Azure's free-tier ceiling. Training stops at this budget and returns the best model so far — it does not fail."
                 min={0.5}
+                max={10}
                 step={0.5}
                 clampBehavior="strict"
                 value={maxTrainingHours}
