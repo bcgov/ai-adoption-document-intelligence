@@ -75,6 +75,8 @@ export class TrainingService {
     private readonly trainingDb: TrainingDbService,
     private readonly azureStorage: AzureStorageService,
     private readonly templateModelService: TemplateModelService,
+    // forwardRef pairs with the module-level forwardRef on BenchmarkModule in
+    // training.module.ts — see the comment there for the cycle path.
     @Inject(forwardRef(() => BenchmarkDefinitionDbService))
     private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
     private readonly configService: ConfigService,
