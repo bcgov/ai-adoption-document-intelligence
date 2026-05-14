@@ -223,8 +223,8 @@ services:
 
   frontend:
     build:
-      context: apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
       args:
         VITE_API_BASE_URL: /api
         VITE_SSO_AUTH_SERVER_URL: ${VITE_SSO_AUTH_SERVER_URL}
