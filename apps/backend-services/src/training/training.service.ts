@@ -16,7 +16,9 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
@@ -676,14 +678,23 @@ export class TrainingService {
    */
   async getTrainingInfo(): Promise<TrainingInfoDto> {
     if (!this.adminClient) {
-      throw new Error("Azure Document Intelligence client is not configured");
+      // 503: the service-level dependency is missing config, not a client error.
+      throw new ServiceUnavailableException(
+        "Azure Document Intelligence is not configured",
+      );
     }
     const response = await this.adminClient.path("/info").get();
     if (isUnexpected(response)) {
-      const errorMessage =
+      // Log Azure's own message for diagnostics, but never surface it to the
+      // caller — it can include resource names, region detail, or quota hints
+      // that we don't want to expose through a generic /info endpoint.
+      const azureMessage =
         (response.body as AzureErrorResponse)?.error?.message ||
-        `Azure /info request failed with status ${response.status}`;
-      throw new Error(errorMessage);
+        `status ${response.status}`;
+      this.logger.error(`Azure /info request failed: ${azureMessage}`);
+      throw new InternalServerErrorException(
+        "Failed to fetch Azure training info",
+      );
     }
     const body = (response.body ?? {}) as unknown as Record<string, unknown>;
     return {

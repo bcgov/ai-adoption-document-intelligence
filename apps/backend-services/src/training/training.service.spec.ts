@@ -2,7 +2,9 @@ import { BuildMode, LabelingStatus, TrainingStatus } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -1189,7 +1191,7 @@ describe("TrainingService", () => {
       );
     });
 
-    it("throws when Azure returns an error response", async () => {
+    it("throws a generic 500 when Azure returns an error (does not leak Azure message)", async () => {
       const mockGet = jest.fn().mockResolvedValue({
         status: "401",
         body: { error: { message: "Invalid api-key" } },
@@ -1197,12 +1199,19 @@ describe("TrainingService", () => {
       mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await expect(service.getTrainingInfo()).rejects.toThrow(
-        "Invalid api-key",
+      const promise = service.getTrainingInfo();
+      await expect(promise).rejects.toThrow(InternalServerErrorException);
+      // Azure's message must be logged but not raised through.
+      await expect(promise).rejects.toThrow(
+        "Failed to fetch Azure training info",
+      );
+      await expect(promise).rejects.not.toThrow("Invalid api-key");
+      expect(mockAppLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid api-key"),
       );
     });
 
-    it("throws when the Azure client is not configured", async () => {
+    it("throws 503 when the Azure client is not configured", async () => {
       const moduleNoCreds: TestingModule = await Test.createTestingModule({
         providers: [
           TrainingService,
@@ -1232,8 +1241,10 @@ describe("TrainingService", () => {
       const unconfiguredService =
         moduleNoCreds.get<TrainingService>(TrainingService);
 
-      await expect(unconfiguredService.getTrainingInfo()).rejects.toThrow(
-        "Azure Document Intelligence client is not configured",
+      const promise = unconfiguredService.getTrainingInfo();
+      await expect(promise).rejects.toThrow(ServiceUnavailableException);
+      await expect(promise).rejects.toThrow(
+        "Azure Document Intelligence is not configured",
       );
     });
   });
