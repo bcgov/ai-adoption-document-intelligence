@@ -1,5 +1,10 @@
 import { DocumentStatus, GroupRole } from "@generated/client";
-import { BadRequestException, HttpException, HttpStatus } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
@@ -210,6 +215,35 @@ describe("UploadController", () => {
         undefined,
         "wv-2",
       );
+    });
+
+    it("rejects with 403 when body group_id does not match the API key's group", async () => {
+      const reqWithKey = {
+        resolvedIdentity: {
+          isSystemAdmin: false,
+          groupRoles: { "group-from-key": GroupRole.MEMBER },
+          actorId: "actor-key",
+        },
+        apiKey: {
+          groupId: "group-from-key",
+          keyPrefix: "abc",
+          actorId: "actor-key",
+        },
+      } as any;
+      const dto: UploadDocumentDto = {
+        title: "Test",
+        file: "ZmFrZUJhc2U2NA==",
+        file_type: FileType.PDF,
+        original_filename: "test.pdf",
+        model_id: "test-model-id",
+        group_id: "other-group",
+        workflow_slug: "ocr-only-minimal",
+      };
+      await expect(controller.uploadDocument(dto, reqWithKey)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(documentService.uploadDocument).not.toHaveBeenCalled();
+      expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
     });
 
     it("should throw HttpException 422 when PDF normalization failed", async () => {
