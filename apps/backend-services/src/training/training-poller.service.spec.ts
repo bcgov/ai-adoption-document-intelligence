@@ -201,6 +201,31 @@ describe("TrainingPollerService", () => {
       expect(mockTrainingDb.findAllActiveTrainingJobs).toHaveBeenCalled();
     });
 
+    it("marks a job FAILED when it exceeds the wall-clock cap and skips Azure call", async () => {
+      // started_at well beyond the default 24h cap.
+      const stuckJob = {
+        ...mockTrainingJob,
+        started_at: new Date(Date.now() - 25 * 3600 * 1000),
+      };
+      mockTrainingDb.findAllActiveTrainingJobs.mockResolvedValueOnce([
+        stuckJob,
+      ]);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce(stuckJob);
+      const operationGet = jest.fn();
+      mockAdminClient.path = jest.fn(() => ({ get: operationGet }));
+
+      await service.pollActiveJobs();
+
+      expect(operationGet).not.toHaveBeenCalled();
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith(
+        stuckJob.id,
+        expect.objectContaining({
+          status: TrainingStatus.FAILED,
+          error_message: expect.stringContaining("wall-clock cap"),
+        }),
+      );
+    });
+
     it("should poll all active jobs", async () => {
       const jobs = [
         {
