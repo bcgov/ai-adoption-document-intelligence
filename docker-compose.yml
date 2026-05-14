@@ -2,7 +2,7 @@ services:
   # ── Backend infrastructure ────────────────────────────────────────────────
   postgres:
     image: postgres:15
-    container_name: ai-doc-intelligence-postgres
+    container_name: postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ai_doc_intelligence
@@ -20,7 +20,7 @@ services:
 
   minio:
     image: minio/minio
-    container_name: ai-doc-intelligence-minio
+    container_name: minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -39,7 +39,7 @@ services:
 
   minio-init:
     image: minio/mc
-    container_name: ai-doc-intelligence-minio-init
+    container_name: minio-init
     depends_on:
       minio:
         condition: service_healthy
@@ -113,7 +113,7 @@ services:
     build:
       context: .
       dockerfile: apps/backend-services/Dockerfile
-    container_name: ai-doc-intelligence-migrate
+    container_name: postgres-migrate
     command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ai_doc_intelligence?schema=public
@@ -127,7 +127,7 @@ services:
     build:
       context: .
       dockerfile: apps/backend-services/Dockerfile
-    container_name: ai-doc-intelligence-backend
+    container_name: nestjs-backend
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -158,8 +158,8 @@ services:
       ENABLE_BENCHMARK_QUEUE: ${ENABLE_BENCHMARK_QUEUE:-true}
       SEED_USER_SUB: ${SEED_USER_SUB}
       SEED_USER_EMAIL: ${SEED_USER_EMAIL}
-      TEST_API_KEY: ${TEST_API_KEY}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL}
     ports:
       - "3002:3002"
     depends_on:
@@ -171,13 +171,19 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3002/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     profiles: [app]
 
   temporal-worker:
     build:
       context: .
       dockerfile: apps/temporal/Dockerfile
-    container_name: ai-doc-intelligence-temporal-worker
+    container_name: temporal-worker
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -220,7 +226,7 @@ services:
         VITE_SSO_CLIENT_ID: ${VITE_SSO_CLIENT_ID}
         VITE_APP_NAME: ${VITE_APP_NAME:-AI OCR Frontend}
         VITE_APP_VERSION: ${VITE_APP_VERSION:-1.0.0}
-    container_name: ai-doc-intelligence-frontend
+    container_name: frontend
     restart: unless-stopped
     environment:
       # nginx proxies /api/ to this URL at container startup
@@ -228,13 +234,14 @@ services:
     ports:
       - "3000:8080"
     depends_on:
-      - backend-services
+      backend-services:
+        condition: service_started
     profiles: [app]
 
   # ── Monitoring stack (opt-in via --profile monitoring) ────────────────────
   loki:
     image: grafana/loki:3.4.0
-    container_name: ai-doc-intelligence-loki
+    container_name: loki
     restart: unless-stopped
     command: -config.file=/etc/loki/loki.yaml
     volumes:
@@ -252,7 +259,7 @@ services:
 
   promtail:
     image: grafana/promtail:3.4.0
-    container_name: ai-doc-intelligence-promtail
+    container_name: promtail
     restart: unless-stopped
     command: -config.file=/etc/promtail/promtail-config.yml
     volumes:
@@ -266,7 +273,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager:v0.28.1
-    container_name: ai-doc-intelligence-alertmanager
+    container_name: alertmanager
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -290,7 +297,7 @@ services:
     build:
       context: .
       dockerfile: apps/ches-adapter/Dockerfile
-    container_name: ai-doc-intelligence-ches-adapter
+    container_name: ches-adapter
     restart: unless-stopped
     command: ["/bin/sh", "-c", "node dist/index.js 2>&1 | tee -a /var/log/app/ches-adapter.log"]
     environment:
@@ -310,7 +317,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.2.1
-    container_name: ai-doc-intelligence-prometheus
+    container_name: prometheus
     restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -337,7 +344,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.5.2
-    container_name: ai-doc-intelligence-grafana
+    container_name: grafana
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}

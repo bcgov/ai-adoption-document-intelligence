@@ -6,9 +6,9 @@ import { config as dotenvConfig } from "dotenv";
 // then fall back to app-local .env. dotenv never overwrites already-set vars.
 const rootEnv = resolve(__dirname, "../../../.env");
 if (existsSync(rootEnv)) {
-  dotenvConfig({ path: rootEnv, quiet: true });
+  dotenvConfig({ path: rootEnv });
 }
-dotenvConfig({ quiet: true });
+dotenvConfig();
 
 /** Validated configuration read from environment variables at startup. */
 export interface Config {
