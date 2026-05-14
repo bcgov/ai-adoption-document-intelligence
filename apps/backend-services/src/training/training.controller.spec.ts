@@ -40,6 +40,7 @@ describe("TrainingController", () => {
       getTrainingJobs: jest.fn(),
       getTrainingJob: jest.fn(),
       cancelTrainingJob: jest.fn(),
+      getTrainingInfo: jest.fn(),
     } as unknown as jest.Mocked<TrainingService>;
 
     templateModelService = {
@@ -387,6 +388,25 @@ describe("TrainingController", () => {
       await expect(controller.cancelJob("job-1", req)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe("getTrainingInfo", () => {
+    it("returns the proxied Azure info shape", async () => {
+      trainingService.getTrainingInfo = jest.fn().mockResolvedValue({
+        region: "eastus",
+        customNeuralDocumentModelBuilds: {
+          used: 1,
+          quota: 20,
+          quotaResetDateTime: "2026-06-01T00:00:00Z",
+        },
+        raw: { region: "eastus" },
+      });
+
+      const result = await controller.getTrainingInfo();
+
+      expect(result.region).toBe("eastus");
+      expect(result.customNeuralDocumentModelBuilds?.used).toBe(1);
     });
   });
 });

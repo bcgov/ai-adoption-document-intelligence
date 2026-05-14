@@ -7,6 +7,11 @@ export enum TrainingStatus {
   FAILED = "FAILED",
 }
 
+export enum BuildMode {
+  template = "template",
+  neural = "neural",
+}
+
 export type TemplateModelStatus = "draft" | "training" | "trained" | "failed";
 
 export interface TrainingJob {
@@ -20,6 +25,8 @@ export interface TrainingJob {
   errorMessage?: string;
   startedAt: string;
   completedAt?: string;
+  buildMode: BuildMode;
+  maxTrainingHours?: number;
 }
 
 export interface ValidationResult {
@@ -31,6 +38,8 @@ export interface ValidationResult {
 
 export interface StartTrainingRequest {
   description?: string;
+  buildMode?: BuildMode;
+  maxTrainingHours?: number;
 }
 
 /**
@@ -51,6 +60,9 @@ export interface TrainedModelVersion {
   docTypes?: Record<string, unknown>;
   fieldCount: number;
   createdAt: string;
+  buildMode: BuildMode;
+  maxTrainingHours?: number;
+  actualTrainingHours?: number;
 }
 
 export interface TrainedModelSnapshotLabel {
@@ -69,4 +81,13 @@ export interface TrainedModelSnapshotDocument {
 
 export interface TrainedModelSnapshot {
   documents: TrainedModelSnapshotDocument[];
+}
+
+export interface TrainingInfo {
+  region?: string;
+  customNeuralDocumentModelBuilds?: {
+    used: number;
+    quota: number;
+    quotaResetDateTime: string;
+  };
 }

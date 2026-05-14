@@ -4,6 +4,7 @@ import DocumentIntelligence, {
   parseResultIdFromResponse,
 } from "@azure-rest/ai-document-intelligence";
 import {
+  BuildMode,
   LabelingStatus,
   TrainedModel,
   TrainingJob,
@@ -15,7 +16,9 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
@@ -30,6 +33,7 @@ import { ExportFormat } from "../template-model/dto/export.dto";
 import { TemplateModelService } from "../template-model/template-model.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
+import { TrainingInfoDto } from "./dto/training-info.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
 import { TrainingDbService } from "./training-db.service";
 
@@ -318,12 +322,18 @@ export class TrainingService {
     // job's intended output so the poller doesn't have to re-derive the
     // versioning later.
     const containerName = `training-${templateModelId}-v${nextVersion}`;
+    const buildMode = dto.buildMode ?? BuildMode.template;
+    const maxTrainingHours =
+      buildMode === BuildMode.neural ? (dto.maxTrainingHours ?? null) : null;
+
     const trainingJob = await this.trainingDb.createTrainingJob({
       template_model_id: templateModelId,
       status: TrainingStatus.PENDING,
       container_name: containerName,
       target_model_id: versionedModelId,
       target_version: nextVersion,
+      build_mode: buildMode,
+      max_training_hours: maxTrainingHours,
     });
 
     // Start async upload and training process
@@ -442,10 +452,14 @@ export class TrainingService {
           body: {
             modelId,
             description: dto.description,
-            buildMode: "template",
+            buildMode: job.build_mode,
             azureBlobSource: {
               containerUrl: sasUrl,
             },
+            ...(job.build_mode === BuildMode.neural &&
+            job.max_training_hours !== null
+              ? { maxTrainingHours: job.max_training_hours }
+              : {}),
           },
         });
 
@@ -604,6 +618,8 @@ export class TrainingService {
       errorMessage: job.error_message ?? undefined,
       startedAt: job.started_at,
       completedAt: job.completed_at ?? undefined,
+      buildMode: job.build_mode,
+      maxTrainingHours: job.max_training_hours ?? undefined,
     };
   }
 
@@ -652,6 +668,44 @@ export class TrainingService {
    */
   async findAllTrainedModelIds(): Promise<string[]> {
     return this.trainingDb.findAllTrainedModelIds();
+  }
+
+  /**
+   * Proxy of Azure Document Intelligence `GET /info`. Surfaces only the
+   * Azure region and neural model quota so the frontend can show an FYI
+   * banner when the user picks neural mode. The full Azure body is not
+   * passed through — any new field must be modelled explicitly here so we
+   * never expose resource-level metadata through this endpoint.
+   */
+  async getTrainingInfo(): Promise<TrainingInfoDto> {
+    if (!this.adminClient) {
+      // 503: the service-level dependency is missing config, not a client error.
+      throw new ServiceUnavailableException(
+        "Azure Document Intelligence is not configured",
+      );
+    }
+    const response = await this.adminClient.path("/info").get();
+    if (isUnexpected(response)) {
+      // Log Azure's own message for diagnostics, but never surface it to the
+      // caller — it can include resource names, region detail, or quota hints
+      // that we don't want to expose through a generic /info endpoint.
+      const azureMessage =
+        (response.body as AzureErrorResponse)?.error?.message ||
+        `status ${response.status}`;
+      this.logger.error(`Azure /info request failed: ${azureMessage}`);
+      throw new InternalServerErrorException(
+        "Failed to fetch Azure training info",
+      );
+    }
+    const body = (response.body ?? {}) as unknown as Record<string, unknown>;
+    return {
+      region: typeof body.region === "string" ? body.region : undefined,
+      // Allow-list passthrough: only fields we've consciously decided to surface.
+      // Azure's response shape is documented but not validated here.
+      customNeuralDocumentModelBuilds: body.customNeuralDocumentModelBuilds as
+        | TrainingInfoDto["customNeuralDocumentModelBuilds"]
+        | undefined,
+    };
   }
 
   /**
@@ -780,6 +834,9 @@ export class TrainingService {
       docTypes: model.doc_types as Record<string, unknown> | undefined,
       fieldCount: model.field_count,
       createdAt: model.created_at,
+      buildMode: model.build_mode,
+      maxTrainingHours: model.max_training_hours ?? undefined,
+      actualTrainingHours: model.actual_training_hours ?? undefined,
     };
   }
 }

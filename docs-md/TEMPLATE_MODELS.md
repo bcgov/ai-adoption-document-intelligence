@@ -137,6 +137,7 @@ apps/backend-services/src/training/
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/template-models/training/info` | Azure resource region + neural quota (FYI for the train UI) |
 | GET | `/api/template-models/:modelId/training/validate` | Check training readiness |
 | POST | `/api/template-models/:modelId/training/train` | Start training |
 | GET | `/api/template-models/:modelId/training/jobs` | List training jobs |
@@ -181,6 +182,7 @@ apps/frontend/src/features/annotation/template-models/
 - **Training panel**: No model_id input — just click "Train" with optional description
 - **Model card**: Shows both friendly name and copyable `model_id`
 - **Status badges**: draft (blue), training (yellow), trained (green), failed (red)
+- **Build mode**: TrainingPanel exposes a Template/Neural segmented selector. When Neural is selected, an FYI banner shows region + neural quota and the `Max training hours` input appears (default 1h). The backend caps `maxTrainingHours` at 10 — Azure's free-tier ceiling. Anything above 10 hours requires a configured Azure budget; the API rejects such requests as a guardrail against unintended spend.
 - **Suggest Formats**: On the Field Schema tab, clicking "Suggest Formats" calls the AI endpoint with HITL corrections. Accepts an optional `suggestFromRun` query param to also include benchmark run mismatch data — when present, the suggestion runs automatically on page load.
 
 ### Format Suggestions with Benchmark Data
@@ -198,9 +200,9 @@ From the RunDetailPage, the "Suggest Formats" button opens a modal to select a t
 5. Clicks "Train" on the Training tab
 6. Backend validates readiness (min 5 labeled docs, schema defined, all docs have labels)
 7. Uploads training data to Azure Blob Storage
-8. Submits to Azure Document Intelligence `buildMode: "template"`
-9. Poller checks Azure every 10 seconds
-10. On success: TrainedModel record created, model appears in upload dropdown
+8. Submits to Azure Document Intelligence with `buildMode` matching the user's selection (`template` or `neural`); for neural, also passes `maxTrainingHours` if provided.
+9. Poller checks Azure every 10 seconds and continues until Azure reports a terminal status (`succeeded`, `failed`, or `canceled`). Neural builds can legitimately run for hours past the requested `maxTrainingHours` while Azure finalizes, so the poller defers to Azure's authoritative status. A local wall-clock safety net (`TRAINING_MAX_WALL_CLOCK_HOURS`, default 24h) marks the job FAILED if Azure never returns a terminal status — Azure may still be running, so the failure message directs the user to the Azure portal.
+10. On success: TrainedModel record created with `build_mode`, `max_training_hours`, and `actual_training_hours` (the read-only `trainingHours` Azure returned). Model appears in upload dropdown.
 
 ## Model Availability
 

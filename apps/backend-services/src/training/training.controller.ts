@@ -16,6 +16,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
@@ -26,6 +27,7 @@ import {
   TrainedModelDto,
   TrainedModelSnapshotDto,
 } from "./dto/trained-model.dto";
+import { TrainingInfoDto } from "./dto/training-info.dto";
 import {
   CancelJobResponseDto,
   TrainingJobDto,
@@ -42,6 +44,26 @@ export class TrainingController {
   ) {}
 
   /**
+   * Get Azure Document Intelligence resource info (region, neural quota).
+   * Not group-scoped — the response only exposes Azure-resource-level metadata.
+   */
+  @Get("training/info")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Get Azure Document Intelligence resource info (region, neural quota)",
+  })
+  @ApiOkResponse({
+    description:
+      "Region and quota information from Azure Document Intelligence /info",
+    type: TrainingInfoDto,
+  })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
+  async getTrainingInfo() {
+    return this.trainingService.getTrainingInfo();
+  }
+
+  /**
    * Validate if a template model is ready for training
    */
   @Get(":modelId/training/validate")
@@ -54,6 +76,7 @@ export class TrainingController {
     type: ValidationResultDto,
   })
   @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async validateTrainingData(
     @Param("modelId") modelId: string,
@@ -77,6 +100,7 @@ export class TrainingController {
     type: TrainingJobDto,
   })
   @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startTraining(
     @Param("modelId") modelId: string,
@@ -101,6 +125,7 @@ export class TrainingController {
     type: [TrainingJobDto],
   })
   @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getTrainingJobs(
     @Param("modelId") modelId: string,
@@ -124,6 +149,7 @@ export class TrainingController {
     type: TrainingJobDto,
   })
   @ApiNotFoundResponse({ description: "Training job not found" })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getJobStatus(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
@@ -146,6 +172,7 @@ export class TrainingController {
     type: CancelJobResponseDto,
   })
   @ApiNotFoundResponse({ description: "Training job not found" })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async cancelJob(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
@@ -169,6 +196,7 @@ export class TrainingController {
     type: [TrainedModelDto],
   })
   @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listTrainedVersions(
     @Param("modelId") modelId: string,
@@ -196,6 +224,7 @@ export class TrainingController {
   @ApiNotFoundResponse({
     description: "Template model or trained version not found",
   })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getTrainedVersionSnapshot(
     @Param("modelId") modelId: string,
@@ -227,6 +256,7 @@ export class TrainingController {
   @ApiNotFoundResponse({
     description: "Template model or trained version not found",
   })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async setActiveTrainedVersion(
     @Param("modelId") modelId: string,
@@ -258,6 +288,7 @@ export class TrainingController {
     description:
       "Version is currently active or referenced by a benchmark definition",
   })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteTrainedVersion(
     @Param("modelId") modelId: string,

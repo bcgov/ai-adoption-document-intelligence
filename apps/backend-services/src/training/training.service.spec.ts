@@ -1,8 +1,10 @@
-import { LabelingStatus, TrainingStatus } from "@generated/client";
+import { BuildMode, LabelingStatus, TrainingStatus } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -128,6 +130,8 @@ describe("TrainingService", () => {
     container_name: "training-tm-1",
     sas_url: null,
     blob_count: 0,
+    build_mode: BuildMode.template,
+    max_training_hours: null,
     target_model_id: null,
     target_version: null,
     operation_id: null,
@@ -150,6 +154,9 @@ describe("TrainingService", () => {
     description: "Test Model",
     doc_types: { custom: { fieldSchema: { field1: {} } } },
     field_count: 1,
+    build_mode: BuildMode.template,
+    max_training_hours: null,
+    actual_training_hours: null,
     created_at: new Date(),
   };
 
@@ -569,6 +576,238 @@ describe("TrainingService", () => {
       );
     });
 
+    it("persists buildMode=neural and maxTrainingHours on the new TrainingJob", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+      ] as never);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(2);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v2",
+        sas_url: null,
+        blob_count: 0,
+        operation_id: null,
+        error_message: null,
+        started_at: new Date(),
+        completed_at: null,
+        target_model_id: "custom-model-1-v2",
+        target_version: 2,
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+
+      await service.startTraining("tm-1", {
+        description: "test",
+        buildMode: "neural" as never,
+        maxTrainingHours: 2,
+      });
+
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: "neural",
+          max_training_hours: 2,
+        }),
+      );
+    });
+
+    it("defaults buildMode to template and leaves max_training_hours null when not provided", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+      ] as never);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v1",
+        target_model_id: "custom-model-1",
+        target_version: 1,
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+
+      await service.startTraining("tm-1", { description: "test" });
+
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: "template",
+          max_training_hours: null,
+        }),
+      );
+    });
+
+    it("sends buildMode=neural and maxTrainingHours in the Azure build request", async () => {
+      const mockPost = jest.fn().mockResolvedValue({
+        status: "202",
+        headers: { "operation-location": "https://x/operations/op-1" },
+        body: { resultId: "op-1" },
+      });
+      const mockDelete = jest.fn().mockResolvedValue({ status: "204" });
+      mockAdminClient.path = jest
+        .fn()
+        .mockReturnValue({ post: mockPost, delete: mockDelete });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      // validateTrainingData call
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce({
+        fieldsJson: { fields: [] },
+        labelsFiles: [],
+      } as never);
+      // prepareTrainingFiles call (inside uploadAndTrain)
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v1",
+        target_model_id: "custom-model-1",
+        target_version: 1,
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        container_name: "training-tm-1-v1",
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+      mockBlobStorage.clearContainerContents.mockResolvedValueOnce(
+        undefined as never,
+      );
+      mockBlobStorage.uploadFiles.mockResolvedValueOnce({
+        uploaded: 1,
+        failed: 0,
+        failedFiles: [],
+      } as never);
+      mockBlobStorage.generateSasUrl.mockResolvedValueOnce(
+        "https://blob/c?sp=rl&sr=c&se=2099-01-01" as never,
+      );
+
+      await service.startTraining("tm-1", {
+        buildMode: "neural" as never,
+        maxTrainingHours: 2,
+      });
+      await new Promise((r) => setImmediate(r));
+
+      expect(mockPost).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            buildMode: "neural",
+            maxTrainingHours: 2,
+          }),
+        }),
+      );
+    });
+
+    it("omits maxTrainingHours from Azure payload when buildMode=template", async () => {
+      const mockPost = jest.fn().mockResolvedValue({
+        status: "202",
+        headers: { "operation-location": "https://x/operations/op-1" },
+        body: { resultId: "op-1" },
+      });
+      const mockDelete = jest.fn().mockResolvedValue({ status: "204" });
+      mockAdminClient.path = jest
+        .fn()
+        .mockReturnValue({ post: mockPost, delete: mockDelete });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      // validateTrainingData call
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce({
+        fieldsJson: { fields: [] },
+        labelsFiles: [],
+      } as never);
+      // prepareTrainingFiles call (inside uploadAndTrain)
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v1",
+        target_model_id: "custom-model-1",
+        target_version: 1,
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        container_name: "training-tm-1-v1",
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+      mockBlobStorage.clearContainerContents.mockResolvedValueOnce(
+        undefined as never,
+      );
+      mockBlobStorage.uploadFiles.mockResolvedValueOnce({
+        uploaded: 1,
+        failed: 0,
+        failedFiles: [],
+      } as never);
+      mockBlobStorage.generateSasUrl.mockResolvedValueOnce(
+        "https://blob/c?sp=rl&sr=c&se=2099-01-01" as never,
+      );
+
+      await service.startTraining("tm-1", {});
+      await new Promise((r) => setImmediate(r));
+
+      expect(mockPost).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({ buildMode: "template" }),
+        }),
+      );
+      const sentBody = mockPost.mock.calls[0][0].body;
+      expect(sentBody.maxTrainingHours).toBeUndefined();
+    });
+
     it("refuses to start when an in-flight job already exists for the template", async () => {
       const dto = { description: "Test model" };
 
@@ -919,6 +1158,95 @@ describe("TrainingService", () => {
       expect(result).toHaveProperty("trainingJobId", "job-1");
       expect(result).toHaveProperty("modelId", "custom-model-1");
       expect(result).toHaveProperty("fieldCount", 1);
+    });
+  });
+
+  describe("getTrainingInfo", () => {
+    it("returns the parsed Azure /info response", async () => {
+      const mockGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          customDocumentModels: { count: 1, limit: 100 },
+          customNeuralDocumentModelBuilds: {
+            used: 3,
+            quota: 20,
+            quotaResetDateTime: "2026-06-01T00:00:00Z",
+          },
+        },
+      });
+      mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const result = await service.getTrainingInfo();
+
+      expect(result.customNeuralDocumentModelBuilds).toEqual({
+        used: 3,
+        quota: 20,
+        quotaResetDateTime: "2026-06-01T00:00:00Z",
+      });
+      // Allow-listed fields only — Azure body fields we don't model must not leak.
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(["customNeuralDocumentModelBuilds"]),
+      );
+      expect(result).not.toHaveProperty("raw");
+      expect(result).not.toHaveProperty("customDocumentModels");
+    });
+
+    it("throws a generic 500 when Azure returns an error (does not leak Azure message)", async () => {
+      const mockGet = jest.fn().mockResolvedValue({
+        status: "401",
+        body: { error: { message: "Invalid api-key" } },
+      });
+      mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
+
+      const promise = service.getTrainingInfo();
+      await expect(promise).rejects.toThrow(InternalServerErrorException);
+      // Azure's message must be logged but not raised through.
+      await expect(promise).rejects.toThrow(
+        "Failed to fetch Azure training info",
+      );
+      await expect(promise).rejects.not.toThrow("Invalid api-key");
+      expect(mockAppLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid api-key"),
+      );
+    });
+
+    it("throws 503 when the Azure client is not configured", async () => {
+      const moduleNoCreds: TestingModule = await Test.createTestingModule({
+        providers: [
+          TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          { provide: TrainingDbService, useValue: mockTrainingDb },
+          {
+            provide: AzureStorageService,
+            useValue: mockBlobStorage,
+          },
+          { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
+          {
+            provide: TemplateModelService,
+            useValue: mockTemplateModelService,
+          },
+          {
+            provide: BenchmarkDefinitionDbService,
+            useValue: mockBenchmarkDefinitionDb,
+          },
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn(() => undefined),
+            },
+          },
+        ],
+      }).compile();
+      const unconfiguredService =
+        moduleNoCreds.get<TrainingService>(TrainingService);
+
+      const promise = unconfiguredService.getTrainingInfo();
+      await expect(promise).rejects.toThrow(ServiceUnavailableException);
+      await expect(promise).rejects.toThrow(
+        "Azure Document Intelligence is not configured",
+      );
     });
   });
 });

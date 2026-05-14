@@ -265,6 +265,11 @@ model TrainingJob {
   container_name String
   sas_url        String?
   blob_count     Int            @default(0)
+  /// Azure build mode used for this training run.
+  build_mode     BuildMode      @default(template)
+  /// Optional max training hours budget. Only meaningful for neural builds;
+  /// passed straight through to the Azure `maxTrainingHours` parameter.
+  max_training_hours Float?
 
   /// The versioned Azure model ID this job targets (e.g. "km-invoice-v3").
   /// Captured at startTraining time so the poller and downstream consumers
@@ -311,6 +316,13 @@ model TrainedModel {
   description String?
   doc_types   Json?
   field_count Int     @default(0)
+  /// Mirrors TrainingJob.build_mode at the time of success.
+  build_mode        BuildMode @default(template)
+  /// Mirrors TrainingJob.max_training_hours at the time of success.
+  max_training_hours Float?
+  /// Read-only `trainingHours` from Azure GET /documentModels/{id} response,
+  /// captured by the poller on successful build. Always null for template.
+  actual_training_hours Float?
 
   created_at DateTime @default(now())
 
@@ -496,6 +508,11 @@ enum TemplateModelStatus {
   training
   trained
   failed
+}
+
+enum BuildMode {
+  template
+  neural
 }
 
 enum FieldType {

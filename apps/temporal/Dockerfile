@@ -41,8 +41,12 @@ ENV DATABASE_URL=${DATABASE_URL}
 RUN npx prisma generate --schema=./shared/prisma/schema.prisma
 
 # Copy source and build. Use a build tsconfig that only includes src (exclude prisma.config).
+# The parent tsconfig's `paths.mupdf` is `../../node_modules/...` (correct for the monorepo
+# layout); in this container `node_modules` sits next to the tsconfig, so we re-declare
+# `paths` here to point at the in-container location. `paths` in an extending config
+# replaces — not merges with — the parent's, so `@generated/*` must be repeated.
 COPY apps/temporal/src ./src
-RUN echo '{"extends":"./tsconfig.json","compilerOptions":{"rootDir":"./src"},"include":["src/**/*.ts"]}' > tsconfig.build.json && \
+RUN echo '{"extends":"./tsconfig.json","compilerOptions":{"rootDir":"./src","baseUrl":".","paths":{"@generated/*":["src/generated/*"],"mupdf":["./node_modules/mupdf/dist/mupdf"]}},"include":["src/**/*.ts"]}' > tsconfig.build.json && \
     npx tsc -p tsconfig.build.json
 
 # Production stage
