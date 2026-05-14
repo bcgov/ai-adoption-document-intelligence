@@ -17,6 +17,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles: [infra]
 
   minio:
     image: minio/minio
@@ -36,6 +37,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles: [infra]
 
   minio-init:
     image: minio/mc
@@ -50,6 +52,7 @@ services:
       - ./apps/backend-services/scripts/init-minio.sh:/init-minio.sh
     entrypoint: /bin/sh
     command: /init-minio.sh
+    profiles: [infra]
 
   # ── Temporal infrastructure ───────────────────────────────────────────────
   temporal-postgresql:
@@ -69,6 +72,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles: [temporal]
 
   temporal:
     image: temporalio/auto-setup:latest
@@ -93,6 +97,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    profiles: [temporal]
 
   temporal-ui:
     image: temporalio/ui:2.25.0
@@ -105,6 +110,7 @@ services:
       TEMPORAL_CORS_ORIGINS: http://localhost:3000
     depends_on:
       - temporal
+    profiles: [temporal]
 
   # ── Application containers (opt-in via --profile app) ────────────────────
   # Runs Prisma migrations before the backend starts.
@@ -213,7 +219,7 @@ services:
         condition: service_healthy
       temporal:
         condition: service_healthy
-    profiles: [app]
+    profiles: [temporal-worker]
 
   frontend:
     build:
