@@ -7,6 +7,9 @@ import { TrainingInfo } from "../types/training.types";
  * Used by TrainingPanel to show an FYI banner when the user picks neural
  * mode. Disabled until `enabled` is true so the call doesn't fire on every
  * page mount.
+ *
+ * retry: 0 — the banner is informational; the panel handles the error
+ * state gracefully. Failing fast beats waiting through retries.
  */
 export function useTrainingInfo(enabled: boolean) {
   return useQuery({
@@ -19,5 +22,6 @@ export function useTrainingInfo(enabled: boolean) {
     },
     enabled,
     staleTime: 60_000,
+    retry: 0,
   });
 }
