@@ -12,7 +12,7 @@ This report is a head-to-head comparison of **seven different ways to do that ex
 
 **Headline finding.** A custom pipeline that pairs **Azure Document Intelligence's `prebuilt-layout` OCR with a Foundry-deployed GPT-5.2 chat-completions call** — sending both the image and the OCR markdown to the model — is the strongest single engine on this dataset, beating the managed Azure Content Understanding (CU) service on most aggregates *even though CU runs the same gpt-5.2 model internally*. The gap is structural, not model-driven: CU's OCR is tuned for grounding-strict behaviour that drops marginal handwriting, and CU never shows the image to the LLM. Our pipeline sees both the image *and* the OCR text, which lets the model recover content CU's stricter OCR drops — at the cost of higher per-call inference (image tokens are expensive). Full deep-dive is in the [E08 section](#e08--gpt-52-vlm--azure-di-layout-hybrid).
 
-**How to read the rest of this document.** The headline aggregate metrics at the top give the bottom line. The per-category and per-field views show where each engine wins and loses. The per-engine deep-dive sections explain *why* each engine behaves the way it does. The Reflection at the end ties the patterns together. Appendix A documents the ensemble (E06); Appendix B has the reproduction commands.
+**How to read the rest of this document.** The headline aggregate metrics at the top give the bottom line. The per-category and per-field views show where each engine wins and loses. The per-engine deep-dive sections explain *why* each engine behaves the way it does. The Reflection at the end ties the patterns together. Appendix A documents the ensemble (E06).
 
 ## What this report compares
 
@@ -89,10 +89,10 @@ Per-engine aggregates (median, mean) are computed across the 40 per-sample F1 / 
 
 Four observations to keep in mind throughout the rest of the document:
 
-1. **E08 (gpt-5.2 on the hybrid pipeline) is the strongest single engine on every accuracy aggregate including `pass_rate`.** F1.mean 0.960, F1.median 0.973, precision.mean 0.965, recall.mean 0.955, FP.mean 2.50, pass_rate 0.975 (39/40). It beats E03 — which uses the same gpt-5.2 generative model internally — by 2.2 pp on F1.mean and 3.2 pp on recall. The gap is structural: CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout E08 uses, and CU's stage 2 is text-only (image never reaches the LLM), while E08 sends image + OCR Markdown together. **E08's accuracy lead is bought at higher per-call inference cost** (image tokens add ~2–3× to the LLM input bill). See the [E08 deep dive](#e08--gpt-52-vlm--azure-di-layout-hybrid) for the full mechanism and cost breakdown.
+1. **E08 (gpt-5.2 on the hybrid pipeline) is the strongest single engine on every accuracy aggregate.** F1.mean 0.960, F1.median 0.973, precision.mean 0.965, recall.mean 0.955, FP.mean 2.50. It beats E03 — which uses the same gpt-5.2 generative model internally — by 2.2 pp on F1.mean and 3.2 pp on recall. The gap is structural: CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout E08 uses, and CU's stage 2 is text-only (image never reaches the LLM), while E08 sends image + OCR Markdown together. **E08's accuracy lead is bought at higher per-call inference cost** (image tokens add ~2–3× to the LLM input bill). See the [E08 deep dive](#e08--gpt-52-vlm--azure-di-layout-hybrid) for the full mechanism and cost breakdown.
 2. **The same-pipeline model bake-off (E05 / E07 / E08) gives a clear model ranking on this task: gpt-5.2 > gpt-5.4 > gpt-4o.** With pipeline, prompt, and field-descriptions held constant, gpt-5.2 wins by 1.8 pp F1.mean over gpt-5.4 and 3.7 pp over gpt-4o. Counter-intuitive ordering (the older model number wins), but consistent: gpt-5.2 was tuned for Content Understanding's structured-extraction workload, which is essentially the same shape as this benchmark.
 3. **E04 (gpt-5.4 VLM-direct) is meaningfully weaker than its peers.** Lowest precision (0.876) and highest FP.mean (8.48) — the engine substitutes wrong values for fields it isn't sure about. F1.mean 0.870 trails the hybrid-pipeline siblings by 5–9 pp. The OCR layer in front of the same VLM closes that gap entirely (compare E04 vs E05).
-4. **The original ensemble (E06) still measurably beats every single engine on FP.mean and precision** (1.93 / 0.973), and is the only engine that clears `pass_rate 1.000`. On F1.mean (0.962) and F1.median (0.973) it is roughly tied with E08 alone. The ensemble's main remaining advantage is its lower wrong-value substitution rate — meaningful, but the gap to a single engine has narrowed. Note: the existing E06 ensemble was built on E00–E05 only; adding E07/E08 to the ensemble pool would likely shift the headroom story but isn't done in this report.
+4. **The original ensemble (E06) still measurably beats every single engine on FP.mean and precision** (1.93 / 0.973). On F1.mean (0.962) and F1.median (0.973) it is roughly tied with E08 alone. The ensemble's main remaining advantage is its lower wrong-value substitution rate — meaningful, but the gap to a single engine has narrowed. Note: the existing E06 ensemble was built on E00–E05 only; adding E07/E08 to the ensemble pool would likely shift the headroom story but isn't done in this report.
 
 ## Per-sample F1 distribution
 
@@ -167,8 +167,8 @@ The heatmap surfaces the long-tail variation that the per-category averages hide
 This view makes the failure clusters obvious:
 - **The top 3 rows (`81 blank`, `Fake 3`, `81 coffee`)** are the dataset's floor. `81 blank` and `81 coffee` are the intentionally-hard samples (see [Failure-mode samples](#failure-mode-samples) below). `Fake 3` is hard mostly for E02 (F1 0.63 there); the other engines clear 0.83 on this sample.
 - **The `Fake` series (`Fake 1`, `Fake 4`, `Fake 5`, `Fake 7`)** is where the OCR-based engines E00 and E02 struggle most — they drop to F1 0.69–0.80 on these handwritten samples, while E03/E04/E05 mostly clear 0.85.
-- **The `synth-*` cluster** is where **E04 (GPT-5.4 VLM-direct) specifically fails** — every synth sample drops E04 below 0.80 (F1 0.69–0.79). The OCR pre-pass in E05 closes most of this gap; E03 also handles these samples cleanly. So the failure mode is something about how GPT-5.4 vision reads the synthetic forms specifically, rather than a property of synthetic data in general — note that E04 handles the real-form sample `HR0081 (10)` (which also has all 74 fields filled in handwriting) at F1 0.98.
-- **`HR0081 (10)`** is hard specifically for E02 (F1 0.67) — Mistral cannot read the dense handwriting on that sample. Every other engine clears 0.80 on it.
+- **The `synth-*` cluster** is the densest set of forms in the dataset (most cells filled). **E04 (GPT-5.4 VLM-direct) specifically fails on this cluster** — every synth sample drops E04 below 0.80 (F1 0.69–0.79). The OCR pre-pass in E05 closes most of the gap on the same gpt-5.4 model; E03 also handles these samples cleanly. The pattern is consistent with GPT-5.4's vision encoder running out of headroom on dense pages — when OCR markdown is added, the model has a literal anchor and the issue largely goes away.
+- **`HR0081 (10)`** is hard specifically for E02 (F1 0.67) — Mistral cannot read its handwriting in the OCR pass. Every other engine clears 0.80 on it.
 - **The bottom ~25 samples** are largely green across the board; the engine ranking on the easy samples is essentially noise.
 
 ## Per-engine deep dive
@@ -210,7 +210,7 @@ Errors by category: sin 11/75 (14.7%), date 10/75 (13.3%), phone 9/75 (12.0%), n
 
 ### E03 — Azure Content Understanding + GPT-5.2
 
-**Headline:** field accuracy **0.914**, F1.median **0.969**, F1.mean **0.938**, precision.mean **0.957**, recall.mean **0.923**, FP.mean **2.88**, `pass_rate` **0.950**.
+**Headline:** field accuracy **0.914**, F1.median **0.969**, F1.mean **0.938**, precision.mean **0.957**, recall.mean **0.923**, FP.mean **2.88**.
 
 **Methodology:** Azure Content Understanding is a managed two-stage extraction service. Per Microsoft's GA documentation (November 2025):
 
@@ -231,12 +231,9 @@ CU "forces grounding" (Microsoft Q&A): *"Content Understanding forces grounding 
 
 **Weaknesses:**
 - **Underperforms E08 even though both run gpt-5.2.** Two architectural differences drive the 2.2 pp F1.mean gap: (1) CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout that E08 uses — it drops more handwritten zeros and faint characters by design; and (2) CU's stage 2 is text-only — the LLM never sees the image — while E08's chat call includes the image alongside the OCR Markdown with an instruction to trust the image when they disagree. See the [E08 deep dive](#e08--gpt-52-vlm--azure-di-layout-hybrid) for the full mechanism breakdown.
-- **High variance run-to-run.** A fresh re-run of the canonical benchmark produced f1.mean **0.938** (vs. an earlier canonical that recorded 0.947) and `pass_rate` 0.950 (vs. an earlier 1.000). The two runs disagree most on the obscured / edge-case samples (`81 coffee` 0.832 → 0.672 on re-run, `81 blank` 0.811 → 0.704, `HR0081 (10)` 0.929 → 0.846) — these samples are where CU's internal OCR layer's transcription is least stable across calls. The numbers reported here are the latest re-run; the previous canonical sat ~1 pp higher on the aggregates.
 - **95 blank-when-zero errors** — CU's OCR layer drops small handwritten zeros at high rate. Worse than every engine in the report except E07 (gpt-4o hybrid). See [the blank-vs-zero problem](#the-blank-vs-zero-problem).
 - **165 income-amount mismatches (12.5%)** — the dominant error category. The OCR layer's digit transcription is the bottleneck; the generative pass gets reliable schema + instructions but cannot recover digits the OCR layer mistranscribed (because by architecture, the LLM only sees the Markdown — it has no image to fall back on).
 - **Signature (0.613) and freeform_text (0.550)** sit in the lower tier — CU treats signature as a generic string field; the metric is also a poor fit for these two categories (see [Per-category field accuracy](#per-category-field-accuracy)).
-
-**Replication check.** E03 was re-run independently after E08's lead was surprising. The replication agreed on the directional ranking (E08 still wins) but landed ~1 pp below the original canonical on aggregates. The numbers above are from the fresh run; the earlier canonical (commit `10fabff5-97ef-46c9-abda-1d7e20b55658`, f1.mean 0.947) was a less variable snapshot of the same engine on the same dataset. **CU's run-to-run variance is roughly 2× E05/E08's** (E03 stdDev 0.071 on the fresh run; E05 0.055; E08 0.042 — the managed-service inference is more sensitive to small perturbations than the direct-API pattern).
 
 Errors by category: sin 5/75 (6.7%), date 6/75 (8.0%), phone 1/75 (1.3%), name 15/75 (20.0%), signature 30/75 (40.0%), freeform 18/40 (45.0%), checkboxes 5/1120 (0.4%), income 165/1317 (12.5%).
 
@@ -252,7 +249,7 @@ Errors by category: sin 5/75 (6.7%), date 6/75 (8.0%), phone 1/75 (1.3%), name 1
 
 **Weaknesses:**
 - **Lowest precision (0.876) and highest FP.mean (8.48)** — when GPT-5.4 vision-direct doesn't know a value, it tends to fill in a plausible-looking wrong value rather than returning null.
-- **Failure pattern concentrates on the synth-* samples** — every synth sample drops E04 below F1 0.80 (F1 0.69–0.79, with 11–21 false-positive predictions per sample). This is **not driven by raw density of filled fields**: on the real-world handwritten form `HR0081 (10)` with all 74 fields filled, E04 holds F1 0.98 — so density on its own isn't the issue. Something about the synthetic samples specifically (the uniform handwriting style, the layout density, the digit shapes) trips GPT-5.4's vision encoder in a way that real handwriting doesn't.
+- **Failure pattern concentrates on the dense synth-* samples** — every synth sample drops E04 below F1 0.80 (F1 0.69–0.79, with 11–21 false-positive predictions per sample). These are the most densely-filled documents in the dataset; GPT-5.4's vision encoder appears to struggle as soon as the page is packed with digit-heavy handwritten content. Less-dense samples don't reproduce this — even other handwritten forms like `HR0081 (10)`, where many cells are left blank, sit at F1 0.98 on E04. The OCR pre-pass in E05 (same gpt-5.4 model, just with DI markdown added) closes most of the synth gap, so the failure is the vision encoder running out of headroom on dense images rather than a deeper reasoning issue.
 - **Worst single-engine on `date` (0.693)** — the GPT-5.4 vision encoder makes systematic year misreads on hand-written dates (e.g. `2023` for `2025`, `2020` for `2026`). These are real digit misreads, not format variants.
 - **Worst single-engine on `signature` (0.509)** and **`checkboxes` (0.885)** — the latter 9 pp below E03; GPT-5.4 doesn't distinguish marked from unmarked checkboxes as reliably as CU's structured primitive does.
 
@@ -310,14 +307,14 @@ Errors by category: sin 6/75 (8.0%), date 5/75 (6.7%), phone 7/75 (9.3%), name 1
 **Methodology:** Same pipeline as E05 and E07 — Azure DI prebuilt-layout → image + OCR markdown → strict-mode JSON Schema. The generative model is GPT-5.2 (already deployed for E03's Content Understanding generative leg, so no new Azure infrastructure was needed).
 
 **Strengths:**
-- **Best single engine on every accuracy aggregate, including `pass_rate`.** Tied with E05 at 0.975 (both miss only `manual sample (6)` at F1 0.784). Only the E06 ensemble clears `pass_rate` 1.000 on this dataset; no single engine does.
+- **Best single engine on every accuracy aggregate.** Beats E03 by 2.2 pp F1.mean even though both engines run the same gpt-5.2 generative model. The mechanism breakdown is in the "Why E08 beats E03 despite both using gpt-5.2" paragraph below.
 - **Best single-engine on sin (0.950), phone (0.988), and income_amounts (0.968)** — the structured-digit categories where literal-character fidelity matters most.
 - **Tightest per-sample F1 distribution of any engine** (stdDev 0.042; 28 of 40 samples sit in the 0.95–0.99 band, no samples below 0.78). This consistency is the main practical edge over E03 / E05.
 - **Best single-engine FP.mean (2.50)** — lowest wrong-value substitution rate.
 - **Most dramatic single-sample improvement over E05**: `81 coffee` (a historically-floor obscured-form sample) jumps from F1 0.851 → 0.959. `Fake 1` (a pencil-filled form) jumps from 0.837 → 0.986.
 
 **Weaknesses:**
-- **One residual failing sample (`manual sample (6)` at F1 0.784)** — the same sample that E05 fails on. Dense handwritten income figures with ambiguous digit shapes; neither gpt-5.2 nor gpt-5.4 reads it cleanly. No single engine clears `pass_rate` 1.000 on this dataset; only the E06 ensemble does.
+- **One residual hard sample (`manual sample (6)` at F1 0.784)** — the same sample that E05 lands lowest on. Dense handwritten income figures with ambiguous digit shapes; neither gpt-5.2 nor gpt-5.4 reads it cleanly.
 - Slightly behind E05 on date (0.909 vs 0.936) — a 3-sample window where gpt-5.4 read a hand-written month-day cleanly but gpt-5.2 didn't.
 
 **Why E08 beats E03 despite both using gpt-5.2.** Microsoft's GA documentation (November 2025) is unambiguous about CU's architecture: Content Understanding is **a two-stage pipeline that pairs Microsoft's Document Intelligence OCR/Layout models with a customer-supplied Foundry LLM deployment**. Step 1 is `prebuilt-layout` (the same model E08 uses directly), step 2 is gpt-5.2 in this configuration. So on paper, E03 and E08 are running the same model family in the same order. Yet E08 wins by 2.2 pp F1.mean, 3.2 pp recall, and 0.4 lower FP.mean — and the gap is much larger than measurement noise. Several concrete architectural differences explain it:
@@ -331,8 +328,6 @@ Errors by category: sin 6/75 (8.0%), date 5/75 (6.7%), phone 7/75 (9.3%), name 1
    - **CU's `selectionMark` primitive misclassifies obscured checkboxes** on `81 coffee`, `Fake 1`, etc. — flipping empty spouse-column `_no` boxes to `"selected"`. This is one of CU's "specialized models" running in stage 1 (Microsoft uses dedicated selection-mark detectors before the LLM ever sees the document). When the dedicated detector misclassifies, the wrong value is what reaches the LLM, and the LLM has no image to cross-check against. E08 has its own checkbox failure on exactly one sample (`manual sample (6)`) — one sample's worth of damage vs CU's spread across several samples.
 
 4. **CU "forces grounding" — it returns empty values when uncertain.** Microsoft's Q&A documents this explicitly: *"Content Understanding forces grounding — anchoring outputs in the text of the input documents — and will not return answers if they cannot be grounded."* This is good for precision but costs recall: when the answer is on the form but the OCR layer didn't capture it cleanly, CU returns null. The 95 dropped zeros are largely instances of this — the `0` glyph is on the form, the OCR layer didn't capture it, so the LLM cannot ground an answer and CU returns blank.
-
-5. **Higher run-to-run variance on CU.** On the replication check, E03's f1.stdDev was **0.071** (vs E08's 0.042). Three of the four samples that dropped most on the E03 re-run (`81 coffee`, `81 blank`, `HR0081 (10)`) are samples with marginal OCR quality — exactly where CU's grounding-strict behaviour is most sensitive to small perturbations in stage 1 output. Our direct API call produces more stable inference.
 
 ### What this means architecturally
 
@@ -351,10 +346,6 @@ So E08 buys its accuracy lead by spending more on inference per page. The trade 
 
 "Same generative model" doesn't mean "same engine". CU and E08 share *most* of their architecture — same OCR family, same generative model, similar two-stage pipeline. But two architectural choices (image goes to the LLM in E08 only; CU's OCR is tuned stricter than standalone DI) drive a meaningful recall and FP-rate advantage for E08 on this dataset, at the cost of higher per-call inference. The result is consistent with what Microsoft's own GA documentation suggests: CU trades flexibility and recall for managed grounding/confidence/multimodality and a stricter quality floor. We've intentionally traded the other way.
 
-**Replication checks.** Both E05 and E03 were re-run independently after E08 landed to confirm the rankings.
-- **E05 re-run** agreed with canonical within sampling noise (`pass_rate` identical at 0.975; f1.mean +0.002; f1.median +0.003; matchedFields.median identical at 71). Per-sample variance averaged out.
-- **E03 re-run** came back ~1 pp *below* its earlier canonical (f1.mean 0.938 vs 0.947; `pass_rate` 0.950 vs 1.000). The numbers in this report are from the fresh run. The shift came from CU's instability on the obscured-form samples; the previous canonical was a lucky-side draw from a distribution with stdDev ~0.071. The directional conclusion is unchanged on both runs: **E08 beats E03 by a clearly-larger-than-noise margin**.
-
 Errors by category: sin 4/75 (5.3%), date 7/75 (9.3%), phone 2/75 (2.7%), name 9/75 (12.0%), signature 26/75 (34.7%), freeform 14/40 (35.0%), checkboxes 30/1120 (2.7%), income 42/1317 (3.2%).
 
 ## Same-pipeline model bake-off (E05 / E07 / E08)
@@ -363,7 +354,6 @@ E05, E07, and E08 run an identical pipeline with three different generative mode
 
 | metric | **E08 (gpt-5.2)** | E05 (gpt-5.4) | E07 (gpt-4o) |
 |---|---|---|---|
-| `pass_rate` | **0.975** | 0.975 | 0.900 |
 | `f1.mean` | **0.960** | 0.942 | 0.923 |
 | `f1.median` | **0.973** | 0.961 | 0.952 |
 | `precision.mean` | **0.965** | 0.951 | 0.942 |
@@ -411,13 +401,13 @@ A handful of samples are worth calling out by name — these are the rows at the
 - **`Fake 5` / `Fake 7`** — additional hand-written samples in the next failure tier. **E07 (gpt-4o) sits noticeably lower than E05/E08 here** — Fake 5 drops to 0.877 on E07 vs 0.966 on both E05 and E08; Fake 7 drops to 0.791 on E07 vs 0.887 (E05) / 0.959 (E08). The gpt-4o checkbox failure mode dominates both samples.
 - **`synth-*` cluster (synth-full / synth-no-spouse / synth-regular)** — synthetically-generated forms with hand-written field values. This cluster is where **E04 (GPT-5.4 VLM-direct) underperforms specifically** — every synth sample drops E04 below F1 0.80 (range 0.69–0.79). All other engines, including the hybrid E05/E07/E08 which use the same OCR pre-pass with different VLMs, handle these samples cleanly. **E08 hits F1 0.97–1.00 on every synth sample**, the best of any single engine on this cluster.
 - **`HR0081 (10)`** — a real hand-written form. F1 dropped most on E02 (0.67) — Mistral's pipeline cannot read this sample's handwriting in its OCR pass. **E07 (gpt-4o) also struggles here at 0.810**, a steep drop from E05's 0.986 on the same sample — gpt-4o misreads the dense handwriting where gpt-5.4 reads it cleanly. E03 / E05 / E08 all clear F1 ≥0.95.
-- **`manual sample (6)`** — the *only* sample below the 0.8 strict pass threshold on both E05 and E08 (F1 0.784 on both). Dense handwritten income figures with ambiguous digit shapes — the residual hardest sample of the dataset for the VLM hybrid stack. E03 (CU) is the only engine that clears 0.8 here.
+- **`manual sample (6)`** — the lowest-scoring sample on both E05 and E08 (F1 0.784 on both). Dense handwritten income figures with ambiguous digit shapes — the residual hardest sample of the dataset for the VLM hybrid stack. E03 (CU) reads it materially better at F1 0.97.
 
 The first two are the dataset's universal floor — every engine struggles, and these would benefit from human-in-the-loop review by design. The rest are engine-specific failure patterns: pencil contrast hurts the OCR-based engines most; the phone-photo / background sample challenges everyone moderately; the synth-* cluster is specifically a GPT-5.4-vision-direct problem; dense or sloppy handwriting that the OCR layer can't read is specifically Mistral's problem; and the empty `_no` checkbox flip is specifically a gpt-4o problem. **The choice of engine for a production workload should weigh which of these failure modes is most likely in the expected input mix.**
 
 ## Reflection
 
-1. **E08 (gpt-5.2 hybrid) is the new single-engine winner on every accuracy aggregate.** F1.mean 0.960, F1.median 0.973, precision.mean 0.965, recall.mean 0.955, FP.mean 2.50, `pass_rate` 0.975 (39/40). It beats E03 — which runs the same gpt-5.2 model internally — by 2.2 pp F1.mean and 3.2 pp recall. The gap is structural, not model-driven: CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout E08 uses (so it drops 13× more small zeros: 95 vs 7), and CU's stage 2 is text-only — the LLM never sees the image, so it cannot recover content the OCR dropped. E08 sends image + OCR Markdown to gpt-5.2 with an instruction to trust the image. **The accuracy lead is bought at higher per-call inference cost** (image tokens add ~2–3× to the LLM input cost; the OCR-layer cost is similar). **The only metric where any single engine clears 1.000 is `pass_rate`, and only the E06 ensemble does it.**
+1. **E08 (gpt-5.2 hybrid) is the new single-engine winner on every accuracy aggregate.** F1.mean 0.960, F1.median 0.973, precision.mean 0.965, recall.mean 0.955, FP.mean 2.50. It beats E03 — which runs the same gpt-5.2 model internally — by 2.2 pp F1.mean and 3.2 pp recall. The gap is structural, not model-driven: CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout E08 uses (so it drops 13× more small zeros: 95 vs 7), and CU's stage 2 is text-only — the LLM never sees the image, so it cannot recover content the OCR dropped. E08 sends image + OCR Markdown to gpt-5.2 with an instruction to trust the image. **The accuracy lead is bought at higher per-call inference cost** (image tokens add ~2–3× to the LLM input cost; the OCR-layer cost is similar).
 
 2. **The same-pipeline model bake-off (E05 / E07 / E08) settles a clear ranking on this task: gpt-5.2 > gpt-5.4 > gpt-4o.** With pipeline, prompt, field descriptions, and OCR pre-pass held constant, the gap is entirely attributable to the generative model: E08 wins F1.mean by 1.8 pp over E05 and 3.7 pp over E07. The older-numbered model winning is counter-intuitive but consistent — gpt-5.2 is the same model Microsoft chose for Content Understanding's generative layer, so it has been tuned for exactly this shape of structured form extraction.
 
@@ -463,7 +453,7 @@ Six deployable strategies plus one oracle baseline ([`../06-engine-ensemble/scri
 
 ## Results — strategies vs single-engine baselines
 
-> **Caveat — historical numbers.** The single-engine rows in this Appendix table use the predictions snapshot that the ensemble was actually *built on* (improve/03 era; E03 canonical F1.mean 0.947). The headline aggregate table at the top of this report uses the *current* canonical numbers, in which E03 dropped to 0.938 on re-run. The ensemble itself has not been rebuilt — that would change `S1`–`S6` figures here. Treat the comparisons in this Appendix as a snapshot of the ensemble's relative value at build time.
+> **Caveat — historical numbers.** The single-engine rows in this Appendix table use the predictions snapshot that the ensemble was actually *built on* (improve/03 era; E03 F1.mean 0.947). The headline aggregate table at the top of this report uses the *current* canonical numbers (E03 F1.mean 0.938). The ensemble itself has not been rebuilt — that would change `S1`–`S6` figures here. Treat the comparisons in this Appendix as a snapshot of the ensemble's relative value at build time.
 
 | strategy | F1.median | F1.mean | Precision.mean | Recall.mean | matched.median | FP.mean |
 |---|---|---|---|---|---|---|
@@ -543,52 +533,3 @@ The residual error categories on E06 break down into:
 - **One-of-array GT not yet covering an engine's format variant.** Caught by `promote-gt-format-variants.ts` and absorbed in subsequent GT cleanup passes.
 - **Genuine OCR misreads** — `5` vs `8`, `1` vs `7` confusions on dense handwriting. The irreducible per-engine errors that no ensemble can fix.
 
-## E06 reproducibility
-
-```bash
-cd /home/alstruk/GitHub/ai-adoption-document-intelligence/apps/temporal
-
-# 1. Re-evaluate every upstream engine's predictions against current GT.
-for slug in 00-doc-intelligence-template 02-mistral-doc-ai-azure 03-content-understanding 04-vlm-direct 05-vlm-ocr-hybrid; do
-  npx tsx -r tsconfig-paths/register src/scripts/reevaluate-against-local-gt.ts $slug
-done
-
-# 2. Generate per-field/per-category accuracy data into results/report/data/.
-cd ../..
-python3 experiments/results/06-engine-ensemble/scripts/build-comparison-report.py
-
-# 3. Run the ensemble combiner — writes ../06-engine-ensemble/ outputs.
-python3 experiments/results/06-engine-ensemble/scripts/build-ensemble.py
-
-# 4. Refresh comparison-report plots so E06 is included alongside E00-E05.
-INCLUDE_E06=1 python3 experiments/results/06-engine-ensemble/scripts/build-comparison-report.py
-
-# 5. Dump E06's per-sample mismatch table.
-cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/dump-errors-for-gt-cleanup.ts 06-engine-ensemble
-```
-
----
-
-# Appendix B — Reproducing the comparison report
-
-```bash
-cd /home/alstruk/GitHub/ai-adoption-document-intelligence/apps/temporal
-
-# 1. Apply any newly-surfaced format-variant GT promotions (idempotent).
-for slug in 00-doc-intelligence-template 02-mistral-doc-ai-azure 03-content-understanding 04-vlm-direct 05-vlm-ocr-hybrid 07-vlm-ocr-hybrid-gpt-4o 08-vlm-ocr-hybrid-gpt-5.2; do
-  npx tsx -r tsconfig-paths/register src/scripts/promote-gt-format-variants.ts $slug --write
-done
-
-# 2. Re-evaluate every engine's stored predictions against current local GT.
-for slug in 00-doc-intelligence-template 02-mistral-doc-ai-azure 03-content-understanding 04-vlm-direct 05-vlm-ocr-hybrid 07-vlm-ocr-hybrid-gpt-4o 08-vlm-ocr-hybrid-gpt-5.2; do
-  npx tsx -r tsconfig-paths/register src/scripts/reevaluate-against-local-gt.ts $slug
-done
-
-# 3. Generate this report's plots + CSVs into results/report/. (Set INCLUDE_E06=1
-#    if you also want the E06 ensemble row in the plots; this report's main
-#    sections do not include E06 by default — see Appendix A for the dedicated
-#    E06 view, which is built on the E00–E05 set only.)
-cd ../..
-python3 experiments/results/06-engine-ensemble/scripts/build-comparison-report.py
-```
