@@ -144,6 +144,33 @@ Notes:
 
 ---
 
+### oc-backup-db-to-unc.sh — Database Backup to Windows UNC share
+
+Streams a `pg_dump` of an instance's PostgreSQL database directly to a Windows
+UNC share (e.g. `\\widget\SDPRDocuments`) without writing any file on the WSL
+host. Use this when the backup must stay off the local machine.
+
+```bash
+# Stream prod backup to a UNC share
+./scripts/oc-backup-db-to-unc.sh --instance bcgov-di --dest '\\widget\SDPRDocuments'
+```
+
+| Option | Short | Required | Description |
+|--------|-------|----------|-------------|
+| `--dest` | `-d` | Yes | UNC directory to write into (e.g. `\\server\share`) |
+| `--instance` | `-i` | No | Instance to back up (default: from git branch) |
+| `--help` | `-h` | No | Show help |
+
+Output: `<UNC-dest>\<instance>-<timestamp>.pgc` (pg_dump custom format, `-Fc`)
+
+Notes:
+- WSL-only — requires Windows interop with `powershell.exe` reachable
+- Verifies the destination is writable before starting the dump
+- Pipes `oc exec ... pg_dump` stdout through `powershell.exe` to a `[System.IO.File]::Create` stream — no intermediate file on either Linux or Windows local disk
+- See [docs-md/openshift-deployment/BACKUP_TO_NETWORK_SHARE.md](../docs-md/openshift-deployment/BACKUP_TO_NETWORK_SHARE.md) for the longer write-up
+
+---
+
 ### oc-restore-db.sh — Database Restore
 
 Restores a PostgreSQL database from a local SQL dump file into any instance.
