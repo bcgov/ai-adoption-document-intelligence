@@ -9,6 +9,12 @@
                 <!-- Authenticate with managed identity -->
                 <authentication-managed-identity resource="https://cognitiveservices.azure.com" />
                 <set-backend-service base-url="${docint_endpoint}" />
+                <!-- Strip any routing prefix (e.g. /di/) before /documentintelligence -->
+                <rewrite-uri template="@{
+                    var path = context.Request.Url.Path;
+                    var idx = path.ToLower().IndexOf(&quot;/documentintelligence&quot;);
+                    return idx >= 0 ? path.Substring(idx) : path;
+                }" />
             </when>
 
             <!-- AI Foundry / OpenAI: /openai/* -->
@@ -53,6 +59,19 @@
     </backend>
     <outbound>
         <base />
+        <!-- Rewrite operation-location header host from Cognitive Services back to APIM -->
+        <choose>
+            <when condition="@(context.Response.Headers.ContainsKey(&quot;operation-location&quot;) || context.Response.Headers.ContainsKey(&quot;Operation-Location&quot;))">
+                <set-header name="operation-location" exists-action="override">
+                    <value>@{
+                        var val = context.Response.Headers.GetValueOrDefault("operation-location",
+                                  context.Response.Headers.GetValueOrDefault("Operation-Location", ""));
+                        var apimBase = context.Request.OriginalUrl.Scheme + "://" + context.Request.OriginalUrl.Host;
+                        return System.Text.RegularExpressions.Regex.Replace(val, @"^https?://[^/]+", apimBase);
+                    }</value>
+                </set-header>
+            </when>
+        </choose>
     </outbound>
     <on-error>
         <base />

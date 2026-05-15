@@ -47,9 +47,6 @@ export class ClassifierModelResponseDto {
   @ApiProperty({ example: "group-id" })
   group_id!: string;
 
-  @ApiProperty({ type: Object, example: { labels: [] } })
-  config: unknown;
-
   @ApiProperty({ type: Date })
   created_at!: Date;
 

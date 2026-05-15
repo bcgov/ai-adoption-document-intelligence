@@ -1,3 +1,4 @@
+import { BuildMode } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class TrainedModelDto {
@@ -13,6 +14,21 @@ export class TrainedModelDto {
   @ApiProperty({ description: "Azure Document Intelligence model ID" })
   modelId!: string;
 
+  @ApiProperty({
+    description: "Sequential version number within the template (1-based)",
+  })
+  version!: number;
+
+  @ApiProperty({
+    description: "Whether this version is currently the active one",
+  })
+  isActive!: boolean;
+
+  @ApiPropertyOptional({
+    description: "When this version was tombstoned, if applicable",
+  })
+  deletedAt?: Date;
+
   @ApiPropertyOptional({ description: "Model description" })
   description?: string;
 
@@ -26,6 +42,51 @@ export class TrainedModelDto {
   @ApiProperty({ description: "Number of fields the model recognizes" })
   fieldCount!: number;
 
+  @ApiProperty({
+    description: "Azure build mode used to train this version",
+    enum: BuildMode,
+  })
+  buildMode!: BuildMode;
+
+  @ApiPropertyOptional({
+    description: "Max training hours budget (neural only)",
+  })
+  maxTrainingHours?: number;
+
+  @ApiPropertyOptional({
+    description: "Actual training time consumed by Azure (neural only)",
+  })
+  actualTrainingHours?: number;
+
   @ApiProperty({ description: "When the model was created" })
   createdAt!: Date;
+}
+
+/**
+ * Per-document slice of the dataset snapshot stored on a TrainedModel.
+ */
+export class TrainedModelSnapshotDocumentDto {
+  @ApiProperty()
+  labelingDocumentId!: string;
+
+  @ApiProperty()
+  originalFilename!: string;
+
+  @ApiProperty({
+    description: "Labels as they were at training time",
+    type: "array",
+    items: { type: "object", additionalProperties: true },
+  })
+  labels!: Array<{
+    fieldKey: string;
+    labelName: string;
+    value: string | null;
+    pageNumber: number;
+    boundingBox: unknown;
+  }>;
+}
+
+export class TrainedModelSnapshotDto {
+  @ApiProperty({ type: [TrainedModelSnapshotDocumentDto] })
+  documents!: TrainedModelSnapshotDocumentDto[];
 }
