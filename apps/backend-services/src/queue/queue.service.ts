@@ -8,6 +8,12 @@ export interface QueueMessage {
   filePath: string;
   fileType: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Per-upload overrides for the workflow's ctx defaults. Forwarded to
+   * `OcrService.requestOcr`, which merges them on top of the workflow's
+   * declared ctx.<key>.defaultValue when starting the Temporal execution.
+   */
+  ctxOverrides?: Record<string, unknown>;
   timestamp: Date;
 }
 
@@ -35,7 +41,10 @@ export class QueueService {
     try {
       // Request OCR - this will start a Temporal workflow that handles
       // all the polling, retries, and status updates automatically
-      const ocrRequest = await this.ocrService.requestOcr(message.documentId);
+      const ocrRequest = await this.ocrService.requestOcr(
+        message.documentId,
+        message.ctxOverrides,
+      );
 
       if (ocrRequest.error) {
         this.logger.error(
