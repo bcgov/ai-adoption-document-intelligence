@@ -5,6 +5,7 @@ import { apiService } from "@/data/services/api.service";
 interface WorkflowInfo {
   id: string;
   workflowVersionId: string;
+  slug: string;
   name: string;
   version: number;
   description: string | null;

@@ -255,6 +255,7 @@ describe("BenchmarkRunController", () => {
       const sourceWorkflow: WorkflowInfo = {
         id: "workflow-1",
         workflowVersionId: "wv-workflow-1",
+        slug: "wf",
         name: "wf",
         description: null,
         actorId: "owner-from-source-workflow",

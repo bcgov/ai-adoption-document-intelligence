@@ -518,15 +518,17 @@ async function seedBenchmarkingData() {
     name: string,
     description: string | undefined,
     config: object,
+    slug: string,
   ): Promise<string> => {
     const versionId = `wv_${lineageId}`;
     await prisma.workflowLineage.upsert({
       where: { id: lineageId },
-      update: { name, description: description ?? null },
+      update: { name, description: description ?? null, slug },
       create: {
         id: lineageId,
         name,
         description: description ?? null,
+        slug,
         actor_id: TEST_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },
@@ -553,6 +555,7 @@ async function seedBenchmarkingData() {
     standardOcrConfig.metadata.name,
     standardOcrConfig.metadata.description,
     standardOcrConfig,
+    "standard-ocr",
   );
 
   await seedLineageVersion(
@@ -560,6 +563,7 @@ async function seedBenchmarkingData() {
     multiPageReportConfig.metadata.name,
     multiPageReportConfig.metadata.description,
     multiPageReportConfig,
+    "multi-page-report",
   );
 
   await seedLineageVersion(
@@ -567,6 +571,7 @@ async function seedBenchmarkingData() {
     mistralStandardOcrConfig.metadata.name,
     mistralStandardOcrConfig.metadata.description,
     mistralStandardOcrConfig,
+    "standard-ocr-mistral",
   );
 
   // Create test dataset files with sample data

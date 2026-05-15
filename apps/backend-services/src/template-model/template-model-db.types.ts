@@ -4,11 +4,23 @@ import type {
   LabeledDocument,
   Prisma,
   TemplateModel,
+  TrainedModel,
 } from "@generated/client";
+
+/**
+ * Active TrainedModel slice surfaced alongside TemplateModelData. Holds the
+ * fields the frontend needs to label the resolved model id (e.g.
+ * km-invoice-v3) on list/detail views without issuing a separate request.
+ */
+export type ActiveTrainedModelSlice = Pick<
+  TrainedModel,
+  "id" | "model_id" | "version" | "is_active" | "deleted_at" | "created_at"
+>;
 
 export type TemplateModelData = TemplateModel & {
   field_schema: FieldDefinition[];
   documents?: LabeledDocument[];
+  active_trained_model?: ActiveTrainedModelSlice | null;
 };
 
 export type LabelingDocumentData = {
