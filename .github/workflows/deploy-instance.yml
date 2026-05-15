@@ -429,12 +429,14 @@ jobs:
           INSTANCE: ${{ needs.metadata.outputs.instance-name }}
         run: |
           set -euo pipefail
-          # For prod, rotate the SHA-tagged rollback handles: keep the 10 most
-          # recent `<instance>-*` named tags per image, delete the rest. Then
-          # orphan cleanup reclaims underlying layers.
+          # For prod, rotate the SHA-tagged rollback handles: keep the 3 most
+          # recent `<instance>-<12hex>` named tags per image, delete the rest.
+          # The 12-`?` glob matches only the commit-SHA-suffixed tags, so
+          # `<instance>` and `<instance>-test` are never rotated. Orphan cleanup
+          # then reclaims underlying layers.
           # For test/dev, just orphan cleanup — no SHA tags accumulate.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
-            bash ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-*"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
           else
             bash ./scripts/artifactory-cleanup.sh --delete
           fi
