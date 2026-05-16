@@ -14,7 +14,10 @@
     "spouse_name": "",
     "spouse_phone": "",
     "spouse_oas_gis": "",
-    "explain_changes": "Homeless",
+    "explain_changes": [
+        "Homeless",
+        "HOMELESS"
+    ],
     "checkbox_work_no": "selected",
     "spouse_signature": "",
     "applicant_oas_gis": 0,

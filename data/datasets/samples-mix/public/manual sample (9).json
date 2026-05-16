@@ -16,7 +16,11 @@
     "spouse_name": "",
     "spouse_phone": "",
     "spouse_oas_gis": "",
-    "explain_changes": "Child support started, record attached",
+    "explain_changes": [
+        "Child support started, record attached",
+        "child support started, record attached",
+        "Child support started, record attached."
+    ],
     "checkbox_work_no": "selected",
     "spouse_signature": "",
     "applicant_oas_gis": 0,

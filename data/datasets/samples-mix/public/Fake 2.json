@@ -8,9 +8,15 @@
         "2026-04-02",
         "April 2,2026"
     ],
-    "name": "Smith Fake",
+    "name": [
+        "Smith Fake",
+        "Smith Fake."
+    ],
     "phone": "",
-    "signature": "Smith Fake",
+    "signature": [
+        "Smith Fake",
+        "Smith Fake."
+    ],
     "spouse_sin": "",
     "spouse_date": "",
     "spouse_name": "",

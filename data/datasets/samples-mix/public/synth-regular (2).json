@@ -17,7 +17,10 @@
     "checkbox_moved_no": "unselected",
     "checkbox_warrant_yes": "unselected",
     "checkbox_warrant_no": "selected",
-    "explain_changes": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+    "explain_changes": [
+        "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+        "Play half agree memory event stock than bit could.\nAlone first Mr so anything inside total third\naffect modern."
+    ],
     "applicant_net_employment_income": null,
     "applicant_employment_insurance": 0,
     "applicant_spousal_support_alimony": null,
