@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-05-16T08:12:20.146Z",
+  "exportedAt": "2026-05-16T08:49:44.025Z",
   "exportFormatVersion": 1,
   "run": {
     "id": "f71d0efb-eb1e-4171-a7e1-9e194e6572b4",
@@ -17,58 +17,58 @@
       "total_samples": 40,
       "passing_samples": 32,
       "failing_samples": 8,
-      "precision.mean": 0.880011936721546,
-      "precision.median": 0.9054054054054054,
-      "precision.stdDev": 0.08636099061706638,
-      "precision.p5": 0.7288201663201663,
-      "precision.p25": 0.8227027027027027,
-      "precision.p75": 0.9446347031963469,
-      "precision.p95": 0.9863106256941873,
+      "precision.mean": 0.8921893048189382,
+      "precision.median": 0.9319696408737504,
+      "precision.stdDev": 0.08982566111585895,
+      "precision.p5": 0.7297297297297297,
+      "precision.p25": 0.8262733887733889,
+      "precision.p75": 0.9618251410153102,
+      "precision.p95": 1,
       "precision.min": 0.6923076923076923,
       "precision.max": 1,
-      "recall.mean": 0.8699012830005982,
-      "recall.median": 0.8979081821547574,
-      "recall.stdDev": 0.08495697895499905,
-      "recall.p5": 0.7288201663201663,
-      "recall.p25": 0.8108108108108109,
-      "recall.p75": 0.9324324324324325,
-      "recall.p95": 0.9736486486486486,
+      "recall.mean": 0.8819009341269617,
+      "recall.median": 0.9116068122917438,
+      "recall.stdDev": 0.0880563260575747,
+      "recall.p5": 0.7297297297297297,
+      "recall.p25": 0.8243243243243243,
+      "recall.p75": 0.9459459459459459,
+      "recall.p95": 0.9864864864864865,
       "recall.min": 0.6923076923076923,
       "recall.max": 1,
-      "f1.mean": 0.874485647555356,
-      "f1.median": 0.9034069280548154,
-      "f1.stdDev": 0.08357470979869115,
-      "f1.p5": 0.7288201663201663,
-      "f1.p25": 0.8228950103950105,
-      "f1.p75": 0.9324324324324325,
-      "f1.p95": 0.9799365692222836,
+      "f1.mean": 0.8865650642921326,
+      "f1.median": 0.9183673469387754,
+      "f1.stdDev": 0.0868301080396413,
+      "f1.p5": 0.7297297297297297,
+      "f1.p25": 0.8262733887733889,
+      "f1.p75": 0.9475546975546976,
+      "f1.p95": 0.9931972789115647,
       "f1.min": 0.6923076923076923,
       "f1.max": 1,
-      "truePositives.mean": 62.175,
-      "truePositives.median": 66,
-      "truePositives.stdDev": 10.126419653559692,
-      "truePositives.p5": 39.85,
-      "truePositives.p25": 59,
-      "truePositives.p75": 69,
-      "truePositives.p95": 72.05,
+      "truePositives.mean": 63.05,
+      "truePositives.median": 67,
+      "truePositives.stdDev": 10.413812942433717,
+      "truePositives.p5": 39.9,
+      "truePositives.p25": 60,
+      "truePositives.p75": 70,
+      "truePositives.p95": 73,
       "truePositives.min": 36,
       "truePositives.max": 74,
-      "falsePositives.mean": 8.175,
-      "falsePositives.median": 7,
-      "falsePositives.stdDev": 5.607528421684548,
-      "falsePositives.p5": 1,
-      "falsePositives.p25": 4,
-      "falsePositives.p75": 12,
+      "falsePositives.mean": 7.3,
+      "falsePositives.median": 5,
+      "falsePositives.stdDev": 5.831809324729334,
+      "falsePositives.p5": 0,
+      "falsePositives.p25": 2.75,
+      "falsePositives.p75": 11.25,
       "falsePositives.p95": 19.049999999999997,
       "falsePositives.min": 0,
       "falsePositives.max": 20,
-      "falseNegatives.mean": 8.95,
-      "falseNegatives.median": 7.5,
-      "falseNegatives.stdDev": 5.545042831214202,
-      "falseNegatives.p5": 1.9500000000000002,
-      "falseNegatives.p25": 5,
-      "falseNegatives.p75": 12,
-      "falseNegatives.p95": 20,
+      "falseNegatives.mean": 8.075,
+      "falseNegatives.median": 6.5,
+      "falseNegatives.stdDev": 5.750597795012271,
+      "falseNegatives.p5": 1,
+      "falseNegatives.p25": 4,
+      "falseNegatives.p75": 11.25,
+      "falseNegatives.p95": 19.049999999999997,
       "falseNegatives.min": 0,
       "falseNegatives.max": 20,
       "totalGroundTruthFields.mean": 71.3,
@@ -80,13 +80,13 @@
       "totalGroundTruthFields.p95": 74.05,
       "totalGroundTruthFields.min": 52,
       "totalGroundTruthFields.max": 75,
-      "matchedFields.mean": 62.175,
-      "matchedFields.median": 66,
-      "matchedFields.stdDev": 10.126419653559692,
-      "matchedFields.p5": 39.85,
-      "matchedFields.p25": 59,
-      "matchedFields.p75": 69,
-      "matchedFields.p95": 72.05,
+      "matchedFields.mean": 63.05,
+      "matchedFields.median": 67,
+      "matchedFields.stdDev": 10.413812942433717,
+      "matchedFields.p5": 39.9,
+      "matchedFields.p25": 60,
+      "matchedFields.p75": 70,
+      "matchedFields.p95": 73,
       "matchedFields.min": 36,
       "matchedFields.max": 74,
       "checkboxAccuracy.mean": 0,
@@ -120,58 +120,58 @@
     "total_samples": 40,
     "passing_samples": 32,
     "failing_samples": 8,
-    "precision.mean": 0.880011936721546,
-    "precision.median": 0.9054054054054054,
-    "precision.stdDev": 0.08636099061706638,
-    "precision.p5": 0.7288201663201663,
-    "precision.p25": 0.8227027027027027,
-    "precision.p75": 0.9446347031963469,
-    "precision.p95": 0.9863106256941873,
+    "precision.mean": 0.8921893048189382,
+    "precision.median": 0.9319696408737504,
+    "precision.stdDev": 0.08982566111585895,
+    "precision.p5": 0.7297297297297297,
+    "precision.p25": 0.8262733887733889,
+    "precision.p75": 0.9618251410153102,
+    "precision.p95": 1,
     "precision.min": 0.6923076923076923,
     "precision.max": 1,
-    "recall.mean": 0.8699012830005982,
-    "recall.median": 0.8979081821547574,
-    "recall.stdDev": 0.08495697895499905,
-    "recall.p5": 0.7288201663201663,
-    "recall.p25": 0.8108108108108109,
-    "recall.p75": 0.9324324324324325,
-    "recall.p95": 0.9736486486486486,
+    "recall.mean": 0.8819009341269617,
+    "recall.median": 0.9116068122917438,
+    "recall.stdDev": 0.0880563260575747,
+    "recall.p5": 0.7297297297297297,
+    "recall.p25": 0.8243243243243243,
+    "recall.p75": 0.9459459459459459,
+    "recall.p95": 0.9864864864864865,
     "recall.min": 0.6923076923076923,
     "recall.max": 1,
-    "f1.mean": 0.874485647555356,
-    "f1.median": 0.9034069280548154,
-    "f1.stdDev": 0.08357470979869115,
-    "f1.p5": 0.7288201663201663,
-    "f1.p25": 0.8228950103950105,
-    "f1.p75": 0.9324324324324325,
-    "f1.p95": 0.9799365692222836,
+    "f1.mean": 0.8865650642921326,
+    "f1.median": 0.9183673469387754,
+    "f1.stdDev": 0.0868301080396413,
+    "f1.p5": 0.7297297297297297,
+    "f1.p25": 0.8262733887733889,
+    "f1.p75": 0.9475546975546976,
+    "f1.p95": 0.9931972789115647,
     "f1.min": 0.6923076923076923,
     "f1.max": 1,
-    "truePositives.mean": 62.175,
-    "truePositives.median": 66,
-    "truePositives.stdDev": 10.126419653559692,
-    "truePositives.p5": 39.85,
-    "truePositives.p25": 59,
-    "truePositives.p75": 69,
-    "truePositives.p95": 72.05,
+    "truePositives.mean": 63.05,
+    "truePositives.median": 67,
+    "truePositives.stdDev": 10.413812942433717,
+    "truePositives.p5": 39.9,
+    "truePositives.p25": 60,
+    "truePositives.p75": 70,
+    "truePositives.p95": 73,
     "truePositives.min": 36,
     "truePositives.max": 74,
-    "falsePositives.mean": 8.175,
-    "falsePositives.median": 7,
-    "falsePositives.stdDev": 5.607528421684548,
-    "falsePositives.p5": 1,
-    "falsePositives.p25": 4,
-    "falsePositives.p75": 12,
+    "falsePositives.mean": 7.3,
+    "falsePositives.median": 5,
+    "falsePositives.stdDev": 5.831809324729334,
+    "falsePositives.p5": 0,
+    "falsePositives.p25": 2.75,
+    "falsePositives.p75": 11.25,
     "falsePositives.p95": 19.049999999999997,
     "falsePositives.min": 0,
     "falsePositives.max": 20,
-    "falseNegatives.mean": 8.95,
-    "falseNegatives.median": 7.5,
-    "falseNegatives.stdDev": 5.545042831214202,
-    "falseNegatives.p5": 1.9500000000000002,
-    "falseNegatives.p25": 5,
-    "falseNegatives.p75": 12,
-    "falseNegatives.p95": 20,
+    "falseNegatives.mean": 8.075,
+    "falseNegatives.median": 6.5,
+    "falseNegatives.stdDev": 5.750597795012271,
+    "falseNegatives.p5": 1,
+    "falseNegatives.p25": 4,
+    "falseNegatives.p75": 11.25,
+    "falseNegatives.p95": 19.049999999999997,
     "falseNegatives.min": 0,
     "falseNegatives.max": 20,
     "totalGroundTruthFields.mean": 71.3,
@@ -183,13 +183,13 @@
     "totalGroundTruthFields.p95": 74.05,
     "totalGroundTruthFields.min": 52,
     "totalGroundTruthFields.max": 75,
-    "matchedFields.mean": 62.175,
-    "matchedFields.median": 66,
-    "matchedFields.stdDev": 10.126419653559692,
-    "matchedFields.p5": 39.85,
-    "matchedFields.p25": 59,
-    "matchedFields.p75": 69,
-    "matchedFields.p95": 72.05,
+    "matchedFields.mean": 63.05,
+    "matchedFields.median": 67,
+    "matchedFields.stdDev": 10.413812942433717,
+    "matchedFields.p5": 39.9,
+    "matchedFields.p25": 60,
+    "matchedFields.p75": 70,
+    "matchedFields.p95": 73,
     "matchedFields.min": 36,
     "matchedFields.max": 74,
     "checkboxAccuracy.mean": 0,
@@ -203,162 +203,6 @@
     "checkboxAccuracy.max": 0
   },
   "perFieldResults": [
-    {
-      "field": "signature",
-      "fieldType": "string",
-      "totalCount": 40,
-      "correctCount": 12,
-      "errorCount": 28,
-      "accuracy": 0.3,
-      "errorRate": 0.7,
-      "errors": [
-        {
-          "sampleId": "1 81",
-          "predicted": "KEY LAYER MISSING",
-          "expected": "KEY PLAYER MISSING"
-        },
-        {
-          "sampleId": "81 blank",
-          "predicted": "Sarah Pilecki",
-          "expected": "Blank Declration"
-        },
-        {
-          "sampleId": "81 coffee",
-          "predicted": "Akins Blox",
-          "expected": "Missed Box"
-        },
-        {
-          "sampleId": "Fake 1",
-          "predicted": "J",
-          "expected": ":present:"
-        },
-        {
-          "sampleId": "Fake 2",
-          "predicted": "Nwflhic",
-          "expected": [
-            "Smith Fake",
-            "Smith Fake."
-          ]
-        },
-        {
-          "sampleId": "Fake 3",
-          "predicted": "Miche",
-          "expected": "Michael Scott"
-        },
-        {
-          "sampleId": "Fake 4",
-          "predicted": "Kim Halpertt",
-          "expected": "Jim Halpert"
-        },
-        {
-          "sampleId": "Fake 6",
-          "predicted": "G. Schoute",
-          "expected": "DSchrute"
-        },
-        {
-          "sampleId": "Fake 7",
-          "predicted": "EILE/NFTLIHE",
-          "expected": [
-            "SIGNATURE",
-            "Signature"
-          ]
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "predicted": "Lee",
-          "expected": "Joe"
-        },
-        {
-          "sampleId": "HR0081 (2)",
-          "predicted": "Lee",
-          "expected": "Lace"
-        },
-        {
-          "sampleId": "HR0081 (3)",
-          "predicted": "~",
-          "expected": "Ann"
-        },
-        {
-          "sampleId": "HR0081 (4)",
-          "expected": "Abe"
-        },
-        {
-          "sampleId": "HR0081 (5)",
-          "predicted": "MC",
-          "expected": "Tester One"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "Junal",
-          "expected": "Trung"
-        },
-        {
-          "sampleId": "HR0081 (8)",
-          "predicted": "Lee",
-          "expected": "lece"
-        },
-        {
-          "sampleId": "HR0081 (9)",
-          "predicted": "N",
-          "expected": "pr"
-        },
-        {
-          "sampleId": "manual sample (1)",
-          "predicted": "Kpafl",
-          "expected": "KPatel"
-        },
-        {
-          "sampleId": "manual sample (10)",
-          "predicted": "Milan",
-          "expected": "MBrown"
-        },
-        {
-          "sampleId": "manual sample (2)",
-          "predicted": "VThompson",
-          "expected": "SThompson"
-        },
-        {
-          "sampleId": "manual sample (3)",
-          "predicted": "John",
-          "expected": "JSmith"
-        },
-        {
-          "sampleId": "manual sample (5)",
-          "predicted": "N. Krah",
-          "expected": "Dwilson"
-        },
-        {
-          "sampleId": "manual sample (6)",
-          "predicted": "[illegible]",
-          "expected": "RChen"
-        },
-        {
-          "sampleId": "manual sample (7)",
-          "predicted": "O'Connor",
-          "expected": "POConnor"
-        },
-        {
-          "sampleId": "manual sample (8)",
-          "predicted": "A.M.B",
-          "expected": "A.M.J"
-        },
-        {
-          "sampleId": "manual sample (9)",
-          "predicted": "JJ",
-          "expected": "J.J."
-        },
-        {
-          "sampleId": "synth-no-spouse (1)",
-          "predicted": "Thomas Androde",
-          "expected": "Thomas Andrade"
-        },
-        {
-          "sampleId": "synth-regular (1)",
-          "predicted": "Russell",
-          "expected": "A. Russell"
-        }
-      ]
-    },
     {
       "field": "date",
       "fieldType": "string",
@@ -1039,75 +883,6 @@
       ]
     },
     {
-      "field": "name",
-      "fieldType": "string",
-      "totalCount": 40,
-      "correctCount": 29,
-      "errorCount": 11,
-      "accuracy": 0.725,
-      "errorRate": 0.275,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "predicted": "Bunny Declaration",
-          "expected": "Blank Declaration"
-        },
-        {
-          "sampleId": "81 coffee",
-          "predicted": "Akins Blox",
-          "expected": "Missed Box"
-        },
-        {
-          "sampleId": "Fake 2",
-          "predicted": "Smith Faye",
-          "expected": [
-            "Smith Fake",
-            "Smith Fake."
-          ]
-        },
-        {
-          "sampleId": "Fake 4",
-          "predicted": "Kim Halpert",
-          "expected": "Jim Halpert"
-        },
-        {
-          "sampleId": "Fake 6",
-          "predicted": "Schoute",
-          "expected": "Schrute, Dwight"
-        },
-        {
-          "sampleId": "Fake 7",
-          "predicted": "Squinton",
-          "expected": ":garbled:"
-        },
-        {
-          "sampleId": "HR0081 (3)",
-          "predicted": "Am Jones",
-          "expected": "Ann Jones"
-        },
-        {
-          "sampleId": "HR0081 (5)",
-          "predicted": "Tester One",
-          "expected": "Lace"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "les una",
-          "expected": "Les Luna"
-        },
-        {
-          "sampleId": "manual sample (8)",
-          "predicted": "Amanda Martinez-Jones",
-          "expected": "Amanda Martinez - Jones"
-        },
-        {
-          "sampleId": "synth-no-spouse (1)",
-          "predicted": "Thomas Androde",
-          "expected": "Thomas Andrade"
-        }
-      ]
-    },
-    {
       "field": "phone",
       "fieldType": "string",
       "totalCount": 40,
@@ -1301,51 +1076,61 @@
       ]
     },
     {
-      "field": "spouse_signature",
+      "field": "name",
       "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 27,
-      "errorCount": 8,
-      "accuracy": 0.7714285714285715,
-      "errorRate": 0.22857142857142854,
+      "totalCount": 40,
+      "correctCount": 31,
+      "errorCount": 9,
+      "accuracy": 0.775,
+      "errorRate": 0.22499999999999998,
       "errors": [
         {
-          "sampleId": "HR0081 (10)",
-          "expected": "Andrew Teni"
+          "sampleId": "81 blank",
+          "predicted": "Bunny Declaration",
+          "expected": "Blank Declaration"
         },
         {
-          "sampleId": "HR0081 (2)",
-          "expected": "Ann smart"
+          "sampleId": "81 coffee",
+          "predicted": "Akins Blox",
+          "expected": "Missed Box"
+        },
+        {
+          "sampleId": "Fake 2",
+          "predicted": "Smith Faye",
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ]
+        },
+        {
+          "sampleId": "Fake 4",
+          "predicted": "Kim Halpert",
+          "expected": "Jim Halpert"
+        },
+        {
+          "sampleId": "Fake 6",
+          "predicted": "Schoute",
+          "expected": "Schrute, Dwight"
+        },
+        {
+          "sampleId": "HR0081 (3)",
+          "predicted": "Am Jones",
+          "expected": "Ann Jones"
+        },
+        {
+          "sampleId": "HR0081 (5)",
+          "predicted": "Tester One",
+          "expected": "Lace"
         },
         {
           "sampleId": "HR0081 (6)",
-          "predicted": "Aku De",
-          "expected": "AKM De"
+          "predicted": "les una",
+          "expected": "Les Luna"
         },
         {
-          "sampleId": "HR0081 (8)",
-          "predicted": "Lee",
-          "expected": "Donna Eight"
-        },
-        {
-          "sampleId": "HR0081 (9)",
-          "predicted": "M",
-          "expected": ""
-        },
-        {
-          "sampleId": "manual sample (3)",
-          "predicted": "Maria",
-          "expected": "MSmith"
-        },
-        {
-          "sampleId": "manual sample (5)",
-          "predicted": "Nwilson",
-          "expected": "HWilson"
-        },
-        {
-          "sampleId": "manual sample (7)",
-          "predicted": "O'Connor",
-          "expected": "LOConnor"
+          "sampleId": "synth-no-spouse (1)",
+          "predicted": "Thomas Androde",
+          "expected": "Thomas Andrade"
         }
       ]
     },
@@ -1936,37 +1721,6 @@
       ]
     },
     {
-      "field": "spouse_name",
-      "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 31,
-      "errorCount": 4,
-      "accuracy": 0.8857142857142857,
-      "errorRate": 0.11428571428571432,
-      "errors": [
-        {
-          "sampleId": "Fake 6",
-          "predicted": "Wright",
-          "expected": ""
-        },
-        {
-          "sampleId": "HR0081 (4)",
-          "predicted": "Aves",
-          "expected": ":garbled:"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "April Lune",
-          "expected": "April Luna"
-        },
-        {
-          "sampleId": "HR0081 (8)",
-          "predicted": "Donna Eight",
-          "expected": "lece"
-        }
-      ]
-    },
-    {
       "field": "applicant_rental_income",
       "fieldType": "number",
       "totalCount": 40,
@@ -2176,6 +1930,32 @@
       ]
     },
     {
+      "field": "spouse_name",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 32,
+      "errorCount": 3,
+      "accuracy": 0.9142857142857143,
+      "errorRate": 0.08571428571428574,
+      "errors": [
+        {
+          "sampleId": "Fake 6",
+          "predicted": "Wright",
+          "expected": ""
+        },
+        {
+          "sampleId": "HR0081 (6)",
+          "predicted": "April Lune",
+          "expected": "April Luna"
+        },
+        {
+          "sampleId": "HR0081 (8)",
+          "predicted": "Donna Eight",
+          "expected": "lece"
+        }
+      ]
+    },
+    {
       "field": "spouse_phone",
       "fieldType": "string",
       "totalCount": 35,
@@ -2198,6 +1978,30 @@
           "sampleId": "synth-full (3)",
           "predicted": "16 039 076",
           "expected": "166 039 076"
+        }
+      ]
+    },
+    {
+      "field": "spouse_signature",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 32,
+      "errorCount": 3,
+      "accuracy": 0.9142857142857143,
+      "errorRate": 0.08571428571428574,
+      "errors": [
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "Andrew Teni"
+        },
+        {
+          "sampleId": "HR0081 (2)",
+          "expected": "Ann smart"
+        },
+        {
+          "sampleId": "HR0081 (9)",
+          "predicted": "M",
+          "expected": ""
         }
       ]
     },
@@ -2882,6 +2686,21 @@
       ]
     },
     {
+      "field": "signature",
+      "fieldType": "string",
+      "totalCount": 40,
+      "correctCount": 39,
+      "errorCount": 1,
+      "accuracy": 0.975,
+      "errorRate": 0.025000000000000022,
+      "errors": [
+        {
+          "sampleId": "HR0081 (4)",
+          "expected": "Abe"
+        }
+      ]
+    },
+    {
       "field": "checkbox_shelter_yes",
       "fieldType": "string",
       "totalCount": 40,
@@ -2995,20 +2814,20 @@
       "sampleId": "1 81",
       "metadata": {},
       "metrics": {
-        "precision": 0.9594594594594594,
-        "recall": 0.9726027397260274,
-        "f1": 0.9659863945578231,
-        "truePositives": 71,
-        "falsePositives": 3,
-        "falseNegatives": 2,
+        "precision": 0.972972972972973,
+        "recall": 0.9863013698630136,
+        "f1": 0.979591836734694,
+        "truePositives": 72,
+        "falsePositives": 2,
+        "falseNegatives": 1,
         "totalGroundTruthFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 72,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 72,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -3016,11 +2835,6 @@
             "field": "date",
             "expected": "2026-07-25",
             "predicted": "2026-25-07"
-          },
-          {
-            "field": "signature",
-            "expected": "KEY PLAYER MISSING",
-            "predicted": "KEY LAYER MISSING"
           }
         ],
         "comparisonResults": [
@@ -3057,7 +2871,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "KEY LAYER MISSING",
             "expected": "KEY PLAYER MISSING",
             "confidence": null
@@ -3742,7 +3556,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "KEY LAYER MISSING",
           "expected": "KEY PLAYER MISSING",
           "confidence": null
@@ -6699,20 +6513,20 @@
       "sampleId": "81 blank",
       "metadata": {},
       "metrics": {
-        "precision": 0.8108108108108109,
-        "recall": 0.8108108108108109,
-        "f1": 0.8108108108108109,
-        "truePositives": 60,
-        "falsePositives": 14,
-        "falseNegatives": 14,
+        "precision": 0.8243243243243243,
+        "recall": 0.8243243243243243,
+        "f1": 0.8243243243243243,
+        "truePositives": 61,
+        "falsePositives": 13,
+        "falseNegatives": 13,
         "totalGroundTruthFields": 75,
-        "matchedFields": 60,
+        "matchedFields": 61,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 75,
-        "matchedFields": 60,
+        "matchedFields": 61,
         "missingFields": [
           "sin"
         ],
@@ -6722,11 +6536,6 @@
             "field": "name",
             "expected": "Blank Declaration",
             "predicted": "Bunny Declaration"
-          },
-          {
-            "field": "signature",
-            "expected": "Blank Declration",
-            "predicted": "Sarah Pilecki"
           },
           {
             "field": "checkbox_shelter_no",
@@ -6824,7 +6633,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Sarah Pilecki",
             "expected": "Blank Declration",
             "confidence": null
@@ -7001,7 +6810,10 @@
             "field": "applicant_rental_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "0\n1"
+            ],
             "confidence": null
           },
           {
@@ -7231,7 +7043,10 @@
             "field": "applicant_tax_credits_gst_credit",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "5\n0"
+            ],
             "confidence": null
           },
           {
@@ -7301,7 +7116,10 @@
             "field": "applicant_student_funding_loans_bursaries",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "5\n0"
+            ],
             "confidence": null
           },
           {
@@ -7355,7 +7173,10 @@
         "applicant_trust_income": "0",
         "checkbox_dependants_no": "selected",
         "applicant_child_support": "0",
-        "applicant_rental_income": "0",
+        "applicant_rental_income": [
+          "0",
+          "0\n1"
+        ],
         "checkbox_dependants_yes": "unselected",
         "checkbox_work_spouse_no": "unselected",
         "checkbox_moved_spouse_no": "unselected",
@@ -7393,7 +7214,10 @@
         "applicant_net_employment_income": "0",
         "checkbox_employment_changes_yes": "unselected",
         "spouse_workbc_financial_support": "",
-        "applicant_tax_credits_gst_credit": "0",
+        "applicant_tax_credits_gst_credit": [
+          "0",
+          "5\n0"
+        ],
         "applicant_canada_pension_plan_cpp": "0",
         "applicant_spousal_support_alimony": "0",
         "applicant_workbc_financial_support": "0",
@@ -7403,7 +7227,10 @@
         "applicant_income_of_dependent_children": "0",
         "checkbox_employment_changes_spouse_yes": "unselected",
         "spouse_student_funding_loans_bursaries": "",
-        "applicant_student_funding_loans_bursaries": "0",
+        "applicant_student_funding_loans_bursaries": [
+          "0",
+          "5\n0"
+        ],
         "spouse_private_pensions_retirement_disability": "",
         "applicant_private_pensions_retirement_disability": "0"
       },
@@ -7523,7 +7350,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Sarah Pilecki",
           "expected": "Blank Declration",
           "confidence": null
@@ -7700,7 +7527,10 @@
           "field": "applicant_rental_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "0\n1"
+          ],
           "confidence": null
         },
         {
@@ -7930,7 +7760,10 @@
           "field": "applicant_tax_credits_gst_credit",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "5\n0"
+          ],
           "confidence": null
         },
         {
@@ -8000,7 +7833,10 @@
           "field": "applicant_student_funding_loans_bursaries",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "5\n0"
+          ],
           "confidence": null
         },
         {
@@ -8024,20 +7860,20 @@
       "sampleId": "81 coffee",
       "metadata": {},
       "metrics": {
-        "precision": 0.8266666666666667,
-        "recall": 0.8378378378378378,
-        "f1": 0.8322147651006713,
-        "truePositives": 62,
-        "falsePositives": 13,
-        "falseNegatives": 12,
+        "precision": 0.84,
+        "recall": 0.8513513513513513,
+        "f1": 0.8456375838926175,
+        "truePositives": 63,
+        "falsePositives": 12,
+        "falseNegatives": 11,
         "totalGroundTruthFields": 75,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 75,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -8057,11 +7893,6 @@
           },
           {
             "field": "name",
-            "expected": "Missed Box",
-            "predicted": "Akins Blox"
-          },
-          {
-            "field": "signature",
             "expected": "Missed Box",
             "predicted": "Akins Blox"
           },
@@ -8147,7 +7978,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Akins Blox",
             "expected": "Missed Box",
             "confidence": null
@@ -8841,7 +8672,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Akins Blox",
           "expected": "Missed Box",
           "confidence": null
@@ -9339,30 +9170,25 @@
       "sampleId": "Fake 1",
       "metadata": {},
       "metrics": {
-        "precision": 0.9178082191780822,
-        "recall": 0.9054054054054054,
-        "f1": 0.9115646258503401,
-        "truePositives": 67,
-        "falsePositives": 6,
-        "falseNegatives": 7,
+        "precision": 0.9315068493150684,
+        "recall": 0.918918918918919,
+        "f1": 0.9251700680272108,
+        "truePositives": 68,
+        "falsePositives": 5,
+        "falseNegatives": 6,
         "totalGroundTruthFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 68,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 68,
         "missingFields": [
           "date"
         ],
         "extraFields": [],
         "mismatchedFields": [
-          {
-            "field": "signature",
-            "expected": ":present:",
-            "predicted": "J"
-          },
           {
             "field": "checkbox_work_spouse_no",
             "expected": "unselected",
@@ -9419,7 +9245,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "J",
             "expected": ":present:",
             "confidence": null
@@ -10091,7 +9917,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "J",
           "expected": ":present:",
           "confidence": null
@@ -10586,20 +10412,20 @@
       "sampleId": "Fake 2",
       "metadata": {},
       "metrics": {
-        "precision": 0.9305555555555556,
-        "recall": 0.9054054054054054,
-        "f1": 0.9178082191780821,
-        "truePositives": 67,
-        "falsePositives": 5,
-        "falseNegatives": 7,
+        "precision": 0.9444444444444444,
+        "recall": 0.918918918918919,
+        "f1": 0.9315068493150684,
+        "truePositives": 68,
+        "falsePositives": 4,
+        "falseNegatives": 6,
         "totalGroundTruthFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 68,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 68,
         "missingFields": [
           "spouse_net_employment_income",
           "applicant_net_employment_income"
@@ -10630,14 +10456,6 @@
               "Smith Fake."
             ],
             "predicted": "Smith Faye"
-          },
-          {
-            "field": "signature",
-            "expected": [
-              "Smith Fake",
-              "Smith Fake."
-            ],
-            "predicted": "Nwflhic"
           },
           {
             "field": "checkbox_dependants_no",
@@ -10686,7 +10504,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Nwflhic",
             "expected": [
               "Smith Fake",
@@ -11383,7 +11201,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Nwflhic",
           "expected": [
             "Smith Fake",
@@ -11879,20 +11697,20 @@
       "sampleId": "Fake 3",
       "metadata": {},
       "metrics": {
-        "precision": 0.9642857142857143,
-        "recall": 0.7297297297297297,
-        "f1": 0.8307692307692307,
-        "truePositives": 54,
-        "falsePositives": 2,
-        "falseNegatives": 20,
+        "precision": 0.9821428571428571,
+        "recall": 0.7432432432432432,
+        "f1": 0.8461538461538461,
+        "truePositives": 55,
+        "falsePositives": 1,
+        "falseNegatives": 19,
         "totalGroundTruthFields": 74,
-        "matchedFields": 54,
+        "matchedFields": 55,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 54,
+        "matchedFields": 55,
         "missingFields": [
           "applicant_oas_gis",
           "applicant_trust_income",
@@ -11922,11 +11740,6 @@
               "778 3224959"
             ],
             "predicted": "7783324959"
-          },
-          {
-            "field": "signature",
-            "expected": "Michael Scott",
-            "predicted": "Miche"
           }
         ],
         "comparisonResults": [
@@ -11966,7 +11779,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Miche",
             "expected": "Michael Scott",
             "confidence": null
@@ -12639,7 +12452,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Miche",
           "expected": "Michael Scott",
           "confidence": null
@@ -13119,20 +12932,20 @@
       "sampleId": "Fake 4",
       "metadata": {},
       "metrics": {
-        "precision": 0.918918918918919,
-        "recall": 0.918918918918919,
-        "f1": 0.918918918918919,
-        "truePositives": 68,
-        "falsePositives": 6,
-        "falseNegatives": 6,
+        "precision": 0.9324324324324325,
+        "recall": 0.9324324324324325,
+        "f1": 0.9324324324324325,
+        "truePositives": 69,
+        "falsePositives": 5,
+        "falseNegatives": 5,
         "totalGroundTruthFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 69,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 69,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -13162,11 +12975,6 @@
             "field": "phone",
             "expected": "604-892-3251",
             "predicted": "227-892-336"
-          },
-          {
-            "field": "signature",
-            "expected": "Jim Halpert",
-            "predicted": "Kim Halpertt"
           },
           {
             "field": "applicant_net_employment_income",
@@ -13212,7 +13020,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Kim Halpertt",
             "expected": "Jim Halpert",
             "confidence": null
@@ -13905,7 +13713,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Kim Halpertt",
           "expected": "Jim Halpert",
           "confidence": null
@@ -15689,20 +15497,20 @@
       "sampleId": "Fake 6",
       "metadata": {},
       "metrics": {
-        "precision": 0.8648648648648649,
-        "recall": 0.8767123287671232,
-        "f1": 0.870748299319728,
-        "truePositives": 64,
-        "falsePositives": 10,
-        "falseNegatives": 9,
+        "precision": 0.8783783783783784,
+        "recall": 0.8904109589041096,
+        "f1": 0.8843537414965986,
+        "truePositives": 65,
+        "falsePositives": 9,
+        "falseNegatives": 8,
         "totalGroundTruthFields": 74,
-        "matchedFields": 64,
+        "matchedFields": 65,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 64,
+        "matchedFields": 65,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -15725,11 +15533,6 @@
             "field": "name",
             "expected": "Schrute, Dwight",
             "predicted": "Schoute"
-          },
-          {
-            "field": "signature",
-            "expected": "DSchrute",
-            "predicted": "G. Schoute"
           },
           {
             "field": "checkbox_work_no",
@@ -15793,7 +15596,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "G. Schoute",
             "expected": "DSchrute",
             "confidence": null
@@ -16476,7 +16279,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "G. Schoute",
           "expected": "DSchrute",
           "confidence": null
@@ -16971,20 +16774,20 @@
       "sampleId": "Fake 7",
       "metadata": {},
       "metrics": {
-        "precision": 0.958904109589041,
-        "recall": 0.9459459459459459,
-        "f1": 0.9523809523809523,
-        "truePositives": 70,
-        "falsePositives": 3,
-        "falseNegatives": 4,
+        "precision": 0.9863013698630136,
+        "recall": 0.972972972972973,
+        "f1": 0.979591836734694,
+        "truePositives": 72,
+        "falsePositives": 1,
+        "falseNegatives": 2,
         "totalGroundTruthFields": 74,
-        "matchedFields": 70,
+        "matchedFields": 72,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 70,
+        "matchedFields": 72,
         "missingFields": [
           "applicant_child_tax_benefits"
         ],
@@ -16994,19 +16797,6 @@
             "field": "date",
             "expected": "2026APR02",
             "predicted": "2006-06-17"
-          },
-          {
-            "field": "name",
-            "expected": ":garbled:",
-            "predicted": "Squinton"
-          },
-          {
-            "field": "signature",
-            "expected": [
-              "SIGNATURE",
-              "Signature"
-            ],
-            "predicted": "EILE/NFTLIHE"
           }
         ],
         "comparisonResults": [
@@ -17030,7 +16820,7 @@
           },
           {
             "field": "name",
-            "matched": false,
+            "matched": true,
             "predicted": "Squinton",
             "expected": ":garbled:",
             "confidence": null
@@ -17044,7 +16834,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "EILE/NFTLIHE",
             "expected": [
               "SIGNATURE",
@@ -17454,7 +17244,10 @@
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "8\n0"
+            ],
             "confidence": null
           },
           {
@@ -17606,7 +17399,10 @@
         "checkbox_employment_changes_yes": "unselected",
         "spouse_workbc_financial_support": "",
         "applicant_tax_credits_gst_credit": 0,
-        "applicant_canada_pension_plan_cpp": "0",
+        "applicant_canada_pension_plan_cpp": [
+          "0",
+          "8\n0"
+        ],
         "applicant_spousal_support_alimony": "0",
         "applicant_workbc_financial_support": "0",
         "spouse_other_income_money_received": "",
@@ -17716,7 +17512,7 @@
         },
         {
           "field": "name",
-          "matched": false,
+          "matched": true,
           "predicted": "Squinton",
           "expected": ":garbled:",
           "confidence": null
@@ -17730,7 +17526,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "EILE/NFTLIHE",
           "expected": [
             "SIGNATURE",
@@ -18140,7 +17936,10 @@
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "8\n0"
+          ],
           "confidence": null
         },
         {
@@ -18227,31 +18026,25 @@
       "sampleId": "HR0081 (10)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9863013698630136,
-        "recall": 0.972972972972973,
-        "f1": 0.979591836734694,
-        "truePositives": 72,
-        "falsePositives": 1,
-        "falseNegatives": 2,
+        "precision": 1,
+        "recall": 0.9864864864864865,
+        "f1": 0.9931972789115647,
+        "truePositives": 73,
+        "falsePositives": 0,
+        "falseNegatives": 1,
         "totalGroundTruthFields": 74,
-        "matchedFields": 72,
+        "matchedFields": 73,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 72,
+        "matchedFields": 73,
         "missingFields": [
           "spouse_signature"
         ],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "signature",
-            "expected": "Joe",
-            "predicted": "Lee"
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "sin",
@@ -18290,7 +18083,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Lee",
             "expected": "Joe",
             "confidence": null
@@ -18990,7 +18783,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Lee",
           "expected": "Joe",
           "confidence": null
@@ -19491,31 +19284,25 @@
       "sampleId": "HR0081 (2)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9863013698630136,
-        "recall": 0.972972972972973,
-        "f1": 0.979591836734694,
-        "truePositives": 72,
-        "falsePositives": 1,
-        "falseNegatives": 2,
+        "precision": 1,
+        "recall": 0.9864864864864865,
+        "f1": 0.9931972789115647,
+        "truePositives": 73,
+        "falsePositives": 0,
+        "falseNegatives": 1,
         "totalGroundTruthFields": 74,
-        "matchedFields": 72,
+        "matchedFields": 73,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 72,
+        "matchedFields": 73,
         "missingFields": [
           "spouse_signature"
         ],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "signature",
-            "expected": "Lace",
-            "predicted": "Lee"
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "sin",
@@ -19551,7 +19338,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Lee",
             "expected": "Lace",
             "confidence": null
@@ -20231,7 +20018,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Lee",
           "expected": "Lace",
           "confidence": null
@@ -20725,20 +20512,20 @@
       "sampleId": "HR0081 (3)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9452054794520548,
-        "recall": 0.9324324324324325,
-        "f1": 0.9387755102040816,
-        "truePositives": 69,
-        "falsePositives": 4,
-        "falseNegatives": 5,
+        "precision": 0.958904109589041,
+        "recall": 0.9459459459459459,
+        "f1": 0.9523809523809523,
+        "truePositives": 70,
+        "falsePositives": 3,
+        "falseNegatives": 4,
         "totalGroundTruthFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "missingFields": [
           "applicant_income_of_dependent_children"
         ],
@@ -20765,11 +20552,6 @@
             "field": "name",
             "expected": "Ann Jones",
             "predicted": "Am Jones"
-          },
-          {
-            "field": "signature",
-            "expected": "Ann",
-            "predicted": "~"
           }
         ],
         "comparisonResults": [
@@ -20810,7 +20592,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "~",
             "expected": "Ann",
             "confidence": null
@@ -21496,7 +21278,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "~",
           "expected": "Ann",
           "confidence": null
@@ -21990,31 +21772,25 @@
       "sampleId": "HR0081 (4)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9863013698630136,
-        "recall": 0.972972972972973,
-        "f1": 0.979591836734694,
-        "truePositives": 72,
-        "falsePositives": 1,
-        "falseNegatives": 2,
+        "precision": 1,
+        "recall": 0.9864864864864865,
+        "f1": 0.9931972789115647,
+        "truePositives": 73,
+        "falsePositives": 0,
+        "falseNegatives": 1,
         "totalGroundTruthFields": 74,
-        "matchedFields": 72,
+        "matchedFields": 73,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 72,
+        "matchedFields": 73,
         "missingFields": [
           "signature"
         ],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "spouse_name",
-            "expected": ":garbled:",
-            "predicted": "Aves"
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "sin",
@@ -22082,7 +21858,7 @@
           },
           {
             "field": "spouse_name",
-            "matched": false,
+            "matched": true,
             "predicted": "Aves",
             "expected": ":garbled:",
             "confidence": null
@@ -22994,7 +22770,7 @@
         },
         {
           "field": "spouse_name",
-          "matched": false,
+          "matched": true,
           "predicted": "Aves",
           "expected": ":garbled:",
           "confidence": null
@@ -23572,20 +23348,20 @@
       "sampleId": "HR0081 (5)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9726027397260274,
-        "recall": 0.9594594594594594,
-        "f1": 0.9659863945578231,
-        "truePositives": 71,
-        "falsePositives": 2,
-        "falseNegatives": 3,
+        "precision": 0.9863013698630136,
+        "recall": 0.972972972972973,
+        "f1": 0.979591836734694,
+        "truePositives": 72,
+        "falsePositives": 1,
+        "falseNegatives": 2,
         "totalGroundTruthFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 72,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 72,
         "missingFields": [
           "explain_changes"
         ],
@@ -23595,11 +23371,6 @@
             "field": "name",
             "expected": "Lace",
             "predicted": "Tester One"
-          },
-          {
-            "field": "signature",
-            "expected": "Tester One",
-            "predicted": "MC"
           }
         ],
         "comparisonResults": [
@@ -23640,7 +23411,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "MC",
             "expected": "Tester One",
             "confidence": null
@@ -24326,7 +24097,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "MC",
           "expected": "Tester One",
           "confidence": null
@@ -24820,20 +24591,20 @@
       "sampleId": "HR0081 (6)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9411764705882353,
-        "recall": 0.8648648648648649,
-        "f1": 0.9014084507042254,
-        "truePositives": 64,
-        "falsePositives": 4,
-        "falseNegatives": 10,
+        "precision": 0.9705882352941176,
+        "recall": 0.8918918918918919,
+        "f1": 0.9295774647887325,
+        "truePositives": 66,
+        "falsePositives": 2,
+        "falseNegatives": 8,
         "totalGroundTruthFields": 74,
-        "matchedFields": 64,
+        "matchedFields": 66,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 64,
+        "matchedFields": 66,
         "missingFields": [
           "applicant_oas_gis",
           "applicant_workers_compensation",
@@ -24850,19 +24621,9 @@
             "predicted": "les una"
           },
           {
-            "field": "signature",
-            "expected": "Trung",
-            "predicted": "Junal"
-          },
-          {
             "field": "spouse_name",
             "expected": "April Luna",
             "predicted": "April Lune"
-          },
-          {
-            "field": "spouse_signature",
-            "expected": "AKM De",
-            "predicted": "Aku De"
           }
         ],
         "comparisonResults": [
@@ -24900,7 +24661,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Junal",
             "expected": "Trung",
             "confidence": null
@@ -24962,7 +24723,7 @@
           },
           {
             "field": "spouse_signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Aku De",
             "expected": "AKM De",
             "confidence": null
@@ -25587,7 +25348,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Junal",
           "expected": "Trung",
           "confidence": null
@@ -25649,7 +25410,7 @@
         },
         {
           "field": "spouse_signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Aku De",
           "expected": "AKM De",
           "confidence": null
@@ -27503,37 +27264,27 @@
       "sampleId": "HR0081 (8)",
       "metadata": {},
       "metrics": {
-        "precision": 0.918918918918919,
-        "recall": 0.9315068493150684,
-        "f1": 0.9251700680272108,
-        "truePositives": 68,
-        "falsePositives": 6,
-        "falseNegatives": 5,
+        "precision": 0.9459459459459459,
+        "recall": 0.958904109589041,
+        "f1": 0.9523809523809523,
+        "truePositives": 70,
+        "falsePositives": 4,
+        "falseNegatives": 3,
         "totalGroundTruthFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 70,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 70,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
           {
-            "field": "signature",
-            "expected": "lece",
-            "predicted": "Lee"
-          },
-          {
             "field": "spouse_name",
             "expected": "lece",
             "predicted": "Donna Eight"
-          },
-          {
-            "field": "spouse_signature",
-            "expected": "Donna Eight",
-            "predicted": "Lee"
           },
           {
             "field": "checkbox_warrant_no",
@@ -27584,7 +27335,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Lee",
             "expected": "lece",
             "confidence": null
@@ -27647,7 +27398,7 @@
           },
           {
             "field": "spouse_signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Lee",
             "expected": "Donna Eight",
             "confidence": null
@@ -28447,7 +28198,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Lee",
           "expected": "lece",
           "confidence": null
@@ -28510,7 +28261,7 @@
         },
         {
           "field": "spouse_signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Lee",
           "expected": "Donna Eight",
           "confidence": null
@@ -29033,28 +28784,23 @@
       "sampleId": "HR0081 (9)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8783783783783784,
-        "recall": 0.8904109589041096,
-        "f1": 0.8843537414965986,
-        "truePositives": 65,
-        "falsePositives": 9,
-        "falseNegatives": 8,
+        "precision": 0.8918918918918919,
+        "recall": 0.9041095890410958,
+        "f1": 0.8979591836734694,
+        "truePositives": 66,
+        "falsePositives": 8,
+        "falseNegatives": 7,
         "totalGroundTruthFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 66,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 66,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
-          {
-            "field": "signature",
-            "expected": "pr",
-            "predicted": "N"
-          },
           {
             "field": "checkbox_work_spouse_no",
             "expected": "unselected",
@@ -29127,7 +28873,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "N",
             "expected": "pr",
             "confidence": null
@@ -29830,7 +29576,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "N",
           "expected": "pr",
           "confidence": null
@@ -30335,20 +30081,20 @@
       "sampleId": "manual sample (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8378378378378378,
-        "recall": 0.8378378378378378,
-        "f1": 0.8378378378378378,
-        "truePositives": 62,
-        "falsePositives": 12,
-        "falseNegatives": 12,
+        "precision": 0.8513513513513513,
+        "recall": 0.8513513513513513,
+        "f1": 0.8513513513513514,
+        "truePositives": 63,
+        "falsePositives": 11,
+        "falseNegatives": 11,
         "totalGroundTruthFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -30361,11 +30107,6 @@
             "field": "phone",
             "expected": "234-789-1111",
             "predicted": "(219)-78-1111"
-          },
-          {
-            "field": "signature",
-            "expected": "KPatel",
-            "predicted": "Kpafl"
           },
           {
             "field": "checkbox_warrant_no",
@@ -30447,7 +30188,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Kpafl",
             "expected": "KPatel",
             "confidence": null
@@ -31134,7 +30875,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Kpafl",
           "expected": "KPatel",
           "confidence": null
@@ -31633,20 +31374,20 @@
       "sampleId": "manual sample (10)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9324324324324325,
-        "recall": 0.9324324324324325,
-        "f1": 0.9324324324324325,
-        "truePositives": 69,
-        "falsePositives": 5,
-        "falseNegatives": 5,
+        "precision": 0.9459459459459459,
+        "recall": 0.9459459459459459,
+        "f1": 0.9459459459459459,
+        "truePositives": 70,
+        "falsePositives": 4,
+        "falseNegatives": 4,
         "totalGroundTruthFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -31671,11 +31412,6 @@
             "field": "phone",
             "expected": "234-567-8895",
             "predicted": "225-567-8895"
-          },
-          {
-            "field": "signature",
-            "expected": "MBrown",
-            "predicted": "Milan"
           },
           {
             "field": "explain_changes",
@@ -31724,7 +31460,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Milan",
             "expected": "MBrown",
             "confidence": null
@@ -32417,7 +32153,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Milan",
           "expected": "MBrown",
           "confidence": null
@@ -32915,20 +32651,20 @@
       "sampleId": "manual sample (2)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8378378378378378,
-        "recall": 0.8378378378378378,
-        "f1": 0.8378378378378378,
-        "truePositives": 62,
-        "falsePositives": 12,
-        "falseNegatives": 12,
+        "precision": 0.8513513513513513,
+        "recall": 0.8513513513513513,
+        "f1": 0.8513513513513514,
+        "truePositives": 63,
+        "falsePositives": 11,
+        "falseNegatives": 11,
         "totalGroundTruthFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -32936,11 +32672,6 @@
             "field": "date",
             "expected": "2025-11-11",
             "predicted": "2023-11-11"
-          },
-          {
-            "field": "signature",
-            "expected": "SThompson",
-            "predicted": "VThompson"
           },
           {
             "field": "applicant_oas_gis",
@@ -33028,7 +32759,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "VThompson",
             "expected": "SThompson",
             "confidence": null
@@ -33717,7 +33448,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "VThompson",
           "expected": "SThompson",
           "confidence": null
@@ -34216,20 +33947,20 @@
       "sampleId": "manual sample (3)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9054054054054054,
-        "recall": 0.9054054054054054,
-        "f1": 0.9054054054054054,
-        "truePositives": 67,
-        "falsePositives": 7,
-        "falseNegatives": 7,
+        "precision": 0.9324324324324325,
+        "recall": 0.9324324324324325,
+        "f1": 0.9324324324324325,
+        "truePositives": 69,
+        "falsePositives": 5,
+        "falseNegatives": 5,
         "totalGroundTruthFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 69,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 69,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -34240,11 +33971,6 @@
               "2025-11-12"
             ],
             "predicted": "2023-11-12"
-          },
-          {
-            "field": "signature",
-            "expected": "JSmith",
-            "predicted": "John"
           },
           {
             "field": "spouse_date",
@@ -34258,11 +33984,6 @@
             "field": "spouse_phone",
             "expected": "234-567-8890",
             "predicted": "224-567-8890"
-          },
-          {
-            "field": "spouse_signature",
-            "expected": "MSmith",
-            "predicted": "Maria"
           },
           {
             "field": "checkbox_school_spouse_no",
@@ -34313,7 +34034,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "John",
             "expected": "JSmith",
             "confidence": null
@@ -34376,7 +34097,7 @@
           },
           {
             "field": "spouse_signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Maria",
             "expected": "MSmith",
             "confidence": null
@@ -35014,7 +34735,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "John",
           "expected": "JSmith",
           "confidence": null
@@ -35077,7 +34798,7 @@
         },
         {
           "field": "spouse_signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Maria",
           "expected": "MSmith",
           "confidence": null
@@ -36797,20 +36518,20 @@
       "sampleId": "manual sample (5)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9054054054054054,
-        "recall": 0.9054054054054054,
-        "f1": 0.9054054054054054,
-        "truePositives": 67,
-        "falsePositives": 7,
-        "falseNegatives": 7,
+        "precision": 0.9324324324324325,
+        "recall": 0.9324324324324325,
+        "f1": 0.9324324324324325,
+        "truePositives": 69,
+        "falsePositives": 5,
+        "falseNegatives": 5,
         "totalGroundTruthFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 69,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 69,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -36825,22 +36546,12 @@
             "predicted": "345-78765-31"
           },
           {
-            "field": "signature",
-            "expected": "Dwilson",
-            "predicted": "N. Krah"
-          },
-          {
             "field": "spouse_date",
             "expected": [
               "Nov 25, 2025",
               "2025-11-25"
             ],
             "predicted": "2025-03-25"
-          },
-          {
-            "field": "spouse_signature",
-            "expected": "HWilson",
-            "predicted": "Nwilson"
           },
           {
             "field": "spouse_employment_insurance",
@@ -36888,7 +36599,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "N. Krah",
             "expected": "Dwilson",
             "confidence": null
@@ -36954,7 +36665,7 @@
           },
           {
             "field": "spouse_signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Nwilson",
             "expected": "HWilson",
             "confidence": null
@@ -37589,7 +37300,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "N. Krah",
           "expected": "Dwilson",
           "confidence": null
@@ -37655,7 +37366,7 @@
         },
         {
           "field": "spouse_signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Nwilson",
           "expected": "HWilson",
           "confidence": null
@@ -38094,20 +37805,20 @@
       "sampleId": "manual sample (6)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8108108108108109,
-        "recall": 0.8108108108108109,
-        "f1": 0.8108108108108109,
-        "truePositives": 60,
-        "falsePositives": 14,
-        "falseNegatives": 14,
+        "precision": 0.8243243243243243,
+        "recall": 0.8243243243243243,
+        "f1": 0.8243243243243243,
+        "truePositives": 61,
+        "falsePositives": 13,
+        "falseNegatives": 13,
         "totalGroundTruthFields": 74,
-        "matchedFields": 60,
+        "matchedFields": 61,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 60,
+        "matchedFields": 61,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -38118,11 +37829,6 @@
               "2025-11-12"
             ],
             "predicted": "2023-11-12"
-          },
-          {
-            "field": "signature",
-            "expected": "RChen",
-            "predicted": "[illegible]"
           },
           {
             "field": "checkbox_moved_no",
@@ -38223,7 +37929,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "[illegible]",
             "expected": "RChen",
             "confidence": null
@@ -38910,7 +38616,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "[illegible]",
           "expected": "RChen",
           "confidence": null
@@ -39405,20 +39111,20 @@
       "sampleId": "manual sample (7)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8783783783783784,
-        "recall": 0.8904109589041096,
-        "f1": 0.8843537414965986,
-        "truePositives": 65,
-        "falsePositives": 9,
-        "falseNegatives": 8,
+        "precision": 0.9054054054054054,
+        "recall": 0.9178082191780822,
+        "f1": 0.9115646258503401,
+        "truePositives": 67,
+        "falsePositives": 7,
+        "falseNegatives": 6,
         "totalGroundTruthFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 67,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 67,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -39437,11 +39143,6 @@
             "predicted": "(134)-568-8990"
           },
           {
-            "field": "signature",
-            "expected": "POConnor",
-            "predicted": "O'Connor"
-          },
-          {
             "field": "spouse_sin",
             "expected": [
               "123456788",
@@ -39449,11 +39150,6 @@
               "123-456-788"
             ],
             "predicted": "123456790"
-          },
-          {
-            "field": "spouse_signature",
-            "expected": "LOConnor",
-            "predicted": "O'Connor"
           },
           {
             "field": "checkbox_warrant_no",
@@ -39510,7 +39206,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "O'Connor",
             "expected": "POConnor",
             "confidence": null
@@ -39576,7 +39272,7 @@
           },
           {
             "field": "spouse_signature",
-            "matched": false,
+            "matched": true,
             "predicted": "O'Connor",
             "expected": "LOConnor",
             "confidence": null
@@ -40225,7 +39921,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "O'Connor",
           "expected": "POConnor",
           "confidence": null
@@ -40291,7 +39987,7 @@
         },
         {
           "field": "spouse_signature",
-          "matched": false,
+          "matched": true,
           "predicted": "O'Connor",
           "expected": "LOConnor",
           "confidence": null
@@ -40733,20 +40429,20 @@
       "sampleId": "manual sample (8)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9054054054054054,
-        "recall": 0.9054054054054054,
-        "f1": 0.9054054054054054,
-        "truePositives": 67,
-        "falsePositives": 7,
-        "falseNegatives": 7,
+        "precision": 0.9324324324324325,
+        "recall": 0.9324324324324325,
+        "f1": 0.9324324324324325,
+        "truePositives": 69,
+        "falsePositives": 5,
+        "falseNegatives": 5,
         "totalGroundTruthFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 69,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 67,
+        "matchedFields": 69,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -40760,19 +40456,9 @@
             "predicted": "2023-11-23"
           },
           {
-            "field": "name",
-            "expected": "Amanda Martinez - Jones",
-            "predicted": "Amanda Martinez-Jones"
-          },
-          {
             "field": "phone",
             "expected": "226-783-4854",
             "predicted": "236-283-4854"
-          },
-          {
-            "field": "signature",
-            "expected": "A.M.J",
-            "predicted": "A.M.B"
           },
           {
             "field": "checkbox_warrant_no",
@@ -40815,9 +40501,12 @@
           },
           {
             "field": "name",
-            "matched": false,
+            "matched": true,
             "predicted": "Amanda Martinez-Jones",
-            "expected": "Amanda Martinez - Jones",
+            "expected": [
+              "Amanda Martinez - Jones",
+              "Amanda Martinez-Jones"
+            ],
             "confidence": null
           },
           {
@@ -40829,7 +40518,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "A.M.B",
             "expected": "A.M.J",
             "confidence": null
@@ -41330,7 +41019,10 @@
           "2025- Nov-23",
           "2025-11-23"
         ],
-        "name": "Amanda Martinez - Jones",
+        "name": [
+          "Amanda Martinez - Jones",
+          "Amanda Martinez-Jones"
+        ],
         "phone": "226-783-4854",
         "signature": "A.M.J",
         "spouse_sin": "",
@@ -41504,9 +41196,12 @@
         },
         {
           "field": "name",
-          "matched": false,
+          "matched": true,
           "predicted": "Amanda Martinez-Jones",
-          "expected": "Amanda Martinez - Jones",
+          "expected": [
+            "Amanda Martinez - Jones",
+            "Amanda Martinez-Jones"
+          ],
           "confidence": null
         },
         {
@@ -41518,7 +41213,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "A.M.B",
           "expected": "A.M.J",
           "confidence": null
@@ -42013,20 +41708,20 @@
       "sampleId": "manual sample (9)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9324324324324325,
-        "recall": 0.9324324324324325,
-        "f1": 0.9324324324324325,
-        "truePositives": 69,
-        "falsePositives": 5,
-        "falseNegatives": 5,
+        "precision": 0.9459459459459459,
+        "recall": 0.9459459459459459,
+        "f1": 0.9459459459459459,
+        "truePositives": 70,
+        "falsePositives": 4,
+        "falseNegatives": 4,
         "totalGroundTruthFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -42034,11 +41729,6 @@
             "field": "phone",
             "expected": "123-456-7789",
             "predicted": "123-456-7899"
-          },
-          {
-            "field": "signature",
-            "expected": "J.J.",
-            "predicted": "JJ"
           },
           {
             "field": "checkbox_warrant_spouse_no",
@@ -42094,7 +41784,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "JJ",
             "expected": "J.J.",
             "confidence": null
@@ -42789,7 +42479,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "JJ",
           "expected": "J.J.",
           "confidence": null
@@ -47620,20 +47310,20 @@
       "sampleId": "synth-no-spouse (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.7115384615384616,
-        "recall": 0.7115384615384616,
-        "f1": 0.7115384615384616,
-        "truePositives": 37,
-        "falsePositives": 15,
-        "falseNegatives": 15,
+        "precision": 0.7307692307692307,
+        "recall": 0.7307692307692307,
+        "f1": 0.7307692307692306,
+        "truePositives": 38,
+        "falsePositives": 14,
+        "falseNegatives": 14,
         "totalGroundTruthFields": 52,
-        "matchedFields": 37,
+        "matchedFields": 38,
         "checkboxAccuracy": 0
       },
       "pass": false,
       "diagnostics": {
         "totalFields": 52,
-        "matchedFields": 37,
+        "matchedFields": 38,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -47686,11 +47376,6 @@
             "field": "applicant_child_tax_benefits",
             "expected": 9238.14,
             "predicted": 4258.14
-          },
-          {
-            "field": "signature",
-            "expected": "Thomas Andrade",
-            "predicted": "Thomas Androde"
           },
           {
             "field": "name",
@@ -48007,7 +47692,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Thomas Androde",
             "expected": "Thomas Andrade",
             "confidence": null
@@ -48562,7 +48247,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Thomas Androde",
           "expected": "Thomas Andrade",
           "confidence": null
@@ -50741,20 +50426,20 @@
       "sampleId": "synth-regular (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.7567567567567568,
-        "recall": 0.7567567567567568,
-        "f1": 0.7567567567567567,
-        "truePositives": 56,
-        "falsePositives": 18,
-        "falseNegatives": 18,
+        "precision": 0.7702702702702703,
+        "recall": 0.7702702702702703,
+        "f1": 0.7702702702702703,
+        "truePositives": 57,
+        "falsePositives": 17,
+        "falseNegatives": 17,
         "totalGroundTruthFields": 74,
-        "matchedFields": 56,
+        "matchedFields": 57,
         "checkboxAccuracy": 0
       },
       "pass": false,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 56,
+        "matchedFields": 57,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -50827,11 +50512,6 @@
             "field": "applicant_child_tax_benefits",
             "expected": 9581.52,
             "predicted": 4581.52
-          },
-          {
-            "field": "signature",
-            "expected": "A. Russell",
-            "predicted": "Russell"
           },
           {
             "field": "date",
@@ -51325,7 +51005,7 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "Russell",
             "expected": "A. Russell",
             "confidence": null
@@ -52046,7 +51726,7 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "Russell",
           "expected": "A. Russell",
           "confidence": null

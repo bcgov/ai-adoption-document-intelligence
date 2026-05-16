@@ -10,15 +10,15 @@ Known-hard samples (excluded from many narratives but listed inline): `81 blank`
 
 | Experiment | pass_rate | f1.mean | f1.median | precision | recall | matched.median | FP.mean | FN.mean |
 |---|---|---|---|---|---|---|---|---|
-| 00-doc-intelligence-template | 0.850 | 0.906 | 0.939 | 0.920 | 0.902 | 67 | 5.42 | 7.10 |
-| 01-neural-doc-intelligence | 0.950 | 0.937 | 0.973 | 0.957 | 0.922 | 69.5 | 2.88 | 5.63 |
-| 02-mistral-doc-ai-azure | 0.875 | 0.920 | 0.959 | 0.943 | 0.903 | 69 | 3.92 | 7.08 |
-| 03-content-understanding | 0.950 | 0.944 | 0.973 | 0.963 | 0.928 | 70.5 | 2.50 | 5.10 |
-| 04-vlm-direct | 0.800 | 0.874 | 0.903 | 0.880 | 0.870 | 66 | 8.18 | 8.95 |
-| 05-vlm-ocr-hybrid | 0.975 | 0.948 | 0.973 | 0.957 | 0.941 | 71 | 2.95 | 4.13 |
-| 06-engine-ensemble | 1.000 | 0.967 | 0.980 | 0.978 | 0.959 | 72 | 1.57 | 3.05 |
-| 07-vlm-ocr-hybrid-gpt-4o | 0.925 | 0.927 | 0.959 | 0.946 | 0.913 | 68.5 | 3.73 | 6.30 |
-| 08-vlm-ocr-hybrid-gpt-5.2 | 0.975 | 0.965 | 0.976 | 0.971 | 0.960 | 71.5 | 2.13 | 2.90 |
+| 00-doc-intelligence-template | 0.875 | 0.916 | 0.952 | 0.930 | 0.912 | 68 | 4.72 | 6.38 |
+| 01-neural-doc-intelligence | 0.950 | 0.946 | 0.980 | 0.966 | 0.931 | 70 | 2.25 | 4.97 |
+| 02-mistral-doc-ai-azure | 0.900 | 0.927 | 0.966 | 0.950 | 0.910 | 70 | 3.45 | 6.58 |
+| 03-content-understanding | 0.950 | 0.953 | 0.981 | 0.972 | 0.937 | 71 | 1.85 | 4.45 |
+| 04-vlm-direct | 0.800 | 0.887 | 0.918 | 0.892 | 0.882 | 67 | 7.30 | 8.07 |
+| 05-vlm-ocr-hybrid | 0.975 | 0.957 | 0.980 | 0.965 | 0.950 | 72 | 2.33 | 3.48 |
+| 06-engine-ensemble | 1.000 | 0.976 | 0.986 | 0.986 | 0.967 | 72 | 0.97 | 2.42 |
+| 07-vlm-ocr-hybrid-gpt-4o | 0.950 | 0.936 | 0.973 | 0.955 | 0.921 | 69 | 3.10 | 5.67 |
+| 08-vlm-ocr-hybrid-gpt-5.2 | 0.975 | 0.973 | 0.984 | 0.978 | 0.968 | 72 | 1.57 | 2.33 |
 
 ## 2. Mismatch classification
 
@@ -26,16 +26,16 @@ Counts of unmatched (`matched: false`) `evaluationDetails` rows in each experime
 
 | Experiment | numeric-equal | currency-numeric | currency-string | whitespace-only | case-only | punctuation-only | text-combined | exact-coerce-MATCH | deletion | insertion | genuine-diff | total |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 00-doc-intelligence-template | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 151 | 73 | 133 | **357** |
-| 01-neural-doc-intelligence | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 138 | 28 | 87 | **253** |
-| 02-mistral-doc-ai-azure | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 135 | 9 | 148 | **292** |
-| 03-content-understanding | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 130 | 26 | 74 | **230** |
-| 04-vlm-direct | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 38 | 7 | 320 | **365** |
-| 05-vlm-ocr-hybrid | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 54 | 6 | 111 | **171** |
-| 06-engine-ensemble | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 63 | 4 | 59 | **126** |
-| 07-vlm-ocr-hybrid-gpt-4o | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 129 | 26 | 123 | **278** |
-| 08-vlm-ocr-hybrid-gpt-5.2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 38 | 7 | 78 | **123** |
-| **TOTAL** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **876** | **186** | **1133** | **2195** |
+| 00-doc-intelligence-template | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 150 | 73 | 105 | **328** |
+| 01-neural-doc-intelligence | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 137 | 28 | 62 | **227** |
+| 02-mistral-doc-ai-azure | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 134 | 9 | 129 | **272** |
+| 03-content-understanding | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 130 | 26 | 48 | **204** |
+| 04-vlm-direct | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 38 | 7 | 285 | **330** |
+| 05-vlm-ocr-hybrid | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 53 | 6 | 86 | **145** |
+| 06-engine-ensemble | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 62 | 4 | 35 | **101** |
+| 07-vlm-ocr-hybrid-gpt-4o | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 129 | 26 | 98 | **253** |
+| 08-vlm-ocr-hybrid-gpt-5.2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 37 | 7 | 56 | **100** |
+| **TOTAL** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **870** | **186** | **904** | **1960** |
 
 **✓ All technical-equivalence classes are empty.** Every remaining mismatch is a real difference (deletion / insertion / genuine-diff). The promote-gt-format-variants rules cover every format-only pattern in the current data.
 
@@ -43,7 +43,7 @@ Counts of unmatched (`matched: false`) `evaluationDetails` rows in each experime
 
 ### 00-doc-intelligence-template
 
-Run id `b432a65a-a52f-4ac7-85ed-4b46df05ba6a`. pass_rate 0.850, f1.median 0.939, matchedFields.median 67.
+Run id `b432a65a-a52f-4ac7-85ed-4b46df05ba6a`. pass_rate 0.875, f1.median 0.952, matchedFields.median 68.
 
 #### 00-doc-intelligence-template — 81 blank ⚠️ KNOWN-HARD
 
@@ -66,7 +66,7 @@ f1 **0.561**, precision 0.909, recall 0.405, matched 30 of 77, pass=`false`
 | `applicant_trust_income` | "Avoid" | "0" | genuine-diff |
 | `checkbox_dependants_no` | null | "selected" | deletion |
 | `applicant_child_support` | null | "0" | deletion |
-| `applicant_rental_income` | null | "0" | deletion |
+| `applicant_rental_income` | null | ["0", "0 ⏎ 1"] | deletion |
 | `checkbox_dependants_yes` | null | "unselected" | deletion |
 | `checkbox_work_spouse_no` | null | "unselected" | deletion |
 | `checkbox_moved_spouse_no` | null | "unselected" | deletion |
@@ -87,14 +87,14 @@ f1 **0.561**, precision 0.909, recall 0.405, matched 30 of 77, pass=`false`
 | `applicant_workers_compensation` | null | "0" | deletion |
 | `checkbox_employment_changes_no` | null | "selected" | deletion |
 | `applicant_net_employment_income` | null | "0" | deletion |
-| `applicant_tax_credits_gst_credit` | null | "0" | deletion |
+| `applicant_tax_credits_gst_credit` | null | ["0", "5 ⏎ 0"] | deletion |
 | `applicant_canada_pension_plan_cpp` | null | "0" | deletion |
 | `applicant_spousal_support_alimony` | null | "0" | deletion |
 | `applicant_workbc_financial_support` | null | "0" | deletion |
 | `applicant_other_income_money_received` | null | "0" | deletion |
 | `checkbox_employment_changes_spouse_no` | null | "unselected" | deletion |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
+| `applicant_student_funding_loans_bursaries` | null | ["0", "5 ⏎ 0"] | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
 #### 00-doc-intelligence-template — 81 coffee ⚠️ KNOWN-HARD
@@ -145,14 +145,13 @@ f1 **0.600**, precision 0.800, recall 0.480, matched 36 of 84, pass=`false`
 
 #### 00-doc-intelligence-template — Fake 1
 
-f1 **0.727**, precision 0.787, recall 0.676, matched 48 of 84, pass=`false`
+f1 **0.742**, precision 0.803, recall 0.690, matched 49 of 83, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "985JANU" | "1985JAN4" | genuine-diff |
 | `name` | "Applicant Telephone" | "Pam Beesly" | genuine-diff |
 | `phone` | "ISSUE" | "" | insertion |
-| `signature` | "Pam Beesly" | ":present:" | genuine-diff |
 | `spouse_sin` | "OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
 | `explain_changes` | "Applicant Signature" | "" | insertion |
 | `applicant_oas_gis` | null | "0" | deletion |
@@ -178,12 +177,11 @@ f1 **0.727**, precision 0.787, recall 0.676, matched 48 of 84, pass=`false`
 
 #### 00-doc-intelligence-template — Fake 4
 
-f1 **0.741**, precision 0.794, recall 0.694, matched 50 of 85, pass=`false`
+f1 **0.756**, precision 0.810, recall 0.708, matched 51 of 84, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "Sim Habert" | "Jim Halpert" | genuine-diff |
-| `signature` | "Jim Haupt" | "Jim Halpert" | genuine-diff |
 | `spouse_sin` | "OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
 | `spouse_signature` | "Will submit paystubs next week." | "" | insertion |
 | `applicant_oas_gis` | null | "0" | deletion |
@@ -209,13 +207,12 @@ f1 **0.741**, precision 0.794, recall 0.694, matched 50 of 85, pass=`false`
 
 #### 00-doc-intelligence-template — Fake 5
 
-f1 **0.771**, precision 0.794, recall 0.750, matched 54 of 86, pass=`false`
+f1 **0.786**, precision 0.809, recall 0.764, matched 55 of 85, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "X Kellykapoor Kapoor KR" | ["Kelly Kapoor", "Kelly kapoor"] | genuine-diff |
 | `phone` | "Applicant Telephone" | "" | insertion |
-| `signature` | "Applicant Signature" | "Kelly" | genuine-diff |
 | `spouse_name` | "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
@@ -234,38 +231,12 @@ f1 **0.771**, precision 0.794, recall 0.750, matched 54 of 86, pass=`false`
 | `applicant_student_funding_loans_bursaries` | "$" | "0" | genuine-diff |
 | `applicant_private_pensions_retirement_disability` | "$" | "0" | genuine-diff |
 
-#### 00-doc-intelligence-template — Fake 7
-
-f1 **0.800**, precision 0.824, recall 0.778, matched 56 of 84, pass=`false`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2026FFR02" | "2026APR02" | genuine-diff |
-| `name` | "Applicant Telephone" | ":garbled:" | genuine-diff |
-| `phone` | "ISSUE" | "" | insertion |
-| `signature` | "Applicant Signature SIGNATURE" | ["SIGNATURE", "Signature"] | genuine-diff |
-| `spouse_name` | "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
-| `applicant_trust_income` | null | 0 | deletion |
-| `applicant_child_support` | 5 | 0 | genuine-diff |
-| `applicant_rental_income` | "a" | "0" | genuine-diff |
-| `checkbox_family_assets_yes` | "selected" | "unselected" | genuine-diff |
-| `applicant_income_tax_refund` | "$" | 0 | genuine-diff |
-| `applicant_room_board_income` | null | "0" | deletion |
-| `checkbox_need_assistance_yes` | null | "selected" | deletion |
-| `applicant_net_employment_income` | null | 0 | deletion |
-| `applicant_canada_pension_plan_cpp` | 8 | "0" | genuine-diff |
-| `applicant_spousal_support_alimony` | "$" | "0" | genuine-diff |
-| `applicant_income_of_dependent_children` | null | 0 | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
-| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
-
 #### 00-doc-intelligence-template — HR0081 (10)
 
-f1 **0.800**, precision 0.980, recall 0.676, matched 50 of 75, pass=`true`
+f1 **0.816**, precision 1.000, recall 0.689, matched 51 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "ace" | "Joe" | genuine-diff |
 | `spouse_oas_gis` | null | "0" | deletion |
 | `spouse_trust_income` | null | "0" | deletion |
 | `spouse_child_support` | null | "0" | deletion |
@@ -290,16 +261,38 @@ f1 **0.800**, precision 0.980, recall 0.676, matched 50 of 75, pass=`true`
 | `spouse_student_funding_loans_bursaries` | null | "0" | deletion |
 | `spouse_private_pensions_retirement_disability` | null | "0" | deletion |
 
+#### 00-doc-intelligence-template — Fake 7
+
+f1 **0.829**, precision 0.853, recall 0.806, matched 58 of 82, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2026FFR02" | "2026APR02" | genuine-diff |
+| `phone` | "ISSUE" | "" | insertion |
+| `spouse_name` | "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
+| `applicant_trust_income` | null | 0 | deletion |
+| `applicant_child_support` | 5 | 0 | genuine-diff |
+| `applicant_rental_income` | "a" | "0" | genuine-diff |
+| `checkbox_family_assets_yes` | "selected" | "unselected" | genuine-diff |
+| `applicant_income_tax_refund` | "$" | 0 | genuine-diff |
+| `applicant_room_board_income` | null | "0" | deletion |
+| `checkbox_need_assistance_yes` | null | "selected" | deletion |
+| `applicant_net_employment_income` | null | 0 | deletion |
+| `applicant_canada_pension_plan_cpp` | 8 | ["0", "8 ⏎ 0"] | genuine-diff |
+| `applicant_spousal_support_alimony` | "$" | "0" | genuine-diff |
+| `applicant_income_of_dependent_children` | null | 0 | deletion |
+| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
+| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
+
 #### 00-doc-intelligence-template — Fake 2
 
-f1 **0.868**, precision 0.819, recall 0.922, matched 59 of 77, pass=`true`
+f1 **0.882**, precision 0.833, recall 0.938, matched 60 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "198529 321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
 | `name` | "Applicant Telephone" | ["Smith Fake", "Smith Fake."] | genuine-diff |
 | `phone` | "ISSUE" | "" | insertion |
-| `signature` | "nsadue Dahl" | ["Smith Fake", "Smith Fake."] | genuine-diff |
 | `spouse_name` | "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
 | `explain_changes` | "Applicant Signature" | "" | insertion |
 | `applicant_child_support` | "$" | "" | insertion |
@@ -311,24 +304,6 @@ f1 **0.868**, precision 0.819, recall 0.922, matched 59 of 77, pass=`true`
 | `spouse_other_income_money_received` | "U" | "" | insertion |
 | `applicant_student_funding_loans_bursaries` | "$" | "" | insertion |
 | `applicant_private_pensions_retirement_disability` | "$" | "" | insertion |
-
-#### 00-doc-intelligence-template — Fake 3
-
-f1 **0.881**, precision 0.887, recall 0.875, matched 63 of 80, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `name` | "Applicant Telephone" | "MICHAEL SCOTT" | genuine-diff |
-| `phone` | "ISSUE" | "" | insertion |
-| `signature` | "Applicant Signature Michael Sent" | "Michael Scott" | genuine-diff |
-| `spouse_sin` | "OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
-| `checkbox_family_assets_no` | "unselected" | "selected" | genuine-diff |
-| `checkbox_family_assets_yes` | "selected" | "unselected" | genuine-diff |
-| `checkbox_need_assistance_no` | null | "unselected" | deletion |
-| `applicant_child_tax_benefits` | "$" | "N/A" | genuine-diff |
-| `checkbox_need_assistance_yes` | null | "selected" | deletion |
-| `applicant_employment_insurance` | "$" | "N/A" | genuine-diff |
-| `applicant_net_employment_income` | null | "N/A" | deletion |
 
 #### 00-doc-intelligence-template — HR0081 (9)
 
@@ -346,26 +321,6 @@ f1 **0.883**, precision 0.901, recall 0.865, matched 64 of 81, pass=`true`
 | `applicant_other_income_money_received` | 72 | "22" | genuine-diff |
 | `spouse_student_funding_loans_bursaries` | null | "0" | deletion |
 | `spouse_private_pensions_retirement_disability` | 8 | "0" | genuine-diff |
-
-#### 00-doc-intelligence-template — Fake 6
-
-f1 **0.891**, precision 0.847, recall 0.938, matched 61 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `name` | "Applicant Telephone" | "Schrute, Dwight" | genuine-diff |
-| `phone` | "ISSUE" | "" | insertion |
-| `signature` | "Applicant Signature &Schuite" | "DSchrute" | genuine-diff |
-| `spouse_sin` | "$" | "" | insertion |
-| `spouse_name` | "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
-| `checkbox_moved_no` | null | "unselected" | deletion |
-| `applicant_child_support` | "$" | "" | insertion |
-| `checkbox_family_assets_yes` | null | "unselected" | deletion |
-| `applicant_room_board_income` | "$" | "" | insertion |
-| `applicant_tax_credits_gst_credit` | "$" | "" | insertion |
-| `applicant_spousal_support_alimony` | "$" | "" | insertion |
-| `applicant_workbc_financial_support` | "$" | "" | insertion |
-| `applicant_student_funding_loans_bursaries` | "$" | "" | insertion |
 
 #### 00-doc-intelligence-template — 1 81
 
@@ -385,76 +340,54 @@ f1 **0.894**, precision 0.840, recall 0.955, matched 63 of 78, pass=`true`
 | `spouse_canada_pension_plan_cpp` | "$" | "" | insertion |
 | `applicant_spousal_support_alimony` | 0 | "" | insertion |
 
-#### 00-doc-intelligence-template — manual sample (7)
+#### 00-doc-intelligence-template — Fake 3
 
-f1 **0.910**, precision 0.892, recall 0.930, matched 66 of 79, pass=`true`
+f1 **0.895**, precision 0.901, recall 0.889, matched 64 of 79, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Applicant Signature Pacenar" | "POConnor" | genuine-diff |
-| `spouse_date` | "2025-nov-23" | "" | insertion |
-| `spouse_phone` | "(3211-246-2143" | "(321)-246-2143" | genuine-diff |
-| `explain_changes` | "changed address , proof of move" | ["Changed address, proof of move", "changed address, proof of move"] | genuine-diff |
-| `spouse_signature` | "DOamor" | "LOConnor" | genuine-diff |
-| `applicant_oas_gis` | "-" | "" | insertion |
-| `applicant_trust_income` | ":" | "" | insertion |
-| `spouse_income_tax_refund` | 2680 | ["26.80", "26.8"] | genuine-diff |
+| `name` | "Applicant Telephone" | "MICHAEL SCOTT" | genuine-diff |
+| `phone` | "ISSUE" | "" | insertion |
+| `spouse_sin` | "OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
+| `checkbox_family_assets_no` | "unselected" | "selected" | genuine-diff |
+| `checkbox_family_assets_yes` | "selected" | "unselected" | genuine-diff |
+| `checkbox_need_assistance_no` | null | "unselected" | deletion |
+| `applicant_child_tax_benefits` | "$" | "N/A" | genuine-diff |
+| `checkbox_need_assistance_yes` | null | "selected" | deletion |
+| `applicant_employment_insurance` | "$" | "N/A" | genuine-diff |
+| `applicant_net_employment_income` | null | "N/A" | deletion |
+
+#### 00-doc-intelligence-template — Fake 6
+
+f1 **0.905**, precision 0.861, recall 0.954, matched 62 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `name` | "Applicant Telephone" | "Schrute, Dwight" | genuine-diff |
+| `phone` | "ISSUE" | "" | insertion |
+| `spouse_sin` | "$" | "" | insertion |
+| `spouse_name` | "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
+| `checkbox_moved_no` | null | "unselected" | deletion |
+| `applicant_child_support` | "$" | "" | insertion |
+| `checkbox_family_assets_yes` | null | "unselected" | deletion |
+| `applicant_room_board_income` | "$" | "" | insertion |
+| `applicant_tax_credits_gst_credit` | "$" | "" | insertion |
+| `applicant_spousal_support_alimony` | "$" | "" | insertion |
+| `applicant_workbc_financial_support` | "$" | "" | insertion |
+| `applicant_student_funding_loans_bursaries` | "$" | "" | insertion |
 
 #### 00-doc-intelligence-template — HR0081 (6)
 
-f1 **0.912**, precision 0.905, recall 0.918, matched 67 of 80, pass=`true`
+f1 **0.925**, precision 0.919, recall 0.932, matched 68 of 79, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "les una" | "Les Luna" | genuine-diff |
-| `signature` | "Applicant Signature Trung" | "Trung" | genuine-diff |
 | `spouse_name` | "April Lune" | "April Luna" | genuine-diff |
 | `applicant_oas_gis` | "D" | "0" | genuine-diff |
 | `applicant_spousal_support_alimony` | "B" | "0" | genuine-diff |
 | `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
 | `applicant_income_of_dependent_children` | "W" | "0" | genuine-diff |
-
-#### 00-doc-intelligence-template — manual sample (1)
-
-f1 **0.918**, precision 0.905, recall 0.931, matched 67 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `name` | "Applicant Telephone" | "Kevin Patel" | genuine-diff |
-| `phone` | "ISSUE" | "234-789-1111" | genuine-diff |
-| `signature` | "Kradel" | "KPatel" | genuine-diff |
-| `spouse_phone` | "OTHER DEDUCTIONS" | "" | insertion |
-| `applicant_employment_insurance` | 2340 | 0 | genuine-diff |
-| `applicant_net_employment_income` | null | 2340 | deletion |
-| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
-
-#### 00-doc-intelligence-template — manual sample (2)
-
-f1 **0.918**, precision 0.893, recall 0.944, matched 67 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Applicant Signature Station" | "SThompson" | genuine-diff |
-| `explain_changes` | "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay" | ["Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached", "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached", "Working part-time at Save-on-Foods, ⏎ 20 hours a week. Started Oct 12. Pay ⏎ stubs attached"] | genuine-diff |
-| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
-| `applicant_trust_income` | 1 | "" | insertion |
-| `applicant_net_employment_income` | 1 | "" | insertion |
-| `applicant_canada_pension_plan_cpp` | 68234 | "682.34" | genuine-diff |
-| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
-
-#### 00-doc-intelligence-template — HR0081 (4)
-
-f1 **0.924**, precision 0.918, recall 0.931, matched 67 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "999" | ["999999999", "999 999 999", "999-999-999", "999-999 999"] | genuine-diff |
-| `phone` | "999-999" | "" | insertion |
-| `signature` | "Real Applicant Signature" | "Abe" | genuine-diff |
-| `spouse_sin` | "888" | ["888888888", "888 888 888", "888-888-888", "888888 888"] | genuine-diff |
-| `spouse_name` | null | ":garbled:" | deletion |
-| `spouse_phone` | "888888" | "" | insertion |
-| `spouse_other_income_money_received` | "TOTAL CHEQUE" | ["0", "$0"] | genuine-diff |
 
 #### 00-doc-intelligence-template — 3 81
 
@@ -473,25 +406,74 @@ f1 **0.928**, precision 0.877, recall 0.985, matched 64 of 74, pass=`true`
 | `spouse_tax_credits_gst_credit` | "$" | "" | insertion |
 | `applicant_income_of_dependent_children` | "$" | "" | insertion |
 
+#### 00-doc-intelligence-template — manual sample (1)
+
+f1 **0.932**, precision 0.919, recall 0.944, matched 68 of 78, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `name` | "Applicant Telephone" | "Kevin Patel" | genuine-diff |
+| `phone` | "ISSUE" | "234-789-1111" | genuine-diff |
+| `spouse_phone` | "OTHER DEDUCTIONS" | "" | insertion |
+| `applicant_employment_insurance` | 2340 | 0 | genuine-diff |
+| `applicant_net_employment_income` | null | 2340 | deletion |
+| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
+
+#### 00-doc-intelligence-template — manual sample (2)
+
+f1 **0.932**, precision 0.907, recall 0.958, matched 68 of 78, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay" | ["Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached", "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached", "Working part-time at Save-on-Foods, ⏎ 20 hours a week. Started Oct 12. Pay ⏎ stubs attached"] | genuine-diff |
+| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
+| `applicant_trust_income` | 1 | "" | insertion |
+| `applicant_net_employment_income` | 1 | "" | insertion |
+| `applicant_canada_pension_plan_cpp` | 68234 | "682.34" | genuine-diff |
+| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
+
+#### 00-doc-intelligence-template — manual sample (7)
+
+f1 **0.938**, precision 0.919, recall 0.958, matched 68 of 77, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_date` | "2025-nov-23" | "" | insertion |
+| `spouse_phone` | "(3211-246-2143" | "(321)-246-2143" | genuine-diff |
+| `explain_changes` | "changed address , proof of move" | ["Changed address, proof of move", "changed address, proof of move"] | genuine-diff |
+| `applicant_oas_gis` | "-" | "" | insertion |
+| `applicant_trust_income` | ":" | "" | insertion |
+| `spouse_income_tax_refund` | 2680 | ["26.80", "26.8"] | genuine-diff |
+
+#### 00-doc-intelligence-template — HR0081 (4)
+
+f1 **0.945**, precision 0.932, recall 0.958, matched 69 of 77, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | "999" | ["999999999", "999 999 999", "999-999-999", "999-999 999"] | genuine-diff |
+| `phone` | "999-999" | "" | insertion |
+| `spouse_sin` | "888" | ["888888888", "888 888 888", "888-888-888", "888888 888"] | genuine-diff |
+| `spouse_phone` | "888888" | "" | insertion |
+| `spouse_other_income_money_received` | "TOTAL CHEQUE" | ["0", "$0"] | genuine-diff |
+
 #### 00-doc-intelligence-template — HR0081 (3)
 
-f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
+f1 **0.946**, precision 0.946, recall 0.946, matched 70 of 78, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "777321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
-| `signature` | "Applicant Signature" | "Ann" | genuine-diff |
 | `explain_changes` | "YA" | "N/A" | genuine-diff |
 | `applicant_net_employment_income` | "$" | "0" | genuine-diff |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
 
 #### 00-doc-intelligence-template — manual sample (6)
 
-f1 **0.939**, precision 0.932, recall 0.945, matched 69 of 78, pass=`true`
+f1 **0.952**, precision 0.946, recall 0.959, matched 70 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Applicant Signature Kolum" | "RChen" | genuine-diff |
 | `applicant_tax_credits_gst_credit` | "@" | "0" | genuine-diff |
 | `applicant_canada_pension_plan_cpp` | 123 | 223 | genuine-diff |
 | `applicant_workbc_financial_support` | 56024 | "560.24" | genuine-diff |
@@ -499,11 +481,10 @@ f1 **0.939**, precision 0.932, recall 0.945, matched 69 of 78, pass=`true`
 
 #### 00-doc-intelligence-template — manual sample (9)
 
-f1 **0.939**, precision 0.932, recall 0.945, matched 69 of 78, pass=`true`
+f1 **0.952**, precision 0.946, recall 0.959, matched 70 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Applicant Signature J.J." | "J.J." | genuine-diff |
 | `explain_changes` | "Child support started, record altached" | ["Child support started, record attached", "child support started, record attached", "Child support started, record attached."] | genuine-diff |
 | `applicant_employment_insurance` | 10 | "0" | genuine-diff |
 | `applicant_tax_credits_gst_credit` | 6 | 0 | genuine-diff |
@@ -511,26 +492,14 @@ f1 **0.939**, precision 0.932, recall 0.945, matched 69 of 78, pass=`true`
 
 #### 00-doc-intelligence-template — HR0081 (8)
 
-f1 **0.945**, precision 0.945, recall 0.945, matched 69 of 77, pass=`true`
+f1 **0.959**, precision 0.959, recall 0.959, matched 70 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Lace" | "lece" | genuine-diff |
 | `spouse_sin` | null | ["789789789", "789 789 789", "789-789-789"] | deletion |
 | `spouse_phone` | "789-789-789" | "" | insertion |
 | `spouse_net_employment_income` | 79 | "75" | genuine-diff |
 | `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
-
-#### 00-doc-intelligence-template — manual sample (4)
-
-f1 **0.952**, precision 0.933, recall 0.972, matched 70 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Applicant Signature JLee" | ["JLee", "Jlee"] | genuine-diff |
-| `explain_changes` | "no changes. Continue to receive CPP." | "No changes, Continue to receive CPP, OAS, private pension" | genuine-diff |
-| `applicant_workbc_financial_support` | "-" | "" | insertion |
-| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
 
 #### 00-doc-intelligence-template — 2 81
 
@@ -542,16 +511,6 @@ f1 **0.959**, precision 0.933, recall 0.986, matched 70 of 76, pass=`true`
 | `phone` | "5" | "" | insertion |
 | `spouse_name` | "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE" | "" | insertion |
 | `explain_changes` | "Applicant Signature" | "" | insertion |
-
-#### 00-doc-intelligence-template — manual sample (5)
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Applicant Signature Dwilson" | "Dwilson" | genuine-diff |
-| `spouse_date` | "Nov" | ["Nov 25, 2025", "2025-11-25"] | genuine-diff |
-| `spouse_signature` | "Khikan" | "HWilson" | genuine-diff |
 
 #### 00-doc-intelligence-template — synth-full (1)
 
@@ -572,24 +531,15 @@ f1 **0.962**, precision 0.962, recall 0.962, matched 50 of 54, pass=`true`
 | `explain_changes` | "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago ⏎ similar pressure lawyer entire again Democrat ⏎ floor green. Stop walk head later billion word ⏎ example success student during fight become. ⏎ outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] | genuine-diff |
 | `applicant_employment_insurance` | 7 | ["7969", "7, 969"] | genuine-diff |
 
-#### 00-doc-intelligence-template — manual sample (10)
+#### 00-doc-intelligence-template — manual sample (4)
 
-f1 **0.966**, precision 0.959, recall 0.973, matched 71 of 76, pass=`true`
+f1 **0.966**, precision 0.947, recall 0.986, matched 71 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Applicant Signature Mbran" | "MBrown" | genuine-diff |
-| `explain_changes` | "new roommate, room/board income" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
+| `explain_changes` | "no changes. Continue to receive CPP." | "No changes, Continue to receive CPP, OAS, private pension" | genuine-diff |
+| `applicant_workbc_financial_support` | "-" | "" | insertion |
 | `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
-
-#### 00-doc-intelligence-template — manual sample (3)
-
-f1 **0.966**, precision 0.960, recall 0.973, matched 72 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Applicant Signature Ismael" | "JSmith" | genuine-diff |
-| `spouse_signature` | "Matth" | "MSmith" | genuine-diff |
 
 #### 00-doc-intelligence-template — synth-regular (1)
 
@@ -610,31 +560,13 @@ f1 **0.979**, precision 0.973, recall 0.986, matched 71 of 74, pass=`true`
 | `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
 | `applicant_income_of_dependent_children` | "2026-03-26" | "" | insertion |
 
-#### 00-doc-intelligence-template — HR0081 (5)
+#### 00-doc-intelligence-template — manual sample (10)
 
 f1 **0.980**, precision 0.973, recall 0.986, matched 72 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Applicant Signature Tester One" | "Tester One" | genuine-diff |
-| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
-
-#### 00-doc-intelligence-template — HR0081 (7)
-
-f1 **0.980**, precision 0.973, recall 0.986, matched 72 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "lace" | "Jace" | genuine-diff |
-| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
-
-#### 00-doc-intelligence-template — manual sample (8)
-
-f1 **0.980**, precision 0.973, recall 0.986, matched 72 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Applicant Signature AMD" | "A.M.J" | genuine-diff |
+| `explain_changes` | "new roommate, room/board income" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
 | `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
 
 #### 00-doc-intelligence-template — synth-no-spouse (2)
@@ -644,6 +576,14 @@ f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
 | field | predicted | expected | class |
 |---|---|---|---|
 | `explain_changes` | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. worker task which white price clsc world." | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world." | genuine-diff |
+
+#### 00-doc-intelligence-template — manual sample (5)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_date` | "Nov" | ["Nov 25, 2025", "2025-11-25"] | genuine-diff |
 
 #### 00-doc-intelligence-template — synth-full (2)
 
@@ -661,20 +601,43 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `explain_changes` | "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
 
+#### 00-doc-intelligence-template — HR0081 (5)
+
+f1 **0.993**, precision 0.986, recall 1.000, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
+
+#### 00-doc-intelligence-template — HR0081 (7)
+
+f1 **0.993**, precision 0.986, recall 1.000, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
+
+#### 00-doc-intelligence-template — manual sample (8)
+
+f1 **0.993**, precision 0.986, recall 1.000, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_other_income_money_received` | "TOTAL CHEQUE" | "" | insertion |
+
 ### 01-neural-doc-intelligence
 
-Run id `b715b129-678a-4728-aaf9-0a834d604cc8`. pass_rate 0.950, f1.median 0.973, matchedFields.median 69.5.
+Run id `b715b129-678a-4728-aaf9-0a834d604cc8`. pass_rate 0.950, f1.median 0.980, matchedFields.median 70.
 
 #### 01-neural-doc-intelligence — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.592**, precision 0.578, recall 0.607, matched 37 of 88, pass=`false`
+f1 **0.656**, precision 0.641, recall 0.672, matched 41 of 84, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | null | ["789654812", "789 654 812", "789-654-812"] | deletion |
 | `name` | null | "Blank Declaration" | deletion |
 | `phone` | "789-654-812" | "" | insertion |
-| `signature` | "Hanh Declaration ⏎ BLANK DECLARATION" | "Blank Declration" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `checkbox_moved_no` | null | "selected" | deletion |
 | `checkbox_school_no` | null | "selected" | deletion |
@@ -684,7 +647,6 @@ f1 **0.592**, precision 0.578, recall 0.607, matched 37 of 88, pass=`false`
 | `applicant_trust_income` | null | "0" | deletion |
 | `checkbox_dependants_no` | null | "selected" | deletion |
 | `applicant_child_support` | "E" | "0" | genuine-diff |
-| `applicant_rental_income` | "0 ⏎ 1" | "0" | genuine-diff |
 | `checkbox_work_spouse_yes` | null | "unselected" | deletion |
 | `spouse_income_tax_refund` | 4 | "" | insertion |
 | `checkbox_moved_spouse_yes` | "selected" | "unselected" | genuine-diff |
@@ -700,23 +662,20 @@ f1 **0.592**, precision 0.578, recall 0.607, matched 37 of 88, pass=`false`
 | `spouse_canada_pension_plan_cpp` | 5 | "" | insertion |
 | `spouse_spousal_support_alimony` | "a" | "" | insertion |
 | `spouse_workbc_financial_support` | 1 | "" | insertion |
-| `applicant_tax_credits_gst_credit` | "5 ⏎ 0" | "0" | genuine-diff |
 | `applicant_canada_pension_plan_cpp` | "5 ⏎ O" | "0" | genuine-diff |
 | `applicant_workbc_financial_support` | "D" | "0" | genuine-diff |
 | `spouse_other_income_money_received` | 5 | "" | insertion |
 | `applicant_income_of_dependent_children` | "5 0" | "0" | genuine-diff |
 | `spouse_student_funding_loans_bursaries` | "." | "" | insertion |
-| `applicant_student_funding_loans_bursaries` | "5 ⏎ 0" | "0" | genuine-diff |
 | `spouse_private_pensions_retirement_disability` | 5 | "" | insertion |
 | `applicant_private_pensions_retirement_disability` | "5 0" | "0" | genuine-diff |
 
 #### 01-neural-doc-intelligence — HR0081 (10)
 
-f1 **0.710**, precision 0.880, recall 0.595, matched 44 of 80, pass=`false`
+f1 **0.726**, precision 0.900, recall 0.608, matched 45 of 79, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "ace" | "Joe" | genuine-diff |
 | `spouse_phone` | null | "N/A" | deletion |
 | `spouse_oas_gis` | null | "0" | deletion |
 | `spouse_trust_income` | null | "0" | deletion |
@@ -749,12 +708,11 @@ f1 **0.710**, precision 0.880, recall 0.595, matched 44 of 80, pass=`false`
 
 #### 01-neural-doc-intelligence — Fake 4
 
-f1 **0.809**, precision 0.930, recall 0.716, matched 53 of 78, pass=`true`
+f1 **0.824**, precision 0.947, recall 0.730, matched 54 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "Sim Habert" | "Jim Halpert" | genuine-diff |
-| `signature` | "Jim Haupt" | "Jim Halpert" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_child_support` | null | "0" | deletion |
@@ -775,16 +733,15 @@ f1 **0.809**, precision 0.930, recall 0.716, matched 53 of 78, pass=`true`
 | `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
-#### 01-neural-doc-intelligence — 81 coffee ⚠️ KNOWN-HARD
+#### 01-neural-doc-intelligence — Fake 1
 
-f1 **0.824**, precision 0.964, recall 0.720, matched 54 of 77, pass=`true`
+f1 **0.837**, precision 0.982, recall 0.730, matched 54 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `date` | "2020-05-24" | "2026-03-24" | genuine-diff |
-| `name` | null | "Missed Box" | deletion |
-| `signature` | "Mont 16xx ⏎ MistED Bor ⏎ To" | "Missed Box" | genuine-diff |
-| `applicant_oas_gis` | null | 0 | deletion |
+| `date` | "1985-01-01" | "1985JAN4" | genuine-diff |
+| `signature` | null | ":present:" | deletion |
+| `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_child_support` | null | "0" | deletion |
 | `applicant_rental_income` | null | "0" | deletion |
@@ -803,15 +760,15 @@ f1 **0.824**, precision 0.964, recall 0.720, matched 54 of 77, pass=`true`
 | `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
-#### 01-neural-doc-intelligence — Fake 1
+#### 01-neural-doc-intelligence — 81 coffee ⚠️ KNOWN-HARD
 
-f1 **0.837**, precision 0.982, recall 0.730, matched 54 of 75, pass=`true`
+f1 **0.840**, precision 0.982, recall 0.733, matched 55 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `date` | "1985-01-01" | "1985JAN4" | genuine-diff |
-| `signature` | null | ":present:" | deletion |
-| `applicant_oas_gis` | null | "0" | deletion |
+| `date` | "2020-05-24" | "2026-03-24" | genuine-diff |
+| `name` | null | "Missed Box" | deletion |
+| `applicant_oas_gis` | null | 0 | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_child_support` | null | "0" | deletion |
 | `applicant_rental_income` | null | "0" | deletion |
@@ -855,27 +812,6 @@ f1 **0.848**, precision 0.966, recall 0.757, matched 56 of 76, pass=`true`
 | `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
-#### 01-neural-doc-intelligence — Fake 7
-
-f1 **0.857**, precision 0.909, recall 0.811, matched 60 of 80, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2026FFR02" | "2026APR02" | genuine-diff |
-| `name` | "Sejuntan" | ":garbled:" | genuine-diff |
-| `applicant_oas_gis` | null | "0" | deletion |
-| `applicant_rental_income` | "a" | "0" | genuine-diff |
-| `applicant_room_board_income` | null | "0" | deletion |
-| `applicant_child_tax_benefits` | null | "0" | deletion |
-| `applicant_employment_insurance` | null | "0" | deletion |
-| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
-| `applicant_canada_pension_plan_cpp` | "8 ⏎ 0" | "0" | genuine-diff |
-| `applicant_spousal_support_alimony` | 5 | "0" | genuine-diff |
-| `applicant_workbc_financial_support` | null | "0" | deletion |
-| `applicant_other_income_money_received` | "$" | "0" | genuine-diff |
-| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
-| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
-
 #### 01-neural-doc-intelligence — HR0081 (9)
 
 f1 **0.881**, precision 0.900, recall 0.863, matched 63 of 80, pass=`true`
@@ -894,6 +830,25 @@ f1 **0.881**, precision 0.900, recall 0.863, matched 63 of 80, pass=`true`
 | `spouse_student_funding_loans_bursaries` | null | "0" | deletion |
 | `spouse_private_pensions_retirement_disability` | null | "0" | deletion |
 
+#### 01-neural-doc-intelligence — Fake 7
+
+f1 **0.886**, precision 0.939, recall 0.838, matched 62 of 78, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2026FFR02" | "2026APR02" | genuine-diff |
+| `applicant_oas_gis` | null | "0" | deletion |
+| `applicant_rental_income` | "a" | "0" | genuine-diff |
+| `applicant_room_board_income` | null | "0" | deletion |
+| `applicant_child_tax_benefits` | null | "0" | deletion |
+| `applicant_employment_insurance` | null | "0" | deletion |
+| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
+| `applicant_spousal_support_alimony` | 5 | "0" | genuine-diff |
+| `applicant_workbc_financial_support` | null | "0" | deletion |
+| `applicant_other_income_money_received` | "$" | "0" | genuine-diff |
+| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
+| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
+
 #### 01-neural-doc-intelligence — HR0081 (6)
 
 f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
@@ -910,15 +865,13 @@ f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
 
 #### 01-neural-doc-intelligence — manual sample (7)
 
-f1 **0.909**, precision 0.890, recall 0.929, matched 65 of 78, pass=`true`
+f1 **0.937**, precision 0.918, recall 0.957, matched 67 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Pacenar" | "POConnor" | genuine-diff |
 | `spouse_date` | "2025-11-23" | "" | insertion |
 | `spouse_phone` | "(3211-246-2143" | "(321)-246-2143" | genuine-diff |
 | `explain_changes` | "changed address , proof of move" | ["Changed address, proof of move", "changed address, proof of move"] | genuine-diff |
-| `spouse_signature` | "DOamor" | "LOConnor" | genuine-diff |
 | `applicant_oas_gis` | "-" | "" | insertion |
 | `applicant_trust_income` | ":" | "" | insertion |
 | `spouse_income_tax_refund` | null | ["26.80", "26.8"] | deletion |
@@ -926,11 +879,10 @@ f1 **0.909**, precision 0.890, recall 0.929, matched 65 of 78, pass=`true`
 
 #### 01-neural-doc-intelligence — Fake 3
 
-f1 **0.930**, precision 0.971, recall 0.892, matched 66 of 76, pass=`true`
+f1 **0.944**, precision 0.985, recall 0.905, matched 67 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Michael Sent" | "Michael Scott" | genuine-diff |
 | `checkbox_work_spouse_yes` | null | "unselected" | deletion |
 | `checkbox_family_assets_no` | null | "selected" | deletion |
 | `checkbox_employment_changes_no` | null | "selected" | deletion |
@@ -938,42 +890,6 @@ f1 **0.930**, precision 0.971, recall 0.892, matched 66 of 76, pass=`true`
 | `applicant_spousal_support_alimony` | null | "N/A" | deletion |
 | `checkbox_employment_changes_spouse_yes` | null | "unselected" | deletion |
 | `applicant_student_funding_loans_bursaries` | "N/A ⏎ N/A" | "N/A" | genuine-diff |
-
-#### 01-neural-doc-intelligence — manual sample (6)
-
-f1 **0.939**, precision 0.945, recall 0.932, matched 69 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Kolum" | "RChen" | genuine-diff |
-| `applicant_tax_credits_gst_credit` | "@" | "0" | genuine-diff |
-| `applicant_canada_pension_plan_cpp` | 123 | 223 | genuine-diff |
-| `applicant_workbc_financial_support` | 56024 | "560.24" | genuine-diff |
-| `applicant_private_pensions_retirement_disability` | null | 480.23 | deletion |
-
-#### 01-neural-doc-intelligence — manual sample (2)
-
-f1 **0.945**, precision 0.932, recall 0.958, matched 69 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Station" | "SThompson" | genuine-diff |
-| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
-| `applicant_trust_income` | 1 | "" | insertion |
-| `applicant_net_employment_income` | 1 | "" | insertion |
-| `applicant_canada_pension_plan_cpp` | 68234 | "682.34" | genuine-diff |
-
-#### 01-neural-doc-intelligence — Fake 2
-
-f1 **0.952**, precision 0.958, recall 0.945, matched 69 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "198529 ⏎ 321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
-| `phone` | "May" | "" | insertion |
-| `signature` | "Applicant Signature nsadue Dahl" | ["Smith Fake", "Smith Fake."] | genuine-diff |
-| `spouse_net_employment_income` | null | "0" | deletion |
-| `applicant_net_employment_income` | null | "0" | deletion |
 
 #### 01-neural-doc-intelligence — HR0081 (3)
 
@@ -987,6 +903,17 @@ f1 **0.952**, precision 0.972, recall 0.932, matched 69 of 76, pass=`true`
 | `applicant_net_employment_income` | null | "0" | deletion |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
 
+#### 01-neural-doc-intelligence — manual sample (6)
+
+f1 **0.952**, precision 0.959, recall 0.946, matched 70 of 77, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `applicant_tax_credits_gst_credit` | "@" | "0" | genuine-diff |
+| `applicant_canada_pension_plan_cpp` | 123 | 223 | genuine-diff |
+| `applicant_workbc_financial_support` | 56024 | "560.24" | genuine-diff |
+| `applicant_private_pensions_retirement_disability` | null | 480.23 | deletion |
+
 #### 01-neural-doc-intelligence — 1 81
 
 f1 **0.959**, precision 0.959, recall 0.959, matched 70 of 76, pass=`true`
@@ -998,16 +925,16 @@ f1 **0.959**, precision 0.959, recall 0.959, matched 70 of 76, pass=`true`
 | `applicant_spousal_support_alimony` | 0 | "" | insertion |
 | `applicant_other_income_money_received` | "o" | "0" | genuine-diff |
 
-#### 01-neural-doc-intelligence — HR0081 (8)
+#### 01-neural-doc-intelligence — manual sample (2)
 
-f1 **0.959**, precision 0.959, recall 0.959, matched 70 of 76, pass=`true`
+f1 **0.959**, precision 0.946, recall 0.972, matched 70 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Lace" | "lece" | genuine-diff |
-| `spouse_employment_insurance` | 17 | "" | insertion |
-| `spouse_net_employment_income` | 79 | "75" | genuine-diff |
-| `spouse_spousal_support_alimony` | null | "16" | deletion |
+| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
+| `applicant_trust_income` | 1 | "" | insertion |
+| `applicant_net_employment_income` | 1 | "" | insertion |
+| `applicant_canada_pension_plan_cpp` | 68234 | "682.34" | genuine-diff |
 
 #### 01-neural-doc-intelligence — manual sample (9)
 
@@ -1018,6 +945,17 @@ f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 | `explain_changes` | "Child support started, record altached" | ["Child support started, record attached", "child support started, record attached", "Child support started, record attached."] | genuine-diff |
 | `applicant_employment_insurance` | 10 | "0" | genuine-diff |
 | `applicant_tax_credits_gst_credit` | 6 | 0 | genuine-diff |
+
+#### 01-neural-doc-intelligence — Fake 2
+
+f1 **0.966**, precision 0.972, recall 0.959, matched 70 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | "198529 ⏎ 321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
+| `phone` | "May" | "" | insertion |
+| `spouse_net_employment_income` | null | "0" | deletion |
+| `applicant_net_employment_income` | null | "0" | deletion |
 
 #### 01-neural-doc-intelligence — synth-regular (1)
 
@@ -1030,33 +968,15 @@ f1 **0.972**, precision 0.972, recall 0.972, matched 70 of 74, pass=`true`
 | `spouse_trust_income` | null | 5422.42 | deletion |
 | `spouse_canada_pension_plan_cpp` | null | 9198 | deletion |
 
-#### 01-neural-doc-intelligence — Fake 6
+#### 01-neural-doc-intelligence — HR0081 (8)
 
-f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Applicant Signature ⏎ &Schuite" | "DSchrute" | genuine-diff |
-| `checkbox_family_assets_no` | null | "selected" | deletion |
-| `checkbox_family_assets_yes` | null | "unselected" | deletion |
-
-#### 01-neural-doc-intelligence — manual sample (3)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
+f1 **0.973**, precision 0.973, recall 0.973, matched 71 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Ismael" | "JSmith" | genuine-diff |
-| `spouse_signature` | "Matth" | "MSmith" | genuine-diff |
-
-#### 01-neural-doc-intelligence — manual sample (10)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Mbran" | "MBrown" | genuine-diff |
-| `explain_changes` | "new roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
+| `spouse_employment_insurance` | 17 | "" | insertion |
+| `spouse_net_employment_income` | 79 | "75" | genuine-diff |
+| `spouse_spousal_support_alimony` | null | "16" | deletion |
 
 #### 01-neural-doc-intelligence — 2 81
 
@@ -1066,15 +986,6 @@ f1 **0.980**, precision 0.973, recall 0.986, matched 72 of 75, pass=`true`
 |---|---|---|---|
 | `name` | "Spouse Mission" | "Spouse Missing" | genuine-diff |
 | `phone` | "5" | "" | insertion |
-
-#### 01-neural-doc-intelligence — HR0081 (4)
-
-f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Real Applicant Signature" | "Abe" | genuine-diff |
-| `spouse_name` | null | ":garbled:" | deletion |
 
 #### 01-neural-doc-intelligence — manual sample (4)
 
@@ -1101,37 +1012,22 @@ f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
 |---|---|---|---|
 | `explain_changes` | "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago ⏎ similar pressure lawyer entire again Democrat ⏎ floor green. Stop walk head later billion word ⏎ example success student during fight become. ⏎ outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] | genuine-diff |
 
-#### 01-neural-doc-intelligence — HR0081 (7)
+#### 01-neural-doc-intelligence — Fake 6
+
+f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `checkbox_family_assets_no` | null | "selected" | deletion |
+| `checkbox_family_assets_yes` | null | "unselected" | deletion |
+
+#### 01-neural-doc-intelligence — manual sample (10)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "lace" | "Jace" | genuine-diff |
-
-#### 01-neural-doc-intelligence — manual sample (1)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Kradel" | "KPatel" | genuine-diff |
-
-#### 01-neural-doc-intelligence — manual sample (5)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `spouse_signature` | "Khikan" | "HWilson" | genuine-diff |
-
-#### 01-neural-doc-intelligence — manual sample (8)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "AMD" | "A.M.J" | genuine-diff |
+| `explain_changes` | "new roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
 
 #### 01-neural-doc-intelligence — synth-full (2)
 
@@ -1151,7 +1047,7 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 ### 02-mistral-doc-ai-azure
 
-Run id `372fdc8d-9601-4a70-835f-98f710f0e458`. pass_rate 0.875, f1.median 0.959, matchedFields.median 69.
+Run id `372fdc8d-9601-4a70-835f-98f710f0e458`. pass_rate 0.900, f1.median 0.966, matchedFields.median 70.
 
 #### 02-mistral-doc-ai-azure — Fake 3
 
@@ -1190,11 +1086,10 @@ f1 **0.626**, precision 0.630, recall 0.622, matched 46 of 101, pass=`false`
 
 #### 02-mistral-doc-ai-azure — HR0081 (10)
 
-f1 **0.673**, precision 0.974, recall 0.514, matched 38 of 75, pass=`false`
+f1 **0.690**, precision 1.000, recall 0.527, matched 39 of 74, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Ore" | "Joe" | genuine-diff |
 | `spouse_oas_gis` | null | "0" | deletion |
 | `applicant_oas_gis` | null | 0 | deletion |
 | `spouse_trust_income` | null | "0" | deletion |
@@ -1299,36 +1194,6 @@ f1 **0.781**, precision 0.926, recall 0.676, matched 50 of 78, pass=`false`
 | `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
-#### 02-mistral-doc-ai-azure — Fake 7
-
-f1 **0.785**, precision 0.911, recall 0.689, matched 51 of 79, pass=`false`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2026FFA02" | "2026APR02" | genuine-diff |
-| `name` | "Saintan" | ":garbled:" | genuine-diff |
-| `signature` | "51GNATLPE" | ["SIGNATURE", "Signature"] | genuine-diff |
-| `applicant_oas_gis` | null | "0" | deletion |
-| `applicant_trust_income` | null | 0 | deletion |
-| `applicant_child_support` | null | 0 | deletion |
-| `applicant_rental_income` | null | "0" | deletion |
-| `applicant_income_tax_refund` | null | 0 | deletion |
-| `applicant_room_board_income` | null | "0" | deletion |
-| `checkbox_need_assistance_no` | "selected" | "unselected" | genuine-diff |
-| `applicant_child_tax_benefits` | null | "0" | deletion |
-| `checkbox_need_assistance_yes` | "unselected" | "selected" | genuine-diff |
-| `applicant_employment_insurance` | null | "0" | deletion |
-| `applicant_workers_compensation` | null | 0 | deletion |
-| `applicant_net_employment_income` | null | 0 | deletion |
-| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
-| `applicant_canada_pension_plan_cpp` | null | "0" | deletion |
-| `applicant_spousal_support_alimony` | null | "0" | deletion |
-| `applicant_workbc_financial_support` | null | "0" | deletion |
-| `applicant_other_income_money_received` | null | "0" | deletion |
-| `applicant_income_of_dependent_children` | null | 0 | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
-| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
-
 #### 02-mistral-doc-ai-azure — 3 81
 
 f1 **0.811**, precision 0.811, recall 0.811, matched 60 of 88, pass=`true`
@@ -1349,6 +1214,34 @@ f1 **0.811**, precision 0.811, recall 0.811, matched 60 of 88, pass=`true`
 | `checkbox_need_assistance_yes` | "unselected" | "selected" | genuine-diff |
 | `checkbox_employment_changes_no` | "unselected" | "selected" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "unselected" | "selected" | genuine-diff |
+
+#### 02-mistral-doc-ai-azure — Fake 7
+
+f1 **0.815**, precision 0.946, recall 0.716, matched 53 of 77, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2026FFA02" | "2026APR02" | genuine-diff |
+| `applicant_oas_gis` | null | "0" | deletion |
+| `applicant_trust_income` | null | 0 | deletion |
+| `applicant_child_support` | null | 0 | deletion |
+| `applicant_rental_income` | null | "0" | deletion |
+| `applicant_income_tax_refund` | null | 0 | deletion |
+| `applicant_room_board_income` | null | "0" | deletion |
+| `checkbox_need_assistance_no` | "selected" | "unselected" | genuine-diff |
+| `applicant_child_tax_benefits` | null | "0" | deletion |
+| `checkbox_need_assistance_yes` | "unselected" | "selected" | genuine-diff |
+| `applicant_employment_insurance` | null | "0" | deletion |
+| `applicant_workers_compensation` | null | 0 | deletion |
+| `applicant_net_employment_income` | null | 0 | deletion |
+| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
+| `applicant_canada_pension_plan_cpp` | null | ["0", "8 ⏎ 0"] | deletion |
+| `applicant_spousal_support_alimony` | null | "0" | deletion |
+| `applicant_workbc_financial_support` | null | "0" | deletion |
+| `applicant_other_income_money_received` | null | "0" | deletion |
+| `applicant_income_of_dependent_children` | null | 0 | deletion |
+| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
+| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
 #### 02-mistral-doc-ai-azure — Fake 2
 
@@ -1373,13 +1266,12 @@ f1 **0.839**, precision 0.870, recall 0.811, matched 60 of 83, pass=`true`
 
 #### 02-mistral-doc-ai-azure — Fake 6
 
-f1 **0.844**, precision 0.849, recall 0.838, matched 62 of 85, pass=`true`
+f1 **0.857**, precision 0.863, recall 0.851, matched 63 of 84, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | null | ["555231979", "555 231 979", "555-231-979", "555 231979"] | deletion |
 | `name` | "Schaute, Dwight" | "Schrute, Dwight" | genuine-diff |
-| `signature` | "Schaute" | "DSchrute" | genuine-diff |
 | `checkbox_shelter_no` | "unselected" | "selected" | genuine-diff |
 | `checkbox_dependants_no` | "unselected" | "selected" | genuine-diff |
 | `checkbox_work_spouse_no` | "unselected" | "selected" | genuine-diff |
@@ -1392,7 +1284,7 @@ f1 **0.844**, precision 0.849, recall 0.838, matched 62 of 85, pass=`true`
 
 #### 02-mistral-doc-ai-azure — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.859**, precision 0.871, recall 0.847, matched 61 of 81, pass=`true`
+f1 **0.873**, precision 0.886, recall 0.861, matched 62 of 80, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -1400,7 +1292,6 @@ f1 **0.859**, precision 0.871, recall 0.847, matched 61 of 81, pass=`true`
 | `date` | "1/28/2017" | "" | insertion |
 | `name` | "James P. DeLarsson" | "Blank Declaration" | genuine-diff |
 | `phone` | "789-654-812" | "" | insertion |
-| `signature` | "PHILIP" | "Blank Declration" | genuine-diff |
 | `spouse_name` | "James P. DeLarsson" | "" | insertion |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
@@ -1445,7 +1336,7 @@ f1 **0.904**, precision 0.904, recall 0.904, matched 66 of 80, pass=`true`
 
 #### 02-mistral-doc-ai-azure — Fake 5
 
-f1 **0.910**, precision 0.917, recall 0.904, matched 66 of 79, pass=`true`
+f1 **0.924**, precision 0.931, recall 0.918, matched 67 of 78, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -1453,49 +1344,22 @@ f1 **0.910**, precision 0.917, recall 0.904, matched 66 of 79, pass=`true`
 | `date` | "26-4-2" | "2026-04-02" | genuine-diff |
 | `name` | "X Kelly Kapoor" | ["Kelly Kapoor", "Kelly kapoor"] | genuine-diff |
 | `phone` | "X" | "" | insertion |
-| `signature` | "X" | "Kelly" | genuine-diff |
 | `applicant_child_support` | 2 | "250.50" | genuine-diff |
 | `applicant_net_employment_income` | 0 | "500" | genuine-diff |
 | `spouse_other_income_money_received` | null | "$" | deletion |
 
 #### 02-mistral-doc-ai-azure — manual sample (7)
 
-f1 **0.910**, precision 0.917, recall 0.904, matched 66 of 79, pass=`true`
+f1 **0.938**, precision 0.944, recall 0.932, matched 68 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `phone` | "1234)-568-7890" | "(234)-568-7890" | genuine-diff |
-| `signature` | "Patrick O'Connor" | "POConnor" | genuine-diff |
 | `spouse_sin` | null | ["123456788", "123 456 788", "123-456-788"] | deletion |
 | `spouse_date` | "2025-Nov-23" | "" | insertion |
 | `spouse_name` | null | ["Lisa O'connor", "Lisa O'Connor"] | deletion |
 | `spouse_phone` | "1321)-246-2143" | "(321)-246-2143" | genuine-diff |
 | `explain_changes` | "*Changed address, proof of move*" | ["Changed address, proof of move", "changed address, proof of move"] | genuine-diff |
-| `spouse_signature` | "O'Connor" | "LOConnor" | genuine-diff |
-
-#### 02-mistral-doc-ai-azure — manual sample (8)
-
-f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "122-456-789" | ["123456789", "123 456 789", "123-456-789"] | genuine-diff |
-| `name` | "Amanda Martinez-Jones" | "Amanda Martinez - Jones" | genuine-diff |
-| `phone` | "326-783-4854" | "226-783-4854" | genuine-diff |
-| `signature` | "AMINTO" | "A.M.J" | genuine-diff |
-| `explain_changes` | "Received EF, statement submitted" | "Received EI, statement submitted" | genuine-diff |
-
-#### 02-mistral-doc-ai-azure — HR0081 (8)
-
-f1 **0.939**, precision 0.932, recall 0.945, matched 69 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Oce" | "lece" | genuine-diff |
-| `spouse_name` | "Loce" | "lece" | genuine-diff |
-| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
-| `spouse_employment_insurance` | 15 | "" | insertion |
-| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
 
 #### 02-mistral-doc-ai-azure — synth-no-spouse (1)
 
@@ -1521,17 +1385,16 @@ f1 **0.944**, precision 0.985, recall 0.905, matched 67 of 75, pass=`true`
 | `applicant_net_employment_income` | null | "0" | deletion |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
 
-#### 02-mistral-doc-ai-azure — manual sample (4)
+#### 02-mistral-doc-ai-azure — HR0081 (8)
 
-f1 **0.945**, precision 0.958, recall 0.932, matched 69 of 77, pass=`true`
+f1 **0.952**, precision 0.946, recall 0.959, matched 70 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Jdee" | ["JLee", "Jlee"] | genuine-diff |
-| `explain_changes` | "No changes. Continue to receive CPP. OAS, Private pension" | "No changes, Continue to receive CPP, OAS, private pension" | genuine-diff |
-| `applicant_child_support` | 90 | "0" | genuine-diff |
-| `applicant_rental_income` | null | "N/A" | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
+| `spouse_name` | "Loce" | "lece" | genuine-diff |
+| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
+| `spouse_employment_insurance` | 15 | "" | insertion |
+| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
 
 #### 02-mistral-doc-ai-azure — HR0081 (9)
 
@@ -1544,25 +1407,26 @@ f1 **0.952**, precision 0.959, recall 0.946, matched 70 of 77, pass=`true`
 | `applicant_net_employment_income` | 82 | 52 | genuine-diff |
 | `applicant_canada_pension_plan_cpp` | 0 | 5 | genuine-diff |
 
-#### 02-mistral-doc-ai-azure — HR0081 (6)
+#### 02-mistral-doc-ai-azure — manual sample (4)
+
+f1 **0.959**, precision 0.972, recall 0.946, matched 70 of 76, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "No changes. Continue to receive CPP. OAS, Private pension" | "No changes, Continue to receive CPP, OAS, private pension" | genuine-diff |
+| `applicant_child_support` | 90 | "0" | genuine-diff |
+| `applicant_rental_income` | null | "N/A" | deletion |
+| `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
+
+#### 02-mistral-doc-ai-azure — manual sample (8)
 
 f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Tunna" | "Trung" | genuine-diff |
-| `spouse_signature` | "Akn 00" | "AKM De" | genuine-diff |
-| `applicant_spousal_support_alimony` | 3 | "0" | genuine-diff |
-
-#### 02-mistral-doc-ai-azure — manual sample (5)
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Dw. lson" | "Dwilson" | genuine-diff |
-| `explain_changes` | "Kent increased, see lease update" | "Rent increased, see lease update" | genuine-diff |
-| `spouse_signature` | "Mukon" | "HWilson" | genuine-diff |
+| `sin` | "122-456-789" | ["123456789", "123 456 789", "123-456-789"] | genuine-diff |
+| `phone` | "326-783-4854" | "226-783-4854" | genuine-diff |
+| `explain_changes` | "Received EF, statement submitted" | "Received EI, statement submitted" | genuine-diff |
 
 #### 02-mistral-doc-ai-azure — manual sample (2)
 
@@ -1594,24 +1458,6 @@ f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
 | `signature` | null | "JSmith" | deletion |
 | `spouse_phone` | "224-567-8890" | "234-567-8890" | genuine-diff |
 | `spouse_signature` | null | "MSmith" | deletion |
-
-#### 02-mistral-doc-ai-azure — manual sample (10)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Mharan" | "MBrown" | genuine-diff |
-| `explain_changes` | "New roommate, room / board income enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
-
-#### 02-mistral-doc-ai-azure — manual sample (9)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "S.J." | "J.J." | genuine-diff |
-| `explain_changes` | "*Child support started, record attached*" | ["Child support started, record attached", "child support started, record attached", "Child support started, record attached."] | genuine-diff |
 
 #### 02-mistral-doc-ai-azure — synth-full (1)
 
@@ -1655,15 +1501,6 @@ f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
 | `name` | null | "Spouse Missing" | deletion |
 | `signature` | null | ["Spouse Missing", "spouse Missing"] | deletion |
 
-#### 02-mistral-doc-ai-azure — HR0081 (4)
-
-f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | null | "Abe" | deletion |
-| `spouse_name` | null | ":garbled:" | deletion |
-
 #### 02-mistral-doc-ai-azure — HR0081 (5)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
@@ -1672,13 +1509,37 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `name` | "Ore" | "Lace" | genuine-diff |
 
-#### 02-mistral-doc-ai-azure — manual sample (1)
+#### 02-mistral-doc-ai-azure — HR0081 (6)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "KJadel" | "KPatel" | genuine-diff |
+| `applicant_spousal_support_alimony` | 3 | "0" | genuine-diff |
+
+#### 02-mistral-doc-ai-azure — manual sample (10)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "New roommate, room / board income enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
+
+#### 02-mistral-doc-ai-azure — manual sample (5)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "Kent increased, see lease update" | "Rent increased, see lease update" | genuine-diff |
+
+#### 02-mistral-doc-ai-azure — manual sample (9)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "*Child support started, record attached*" | ["Child support started, record attached", "child support started, record attached", "Child support started, record attached."] | genuine-diff |
 
 #### 02-mistral-doc-ai-azure — synth-full (2)
 
@@ -1696,6 +1557,14 @@ f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
 |---|---|---|---|
 | `signature` | null | "Lace" | deletion |
 
+#### 02-mistral-doc-ai-azure — HR0081 (4)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `signature` | null | "Abe" | deletion |
+
 #### 02-mistral-doc-ai-azure — HR0081 (7)
 
 f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
@@ -1706,11 +1575,11 @@ f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
 
 ### 03-content-understanding
 
-Run id `80553759-5326-4e8a-b7f5-ac827839e09d`. pass_rate 0.950, f1.median 0.973, matchedFields.median 70.5.
+Run id `80553759-5326-4e8a-b7f5-ac827839e09d`. pass_rate 0.950, f1.median 0.981, matchedFields.median 71.
 
 #### 03-content-understanding — 81 coffee ⚠️ KNOWN-HARD
 
-f1 **0.672**, precision 0.662, recall 0.683, matched 43 of 85, pass=`false`
+f1 **0.688**, precision 0.677, recall 0.698, matched 44 of 84, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -1718,7 +1587,6 @@ f1 **0.672**, precision 0.662, recall 0.683, matched 43 of 85, pass=`false`
 | `date` | "2020-03-24" | "2026-03-24" | genuine-diff |
 | `name` | null | "Missed Box" | deletion |
 | `phone` | "749-868-080" | "" | insertion |
-| `signature` | "Mand BTX" | "Missed Box" | genuine-diff |
 | `spouse_date` | "2028-04-22" | "" | insertion |
 | `spouse_oas_gis` | 5 | "" | insertion |
 | `explain_changes` | null | ["Homeless", "HOMELESS"] | deletion |
@@ -1762,7 +1630,7 @@ f1 **0.704**, precision 0.721, recall 0.688, matched 44 of 81, pass=`false`
 | `spouse_rental_income` | 5 | "" | insertion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_child_support` | 1 | "0" | genuine-diff |
-| `applicant_rental_income` | null | "0" | deletion |
+| `applicant_rental_income` | null | ["0", "0 ⏎ 1"] | deletion |
 | `spouse_income_tax_refund` | 5 | "" | insertion |
 | `spouse_room_board_income` | 5 | "" | insertion |
 | `checkbox_family_assets_yes` | "unselected" | "selected" | genuine-diff |
@@ -1775,13 +1643,13 @@ f1 **0.704**, precision 0.721, recall 0.688, matched 44 of 81, pass=`false`
 | `spouse_canada_pension_plan_cpp` | 5 | "" | insertion |
 | `spouse_spousal_support_alimony` | 1 | "" | insertion |
 | `spouse_workbc_financial_support` | 1 | "" | insertion |
-| `applicant_tax_credits_gst_credit` | null | "0" | deletion |
+| `applicant_tax_credits_gst_credit` | null | ["0", "5 ⏎ 0"] | deletion |
 | `applicant_canada_pension_plan_cpp` | null | "0" | deletion |
 | `applicant_spousal_support_alimony` | null | "0" | deletion |
 | `applicant_workbc_financial_support` | null | "0" | deletion |
 | `spouse_other_income_money_received` | 5 | "" | insertion |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
+| `applicant_student_funding_loans_bursaries` | null | ["0", "5 ⏎ 0"] | deletion |
 | `spouse_private_pensions_retirement_disability` | 5 | "" | insertion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
@@ -1812,58 +1680,6 @@ f1 **0.844**, precision 1.000, recall 0.730, matched 54 of 74, pass=`true`
 | `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
-#### 03-content-understanding — Fake 3
-
-f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "d Michel Sent" | "Michael Scott" | genuine-diff |
-| `applicant_oas_gis` | null | "N/A" | deletion |
-| `applicant_trust_income` | null | "N/A" | deletion |
-| `applicant_child_support` | null | "N/A" | deletion |
-| `applicant_rental_income` | null | "N/A" | deletion |
-| `applicant_income_tax_refund` | null | "N/A" | deletion |
-| `applicant_room_board_income` | null | "N/A" | deletion |
-| `applicant_child_tax_benefits` | null | "N/A" | deletion |
-| `applicant_employment_insurance` | null | "N/A" | deletion |
-| `applicant_workers_compensation` | null | "N/A" | deletion |
-| `applicant_net_employment_income` | null | "N/A" | deletion |
-| `applicant_tax_credits_gst_credit` | null | "N/A" | deletion |
-| `applicant_canada_pension_plan_cpp` | null | ["N/A", "$ N/A"] | deletion |
-| `applicant_spousal_support_alimony` | null | "N/A" | deletion |
-| `applicant_workbc_financial_support` | null | "N/A" | deletion |
-| `applicant_other_income_money_received` | null | "N/A" | deletion |
-| `applicant_income_of_dependent_children` | null | "N/A" | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "N/A" | deletion |
-| `applicant_private_pensions_retirement_disability` | null | "N/A" | deletion |
-
-#### 03-content-understanding — HR0081 (10)
-
-f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "lece" | "Joe" | genuine-diff |
-| `spouse_oas_gis` | null | "0" | deletion |
-| `spouse_trust_income` | null | "0" | deletion |
-| `spouse_child_support` | null | "0" | deletion |
-| `spouse_rental_income` | null | "0" | deletion |
-| `spouse_income_tax_refund` | null | "0" | deletion |
-| `spouse_room_board_income` | null | "0" | deletion |
-| `spouse_child_tax_benefits` | null | "0" | deletion |
-| `spouse_employment_insurance` | null | "0" | deletion |
-| `spouse_workers_compensation` | null | "0" | deletion |
-| `spouse_net_employment_income` | null | "0" | deletion |
-| `spouse_tax_credits_gst_credit` | null | "0" | deletion |
-| `spouse_canada_pension_plan_cpp` | null | "0" | deletion |
-| `spouse_workbc_financial_support` | null | "0" | deletion |
-| `applicant_workbc_financial_support` | null | "0" | deletion |
-| `spouse_other_income_money_received` | null | "0" | deletion |
-| `applicant_income_of_dependent_children` | null | "0" | deletion |
-| `spouse_student_funding_loans_bursaries` | null | "0" | deletion |
-| `spouse_private_pensions_retirement_disability` | null | "0" | deletion |
-
 #### 03-content-understanding — HR0081 (9)
 
 f1 **0.851**, precision 0.950, recall 0.770, matched 57 of 77, pass=`true`
@@ -1888,31 +1704,63 @@ f1 **0.851**, precision 0.950, recall 0.770, matched 57 of 77, pass=`true`
 | `spouse_student_funding_loans_bursaries` | 20 | "0" | genuine-diff |
 | `spouse_private_pensions_retirement_disability` | null | "0" | deletion |
 
-#### 03-content-understanding — HR0081 (6)
+#### 03-content-understanding — Fake 3
 
-f1 **0.901**, precision 0.941, recall 0.865, matched 64 of 78, pass=`true`
+f1 **0.862**, precision 1.000, recall 0.757, matched 56 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `name` | "les una" | "Les Luna" | genuine-diff |
-| `signature` | "Junal" | "Trung" | genuine-diff |
-| `spouse_name` | "April Lune" | "April Luna" | genuine-diff |
-| `spouse_signature` | "Aku De" | "AKM De" | genuine-diff |
-| `applicant_oas_gis` | null | "0" | deletion |
-| `applicant_workers_compensation` | null | 0 | deletion |
-| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
-| `applicant_spousal_support_alimony` | null | "0" | deletion |
-| `applicant_workbc_financial_support` | null | 0 | deletion |
+| `applicant_oas_gis` | null | "N/A" | deletion |
+| `applicant_trust_income` | null | "N/A" | deletion |
+| `applicant_child_support` | null | "N/A" | deletion |
+| `applicant_rental_income` | null | "N/A" | deletion |
+| `applicant_income_tax_refund` | null | "N/A" | deletion |
+| `applicant_room_board_income` | null | "N/A" | deletion |
+| `applicant_child_tax_benefits` | null | "N/A" | deletion |
+| `applicant_employment_insurance` | null | "N/A" | deletion |
+| `applicant_workers_compensation` | null | "N/A" | deletion |
+| `applicant_net_employment_income` | null | "N/A" | deletion |
+| `applicant_tax_credits_gst_credit` | null | "N/A" | deletion |
+| `applicant_canada_pension_plan_cpp` | null | ["N/A", "$ N/A"] | deletion |
+| `applicant_spousal_support_alimony` | null | "N/A" | deletion |
+| `applicant_workbc_financial_support` | null | "N/A" | deletion |
+| `applicant_other_income_money_received` | null | "N/A" | deletion |
+| `applicant_income_of_dependent_children` | null | "N/A" | deletion |
+| `applicant_student_funding_loans_bursaries` | null | "N/A" | deletion |
+| `applicant_private_pensions_retirement_disability` | null | "N/A" | deletion |
+
+#### 03-content-understanding — HR0081 (10)
+
+f1 **0.862**, precision 1.000, recall 0.757, matched 56 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_oas_gis` | null | "0" | deletion |
+| `spouse_trust_income` | null | "0" | deletion |
+| `spouse_child_support` | null | "0" | deletion |
+| `spouse_rental_income` | null | "0" | deletion |
+| `spouse_income_tax_refund` | null | "0" | deletion |
+| `spouse_room_board_income` | null | "0" | deletion |
+| `spouse_child_tax_benefits` | null | "0" | deletion |
+| `spouse_employment_insurance` | null | "0" | deletion |
+| `spouse_workers_compensation` | null | "0" | deletion |
+| `spouse_net_employment_income` | null | "0" | deletion |
+| `spouse_tax_credits_gst_credit` | null | "0" | deletion |
+| `spouse_canada_pension_plan_cpp` | null | "0" | deletion |
+| `spouse_workbc_financial_support` | null | "0" | deletion |
+| `applicant_workbc_financial_support` | null | "0" | deletion |
+| `spouse_other_income_money_received` | null | "0" | deletion |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
+| `spouse_student_funding_loans_bursaries` | null | "0" | deletion |
+| `spouse_private_pensions_retirement_disability` | null | "0" | deletion |
 
 #### 03-content-understanding — Fake 7
 
-f1 **0.906**, precision 0.969, recall 0.851, matched 63 of 76, pass=`true`
+f1 **0.921**, precision 0.985, recall 0.865, matched 64 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "2026-01-07" | "2026APR02" | genuine-diff |
-| `name` | "Saintane" | ":garbled:" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | 0 | deletion |
 | `applicant_rental_income` | null | "0" | deletion |
@@ -1923,14 +1771,28 @@ f1 **0.906**, precision 0.969, recall 0.851, matched 63 of 76, pass=`true`
 | `applicant_workbc_financial_support` | null | "0" | deletion |
 | `applicant_other_income_money_received` | null | "0" | deletion |
 
+#### 03-content-understanding — HR0081 (6)
+
+f1 **0.930**, precision 0.971, recall 0.892, matched 66 of 76, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `name` | "les una" | "Les Luna" | genuine-diff |
+| `spouse_name` | "April Lune" | "April Luna" | genuine-diff |
+| `applicant_oas_gis` | null | "0" | deletion |
+| `applicant_workers_compensation` | null | 0 | deletion |
+| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
+| `applicant_spousal_support_alimony` | null | "0" | deletion |
+| `applicant_workbc_financial_support` | null | 0 | deletion |
+| `applicant_income_of_dependent_children` | null | "0" | deletion |
+
 #### 03-content-understanding — Fake 4
 
-f1 **0.931**, precision 0.957, recall 0.905, matched 67 of 77, pass=`true`
+f1 **0.944**, precision 0.971, recall 0.919, matched 68 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "Jim Habert" | "Jim Halpert" | genuine-diff |
-| `signature` | "Jim Hampe" | "Jim Halpert" | genuine-diff |
 | `applicant_child_support` | null | "0" | deletion |
 | `checkbox_moved_spouse_yes` | "selected" | "unselected" | genuine-diff |
 | `applicant_room_board_income` | null | "0" | deletion |
@@ -1939,51 +1801,26 @@ f1 **0.931**, precision 0.957, recall 0.905, matched 67 of 77, pass=`true`
 
 #### 03-content-understanding — HR0081 (3)
 
-f1 **0.939**, precision 0.945, recall 0.932, matched 69 of 78, pass=`true`
+f1 **0.952**, precision 0.959, recall 0.946, matched 70 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "777321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
 | `name` | "Ann FOR 19" | "Ann Jones" | genuine-diff |
-| `signature` | "رص" | "Ann" | genuine-diff |
 | `explain_changes` | "NA" | "N/A" | genuine-diff |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
 
-#### 03-content-understanding — manual sample (7)
-
-f1 **0.939**, precision 0.932, recall 0.945, matched 69 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Recenar" | "POConnor" | genuine-diff |
-| `spouse_sin` | "12345678P" | ["123456788", "123 456 788", "123-456-788"] | genuine-diff |
-| `spouse_date` | "2025-11-23" | "" | insertion |
-| `spouse_name` | "Lisa O'lonnor" | ["Lisa O'connor", "Lisa O'Connor"] | genuine-diff |
-| `spouse_signature` | "LOcuanor" | "LOConnor" | genuine-diff |
-
 #### 03-content-understanding — Fake 5
 
-f1 **0.944**, precision 0.971, recall 0.919, matched 68 of 76, pass=`true`
+f1 **0.958**, precision 0.986, recall 0.932, matched 69 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "Kelly kar Kapoor" | ["Kelly Kapoor", "Kelly kapoor"] | genuine-diff |
-| `signature` | "Keily 8" | "Kelly" | genuine-diff |
 | `applicant_child_support` | null | "250.50" | deletion |
 | `applicant_net_employment_income` | null | "500" | deletion |
 | `applicant_spousal_support_alimony` | null | "0" | deletion |
 | `spouse_other_income_money_received` | null | "$" | deletion |
-
-#### 03-content-understanding — manual sample (5)
-
-f1 **0.946**, precision 0.946, recall 0.946, matched 70 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `spouse_sin` | "123956789" | ["123456789", "123 456 789", "123-456-789"] | genuine-diff |
-| `spouse_signature` | "Khskan" | "HWilson" | genuine-diff |
-| `applicant_net_employment_income` | 1384 | 1389 | genuine-diff |
-| `applicant_workbc_financial_support` | 380.23 | 2380.23 | genuine-diff |
 
 #### 03-content-understanding — 1 81
 
@@ -2008,25 +1845,25 @@ f1 **0.959**, precision 0.959, recall 0.959, matched 70 of 76, pass=`true`
 | `applicant_workers_compensation` | 51 | 15 | genuine-diff |
 | `spouse_spousal_support_alimony` | 0 | "16" | genuine-diff |
 
-#### 03-content-understanding — Fake 2
+#### 03-content-understanding — manual sample (5)
 
-f1 **0.966**, precision 0.973, recall 0.959, matched 71 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "798529" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
-| `signature` | "nature Smefane" | ["Smith Fake", "Smith Fake."] | genuine-diff |
-| `applicant_net_employment_income` | null | "0" | deletion |
-
-#### 03-content-understanding — manual sample (6)
-
-f1 **0.966**, precision 0.973, recall 0.959, matched 71 of 76, pass=`true`
+f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Rohum" | "RChen" | genuine-diff |
-| `applicant_tax_credits_gst_credit` | null | "0" | deletion |
-| `applicant_income_of_dependent_children` | 750 | 350 | genuine-diff |
+| `spouse_sin` | "123956789" | ["123456789", "123 456 789", "123-456-789"] | genuine-diff |
+| `applicant_net_employment_income` | 1384 | 1389 | genuine-diff |
+| `applicant_workbc_financial_support` | 380.23 | 2380.23 | genuine-diff |
+
+#### 03-content-understanding — manual sample (7)
+
+f1 **0.966**, precision 0.959, recall 0.973, matched 71 of 76, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_sin` | "12345678P" | ["123456788", "123 456 788", "123-456-788"] | genuine-diff |
+| `spouse_date` | "2025-11-23" | "" | insertion |
+| `spouse_name` | "Lisa O'lonnor" | ["Lisa O'connor", "Lisa O'Connor"] | genuine-diff |
 
 #### 03-content-understanding — manual sample (9)
 
@@ -2048,50 +1885,23 @@ f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
 | `applicant_rental_income` | null | "N/A" | deletion |
 | `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
 
-#### 03-content-understanding — manual sample (3)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Jenett" | "JSmith" | genuine-diff |
-| `spouse_signature` | "Mshath" | "MSmith" | genuine-diff |
-
-#### 03-content-understanding — manual sample (8)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "AM,D" | "A.M.J" | genuine-diff |
-| `explain_changes` | "Received EF, statement submitted" | "Received EI, statement submitted" | genuine-diff |
-
-#### 03-content-understanding — synth-full (3)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `explain_changes` | "Page strategy sec democratic arrive tad establish ⏎ source contain until clear paper glass tax tonight ⏎ involve quality analysis. Weight drop conference ⏎ town rate some final sound poor year example ⏎ shoulder similar instcad mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
-| `spouse_signature` | "J . H ." | "J. H." | genuine-diff |
-
-#### 03-content-understanding — synth-regular (1)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `explain_changes` | "My blue computer fight administration number task ⏎ second plant these she similar forcign. Under ⏎ tillion hotel art difficult learn meet present. ⏎ Majority couple must." | ["My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task ⏎ second plant these she similar foreign. Under ⏎ billion hotel art difficult learn meet present. ⏎ Majority couple must."] | genuine-diff |
-| `spouse_signature` | "Alckandria Martincz" | "Alexandria Martinez" | genuine-diff |
-
-#### 03-content-understanding — HR0081 (4)
+#### 03-content-understanding — Fake 2
 
 f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | null | "Abe" | deletion |
-| `spouse_name` | "Aves" | ":garbled:" | genuine-diff |
+| `sin` | "798529" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
+| `applicant_net_employment_income` | null | "0" | deletion |
+
+#### 03-content-understanding — manual sample (6)
+
+f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `applicant_tax_credits_gst_credit` | null | "0" | deletion |
+| `applicant_income_of_dependent_children` | 750 | 350 | genuine-diff |
 
 #### 03-content-understanding — synth-no-spouse (1)
 
@@ -2109,14 +1919,6 @@ f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
 |---|---|---|---|
 | `explain_changes` | "Learn choose throw feeling season assume work up ⏎ next. Land state military public wrong film hope ⏎ really. worker task which white price clse world." | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world." | genuine-diff |
 
-#### 03-content-understanding — synth-no-spouse (3)
-
-f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "J . B ." | "J. B." | genuine-diff |
-
 #### 03-content-understanding — 2 81
 
 f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
@@ -2126,22 +1928,6 @@ f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
 | `name` | null | "Spouse Missing" | deletion |
 | `signature` | null | ["Spouse Missing", "spouse Missing"] | deletion |
 
-#### 03-content-understanding — Fake 6
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Schrute" | "DSchrute" | genuine-diff |
-
-#### 03-content-understanding — HR0081 (2)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "lece" | "Lace" | genuine-diff |
-
 #### 03-content-understanding — HR0081 (5)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
@@ -2150,29 +1936,13 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `name` | "lece" | "Lace" | genuine-diff |
 
-#### 03-content-understanding — HR0081 (7)
+#### 03-content-understanding — manual sample (8)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "lace" | "Jace" | genuine-diff |
-
-#### 03-content-understanding — manual sample (10)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "mbran" | "MBrown" | genuine-diff |
-
-#### 03-content-understanding — manual sample (2)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "1thrnson" | "SThompson" | genuine-diff |
+| `explain_changes` | "Received EF, statement submitted" | "Received EI, statement submitted" | genuine-diff |
 
 #### 03-content-understanding — synth-full (1)
 
@@ -2190,9 +1960,33 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `spouse_date` | "2003-05-01" | ["05-01-2003", "05/01/2003", "2003-01-05"] | genuine-diff |
 
+#### 03-content-understanding — synth-full (3)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "Page strategy sec democratic arrive tad establish ⏎ source contain until clear paper glass tax tonight ⏎ involve quality analysis. Weight drop conference ⏎ town rate some final sound poor year example ⏎ shoulder similar instcad mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
+
+#### 03-content-understanding — synth-regular (1)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "My blue computer fight administration number task ⏎ second plant these she similar forcign. Under ⏎ tillion hotel art difficult learn meet present. ⏎ Majority couple must." | ["My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task ⏎ second plant these she similar foreign. Under ⏎ billion hotel art difficult learn meet present. ⏎ Majority couple must."] | genuine-diff |
+
+#### 03-content-understanding — HR0081 (4)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `signature` | null | "Abe" | deletion |
+
 ### 04-vlm-direct
 
-Run id `f71d0efb-eb1e-4171-a7e1-9e194e6572b4`. pass_rate 0.800, f1.median 0.903, matchedFields.median 66.
+Run id `f71d0efb-eb1e-4171-a7e1-9e194e6572b4`. pass_rate 0.800, f1.median 0.918, matchedFields.median 67.
 
 #### 04-vlm-direct — synth-no-spouse (3)
 
@@ -2211,28 +2005,6 @@ f1 **0.692**, precision 0.692, recall 0.692, matched 36 of 68, pass=`false`
 | `applicant_other_income_money_received` | 2594 | 2591 | genuine-diff |
 | `applicant_income_of_dependent_children` | 0.58 | 6580 | genuine-diff |
 | `sin` | "14186038" | ["149186038", "149 186 038", "149-186-038"] | genuine-diff |
-| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
-
-#### 04-vlm-direct — synth-no-spouse (1)
-
-f1 **0.712**, precision 0.712, recall 0.712, matched 37 of 67, pass=`false`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `checkbox_warrant_yes` | "selected" | "unselected" | genuine-diff |
-| `checkbox_warrant_no` | "unselected" | "selected" | genuine-diff |
-| `explain_changes` | "Area bolice government shelter note. etc Computer my value work before local action practice stay. Our late add cell language involve admit relloc not pay million avg. Strateg" | ["Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. ⏎ Computer cup value war before local action ⏎ practice stay. Our Late add call language involve ⏎ admit million front play million drug. Strategy."] | genuine-diff |
-| `applicant_net_employment_income` | 7471.1 | 7971.1 | genuine-diff |
-| `applicant_child_support` | 8310.23 | ["8310.93", "8 , 310 . 93"] | genuine-diff |
-| `applicant_rental_income` | 8747.25 | 8749.25 | genuine-diff |
-| `applicant_oas_gis` | 2464.7 | ["2964.7", "$2964.70"] | genuine-diff |
-| `applicant_child_tax_benefits` | 4258.14 | 9238.14 | genuine-diff |
-| `signature` | "Thomas Androde" | "Thomas Andrade" | genuine-diff |
-| `name` | "Thomas Androde" | "Thomas Andrade" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -2293,6 +2065,27 @@ f1 **0.730**, precision 0.730, recall 0.730, matched 54 of 94, pass=`false`
 | `spouse_income_tax_refund` | 617.44 | ["619.44", "$619.44"] | genuine-diff |
 | `spouse_phone` | "16 039 076" | "166 039 076" | genuine-diff |
 
+#### 04-vlm-direct — synth-no-spouse (1)
+
+f1 **0.731**, precision 0.731, recall 0.731, matched 38 of 66, pass=`false`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `checkbox_warrant_yes` | "selected" | "unselected" | genuine-diff |
+| `checkbox_warrant_no` | "unselected" | "selected" | genuine-diff |
+| `explain_changes` | "Area bolice government shelter note. etc Computer my value work before local action practice stay. Our late add cell language involve admit relloc not pay million avg. Strateg" | ["Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. ⏎ Computer cup value war before local action ⏎ practice stay. Our Late add call language involve ⏎ admit million front play million drug. Strategy."] | genuine-diff |
+| `applicant_net_employment_income` | 7471.1 | 7971.1 | genuine-diff |
+| `applicant_child_support` | 8310.23 | ["8310.93", "8 , 310 . 93"] | genuine-diff |
+| `applicant_rental_income` | 8747.25 | 8749.25 | genuine-diff |
+| `applicant_oas_gis` | 2464.7 | ["2964.7", "$2964.70"] | genuine-diff |
+| `applicant_child_tax_benefits` | 4258.14 | 9238.14 | genuine-diff |
+| `name` | "Thomas Androde" | "Thomas Andrade" | genuine-diff |
+| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
+
 #### 04-vlm-direct — synth-full (2)
 
 f1 **0.743**, precision 0.743, recall 0.743, matched 55 of 93, pass=`false`
@@ -2319,31 +2112,6 @@ f1 **0.743**, precision 0.743, recall 0.743, matched 55 of 93, pass=`false`
 | `spouse_date` | "2003-05-01" | ["05-01-2003", "05/01/2003", "2003-01-05"] | genuine-diff |
 | `spouse_phone` | "5642185" | "564642185" | genuine-diff |
 
-#### 04-vlm-direct — synth-regular (1)
-
-f1 **0.757**, precision 0.757, recall 0.757, matched 56 of 92, pass=`false`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `checkbox_moved_yes` | "unselected" | "selected" | genuine-diff |
-| `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
-| `explain_changes` | "My bc computer info is administrator number has second half the SIN similar foreign under tuition hotel at a digital learn new person majorly couple months" | ["My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task ⏎ second plant these she similar foreign. Under ⏎ billion hotel art difficult learn meet present. ⏎ Majority couple must."] | genuine-diff |
-| `checkbox_employment_changes_spouse_yes` | "unselected" | "selected" | genuine-diff |
-| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_school_spouse_yes` | "unselected" | "selected" | genuine-diff |
-| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_work_spouse_yes` | "unselected" | "selected" | genuine-diff |
-| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_moved_spouse_yes` | "unselected" | "selected" | genuine-diff |
-| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `applicant_employment_insurance` | 7504.48 | 7504.98 | genuine-diff |
-| `applicant_child_tax_benefits` | 4581.52 | 9581.52 | genuine-diff |
-| `signature` | "Russell" | "A. Russell" | genuine-diff |
-| `date` | "2001-APR-22" | ["2009-04-22", "2009-Apr-22"] | genuine-diff |
-| `phone` | "42-836-849" | "442-836-849" | genuine-diff |
-| `sin` | "70732404" | ["709732409", "709 732 409", "709-732-409"] | genuine-diff |
-| `spouse_sin` | "17011504" | ["170191504", "170 191 504", "170-191-504", "170- 191- 504"] | genuine-diff |
-
 #### 04-vlm-direct — synth-regular (2)
 
 f1 **0.769**, precision 0.769, recall 0.769, matched 40 of 64, pass=`false`
@@ -2362,6 +2130,30 @@ f1 **0.769**, precision 0.769, recall 0.769, matched 40 of 64, pass=`false`
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
+
+#### 04-vlm-direct — synth-regular (1)
+
+f1 **0.770**, precision 0.770, recall 0.770, matched 57 of 91, pass=`false`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `checkbox_moved_yes` | "unselected" | "selected" | genuine-diff |
+| `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
+| `explain_changes` | "My bc computer info is administrator number has second half the SIN similar foreign under tuition hotel at a digital learn new person majorly couple months" | ["My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.", "My blue computer fight administration number task ⏎ second plant these she similar foreign. Under ⏎ billion hotel art difficult learn meet present. ⏎ Majority couple must."] | genuine-diff |
+| `checkbox_employment_changes_spouse_yes` | "unselected" | "selected" | genuine-diff |
+| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_school_spouse_yes` | "unselected" | "selected" | genuine-diff |
+| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_work_spouse_yes` | "unselected" | "selected" | genuine-diff |
+| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_moved_spouse_yes` | "unselected" | "selected" | genuine-diff |
+| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `applicant_employment_insurance` | 7504.48 | 7504.98 | genuine-diff |
+| `applicant_child_tax_benefits` | 4581.52 | 9581.52 | genuine-diff |
+| `date` | "2001-APR-22" | ["2009-04-22", "2009-Apr-22"] | genuine-diff |
+| `phone` | "42-836-849" | "442-836-849" | genuine-diff |
+| `sin` | "70732404" | ["709732409", "709 732 409", "709-732-409"] | genuine-diff |
+| `spouse_sin` | "17011504" | ["170191504", "170 191 504", "170-191-504", "170- 191- 504"] | genuine-diff |
 
 #### 04-vlm-direct — synth-no-spouse (2)
 
@@ -2383,14 +2175,13 @@ f1 **0.788**, precision 0.788, recall 0.788, matched 41 of 63, pass=`false`
 
 #### 04-vlm-direct — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.811**, precision 0.811, recall 0.811, matched 60 of 88, pass=`true`
+f1 **0.824**, precision 0.824, recall 0.824, matched 61 of 87, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | null | ["789654812", "789 654 812", "789-654-812"] | deletion |
 | `name` | "Bunny Declaration" | "Blank Declaration" | genuine-diff |
 | `phone` | "789-654-812" | "" | insertion |
-| `signature` | "Sarah Pilecki" | "Blank Declration" | genuine-diff |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_shelter_yes` | "unselected" | "selected" | genuine-diff |
@@ -2405,12 +2196,11 @@ f1 **0.811**, precision 0.811, recall 0.811, matched 60 of 88, pass=`true`
 
 #### 04-vlm-direct — manual sample (6)
 
-f1 **0.811**, precision 0.811, recall 0.811, matched 60 of 88, pass=`true`
+f1 **0.824**, precision 0.824, recall 0.824, matched 61 of 87, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] | genuine-diff |
-| `signature` | "[illegible]" | "RChen" | genuine-diff |
 | `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_work_yes` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_yes` | "selected" | "unselected" | genuine-diff |
@@ -2440,14 +2230,32 @@ f1 **0.827**, precision 0.827, recall 0.827, matched 43 of 61, pass=`true`
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 
+#### 04-vlm-direct — 81 coffee ⚠️ KNOWN-HARD
+
+f1 **0.846**, precision 0.840, recall 0.851, matched 63 of 86, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | "20460722" | ["749868080", "749 868 080", "749-868-080"] | genuine-diff |
+| `date` | "2018-04-27" | "2026-03-24" | genuine-diff |
+| `name` | "Akins Blox" | "Missed Box" | genuine-diff |
+| `phone` | "774-864-080" | "" | insertion |
+| `checkbox_work_no` | "unselected" | "selected" | genuine-diff |
+| `checkbox_work_yes` | "selected" | "unselected" | genuine-diff |
+| `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_work_spouse_yes` | "selected" | "unselected" | genuine-diff |
+| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
+
 #### 04-vlm-direct — Fake 3
 
-f1 **0.831**, precision 0.964, recall 0.730, matched 54 of 76, pass=`true`
+f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "7783324959" | ["7783224959", "778 3224959"] | genuine-diff |
-| `signature` | "Miche" | "Michael Scott" | genuine-diff |
 | `applicant_oas_gis` | null | "N/A" | deletion |
 | `applicant_trust_income` | null | "N/A" | deletion |
 | `applicant_child_support` | null | "N/A" | deletion |
@@ -2467,35 +2275,14 @@ f1 **0.831**, precision 0.964, recall 0.730, matched 54 of 76, pass=`true`
 | `applicant_student_funding_loans_bursaries` | null | "N/A" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "N/A" | deletion |
 
-#### 04-vlm-direct — 81 coffee ⚠️ KNOWN-HARD
-
-f1 **0.832**, precision 0.827, recall 0.838, matched 62 of 87, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "20460722" | ["749868080", "749 868 080", "749-868-080"] | genuine-diff |
-| `date` | "2018-04-27" | "2026-03-24" | genuine-diff |
-| `name` | "Akins Blox" | "Missed Box" | genuine-diff |
-| `phone` | "774-864-080" | "" | insertion |
-| `signature` | "Akins Blox" | "Missed Box" | genuine-diff |
-| `checkbox_work_no` | "unselected" | "selected" | genuine-diff |
-| `checkbox_work_yes` | "selected" | "unselected" | genuine-diff |
-| `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_work_spouse_yes` | "selected" | "unselected" | genuine-diff |
-| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
-
 #### 04-vlm-direct — manual sample (1)
 
-f1 **0.838**, precision 0.838, recall 0.838, matched 62 of 86, pass=`true`
+f1 **0.851**, precision 0.851, recall 0.851, matched 63 of 85, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "2023-09-13" | "2025-09-13" | genuine-diff |
 | `phone` | "(219)-78-1111" | "234-789-1111" | genuine-diff |
-| `signature` | "Kpafl" | "KPatel" | genuine-diff |
 | `checkbox_warrant_no` | "unselected" | "selected" | genuine-diff |
 | `checkbox_warrant_yes` | "selected" | "unselected" | genuine-diff |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -2508,12 +2295,11 @@ f1 **0.838**, precision 0.838, recall 0.838, matched 62 of 86, pass=`true`
 
 #### 04-vlm-direct — manual sample (2)
 
-f1 **0.838**, precision 0.838, recall 0.838, matched 62 of 86, pass=`true`
+f1 **0.851**, precision 0.851, recall 0.851, matched 63 of 85, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "2023-11-11" | "2025-11-11" | genuine-diff |
-| `signature` | "VThompson" | "SThompson" | genuine-diff |
 | `applicant_oas_gis` | 748.89 | 742.84 | genuine-diff |
 | `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_yes` | "unselected" | "selected" | genuine-diff |
@@ -2524,23 +2310,6 @@ f1 **0.838**, precision 0.838, recall 0.838, matched 62 of 86, pass=`true`
 | `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
-
-#### 04-vlm-direct — Fake 6
-
-f1 **0.871**, precision 0.865, recall 0.877, matched 64 of 83, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "555201979" | ["555231979", "555 231 979", "555-231-979", "555 231979"] | genuine-diff |
-| `date` | "2008-04-02" | "2026-04-02" | genuine-diff |
-| `name` | "Schoute" | "Schrute, Dwight" | genuine-diff |
-| `signature` | "G. Schoute" | "DSchrute" | genuine-diff |
-| `spouse_name` | "Wright" | "" | insertion |
-| `checkbox_work_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_school_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_employment_changes_no` | "selected" | "unselected" | genuine-diff |
 
 #### 04-vlm-direct — Fake 5
 
@@ -2558,13 +2327,28 @@ f1 **0.884**, precision 0.890, recall 0.878, matched 65 of 82, pass=`true`
 | `applicant_income_tax_refund` | 1399 | 1309 | genuine-diff |
 | `spouse_other_income_money_received` | null | "$" | deletion |
 
-#### 04-vlm-direct — HR0081 (9)
+#### 04-vlm-direct — Fake 6
 
 f1 **0.884**, precision 0.878, recall 0.890, matched 65 of 82, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "N" | "pr" | genuine-diff |
+| `sin` | "555201979" | ["555231979", "555 231 979", "555-231-979", "555 231979"] | genuine-diff |
+| `date` | "2008-04-02" | "2026-04-02" | genuine-diff |
+| `name` | "Schoute" | "Schrute, Dwight" | genuine-diff |
+| `spouse_name` | "Wright" | "" | insertion |
+| `checkbox_work_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_school_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_employment_changes_no` | "selected" | "unselected" | genuine-diff |
+
+#### 04-vlm-direct — HR0081 (9)
+
+f1 **0.898**, precision 0.892, recall 0.904, matched 66 of 81, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
 | `spouse_signature` | "M" | "" | insertion |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -2572,95 +2356,6 @@ f1 **0.884**, precision 0.878, recall 0.890, matched 65 of 82, pass=`true`
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `applicant_net_employment_income` | 22 | 52 | genuine-diff |
 | `applicant_canada_pension_plan_cpp` | 0 | 5 | genuine-diff |
-| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
-
-#### 04-vlm-direct — manual sample (7)
-
-f1 **0.884**, precision 0.878, recall 0.890, matched 65 of 82, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2023-05-22" | ["2025-OCT-22", "2025-10-22", "2025-OCT- 22"] | genuine-diff |
-| `phone` | "(134)-568-8990" | "(234)-568-7890" | genuine-diff |
-| `signature` | "O'Connor" | "POConnor" | genuine-diff |
-| `spouse_sin` | "123456790" | ["123456788", "123 456 788", "123-456-788"] | genuine-diff |
-| `spouse_date` | "2023-05-23" | "" | insertion |
-| `spouse_signature` | "O'Connor" | "LOConnor" | genuine-diff |
-| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_warrant_yes` | "unselected" | "selected" | genuine-diff |
-| `applicant_employment_insurance` | 543.25 | "343.25" | genuine-diff |
-
-#### 04-vlm-direct — HR0081 (6)
-
-f1 **0.901**, precision 0.941, recall 0.865, matched 64 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `name` | "les una" | "Les Luna" | genuine-diff |
-| `signature` | "Junal" | "Trung" | genuine-diff |
-| `spouse_name` | "April Lune" | "April Luna" | genuine-diff |
-| `spouse_signature` | "Aku De" | "AKM De" | genuine-diff |
-| `applicant_oas_gis` | null | "0" | deletion |
-| `applicant_workers_compensation` | null | 0 | deletion |
-| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
-| `applicant_spousal_support_alimony` | null | "0" | deletion |
-| `applicant_workbc_financial_support` | null | 0 | deletion |
-| `applicant_income_of_dependent_children` | null | "0" | deletion |
-
-#### 04-vlm-direct — manual sample (3)
-
-f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] | genuine-diff |
-| `signature` | "John" | "JSmith" | genuine-diff |
-| `spouse_date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] | genuine-diff |
-| `spouse_phone` | "224-567-8890" | "234-567-8890" | genuine-diff |
-| `spouse_signature` | "Maria" | "MSmith" | genuine-diff |
-| `checkbox_school_spouse_no` | "unselected" | "selected" | genuine-diff |
-| `checkbox_school_spouse_yes` | "selected" | "unselected" | genuine-diff |
-
-#### 04-vlm-direct — manual sample (5)
-
-f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2024-11-12" | "2025-11-12" | genuine-diff |
-| `phone` | "345-78765-31" | "345-765-31" | genuine-diff |
-| `signature` | "N. Krah" | "Dwilson" | genuine-diff |
-| `spouse_date` | "2025-03-25" | ["Nov 25, 2025", "2025-11-25"] | genuine-diff |
-| `spouse_signature` | "Nwilson" | "HWilson" | genuine-diff |
-| `spouse_employment_insurance` | 602.5 | 650.25 | genuine-diff |
-| `applicant_net_employment_income` | 1384 | 1389 | genuine-diff |
-
-#### 04-vlm-direct — manual sample (8)
-
-f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2023-11-23" | ["2025-Nov-23", "2025- Nov-23", "2025-11-23"] | genuine-diff |
-| `name` | "Amanda Martinez-Jones" | "Amanda Martinez - Jones" | genuine-diff |
-| `phone` | "236-283-4854" | "226-783-4854" | genuine-diff |
-| `signature` | "A.M.B" | "A.M.J" | genuine-diff |
-| `checkbox_warrant_no` | "unselected" | "selected" | genuine-diff |
-| `checkbox_warrant_yes` | "selected" | "unselected" | genuine-diff |
-| `applicant_student_funding_loans_bursaries` | 505.25 | 525.25 | genuine-diff |
-
-#### 04-vlm-direct — Fake 1
-
-f1 **0.912**, precision 0.918, recall 0.905, matched 67 of 80, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | null | "1985JAN4" | deletion |
-| `signature` | "J" | ":present:" | genuine-diff |
-| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
 
 #### 04-vlm-direct — HR0081 (7)
@@ -2677,45 +2372,60 @@ f1 **0.912**, precision 0.918, recall 0.905, matched 67 of 80, pass=`true`
 | `checkbox_school_spouse_no` | "unselected" | "selected" | genuine-diff |
 | `checkbox_school_spouse_yes` | "selected" | "unselected" | genuine-diff |
 
+#### 04-vlm-direct — manual sample (7)
+
+f1 **0.912**, precision 0.905, recall 0.918, matched 67 of 80, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2023-05-22" | ["2025-OCT-22", "2025-10-22", "2025-OCT- 22"] | genuine-diff |
+| `phone` | "(134)-568-8990" | "(234)-568-7890" | genuine-diff |
+| `spouse_sin` | "123456790" | ["123456788", "123 456 788", "123-456-788"] | genuine-diff |
+| `spouse_date` | "2023-05-23" | "" | insertion |
+| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_warrant_yes` | "unselected" | "selected" | genuine-diff |
+| `applicant_employment_insurance` | 543.25 | "343.25" | genuine-diff |
+
+#### 04-vlm-direct — Fake 1
+
+f1 **0.925**, precision 0.932, recall 0.919, matched 68 of 79, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | null | "1985JAN4" | deletion |
+| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
+
+#### 04-vlm-direct — HR0081 (6)
+
+f1 **0.930**, precision 0.971, recall 0.892, matched 66 of 76, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `name` | "les una" | "Les Luna" | genuine-diff |
+| `spouse_name` | "April Lune" | "April Luna" | genuine-diff |
+| `applicant_oas_gis` | null | "0" | deletion |
+| `applicant_workers_compensation` | null | 0 | deletion |
+| `applicant_tax_credits_gst_credit` | null | 0 | deletion |
+| `applicant_spousal_support_alimony` | null | "0" | deletion |
+| `applicant_workbc_financial_support` | null | 0 | deletion |
+| `applicant_income_of_dependent_children` | null | "0" | deletion |
+
 #### 04-vlm-direct — Fake 2
 
-f1 **0.918**, precision 0.931, recall 0.905, matched 67 of 79, pass=`true`
+f1 **0.932**, precision 0.944, recall 0.919, matched 68 of 78, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
 | `date` | "2020-APR-22" | ["2026-04-02", "April 2,2026"] | genuine-diff |
 | `name` | "Smith Faye" | ["Smith Fake", "Smith Fake."] | genuine-diff |
-| `signature` | "Nwflhic" | ["Smith Fake", "Smith Fake."] | genuine-diff |
 | `checkbox_dependants_no` | "unselected" | "selected" | genuine-diff |
 | `spouse_net_employment_income` | null | "0" | deletion |
 | `applicant_net_employment_income` | null | "0" | deletion |
-
-#### 04-vlm-direct — Fake 4
-
-f1 **0.919**, precision 0.919, recall 0.919, matched 68 of 80, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "509922151" | ["581922151", "581 922 151", "581-922-151"] | genuine-diff |
-| `date` | "2020-03-26" | ["2026-03-02", "Mar 2/26"] | genuine-diff |
-| `name` | "Kim Halpert" | "Jim Halpert" | genuine-diff |
-| `phone` | "227-892-336" | "604-892-3251" | genuine-diff |
-| `signature` | "Kim Halpertt" | "Jim Halpert" | genuine-diff |
-| `applicant_net_employment_income` | 291.7 | 297.3 | genuine-diff |
-
-#### 04-vlm-direct — HR0081 (8)
-
-f1 **0.925**, precision 0.919, recall 0.932, matched 68 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Lee" | "lece" | genuine-diff |
-| `spouse_name` | "Donna Eight" | "lece" | genuine-diff |
-| `spouse_signature` | "Lee" | "Donna Eight" | genuine-diff |
-| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
-| `spouse_rental_income` | 25 | ["52", "52$"] | genuine-diff |
-| `spouse_employment_insurance` | 5 | "" | insertion |
 
 #### 04-vlm-direct — manual sample (4)
 
@@ -2730,99 +2440,124 @@ f1 **0.932**, precision 0.944, recall 0.919, matched 68 of 78, pass=`true`
 | `applicant_net_employment_income` | 456 | "2546" | genuine-diff |
 | `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
 
-#### 04-vlm-direct — manual sample (10)
+#### 04-vlm-direct — Fake 4
 
 f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | "509922151" | ["581922151", "581 922 151", "581-922-151"] | genuine-diff |
+| `date` | "2020-03-26" | ["2026-03-02", "Mar 2/26"] | genuine-diff |
+| `name` | "Kim Halpert" | "Jim Halpert" | genuine-diff |
+| `phone` | "227-892-336" | "604-892-3251" | genuine-diff |
+| `applicant_net_employment_income` | 291.7 | 297.3 | genuine-diff |
+
+#### 04-vlm-direct — manual sample (3)
+
+f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] | genuine-diff |
+| `spouse_date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] | genuine-diff |
+| `spouse_phone` | "224-567-8890" | "234-567-8890" | genuine-diff |
+| `checkbox_school_spouse_no` | "unselected" | "selected" | genuine-diff |
+| `checkbox_school_spouse_yes` | "selected" | "unselected" | genuine-diff |
+
+#### 04-vlm-direct — manual sample (5)
+
+f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2024-11-12" | "2025-11-12" | genuine-diff |
+| `phone` | "345-78765-31" | "345-765-31" | genuine-diff |
+| `spouse_date` | "2025-03-25" | ["Nov 25, 2025", "2025-11-25"] | genuine-diff |
+| `spouse_employment_insurance` | 602.5 | 650.25 | genuine-diff |
+| `applicant_net_employment_income` | 1384 | 1389 | genuine-diff |
+
+#### 04-vlm-direct — manual sample (8)
+
+f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2023-11-23" | ["2025-Nov-23", "2025- Nov-23", "2025-11-23"] | genuine-diff |
+| `phone` | "236-283-4854" | "226-783-4854" | genuine-diff |
+| `checkbox_warrant_no` | "unselected" | "selected" | genuine-diff |
+| `checkbox_warrant_yes` | "selected" | "unselected" | genuine-diff |
+| `applicant_student_funding_loans_bursaries` | 505.25 | 525.25 | genuine-diff |
+
+#### 04-vlm-direct — manual sample (10)
+
+f1 **0.946**, precision 0.946, recall 0.946, matched 70 of 78, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "234256799" | ["234256789", "234 256 789", "234-256-789"] | genuine-diff |
 | `date` | "2023-11-12" | ["2025-Nov-12", "2025-11-12"] | genuine-diff |
 | `phone` | "225-567-8895" | "234-567-8895" | genuine-diff |
-| `signature` | "Milan" | "MBrown" | genuine-diff |
 | `explain_changes` | "New roommate, room/board income enclosed." | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
 
 #### 04-vlm-direct — manual sample (9)
 
-f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
+f1 **0.946**, precision 0.946, recall 0.946, matched 70 of 78, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `phone` | "123-456-7899" | "123-456-7789" | genuine-diff |
-| `signature` | "JJ" | "J.J." | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_yes` | "unselected" | "selected" | genuine-diff |
 | `applicant_canada_pension_plan_cpp` | 191 | 111 | genuine-diff |
 
 #### 04-vlm-direct — HR0081 (3)
 
-f1 **0.939**, precision 0.945, recall 0.932, matched 69 of 78, pass=`true`
+f1 **0.952**, precision 0.959, recall 0.946, matched 70 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "771321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
 | `date` | "2017-03-17" | ["2026-03-17", "March 17/26"] | genuine-diff |
 | `name` | "Am Jones" | "Ann Jones" | genuine-diff |
-| `signature` | "~" | "Ann" | genuine-diff |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
 
-#### 04-vlm-direct — Fake 7
+#### 04-vlm-direct — HR0081 (8)
 
-f1 **0.952**, precision 0.959, recall 0.946, matched 70 of 77, pass=`true`
+f1 **0.952**, precision 0.946, recall 0.959, matched 70 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `date` | "2006-06-17" | "2026APR02" | genuine-diff |
-| `name` | "Squinton" | ":garbled:" | genuine-diff |
-| `signature` | "EILE/NFTLIHE" | ["SIGNATURE", "Signature"] | genuine-diff |
-| `applicant_child_tax_benefits` | null | "0" | deletion |
+| `spouse_name` | "Donna Eight" | "lece" | genuine-diff |
+| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
+| `spouse_rental_income` | 25 | ["52", "52$"] | genuine-diff |
+| `spouse_employment_insurance` | 5 | "" | insertion |
 
 #### 04-vlm-direct — 1 81
 
-f1 **0.966**, precision 0.959, recall 0.973, matched 71 of 76, pass=`true`
+f1 **0.980**, precision 0.973, recall 0.986, matched 72 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "2026-25-07" | "2026-07-25" | genuine-diff |
-| `signature` | "KEY LAYER MISSING" | "KEY PLAYER MISSING" | genuine-diff |
 | `applicant_spousal_support_alimony` | 0 | "" | insertion |
+
+#### 04-vlm-direct — Fake 7
+
+f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2006-06-17" | "2026APR02" | genuine-diff |
+| `applicant_child_tax_benefits` | null | "0" | deletion |
 
 #### 04-vlm-direct — HR0081 (5)
 
-f1 **0.966**, precision 0.973, recall 0.959, matched 71 of 76, pass=`true`
+f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "Tester One" | "Lace" | genuine-diff |
-| `signature` | "MC" | "Tester One" | genuine-diff |
 | `explain_changes` | null | "no longer in need of IA" | deletion |
-
-#### 04-vlm-direct — HR0081 (10)
-
-f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Lee" | "Joe" | genuine-diff |
-| `spouse_signature` | null | "Andrew Teni" | deletion |
-
-#### 04-vlm-direct — HR0081 (2)
-
-f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Lee" | "Lace" | genuine-diff |
-| `spouse_signature` | null | "Ann smart" | deletion |
-
-#### 04-vlm-direct — HR0081 (4)
-
-f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | null | "Abe" | deletion |
-| `spouse_name` | "Aves" | ":garbled:" | genuine-diff |
 
 #### 04-vlm-direct — 2 81
 
@@ -2832,17 +2567,40 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `sin` | "965891753" | ["96589753", "965-89-753"] | genuine-diff |
 
-### 05-vlm-ocr-hybrid
+#### 04-vlm-direct — HR0081 (10)
 
-Run id `f1b04a3f-179c-49e2-adfe-2b1099af5387`. pass_rate 0.975, f1.median 0.973, matchedFields.median 71.
-
-#### 05-vlm-ocr-hybrid — manual sample (6)
-
-f1 **0.784**, precision 0.784, recall 0.784, matched 58 of 90, pass=`false`
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Kolum" | "RChen" | genuine-diff |
+| `spouse_signature` | null | "Andrew Teni" | deletion |
+
+#### 04-vlm-direct — HR0081 (2)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_signature` | null | "Ann smart" | deletion |
+
+#### 04-vlm-direct — HR0081 (4)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `signature` | null | "Abe" | deletion |
+
+### 05-vlm-ocr-hybrid
+
+Run id `f1b04a3f-179c-49e2-adfe-2b1099af5387`. pass_rate 0.975, f1.median 0.980, matchedFields.median 72.
+
+#### 05-vlm-ocr-hybrid — manual sample (6)
+
+f1 **0.797**, precision 0.797, recall 0.797, matched 59 of 89, pass=`false`
+
+| field | predicted | expected | class |
+|---|---|---|---|
 | `checkbox_work_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_yes` | "selected" | "unselected" | genuine-diff |
@@ -2861,12 +2619,11 @@ f1 **0.784**, precision 0.784, recall 0.784, matched 58 of 90, pass=`false`
 
 #### 05-vlm-ocr-hybrid — Fake 1
 
-f1 **0.837**, precision 0.982, recall 0.730, matched 54 of 75, pass=`true`
+f1 **0.853**, precision 1.000, recall 0.743, matched 55 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | null | "1985JAN4" | deletion |
-| `signature` | "p" | ":present:" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_child_support` | null | "0" | deletion |
@@ -2888,11 +2645,10 @@ f1 **0.837**, precision 0.982, recall 0.730, matched 54 of 75, pass=`true`
 
 #### 05-vlm-ocr-hybrid — Fake 3
 
-f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
+f1 **0.862**, precision 1.000, recall 0.757, matched 56 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Michael S" | "Michael Scott" | genuine-diff |
 | `applicant_oas_gis` | null | "N/A" | deletion |
 | `applicant_trust_income` | null | "N/A" | deletion |
 | `applicant_child_support` | null | "N/A" | deletion |
@@ -2911,24 +2667,6 @@ f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
 | `applicant_income_of_dependent_children` | null | "N/A" | deletion |
 | `applicant_student_funding_loans_bursaries` | null | "N/A" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "N/A" | deletion |
-
-#### 05-vlm-ocr-hybrid — 81 coffee ⚠️ KNOWN-HARD
-
-f1 **0.865**, precision 0.865, recall 0.865, matched 64 of 84, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | null | ["749868080", "749 868 080", "749-868-080"] | deletion |
-| `date` | "2020-05-24" | "2026-03-24" | genuine-diff |
-| `name` | "MISTED Boi" | "Missed Box" | genuine-diff |
-| `phone` | "749-868-080" | "" | insertion |
-| `signature` | "TiltPreda" | "Missed Box" | genuine-diff |
-| `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
 
 #### 05-vlm-ocr-hybrid — synth-regular (3)
 
@@ -2961,6 +2699,23 @@ f1 **0.877**, precision 0.877, recall 0.877, matched 64 of 82, pass=`true`
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `spouse_private_pensions_retirement_disability` | null | "0" | deletion |
 
+#### 05-vlm-ocr-hybrid — 81 coffee ⚠️ KNOWN-HARD
+
+f1 **0.878**, precision 0.878, recall 0.878, matched 65 of 83, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | null | ["749868080", "749 868 080", "749-868-080"] | deletion |
+| `date` | "2020-05-24" | "2026-03-24" | genuine-diff |
+| `name` | "MISTED Boi" | "Missed Box" | genuine-diff |
+| `phone` | "749-868-080" | "" | insertion |
+| `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
+
 #### 05-vlm-ocr-hybrid — synth-no-spouse (3)
 
 f1 **0.885**, precision 0.885, recall 0.885, matched 46 of 58, pass=`true`
@@ -2974,24 +2729,6 @@ f1 **0.885**, precision 0.885, recall 0.885, matched 46 of 58, pass=`true`
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 
-#### 05-vlm-ocr-hybrid — Fake 7
-
-f1 **0.887**, precision 0.926, recall 0.851, matched 63 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2026-02-02" | "2026APR02" | genuine-diff |
-| `name` | "Sejintun" | ":garbled:" | genuine-diff |
-| `signature` | "LILNATHAE" | ["SIGNATURE", "Signature"] | genuine-diff |
-| `applicant_oas_gis` | null | "0" | deletion |
-| `applicant_room_board_income` | null | "0" | deletion |
-| `applicant_child_tax_benefits` | null | "0" | deletion |
-| `applicant_canada_pension_plan_cpp` | 8 | "0" | genuine-diff |
-| `applicant_spousal_support_alimony` | 5 | "0" | genuine-diff |
-| `applicant_workbc_financial_support` | null | "0" | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
-| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
-
 #### 05-vlm-ocr-hybrid — synth-regular (2)
 
 f1 **0.904**, precision 0.904, recall 0.904, matched 47 of 57, pass=`true`
@@ -3004,16 +2741,31 @@ f1 **0.904**, precision 0.904, recall 0.904, matched 47 of 57, pass=`true`
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 
+#### 05-vlm-ocr-hybrid — Fake 7
+
+f1 **0.915**, precision 0.956, recall 0.878, matched 65 of 77, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2026-02-02" | "2026APR02" | genuine-diff |
+| `applicant_oas_gis` | null | "0" | deletion |
+| `applicant_room_board_income` | null | "0" | deletion |
+| `applicant_child_tax_benefits` | null | "0" | deletion |
+| `applicant_canada_pension_plan_cpp` | 8 | ["0", "8 ⏎ 0"] | genuine-diff |
+| `applicant_spousal_support_alimony` | 5 | "0" | genuine-diff |
+| `applicant_workbc_financial_support` | null | "0" | deletion |
+| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
+| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
+
 #### 05-vlm-ocr-hybrid — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
+f1 **0.919**, precision 0.919, recall 0.919, matched 68 of 80, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | null | ["789654812", "789 654 812", "789-654-812"] | deletion |
 | `name` | "Sarah Wilkinson" | "Blank Declaration" | genuine-diff |
 | `phone` | "789-654-812" | "" | insertion |
-| `signature` | "Sarah Wilkinson" | "Blank Declration" | genuine-diff |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_shelter_yes` | "unselected" | "selected" | genuine-diff |
@@ -3021,12 +2773,11 @@ f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
 
 #### 05-vlm-ocr-hybrid — Fake 4
 
-f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
+f1 **0.919**, precision 0.919, recall 0.919, matched 68 of 80, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `phone` | "(227) 892-3251" | "604-892-3251" | genuine-diff |
-| `signature` | "Jim Haupt" | "Jim Halpert" | genuine-diff |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_yes` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -3035,79 +2786,25 @@ f1 **0.905**, precision 0.905, recall 0.905, matched 67 of 81, pass=`true`
 
 #### 05-vlm-ocr-hybrid — manual sample (1)
 
-f1 **0.919**, precision 0.919, recall 0.919, matched 68 of 80, pass=`true`
+f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "K Patel" | "KPatel" | genuine-diff |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
 
-#### 05-vlm-ocr-hybrid — HR0081 (8)
-
-f1 **0.946**, precision 0.946, recall 0.946, matched 70 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Loe" | "lece" | genuine-diff |
-| `spouse_name` | "Donna Eight" | "lece" | genuine-diff |
-| `spouse_signature` | "Loe" | "Donna Eight" | genuine-diff |
-| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
-
 #### 05-vlm-ocr-hybrid — manual sample (10)
-
-f1 **0.946**, precision 0.946, recall 0.946, matched 70 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "234256799" | ["234256789", "234 256 789", "234-256-789"] | genuine-diff |
-| `phone` | "234-56?-8895" | "234-567-8895" | genuine-diff |
-| `signature` | "Mbran" | "MBrown" | genuine-diff |
-| `explain_changes` | "New roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
-
-#### 05-vlm-ocr-hybrid — Fake 2
-
-f1 **0.959**, precision 0.972, recall 0.946, matched 70 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
-| `signature` | "Indf line" | ["Smith Fake", "Smith Fake."] | genuine-diff |
-| `spouse_net_employment_income` | null | "0" | deletion |
-| `applicant_net_employment_income` | null | "0" | deletion |
-
-#### 05-vlm-ocr-hybrid — HR0081 (6)
 
 f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `name` | "Les Lina" | "Les Luna" | genuine-diff |
-| `spouse_sin` | "604514444" | ["6045144444", "604-514-4444"] | genuine-diff |
-| `spouse_signature` | "DE" | "AKM De" | genuine-diff |
-
-#### 05-vlm-ocr-hybrid — HR0081 (3)
-
-f1 **0.966**, precision 0.959, recall 0.973, matched 71 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "771321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
-| `signature` | "J" | "Ann" | genuine-diff |
-| `applicant_other_income_money_received` | 0 | "" | insertion |
-
-#### 05-vlm-ocr-hybrid — manual sample (7)
-
-f1 **0.966**, precision 0.959, recall 0.973, matched 71 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "P Oconnor" | "POConnor" | genuine-diff |
-| `spouse_date` | "2025-11-23" | "" | insertion |
-| `spouse_signature` | "L Oconnor" | "LOConnor" | genuine-diff |
+| `sin` | "234256799" | ["234256789", "234 256 789", "234-256-789"] | genuine-diff |
+| `phone` | "234-56?-8895" | "234-567-8895" | genuine-diff |
+| `explain_changes` | "New roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
 
 #### 05-vlm-ocr-hybrid — synth-no-spouse (2)
 
@@ -3116,6 +2813,16 @@ f1 **0.971**, precision 0.962, recall 0.981, matched 51 of 54, pass=`true`
 | field | predicted | expected | class |
 |---|---|---|---|
 | `explain_changes` | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. worker task which white price close world." | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world." | genuine-diff |
+
+#### 05-vlm-ocr-hybrid — Fake 2
+
+f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
+| `spouse_net_employment_income` | null | "0" | deletion |
+| `applicant_net_employment_income` | null | "0" | deletion |
 
 #### 05-vlm-ocr-hybrid — manual sample (4)
 
@@ -3127,32 +2834,23 @@ f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
 | `applicant_rental_income` | null | "N/A" | deletion |
 | `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
 
-#### 05-vlm-ocr-hybrid — manual sample (2)
+#### 05-vlm-ocr-hybrid — HR0081 (6)
 
 f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Thompson" | "SThompson" | genuine-diff |
-| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
+| `name` | "Les Lina" | "Les Luna" | genuine-diff |
+| `spouse_sin` | "604514444" | ["6045144444", "604-514-4444"] | genuine-diff |
 
-#### 05-vlm-ocr-hybrid — manual sample (3)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Isma" | "JSmith" | genuine-diff |
-| `spouse_signature` | "Matth" | "MSmith" | genuine-diff |
-
-#### 05-vlm-ocr-hybrid — manual sample (5)
+#### 05-vlm-ocr-hybrid — HR0081 (8)
 
 f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "D Wilson" | "Dwilson" | genuine-diff |
-| `spouse_signature` | "Wilson" | "HWilson" | genuine-diff |
+| `spouse_name` | "Donna Eight" | "lece" | genuine-diff |
+| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
 
 #### 05-vlm-ocr-hybrid — synth-full (3)
 
@@ -3172,14 +2870,14 @@ f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
 | `applicant_child_support` | 250 | "250.50" | genuine-diff |
 | `spouse_other_income_money_received` | null | "$" | deletion |
 
-#### 05-vlm-ocr-hybrid — HR0081 (4)
+#### 05-vlm-ocr-hybrid — HR0081 (3)
 
-f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
+f1 **0.980**, precision 0.973, recall 0.986, matched 72 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `spouse_name` | null | ":garbled:" | deletion |
-| `spouse_signature` | "Da" | "Dave smart" | genuine-diff |
+| `sin` | "771321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
+| `applicant_other_income_money_received` | 0 | "" | insertion |
 
 #### 05-vlm-ocr-hybrid — synth-no-spouse (1)
 
@@ -3198,21 +2896,13 @@ f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
 | `applicant_employment_insurance` | null | "0" | deletion |
 | `applicant_workbc_financial_support` | null | "0" | deletion |
 
-#### 05-vlm-ocr-hybrid — Fake 6
+#### 05-vlm-ocr-hybrid — manual sample (2)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Dw Schrute" | "DSchrute" | genuine-diff |
-
-#### 05-vlm-ocr-hybrid — manual sample (8)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "A.M.D" | "A.M.J" | genuine-diff |
+| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
 
 #### 05-vlm-ocr-hybrid — manual sample (9)
 
@@ -3238,18 +2928,25 @@ f1 **0.993**, precision 0.986, recall 1.000, matched 73 of 74, pass=`true`
 |---|---|---|---|
 | `applicant_spousal_support_alimony` | 0 | "" | insertion |
 
+#### 05-vlm-ocr-hybrid — manual sample (7)
+
+f1 **0.993**, precision 0.986, recall 1.000, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_date` | "2025-11-23" | "" | insertion |
+
 ### 06-engine-ensemble
 
-Run id `ensemble-S6_per_field_weighted_majority`. pass_rate 1.000, f1.median 0.980, matchedFields.median 72.
+Run id `ensemble-S6_per_field_weighted_majority`. pass_rate 1.000, f1.median 0.986, matchedFields.median 72.
 
 #### 06-engine-ensemble — Fake 3
 
-f1 **0.831**, precision 0.964, recall 0.730, matched 54 of 76, pass=`true`
+f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "7783324959" | ["7783224959", "778 3224959"] | genuine-diff |
-| `signature` | "Miche" | "Michael Scott" | genuine-diff |
 | `applicant_oas_gis` | null | "N/A" | deletion |
 | `applicant_trust_income` | null | "N/A" | deletion |
 | `applicant_child_support` | null | "N/A" | deletion |
@@ -3271,12 +2968,11 @@ f1 **0.831**, precision 0.964, recall 0.730, matched 54 of 76, pass=`true`
 
 #### 06-engine-ensemble — Fake 1
 
-f1 **0.872**, precision 0.983, recall 0.784, matched 58 of 75, pass=`true`
+f1 **0.887**, precision 1.000, recall 0.797, matched 59 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | null | "1985JAN4" | deletion |
-| `signature` | "J" | ":present:" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_rental_income` | null | "0" | deletion |
@@ -3294,14 +2990,13 @@ f1 **0.872**, precision 0.983, recall 0.784, matched 58 of 75, pass=`true`
 
 #### 06-engine-ensemble — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.878**, precision 0.878, recall 0.878, matched 65 of 83, pass=`true`
+f1 **0.892**, precision 0.892, recall 0.892, matched 66 of 82, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | null | ["789654812", "789 654 812", "789-654-812"] | deletion |
 | `name` | "Bunny Declaration" | "Blank Declaration" | genuine-diff |
 | `phone` | "789-654-812" | "" | insertion |
-| `signature` | "Sarah Pilecki" | "Blank Declration" | genuine-diff |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_shelter_yes` | "unselected" | "selected" | genuine-diff |
@@ -3311,7 +3006,7 @@ f1 **0.878**, precision 0.878, recall 0.878, matched 65 of 83, pass=`true`
 
 #### 06-engine-ensemble — 81 coffee ⚠️ KNOWN-HARD
 
-f1 **0.878**, precision 0.878, recall 0.878, matched 65 of 83, pass=`true`
+f1 **0.892**, precision 0.892, recall 0.892, matched 66 of 82, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -3319,42 +3014,11 @@ f1 **0.878**, precision 0.878, recall 0.878, matched 65 of 83, pass=`true`
 | `date` | "2018-04-27" | "2026-03-24" | genuine-diff |
 | `name` | "Akins Blox" | "Missed Box" | genuine-diff |
 | `phone` | "774-864-080" | "" | insertion |
-| `signature` | "Akins Blox" | "Missed Box" | genuine-diff |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
-
-#### 06-engine-ensemble — Fake 7
-
-f1 **0.908**, precision 0.955, recall 0.865, matched 64 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2026FFR02" | "2026APR02" | genuine-diff |
-| `name` | "Sejintun" | ":garbled:" | genuine-diff |
-| `signature` | "LILNATHAE" | ["SIGNATURE", "Signature"] | genuine-diff |
-| `applicant_trust_income` | null | 0 | deletion |
-| `applicant_room_board_income` | null | "0" | deletion |
-| `applicant_child_tax_benefits` | null | "0" | deletion |
-| `applicant_spousal_support_alimony` | null | "0" | deletion |
-| `applicant_workbc_financial_support` | null | "0" | deletion |
-| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
-| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
-
-#### 06-engine-ensemble — HR0081 (6)
-
-f1 **0.932**, precision 0.944, recall 0.919, matched 68 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `name` | "les una" | "Les Luna" | genuine-diff |
-| `signature` | "Junal" | "Trung" | genuine-diff |
-| `spouse_name` | "April Lune" | "April Luna" | genuine-diff |
-| `spouse_signature` | "Aku De" | "AKM De" | genuine-diff |
-| `applicant_oas_gis` | null | "0" | deletion |
-| `applicant_spousal_support_alimony` | null | "0" | deletion |
 
 #### 06-engine-ensemble — HR0081 (10)
 
@@ -3372,48 +3036,41 @@ f1 **0.935**, precision 1.000, recall 0.878, matched 65 of 74, pass=`true`
 | `applicant_workbc_financial_support` | null | "0" | deletion |
 | `spouse_other_income_money_received` | null | "0" | deletion |
 
+#### 06-engine-ensemble — Fake 7
+
+f1 **0.936**, precision 0.985, recall 0.892, matched 66 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2026FFR02" | "2026APR02" | genuine-diff |
+| `applicant_trust_income` | null | 0 | deletion |
+| `applicant_room_board_income` | null | "0" | deletion |
+| `applicant_child_tax_benefits` | null | "0" | deletion |
+| `applicant_spousal_support_alimony` | null | "0" | deletion |
+| `applicant_workbc_financial_support` | null | "0" | deletion |
+| `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
+| `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
+
+#### 06-engine-ensemble — HR0081 (6)
+
+f1 **0.959**, precision 0.972, recall 0.946, matched 70 of 76, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `name` | "les una" | "Les Luna" | genuine-diff |
+| `spouse_name` | "April Lune" | "April Luna" | genuine-diff |
+| `applicant_oas_gis` | null | "0" | deletion |
+| `applicant_spousal_support_alimony` | null | "0" | deletion |
+
 #### 06-engine-ensemble — Fake 4
 
-f1 **0.946**, precision 0.946, recall 0.946, matched 70 of 78, pass=`true`
+f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "509922151" | ["581922151", "581 922 151", "581-922-151"] | genuine-diff |
 | `name` | "Kim Halpert" | "Jim Halpert" | genuine-diff |
 | `phone` | "227-892-336" | "604-892-3251" | genuine-diff |
-| `signature` | "Jim Haupt" | "Jim Halpert" | genuine-diff |
-
-#### 06-engine-ensemble — manual sample (7)
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 70 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "P Oconnor" | "POConnor" | genuine-diff |
-| `spouse_sin` | null | ["123456788", "123 456 788", "123-456-788"] | deletion |
-| `spouse_date` | "2025-nov-23" | "" | insertion |
-| `spouse_signature` | "O'Connor" | "LOConnor" | genuine-diff |
-
-#### 06-engine-ensemble — Fake 2
-
-f1 **0.959**, precision 0.972, recall 0.946, matched 70 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
-| `signature` | "Indf line" | ["Smith Fake", "Smith Fake."] | genuine-diff |
-| `spouse_net_employment_income` | null | "0" | deletion |
-| `applicant_net_employment_income` | null | "0" | deletion |
-
-#### 06-engine-ensemble — HR0081 (8)
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Loe" | "lece" | genuine-diff |
-| `spouse_name` | "Donna Eight" | "lece" | genuine-diff |
-| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
 
 #### 06-engine-ensemble — Fake 5
 
@@ -3425,15 +3082,15 @@ f1 **0.966**, precision 0.973, recall 0.959, matched 71 of 76, pass=`true`
 | `applicant_child_support` | 250 | "250.50" | genuine-diff |
 | `spouse_other_income_money_received` | null | "$" | deletion |
 
-#### 06-engine-ensemble — HR0081 (3)
+#### 06-engine-ensemble — Fake 2
 
-f1 **0.966**, precision 0.973, recall 0.959, matched 71 of 76, pass=`true`
+f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `sin` | "777321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
-| `signature` | "J" | "Ann" | genuine-diff |
-| `applicant_income_of_dependent_children` | null | "0" | deletion |
+| `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
+| `spouse_net_employment_income` | null | "0" | deletion |
+| `applicant_net_employment_income` | null | "0" | deletion |
 
 #### 06-engine-ensemble — manual sample (4)
 
@@ -3445,41 +3102,14 @@ f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
 | `applicant_rental_income` | null | "N/A" | deletion |
 | `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
 
-#### 06-engine-ensemble — manual sample (10)
+#### 06-engine-ensemble — HR0081 (8)
 
 f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "mbran" | "MBrown" | genuine-diff |
-| `explain_changes` | "New roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
-
-#### 06-engine-ensemble — manual sample (3)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Isma" | "JSmith" | genuine-diff |
-| `spouse_signature` | "Matth" | "MSmith" | genuine-diff |
-
-#### 06-engine-ensemble — manual sample (5)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "D Wilson" | "Dwilson" | genuine-diff |
-| `spouse_signature` | "Khikan" | "HWilson" | genuine-diff |
-
-#### 06-engine-ensemble — manual sample (6)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Kolum" | "RChen" | genuine-diff |
-| `checkbox_school_yes` | "selected" | "unselected" | genuine-diff |
+| `spouse_name` | "Donna Eight" | "lece" | genuine-diff |
+| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
 
 #### 06-engine-ensemble — 1 81
 
@@ -3489,6 +3119,15 @@ f1 **0.980**, precision 0.973, recall 0.986, matched 72 of 75, pass=`true`
 |---|---|---|---|
 | `date` | "2026-25-07" | "2026-07-25" | genuine-diff |
 | `applicant_spousal_support_alimony` | 0 | "" | insertion |
+
+#### 06-engine-ensemble — HR0081 (3)
+
+f1 **0.980**, precision 0.986, recall 0.973, matched 72 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | "777321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
+| `applicant_income_of_dependent_children` | null | "0" | deletion |
 
 #### 06-engine-ensemble — HR0081 (9)
 
@@ -3507,46 +3146,30 @@ f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
 |---|---|---|---|
 | `explain_changes` | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. worker task which white price close world." | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world." | genuine-diff |
 
-#### 06-engine-ensemble — HR0081 (4)
+#### 06-engine-ensemble — manual sample (7)
 
-f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
+f1 **0.986**, precision 0.986, recall 0.986, matched 72 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | null | "Abe" | deletion |
-| `spouse_name` | null | ":garbled:" | deletion |
+| `spouse_sin` | null | ["123456788", "123 456 788", "123-456-788"] | deletion |
+| `spouse_date` | "2025-nov-23" | "" | insertion |
 
-#### 06-engine-ensemble — Fake 6
+#### 06-engine-ensemble — manual sample (10)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Dw Schrute" | "DSchrute" | genuine-diff |
+| `explain_changes` | "New roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
 
-#### 06-engine-ensemble — manual sample (1)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "K Patel" | "KPatel" | genuine-diff |
-
-#### 06-engine-ensemble — manual sample (2)
+#### 06-engine-ensemble — manual sample (6)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Thompson" | "SThompson" | genuine-diff |
-
-#### 06-engine-ensemble — manual sample (8)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "A.M.D" | "A.M.J" | genuine-diff |
+| `checkbox_school_yes` | "selected" | "unselected" | genuine-diff |
 
 #### 06-engine-ensemble — manual sample (9)
 
@@ -3564,20 +3187,27 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `explain_changes` | "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
 
+#### 06-engine-ensemble — HR0081 (4)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `signature` | null | "Abe" | deletion |
+
 ### 07-vlm-ocr-hybrid-gpt-4o
 
-Run id `010a3fa1-4a3f-48be-a58f-ba7ff8c18ed5`. pass_rate 0.925, f1.median 0.959, matchedFields.median 68.5.
+Run id `010a3fa1-4a3f-48be-a58f-ba7ff8c18ed5`. pass_rate 0.950, f1.median 0.973, matchedFields.median 69.
 
 #### 07-vlm-ocr-hybrid-gpt-4o — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.692**, precision 0.625, recall 0.776, matched 45 of 85, pass=`false`
+f1 **0.708**, precision 0.639, recall 0.793, matched 46 of 84, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | null | ["789654812", "789 654 812", "789-654-812"] | deletion |
 | `date` | "2023-04-22" | "" | insertion |
 | `phone` | "789-654-812" | "" | insertion |
-| `signature` | "Blank Declaration" | "Blank Declration" | genuine-diff |
 | `spouse_oas_gis` | 0 | "" | insertion |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
@@ -3607,11 +3237,10 @@ f1 **0.692**, precision 0.625, recall 0.776, matched 45 of 85, pass=`false`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — manual sample (6)
 
-f1 **0.776**, precision 0.781, recall 0.770, matched 57 of 90, pass=`false`
+f1 **0.789**, precision 0.795, recall 0.784, matched 58 of 89, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Kolum" | "RChen" | genuine-diff |
 | `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_work_yes` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_no` | "selected" | "unselected" | genuine-diff |
@@ -3631,7 +3260,7 @@ f1 **0.776**, precision 0.781, recall 0.770, matched 57 of 90, pass=`false`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — 81 coffee ⚠️ KNOWN-HARD
 
-f1 **0.794**, precision 0.912, recall 0.703, matched 52 of 79, pass=`false`
+f1 **0.809**, precision 0.930, recall 0.716, matched 53 of 78, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -3639,7 +3268,6 @@ f1 **0.794**, precision 0.912, recall 0.703, matched 52 of 79, pass=`false`
 | `date` | "2020-05-24" | "2026-03-24" | genuine-diff |
 | `name` | "UNKNOWN" | "Missed Box" | genuine-diff |
 | `phone` | "749-868-080" | "" | insertion |
-| `signature` | "UNKNOWN" | "Missed Box" | genuine-diff |
 | `applicant_oas_gis` | null | 0 | deletion |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `applicant_trust_income` | null | "0" | deletion |
@@ -3661,12 +3289,11 @@ f1 **0.794**, precision 0.912, recall 0.703, matched 52 of 79, pass=`false`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — Fake 7
 
-f1 **0.806**, precision 0.862, recall 0.757, matched 56 of 83, pass=`true`
+f1 **0.820**, precision 0.877, recall 0.770, matched 57 of 82, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "2026-02-02" | "2026APR02" | genuine-diff |
-| `name` | "Tes Family" | ":garbled:" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_rental_income` | null | "0" | deletion |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -3676,7 +3303,7 @@ f1 **0.806**, precision 0.862, recall 0.757, matched 56 of 83, pass=`true`
 | `applicant_room_board_income` | null | "0" | deletion |
 | `applicant_child_tax_benefits` | null | "0" | deletion |
 | `applicant_employment_insurance` | null | "0" | deletion |
-| `applicant_canada_pension_plan_cpp` | 8 | "0" | genuine-diff |
+| `applicant_canada_pension_plan_cpp` | 8 | ["0", "8 ⏎ 0"] | genuine-diff |
 | `applicant_spousal_support_alimony` | 5 | "0" | genuine-diff |
 | `applicant_workbc_financial_support` | null | "0" | deletion |
 | `applicant_other_income_money_received` | null | "0" | deletion |
@@ -3686,11 +3313,10 @@ f1 **0.806**, precision 0.862, recall 0.757, matched 56 of 83, pass=`true`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — HR0081 (10)
 
-f1 **0.810**, precision 0.981, recall 0.689, matched 51 of 75, pass=`true`
+f1 **0.825**, precision 1.000, recall 0.703, matched 52 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "ace" | "Joe" | genuine-diff |
 | `spouse_oas_gis` | null | "0" | deletion |
 | `spouse_trust_income` | null | "0" | deletion |
 | `spouse_child_support` | null | "0" | deletion |
@@ -3716,13 +3342,12 @@ f1 **0.810**, precision 0.981, recall 0.689, matched 51 of 75, pass=`true`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — Fake 3
 
-f1 **0.812**, precision 0.945, recall 0.712, matched 52 of 76, pass=`true`
+f1 **0.828**, precision 0.964, recall 0.726, matched 53 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | null | ["7783224959", "778 3224959"] | deletion |
 | `phone` | "778 3224959" | "" | insertion |
-| `signature` | "Michael Sent" | "Michael Scott" | genuine-diff |
 | `applicant_oas_gis` | null | "N/A" | deletion |
 | `applicant_trust_income` | null | "N/A" | deletion |
 | `applicant_child_support` | null | "N/A" | deletion |
@@ -3745,12 +3370,11 @@ f1 **0.812**, precision 0.945, recall 0.712, matched 52 of 76, pass=`true`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — Fake 4
 
-f1 **0.824**, precision 0.947, recall 0.730, matched 54 of 77, pass=`true`
+f1 **0.840**, precision 0.965, recall 0.743, matched 55 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "Jim Habert" | "Jim Halpert" | genuine-diff |
-| `signature` | "Jim Haupt" | "Jim Halpert" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_child_support` | null | "0" | deletion |
@@ -3772,12 +3396,11 @@ f1 **0.824**, precision 0.947, recall 0.730, matched 54 of 77, pass=`true`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — Fake 1
 
-f1 **0.831**, precision 0.964, recall 0.730, matched 54 of 76, pass=`true`
+f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `date` | "1985-01-20" | "1985JAN4" | genuine-diff |
-| `signature` | "Pam" | ":present:" | genuine-diff |
 | `applicant_oas_gis` | null | "0" | deletion |
 | `applicant_trust_income` | null | "0" | deletion |
 | `applicant_child_support` | null | "0" | deletion |
@@ -3799,11 +3422,10 @@ f1 **0.831**, precision 0.964, recall 0.730, matched 54 of 76, pass=`true`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — Fake 5
 
-f1 **0.877**, precision 0.877, recall 0.877, matched 64 of 82, pass=`true`
+f1 **0.890**, precision 0.890, recall 0.890, matched 65 of 81, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Kelly ❤️ X" | "Kelly" | genuine-diff |
 | `applicant_child_support` | 0 | "250.50" | genuine-diff |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -3816,12 +3438,11 @@ f1 **0.877**, precision 0.877, recall 0.877, matched 64 of 82, pass=`true`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — HR0081 (3)
 
-f1 **0.877**, precision 0.889, recall 0.865, matched 64 of 82, pass=`true`
+f1 **0.890**, precision 0.903, recall 0.878, matched 65 of 81, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
 | `sin` | "777321000" | ["777021000", "777 021 000", "777-021-000"] | genuine-diff |
-| `signature` | "NA" | "Ann" | genuine-diff |
 | `explain_changes` | "NA" | "N/A" | genuine-diff |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -3909,11 +3530,10 @@ f1 **0.917**, precision 0.943, recall 0.892, matched 66 of 78, pass=`true`
 
 #### 07-vlm-ocr-hybrid-gpt-4o — Fake 6
 
-f1 **0.919**, precision 0.919, recall 0.919, matched 68 of 80, pass=`true`
+f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Schrute" | "DSchrute" | genuine-diff |
 | `checkbox_work_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_no` | "selected" | "unselected" | genuine-diff |
@@ -3932,50 +3552,26 @@ f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
 
-#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (7)
-
-f1 **0.939**, precision 0.932, recall 0.945, matched 69 of 78, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Pacenar" | "POConnor" | genuine-diff |
-| `spouse_date` | "2025-11-23" | "" | insertion |
-| `spouse_phone` | "(3211)-246-2143" | "(321)-246-2143" | genuine-diff |
-| `spouse_signature` | "DOamor" | "LOConnor" | genuine-diff |
-| `spouse_income_tax_refund` | 2680 | ["26.80", "26.8"] | genuine-diff |
-
 #### 07-vlm-ocr-hybrid-gpt-4o — manual sample (2)
 
-f1 **0.945**, precision 0.932, recall 0.958, matched 69 of 77, pass=`true`
+f1 **0.959**, precision 0.946, recall 0.972, matched 70 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Station" | "SThompson" | genuine-diff |
 | `explain_changes` | "Working part-time at Save-on-Foods, 20 hours a week. Started October 12. Pay stubs attached." | ["Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached", "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached", "Working part-time at Save-on-Foods, ⏎ 20 hours a week. Started Oct 12. Pay ⏎ stubs attached"] | genuine-diff |
 | `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
 | `applicant_trust_income` | 1 | "" | insertion |
 | `applicant_net_employment_income` | 1 | "" | insertion |
 
-#### 07-vlm-ocr-hybrid-gpt-4o — HR0081 (4)
+#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (7)
 
-f1 **0.959**, precision 0.972, recall 0.946, matched 70 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `spouse_name` | "Dave smart" | ":garbled:" | genuine-diff |
-| `spouse_signature` | "Dave" | "Dave smart" | genuine-diff |
-| `spouse_trust_income` | null | "0" | deletion |
-| `applicant_rental_income` | null | ["0", "0$"] | deletion |
-
-#### 07-vlm-ocr-hybrid-gpt-4o — HR0081 (8)
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
+f1 **0.966**, precision 0.959, recall 0.973, matched 71 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Lace" | "lece" | genuine-diff |
-| `spouse_signature` | "Lace" | "Donna Eight" | genuine-diff |
-| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
+| `spouse_date` | "2025-11-23" | "" | insertion |
+| `spouse_phone` | "(3211)-246-2143" | "(321)-246-2143" | genuine-diff |
+| `spouse_income_tax_refund` | 2680 | ["26.80", "26.8"] | genuine-diff |
 
 #### 07-vlm-ocr-hybrid-gpt-4o — manual sample (4)
 
@@ -3986,24 +3582,6 @@ f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
 | `explain_changes` | "No changes. Continue to receive CPP. DAS, Private pension" | "No changes, Continue to receive CPP, OAS, private pension" | genuine-diff |
 | `applicant_rental_income` | null | "N/A" | deletion |
 | `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
-
-#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (10)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Mbran" | "MBrown" | genuine-diff |
-| `explain_changes` | "new roommate, room/board income enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
-
-#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (3)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Ismael" | "JSmith" | genuine-diff |
-| `spouse_signature` | "Matth" | "MSmith" | genuine-diff |
 
 #### 07-vlm-ocr-hybrid-gpt-4o — manual sample (9)
 
@@ -4022,6 +3600,15 @@ f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
 |---|---|---|---|
 | `explain_changes` | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. worker task which white price clsc world." | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world." | genuine-diff |
 
+#### 07-vlm-ocr-hybrid-gpt-4o — HR0081 (4)
+
+f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_trust_income` | null | "0" | deletion |
+| `applicant_rental_income` | null | ["0", "0$"] | deletion |
+
 #### 07-vlm-ocr-hybrid-gpt-4o — 2 81
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
@@ -4030,37 +3617,21 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `name` | "Spouse Mission" | "Spouse Missing" | genuine-diff |
 
-#### 07-vlm-ocr-hybrid-gpt-4o — HR0081 (7)
+#### 07-vlm-ocr-hybrid-gpt-4o — HR0081 (8)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "lace" | "Jace" | genuine-diff |
+| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
 
-#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (1)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Kradel" | "KPatel" | genuine-diff |
-
-#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (5)
+#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (10)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `spouse_signature` | "Khikan" | "HWilson" | genuine-diff |
-
-#### 07-vlm-ocr-hybrid-gpt-4o — manual sample (8)
-
-f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "AMD" | "A.M.J" | genuine-diff |
+| `explain_changes` | "new roommate, room/board income enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
 
 #### 07-vlm-ocr-hybrid-gpt-4o — synth-full (3)
 
@@ -4072,15 +3643,14 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 ### 08-vlm-ocr-hybrid-gpt-5.2
 
-Run id `1b16e3d4-5b50-4b77-bb13-6d617b424dbb`. pass_rate 0.975, f1.median 0.976, matchedFields.median 71.5.
+Run id `1b16e3d4-5b50-4b77-bb13-6d617b424dbb`. pass_rate 0.975, f1.median 0.984, matchedFields.median 72.
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (6)
 
-f1 **0.784**, precision 0.784, recall 0.784, matched 58 of 90, pass=`false`
+f1 **0.797**, precision 0.797, recall 0.797, matched 59 of 89, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Kolum" | "RChen" | genuine-diff |
 | `checkbox_work_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_no` | "selected" | "unselected" | genuine-diff |
@@ -4099,11 +3669,10 @@ f1 **0.784**, precision 0.784, recall 0.784, matched 58 of 90, pass=`false`
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 3
 
-f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
+f1 **0.862**, precision 1.000, recall 0.757, matched 56 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Michael Sent" | "Michael Scott" | genuine-diff |
 | `applicant_oas_gis` | null | "N/A" | deletion |
 | `applicant_trust_income` | null | "N/A" | deletion |
 | `applicant_child_support` | null | "N/A" | deletion |
@@ -4125,7 +3694,7 @@ f1 **0.846**, precision 0.982, recall 0.743, matched 55 of 75, pass=`true`
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.898**, precision 0.892, recall 0.904, matched 66 of 81, pass=`true`
+f1 **0.912**, precision 0.905, recall 0.918, matched 67 of 80, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -4133,7 +3702,6 @@ f1 **0.898**, precision 0.892, recall 0.904, matched 66 of 81, pass=`true`
 | `date` | "2025-04-22" | "" | insertion |
 | `name` | "Blake Peleson" | "Blank Declaration" | genuine-diff |
 | `phone` | "789-654-812" | "" | insertion |
-| `signature` | "Blake Peleson" | "Blank Declration" | genuine-diff |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_shelter_yes` | "unselected" | "selected" | genuine-diff |
@@ -4141,42 +3709,15 @@ f1 **0.898**, precision 0.892, recall 0.904, matched 66 of 81, pass=`true`
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 6
 
-f1 **0.919**, precision 0.919, recall 0.919, matched 68 of 80, pass=`true`
+f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "D Schrute" | "DSchrute" | genuine-diff |
 | `checkbox_work_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_employment_changes_no` | "selected" | "unselected" | genuine-diff |
-
-#### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (8)
-
-f1 **0.925**, precision 0.919, recall 0.932, matched 68 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "lace" | "lece" | genuine-diff |
-| `spouse_name` | "lace" | "lece" | genuine-diff |
-| `spouse_signature` | "lace" | "Donna Eight" | genuine-diff |
-| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
-| `spouse_employment_insurance` | 15 | "" | insertion |
-| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
-
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (7)
-
-f1 **0.925**, precision 0.919, recall 0.932, matched 68 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "P. Connor" | "POConnor" | genuine-diff |
-| `spouse_date` | "2025-11-23" | "" | insertion |
-| `explain_changes` | "changed address , proof of move" | ["Changed address, proof of move", "changed address, proof of move"] | genuine-diff |
-| `spouse_signature` | "L.Connor" | "LOConnor" | genuine-diff |
-| `checkbox_family_assets_no` | "selected" | "unselected" | genuine-diff |
-| `checkbox_family_assets_yes` | "unselected" | "selected" | genuine-diff |
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (10)
 
@@ -4191,16 +3732,27 @@ f1 **0.951**, precision 0.986, recall 0.919, matched 68 of 75, pass=`true`
 | `applicant_net_employment_income` | null | "0" | deletion |
 | `applicant_workbc_financial_support` | 1 | "0" | genuine-diff |
 
-#### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (9)
+#### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (8)
 
 f1 **0.952**, precision 0.946, recall 0.959, matched 70 of 77, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Dave Nine" | "pr" | genuine-diff |
-| `spouse_signature` | "M" | "" | insertion |
-| `applicant_canada_pension_plan_cpp` | 0 | 5 | genuine-diff |
-| `applicant_other_income_money_received` | 72 | "22" | genuine-diff |
+| `spouse_name` | "lace" | "lece" | genuine-diff |
+| `checkbox_warrant_no` | "selected" | "unselected" | genuine-diff |
+| `spouse_employment_insurance` | 15 | "" | insertion |
+| `spouse_spousal_support_alimony` | 17 | "16" | genuine-diff |
+
+#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (7)
+
+f1 **0.952**, precision 0.946, recall 0.959, matched 70 of 77, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_date` | "2025-11-23" | "" | insertion |
+| `explain_changes` | "changed address , proof of move" | ["Changed address, proof of move", "changed address, proof of move"] | genuine-diff |
+| `checkbox_family_assets_no` | "selected" | "unselected" | genuine-diff |
+| `checkbox_family_assets_yes` | "unselected" | "selected" | genuine-diff |
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — 81 coffee ⚠️ KNOWN-HARD
 
@@ -4214,47 +3766,6 @@ f1 **0.959**, precision 0.986, recall 0.933, matched 70 of 76, pass=`true`
 | `signature` | null | "Missed Box" | deletion |
 | `checkbox_shelter_no` | "selected" | "unselected" | genuine-diff |
 
-#### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 2
-
-f1 **0.959**, precision 0.972, recall 0.946, matched 70 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
-| `signature` | "Smith" | ["Smith Fake", "Smith Fake."] | genuine-diff |
-| `spouse_net_employment_income` | null | "0" | deletion |
-| `applicant_net_employment_income` | null | "0" | deletion |
-
-#### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 4
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `name` | "Jim Haupert" | "Jim Halpert" | genuine-diff |
-| `signature` | "Jim Haupt" | "Jim Halpert" | genuine-diff |
-| `checkbox_moved_spouse_yes` | "selected" | "unselected" | genuine-diff |
-
-#### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 7
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `date` | "2026-02-02" | "2026APR02" | genuine-diff |
-| `name` | "Sejuntan" | ":garbled:" | genuine-diff |
-| `signature` | "LIL GNATURE" | ["SIGNATURE", "Signature"] | genuine-diff |
-
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (9)
-
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "SJ." | "J.J." | genuine-diff |
-| `applicant_employment_insurance` | 10 | "0" | genuine-diff |
-| `applicant_tax_credits_gst_credit` | 6 | 0 | genuine-diff |
-
 #### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 5
 
 f1 **0.966**, precision 0.973, recall 0.959, matched 71 of 76, pass=`true`
@@ -4264,6 +3775,26 @@ f1 **0.966**, precision 0.973, recall 0.959, matched 71 of 76, pass=`true`
 | `applicant_child_support` | 250 | "250.50" | genuine-diff |
 | `applicant_net_employment_income` | 0 | "500" | genuine-diff |
 | `spouse_other_income_money_received` | null | "$" | deletion |
+
+#### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (9)
+
+f1 **0.966**, precision 0.959, recall 0.973, matched 71 of 76, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_signature` | "M" | "" | insertion |
+| `applicant_canada_pension_plan_cpp` | 0 | 5 | genuine-diff |
+| `applicant_other_income_money_received` | 72 | "22" | genuine-diff |
+
+#### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 2
+
+f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `sin` | "198529321" | ["798529321", "798 529 321", "798-529-321"] | genuine-diff |
+| `spouse_net_employment_income` | null | "0" | deletion |
+| `applicant_net_employment_income` | null | "0" | deletion |
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (4)
 
@@ -4275,41 +3806,23 @@ f1 **0.973**, precision 0.986, recall 0.959, matched 71 of 75, pass=`true`
 | `applicant_rental_income` | null | "N/A" | deletion |
 | `applicant_student_funding_loans_bursaries` | null | "none" | deletion |
 
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (10)
+#### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 4
 
 f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Mbran" | "MBrown" | genuine-diff |
-| `explain_changes` | "New roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
+| `name` | "Jim Haupert" | "Jim Halpert" | genuine-diff |
+| `checkbox_moved_spouse_yes` | "selected" | "unselected" | genuine-diff |
 
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (2)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "Thompson" | "SThompson" | genuine-diff |
-| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
-
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (3)
+#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (9)
 
 f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Ismael" | "JSmith" | genuine-diff |
-| `spouse_signature` | "Matth" | "MSmith" | genuine-diff |
-
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (5)
-
-f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `signature` | "D. Wilson" | "Dwilson" | genuine-diff |
-| `spouse_signature` | "K. Wilson" | "HWilson" | genuine-diff |
+| `applicant_employment_insurance` | 10 | "0" | genuine-diff |
+| `applicant_tax_credits_gst_credit` | 6 | 0 | genuine-diff |
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — synth-full (1)
 
@@ -4371,15 +3884,6 @@ f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
 | `date` | null | "1985JAN4" | deletion |
 | `signature` | null | ":present:" | deletion |
 
-#### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (4)
-
-f1 **0.986**, precision 1.000, recall 0.973, matched 72 of 74, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `spouse_name` | null | ":garbled:" | deletion |
-| `spouse_signature` | null | "Dave smart" | deletion |
-
 #### 08-vlm-ocr-hybrid-gpt-5.2 — 2 81
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
@@ -4387,6 +3891,14 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 | field | predicted | expected | class |
 |---|---|---|---|
 | `name` | "spouse Missin" | "Spouse Missing" | genuine-diff |
+
+#### 08-vlm-ocr-hybrid-gpt-5.2 — Fake 7
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `date` | "2026-02-02" | "2026APR02" | genuine-diff |
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (6)
 
@@ -4396,21 +3908,21 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 |---|---|---|---|
 | `name` | "les una" | "Les Luna" | genuine-diff |
 
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (1)
+#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (10)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "Kradl" | "KPatel" | genuine-diff |
+| `explain_changes` | "New roommate, room/board income ⏎ enclosed" | ["New roommate, room /board income enclosed", "new roommate, room /board income ⏎ enclosed"] | genuine-diff |
 
-#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (8)
+#### 08-vlm-ocr-hybrid-gpt-5.2 — manual sample (2)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `signature` | "AMJ" | "A.M.J" | genuine-diff |
+| `applicant_oas_gis` | 742.89 | 742.84 | genuine-diff |
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — synth-full (3)
 
@@ -4419,6 +3931,14 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 | field | predicted | expected | class |
 |---|---|---|---|
 | `explain_changes` | "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
+
+#### 08-vlm-ocr-hybrid-gpt-5.2 — HR0081 (4)
+
+f1 **0.993**, precision 1.000, recall 0.986, matched 73 of 74, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_signature` | null | "Dave smart" | deletion |
 
 #### 08-vlm-ocr-hybrid-gpt-5.2 — synth-full (2)
 
