@@ -46,11 +46,11 @@ f1 **0.561**, precision 0.909, recall 0.405, matched 30 of 77, pass=`false`
 | `checkbox_family_assets_yes` | null | "selected" |
 | `checkbox_school_spouse_yes` | null | "unselected" |
 | `checkbox_warrant_spouse_no` | null | "unselected" |
-| `applicant_income_tax_refund` | null | "0" |
+| `applicant_income_tax_refund` | null | ["0", "0 0"] |
 | `applicant_room_board_income` | null | "0" |
 | `checkbox_need_assistance_no` | null | "unselected" |
 | `checkbox_warrant_spouse_yes` | null | "unselected" |
-| `applicant_child_tax_benefits` | null | "0" |
+| `applicant_child_tax_benefits` | null | ["0", "0 0"] |
 | `checkbox_need_assistance_yes` | null | "selected" |
 | `applicant_employment_insurance` | null | "0" |
 | `applicant_workers_compensation` | null | "0" |
@@ -530,7 +530,7 @@ f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 |---|---|---|
 | `applicant_rental_income` | "$" | 8007 |
 | `applicant_trust_income` | "$" | 9181 |
-| `spouse_oas_gis` | 2 | 2326.11 |
+| `spouse_oas_gis` | 2 | ["2326.11", "2, 326 . 11"] |
 
 ## synth-no-spouse (3)
 
@@ -539,7 +539,7 @@ f1 **0.962**, precision 0.962, recall 0.962, matched 50 of 54, pass=`true`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `explain_changes` | "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] |
-| `applicant_employment_insurance` | 7 | 7969 |
+| `applicant_employment_insurance` | 7 | ["7969", "7, 969"] |
 
 ## manual sample (10)
 
@@ -566,7 +566,7 @@ f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `applicant_other_income_money_received` | 158 | 5158 |
+| `applicant_other_income_money_received` | 158 | ["5158", "5, 158"] |
 | `spouse_canada_pension_plan_cpp` | 9 | 9198 |
 
 ## HR0081 (2)

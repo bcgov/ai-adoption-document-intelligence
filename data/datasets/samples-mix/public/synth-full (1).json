@@ -31,7 +31,10 @@
     "checkbox_moved_spouse_no": "unselected",
     "checkbox_warrant_spouse_yes": "selected",
     "checkbox_warrant_spouse_no": "unselected",
-    "applicant_net_employment_income": 1594.65,
+    "applicant_net_employment_income": [
+        "1594.65",
+        "$1,594.65"
+    ],
     "applicant_employment_insurance": 8740.25,
     "applicant_spousal_support_alimony": 289,
     "applicant_child_support": 2326.47,
@@ -52,7 +55,10 @@
         "3181.38",
         "$3181.38"
     ],
-    "applicant_income_tax_refund": 1143.66,
+    "applicant_income_tax_refund": [
+        "1143.66",
+        "$1,143.66"
+    ],
     "applicant_other_income_money_received": 6578.34,
     "applicant_income_of_dependent_children": 9495.78,
     "spouse_net_employment_income": 3472,
@@ -65,7 +71,10 @@
     "spouse_room_board_income": 6973,
     "spouse_workers_compensation": 7431.61,
     "spouse_private_pensions_retirement_disability": 9433.75,
-    "spouse_oas_gis": 2326.11,
+    "spouse_oas_gis": [
+        "2326.11",
+        "2, 326 . 11"
+    ],
     "spouse_trust_income": 4269,
     "spouse_canada_pension_plan_cpp": 4637.71,
     "spouse_tax_credits_gst_credit": 76.59,

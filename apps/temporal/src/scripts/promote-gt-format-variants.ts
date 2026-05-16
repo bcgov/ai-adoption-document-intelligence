@@ -118,13 +118,41 @@ function isIncomeLikeField(field: string): boolean {
   return !NON_NUMERIC_PERSON_SUFFIXES.has(tail);
 }
 
-function parseNumericLike(v: unknown): number | null {
+/**
+ * Strict numeric parse: only accepts `123`, `-45.67`, `0.5`. No commas, no
+ * embedded whitespace, no currency chrome. Used by the loose variant below
+ * after stripping chrome.
+ */
+function parseStrictNumeric(s: string): number | null {
+  if (s.length === 0) return null;
+  if (!/^-?\d+(?:\.\d+)?$/.test(s)) return null;
+  return Number(s);
+}
+
+/**
+ * Loose numeric parse: accepts any value that resolves to a finite number
+ * after stripping currency symbols, commas, and ALL whitespace (including
+ * internal newlines and spaces). Returns the numeric value or `null` if the
+ * residue isn't a clean scalar.
+ *
+ * Captures the patterns engines produce on income fields:
+ *   - `"$2,711.64"`  → 2711.64
+ *   - `"7, 969"`     → 7969     (space after thousands comma)
+ *   - `"8, 452 . 18"` → 8452.18 (whitespace around the decimal point)
+ *   - `"3, 06 3"`    → 3063     (whitespace inside the integer part)
+ *   - `"0\n0"`       → 0        (engine OCR'd two adjacent cells)
+ *   - `"$900.00"`    → 900
+ *   - `60` (number)  → 60
+ *   - `"60.00"`      → 60
+ *
+ * Rejects (returns null) anything where the residue isn't strictly numeric
+ * after stripping — so `"abc123"`, `"1.2.3"`, `"$ N/A"` all return null.
+ */
+function parseLooseNumeric(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v !== "string") return null;
-  const trimmed = v.trim();
-  if (trimmed.length === 0) return null;
-  if (!/^-?\d+(?:\.\d+)?$/.test(trimmed)) return null;
-  return Number(trimmed);
+  const cleaned = v.replace(/[$,\s]/g, "");
+  return parseStrictNumeric(cleaned);
 }
 
 function stripCurrencyChrome(v: string): string {
@@ -138,31 +166,28 @@ function stripCurrencyChrome(v: string): string {
 function isCurrencyFormatVariant(predicted: string, expected: string): boolean {
   const stripped = stripCurrencyChrome(predicted);
   if (stripped === predicted) return false; // no $ to strip → not a currency variant
-  // Numeric equivalence: "$900.00" vs "900.00", "$0" vs "0", "$2964.70" vs "2964.7"
-  const p = parseNumericLike(stripped);
-  const e = parseNumericLike(expected);
-  if (p !== null && e !== null && p === e) return true;
   // Non-numeric stripped equality: "$ N/A" vs "N/A" (engine reads the form's
-  // pre-printed dollar chrome along with whatever non-numeric value follows).
+  // pre-printed dollar chrome along with a non-numeric value).
   if (stripped === expected.trim()) return true;
   return false;
 }
 
 /**
  * Numeric equivalence variants for income-like fields. Engines disagree on
- * whether to return `900` (number), `"900"` (string), `"900.00"` (string with
- * fractional padding), or `"900.0"` — all the same value. Promotes the GT
- * scalar to a one-of array containing the engine's exact rendering so the
- * comparison passes on `exact` rule without losing the canonical form.
+ * formatting: numeric type vs string, decimal padding (`900` vs `"900.00"`),
+ * thousands separators (`"$2,711.64"`), internal whitespace from OCR
+ * (`"7, 969"`, `"8, 452 . 18"`, `"3, 06 3"`), embedded newlines (`"0\n0"`).
+ * If both predicted and expected parse to the same number under the loose
+ * parser, they're equivalent. Promotes the GT scalar to a one-of array
+ * containing the engine's exact rendering so the comparison passes on
+ * `exact` rule without losing the canonical form.
  */
 function isNumericEqualityVariant(
   predicted: unknown,
   expected: unknown,
 ): boolean {
-  const p =
-    typeof predicted === "number" ? predicted : parseNumericLike(predicted);
-  const e =
-    typeof expected === "number" ? expected : parseNumericLike(expected);
+  const p = parseLooseNumeric(predicted);
+  const e = parseLooseNumeric(expected);
   if (p === null || e === null) return false;
   return p === e;
 }

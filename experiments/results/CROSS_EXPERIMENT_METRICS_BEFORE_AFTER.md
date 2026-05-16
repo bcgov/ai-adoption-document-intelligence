@@ -17,7 +17,7 @@ Steps 2–4 are the apples-to-apples evaluator/GT change. Step 1 is an E01-only 
 | Experiment | pass_rate (before → after) | f1.mean | f1.median | precision | recall | matched.median | FP.mean |
 |---|---|---|---|---|---|---|---|
 | 00-doc-intelligence-template | 0.850 → **0.850** (0.000) | 0.903 → **0.906** (+0.003) | 0.939 → **0.939** (0.000) | 0.917 → **0.920** (+0.003) | 0.899 → **0.902** (+0.003) | 66.0 → **67.0** | 5.60 → **5.42** (-0.175) |
-| 01-neural-doc-intelligence | 0.515 → **0.950** (+0.435) | 0.683 → **0.927** (+0.244) | 0.806 → **0.959** (+0.152) | 0.899 → **0.947** (+0.047) | 0.587 → **0.911** (+0.324) | 50.0 → **69.0** | 2.33 → **3.52** (+1.192) |
+| 01-neural-doc-intelligence | 0.515 → **0.950** (+0.435) | 0.683 → **0.937** (+0.254) | 0.806 → **0.973** (+0.166) | 0.899 → **0.957** (+0.057) | 0.587 → **0.922** (+0.335) | 50.0 → **69.5** | 2.33 → **2.88** (+0.542) |
 | 02-mistral-doc-ai-azure | 0.875 → **0.875** (0.000) | 0.918 → **0.920** (+0.002) | 0.959 → **0.959** (0.000) | 0.941 → **0.943** (+0.002) | 0.902 → **0.903** (+0.002) | 69.0 → **69.0** | 4.05 → **3.92** (-0.125) |
 | 03-content-understanding | 0.950 → **0.950** (0.000) | 0.938 → **0.944** (+0.006) | 0.969 → **0.973** (+0.004) | 0.957 → **0.963** (+0.006) | 0.923 → **0.928** (+0.006) | 70.0 → **70.5** | 2.88 → **2.50** (-0.375) |
 | 04-vlm-direct | 0.800 → **0.800** (0.000) | 0.870 → **0.874** (+0.004) | 0.903 → **0.903** (0.000) | 0.876 → **0.880** (+0.004) | 0.866 → **0.870** (+0.004) | 66.0 → **66.0** | 8.47 → **8.18** (-0.300) |
@@ -56,15 +56,15 @@ Run id changed: `2295feed-1c99-493e-ae20-546499b5d685` → `b715b129-678a-4728-a
 |---|---|---|---|
 | `pass_rate` | 0.515 | 0.950 | +0.435 |
 | passing / total | 17/33 | 38/40 | — |
-| `f1.mean` | 0.683 | 0.927 | +0.244 |
-| `f1.median` | 0.806 | 0.959 | +0.152 |
-| `f1.min` | 0.143 | 0.560 | +0.417 |
+| `f1.mean` | 0.683 | 0.937 | +0.254 |
+| `f1.median` | 0.806 | 0.973 | +0.166 |
+| `f1.min` | 0.143 | 0.592 | +0.449 |
 | `f1.max` | 0.986 | 1.000 | +0.014 |
-| `precision.mean` | 0.899 | 0.947 | +0.047 |
-| `recall.mean` | 0.587 | 0.911 | +0.324 |
-| `matchedFields.median` | 50.0 | 69.0 | +19.000 |
-| `falsePositives.mean` | 2.33 | 3.52 | +1.192 |
-| `falseNegatives.mean` | 25.91 | 6.28 | -19.634 |
+| `precision.mean` | 0.899 | 0.957 | +0.057 |
+| `recall.mean` | 0.587 | 0.922 | +0.335 |
+| `matchedFields.median` | 50.0 | 69.5 | +19.500 |
+| `falsePositives.mean` | 2.33 | 2.88 | +0.542 |
+| `falseNegatives.mean` | 25.91 | 5.63 | -20.284 |
 
 ### 02-mistral-doc-ai-azure
 
@@ -208,11 +208,11 @@ E01 went through three observable states in this session because the run came ba
 | run id | `2295feed-1c99-493e-ae20-546499b5d685` | `b715b129-678a-4728-aaf9-0a834d604cc8` | `b715b129-678a-4728-aaf9-0a834d604cc8` |
 | dataset | 33 samples, sdpr_synth_test | 40 samples, sdpr-monthly-prod-neural-v2 | 40 samples, same |
 | pass_rate | 0.515 | 0.024 | **0.950** |
-| f1.mean | 0.683 | 0.907 | **0.927** |
-| f1.median | 0.806 | 0.942 | **0.959** |
-| precision.mean | 0.899 | 1.000 | **0.947** |
-| recall.mean | 0.587 | 0.842 | **0.911** |
-| matchedFields.median | 50.0 | 64.0 | **69.0** |
-| falsePositives.mean | 2.33 | 0.00 | **3.52** |
+| f1.mean | 0.683 | 0.907 | **0.937** |
+| f1.median | 0.806 | 0.942 | **0.973** |
+| precision.mean | 0.899 | 1.000 | **0.957** |
+| recall.mean | 0.587 | 0.842 | **0.922** |
+| matchedFields.median | 50.0 | 64.0 | **69.5** |
+| falsePositives.mean | 2.33 | 0.00 | **2.88** |
 
 The as-arrived numbers are eval-version artifacts (the worker did not have one-of-array support or the improve/03 FP/FN reformulation); the `bc9961f6` numbers used a different model on a smaller dataset; only the rightmost column is apples-to-apples with E02–E08.

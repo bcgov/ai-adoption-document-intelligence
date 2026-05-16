@@ -38,7 +38,7 @@ f1 **0.692**, precision 0.625, recall 0.776, matched 45 of 85, pass=`false`
 | `spouse_child_tax_benefits` | 0 | "" |
 | `checkbox_family_assets_yes` | "unselected" | "selected" |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" |
-| `applicant_income_tax_refund` | null | "0" |
+| `applicant_income_tax_refund` | null | ["0", "0 0"] |
 | `spouse_employment_insurance` | 0 | "" |
 | `spouse_workers_compensation` | 0 | "" |
 | `spouse_net_employment_income` | 0 | "" |
