@@ -2,12 +2,28 @@
 
 ## Executive summary
 
-We tested seven ways to turn a hand-filled SDPR Monthly Report into structured data, scored each one against 40 real and synthetic forms, and measured both accuracy and per-page cost. The bottom line:
+We tested seven ways to turn a hand-filled SDPR Monthly Report into structured data, scored each one against 40 real and synthetic forms, and measured both accuracy and per-page cost.
+
+> **What this report is and isn't.** The conclusions below are specific to **a hand-filled, scanned, key-value-extraction workload** — a one-page form with handwritten data going into a fixed JSON schema. The right tool for a different document class (digital-native PDFs with selectable text, free-form contracts requiring summarisation or Q&A, multi-page tabular reports, ID cards, etc.) is very likely a different tool. In particular, the two-stage OCR + LLM pipeline that wins on this workload is a custom architecture — it takes ongoing prompt and schema maintenance and isn't a turnkey product. Treat the recommendation as "this is the right choice for the SDPR Monthly Report and forms shaped like it", not "this is the universally best document-AI stack".
+
+The bottom line:
 
 - **Our custom pipeline beats Microsoft's off-the-shelf managed product on both accuracy *and* cost.** Combining Azure's OCR service with a GPT-5.2 call — sending both the form image *and* the OCR text — reads ~**95% of fields correctly per form** on this dataset, ~2 percentage points better than Azure's managed "Content Understanding" service (averaged across 40 samples). On the cost side, our pipeline runs at **~$0.046/page** vs the managed product's **~$0.073/page** — about 37% cheaper — measured across 5 representative samples per engine.
 - **The previous approach (a hand-trained custom model, V1) has been overtaken.** Modern generative AI engines now match or beat the supervised template's accuracy *without* needing re-training every time the form changes — removing a significant ongoing maintenance cost.
 - **One engine is far cheaper but with a structural accuracy ceiling.** Mistral's document AI runs at ~$0.003/page (~20× cheaper than the GPT-based options) but cannot recover handwriting its OCR layer misses. A reasonable fallback for low-stakes documents, not for income reporting.
 - **Results are directional, not a production guarantee.** The 40-sample dataset includes deliberately-hard edge cases (blank, coffee-stained, pencil-filled forms). On production volume the *rankings* between engines should hold; the *absolute* accuracy numbers will move.
+
+### When to choose each engine
+
+The single best engine on this workload (E08, our custom pipeline) isn't the right answer for every situation. The other engines remain meaningfully useful in specific contexts:
+
+- **Azure Content Understanding (CU, E03) — the managed-service alternative.** Choose CU when (a) you want a single managed service that handles OCR-to-LLM orchestration, structured output, and retries (you still maintain the schema and prompt), (b) downstream workflows need per-field confidence scores and bounding-box source spans on *generative* answers (DI grounds what its OCR reads; CU grounds what the LLM infers — including derived or summarised values), or (c) the documents are unstructured or vary heavily in layout. CU is bring-your-own-deployment: you connect any supported Foundry model (gpt-5.2, gpt-4.1, gpt-4.1-mini, mini/nano variants) and can swap to a cheaper/lower-latency model if accuracy allows. Note that this means CU shares the same model-region constraints as our pipeline (e.g. gpt-5.2 in Canada is still PTU-only) — CU is not a shortcut around data residency. CU is ~2 pp less accurate on this workload and ~37% more expensive per page, but it is a turnkey product.
+
+- **Document Intelligence custom template (E00) — the supervised, non-LLM path.** Choose DI custom when (a) the form is fixed and won't change for years, so the labelled training set amortises, (b) compliance or risk policy rules out generative AI entirely, or (c) you need a path with no prompt-injection surface area. Grounding and confidence are OCR-level only — you get bounding boxes and confidence on the words/cells the model *reads*, but DI has no generative step to ground. The trade-off is the lowest accuracy of the engines tested (87% field accuracy) and the highest non-Mistral per-page cost ($0.030), plus re-labelling effort every time the form changes.
+
+- **Mistral Document AI (E02) — the high-volume, cost-sensitive option.** Choose Mistral when (a) per-page cost dominates the decision (it is ~15× cheaper than every gpt-5.x option at $0.003/page), (b) the documents are mostly typed or have clean handwriting that OCRs reliably, or (c) the workload tolerates a structural accuracy ceiling. Mistral's annotation pass doesn't see the image, so anything its OCR layer misses is irrecoverable. On this hand-filled handwriting workload that ceiling matters; on cleaner documents it might not.
+
+- **Our custom pipeline (E08) — the accuracy-optimised path.** Recommended for SDPR when Global Standard routing is acceptable for Canada residency, the form is image-based and key-value-shaped, and the volume justifies maintaining a prompt + schema. Highest accuracy (~95% of fields), lowest cost among the gpt-based options.
 
 ## Overview — what we tested and why it matters
 
@@ -16,22 +32,26 @@ Each SDPR Monthly Report has 74 fields (names, SINs, dates, signatures, 14 yes/n
 Two seemingly-technical choices drive most of the accuracy gap between the winner and Microsoft's managed alternative:
 
 1. **We give the AI both the image and the OCR text.** When the OCR layer misses a small handwritten `0` on an income line, the model can still recover it from the picture. Microsoft's managed product never shows the image to the AI, so it cannot recover what the OCR drops — and on this dataset it drops **13× more handwritten zeros** than our pipeline does.
-2. **We control the prompt directly.** The managed product hides its prompt behind a "contextualization" layer that re-builds the instructions server-side. Our pipeline tells the model in plain language to *trust the image when the OCR text disagrees* and *return blank rather than guessing*. That removes a class of "fluent-but-wrong" answers the managed product still produces.
+2. **We control the prompt directly.** The managed product hides its prompt behind a "contextualization" layer that re-builds the instructions server-side. Our pipeline tells the model in plain language to *trust the image when the OCR text disagrees* and *return blank rather than guessing*. That **reduces** a class of "fluent-but-wrong" answers the managed product produces more often — but does not eliminate them: both pipelines still occasionally fabricate plausible values, just at different rates.
 
 The cost picture turned out to favour the custom pipeline for the same reasons: the managed product's hidden contextualization layer inflates the prompt enough that, end-to-end, it sends more tokens to the AI model than our pipeline does *even with the image attached*, and it pays its own per-page meters on top.
 
 ## Recommendation
 
-**Adopt the custom pipeline (Azure Document Intelligence OCR + GPT-5.2 with image + OCR text, referenced as "E08" in this report) as the production extraction path** for the SDPR Monthly Report, replacing the V1 trained-template approach. Concretely:
+**For this workload** — hand-filled, scanned, single-page key-value forms going into a fixed schema — **adopt the custom pipeline (Azure Document Intelligence OCR + GPT-5.2, sending both the form image *and* the OCR text to the model, referenced as "E08" in this report) as the production extraction path**, replacing the V1 trained-template approach.
+
+This recommendation is **workload-specific**. The custom two-stage architecture is the right call when (a) the source documents are scanned/photographed images of forms, (b) the output is a fixed key-value schema, and (c) the workload volume justifies maintaining a custom prompt + schema. For digital-native PDFs, free-form documents, or one-off extraction tasks, the trade-offs may favour a managed product (less integration work) or a different tool entirely.
+
+**Conditional on Canada data residency.** The E08 recommendation depends on GPT-5.2 being available in token-based Global Standard pricing — which it is, but Microsoft routes Global Standard requests to whichever data centre has capacity at the moment, so processing may execute outside Canada. GPT-5.2 has no token-based Regional Standard deployment in Canada today; the only Canada-pinned option is Provisioned Throughput Units (PTUs), which carry a fixed monthly cost from ~$15,750/month at the 50-unit minimum reservation. At realistic SDPR volume that converts to a much higher effective per-page cost than the Global Standard numbers above. Switching to CU does not sidestep this constraint — CU is bring-your-own-deployment and would call the same gpt-5.2 with the same residency story. The realistic Canada-pinned fallbacks are PTU gpt-5.2 (high fixed cost) or a different model entirely (e.g. gpt-4o token-based Regional in Canada East, at ~3.7 pp lower F1) — see [Production deployment — Canada data residency](#production-deployment--canada-data-residency). Confirm the residency policy before production cut-over.
+
+Concretely, for SDPR (assuming Global Standard is acceptable):
 
 1. **Make E08 the primary engine.** Expected accuracy ~95% of fields per form; expected cost ~$0.046/page cold-cache (~$0.030/page in continuous batch operation with prompt caching), measured across 5 representative samples.
-2. **Plan for human-in-the-loop review on the lowest-confidence ~5–10% of forms.** No engine clears 100% on every sample, and signatures and intentionally-hard scans (blank, stained, pencil) will continue to need a human by design.
-3. **Re-measure on a larger production sample before committing to the cost projection.** The 40-sample dataset is small and skews toward edge cases. The per-page cost is averaged across 5 representative samples per engine; production form-density mix will shift both accuracy and cost from these numbers.
-4. **Keep the Microsoft managed product (Content Understanding) as a known-good fallback** if the custom pipeline ever needs to be paused — it is ~2 percentage points less accurate and ~37% more expensive per page, but it is a single managed service with no prompt engineering to maintain.
-5. **Do not deploy the 5-engine ensemble.** It edges out the single best engine on false-positive rate but costs ~4× more per page; the accuracy gap to E08 alone has effectively closed.
-6. **Resolve the Canada data-residency question before production cut-over.** The benchmark ran in East US 2 on Microsoft's *Global Standard* deployment, where requests can be routed to capacity outside Canada. GPT-5.2 does not yet have a Canada-pinned regional deployment SKU. Three options exist (accept Global routing; reserved-capacity PTU in Canada Central; fall back to GPT-4o which *does* have a Canada-regional SKU at ~21% higher cost and ~3.7 pp lower accuracy). The choice depends on a policy decision, not a technical one — see [Production deployment — Canada data residency](#production-deployment--canada-data-residency).
+2. **Define a human-in-the-loop review strategy that matches the risk profile, not a fixed percentage.** Some residual errors are obvious — the engine returns null on an unreadable field, or extracts a low-confidence value a simple gate can route to a reviewer. But some are *confidently wrong*: the model hallucinates a plausible name or income figure with no internal signal that it's incorrect (E03 returning `Junal` / `Aku De` / `April Lune` for the real names `Trung` / `AKM De` / `April Luna` on `HR0081 (6)` are documented examples). E08 reduces this class compared to CU but doesn't eliminate it — both pipelines still hallucinate occasionally, just at different rates (FP.mean 2.50 vs 2.88), and the behaviour we're trying to suppress is exactly the behaviour where the model doesn't register its own uncertainty, so confidence thresholds cannot reliably separate fabrications from correct answers. For income-eligibility decisions, where a confidently-wrong income figure could change a benefit determination, the only robust safety net is **a comparison source** — full or majority human review of high-stakes fields, ensemble disagreement-flagging, or downstream consistency checks against other data — not a confidence-gated sample. For lower-stakes fields (signatures, free-form comments) confidence-gated sampling is fine. Right-size the review effort to the cost of a downstream error in each field category.
+3. **Budget for ongoing prompt-and-schema maintenance.** A custom pipeline is not turnkey: when the form changes, the prompt and field descriptions need to be updated. This is materially less work than re-labelling and re-training a custom template, but it is not zero. Microsoft's managed Content Understanding (E03) is a viable alternative when this maintenance cost outweighs the accuracy and cost advantage.
+4. **Re-measure on a larger production sample before committing to the cost projection.** The 40-sample dataset is small and skews toward edge cases; production form-density mix will shift both accuracy and cost from these numbers.
 
-The rest of this document is the full evidence base — per-engine accuracy, failure modes, cost build-up, and the architectural reasons E08 beats the managed alternative. All cost figures are in **USD** (Microsoft's rate card is USD-only).
+The rest of this document is the full evidence base — per-engine accuracy, failure modes, cost build-up, and the architectural reasons E08 beats the managed alternative.
 
 ## Introduction
 
@@ -133,32 +153,49 @@ Four observations to keep in mind throughout the rest of the document:
 
 ## Cost per page
 
-The per-page numbers below are bottom-up estimates built from (a) Azure's public retail-pricing API (`prices.azure.com/api/retail/prices`) for the East US 2 region, queried on 2026-05-14, and (b) **per-call token / page counts measured across 5 samples per token-consuming engine** (E03/E04/E05/E07/E08), captured by re-running each engine's iteration script on `synth-full (1)`, `manual sample (1)`, `1 81`, `HR0081 (10)`, and `81 blank`. The per-sample raw counts are in [data/token-usage-by-sample.csv](data/token-usage-by-sample.csv); the per-call cost derivations are in [data/per-sample-cost.csv](data/per-sample-cost.csv); the orchestration scripts are at [scripts/measure-per-page-tokens.py](scripts/measure-per-page-tokens.py) and [scripts/aggregate-cost.py](scripts/aggregate-cost.py). E07 has N=4 (one call hit Azure HTTP 429 even after retry). E00 (DI custom template) and E02 (Mistral) are per-page billing with no token component, so a single rate is exact and no re-run was needed. **Total Azure spend on this re-measurement run: $1.00 across 24 calls.** The customer's Azure tenant for this benchmark runs Azure OpenAI in `eastus2` (Global Standard SKU) and Document Intelligence on `S0`; the rates below apply to that combination and will differ on other regions / SKUs / commitment tiers. **All prices in this section are in USD**, mirroring how Microsoft publishes the rate card. The unit rates and the seven per-page derivations were also cross-checked against the official Azure OpenAI and Document Intelligence pricing pages — all cold-cache rates and the per-page arithmetic match the official rate card; the only correction needed was the GPT-5.2 cached-input rate ($0.18/1M, not the $0.175/1M an exact-10% assumption would give), which is applied below.
+The per-page numbers below are bottom-up estimates built from Azure's published retail-pricing rates for the East US 2 region (Global Standard SKU, 2026-05-14) combined with per-call token and page counts measured across 5 representative samples per token-consuming engine.
 
-| engine | N | OCR / extraction layer | LLM input mean (range) | LLM output mean (range) | **cold $/page mean** | warm $/page mean |
-|---|---|---|---|---|---|---|
-| **E00** — DI custom template | exact | DI S0 Custom Pages $30/1K | n/a | n/a | **$0.030** | $0.030 |
-| **E02** — Mistral on Foundry | exact | Mistral Doc AI 2512 $3/1K (annotation meter; OCR bundled) | n/a (billed per page) | n/a | **$0.003** | $0.003 |
-| **E03** — CU + gpt-5.2 | 5 | CU Std $0.005/page + Std Contextualization $0.001/page | 18,844 (17,287–21,952) | 2,395 (2,051–3,390) | **$0.0725** | $0.0725* |
-| **E04** — gpt-5.4 VLM-direct | 5 | none (image goes straight to LLM) | 10,283 (10,264–10,288) | 1,437 (1,197–2,014) | **$0.0473** | $0.0307 |
-| **E05** — gpt-5.4 hybrid | 5 | DI S0 Pre-built (layout) $0.010/page | 11,953 (11,801–12,154) | 1,660 (1,213–1,973) | **$0.0548** | $0.0379 |
-| **E07** — gpt-4o hybrid | 4 | DI S0 Pre-built (layout) $0.010/page | 11,689 (11,528–11,905) | 1,654 (1,429–1,942) | **$0.0458** | $0.0370 |
-| **E08** — gpt-5.2 hybrid | 5 | DI S0 Pre-built (layout) $0.010/page | 11,968 (11,817–12,165) | 1,751 (1,412–2,186) | **$0.0455** | $0.0301 |
-| **E06** — ensemble (E00+E02+E03+E04+E05) | — | sum of constituent engines | — | — | **~$0.210** | — |
+The five samples (`synth-full (1)`, `manual sample (1)`, `1 81`, `HR0081 (10)`, `81 blank`) were chosen to span the form-density spectrum, from dense typed to sparse blank. Token-consuming engines are E03, E04, E05, E07, and E08 — for E00 (DI custom template) and E02 (Mistral) the billing is per page with no token component, so a single rate is exact.
+
+All prices in USD.
+
+| engine | OCR / extraction layer | LLM input mean (range) | LLM output mean (range) | **cold $/page mean** | warm $/page mean |
+|---|---|---|---|---|---|
+| **E00** — DI custom template | DI S0 Custom Pages $30/1K | n/a | n/a | **$0.030** | $0.030 |
+| **E02** — Mistral on Foundry | Mistral Doc AI 2512 $3/1K (annotation meter; OCR bundled) | n/a (billed per page) | n/a | **$0.003** | $0.003 |
+| **E03** — CU + gpt-5.2 | CU Std $0.005/page + Std Contextualization $0.001/page | 18,844 (17,287–21,952) | 2,395 (2,051–3,390) | **$0.0725** | $0.0725* |
+| **E04** — gpt-5.4 VLM-direct | none (image goes straight to LLM) | 10,283 (10,264–10,288) | 1,437 (1,197–2,014) | **$0.0473** | $0.0307 |
+| **E05** — gpt-5.4 hybrid | DI S0 Pre-built (layout) $0.010/page | 11,953 (11,801–12,154) | 1,660 (1,213–1,973) | **$0.0548** | $0.0379 |
+| **E07** — gpt-4o hybrid | DI S0 Pre-built (layout) $0.010/page | 11,689 (11,528–11,905) | 1,654 (1,429–1,942) | **$0.0458** | $0.0370 |
+| **E08** — gpt-5.2 hybrid | DI S0 Pre-built (layout) $0.010/page | 11,968 (11,817–12,165) | 1,751 (1,412–2,186) | **$0.0455** | $0.0301 |
+| **E06** — ensemble (E00+E02+E03+E04+E05) | sum of constituent engines | — | — | **~$0.210** | — |
 
 \* For E03 the warm-cache rate is shown as equal to cold. The Azure OpenAI cached-input field is not exposed in CU's response payload, so we cannot tell whether CU's gpt-5.2 calls benefit from the 5-minute prompt cache in the same way our pipeline's direct calls do. The "warm = cold" assumption is conservative; if CU does benefit from caching, its true warm-cache cost is somewhat lower.
 
-> **How to read.** **Cold-cache cost** is the per-page bill if no prompt caching applies — i.e. single-document inference with sparse call cadence, the worst-case rate. **Warm-cache cost** is what continuous-batch processing pays, where Azure's 5-minute prompt cache serves the static system prompt + schema at 10% of base rate; on this measurement run, prompt cache hit rates were 0–98% per call (the script's back-to-back call cadence warmed the cache after the first call). For production planning, **cold-cache is the conservative number for sporadic inference** and **warm-cache is the floor for continuous batched processing**. The "OCR / extraction layer" column is the pre-LLM page-based meter (where one exists); the LLM columns are the customer-side Azure OpenAI tokens. For E03 (Content Understanding), gpt-5.2 tokens bill to the customer's own gpt-5.2 deployment on top of CU's meters — the `usage` field on each CU response itemises `documentPagesStandard`, `contextualizationTokens`, and `gpt-5.2-input` / `gpt-5.2-output` separately.
+> **How to read.**
+>
+> **Cold-cache cost** is the per-page bill if no prompt caching applies — i.e. single-document inference with sparse call cadence, the worst-case rate.
+>
+> **Warm-cache cost** is what continuous-batch processing pays, where Azure's 5-minute prompt cache serves the static system prompt + schema at 10% of base rate.
+>
+> For production planning, cold-cache is the conservative number for sporadic inference and warm-cache is the floor for continuous batched processing.
+>
+> The "OCR / extraction layer" column is the pre-LLM page-based meter (where one exists); the LLM columns are the customer-side Azure OpenAI tokens. For E03 (Content Understanding), gpt-5.2 tokens bill to the customer's own gpt-5.2 deployment on top of CU's meters.
 
-**Per-sample variance — the headline finding from the multi-sample re-run.** E03 shows ~5× more input-token variance than every other engine: its input ranged 17,287 → 21,952 across 5 samples (a 27% spread), while E08 ranged 11,817 → 12,165 (a 3% spread). On the densest sample (`HR0081 (10)`, dense handwriting filling most cells) E03 sent **21,952 tokens** to gpt-5.2 — ~82% more than E08's 12,068 on the same sample. CU's internal prompt construction scales with form density in a way our pipeline's doesn't (we always send the same image-plus-OCR-markdown packet; CU appears to inject more layout / grounding metadata when the form is busier). This variance is the practical reason E03's per-page cost lands meaningfully higher than E08's on average, and it widens the further a sample drifts from a sparse form.
+**Per-sample variance.** E03 shows ~5× more input-token variance than every other engine.
 
-**E03 vs E08 cost gap, restated with N=5 data:** E08 averages **~$0.0455/page (cold)** vs E03 **~$0.0725/page (cold)** → E08 is **~$0.027/page cheaper, or ~37% lower per-page cost**. With prompt caching warm, E08 falls to ~$0.0301/page while E03 stays at ~$0.0725 (no observable caching) — a ~58% cost gap. The original N=1 measurement underestimated the gap; the multi-sample re-run firms up the headline finding.
+Its input ranged 17,287 → 21,952 across 5 samples (a 27% spread), while E08 ranged 11,817 → 12,165 (a 3% spread). On the densest sample (`HR0081 (10)`, dense handwriting filling most cells) E03 sent 21,952 tokens to gpt-5.2 — ~82% more than E08's 12,068 on the same sample.
 
-**Reference rates used** (Azure retail-prices API, `eastus2`, Global Standard SKU, 2026-05-14):
-- DI S0 Custom Pages $30/1K · S0 Pre-built (layout) Pages $10/1K · S0 Read Pages $1.50/1K
-- CU Doc Content Extraction Standard $5/1K pages · CU Std Contextualization $1.00/1M tokens · CU Std Field Extract $2.75/1K input + $11/1K output tokens (not used by E03 — we route through a customer deployment instead)
-- Mistral Doc AI 2512 $3/1K pages · Mistral OCR 2512 $2/1K pages
-- Azure OpenAI Global Standard token rates: gpt-5.2 $1.75/1M input · $14/1M output (cached input $0.18/1M — ~10.3% of base, per the official rate card); gpt-5.4 $2.50/1M input · $15/1M output (cached input $0.25/1M); gpt-4o (1120) $2.50/1M input · $10/1M output (cached input $1.25/1M)
+CU's internal prompt construction scales with form density in a way our pipeline's doesn't: we always send the same image-plus-OCR-markdown packet, while CU appears to inject more layout / grounding metadata when the form is busier. This variance is the practical reason E03's per-page cost lands meaningfully higher than E08's on average, and the gap widens the further a sample drifts from a sparse form.
+
+**E03 vs E08 cost gap.** E08 averages **~$0.0455/page (cold)** vs E03 **~$0.0725/page (cold)** — E08 is **~$0.027/page cheaper, or ~37% lower per-page cost**. With prompt caching warm, E08 falls to ~$0.0301/page while E03 stays at ~$0.0725 (no observable caching) — a ~58% cost gap.
+
+**Reference rates** (`eastus2`, Global Standard SKU, 2026-05-15):
+
+- DI S0 Custom Pages $30/1K · S0 Pre-built (layout) Pages $10/1K · S0 Read Pages $1.50/1K.
+- CU Doc Content Extraction Standard $5/1K pages · CU Std Contextualization $1.00/1M tokens.
+- Mistral Doc AI 2512 $3/1K pages · Mistral OCR 2512 $2/1K pages.
+- Azure OpenAI Global Standard token rates: gpt-5.2 $1.75/1M input · $14/1M output · $0.18/1M cached input; gpt-5.4 $2.50/1M input · $15/1M output · $0.25/1M cached input; gpt-4o (1120) $2.50/1M input · $10/1M output · $1.25/1M cached input.
 
 **Observations.**
 1. **E08 is meaningfully cheaper per page than E03** at ~$0.0455 vs ~$0.0725 (cold-cache means across 5 samples per engine) — ~37% lower per-page cost. E08 wins on every individual sample, not just the mean. CU consistently sends a larger prompt to gpt-5.2 than our pipeline does, even though it never includes the image; on the densest sample tested (`HR0081 (10)`) CU sent 21,952 input tokens vs E08's 12,068 (~82% more). We can observe these token counts directly via Azure's `usage` field but cannot inspect what's in CU's prompt — the mechanism for the gap is not directly verifiable.
@@ -166,47 +203,60 @@ The per-page numbers below are bottom-up estimates built from (a) Azure's public
 3. **The custom DI template (E00) is the most expensive non-LLM option** at $0.030/page — 10× Mistral. That cost is the supervised-template billing tier, not anything about the form complexity.
 4. **The hybrid trio (E05/E07/E08) costs ~$0.046–$0.055/page cold-cache** — ~20% cost swing across the three models, 3.7 pp F1.mean accuracy swing. **gpt-5.2 (E08, $0.0455) and gpt-4o (E07, $0.0458) are essentially tied on cold-cache cost** — gpt-4o's lower output rate offsets gpt-5.2's lower input rate. gpt-5.4 (E05, $0.0548) is the most expensive of the three. With prompt caching warm, E08 ($0.0301) edges out E07 ($0.0370) by ~20%. On accuracy, E08 wins by 1.8 pp F1.mean over E05 and 3.7 pp over E07 — so for the same money or cheaper, E08 is the right choice on this workload.
 5. **The ensemble (E06) is ~5× more expensive than E08 alone** (~$0.21/page vs ~$0.046/page) because it runs five engines per page. For roughly tied F1 with E08 alone, paying ~$0.16/page extra only makes sense if the precision lead (FP.mean 1.93 vs E08's 2.50) is specifically valuable — e.g. workloads where every wrong-value substitution costs human review time worth more than the inference delta.
-6. **Prompt caching is highly effective for batched workloads.** Azure's 5-minute prompt cache was active on most of our re-run calls (cache hit rates 77–95% after the first call). Cached input is billed at ~10% of the base rate (gpt-5.2 cached input is $0.18/1M per Azure's official rate card — ~10.3% of the $1.75 base, not an exact 10%). Across the trio, warm-cache costs fall to **$0.030 (E08), $0.037 (E07), $0.038 (E05)** — roughly 30–35% below cold-cache. E03 cannot benefit the same way: its Contextualization layer rebuilds the prompt server-side, and CU's response payload does not expose the `cached_tokens` field, so we have no visibility into whether CU's gpt-5.2 calls cache internally.
-7. **Cost telemetry from `az consumption usage list`** for the tenant was checked but returned `None`-quantities for the recent benchmark window (the standard 24–72 h lag on Microsoft's consumption API). The meter names that *will* appear on the invoice are: `Azure OpenAI GPT5 - GPT 5.2 inp/opt Gl - US East 2`, `Azure OpenAI GPT5 - 5.4 inp/opt Gl - US East 2`, `Azure OpenAI - gpt 4o 1120 Inp/Outp glbl - US East 2`, `Azure Content Understanding - Doc Content Extraction Standard - US East 2`, `Azure Content Understanding - Std Contextualization - US East 2`, `Azure Mistral Models - Doc AI 2512 glbl - US East 2`. These exactly match the model deployments listed by `az cognitiveservices account deployment list` for the `strukalex-8338-resource` AI Services account in `rg-strukalex-8338`. Once the invoice posts the per-meter quantities can be cross-checked against the bottom-up estimates above.
+6. **Prompt caching is highly effective for batched workloads.** Azure's 5-minute prompt cache was active on most calls (cache hit rates 77–95% after the first call). Cached input is billed at ~10% of the base rate. Across the trio, warm-cache costs fall to **$0.030 (E08), $0.037 (E07), $0.038 (E05)** — roughly 30–35% below cold-cache. E03 cannot benefit the same way: its Contextualization layer rebuilds the prompt server-side, and CU's response payload does not expose the `cached_tokens` field, so we have no visibility into whether CU's gpt-5.2 calls cache internally.
 
 **Caveats on the cost numbers.**
-- All figures in USD (Microsoft's published rate card is USD only; CAD conversion at the FX rate of the day applies for billing in Canada).
-- **N=5 per token-consuming engine** (4 for E07 after one Azure HTTP 429). Token counts come from re-running each engine's iteration script on `synth-full (1)`, `manual sample (1)`, `1 81`, `HR0081 (10)`, and `81 blank` — a deliberate spread from dense-typed to sparse-blank forms. The benchmark export itself does not retain per-sample token usage, so this is a separate, focused measurement (cost: $1.00 of Azure spend, 24 calls, ~30 min wallclock). Per-engine the E08-vs-E03 cost gap is consistent on every individual sample, not just the mean. We have not aggregated across the full 40-sample benchmark; a larger pass would tighten the bounds further but is unlikely to flip the ranking.
+
+- All figures in USD. CAD conversion at the FX rate of the day applies for billing in Canada.
+- Token counts come from 5 samples per token-consuming engine, deliberately spread from dense-typed to sparse-blank. The E08-vs-E03 cost gap is consistent on every individual sample, not just the mean. A larger pass would tighten the bounds but is unlikely to flip the ranking.
 - Prompt-caching savings depend on call cadence (≥5 min idle drops the cache). Quoted cold-cache numbers are conservative for production single-document inference.
 - Egress, storage of the source document, and the per-month Azure resource flat fees are ignored — at this volume they are noise relative to the per-page numbers.
 - The Mistral OCR-only meter ($2/1K) is *not* what E02 bills against — E02 uses the higher Doc AI annotation meter ($3/1K) which is a single combined OCR+annotation page price.
 - **Content Understanding has three content-extraction tiers**, not one. We quote the **Standard** meter ($5/1K pages) which is correct for image-based scans / phone photos / image-PDFs with full layout analysis. CU also bills **Basic** ($1/1K — Read on image PDFs without layout) and **Minimal** ($0.01/1K — digital-native PDFs with a selectable text layer). If any portion of production volume arrived as digital-native PDFs the effective CU rate would be ~5× lower on that subset. SDPR forms are scans / photos, so Standard applies.
-- Commitment-tier discounts (8M-page/month tier drops DI prebuilt pages from $10/1K to ~$0.53/1K) are not applied here because production volume is unknown; if SDPR Monthly Report volume reaches the commitment-tier threshold, E05/E07/E08 LLM costs would dominate even more, and the relative ranking would not change.
 
 ### Production deployment — Canada data residency
 
-The benchmark was run in `eastus2` on Azure OpenAI **Global Standard** SKU. Production for this workload will realistically run in Canada (BC government data). Three things change in Canada relative to the benchmark numbers above:
+The benchmark was run in `eastus2` on Azure OpenAI **Global Standard** SKU. Production for this workload will realistically run in Canada (BC government data).
 
-**Global Standard vs Regional Standard — what they mean.** A *Global Standard* deployment is a worldwide capacity pool: Microsoft routes each request to whichever data centre has spare capacity, so the request may execute in West US, Europe, East US 2, etc. depending on the moment. Cheapest token rates because Microsoft can load-balance globally. *Regional Standard* (sometimes called "Data Zone Standard") pins inference to a specific region (e.g. Canada East / Canada Central), so the data stays in-country. Microsoft has to size capacity within that one region, so they charge a **~10–20% uplift** on tokens. For workloads governed by Canadian data-residency rules, Regional or Provisioned-Throughput deployments are the typical options.
+Azure OpenAI offers three deployment types (per Microsoft's pricing page):
 
-**Pricing data pulled for Canada (canadaeast / canadacentral), 2026-05-14:**
+- **Global Deployment** — worldwide capacity pool; Microsoft routes each request to whichever data centre has spare capacity. The data may execute outside Canada moment-to-moment.
+- **Data Zone Deployment** — geographic pool (EU or US). **GPT-5.2 has no Data Zone offering** (the price row shows N/A).
+- **Regional Deployment** — pinned to a specific region (up to 27 regions available, including Canada Central / Canada East). For GPT-5.2 specifically, Regional is **only offered as Provisioned Throughput Units (PTUs)** — there is no token-based Regional Standard for GPT-5.2. GPT-4o (2024-11-20) *does* have a token-based Regional Standard, at a ~21% uplift over Global.
 
-| Component | Canada rate | vs eastus2 |
+**A note on PTU pricing.** A Provisioned Throughput Unit is *reserved capacity*, not metered usage — you pay for the reservation regardless of how many pages flow through it, and the data stays in the region you reserved capacity in. Microsoft offers three commitment tiers (longer commitment = bigger discount):
+
+- **Hourly** — no commitment, billed hour-by-hour, can be stopped anytime. Highest unit rate.
+- **Monthly reservation** — 1-month commitment, ~80% off the hourly rate.
+- **Yearly reservation** — 1-year commitment, ~83% off the hourly rate.
+
+Each model has its own minimum-PTU floor (e.g. 15 PTUs for GPT-5.2 Global, 50 PTUs for GPT-5.2 Regional) — you cannot deploy below it.
+
+**GPT-5.2 Regional (PTU) pricing per Microsoft's published rate card:**
+
+| Tier | Per-PTU rate | 50-PTU minimum, $/month |
 |---|---|---|
-| DI prebuilt-layout (S0) | $10/1K = $0.010/page | same |
-| DI custom (S0) | $30/1K = $0.030/page | same |
-| CU Doc Content Extraction Standard | $5/1K | same |
-| CU Std Contextualization | $1/1M tokens | same |
-| Mistral Doc AI 2512 / OCR 2512 | $3 / $2 per 1K pages | same |
-| **GPT-5.2 (Global Standard only — no regional SKU)** | $1.75 / $14 / $0.18 per 1M | **only Global available** |
-| **GPT-5.4 (Global Standard only — no regional SKU)** | $2.50 / $15 / $0.25 per 1M | **only Global available** |
-| GPT-4o-1120 Canada East Regional | $3.025 / $12.10 / $1.5125 per 1M (~21% uplift) | regional SKU exists |
-| GPT-4o-1120 Canada East Global | $2.50 / $10 / $1.25 per 1M | same |
+| Hourly (no commitment) | $2.20 / hour | ~$80,300 / month |
+| Monthly reservation | $315 / month | $15,750 / month |
+| Yearly reservation | $3,204 / year | ~$13,350 / month equivalent |
 
-**The non-obvious finding: GPT-5.2 and GPT-5.4 do not have a Canada-pinned regional SKU today.** Only Global Standard is published in `prices.azure.com` for Canada East / Canada Central. So a strict *"all inference must execute in Canada"* requirement currently has three options:
+**GPT-4o-2024-1120 Canada Regional token-based pricing per the same rate card:**
 
-1. **Accept Global Standard routing** — token prices stay at the benchmark's $1.75 / $14 (gpt-5.2), but Microsoft may route requests to capacity outside Canada moment-to-moment. Whether this is acceptable is a policy interpretation, not a technical question.
-2. **Provisioned Throughput Units (PTUs) in Canada Central** — reserved capacity pinned in-region, billed at a fixed monthly rate (≈ $300/month per unit at retail, with annual-commitment discounts; PTU sizing requires a deployment-time quote). Economic above ~50M tokens/month sustained load; not economic at low volume.
-3. **Fall back to GPT-4o on Canada East Regional** — the model has a true in-region SKU at ~21% token uplift. Concretely E07's per-page cost would move from **~$0.046 (eastus2 Global, measured)** to ~$0.055 (Canada East Regional, projected). But E07's accuracy is materially lower than E08 (F1.mean 0.923 vs 0.960), so this is a real trade.
+| Meter | Per-1M tokens | vs Global Standard |
+|---|---|---|
+| Input | $3.025 | ~21% uplift |
+| Cached input | $1.513 | ~21% uplift |
+| Output | $12.10 | ~21% uplift |
 
-**Tentative production projection — assuming Global Standard is acceptable for Canada residency, processing in Canada Central:** E08 at **~$0.046/page cold-cache (~$0.030/page warm-cache)** — same as the benchmark figure, since DI rates are identical and gpt-5.2 has no in-region uplift. If Global Standard is *not* acceptable, the realistic path is GPT-4o on Canada East Regional (E07 at ~$0.055/page, ~3.7 pp F1.mean accuracy drop) or PTU-based gpt-5.2 (cost-per-page depends entirely on sustained volume; resolve by quote).
+**Implications for production.** Three deployment paths exist, depending on the residency requirement:
 
-**Action item before production cut-over:** confirm with the BC data-residency policy owner whether Global Standard routing (where the inference may execute outside Canada) meets the residency requirement, or whether PTU / regional-only deployment is mandatory. The answer changes the per-page cost projection by a factor of 1× to ~3× depending on volume.
+1. **GPT-5.2 Global Standard** (the benchmark's deployment) preserves the per-page cost numbers above (~$0.046 cold, ~$0.030 warm) but routes data outside Canada at Microsoft's discretion. Whether this satisfies BC data-residency rules is a policy question, not a technical one.
+2. **GPT-5.2 PTU Regional in Canada Central** keeps inference in-country with the highest accuracy but converts the cost model from "per token" to "fixed monthly reservation". At SDPR-realistic volume the per-page cost is much higher than Global — only economic at sustained high page volume.
+3. **GPT-4o token-based Regional in Canada East** is the only Canada-pinned token-based fallback. E07's per-page cost moves from ~$0.046 (measured in eastus2 Global) to ~$0.055 (projected at the +21% Regional uplift). The trade-off is the 3.7 pp F1.mean accuracy drop from gpt-5.2 to gpt-4o documented in the model bake-off — meaningful on this workload but acceptable if Canada residency is non-negotiable and PTU is uneconomic.
+
+The DI / CU / Mistral page-meter rates do not change between US and Canada in Microsoft's published rate card.
+
+**Action item before production cut-over:** confirm with the BC data-residency policy owner whether Global Standard routing (where inference may execute outside Canada) meets the residency requirement. If not, the deployment model shifts to one of the two Canada-pinned options above — resolve by quote at deployment time, particularly for PTU sizing.
 
 ## Per-sample F1 distribution
 
