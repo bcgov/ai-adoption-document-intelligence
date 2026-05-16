@@ -145,7 +145,7 @@ f1 **0.885**, precision 0.885, recall 0.885, matched 46 of 58, pass=`true`
 
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
-| `applicant_oas_gis` | 7284.04 | 7289.04 |
+| `applicant_oas_gis` | 7284.04 | ["7289.04", "7, 289.04"] |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" |
 | `checkbox_school_spouse_no` | "selected" | "unselected" |
 | `checkbox_work_spouse_no` | "selected" | "unselected" |

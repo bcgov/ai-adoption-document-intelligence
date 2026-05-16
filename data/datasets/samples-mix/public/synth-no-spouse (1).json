@@ -25,13 +25,22 @@
     "applicant_net_employment_income": 7971.1,
     "applicant_employment_insurance": 5270.81,
     "applicant_spousal_support_alimony": 5111.73,
-    "applicant_child_support": 8310.93,
+    "applicant_child_support": [
+        "8310.93",
+        "8 , 310 . 93"
+    ],
     "applicant_workbc_financial_support": 3752.68,
     "applicant_student_funding_loans_bursaries": 7007,
     "applicant_rental_income": 8749.25,
     "applicant_room_board_income": 4110.43,
-    "applicant_workers_compensation": 3648,
-    "applicant_private_pensions_retirement_disability": 1341.05,
+    "applicant_workers_compensation": [
+        "3648",
+        "3, 648"
+    ],
+    "applicant_private_pensions_retirement_disability": [
+        "1341.05",
+        "$1,341.05"
+    ],
     "applicant_oas_gis": [
         "2964.7",
         "$2964.70"

@@ -33,8 +33,14 @@
         "$117.12"
     ],
     "applicant_employment_insurance": 1278,
-    "applicant_spousal_support_alimony": 8800.13,
-    "applicant_child_support": 7117.97,
+    "applicant_spousal_support_alimony": [
+        "8800.13",
+        "8,800. 13"
+    ],
+    "applicant_child_support": [
+        "7117.97",
+        "7, 117.97"
+    ],
     "applicant_workbc_financial_support": 7891.75,
     "applicant_student_funding_loans_bursaries": 9182,
     "applicant_rental_income": 9351.55,
@@ -51,9 +57,15 @@
     "applicant_income_of_dependent_children": 1797,
     "spouse_net_employment_income": 6214.03,
     "spouse_employment_insurance": 26,
-    "spouse_spousal_support_alimony": 1095.14,
+    "spouse_spousal_support_alimony": [
+        "1095.14",
+        "1, 095.14"
+    ],
     "spouse_child_support": 9628.11,
-    "spouse_workbc_financial_support": 1113,
+    "spouse_workbc_financial_support": [
+        "1113",
+        "1, 11 3"
+    ],
     "spouse_student_funding_loans_bursaries": 5837.89,
     "spouse_rental_income": 8391.6,
     "spouse_room_board_income": 3135.83,

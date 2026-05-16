@@ -11,7 +11,7 @@ Known-hard samples (excluded from many narratives but listed inline): `81 blank`
 | Experiment | pass_rate | f1.mean | f1.median | precision | recall | matched.median | FP.mean | FN.mean |
 |---|---|---|---|---|---|---|---|---|
 | 00-doc-intelligence-template | 0.850 | 0.906 | 0.939 | 0.920 | 0.902 | 67 | 5.42 | 7.10 |
-| 01-neural-doc-intelligence | 0.950 | 0.927 | 0.959 | 0.947 | 0.911 | 69 | 3.52 | 6.28 |
+| 01-neural-doc-intelligence | 0.950 | 0.937 | 0.973 | 0.957 | 0.922 | 69.5 | 2.88 | 5.63 |
 | 02-mistral-doc-ai-azure | 0.875 | 0.920 | 0.959 | 0.943 | 0.903 | 69 | 3.92 | 7.08 |
 | 03-content-understanding | 0.950 | 0.944 | 0.973 | 0.963 | 0.928 | 70.5 | 2.50 | 5.10 |
 | 04-vlm-direct | 0.800 | 0.874 | 0.903 | 0.880 | 0.870 | 66 | 8.18 | 8.95 |
@@ -27,7 +27,7 @@ Counts of unmatched (`matched: false`) `evaluationDetails` rows in each experime
 | Experiment | numeric-equal | currency-numeric | currency-string | whitespace-only | case-only | punctuation-only | text-combined | exact-coerce-MATCH | deletion | insertion | genuine-diff | total |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 00-doc-intelligence-template | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 151 | 73 | 133 | **357** |
-| 01-neural-doc-intelligence | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 138 | 28 | 113 | **279** |
+| 01-neural-doc-intelligence | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 138 | 28 | 87 | **253** |
 | 02-mistral-doc-ai-azure | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 135 | 9 | 148 | **292** |
 | 03-content-understanding | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 130 | 26 | 74 | **230** |
 | 04-vlm-direct | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 38 | 7 | 320 | **365** |
@@ -35,7 +35,7 @@ Counts of unmatched (`matched: false`) `evaluationDetails` rows in each experime
 | 06-engine-ensemble | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 63 | 4 | 59 | **126** |
 | 07-vlm-ocr-hybrid-gpt-4o | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 129 | 26 | 123 | **278** |
 | 08-vlm-ocr-hybrid-gpt-5.2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 38 | 7 | 78 | **123** |
-| **TOTAL** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **876** | **186** | **1159** | **2221** |
+| **TOTAL** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **876** | **186** | **1133** | **2195** |
 
 **✓ All technical-equivalence classes are empty.** Every remaining mismatch is a real difference (deletion / insertion / genuine-diff). The promote-gt-format-variants rules cover every format-only pattern in the current data.
 
@@ -77,11 +77,11 @@ f1 **0.561**, precision 0.909, recall 0.405, matched 30 of 77, pass=`false`
 | `checkbox_family_assets_yes` | null | "selected" | deletion |
 | `checkbox_school_spouse_yes` | null | "unselected" | deletion |
 | `checkbox_warrant_spouse_no` | null | "unselected" | deletion |
-| `applicant_income_tax_refund` | null | "0" | deletion |
+| `applicant_income_tax_refund` | null | ["0", "0 ⏎ 0"] | deletion |
 | `applicant_room_board_income` | null | "0" | deletion |
 | `checkbox_need_assistance_no` | null | "unselected" | deletion |
 | `checkbox_warrant_spouse_yes` | null | "unselected" | deletion |
-| `applicant_child_tax_benefits` | null | "0" | deletion |
+| `applicant_child_tax_benefits` | null | ["0", "0 ⏎ 0"] | deletion |
 | `checkbox_need_assistance_yes` | null | "selected" | deletion |
 | `applicant_employment_insurance` | null | "0" | deletion |
 | `applicant_workers_compensation` | null | "0" | deletion |
@@ -561,7 +561,7 @@ f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 |---|---|---|---|
 | `applicant_rental_income` | "$" | 8007 | genuine-diff |
 | `applicant_trust_income` | "$" | 9181 | genuine-diff |
-| `spouse_oas_gis` | 2 | 2326.11 | genuine-diff |
+| `spouse_oas_gis` | 2 | ["2326.11", "2, 326 . 11"] | genuine-diff |
 
 #### 00-doc-intelligence-template — synth-no-spouse (3)
 
@@ -570,7 +570,7 @@ f1 **0.962**, precision 0.962, recall 0.962, matched 50 of 54, pass=`true`
 | field | predicted | expected | class |
 |---|---|---|---|
 | `explain_changes` | "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago ⏎ similar pressure lawyer entire again Democrat ⏎ floor green. Stop walk head later billion word ⏎ example success student during fight become. ⏎ outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] | genuine-diff |
-| `applicant_employment_insurance` | 7 | 7969 | genuine-diff |
+| `applicant_employment_insurance` | 7 | ["7969", "7, 969"] | genuine-diff |
 
 #### 00-doc-intelligence-template — manual sample (10)
 
@@ -597,7 +597,7 @@ f1 **0.973**, precision 0.973, recall 0.973, matched 72 of 76, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `applicant_other_income_money_received` | 158 | 5158 | genuine-diff |
+| `applicant_other_income_money_received` | 158 | ["5158", "5, 158"] | genuine-diff |
 | `spouse_canada_pension_plan_cpp` | 9 | 9198 | genuine-diff |
 
 #### 00-doc-intelligence-template — HR0081 (2)
@@ -663,11 +663,11 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 
 ### 01-neural-doc-intelligence
 
-Run id `b715b129-678a-4728-aaf9-0a834d604cc8`. pass_rate 0.950, f1.median 0.959, matchedFields.median 69.
+Run id `b715b129-678a-4728-aaf9-0a834d604cc8`. pass_rate 0.950, f1.median 0.973, matchedFields.median 69.5.
 
 #### 01-neural-doc-intelligence — 81 blank ⚠️ KNOWN-HARD
 
-f1 **0.560**, precision 0.547, recall 0.574, matched 35 of 90, pass=`false`
+f1 **0.592**, precision 0.578, recall 0.607, matched 37 of 88, pass=`false`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -691,11 +691,9 @@ f1 **0.560**, precision 0.547, recall 0.574, matched 35 of 90, pass=`false`
 | `spouse_child_tax_benefits` | "1 ⏎ 5" | "" | insertion |
 | `checkbox_family_assets_yes` | null | "selected" | deletion |
 | `checkbox_school_spouse_yes` | null | "unselected" | deletion |
-| `applicant_income_tax_refund` | "0 ⏎ 0" | "0" | genuine-diff |
 | `checkbox_need_assistance_no` | null | "unselected" | deletion |
 | `spouse_employment_insurance` | 5 | "" | insertion |
 | `spouse_workers_compensation` | "I" | "" | insertion |
-| `applicant_child_tax_benefits` | "0 ⏎ 0" | "0" | genuine-diff |
 | `spouse_net_employment_income` | 5 | "" | insertion |
 | `spouse_tax_credits_gst_credit` | 5 | "" | insertion |
 | `applicant_employment_insurance` | 5 | "0" | genuine-diff |
@@ -832,21 +830,6 @@ f1 **0.837**, precision 0.982, recall 0.730, matched 54 of 75, pass=`true`
 | `applicant_student_funding_loans_bursaries` | null | "0" | deletion |
 | `applicant_private_pensions_retirement_disability` | null | "0" | deletion |
 
-#### 01-neural-doc-intelligence — synth-no-spouse (3)
-
-f1 **0.846**, precision 0.846, recall 0.846, matched 44 of 60, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `explain_changes` | "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago ⏎ similar pressure lawyer entire again Democrat ⏎ floor green. Stop walk head later billion word ⏎ example success student during fight become. ⏎ outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] | genuine-diff |
-| `applicant_net_employment_income` | "$2,711.64" | 2711.64 | genuine-diff |
-| `applicant_employment_insurance` | "7, 969" | 7969 | genuine-diff |
-| `applicant_spousal_support_alimony` | "2, 101" | 2101 | genuine-diff |
-| `applicant_child_support` | "8, 452 . 18" | 8452.18 | genuine-diff |
-| `applicant_oas_gis` | "7, 289.04" | 7289.04 | genuine-diff |
-| `applicant_canada_pension_plan_cpp` | "6, 075 . 24" | 6075.24 | genuine-diff |
-| `applicant_child_tax_benefits` | "3, 06 3" | 3063 | genuine-diff |
-
 #### 01-neural-doc-intelligence — Fake 5
 
 f1 **0.848**, precision 0.966, recall 0.757, matched 56 of 76, pass=`true`
@@ -895,7 +878,7 @@ f1 **0.857**, precision 0.909, recall 0.811, matched 60 of 80, pass=`true`
 
 #### 01-neural-doc-intelligence — HR0081 (9)
 
-f1 **0.867**, precision 0.886, recall 0.849, matched 62 of 81, pass=`true`
+f1 **0.881**, precision 0.900, recall 0.863, matched 63 of 80, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
@@ -905,7 +888,6 @@ f1 **0.867**, precision 0.886, recall 0.849, matched 62 of 81, pass=`true`
 | `spouse_income_tax_refund` | null | "0" | deletion |
 | `applicant_income_tax_refund` | "D" | "0" | genuine-diff |
 | `spouse_workers_compensation` | 8 | "0" | genuine-diff |
-| `applicant_employment_insurance` | "0 ⏎ 0" | 0 | genuine-diff |
 | `applicant_workers_compensation` | "D" | "0" | genuine-diff |
 | `spouse_spousal_support_alimony` | 1 | "0" | genuine-diff |
 | `applicant_other_income_money_received` | 72 | "22" | genuine-diff |
@@ -942,19 +924,6 @@ f1 **0.909**, precision 0.890, recall 0.929, matched 65 of 78, pass=`true`
 | `spouse_income_tax_refund` | null | ["26.80", "26.8"] | deletion |
 | `applicant_income_tax_refund` | 2680 | "" | insertion |
 
-#### 01-neural-doc-intelligence — synth-full (2)
-
-f1 **0.919**, precision 0.919, recall 0.919, matched 68 of 80, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `applicant_net_employment_income` | "$1,277.85" | 1277.85 | genuine-diff |
-| `applicant_spousal_support_alimony` | "3, 235.08" | 3235.08 | genuine-diff |
-| `applicant_workers_compensation` | "5, 210.48" | 5210.48 | genuine-diff |
-| `applicant_canada_pension_plan_cpp` | "3, 409" | 3409 | genuine-diff |
-| `spouse_tax_credits_gst_credit` | "3, 487. 15" | 3487.15 | genuine-diff |
-| `spouse_date` | "2003-05-01" | ["05-01-2003", "05/01/2003", "2003-01-05"] | genuine-diff |
-
 #### 01-neural-doc-intelligence — Fake 3
 
 f1 **0.930**, precision 0.971, recall 0.892, matched 66 of 76, pass=`true`
@@ -970,18 +939,6 @@ f1 **0.930**, precision 0.971, recall 0.892, matched 66 of 76, pass=`true`
 | `checkbox_employment_changes_spouse_yes` | null | "unselected" | deletion |
 | `applicant_student_funding_loans_bursaries` | "N/A ⏎ N/A" | "N/A" | genuine-diff |
 
-#### 01-neural-doc-intelligence — synth-full (3)
-
-f1 **0.932**, precision 0.932, recall 0.932, matched 69 of 79, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `explain_changes` | "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
-| `applicant_spousal_support_alimony` | "8,800. 13" | 8800.13 | genuine-diff |
-| `applicant_child_support` | "7, 117.97" | 7117.97 | genuine-diff |
-| `spouse_spousal_support_alimony` | "1, 095.14" | 1095.14 | genuine-diff |
-| `spouse_workbc_financial_support` | "1, 11 3" | 1113 | genuine-diff |
-
 #### 01-neural-doc-intelligence — manual sample (6)
 
 f1 **0.939**, precision 0.945, recall 0.932, matched 69 of 78, pass=`true`
@@ -993,16 +950,6 @@ f1 **0.939**, precision 0.945, recall 0.932, matched 69 of 78, pass=`true`
 | `applicant_canada_pension_plan_cpp` | 123 | 223 | genuine-diff |
 | `applicant_workbc_financial_support` | 56024 | "560.24" | genuine-diff |
 | `applicant_private_pensions_retirement_disability` | null | 480.23 | deletion |
-
-#### 01-neural-doc-intelligence — synth-no-spouse (1)
-
-f1 **0.942**, precision 0.942, recall 0.942, matched 49 of 55, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `applicant_child_support` | "8 , 310 . 93" | 8310.93 | genuine-diff |
-| `applicant_workers_compensation` | "3, 648" | 3648 | genuine-diff |
-| `applicant_private_pensions_retirement_disability` | "$1,341.05" | 1341.05 | genuine-diff |
 
 #### 01-neural-doc-intelligence — manual sample (2)
 
@@ -1040,18 +987,6 @@ f1 **0.952**, precision 0.972, recall 0.932, matched 69 of 76, pass=`true`
 | `applicant_net_employment_income` | null | "0" | deletion |
 | `applicant_income_of_dependent_children` | null | "0" | deletion |
 
-#### 01-neural-doc-intelligence — synth-regular (1)
-
-f1 **0.958**, precision 0.958, recall 0.958, matched 69 of 75, pass=`true`
-
-| field | predicted | expected | class |
-|---|---|---|---|
-| `applicant_trust_income` | 5422.42 | null | insertion |
-| `applicant_canada_pension_plan_cpp` | "9, 198" | null | insertion |
-| `applicant_other_income_money_received` | "5, 158" | 5158 | genuine-diff |
-| `spouse_trust_income` | null | 5422.42 | deletion |
-| `spouse_canada_pension_plan_cpp` | null | 9198 | deletion |
-
 #### 01-neural-doc-intelligence — 1 81
 
 f1 **0.959**, precision 0.959, recall 0.959, matched 70 of 76, pass=`true`
@@ -1084,15 +1019,16 @@ f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
 | `applicant_employment_insurance` | 10 | "0" | genuine-diff |
 | `applicant_tax_credits_gst_credit` | 6 | 0 | genuine-diff |
 
-#### 01-neural-doc-intelligence — synth-full (1)
+#### 01-neural-doc-intelligence — synth-regular (1)
 
-f1 **0.959**, precision 0.959, recall 0.959, matched 71 of 77, pass=`true`
+f1 **0.972**, precision 0.972, recall 0.972, matched 70 of 74, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `applicant_net_employment_income` | "$1,594.65" | 1594.65 | genuine-diff |
-| `applicant_income_tax_refund` | "$1,143.66" | 1143.66 | genuine-diff |
-| `spouse_oas_gis` | "2, 326 . 11" | 2326.11 | genuine-diff |
+| `applicant_trust_income` | 5422.42 | null | insertion |
+| `applicant_canada_pension_plan_cpp` | "9, 198" | null | insertion |
+| `spouse_trust_income` | null | 5422.42 | deletion |
+| `spouse_canada_pension_plan_cpp` | null | 9198 | deletion |
 
 #### 01-neural-doc-intelligence — Fake 6
 
@@ -1157,6 +1093,14 @@ f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
 |---|---|---|---|
 | `explain_changes` | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. worker task which white price clsc world." | "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world." | genuine-diff |
 
+#### 01-neural-doc-intelligence — synth-no-spouse (3)
+
+f1 **0.981**, precision 0.981, recall 0.981, matched 51 of 53, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago ⏎ similar pressure lawyer entire again Democrat ⏎ floor green. Stop walk head later billion word ⏎ example success student during fight become. ⏎ outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] | genuine-diff |
+
 #### 01-neural-doc-intelligence — HR0081 (7)
 
 f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
@@ -1188,6 +1132,22 @@ f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
 | field | predicted | expected | class |
 |---|---|---|---|
 | `signature` | "AMD" | "A.M.J" | genuine-diff |
+
+#### 01-neural-doc-intelligence — synth-full (2)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `spouse_date` | "2003-05-01" | ["05-01-2003", "05/01/2003", "2003-01-05"] | genuine-diff |
+
+#### 01-neural-doc-intelligence — synth-full (3)
+
+f1 **0.986**, precision 0.986, recall 0.986, matched 73 of 75, pass=`true`
+
+| field | predicted | expected | class |
+|---|---|---|---|
+| `explain_changes` | "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
 
 ### 02-mistral-doc-ai-azure
 
@@ -1806,7 +1766,7 @@ f1 **0.704**, precision 0.721, recall 0.688, matched 44 of 81, pass=`false`
 | `spouse_income_tax_refund` | 5 | "" | insertion |
 | `spouse_room_board_income` | 5 | "" | insertion |
 | `checkbox_family_assets_yes` | "unselected" | "selected" | genuine-diff |
-| `applicant_income_tax_refund` | null | "0" | deletion |
+| `applicant_income_tax_refund` | null | ["0", "0 ⏎ 0"] | deletion |
 | `spouse_employment_insurance` | 5 | "" | insertion |
 | `spouse_workers_compensation` | 5 | "" | insertion |
 | `spouse_tax_credits_gst_credit` | 5 | "" | insertion |
@@ -2241,10 +2201,10 @@ f1 **0.692**, precision 0.692, recall 0.692, matched 36 of 68, pass=`false`
 | field | predicted | expected | class |
 |---|---|---|---|
 | `explain_changes` | "occur working at style expert has middle age similar pressure lawyer choice again before 1 floor year. Stop work had later illness work couple success student during fight become outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago ⏎ similar pressure lawyer entire again Democrat ⏎ floor green. Stop walk head later billion word ⏎ example success student during fight become. ⏎ outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] | genuine-diff |
-| `applicant_employment_insurance` | 769 | 7969 | genuine-diff |
+| `applicant_employment_insurance` | 769 | ["7969", "7, 969"] | genuine-diff |
 | `applicant_workbc_financial_support` | 4802.89 | 9802.89 | genuine-diff |
 | `applicant_private_pensions_retirement_disability` | 4333.79 | 4333.97 | genuine-diff |
-| `applicant_oas_gis` | 7284.04 | 7289.04 | genuine-diff |
+| `applicant_oas_gis` | 7284.04 | ["7289.04", "7, 289.04"] | genuine-diff |
 | `applicant_trust_income` | 5347.54 | 5349.54 | genuine-diff |
 | `applicant_tax_credits_gst_credit` | 5.765 | 5765 | genuine-diff |
 | `applicant_income_tax_refund` | 2047.6 | 2049.6 | genuine-diff |
@@ -2267,7 +2227,7 @@ f1 **0.712**, precision 0.712, recall 0.712, matched 37 of 67, pass=`false`
 | `checkbox_warrant_no` | "unselected" | "selected" | genuine-diff |
 | `explain_changes` | "Area bolice government shelter note. etc Computer my value work before local action practice stay. Our late add cell language involve admit relloc not pay million avg. Strateg" | ["Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. ⏎ Computer cup value war before local action ⏎ practice stay. Our Late add call language involve ⏎ admit million front play million drug. Strategy."] | genuine-diff |
 | `applicant_net_employment_income` | 7471.1 | 7971.1 | genuine-diff |
-| `applicant_child_support` | 8310.23 | 8310.93 | genuine-diff |
+| `applicant_child_support` | 8310.23 | ["8310.93", "8 , 310 . 93"] | genuine-diff |
 | `applicant_rental_income` | 8747.25 | 8749.25 | genuine-diff |
 | `applicant_oas_gis` | 2464.7 | ["2964.7", "$2964.70"] | genuine-diff |
 | `applicant_child_tax_benefits` | 4258.14 | 9238.14 | genuine-diff |
@@ -2292,7 +2252,7 @@ f1 **0.730**, precision 0.730, recall 0.730, matched 54 of 94, pass=`false`
 | `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_moved_spouse_yes` | "unselected" | "selected" | genuine-diff |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `applicant_net_employment_income` | 1544.65 | 1594.65 | genuine-diff |
+| `applicant_net_employment_income` | 1544.65 | ["1594.65", "$1,594.65"] | genuine-diff |
 | `applicant_child_support` | 2326.45 | 2326.47 | genuine-diff |
 | `applicant_workers_compensation` | 9406.37 | 9906.37 | genuine-diff |
 | `applicant_trust_income` | 981 | 9181 | genuine-diff |
@@ -2315,8 +2275,8 @@ f1 **0.730**, precision 0.730, recall 0.730, matched 54 of 94, pass=`false`
 | `explain_changes` | "fay started a clerical arrive at cabela's source contain while care paid tax tonight involve quality analysis. Weight drop conference low rate some final sound poor year example shoulder similar instead mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." | genuine-diff |
 | `checkbox_employment_changes_spouse_yes` | "unselected" | "selected" | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `applicant_spousal_support_alimony` | 8500.13 | 8800.13 | genuine-diff |
-| `applicant_child_support` | 717.97 | 7117.97 | genuine-diff |
+| `applicant_spousal_support_alimony` | 8500.13 | ["8800.13", "8,800. 13"] | genuine-diff |
+| `applicant_child_support` | 717.97 | ["7117.97", "7, 117.97"] | genuine-diff |
 | `applicant_workbc_financial_support` | 784.75 | 7891.75 | genuine-diff |
 | `applicant_student_funding_loans_bursaries` | 9182.5 | 9182 | genuine-diff |
 | `applicant_rental_income` | 4351.55 | 9351.55 | genuine-diff |
@@ -3007,7 +2967,7 @@ f1 **0.885**, precision 0.885, recall 0.885, matched 46 of 58, pass=`true`
 
 | field | predicted | expected | class |
 |---|---|---|---|
-| `applicant_oas_gis` | 7284.04 | 7289.04 | genuine-diff |
+| `applicant_oas_gis` | 7284.04 | ["7289.04", "7, 289.04"] | genuine-diff |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_school_spouse_no` | "selected" | "unselected" | genuine-diff |
 | `checkbox_work_spouse_no` | "selected" | "unselected" | genuine-diff |
@@ -3632,7 +3592,7 @@ f1 **0.692**, precision 0.625, recall 0.776, matched 45 of 85, pass=`false`
 | `spouse_child_tax_benefits` | 0 | "" | insertion |
 | `checkbox_family_assets_yes` | "unselected" | "selected" | genuine-diff |
 | `checkbox_warrant_spouse_no` | "selected" | "unselected" | genuine-diff |
-| `applicant_income_tax_refund` | null | "0" | deletion |
+| `applicant_income_tax_refund` | null | ["0", "0 ⏎ 0"] | deletion |
 | `spouse_employment_insurance` | 0 | "" | insertion |
 | `spouse_workers_compensation` | 0 | "" | insertion |
 | `spouse_net_employment_income` | 0 | "" | insertion |

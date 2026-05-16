@@ -72,7 +72,7 @@ f1 **0.704**, precision 0.721, recall 0.688, matched 44 of 81, pass=`false`
 | `spouse_income_tax_refund` | 5 | "" |
 | `spouse_room_board_income` | 5 | "" |
 | `checkbox_family_assets_yes` | "unselected" | "selected" |
-| `applicant_income_tax_refund` | null | "0" |
+| `applicant_income_tax_refund` | null | ["0", "0 0"] |
 | `spouse_employment_insurance` | 5 | "" |
 | `spouse_workers_compensation` | 5 | "" |
 | `spouse_tax_credits_gst_credit` | 5 | "" |

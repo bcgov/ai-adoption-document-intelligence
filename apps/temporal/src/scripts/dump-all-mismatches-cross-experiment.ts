@@ -74,13 +74,18 @@ interface BenchmarkExport {
   perSampleResults: PerSample[];
 }
 
-function parseNumericLike(v: unknown): number | null {
+/**
+ * Loose numeric parse: accepts $-decorated, comma-separated, and
+ * internally-spaced numbers in addition to clean numeric scalars. Mirrors
+ * the parseLooseNumeric used by promote-gt-format-variants.ts.
+ */
+function parseLooseNumeric(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v !== "string") return null;
-  const t = v.trim();
-  if (t.length === 0) return null;
-  if (!/^-?\d+(?:\.\d+)?$/.test(t)) return null;
-  return Number(t);
+  const cleaned = v.replace(/[$,\s]/g, "");
+  if (cleaned.length === 0) return null;
+  if (!/^-?\d+(?:\.\d+)?$/.test(cleaned)) return null;
+  return Number(cleaned);
 }
 
 function classify(predicted: unknown, expected: unknown): string {
@@ -98,10 +103,10 @@ function classify(predicted: unknown, expected: unknown): string {
   if (alts.some((a) => String(a) === pStr)) return "exact-coerce-MATCH";
 
   // Numeric equivalence
-  const pNum = parseNumericLike(predicted);
+  const pNum = parseLooseNumeric(predicted);
   if (pNum !== null) {
     for (const a of alts) {
-      const aNum = parseNumericLike(a);
+      const aNum = parseLooseNumeric(a);
       if (aNum !== null && aNum === pNum) return "numeric-equal";
     }
   }
@@ -112,9 +117,9 @@ function classify(predicted: unknown, expected: unknown): string {
     .replace(/^\$\s*/, "")
     .replace(/\s*\$$/, "");
   if (stripped !== pStr.trim()) {
-    const sNum = parseNumericLike(stripped);
+    const sNum = parseLooseNumeric(stripped);
     for (const a of alts) {
-      const aNum = parseNumericLike(a);
+      const aNum = parseLooseNumeric(a);
       if (sNum !== null && aNum !== null && sNum === aNum)
         return "currency-numeric";
       if (stripped === String(a).trim()) return "currency-string";

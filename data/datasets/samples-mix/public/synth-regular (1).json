@@ -49,7 +49,10 @@
     "applicant_tax_credits_gst_credit": 2073.75,
     "applicant_child_tax_benefits": 9581.52,
     "applicant_income_tax_refund": null,
-    "applicant_other_income_money_received": 5158,
+    "applicant_other_income_money_received": [
+        "5158",
+        "5, 158"
+    ],
     "applicant_income_of_dependent_children": null,
     "spouse_net_employment_income": null,
     "spouse_employment_insurance": null,

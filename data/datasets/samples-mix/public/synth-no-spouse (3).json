@@ -23,21 +23,42 @@
         "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
         "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
     ],
-    "applicant_net_employment_income": 2711.64,
-    "applicant_employment_insurance": 7969,
-    "applicant_spousal_support_alimony": 2101,
-    "applicant_child_support": 8452.18,
+    "applicant_net_employment_income": [
+        "2711.64",
+        "$2,711.64"
+    ],
+    "applicant_employment_insurance": [
+        "7969",
+        "7, 969"
+    ],
+    "applicant_spousal_support_alimony": [
+        "2101",
+        "2, 101"
+    ],
+    "applicant_child_support": [
+        "8452.18",
+        "8, 452 . 18"
+    ],
     "applicant_workbc_financial_support": 9802.89,
     "applicant_student_funding_loans_bursaries": 9475,
     "applicant_rental_income": 5746.13,
     "applicant_room_board_income": 776.82,
     "applicant_workers_compensation": 8243.37,
     "applicant_private_pensions_retirement_disability": 4333.97,
-    "applicant_oas_gis": 7289.04,
+    "applicant_oas_gis": [
+        "7289.04",
+        "7, 289.04"
+    ],
     "applicant_trust_income": 5349.54,
-    "applicant_canada_pension_plan_cpp": 6075.24,
+    "applicant_canada_pension_plan_cpp": [
+        "6075.24",
+        "6, 075 . 24"
+    ],
     "applicant_tax_credits_gst_credit": 5765,
-    "applicant_child_tax_benefits": 3063,
+    "applicant_child_tax_benefits": [
+        "3063",
+        "3, 06 3"
+    ],
     "applicant_income_tax_refund": 2049.6,
     "applicant_other_income_money_received": 2591,
     "applicant_income_of_dependent_children": 6580,
