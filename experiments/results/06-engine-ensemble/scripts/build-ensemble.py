@@ -2,15 +2,17 @@
 """
 E06 — Engine ensemble combiner.
 
-Given the stored predictions from E00 / E02 / E03 / E04 / E05 against the
-samples-mix/public dataset, build an ensemble prediction per sample using
-several strategies, evaluate each strategy against the current local GT
-(strict-equality, one-of array aware), and report which strategy wins.
+Given the stored predictions from E00 / E01 / E02 / E03 / E04 / E05 / E07 / E08
+against the samples-mix/public dataset, build an ensemble prediction per
+sample using several strategies, evaluate each strategy against the current
+local GT (strict-equality, one-of array aware), and report which strategy
+wins.
 
 Strategies explored:
 
   S1  — "per-category best engine": picks the value from the per-category
-        best engine (E03 for phone+checkboxes, E05 for everything else)
+        best engine (E01 for sin, E03 for checkboxes, E05 for date/name/
+        freeform_text, E07 for signature, E08 for phone/income_amounts)
         with no fallback.
 
   S2  — "per-category best, majority-vote fallback": same as S1, but when
@@ -58,22 +60,26 @@ GT_DIR = REPO_ROOT / "data" / "datasets" / "samples-mix" / "public"
 
 ENGINES = [
     ("E00", "00-doc-intelligence-template"),
+    ("E01", "01-neural-doc-intelligence"),
     ("E02", "02-mistral-doc-ai-azure"),
     ("E03", "03-content-understanding"),
     ("E04", "04-vlm-direct"),
     ("E05", "05-vlm-ocr-hybrid"),
+    ("E07", "07-vlm-ocr-hybrid-gpt-4o"),
+    ("E08", "08-vlm-ocr-hybrid-gpt-5.2"),
 ]
 
-# Per-category best engine, from build-comparison-report.py output.
+# Per-category best engine, derived from per-category-accuracy.csv. Ties
+# broken by aggregate F1.mean.
 PER_CATEGORY_BEST = {
-    "sin": "E05",
+    "sin": "E01",
     "date": "E05",
-    "phone": "E03",
+    "phone": "E08",
     "name": "E05",
-    "signature": "E05",
+    "signature": "E07",
     "freeform_text": "E05",
     "checkboxes": "E03",
-    "income_amounts": "E05",
+    "income_amounts": "E08",
 }
 
 # Per-category accuracy weights for S4/S5 (filled from the comparison data
@@ -152,17 +158,32 @@ def is_null_like(v) -> bool:
     return is_null_like_scalar(v)
 
 
-def field_matches(predicted, expected) -> bool:
-    """Re-implementation of the TS schema-aware-evaluator exact-match rule
-    with one-of array support. Strict equality + null-like handling +
-    date-format any-match (the evaluator's `dateMatch` rule will be applied
-    for date-fields; for now we use exact string equality on strict eval).
-    For dates, we honour the calendar-parts equality so the GT one-of array
-    behaviour matches the canonical evaluator.
+# Mirror of apps/temporal/src/evaluators/schema-aware-evaluator.ts
+WILDCARD_SENTINELS = {":garbled:"}
+PRESENCE_ONLY_FIELDS = {"signature", "spouse_signature"}
+
+
+def is_wildcard_expected(expected) -> bool:
+    for a in alternatives_of(expected):
+        if isinstance(a, str) and a in WILDCARD_SENTINELS:
+            return True
+    return False
+
+
+def field_matches(predicted, expected, field: str | None = None) -> bool:
+    """Mirror of the TS schema-aware-evaluator compareField rule with one-of
+    array support: wildcard `:garbled:` GT, presence-only signatures, and
+    exact-or-date-equivalent matching otherwise.
     """
+    # Wildcard GT — any prediction matches when an alternate is `:garbled:`.
+    if is_wildcard_expected(expected):
+        return True
     if is_null_like(predicted):
         # Predicted is null. Matches if any GT alternate is null-like.
         return any(is_null_like_scalar(x) for x in alternatives_of(expected))
+    # Presence-only: match iff GT has at least one non-null alternate.
+    if field is not None and field in PRESENCE_ONLY_FIELDS:
+        return any(not is_null_like_scalar(a) for a in alternatives_of(expected))
     # Try date match first if both sides parse as calendar dates.
     pdate = parse_calendar_parts(str(predicted))
     for alt in alternatives_of(expected):
@@ -339,7 +360,7 @@ def strategy_oracle(field: str, vals: dict, weights: dict, gt_value=None):
     value. Returns the upper bound the ensemble could ever reach with
     perfect routing — useful for measuring headroom."""
     for v in vals.values():
-        if field_matches(v, gt_value):
+        if field_matches(v, gt_value, field):
             return v
     # No engine got it right — fall back to weighted majority (S4)
     cat = classify_field(field)
@@ -375,7 +396,7 @@ def evaluate_predictions(preds_by_sample: dict, sample_ids: list) -> dict:
         details = []
         for field, expected in gt.items():
             predicted = pred.get(field)
-            m = field_matches(predicted, expected)
+            m = field_matches(predicted, expected, field)
             details.append({"field": field, "matched": m, "predicted": predicted, "expected": expected})
             if m:
                 matched += 1
@@ -453,7 +474,7 @@ def main() -> None:
     # Common set of sample IDs (intersection)
     sample_sets = [set(preds_by_engine[tag].keys()) for tag, _ in ENGINES]
     common = sorted(set.intersection(*sample_sets))
-    print(f"Sample intersection: {len(common)} samples present in all 5 engines.")
+    print(f"Sample intersection: {len(common)} samples present in all {len(ENGINES)} engines.")
     if not common:
         print("No common samples — aborting.")
         sys.exit(1)
@@ -583,7 +604,7 @@ def main() -> None:
     e06_run = {
         "id": "ensemble-" + best_name,
         "definitionId": "synthetic-e06-ensemble",
-        "definitionName": "E06 ensemble (synthesised from E00/E02-E05)",
+        "definitionName": "E06 ensemble (synthesised from E00/E01/E02/E03/E04/E05/E07/E08)",
         "projectId": "experiments",
         "status": "completed",
         "metrics": flat,
