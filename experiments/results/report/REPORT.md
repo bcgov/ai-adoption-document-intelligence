@@ -19,7 +19,9 @@ The single best engine on this workload (E08, our custom pipeline) isn't the rig
 
 - **Azure Content Understanding (CU, E03) — the managed-service alternative.** Choose CU when (a) you want a single managed service that handles OCR-to-LLM orchestration, structured output, and retries (you still maintain the schema and prompt), (b) downstream workflows need per-field confidence scores and bounding-box source spans on *generative* answers (DI grounds what its OCR reads; CU grounds what the LLM infers — including derived or summarised values), or (c) the documents are unstructured or vary heavily in layout. CU is bring-your-own-deployment: you connect any supported Foundry model (gpt-5.2, gpt-4.1, gpt-4.1-mini, mini/nano variants) and can swap to a cheaper/lower-latency model if accuracy allows. Note that this means CU shares the same model-region constraints as our pipeline (e.g. gpt-5.2 in Canada is still PTU-only) — CU is not a shortcut around data residency. CU is ~2 pp less accurate on this workload and ~37% more expensive per page, but it is a turnkey product.
 
-- **Document Intelligence custom template (E00) — the supervised, non-LLM path.** Choose DI custom when (a) the form is fixed and won't change for years, so the labelled training set amortises, (b) compliance or risk policy rules out generative AI entirely, or (c) you need a path with no prompt-injection surface area. Grounding and confidence are OCR-level only — you get bounding boxes and confidence on the words/cells the model *reads*, but DI has no generative step to ground. The trade-off is the lowest accuracy of the engines tested (87% field accuracy) and the highest non-Mistral per-page cost ($0.030), plus re-labelling effort every time the form changes.
+- **Document Intelligence custom Neural model (E01) — the supervised, non-LLM alternative.** Best of the non-LLM engines on this dataset (~95% of fields per form, F1.mean 0.946) and the best single-engine on the `sin` category. Choose DI Neural when (a) data residency or compliance rules out generative AI, (b) you have a representative labelled training set and the form layout is stable, or (c) you want a turnkey Microsoft-managed deployment with no prompt or schema maintenance and no LLM token cost. The trade-offs are still the labelling-and-retraining loop (cheaper to maintain than E00's labelled bounding boxes, but not zero), and meaningfully lower accuracy than E08 (-2.7 pp F1.mean). Cost is the standard DI custom rate (~$0.030/page).
+
+- **Document Intelligence custom template (E00) — the older supervised path.** A template-based custom model. **Largely superseded by E01** (the Neural model) on the same workload — E01 hits F1.mean 0.946 vs E00's 0.916. Choose E00 only if you already have a trained template in production and the cost of migrating to E01 outweighs the accuracy gain.
 
 - **Mistral Document AI (E02) — the high-volume, cost-sensitive option.** Choose Mistral when (a) per-page cost dominates the decision (it is ~15× cheaper than every gpt-5.x option at $0.003/page), (b) the documents are mostly typed or have clean handwriting that OCRs reliably, or (c) the workload tolerates a structural accuracy ceiling. Mistral's annotation pass doesn't see the image, so anything its OCR layer misses is irrecoverable. On this hand-filled handwriting workload that ceiling matters; on cleaner documents it might not.
 
@@ -90,6 +92,7 @@ The dataset contains **40 SDPR Monthly Report documents** — the form that anch
 ## Engines compared
 
 - **E00 — Azure Document Intelligence custom template.** A supervised, form-specific model: a labelled template is trained against the SDPR form and inferred against new images. This is the same workflow that produced the **V1 Report**.
+- **E01 — Azure Document Intelligence custom Neural model.** A deep-learning custom model in the Azure DI family — same training-data shape as E00 (labelled SDPR forms) but the model infers field positions from learned representations rather than from labelled bounding boxes. Trained on the production-grade `sdpr-monthly-prod-neural-v2` model and evaluated on the same 40-sample dataset as the other engines.
 - **E02 — Mistral on Azure AI Foundry.** A general-purpose document AI model. The engine first runs OCR over the page, then a Mistral generative pass extracts structured fields against a JSON schema.
 - **E03 — Azure Content Understanding (CU) + GPT-5.2.** A managed two-stage Microsoft service. Stage 1 is a specialized OCR/Layout model (the same Document Intelligence `prebuilt-layout` family, tuned for stricter grounding) that produces a layout-aware Markdown representation of the page. Stage 2 sends that Markdown plus the analyzer schema (field names, types, descriptions) to a customer-deployed GPT-5.2 chat model and gets a structured JSON response back. **The image itself is never sent to the LLM** — stage 2 is text-only.
 - **E04 — GPT-5.4 vision-language model (direct).** The page image is sent directly to GPT-5.4 with a strict JSON-schema response format. No separate OCR step.
@@ -98,7 +101,6 @@ The dataset contains **40 SDPR Monthly Report documents** — the form that anch
 - **E08 — GPT-5.2 VLM + Azure DI layout (hybrid).** Same pipeline as E05 and E07; the generative model is GPT-5.2 — the same model E03's Content Understanding uses internally. The third leg of the same-pipeline model bake-off.
 - **E06 — ensemble combiner.** Not itself a deployed engine. It takes the predictions produced by the original five (E00–E05) and picks the per-field value using a weighted-majority vote, where each engine's vote weight is its own historical per-field accuracy. Full details in [Appendix A](#appendix-a--e06-ensemble-combiner). E07 and E08 are not included in the ensemble.
 
-E01 (Azure DI **Neural** custom model — a deep-learning model that infers field positions instead of relying on labelled bounding boxes the way E00's Template model does) is being worked on separately and is not included in this comparison.
 
 ## How the metrics are computed
 
@@ -134,15 +136,15 @@ Per-engine aggregates (median, mean) are computed across the 40 per-sample F1 / 
 
 > **How to read:** every metric on this chart runs from 0 to 1 (1 is perfect). The Y-axis is zoomed (the visible range starts well above 0) so that small differences between engines are visible — the absolute differences look modest here, but they compound: a 2 pp difference in field accuracy is roughly 1.5 extra correct fields per document, or several hundred extra correct extractions across a batch of 10,000 documents. Each group of bars is one metric; each colour is one engine (full names in the legend). Higher is better.
 
-| | E00 (DI template) | E02 (Mistral) | E03 (CU + gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | **E08 (gpt-5.2 hybrid)** | E06 (ensemble) |
-|---|---|---|---|---|---|---|---|---|
-| **F1 (median)** | 0.952 | 0.966 | 0.981 | 0.918 | 0.980 | 0.973 | 0.984 | **0.986** |
-| **F1 (mean)** | 0.916 | 0.927 | 0.953 | 0.887 | 0.957 | 0.936 | 0.973 | **0.976** |
-| **Precision (mean)** | 0.930 | 0.950 | 0.972 | 0.892 | 0.965 | 0.955 | 0.978 | **0.986** |
-| **Recall (mean)** | 0.912 | 0.910 | 0.937 | 0.882 | 0.950 | 0.921 | **0.968** | 0.967 |
-| **matchedFields (median)** | 68 | 70 | 71 | 67 | 72 | 69 | **72** | **72** |
-| **Field accuracy (matched / processed)** | 0.885 (2524/2852) | 0.905 (2580/2852) | 0.928 (2648/2852) | 0.884 (2522/2852) | 0.949 (2707/2852) | 0.911 (2599/2852) | **0.965 (2752/2852)** | 0.965 (2751/2852) |
-| **False positives (mean per sample)** | 4.73 | 3.45 | 1.85 | **7.30** | 2.33 | 3.10 | 1.58 | **0.98** |
+| | E00 (DI template) | E01 (DI Neural) | E02 (Mistral) | E03 (CU + gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | **E08 (gpt-5.2 hybrid)** | E06 (ensemble) |
+|---|---|---|---|---|---|---|---|---|---|
+| **F1 (median)** | 0.952 | 0.980 | 0.966 | 0.981 | 0.918 | 0.980 | 0.973 | 0.984 | **0.986** |
+| **F1 (mean)** | 0.916 | 0.946 | 0.927 | 0.953 | 0.887 | 0.957 | 0.936 | 0.973 | **0.976** |
+| **Precision (mean)** | 0.930 | 0.966 | 0.950 | 0.972 | 0.892 | 0.965 | 0.955 | 0.978 | **0.986** |
+| **Recall (mean)** | 0.912 | 0.931 | 0.910 | 0.937 | 0.882 | 0.950 | 0.921 | **0.968** | 0.967 |
+| **matchedFields (median)** | 68 | 70 | 70 | 71 | 67 | 72 | 69 | **72** | **72** |
+| **Field accuracy (matched / processed)** | 0.885 (2524/2852) | 0.920 (2625/2852) | 0.905 (2580/2852) | 0.928 (2648/2852) | 0.884 (2522/2852) | 0.949 (2707/2852) | 0.911 (2599/2852) | **0.965 (2752/2852)** | 0.965 (2751/2852) |
+| **False positives (mean per sample)** | 4.73 | 2.25 | 3.45 | 1.85 | **7.30** | 2.33 | 3.10 | 1.58 | **0.98** |
 
 Four observations to keep in mind throughout the rest of the document:
 
@@ -155,13 +157,14 @@ Four observations to keep in mind throughout the rest of the document:
 
 The per-page numbers below are bottom-up estimates built from Azure's published retail-pricing rates for the East US 2 region (Global Standard SKU, 2026-05-14) combined with per-call token and page counts measured across 5 representative samples per token-consuming engine.
 
-The five samples (`synth-full (1)`, `manual sample (1)`, `1 81`, `HR0081 (10)`, `81 blank`) were chosen to span the form-density spectrum, from dense typed to sparse blank. Token-consuming engines are E03, E04, E05, E07, and E08 — for E00 (DI custom template) and E02 (Mistral) the billing is per page with no token component, so a single rate is exact.
+The five samples (`synth-full (1)`, `manual sample (1)`, `1 81`, `HR0081 (10)`, `81 blank`) were chosen to span the form-density spectrum, from dense typed to sparse blank. Token-consuming engines are E03, E04, E05, E07, and E08 — for E00 / E01 (DI custom and Neural) and E02 (Mistral) the billing is per page with no token component, so a single rate is exact.
 
 All prices in USD.
 
 | engine | OCR / extraction layer | LLM input mean (range) | LLM output mean (range) | **cold $/page mean** | warm $/page mean |
 |---|---|---|---|---|---|
 | **E00** — DI custom template | DI S0 Custom Pages $30/1K | n/a | n/a | **$0.030** | $0.030 |
+| **E01** — DI Neural custom | DI S0 Custom Pages $30/1K | n/a | n/a | **$0.030** | $0.030 |
 | **E02** — Mistral on Foundry | Mistral Doc AI 2512 $3/1K (annotation meter; OCR bundled) | n/a (billed per page) | n/a | **$0.003** | $0.003 |
 | **E03** — CU + gpt-5.2 | CU Std $0.005/page + Std Contextualization $0.001/page | 18,844 (17,287–21,952) | 2,395 (2,051–3,390) | **$0.0725** | $0.0725* |
 | **E04** — gpt-5.4 VLM-direct | none (image goes straight to LLM) | 10,283 (10,264–10,288) | 1,437 (1,197–2,014) | **$0.0473** | $0.0307 |
@@ -278,20 +281,21 @@ The bottom of each box and the whiskers tell the worst-case story. E04 has the l
 
 > **How to read:** Each group of bars is one field category; each colour is one engine. The Y-axis is zoomed so the differences are visible. The 74 schema fields are grouped into 8 categories: `sin` (2 fields), `date` (2), `phone` (2), `name` (2), `signature` (2), `freeform_text` (`explain_changes`, 1 field), `checkboxes` (28), and `income_amounts` (35 numeric fields — 18 applicant + 17 spouse; the spouse column does not have `income_of_dependent_children`).
 
-| category | n fields | E00 (DI template) | E02 (Mistral) | E03 (CU+gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | E08 (gpt-5.2 hybrid) | E06 (ensemble) |
-|---|---|---|---|---|---|---|---|---|---|
-| **sin** | 2 | 0.825 | 0.861 | 0.934 | 0.809 | 0.923 | 0.923 | **0.950** | 0.898 |
-| **date** | 2 | 0.907 | 0.873 | 0.920 | 0.693 | **0.936** | **0.936** | 0.909 | **0.936** |
-| **phone** | 2 | 0.818 | 0.884 | **0.988** | 0.820 | 0.936 | 0.909 | **0.988** | 0.963 |
-| **name** | 2 | 0.738 | 0.818 | 0.845 | 0.845 | **0.948** | 0.923 | 0.923 | 0.921 |
-| **signature** | 2 | 0.961 | 0.796 | 0.923 | 0.945 | 0.986 | **1.000** | 0.946 | 0.988 |
-| **freeform_text** | 1 | 0.625 | 0.625 | 0.800 | 0.675 | **0.900** | 0.850 | 0.825 | **0.900** |
-| **checkboxes** | 28 | 0.952 | 0.939 | **0.996** | 0.885 | 0.952 | 0.941 | 0.973 | 0.989 |
-| **income_amounts** | 35 | 0.851 | 0.906 | 0.880 | 0.912 | 0.952 | 0.883 | **0.970** | 0.955 |
+| category | n fields | E00 (DI template) | E01 (DI Neural) | E02 (Mistral) | E03 (CU+gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | E08 (gpt-5.2 hybrid) | E06 (ensemble) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **sin** | 2 | 0.825 | **0.963** | 0.861 | 0.934 | 0.809 | 0.923 | 0.923 | 0.950 | 0.898 |
+| **date** | 2 | 0.907 | 0.934 | 0.873 | 0.920 | 0.693 | **0.936** | **0.936** | 0.909 | **0.936** |
+| **phone** | 2 | 0.818 | 0.934 | 0.884 | **0.988** | 0.820 | 0.936 | 0.909 | **0.988** | 0.963 |
+| **name** | 2 | 0.738 | 0.898 | 0.818 | 0.845 | 0.845 | **0.948** | 0.923 | 0.923 | 0.921 |
+| **signature** | 2 | 0.961 | 0.948 | 0.796 | 0.923 | 0.945 | 0.986 | **1.000** | 0.946 | 0.988 |
+| **freeform_text** | 1 | 0.625 | 0.800 | 0.625 | 0.800 | 0.675 | **0.900** | 0.850 | 0.825 | **0.900** |
+| **checkboxes** | 28 | 0.952 | 0.984 | 0.939 | **0.996** | 0.885 | 0.952 | 0.941 | 0.973 | 0.989 |
+| **income_amounts** | 35 | 0.851 | 0.870 | 0.906 | 0.880 | 0.912 | 0.952 | 0.883 | **0.970** | 0.955 |
 
 **Category leaders** among the single engines:
+- **E01 (Azure DI Neural)** wins `sin` outright (0.963) — the supervised model's fixed-position recognition is best in class for the SIN field, edging out E08. E01 is also strong on `checkboxes` (0.984) and `phone` (0.934).
 - **E03 (Azure CU + GPT-5.2)** wins checkboxes (0.996) and ties phone (0.988) — CU's dedicated `selectionMark` primitive is purpose-built for box-style yes/no inputs and edges out every VLM-based approach when it works, and CU's phone normalisation is reliable. (Caveat: E03's `selectionMark` has a separate hard-failure mode on a small number of edge-case samples where it flips spouse-column `_no` checkboxes to "selected" — covered in the [E08 deep dive](#e08--gpt-52-vlm--azure-di-layout-hybrid).)
-- **E08 (gpt-5.2 hybrid)** wins on structured-content categories — sin (0.950), income_amounts (0.970), and ties phone (0.988). The same gpt-5.2 model that powers E03's generative leg outperforms E03 on these categories when paired with Azure DI prebuilt-layout instead of CU's content-extraction layer. DI's OCR layer transcribes dense digit handwriting more reliably than CU's on this dataset.
+- **E08 (gpt-5.2 hybrid)** wins on `income_amounts` (0.970) and ties `phone` (0.988). The same gpt-5.2 model that powers E03's generative leg outperforms E03 on these categories when paired with Azure DI prebuilt-layout instead of CU's content-extraction layer. DI's OCR layer transcribes dense digit handwriting more reliably than CU's on this dataset.
 - **E05 (gpt-5.4 hybrid)** wins on name (0.948) and freeform_text (0.900, tied with E06), and ties date (0.936 with E07 and E06). gpt-5.4 on this pipeline is best at interpretive text fields with fewer literal-character constraints.
 - **E07 (gpt-4o hybrid)** wins on signature outright (1.000) — somewhat surprising. gpt-4o handles the squiggle-vs-handprint distinction on signatures slightly better than the newer models. Note: signature is now near-saturated across most engines under the updated evaluator, so this category has limited discriminative power.
 
@@ -352,6 +356,27 @@ The deep-dive sections below describe each engine's methodology, accuracy, and c
 - **Lowest field accuracy of the single engines apart from E04 (0.885).** The supervised-template approach has been overtaken by general-purpose generative engines.
 
 Errors by category (raw counts / total predictions): sin 13/75 (17.3%), date 7/75 (9.3%), phone 14/75 (18.7%), name 20/75 (26.7%), signature 3/75 (4.0%), freeform 15/40 (37.5%), checkboxes 54/1120 (4.8%), income 202/1315 (15.4%).
+
+### E01 — Azure DI Neural custom model
+
+**Headline:** field accuracy **0.920**, F1.median **0.980**, F1.mean **0.946**, precision.mean **0.966**, recall.mean **0.931**, FP.mean **2.25**, matchedFields.median **70**.
+
+**Methodology:** A custom Neural deep-learning model in the Azure Document Intelligence family. Unlike E00's template path (which locates each field by labelled bounding boxes), the Neural model learns field positions from training examples and generalises to layout variations. Same labelling workflow as E00 — a representative set of forms is uploaded with field-value annotations; Azure trains the model, and at inference time the customer submits the page image and receives a JSON object of `{ field_key: value }` pairs with per-field confidence. **There is no prompt and no LLM step.** The model evaluated here is the production-trained `sdpr-monthly-prod-neural-v2`.
+
+**Strengths:**
+- **Best single-engine on `sin` (0.963)** — beats every LLM-based engine on this field. The supervised model's learned recognition of SIN digit-strings is highly reliable.
+- **Strong on `checkboxes` (0.984)** — second only to CU's specialised `selectionMark` primitive.
+- **Low FP.mean (2.25)** — third-lowest among single engines after E08 (1.58) and E03 (1.85).
+- **Best generative-engine-free option on this dataset** — at F1.mean 0.946 it sits between E07 (0.936) and E03 (0.953), competitive with the managed CU service without any LLM dependency.
+
+**Weaknesses:**
+- **Middling on `income_amounts` (0.870)** — slightly below most other engines on the digit-heavy income fields. The Neural model can be trained for these but its current production weights generalise less well than the OCR+LLM engines.
+- **Struggles on the hardest edge cases** — F1 0.656 on `81 blank`, 0.726 on `HR0081 (10)`. These are the same samples that trouble most engines, but the Neural model has less headroom to recover from sparse or unusually-laid-out inputs than the VLM-based paths.
+- **Maintenance burden remains** — like E00, the Neural model needs re-training when the form changes. The advantage over E00 is that the Neural model generalises better across small layout variations, but the labelling-and-retraining loop is the same.
+
+**Caveat on comparison.** E01's numbers come from a re-run on the production-trained `sdpr-monthly-prod-neural-v2` model against the current 40-sample dataset and evaluator. An earlier E01 baseline (a different model trained on a different dataset) is documented separately; the numbers in this report are not directly comparable to that historical baseline.
+
+Errors by category: sin 3/75 (4.0%), date 5/75 (6.7%), phone 5/75 (6.7%), name 8/75 (10.7%), signature 4/75 (5.3%), freeform 8/40 (20.0%), checkboxes 18/1120 (1.6%), income 176/1315 (13.4%).
 
 ### E02 — Mistral on Azure AI Foundry
 
@@ -582,7 +607,7 @@ The first two are the dataset's universal floor — every engine struggles, and 
 
 3. **Three architectural levers are co-equal in importance; "same model" doesn't mean "same engine".** The E03 vs E08 comparison isolates three differences while holding the generative model (gpt-5.2) constant: (a) OCR tuning — CU's `prebuilt-layout` is tuned for stricter grounding than the standalone DI `prebuilt-layout`; (b) image visibility — CU never shows the image to the LLM, E08 always does; (c) prompt control — CU's prompt is hidden behind its Contextualization layer, E08's is direct. Together these three give a 2.0 pp F1.mean gap. The model-only lever (E05 vs E08, same pipeline different generative model) gives a 1.6 pp gap. Practical implication: when picking a production engine, "we're using gpt-5.2" is far less informative than "we're using DI prebuilt-layout + gpt-5.2 with image-on-the-prompt and a 2.5 KB instruction string". Microsoft's own GA documentation acknowledges this trade-off — CU is designed for managed grounding and confidence; a custom pipeline like E08 trades that for flexibility and recall.
 
-4. **Generative engines + good prompts have eclipsed the custom-trained template** on this form. E00 (a trained Azure DI template — the V1 Report approach) lands at field accuracy 0.885, F1.mean 0.916 — competitive but no longer leading. The four hybrid / generative paths (E02, E03, E05, E08) all sit between 0.927 and 0.973 on F1.mean. The template's structural advantage (it knows the form layout exactly) is matched and exceeded by generative engines once they have field-level descriptions and a workflow-level prompt.
+4. **Generative engines + good prompts have eclipsed the custom-trained template, and the Neural model has eclipsed the template-based one.** E00 (the V1 Report's labelled-bounding-box approach) lands at F1.mean 0.916; **E01 (the Neural custom model trained on the same labelling workflow but with a deep-learning model class) lands at F1.mean 0.946** — a clear successor to E00 within the supervised-non-LLM family. The four hybrid / generative paths (E02, E03, E05, E08) all sit between 0.927 and 0.973 on F1.mean. The template's structural advantage (it knows the form layout exactly) is matched and exceeded by generative engines once they have field-level descriptions and a workflow-level prompt, and by E01's Neural model within the supervised family.
 
 5. **VLM-direct (E04) and gpt-4o (E07) both have precision problems on this workload.** E04 precision 0.892 (FP.mean 7.30) is the worst overall; E07 precision 0.955 (FP.mean 3.10) is the second-worst among the generative engines. Both share a tendency to fill in plausible-but-wrong values on cells where the model isn't certain. The OCR pre-pass closes most of the gap for gpt-5.4 (E04 → E05 jumps F1.mean from 0.887 to 0.957), but gpt-4o's empty-checkbox failure mode persists even with the OCR layer in front. The OCR layer is the bigger lever for *gpt-5.4*; for *gpt-4o*, model choice itself is the lever.
 
