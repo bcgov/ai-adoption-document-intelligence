@@ -43,6 +43,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # (tag, slug, short_label, full_name)
 ENGINES = [
     ("E00", "00-doc-intelligence-template", "Azure DI custom template", "E00 — Azure DI custom template"),
+    ("E01", "01-neural-doc-intelligence", "Azure DI Neural custom", "E01 — Azure DI Neural custom model"),
     ("E02", "02-mistral-doc-ai-azure", "Mistral on Foundry", "E02 — Mistral on Azure Foundry"),
     ("E03", "03-content-understanding", "Azure CU + gpt-5.2", "E03 — Azure Content Understanding + gpt-5.2"),
     ("E04", "04-vlm-direct", "gpt-5.4 VLM-direct", "E04 — gpt-5.4 vision-language model (direct)"),
@@ -63,6 +64,7 @@ if INCLUDE_E06:
     ]
 ENGINE_COLORS = {
     "E00": "#7f7f7f",
+    "E01": "#bcbd22",
     "E02": "#1f77b4",
     "E03": "#2ca02c",
     "E04": "#d62728",
