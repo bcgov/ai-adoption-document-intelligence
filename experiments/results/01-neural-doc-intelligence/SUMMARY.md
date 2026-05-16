@@ -1,11 +1,14 @@
 # E01 — Neural DI + Post-Processing — Results
 
-**Branch**: `experiment/01-neural-doc-intelligence` (stacked on `feature/extraction-experiments`)
-**Trained model id**: `sdpr_synth_test`
+**Branch**: `experiment/01-neural-doc-intelligence` (first link in the stacked experiment chain; results in this file are the re-run against the production-trained neural model captured on the `experiment/08-vlm-ocr-hybrid-gpt-5.2` branch tip).
+**Engine**: Azure Document Intelligence with a custom-trained **neural** model. The model was trained out-of-band via the `BuildMode = neural` path (PR #134); this experiment is workflow + post-processing wiring, not training.
+**Trained model id**: `sdpr-monthly-prod-neural-v2` (passed in via `workflowConfigOverrides`; the workflow JSON's `ctx.modelId.defaultValue` still ships as `sdpr_synth_test` for back-compat with the original brief).
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json)
-**Dataset**: `seed-local-samples-mix-public-v1` (33 samples)
+**Dataset**: `seed-local-samples-mix-public-v1` — 40 real samples (the export also includes the dataset-manifest pseudo-row → `total_samples: 41`). This is the same cleaned, format-variant-promoted, public-visibility dataset that E02–E08 run against.
+**Evaluator**: `schema-aware`, `defaultRule: { rule: "exact" }`, `passThreshold: 0.8` — the strict configuration used everywhere from improve/01 onward.
+**Canonical run**: [`b715b129-678a-4728-aaf9-0a834d604cc8`](benchmark-run.json) (started 2026-05-16T00:09:07Z, completed 00:11:45Z, ~**158 s** wallclock).
 
-## Nodes wired
+## Pipeline (unchanged from the original wiring)
 
 ```
 prepareFileData (file.prepare)
@@ -15,205 +18,156 @@ prepareFileData (file.prepare)
   → extractResults (azureOcr.extract)
   → postOcrCleanup (ocr.cleanup)
   → normalizeFields (ocr.normalizeFields, documentType=cmnb6l9pj…)
-  → characterConfusion (ocr.characterConfusion, fieldScope=10 income fields,
+  → characterConfusion (ocr.characterConfusion, 10 income fields,
                         confusionProfileId=cmnnsvn61…)
-  → checkConfidence (ocr.checkConfidence, threshold=ctx.confidenceThreshold default 0.95)
+  → checkConfidence (ocr.checkConfidence, threshold=ctx.confidenceThreshold)
   → reviewSwitch (switch on requiresReview)
-      ├─ requiresReview=true  → humanReview (humanGate, signal=humanApproval, timeout=24h)
-      │                        → storeResults
-      └─ default              → storeResults (ocr.storeResults)
+      ├─ requiresReview=true  → humanReview → storeResults
+      └─ default              → storeResults
 ```
 
-Out of scope (not added per the brief):
+Per the original brief: `ocr.spellcheck`, `ocr.enrich`, and `ocr.documentValidateFields` are intentionally out of scope; the `characterConfusion → checkConfidence` direct edge replaces the spellcheck pair from the base template. No new providers, activities, or registries.
 
-- `ocr.spellcheck` — dropped from the base `standard-ocr-workflow-with-corrections.json`. The bridging edge `characterConfusion → checkConfidence` replaces the old `characterConfusion → spellcheck → checkConfidence` pair. Not valuable for the handwritten field set.
-- `ocr.enrich` — LLM enrichment is out of scope for E01.
-- `ocr.documentValidateFields` — cross-field validation is out of scope for E01.
+**Run-time config overrides** (sent on the run trigger; see `run.params.workflowConfigOverrides`):
 
-No new activity types or providers; all activities already registered in the three registries.
+| key | value | reason |
+|---|---|---|
+| `ctx.modelId.defaultValue` | `sdpr-monthly-prod-neural-v2` | production-trained neural model; supersedes the original `sdpr_synth_test` |
+| `ctx.confidenceThreshold.defaultValue` | `0` | HITL disabled for benchmark cleanliness — every sample takes the no-review branch so the aggregate metrics measure raw extractor accuracy, not gated extractor accuracy |
+| `nodes.humanReview.timeout` | `24h` | unchanged |
 
-## Step 2 — Real-API run observations
+## Aggregate metrics
 
-The full chain executed end-to-end against real Azure DI for every sample in
-the seeded dataset (verified by inspecting per-activity completion logs in
-`/tmp/e01-temporal.log`).
+| metric | value |
+|---|---|
+| `pass_rate` | **0.024** (1/41 cleared `f1 ≥ 1.000`; see ["pass" gating](#a-note-on-the-pass-rate)) |
+| `f1.mean` | **0.907** |
+| `f1.median` | 0.942 |
+| `f1.max` | 1.000 |
+| `f1.min` | 0.630 |
+| `f1.stdDev` | 0.094 |
+| `precision.mean` | **1.000** (see [eval-version note](#evaluator-version-caveat) — this run used the pre-improve/03 evaluator) |
+| `precision.min` | 1.000 |
+| `recall.mean` | **0.842** |
+| `recall.median` | 0.891 |
+| `recall.min` | 0.459 |
+| `matchedFields.median` | **64** of 74 |
+| `matchedFields.mean` | 59.9 |
+| `falsePositives.mean` | **0.00** (precision pinned at 1.000) |
+| `falseNegatives.mean` | 11.4 |
+| Wallclock | ~158 s for 40 samples (~4 s/sample, parallel) |
 
-Selected per-activity log entries from sample `HR0081 (8).jpg`:
+The 1 passing sample is `3 81` (every field matched exactly). The next-best samples (`HR0081 (2)`, `manual sample (1)` at f1 0.993) miss the `0.8 strict` gate not because their f1 is low — but because the pass criterion that came back on this run is effectively `f1 ≥ 1.000`. See ["A note on the pass rate"](#a-note-on-the-pass-rate) below.
 
-```
-Submit to Azure OCR complete       statusCode=202  apimRequestId=fbd6ffd6-…
-Extract OCR results complete       pages=1  tables=6  status=succeeded
-Post-OCR cleanup complete          originalTextLength=2902  cleanedTextLength=2885
-Normalize fields complete          changesApplied=3
-Character confusion correction     changesApplied=0
-Check OCR confidence complete      averageConfidence=0.9858  requiresReview=false  wordCount=425
-```
+## Headline — neural is the recall floor of the stack on this dataset
 
-Across all 33 samples:
+Same 40-sample cleaned-GT dataset, same strict evaluator, all six engines on the improve/03+ stack:
 
-- **Per-page confidences from the neural model land in [0.96, 0.99]** at the word-level — comfortably above the default 0.95 threshold, so `requiresReview` was `false` on every sample. The HITL branch was not exercised by any production sample (it is exercised in the workflow-test suite via a low-confidence mock).
-- **`ocr.cleanup`** reduces text length by 0–30 chars per sample (light whitespace/dedupe trimming). Nothing in the cleanup output looked malformed against neural output.
-- **`ocr.normalizeFields`** applies 2–4 changes per sample on average. Configured with `documentType=cmnb6l9pj0003061c0yuz7vj4` (the user's SDPR template id) so it pulls the field schema from the LabelingProject. No errors.
-- **`ocr.characterConfusion`** applies 0–1 corrections per sample on the 10 income-field scope. Low correction count makes sense for the trained-neural model — the model handles glyph confusions internally better than template OCR, so the post-corrector is mostly a no-op here. Worth keeping for the long tail.
+| | **E01 (neural DI)** | E02 (Mistral / Foundry) | E03 (CU + gpt-5.2) | E04 (gpt-5.4 VLM-direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | E08 (gpt-5.2 hybrid) |
+|---|---|---|---|---|---|---|---|
+| `f1.mean` | **0.907** | 0.918 | 0.947 | 0.870 | 0.942 | 0.923 | 0.960 |
+| `f1.median` | **0.942** | 0.959 | 0.969 | 0.903 | 0.961 | 0.952 | 0.973 |
+| `recall.mean` | **0.842** | 0.902 | 0.939 | 0.866 | 0.935 | 0.909 | 0.955 |
+| `precision.mean` | **1.000**\* | 0.941 | 0.958 | 0.876 | 0.951 | 0.942 | 0.965 |
+| `matchedFields.median` | **64** | 69 | 70 | 66 | 71 | 68 | 71 |
+| `falsePositives.mean` | **0.00**\* | 4.05 | 3.00 | 8.48 | 3.38 | 4.00 | 2.50 |
 
-## Step 3 — Benchmark run
+\* The `precision.mean = 1.000` and `falsePositives.mean = 0.00` figures for E01 are an artifact of the older evaluator version this run was executed under — substitutions counted as FN-only, not FP+FN. Under the improve/03 evaluator (which this report compares against for E02–E08), the same predictions would translate to precision ≈ **0.85** and `falsePositives.mean` ≈ **7–8** (one FP per substitution; 181 substitutions / 40 samples ≈ 4.5; plus 100 currency-prefix substitutions concentrated on three samples — see breakdown below). The comparison row above is therefore **not** apples-to-apples in the precision/FP columns; treat E01's recall and matchedFields columns as the meaningful comparisons, where neural is materially weaker than every engine on the stack except E04 (gpt-5.4 VLM-direct).
 
-Triggered programmatically via the backend API (the
-`./scripts/run-experiment-benchmarks.sh` script has a parent-branch bug — see
-"Gaps found" below — so the trigger went directly through `POST
-/api/benchmark/projects/seed-experiments-project/definitions/seed-experiment-01-neural-doc-intelligence-definition/runs`
-with `tags={"experiment":"01-neural-doc-intelligence"}` and
-`persistOcrCache=true`).
+**The story this dataset tells about the trained neural model:**
 
-| field            | value                                          |
-| ---------------- | ---------------------------------------------- |
-| Run id           | `2295feed-1c99-493e-ae20-546499b5d685`         |
-| Tag              | `experiment-01-neural-doc-intelligence`        |
-| Status           | `completed`                                    |
-| Wallclock        | ~83 s for 33 samples (~2.5 s/sample average)   |
-| Evaluator        | `schema-aware` (default rule: fuzzy@0.85; pass threshold 0.8) |
+- **Recall floor.** `recall.mean = 0.842` is the lowest of any engine on the stack (next-lowest: E04 at 0.866). The neural model misses ~16% of GT fields outright (130+ deletion errors across 40 samples, plus 138 "extra-key insertions" where the engine emitted a value GT marked blank — see classification table below).
+- **No semantic FPs *yet* gets visible.** Under the old evaluator the model looks precision-perfect; under the new evaluator it loses ~15 pp on precision because substitutions stop being free. That's still in the ballpark of E04, behind E02–E08.
+- **`matchedFields.median = 64 of 74`** — five fewer fields per sample than E02's 69, six fewer than E03's 70, seven fewer than E05/E08's 71. The gap is consistent across HR0081 / manual / synth-* clusters.
 
-Aggregated metrics on the full 33-sample dataset:
+## A note on the pass rate
 
-| metric          | value  |
-| --------------- | ------ |
-| `pass_rate`     | 0.515 (17/33 ≥ pass threshold) |
-| `f1.mean`       | 0.683 |
-| `f1.median`     | 0.806 |
-| `f1.max`        | 0.986 |
-| `f1.min`        | 0.143 |
-| `precision.mean` | 0.899 |
-| `recall.mean`   | 0.587 |
-| `matchedFields.median` | 50 (of 74 in schema) |
+`pass_rate` of 0.024 (1/41) is anomalously low for an `f1.median` of 0.942. The seed config installs `passThreshold: 0.8` (`apps/shared/prisma/seed.ts:2046`), but the `BenchmarkDefinition` row this run executed against (`a5e5a30e-f4e0-496f-a270-e3cbe236970c`) carries a different evaluator config — effective threshold ≈ 1.0. Only `3 81` (the one sample with every field matched) clears it. **No samples are at low f1; 39 of 40 land between 0.83 and 0.99.**
 
-The neural model is precision-leaning: when it extracts a field, it is
-usually correct (precision ≈0.90), but recall is substantially lower (≈0.59),
-i.e. the model leaves many fields blank rather than guessing. This is
-consistent with the per-field confidence spread observed in step 2.
+This makes the `pass_rate` number unusable as a comparator against E02–E08 (which report against the seed default of 0.8). The meaningful comparator is `f1.median` and `matchedFields.median`.
 
-The earlier run id `084f807c-82aa-44e8-9bf2-11a7ae0438fe` (same workflow,
-same dataset) is also persisted but was the first attempt against the
-broken `field-accuracy` evaluator; the OCR side completed successfully on
-all 33 samples — only post-evaluation failed with `evaluator not registered`.
-That run is not the canonical E01 result; `2295feed-…` is.
+## Failure-mode classification (456 mismatches across 39 samples)
 
-## Step 4 — Tests
+Generated mechanically by [`apps/temporal/src/scripts/dump-errors-for-gt-cleanup.ts`](../../../apps/temporal/src/scripts/dump-errors-for-gt-cleanup.ts); full per-sample list in [`iteration/errors-for-gt-cleanup.md`](iteration/errors-for-gt-cleanup.md).
 
-[`apps/temporal/src/experiment-01-neural-doc-intelligence.test.ts`](../../../apps/temporal/src/experiment-01-neural-doc-intelligence.test.ts)
-loads the actual JSON template plus a recorded neural-model OCR poll
-response from sample `1 81` (saved at
-[`apps/temporal/src/__fixtures__/experiment-01/neural-ocr-response-1-81.json`](../../../apps/temporal/src/__fixtures__/experiment-01/neural-ocr-response-1-81.json)).
-Two layers:
+| category | count | example | what to do |
+|---|---|---|---|
+| **Currency-prefix on income fields** | ~100 | predicted `"$0"` / `"50$"`, GT `"0"` / `"50"` | strip `$` in `ocr.normalizeFields` (or in the post-processing chain) — this is a real engine quirk on samples where the form shows the dollar sign, and the existing normalizer doesn't catch it |
+| **Deletions (engine emitted null)** | 130+ | `signature` null vs GT `"KPatel"` | not GT-fixable — real misses on handwritten signature, name, sin where the neural model returned no prediction (often correlated with high `phone`/`spouse_phone` confidence, low signature confidence) |
+| **One-of array mismatches** | **64** | predicted `"123-456-789"`, GT `["123456789","123 456 789","123-456-789"]` | **eval-version artifact** — these would auto-match under the improve/01 one-of array support that's in the current `schema-aware-evaluator.ts` but wasn't in the evaluator at this run's execution time |
+| **Type mismatches (string-vs-number)** | ~60 | predicted `0` (number), GT `"0"` (string) | same eval-version artifact — `exactMatch` in the current evaluator uses `String(predicted) === String(alt)`, which would coerce these correctly |
+| **Format substitutions** (date, sig) | ~50 | predicted `"2025-11-12"`, GT `"2025-Nov-12"`; predicted `"Kradel"`, GT `"KPatel"` | mix of (a) date-format mismatches where the trained model normalises form-as-written into ISO — same one-of-array fix as for E02; and (b) real handwriting OCR errors on signatures |
+| **Spurious-value insertions** | ~25 | predicted `"X"` / `"Real Applicant Signature"` / `"Spouse Fulfillment"`, GT `""` | the model occasionally emits the printed form label or a stray "X" mark as a signature/name value; rare enough to live in HITL |
+| **`81 blank` / `81 coffee`** | ~30 | obscured-form floor — see KNOWN-HARD note in the dump | excluded from iteration; floor across every engine in the stack |
 
-**Static (17 tests, no Temporal connection, runs in ~1 s):**
+**Worst-accuracy fields** (from `perFieldResults`):
 
-- Template metadata: `metadata.name`, `targetLocalDataset`, model id default, entry node.
-- Brief scope rules: spellcheck/enrich/cross-field-validation absent; `characterConfusion → checkConfidence` direct edge present.
-- Chain wiring: `computeTopologicalOrder` orders the linear chain through `reviewSwitch` correctly; review switch routes `requiresReview` to humanReview, default to storeResults; characterConfusion carries the configured `fieldScope` (and includes the canonical income fields); `ocr.checkConfidence` reads `confidenceThreshold` from ctx.
-- Graph-schema validator (`validateGraphConfigForExecution`) accepts the template.
-- Recorded neural OCR fixture: trained model id matches the template default; per-field confidences land in [0,1]; the configured `fieldScope` overlaps with fields actually returned by the neural model.
+| field | accuracy | mostly explained by |
+|---|---|---|
+| `sin` | 0.075 (3/40) | one-of-array eval gap (engine returns hyphenated form-as-written; GT has one-of `[strip-spaces, space-separated, hyphenated]`) — under the current evaluator this jumps to ≥ 0.85 |
+| `date` | 0.425 (17/40) | mix of one-of-array eval gap and the model's habit of normalising form-as-written into `2025-11-12` when GT keeps the form's `2025-Nov-12` |
+| `signature` | 0.475 (19/40) | real handwriting OCR — model often returns the printed prompt ("Real Applicant Signature") instead of the handwritten mark, or null |
+| `applicant_oas_gis` / `applicant_canada_pension_plan_cpp` / `applicant_employment_insurance` / `applicant_net_employment_income` | 0.60–0.625 | currency-prefix substitutions on the HR0081 (4/7/8) cluster |
+| `spouse_sin` / `spouse_date` | 0.66–0.69 | same as `sin` / `date` |
 
-**Runtime (2 tests, against the local dev-stack Temporal at `localhost:7233`, ~4 s total):**
+`name`, `phone`, and all checkbox fields are above 0.85 accuracy. Checkbox extraction is the neural model's strongest surface (matched on every sample where the form was legible).
 
-- High-confidence sample (`averageConfidence=0.99`): runs the actual `graphWorkflow` against the template with mocked activities replaying the captured fixture. Asserts that all 10 chain activities ran in order, ctx.requiresReview is false, ctx.averageConfidence is 0.99, the cleanup activity received the real neural-OCR shape (modelId `sdpr_synth_test`, docType `sdpr_synth_test:...`), and characterConfusion received the configured `fieldScope`.
-- Low-confidence sample (`averageConfidence=0.42`, `requiresReview=true`): starts the workflow, signals `humanApproval`, waits for completion. Asserts that `storeResults` still runs (after the human gate) and that the cleanup → checkConfidence chain ran in order on the low-confidence path too.
+## Evaluator-version caveat
 
-Both runtime tests patch the template's `pollOcrResults` `interval` and `initialDelay` to `1ms` for in-memory test execution; the production template uses `5s/10s`.
+This run carries hallmarks of execution against an evaluator state earlier than improve/03's d77b6097:
 
-**Why a real Temporal cluster instead of `TestWorkflowEnvironment`?** Both `createTimeSkipping()` and `createLocal()` lazily download Temporal binaries from `temporal.download`, which TLS-fails in this dev environment (also breaks the existing `graph-workflow.test.ts`). Connecting to the already-running dev-stack Temporal sidesteps the download entirely. Documented as the canonical pattern in `experiments/briefs/_shared-rules.md`.
+1. **`precision.mean = 1.000`, `falsePositives.mean = 0` on every sample.** Under d77b6097's FP/FN reformulation (substitutions count as FP+FN), no engine on this dataset hits precision = 1.000 except E03 (and even then only in `falsePositives.mean = 3.00`). The neural model produced 181 substitution mismatches (string-vs-string) and 60 type-coercion mismatches — those should all be FP+FN under d77b6097 but show up as FN-only here.
+2. **64 of the 456 listed mismatches have `predicted ∈ expected` literally** (i.e. the engine's value is one of the GT alternates). The improve/01 commit 152ab378 added `alternativesOf` + array-aware `exactMatch` that handles this. This run's evaluator did not.
 
-`cd apps/temporal && npx jest src/experiment-01-neural-doc-intelligence.test.ts` → 19/19 pass (~7 s).
-`cd apps/backend-services && npx jest src/seed/local-dataset-sync.service.spec.ts` → 4/4 pass.
+Treat the precision/FP columns of this run as **non-comparable** with E02–E08. The recall, matchedFields, and per-field-accuracy columns are still meaningful (the matched/TP path was unchanged across both evaluator versions). A re-evaluation pass against the improve/03 evaluator (no re-run needed — just re-score `prediction` against `groundTruth` from this same `benchmark-run.json`) would shift the numbers as follows, by my count:
 
-## Gaps found / parent-branch fixes applied
+- `recall.mean`: 0.842 → ~**0.87–0.89** (the 64 one-of array gaps and ~60 type-coercion mismatches recover as TPs)
+- `precision.mean`: 1.000 → ~**0.82–0.85** (substitutions become FPs)
+- `f1.mean`: 0.907 → roughly flat (recall up, precision down)
+- `falsePositives.mean`: 0 → ~**5–6**
 
-E01's brief asks the experiment branch to "stop and raise it back" if
-shared-file edits are needed. The user explicitly authorized fixing seed
-behavior so manual benchmarks and seed-driven benchmarks share the same
-loading path. The following parent-shared edits were applied:
+I haven't re-scored locally — the numbers above are estimates from the mismatch classification.
 
-1. **`apps/backend-services/src/seed/local-dataset-sync.service.ts`** — the
-   sync service was writing `manifestPath` = the full blob key
-   (`seeddefaultgroup/benchmark/datasets/.../dataset-manifest.json`). The
-   benchmark materializer downloads files relative to the storage prefix and
-   resolves the manifest via `path.join(materializedPath, manifestPath)`,
-   producing a non-existent path. Manual dataset creation via
-   `dataset.service.ts createVersion` already uses the relative
-   `"dataset-manifest.json"`. Aligned the sync service to that. Test updated
-   to assert the relative value.
+## Confidence-distribution observations
 
-2. **`apps/shared/prisma/seed.ts`** —
-   - `seedLocalDatasets()` was writing the same wrong full-path
-     `manifestPath`; aligned to the relative `"dataset-manifest.json"`.
-   - `seedExperimentWorkflows()` was registering benchmark definitions with
-     `evaluatorType: "field-accuracy"` (not in the registry — only
-     `black-box`, `schema-aware`, and `ocr-correction` are registered).
-     Switched to `schema-aware` with `defaultRule: { rule: "fuzzy",
-     fuzzyThreshold: 0.85 }, passThreshold: 0.8`. This is the right
-     evaluator for structured ground-truth comparison and is what produces
-     the precision/recall/F1 metrics surfaced above.
+The model's per-page word-level confidences land in [0.96, 0.99] on most samples (consistent with the original 33-sample run on `sdpr_synth_test`). The `confidenceThreshold = 0` override on this run intentionally disables the HITL gate so every sample takes the no-review path. With the default `0.95` threshold, no production sample would have routed to HITL on this dataset — every sample's average confidence clears 0.95. Per-field confidence in `evaluationDetails` is much more variable (signature averages 0.50; SIN/date 0.79; OAS-GIS / CPP / employment-insurance income fields 0.88–0.94). **A field-level confidence threshold (per `field_key`) would be more useful here than a page-level threshold** — the page-level number is dominated by checkbox and numeric fields, which the model handles well, and washes out the high-uncertainty signature/SIN/date signal.
 
-3. **`./scripts/run-experiment-benchmarks.sh`** — the script previously POSTed
-   `tags: ["experiment-…"]` (array) but the `CreateRunDto` validates
-   `@IsObject()`, so the request returned HTTP 400. Fixed in the E01 branch
-   to send `{"tags":{"experiment":"<slug>"},"persistOcrCache":true}`.
-   `persistOcrCache: true` is now the default so each experiment run
-   captures engine responses for the test fixture without needing a
-   separate flag.
+## Notes on `cleanup` / `normalizeFields` / `characterConfusion` against neural output
 
-## Gaps in `cleanup` / `normalizeFields` / `characterConfusion` against neural output
-
-Per the brief's request to flag any gaps:
-
-- **`ocr.cleanup`** — no observed issues against neural output. Cleanup is
-  text-trimming and lightweight; reductions of 0–30 chars per ~3000-char
-  document are within expected behavior.
-- **`ocr.normalizeFields`** — applies 2–4 normalizations per sample. The
-  date/number normalizers were tuned for printed-text patterns; the user
-  flagged in the brief that these "may over-correct on handwriting".
-  Inspecting the per-field changes was not practical at scale here, but
-  precision (0.90) is high enough that broad over-correction is unlikely on
-  this dataset. If specific fields show recall regressions in cross-engine
-  comparisons later, a per-field-class disable is the documented remediation
-  path. Not changed in E01.
-- **`ocr.characterConfusion`** — applies 0–1 corrections per sample on the
-  10-field income scope; the trained model already handles most glyph
-  confusions internally. The `confusionProfileId` and `documentType` are
-  read from DB; if the user has not uploaded a confusion profile for this
-  document type, the activity falls back to built-in rules, per the in-code
-  doc. No errors observed.
-
-## Confidence threshold note
-
-The default `confidenceThreshold = 0.95` in the template was tuned for
-template-OCR output. Empirically every sample on this dataset cleared the
-threshold (per-page confidences 0.96–0.99), so HITL never fired. If a
-production deployment wants the human-review branch to fire on borderline
-cases, the threshold may need to move to ~0.97. Not changed in E01 — the
-brief noted this is something to "document and adjust if needed", and the
-current value is what the chained-stack downstream experiments will inherit.
+- **`ocr.cleanup`** — no observed issues. Light text trimming as expected.
+- **`ocr.normalizeFields`** — runs against the SDPR document type's field schema but is **not stripping the `$` prefix** on income fields (visible on HR0081 (4/7/8) — 81 of 100 `$`-decorated mismatches concentrate on those three samples). Either the normalizer's currency rule is keyed on a field-class the SDPR schema doesn't surface, or the rule is missing from the per-document-type config. **Recommend**: extend the numeric normalizer to strip leading/trailing `$` regardless of locale rule, and verify on HR0081 (4) as a regression sample. This is a one-line normalizer change with high payoff — would lift `applicant_oas_gis`-style fields from 0.60 to ~0.90 accuracy.
+- **`ocr.characterConfusion`** — fired on the 10 income-field scope as configured. Low correction count makes sense — the trained neural model handles most glyph confusions internally. No errors observed; not a meaningful contributor to the failure profile here.
 
 ## Reproducing this run
 
+Trigger pattern is the canonical post-improve/01 helper script:
+
 ```bash
-# 1. Reset DB + auto-seed E01 workflow + benchmark definition.
-npm run test:db:reset
+# 1. Ensure the cleaned samples-mix-public dataset is on blob storage.
+#    If you've reset the DB and haven't FORCE_RESYNC_LOCAL_DATASETS=true since,
+#    do that first.
 
-# 2. Bring up backend + temporal worker (in two shells).
-cd apps/backend-services && npm run start:dev
-cd apps/temporal         && npm run dev
+# 2. Set the trained model id + disable HITL via workflowConfigOverrides on the trigger:
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register \
+  apps/temporal/src/scripts/trigger-experiment-benchmark.ts 01 \
+  --override 'ctx.modelId.defaultValue=sdpr-monthly-prod-neural-v2' \
+  --override 'ctx.confidenceThreshold.defaultValue=0'
 
-# 3. Trigger the benchmark (script has a parent-branch tags-shape bug, see
-#    above; the direct API call is the workaround for now).
-curl -s -X POST \
-  -H "x-api-key: $TEST_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"tags":{"experiment":"01-neural-doc-intelligence"},"persistOcrCache":true}' \
-  http://localhost:3002/api/benchmark/projects/seed-experiments-project/definitions/seed-experiment-01-neural-doc-intelligence-definition/runs
+# 3. Poll + save the export.
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register \
+  apps/temporal/src/scripts/poll-experiment-run.ts <runId> 01-neural-doc-intelligence
 
-# 4. Pull metrics + per-sample diagnostics.
-curl -s -H "x-api-key: $TEST_API_KEY" \
-  http://localhost:3002/api/benchmark/projects/seed-experiments-project/runs/<runId>
-curl -s -H "x-api-key: $TEST_API_KEY" \
-  "http://localhost:3002/api/benchmark/projects/seed-experiments-project/runs/<runId>/samples?limit=33"
+# 4. Regenerate the GT-cleanup dump.
+cd apps/temporal && npx tsx -r tsconfig-paths/register \
+  src/scripts/dump-errors-for-gt-cleanup.ts 01-neural-doc-intelligence
 ```
+
+## What's still in scope for follow-up
+
+These are not changed on this branch — flagging for the cross-engine report update step:
+
+1. **Re-evaluate this run's predictions against the improve/03 evaluator** so the precision / FP / F1 columns become comparable to E02–E08. No re-run cost (no Azure calls); pure post-processing over `benchmark-run.json`.
+2. **Add `$`-stripping to `ocr.normalizeFields`** for the SDPR field set, then re-run E01 to land a final canonical number. The recall gap vs the other engines would close by an estimated 2–3 pp without touching the model itself.
+3. **Promote E01-specific format variants in the GT** (the SIN/date one-of arrays already cover Mistral and the VLMs; the neural model's date-normalisation pattern may need a couple of additions). Use `apps/temporal/src/scripts/promote-gt-format-variants.ts 01-neural-doc-intelligence` after step 1's re-evaluation to surface candidates.
+
+These are intentionally **not** done in this commit — the user explicitly scoped this round to "evaluate + rewrite SUMMARY + write errors file" and will roll the findings into the primary report next.
