@@ -38,11 +38,17 @@
     "applicant_room_board_income": 8641,
     "applicant_workers_compensation": 9906.37,
     "applicant_private_pensions_retirement_disability": 8281.78,
-    "applicant_oas_gis": 1297.16,
+    "applicant_oas_gis": [
+        "1297.16",
+        "$1297.16"
+    ],
     "applicant_trust_income": 9181,
     "applicant_canada_pension_plan_cpp": 5057.31,
     "applicant_tax_credits_gst_credit": 7986.99,
-    "applicant_child_tax_benefits": 3181.38,
+    "applicant_child_tax_benefits": [
+        "3181.38",
+        "$3181.38"
+    ],
     "applicant_income_tax_refund": 1143.66,
     "applicant_other_income_money_received": 6578.34,
     "applicant_income_of_dependent_children": 9495.78,

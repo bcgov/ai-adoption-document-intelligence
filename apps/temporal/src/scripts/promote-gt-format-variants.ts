@@ -19,11 +19,18 @@
  *     synthetic format).
  *   - `phone` / `spouse_phone`: digit-only forms are identical. E.g.
  *     `"(555) 123-4567"` and `"5551234567"` are variants.
+ *   - Income-like fields (any `applicant_*` / `spouse_*` field that isn't
+ *     a name/phone/sin/date/signature/email and whose GT parses as a
+ *     numeric scalar): a `$`-prefixed/suffixed prediction with the same
+ *     numeric value is a variant. E.g. `"$0"` and `"0"`, `"$900.00"` and
+ *     `"900.00"`, `"50$"` and `"50"`. Predictions without `$` chrome are
+ *     not promoted by this rule (only by exact equality, which would
+ *     already match without GT promotion).
  *
  * Skipped (not promoted, even if mismatched):
  *
- *   - Fields outside the sin/date/phone allowlist (e.g. signature, name,
- *     income amounts) — those need manual review.
+ *   - Fields outside the sin/date/phone allowlist AND not income-like
+ *     (e.g. signature, name, explain_changes) — those need manual review.
  *   - Sentinel labels in GT (`":present:"`, `":garbled:"`,
  *     `"KEY PLAYER MISSING"`, `"Spouse Missing"`, `"Missed Box"`,
  *     `"Blank Declaration"`, `"Homeless"`) — these were never on the
@@ -73,6 +80,59 @@ const PROMOTABLE_FIELDS = new Set<string>([
   "phone",
   "spouse_phone",
 ]);
+
+/**
+ * Income-like fields where a currency-prefix prediction (`"$0"` for GT `"0"`,
+ * `"$900.00"` for GT `"900.00"`) is treated as a pure format variant. The
+ * predicate is shape-based, not name-list-based, so the rule stays open to
+ * new income fields added later: a field qualifies if its name starts with
+ * `applicant_` or `spouse_` and is not on the obvious non-numeric suffix
+ * exclusion list (signature/name/phone/sin/date). The GT must additionally
+ * parse as a numeric scalar (string-numeric or number) — text GTs like
+ * `"N/A"` are excluded automatically by that filter.
+ */
+const NON_NUMERIC_PERSON_SUFFIXES = new Set<string>([
+  "name",
+  "phone",
+  "sin",
+  "date",
+  "signature",
+  "email",
+]);
+
+function isIncomeLikeField(field: string): boolean {
+  if (!field.startsWith("applicant_") && !field.startsWith("spouse_")) {
+    return false;
+  }
+  const tail = field.replace(/^(applicant|spouse)_/, "");
+  return !NON_NUMERIC_PERSON_SUFFIXES.has(tail);
+}
+
+function parseNumericLike(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  if (trimmed.length === 0) return null;
+  if (!/^-?\d+(?:\.\d+)?$/.test(trimmed)) return null;
+  return Number(trimmed);
+}
+
+function stripCurrencyChrome(v: string): string {
+  // Strip leading/trailing $ and adjacent whitespace; idempotent if no $.
+  return v
+    .trim()
+    .replace(/^\$\s*/, "")
+    .replace(/\s*\$$/, "");
+}
+
+function isCurrencyFormatVariant(predicted: string, expected: string): boolean {
+  const stripped = stripCurrencyChrome(predicted);
+  if (stripped === predicted) return false; // no $ to strip → not a currency variant
+  const p = parseNumericLike(stripped);
+  const e = parseNumericLike(expected);
+  if (p === null || e === null) return false;
+  return p === e;
+}
 
 const SENTINEL_GT_VALUES = new Set<string>([
   ":present:",
@@ -239,6 +299,11 @@ function isVariantOfAny(
   if (field === "phone" || field === "spouse_phone") {
     return expectedAlternates.some((e) => isPhoneFormatVariant(predicted, e));
   }
+  if (isIncomeLikeField(field)) {
+    return expectedAlternates.some((e) =>
+      isCurrencyFormatVariant(predicted, e),
+    );
+  }
   return false;
 }
 
@@ -247,7 +312,8 @@ function classifyPromotion(
   predicted: unknown,
   expected: unknown,
 ): Promotion | null {
-  if (!PROMOTABLE_FIELDS.has(field)) return null;
+  const eligible = PROMOTABLE_FIELDS.has(field) || isIncomeLikeField(field);
+  if (!eligible) return null;
   if (predicted === null || predicted === undefined || predicted === "") {
     return null;
   }
@@ -258,8 +324,8 @@ function classifyPromotion(
 
   if (Array.isArray(expected)) {
     // GT is already an array — extend it if the prediction is a calendar-/
-    // digit-equivalent variant of any existing alternate that isn't already
-    // listed verbatim.
+    // digit-/currency-equivalent variant of any existing alternate that isn't
+    // already listed verbatim.
     const alternates = expected.map(String).filter((s) => s.length > 0);
     if (alternates.length === 0) return null;
     if (alternates.includes(predictedScalar)) return null;
@@ -286,6 +352,8 @@ function classifyPromotion(
     isVariant = isDateFormatVariant(predictedScalar, expectedScalar);
   } else if (field === "phone" || field === "spouse_phone") {
     isVariant = isPhoneFormatVariant(predictedScalar, expectedScalar);
+  } else if (isIncomeLikeField(field)) {
+    isVariant = isCurrencyFormatVariant(predictedScalar, expectedScalar);
   }
   if (!isVariant) return null;
 
@@ -359,8 +427,13 @@ function main(): void {
     for (const p of list) {
       const current = gt[p.field];
       // Re-check at write time to handle stale exports: only update if the
-      // current value is still the scalar we expected.
-      if (current === p.expectedScalar) {
+      // current value is still the scalar we expected. Cross-type-aware so
+      // a GT stored as a JSON number (e.g. `4277.55`) still matches the
+      // string form `"4277.55"` produced by the export pipeline.
+      const currentMatchesExpected =
+        current === p.expectedScalar ||
+        (typeof current === "number" && String(current) === p.expectedScalar);
+      if (currentMatchesExpected) {
         gt[p.field] = p.newArray;
         changed = true;
       } else if (Array.isArray(current)) {

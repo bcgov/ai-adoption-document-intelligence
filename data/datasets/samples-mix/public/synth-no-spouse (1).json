@@ -28,12 +28,21 @@
     "applicant_room_board_income": 4110.43,
     "applicant_workers_compensation": 3648,
     "applicant_private_pensions_retirement_disability": 1341.05,
-    "applicant_oas_gis": 2964.7,
-    "applicant_trust_income": 543.76,
+    "applicant_oas_gis": [
+        "2964.7",
+        "$2964.70"
+    ],
+    "applicant_trust_income": [
+        "543.76",
+        "$543.76"
+    ],
     "applicant_canada_pension_plan_cpp": 7618.66,
     "applicant_tax_credits_gst_credit": 3827.31,
     "applicant_child_tax_benefits": 9238.14,
-    "applicant_income_tax_refund": 1574.2,
+    "applicant_income_tax_refund": [
+        "1574.2",
+        "$1574.20"
+    ],
     "applicant_other_income_money_received": 408.29,
     "applicant_income_of_dependent_children": 9178.03,
     "signature": "Thomas Andrade",

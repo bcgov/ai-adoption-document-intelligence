@@ -50,7 +50,10 @@
     "spouse_employment_insurance": 6780.14,
     "spouse_spousal_support_alimony": 8030,
     "spouse_child_support": 4693.85,
-    "spouse_workbc_financial_support": 1548.05,
+    "spouse_workbc_financial_support": [
+        "1548.05",
+        "$1548.05"
+    ],
     "spouse_student_funding_loans_bursaries": 3613,
     "spouse_rental_income": 530,
     "spouse_room_board_income": 9333,
@@ -60,7 +63,10 @@
     "spouse_trust_income": 2534,
     "spouse_canada_pension_plan_cpp": 9271,
     "spouse_tax_credits_gst_credit": 3487.15,
-    "spouse_child_tax_benefits": 6780.97,
+    "spouse_child_tax_benefits": [
+        "6780.97",
+        "$6780.97"
+    ],
     "spouse_income_tax_refund": 9001.58,
     "spouse_other_income_money_received": 6770.07,
     "signature": "R. B.",
