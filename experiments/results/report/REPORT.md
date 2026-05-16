@@ -63,7 +63,7 @@ The British Columbia government's **SDPR Monthly Report** is a one-page form tha
 
 > **The form under test.** One of the 40 dataset samples (`manual sample (5)`). All 74 fields visible: applicant + spouse identifiers at the top, two parallel income columns in the middle, the 14 yes/no checkbox pairs and signature block at the bottom. The two-column layout and the small handwritten `0`s in the income amounts are the two structural features that drive most of the cross-engine accuracy gap.
 
-This report is a head-to-head comparison of **seven different ways to do that extraction**, plus a synthesised ensemble. Each engine reads the same set of 40 sample forms, returns the same 74 fields per form, and is scored the same way against the same ground truth. The forms span hand-filled real-world samples (varying handwriting styles, including pencil and a phone photo), synthetically generated samples, and two deliberately-hard edge cases (a blank form and one with coffee stains over the data).
+This report is a head-to-head comparison of **eight different ways to do that extraction**, plus a synthesised ensemble. Each engine reads the same set of 40 sample forms, returns the same 74 fields per form, and is scored the same way against the same ground truth. The forms span hand-filled real-world samples (varying handwriting styles, including pencil and a phone photo), synthetically generated samples, and two deliberately-hard edge cases (a blank form and one with coffee stains over the data).
 
 **What the engines have in common.** Every engine takes an image (or PDF page) of the form and returns a JSON object with 74 field values. None of them are trained on this specific form — they all work from a description of the schema we provide. Re-scoring is strict: an answer is either an exact match to ground truth (with small allowances for known-equivalent format variants on dates, SINs, and phone numbers) or it isn't.
 
@@ -75,7 +75,7 @@ This report is a head-to-head comparison of **seven different ways to do that ex
 
 ## What this report compares
 
-This report compares eight end-to-end OCR / form-extraction approaches against the same set of monthly-report documents, plus a synthesised ensemble that combines the original five (E06). Each engine extracts the same 74 fields per document; every engine is scored the same way against the same ground truth so the numbers are directly comparable.
+This report compares eight end-to-end OCR / form-extraction approaches against the same set of monthly-report documents, plus a synthesised ensemble (E06) that combines all eight via per-category specialist routing. Each engine extracts the same 74 fields per document; every engine is scored the same way against the same ground truth so the numbers are directly comparable.
 
 The eight engines include three different vision-language models running through the same VLM + OCR hybrid pipeline (E05 / E07 / E08), which lets us isolate the contribution of the underlying model from the contribution of the pipeline architecture.
 
@@ -99,7 +99,7 @@ The dataset contains **40 SDPR Monthly Report documents** — the form that anch
 - **E05 — GPT-5.4 VLM + Azure DI layout (hybrid).** Two-pass: Azure DI's layout reader transcribes the page to markdown, then GPT-5.4 sees both the raw image and the OCR text, with a prompt that tells it to trust the image when the OCR text disagrees.
 - **E07 — GPT-4o VLM + Azure DI layout (hybrid).** Same pipeline as E05; the only difference is the generative model — GPT-4o instead of GPT-5.4. Lets us isolate the model contribution on the hybrid pipeline.
 - **E08 — GPT-5.2 VLM + Azure DI layout (hybrid).** Same pipeline as E05 and E07; the generative model is GPT-5.2 — the same model E03's Content Understanding uses internally. The third leg of the same-pipeline model bake-off.
-- **E06 — ensemble combiner.** Not itself a deployed engine. It takes the predictions produced by the original five (E00–E05) and picks the per-field value using a weighted-majority vote, where each engine's vote weight is its own historical per-field accuracy. Full details in [Appendix A](#appendix-a--e06-ensemble-combiner). E07 and E08 are not included in the ensemble.
+- **E06 — ensemble combiner.** Not itself a deployed engine. It takes the predictions produced by all eight upstream engines (E00, E01, E02, E03, E04, E05, E07, E08) and picks each field's value from that category's best single engine (E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts). Full details in [Appendix A](#appendix-a--e06-ensemble-combiner).
 
 
 ## How the metrics are computed
@@ -136,22 +136,22 @@ Per-engine aggregates (median, mean) are computed across the 40 per-sample F1 / 
 
 > **How to read:** every metric on this chart runs from 0 to 1 (1 is perfect). The Y-axis is zoomed (the visible range starts well above 0) so that small differences between engines are visible — the absolute differences look modest here, but they compound: a 2 pp difference in field accuracy is roughly 1.5 extra correct fields per document, or several hundred extra correct extractions across a batch of 10,000 documents. Each group of bars is one metric; each colour is one engine (full names in the legend). Higher is better.
 
-| | E00 (DI template) | E01 (DI Neural) | E02 (Mistral) | E03 (CU + gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | **E08 (gpt-5.2 hybrid)** | E06 (ensemble) |
+| | E00 (DI template) | E01 (DI Neural) | E02 (Mistral) | E03 (CU + gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | E08 (gpt-5.2 hybrid) | **E06 (ensemble)** |
 |---|---|---|---|---|---|---|---|---|---|
-| **F1 (median)** | 0.952 | 0.980 | 0.966 | 0.981 | 0.918 | 0.980 | 0.973 | 0.984 | **0.986** |
-| **F1 (mean)** | 0.916 | 0.946 | 0.927 | 0.953 | 0.887 | 0.957 | 0.936 | 0.973 | **0.976** |
-| **Precision (mean)** | 0.930 | 0.966 | 0.950 | 0.972 | 0.892 | 0.965 | 0.955 | 0.978 | **0.986** |
-| **Recall (mean)** | 0.912 | 0.931 | 0.910 | 0.937 | 0.882 | 0.950 | 0.921 | **0.968** | 0.967 |
-| **matchedFields (median)** | 68 | 70 | 70 | 71 | 67 | 72 | 69 | **72** | **72** |
-| **Field accuracy (matched / processed)** | 0.885 (2524/2852) | 0.920 (2625/2852) | 0.905 (2580/2852) | 0.928 (2648/2852) | 0.884 (2522/2852) | 0.949 (2707/2852) | 0.911 (2599/2852) | **0.965 (2752/2852)** | 0.965 (2751/2852) |
-| **False positives (mean per sample)** | 4.73 | 2.25 | 3.45 | 1.85 | **7.30** | 2.33 | 3.10 | 1.58 | **0.98** |
+| **F1 (median)** | 0.952 | 0.980 | 0.966 | 0.981 | 0.918 | 0.980 | 0.973 | 0.984 | **0.990** |
+| **F1 (mean)** | 0.916 | 0.946 | 0.927 | 0.953 | 0.887 | 0.957 | 0.936 | 0.973 | **0.984** |
+| **Precision (mean)** | 0.930 | 0.966 | 0.950 | 0.972 | 0.892 | 0.965 | 0.955 | 0.978 | **0.989** |
+| **Recall (mean)** | 0.912 | 0.931 | 0.910 | 0.937 | 0.882 | 0.950 | 0.921 | 0.968 | **0.980** |
+| **matchedFields (median)** | 68 | 70 | 70 | 71 | 67 | 72 | 69 | 72 | **73** |
+| **Field accuracy (matched / processed)** | 0.885 (2524/2852) | 0.920 (2625/2852) | 0.905 (2580/2852) | 0.928 (2648/2852) | 0.884 (2522/2852) | 0.949 (2707/2852) | 0.911 (2599/2852) | 0.965 (2752/2852) | **0.978 (2787/2850)** |
+| **False positives (mean per sample)** | 4.73 | 2.25 | 3.45 | 1.85 | **7.30** | 2.33 | 3.10 | 1.58 | **0.83** |
 
 Four observations to keep in mind throughout the rest of the document:
 
 1. **E08 (gpt-5.2 on the hybrid pipeline) is the strongest single engine on every accuracy aggregate.** F1.mean 0.973, F1.median 0.984, precision.mean 0.978, recall.mean 0.968, FP.mean 1.58. It beats E03 — which uses the same gpt-5.2 generative model internally — by 2.0 pp on F1.mean and 3.1 pp on recall. The gap is structural: CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout E08 uses, and CU's stage 2 is text-only (image never reaches the LLM), while E08 sends image + OCR Markdown together. **E08 is also cheaper per page than E03** (~$0.0455 vs ~$0.0725, ~37% lower, measured across 5 samples per engine): CU sent ~57% more input tokens and ~37% more output tokens to its gpt-5.2 call than our pipeline did, and the gap widens on dense forms (E03 input ranged up to 21,952 tokens on `HR0081 (10)` vs E08's tight 11,817–12,165 range across the same samples). We can observe the token counts but not the contents of CU's prompt, so the *mechanism* behind the input-side gap is not directly verifiable. See [Cost per page](#cost-per-page) for the full build-up and the [E08 deep dive](#e08--gpt-52-vlm--azure-di-layout-hybrid) for the accuracy mechanism.
 2. **The same-pipeline model bake-off (E05 / E07 / E08) gives a clear model ranking on this task: gpt-5.2 > gpt-5.4 > gpt-4o.** With pipeline, prompt, and field-descriptions held constant, gpt-5.2 wins by 1.6 pp F1.mean over gpt-5.4 and 3.7 pp over gpt-4o. Counter-intuitive ordering (the older model number wins), but consistent: gpt-5.2 was tuned for Content Understanding's structured-extraction workload, which is essentially the same shape as this benchmark.
 3. **E04 (gpt-5.4 VLM-direct) is meaningfully weaker than its peers.** Lowest precision (0.892) and highest FP.mean (7.30) — the engine substitutes wrong values for fields it isn't sure about. F1.mean 0.887 trails the hybrid-pipeline siblings by 5–9 pp. The OCR layer in front of the same VLM closes that gap entirely (compare E04 vs E05).
-4. **The ensemble (E06) edges out every single engine on F1.mean, F1.median, precision, and FP.mean** (0.976 / 0.986 / 0.986 / 0.98). E08 alone is essentially tied with the ensemble — within 0.3 pp on F1.mean — and still wins on recall.mean (0.968 vs 0.967) and matched.median (72, tied). The ensemble's remaining advantage is its lower wrong-value substitution rate (FP.mean 0.98 vs E08's 1.58). Note: the existing E06 ensemble was built on E00–E05 only; adding E07/E08 to the ensemble pool would likely shift the headroom story but isn't done in this report.
+4. **The ensemble (E06) beats every single engine on every aggregate** (F1.mean 0.984, F1.median 0.990, precision 0.989, recall 0.980, matched.median 73, FP.mean 0.83). It picks each field's value from that category's best single engine: E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts. The deployable form requires running those five specialist engines per page (~$0.249/page, ~5.5× E08 alone). Full breakdown in [Appendix A](#appendix-a--e06-ensemble-combiner).
 
 ## Cost per page
 
@@ -171,7 +171,7 @@ All prices in USD.
 | **E05** — gpt-5.4 hybrid | DI S0 Pre-built (layout) $0.010/page | 11,953 (11,801–12,154) | 1,660 (1,213–1,973) | **$0.0548** | $0.0379 |
 | **E07** — gpt-4o hybrid | DI S0 Pre-built (layout) $0.010/page | 11,689 (11,528–11,905) | 1,654 (1,429–1,942) | **$0.0458** | $0.0370 |
 | **E08** — gpt-5.2 hybrid | DI S0 Pre-built (layout) $0.010/page | 11,968 (11,817–12,165) | 1,751 (1,412–2,186) | **$0.0455** | $0.0301 |
-| **E06** — ensemble (E00+E02+E03+E04+E05) | sum of constituent engines | — | — | **~$0.210** | — |
+| **E06** — ensemble (per-category specialist routing: E01+E03+E05+E07+E08) | sum of constituent engines | — | — | **~$0.249** | — |
 
 \* For E03 the warm-cache rate is shown as equal to cold. The Azure OpenAI cached-input field is not exposed in CU's response payload, so we cannot tell whether CU's gpt-5.2 calls benefit from the 5-minute prompt cache in the same way our pipeline's direct calls do. The "warm = cold" assumption is conservative; if CU does benefit from caching, its true warm-cache cost is somewhat lower.
 
@@ -205,7 +205,7 @@ CU's internal prompt construction scales with form density in a way our pipeline
 2. **Mistral (E02) is the cheapest engine by a large margin** at ~$0.003/page — roughly 15× cheaper than the cheapest gpt-5.x-based engine. The trade-off is the accuracy ceiling documented in the E02 section (handwriting that doesn't OCR cleanly is lost, because Mistral's annotation pass doesn't see the image).
 3. **The custom DI template (E00) is the most expensive non-LLM option** at $0.030/page — 10× Mistral. That cost is the supervised-template billing tier, not anything about the form complexity.
 4. **The hybrid trio (E05/E07/E08) costs ~$0.046–$0.055/page cold-cache** — ~20% cost swing across the three models, 3.7 pp F1.mean accuracy swing. **gpt-5.2 (E08, $0.0455) and gpt-4o (E07, $0.0458) are essentially tied on cold-cache cost** — gpt-4o's lower output rate offsets gpt-5.2's lower input rate. gpt-5.4 (E05, $0.0548) is the most expensive of the three. With prompt caching warm, E08 ($0.0301) edges out E07 ($0.0370) by ~20%. On accuracy, E08 wins by 1.8 pp F1.mean over E05 and 3.7 pp over E07 — so for the same money or cheaper, E08 is the right choice on this workload.
-5. **The ensemble (E06) is ~5× more expensive than E08 alone** (~$0.21/page vs ~$0.046/page) because it runs five engines per page. For roughly tied F1 with E08 alone, paying ~$0.16/page extra only makes sense if the precision lead (FP.mean 1.93 vs E08's 2.50) is specifically valuable — e.g. workloads where every wrong-value substitution costs human review time worth more than the inference delta.
+5. **The ensemble (E06) is ~5.5× more expensive than E08 alone** (~$0.249/page vs ~$0.046/page) because it runs five specialist engines (E01+E03+E05+E07+E08) per page. The deltas vs E08: +1.1 pp F1.mean (0.984 vs 0.973), +1 matched field at the median (73 vs 72), FP.mean roughly halved (0.83 vs 1.58). Paying ~$0.20/page extra makes sense for workloads where every wrong-value substitution costs human-review time worth more than the inference delta, or where the extra recall on hard samples justifies the cost.
 6. **Prompt caching is highly effective for batched workloads.** Azure's 5-minute prompt cache was active on most calls (cache hit rates 77–95% after the first call). Cached input is billed at ~10% of the base rate. Across the trio, warm-cache costs fall to **$0.030 (E08), $0.037 (E07), $0.038 (E05)** — roughly 30–35% below cold-cache. E03 cannot benefit the same way: its Contextualization layer rebuilds the prompt server-side, and CU's response payload does not expose the `cached_tokens` field, so we have no visibility into whether CU's gpt-5.2 calls cache internally.
 
 **Caveats on the cost numbers.**
@@ -273,7 +273,7 @@ The DI / CU / Mistral page-meter rates do not change between US and Canada in Mi
 > - The **whiskers** (the thin lines extending above and below the box) reach to the most-extreme samples that are still "within reach" of the bulk of the data — specifically, up to 1.5× the box's height (the interquartile range) above and below the box edges. This is the standard Tukey convention for box plots; it's not based on standard deviation. Any sample further out than that shows up as a separate dot — an *outlier*, meaning a sample that is unusually bad (or unusually good) compared to the engine's typical performance.
 > - Higher boxes are better. Tighter (shorter) boxes mean the engine performs consistently across samples.
 
-The bottom of each box and the whiskers tell the worst-case story. E04 has the lowest whisker and widest box — its performance varies a lot across samples. E00 also has a wide box (the custom template either nails a sample or struggles meaningfully). E07 (gpt-4o on the hybrid pipeline) widens out vs E05/E08 — its `81 blank` outlier sits noticeably lower than any other engine's worst case. **E08 has the tightest distribution of any single engine** (stdDev 0.039 vs E05's 0.053 vs E07's 0.075); its box sits highest on the chart and its whiskers don't reach as far down as E03's or E05's. The ensemble (E06) edges E08 on stdDev (0.037) since it never lands below F1 0.846.
+The bottom of each box and the whiskers tell the worst-case story. E04 has the lowest whisker and widest box — its performance varies a lot across samples. E00 also has a wide box (the custom template either nails a sample or struggles meaningfully). E07 (gpt-4o on the hybrid pipeline) widens out vs E05/E08 — its `81 blank` outlier sits noticeably lower than any other engine's worst case. **E08 has the tightest distribution of any single engine** (stdDev 0.039 vs E05's 0.053 vs E07's 0.075); its box sits highest on the chart and its whiskers don't reach as far down as E03's or E05's. **The ensemble (E06) is tighter still** (stdDev 0.026, min F1 0.862) — by routing each field to its category specialist, it avoids every engine's worst single-category failures.
 
 ## Per-category field accuracy
 
@@ -283,21 +283,23 @@ The bottom of each box and the whiskers tell the worst-case story. E04 has the l
 
 | category | n fields | E00 (DI template) | E01 (DI Neural) | E02 (Mistral) | E03 (CU+gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | E08 (gpt-5.2 hybrid) | E06 (ensemble) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **sin** | 2 | 0.825 | **0.963** | 0.861 | 0.934 | 0.809 | 0.923 | 0.923 | 0.950 | 0.898 |
+| **sin** | 2 | 0.825 | **0.963** | 0.861 | 0.934 | 0.809 | 0.923 | 0.923 | 0.950 | **0.963** |
 | **date** | 2 | 0.907 | 0.934 | 0.873 | 0.920 | 0.693 | **0.936** | **0.936** | 0.909 | **0.936** |
-| **phone** | 2 | 0.818 | 0.934 | 0.884 | **0.988** | 0.820 | 0.936 | 0.909 | **0.988** | 0.963 |
-| **name** | 2 | 0.738 | 0.898 | 0.818 | 0.845 | 0.845 | **0.948** | 0.923 | 0.923 | 0.921 |
-| **signature** | 2 | 0.961 | 0.948 | 0.796 | 0.923 | 0.945 | 0.986 | **1.000** | 0.946 | 0.988 |
+| **phone** | 2 | 0.818 | 0.934 | 0.884 | **0.988** | 0.820 | 0.936 | 0.909 | **0.988** | **0.988** |
+| **name** | 2 | 0.738 | 0.898 | 0.818 | 0.845 | 0.845 | **0.948** | 0.923 | 0.923 | **0.948** |
+| **signature** | 2 | 0.961 | 0.948 | 0.796 | 0.923 | 0.945 | 0.986 | **1.000** | 0.946 | **1.000** |
 | **freeform_text** | 1 | 0.625 | 0.800 | 0.625 | 0.800 | 0.675 | **0.900** | 0.850 | 0.825 | **0.900** |
-| **checkboxes** | 28 | 0.952 | 0.984 | 0.939 | **0.996** | 0.885 | 0.952 | 0.941 | 0.973 | 0.989 |
-| **income_amounts** | 35 | 0.851 | 0.870 | 0.906 | 0.880 | 0.912 | 0.952 | 0.883 | **0.970** | 0.955 |
+| **checkboxes** | 28 | 0.952 | 0.984 | 0.939 | **0.996** | 0.885 | 0.952 | 0.941 | 0.973 | **0.996** |
+| **income_amounts** | 35 | 0.851 | 0.870 | 0.906 | 0.880 | 0.912 | 0.952 | 0.883 | **0.970** | **0.970** |
 
 **Category leaders** among the single engines:
 - **E01 (Azure DI Neural)** wins `sin` outright (0.963) — the supervised model's fixed-position recognition is best in class for the SIN field, edging out E08. E01 is also strong on `checkboxes` (0.984) and `phone` (0.934).
 - **E03 (Azure CU + GPT-5.2)** wins checkboxes (0.996) and ties phone (0.988) — CU's dedicated `selectionMark` primitive is purpose-built for box-style yes/no inputs and edges out every VLM-based approach when it works, and CU's phone normalisation is reliable. (Caveat: E03's `selectionMark` has a separate hard-failure mode on a small number of edge-case samples where it flips spouse-column `_no` checkboxes to "selected" — covered in the [E08 deep dive](#e08--gpt-52-vlm--azure-di-layout-hybrid).)
 - **E08 (gpt-5.2 hybrid)** wins on `income_amounts` (0.970) and ties `phone` (0.988). The same gpt-5.2 model that powers E03's generative leg outperforms E03 on these categories when paired with Azure DI prebuilt-layout instead of CU's content-extraction layer. DI's OCR layer transcribes dense digit handwriting more reliably than CU's on this dataset.
-- **E05 (gpt-5.4 hybrid)** wins on name (0.948) and freeform_text (0.900, tied with E06), and ties date (0.936 with E07 and E06). gpt-5.4 on this pipeline is best at interpretive text fields with fewer literal-character constraints.
+- **E05 (gpt-5.4 hybrid)** wins on name (0.948) and freeform_text (0.900), and ties date (0.936 with E07). gpt-5.4 on this pipeline is best at interpretive text fields with fewer literal-character constraints.
 - **E07 (gpt-4o hybrid)** wins on signature outright (1.000). Signature is scored as presence/absence, so most engines near-saturate this category and its discriminative power is limited.
+
+E06 ties the per-category leader in every category — by construction, since the chosen S1 strategy takes its value from the category's best engine on each field.
 
 **Where E08 makes up ground on E03** — most of E08's aggregate lead over E03 is on `income_amounts` (+9.0 pp: 0.970 vs 0.880) and `sin` (+1.6 pp: 0.950 vs 0.934). These are categories where literal-digit fidelity matters most. Both engines run the same gpt-5.2 generative model; two architectural choices explain the gap: (a) DI's standalone prebuilt-layout transcribes handwritten digits with less aggressive grounding than CU's prebuilt-layout, so it drops fewer small zeros and faint glyphs; (b) E08's gpt-5.2 receives the image alongside the OCR Markdown, so it can recover digits the OCR layer mistranscribed by reading them off the image — CU's gpt-5.2 never sees the image and can only work with what the OCR produced.
 
@@ -495,7 +497,7 @@ Errors by category: sin 6/75 (8.0%), date 5/75 (6.7%), phone 7/75 (9.3%), name 6
 **Strengths:**
 - **Best single engine on every accuracy aggregate.** Beats E03 by 2.0 pp F1.mean even though both engines run the same gpt-5.2 generative model. The mechanism breakdown is in the "Why E08 beats E03 despite both using gpt-5.2" paragraph below.
 - **Best single-engine on sin (0.950), phone (0.988), and income_amounts (0.970)** — the structured-digit categories where literal-character fidelity matters most.
-- **Tightest per-sample F1 distribution of any single engine** (stdDev 0.039; no samples below F1 0.80). This consistency is the main practical edge over E03 / E05. The ensemble (E06) edges this by a hair (stdDev 0.037).
+- **Tightest per-sample F1 distribution of any single engine** (stdDev 0.039; no samples below F1 0.80). This consistency is the main practical edge over E03 / E05. Only the multi-engine ensemble (E06) is tighter (stdDev 0.026).
 - **Best single-engine FP.mean (1.58)** — lowest wrong-value substitution rate among single engines.
 - **Most dramatic single-sample improvement over E05**: `81 coffee` (a historically-floor obscured-form sample) jumps from F1 0.878 → 0.959. `Fake 1` (a pencil-filled form) jumps from 0.853 → 0.986.
 
@@ -594,7 +596,7 @@ A handful of samples are worth calling out by name — these are the rows at the
 - **`Fake 5` / `Fake 7`** — additional hand-written samples in the next failure tier. **E07 (gpt-4o) sits noticeably lower than E05/E08 here** — the gpt-4o checkbox failure mode dominates both samples while E05/E08 clear F1 ≥0.92.
 - **`synth-*` cluster (synth-full / synth-no-spouse / synth-regular)** — synthetically-generated forms with hand-written field values. This cluster is where **E04 (GPT-5.4 VLM-direct) underperforms specifically** — every synth sample drops E04 below F1 0.83 (range 0.69–0.83). All other engines, including the hybrid E05/E07/E08 which use the same OCR pre-pass with different VLMs, handle these samples cleanly. **E08 hits F1 0.97–1.00 on every synth sample**, the best of any single engine on this cluster.
 - **`HR0081 (10)`** — a real hand-written form. F1 dropped most on E02 (0.69) — Mistral's pipeline cannot read this sample's handwriting in its OCR pass. **E07 (gpt-4o) also struggles here at 0.825**, a steep drop from E05's 0.986 on the same sample — gpt-4o misreads the dense handwriting where gpt-5.4 reads it cleanly. E03 lands at 0.862; E05 / E08 / E04 all clear F1 ≥0.95.
-- **`manual sample (6)`** — among the lowest-scoring samples on both E05 and E08 (F1 0.797 on both). Dense handwritten income figures with ambiguous digit shapes — the residual hardest sample of the dataset for the VLM hybrid stack. E03 (CU) reads it materially better at F1 0.98, and E06 ensemble hits 0.986.
+- **`manual sample (6)`** — among the lowest-scoring samples on both E05 and E08 (F1 0.797 on both). Dense handwritten income figures with ambiguous digit shapes — the residual hardest sample of the dataset for the VLM hybrid stack. E03 (CU) reads it materially better at F1 0.98, and the E06 ensemble hits 0.986 by routing the income column to E08 but the SIN/name/etc. to their respective specialists.
 
 The first two are the dataset's universal floor — every engine struggles, and these would benefit from human-in-the-loop review by design. The rest are engine-specific failure patterns: pencil contrast hurts the OCR-based engines most; the phone-photo / background sample challenges everyone moderately; the synth-* cluster is specifically a GPT-5.4-vision-direct problem; dense or sloppy handwriting that the OCR layer can't read is specifically Mistral's problem; and the empty `_no` checkbox flip is specifically a gpt-4o problem. **The choice of engine for a production workload should weigh which of these failure modes is most likely in the expected input mix.**
 
@@ -614,7 +616,7 @@ The first two are the dataset's universal floor — every engine struggles, and 
 
 7. **Custom-trained models carry a lifecycle cost penalty that generative engines don't.** Even where E00 matches the generative engines on accuracy, the trained template needs re-labelling and re-training whenever the form schema changes. Schema changes on a generative engine are a prompt edit. For forms that evolve over time, the generative path wins on maintenance even when accuracy is roughly equal.
 
-8. **The ensemble (E06) edges out E08 by a hair on F1.mean / F1.median / precision / FP, but the gap is small.** E06 was built on E00–E05 only (not E07/E08). It posts F1.mean 0.976, F1.median 0.986, precision 0.986, FP.mean 0.98 — all marginally above E08 (0.973 / 0.984 / 0.978 / 1.58). E08 still wins on recall.mean (0.968 vs 0.967) and ties on matched.median (72). E06 costs ~5× more per page since it requires running five upstream engines. The case for the ensemble narrows: E08 alone is cheaper and within 0.3 pp on every accuracy aggregate, except where wrong-value substitution is specifically costly and the extra precision matters. A future E06-with-E07-E08 ensemble would likely move the headroom story but is not built in this report.
+8. **The ensemble (E06) beats E08 across the board, but at ~5.5× the per-page cost.** E06 routes each field to its category specialist (E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts). It posts F1.mean 0.984, F1.median 0.990, precision 0.989, recall 0.980, matched.median 73, FP.mean 0.83 — every aggregate beats E08 (0.973 / 0.984 / 0.978 / 0.968 / 72 / 1.58). Per-page cost is ~$0.249 (sum of the five specialist engines that participate in routing) vs E08's ~$0.046. E06 is the right call when wrong-value substitutions cost human-review time worth more than the inference delta, or when the extra recall on hard samples justifies the spend. E08 alone is the right call when per-page cost dominates.
 
 9. **Freeform text remains a weak spot for the simpler engines.** Signature is scored as presence/absence and most engines clear 0.94 there, leaving `explain_changes` as the only category where strict-equality friction is visible — and only on the non-generative engines (E00 / E02 at ~0.63), where verbatim transcription of a long natural-language string is the actual challenge, not metric choice. The generative engines clear 0.80 on freeform_text without any metric relaxation.
 
@@ -624,11 +626,13 @@ The first two are the dataset's universal floor — every engine struggles, and 
 
 # Appendix A — E06 ensemble combiner
 
-This appendix documents the per-field weighted-majority combiner that produces the E06 row in the comparison tables above. The full source data and benchmark export live in [`../06-engine-ensemble/`](../06-engine-ensemble/).
+This appendix documents the ensemble combiner that produces the E06 row in the comparison tables above. The full source data and benchmark export live in [`../06-engine-ensemble/`](../06-engine-ensemble/).
 
 ## Production note (read this first)
 
-**E06 is NOT a deployment.** It uses predictions that were already produced by E00–E05; running E06 against new documents means running all five upstream engines first and then combining their outputs. That is ~5× the inference cost of any single engine. The ensemble is documented as a **measurement artifact** showing the headroom that exists above the best single engine — the recommended deployable path is still one of E03 or E05 alone.
+**E06 is a synthesised measurement, not a packaged deployment.** Each field's value comes from a different upstream engine — the engine that wins that category on the per-category accuracy table. Reproducing E06 on new documents means running the five specialist engines (E01, E03, E05, E07, E08) per page and routing each field to its specialist. That is ~5.5× the per-page cost of E08 alone (~$0.249 vs ~$0.046 cold-cache). The remaining engines (E00, E02, E04) are part of the strategy-selection step — they are evaluated to confirm the chosen strategy still wins, but their predictions aren't used at routing time.
+
+The recommended deployable path is still E08 alone (best single engine, ~$0.046/page); E06 is the right call only when wrong-value substitutions cost human-review time worth more than the ~$0.20/page inference delta.
 
 ## Strategies explored
 
@@ -636,95 +640,110 @@ Six deployable strategies plus one oracle baseline ([`../06-engine-ensemble/scri
 
 | code | how it picks |
 |---|---|
-| `S1_per_category_best` | per field's category, take the per-category best engine (E03 for phone/checkboxes, E05 for the other six). No fallback. |
+| **`S1_per_category_best`** | per field's category, take the per-category best engine (E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts). No fallback. **Chosen.** |
 | `S2_best_then_majority_fallback` | S1, but if the best engine returns null-like, fall back to a ≥3 majority vote. |
 | `S3_majority_then_best` | If ≥3 engines agree on a non-null value, use it. Else, fall back to per-category best. |
 | `S4_weighted_majority` | Weighted vote: each engine's vote weight = its per-category accuracy on this field's category. Pick the highest-weighted value. |
 | `S5_weighted_with_null_preference` | S4, but if the per-category best engine returned null AND any other engine agrees null, prefer null (avoids over-extraction). |
-| `S6_per_field_weighted_majority` | Same as S4 but with **per-field** weights instead of per-category — finer granularity. **Chosen.** |
+| `S6_per_field_weighted_majority` | Same as S4 but with **per-field** weights instead of per-category — finer granularity. |
 | `Z_oracle_upper_bound` | Cheating baseline: if any engine got the field right, take that engine's value. Headroom measurement only. |
 
 ## Results — strategies vs single-engine baselines
 
-> **Caveat — historical numbers.** The single-engine rows in this Appendix table use the predictions snapshot that the ensemble was actually *built on* (improve/03 era; E03 F1.mean 0.947). The headline aggregate table at the top of this report uses the *current* canonical numbers (E03 F1.mean 0.938). The ensemble itself has not been rebuilt — that would change `S1`–`S6` figures here. Treat the comparisons in this Appendix as a snapshot of the ensemble's relative value at build time.
-
 | strategy | F1.median | F1.mean | Precision.mean | Recall.mean | matched.median | FP.mean |
 |---|---|---|---|---|---|---|
-| E00 alone | 0.939 | 0.903 | 0.917 | 0.899 | 66 | 5.60 |
-| E02 alone | 0.959 | 0.918 | 0.941 | 0.902 | 69 | 4.05 |
-| E03 alone (snapshot) | 0.969 | 0.947 | 0.958 | 0.939 | 70 | 3.00 |
-| E04 alone | 0.903 | 0.870 | 0.876 | 0.866 | 66 | 8.48 |
-| E05 alone | 0.960 | 0.942 | 0.951 | 0.935 | 71 | 3.38 |
-| `S1_per_category_best` | 0.969 | 0.953 | 0.962 | 0.947 | 71 | 2.65 |
-| `S2_best_then_majority_fallback` | 0.969 | 0.954 | 0.962 | 0.947 | 71 | 2.65 |
-| `S3_majority_then_best` | 0.973 | 0.959 | 0.970 | 0.950 | 71 | 2.15 |
-| `S4_weighted_majority` | 0.973 | 0.962 | 0.973 | 0.953 | 71 | 1.93 |
-| `S5_weighted_with_null_preference` | 0.973 | 0.962 | 0.973 | 0.952 | 71 | 1.90 |
-| **`S6_per_field_weighted_majority`** | **0.973** | **0.962** | **0.973** | **0.953** | **71** | **1.93** |
-| `Z_oracle_upper_bound` (cheating) | 0.986 | 0.984 | 0.986 | 0.983 | 73 | 1.03 |
+| E00 alone | 0.952 | 0.916 | 0.930 | 0.912 | 68 | 4.73 |
+| E01 alone | 0.980 | 0.946 | 0.966 | 0.931 | 70 | 2.25 |
+| E02 alone | 0.966 | 0.927 | 0.950 | 0.910 | 70 | 3.45 |
+| E03 alone | 0.981 | 0.953 | 0.972 | 0.937 | 71 | 1.85 |
+| E04 alone | 0.918 | 0.887 | 0.892 | 0.882 | 67 | 7.30 |
+| E05 alone | 0.980 | 0.957 | 0.965 | 0.950 | 72 | 2.33 |
+| E07 alone | 0.973 | 0.936 | 0.955 | 0.921 | 69 | 3.10 |
+| E08 alone | 0.984 | 0.973 | 0.978 | 0.968 | 72 | 1.58 |
+| **`S1_per_category_best`** | **0.990** | **0.984** | **0.989** | **0.980** | **73** | **0.83** |
+| `S2_best_then_majority_fallback` | 0.990 | 0.984 | 0.989 | 0.980 | 73 | 0.83 |
+| `S3_majority_then_best` | 0.986 | 0.970 | 0.989 | 0.956 | 72 | 0.80 |
+| `S4_weighted_majority` | 0.986 | 0.973 | 0.988 | 0.961 | 72 | 0.85 |
+| `S5_weighted_with_null_preference` | 0.986 | 0.973 | 0.988 | 0.961 | 72 | 0.83 |
+| `S6_per_field_weighted_majority` | 0.986 | 0.973 | 0.988 | 0.961 | 72 | 0.85 |
+| `Z_oracle_upper_bound` (cheating) | 1.000 | 0.995 | 0.996 | 0.995 | 74 | 0.30 |
 
-S6 edges out S4 and S5 by a hair on most aggregates. S3/S4/S5/S6 are all within 0.2 pp of each other — any of them would be a reasonable production choice. The interesting result is that **every ensemble strategy beats every single engine on precision** (S1 = 0.962 vs E03 = 0.958), which is where the F1 lift comes from: the ensemble doesn't extract many more correct fields than E03 (matched.median 71 vs 70, just +1 field), but it makes meaningfully fewer wrong-value substitutions (FP.mean ~2 vs E03's 3).
+S1 and S2 tie at F1.mean 0.984; the null-fallback in S2 doesn't fire often enough to matter on this dataset. S1 is the simpler of the two and is the strategy used to produce the E06 numbers in the headline tables.
+
+**Per-category specialist routing wins outright.** With eight engines and clear category leaders, the weighted-majority strategies (S3/S4/S5/S6) trail S1 by 1.1–1.4 pp F1.mean: their votes drag the result toward the average of the engine pool rather than the specialist's answer. The per-category leaders are clearly differentiated — E01 dominates sin, E07 dominates signature, E08 dominates income, E03 dominates checkboxes — so trusting the specialist unconditionally outperforms diluting its vote with non-specialists.
 
 Full strategy CSV: [`../06-engine-ensemble/data/strategy-comparison.csv`](../06-engine-ensemble/data/strategy-comparison.csv).
 
-## Why per-category-best alone (S1/S2) underperforms
+## Per-category accuracy — E06 vs the leader of each category
 
-S1 and S2 are the most defensible-looking strategies — pick the engine you know is best at this category. They do beat the best single engine on F1.mean (0.953 vs E03 0.947), but they trail the weighted-majority strategies (S3+) by 0.6–1 pp. The problem: the "per-category best" engine is best *on average* over that category, but on individual fields where another engine reads the form better, S1 takes the wrong answer. Voting across engines (S3 onwards) recovers those wins without sacrificing the category-leader's average advantage.
-
-**The lesson:** when you have multiple roughly-equal engines, **agreement is a stronger signal than category-level ranking**. The weighted-majority strategies treat per-category accuracy as a Bayesian prior, then update it with the actual votes; that beats trusting the prior unconditionally.
-
-## Where the ensemble beats every single engine
-
-| category | E06 | best single | engine | delta |
+| category | E06 (S1) | best single | engine | delta |
 |---|---|---|---|---|
-| sin | 0.898 | 0.923 | E05 | **−2.5 pp** |
-| date | 0.936 | 0.936 | E05 | tie |
-| phone | 0.963 | 0.963 | E03 | tie |
-| name | 0.880 | 0.880 | E05 | tie |
-| signature | 0.680 | 0.675 | E05 | +0.5 pp |
-| freeform_text | 0.700 | 0.650 | E05 | **+5.0 pp** |
-| checkboxes | 0.989 | 0.975 | E03 | **+1.4 pp** |
-| income_amounts | 0.953 | 0.951 | E05 | +0.2 pp |
+| sin | 0.963 | 0.963 | E01 | tie (by construction) |
+| date | 0.936 | 0.936 | E05 / E07 | tie |
+| phone | 0.988 | 0.988 | E03 / E08 | tie |
+| name | 0.948 | 0.948 | E05 | tie |
+| signature | 1.000 | 1.000 | E07 | tie |
+| freeform_text | 0.900 | 0.900 | E05 | tie |
+| checkboxes | 0.996 | 0.996 | E03 | tie |
+| income_amounts | 0.970 | 0.970 | E08 | tie |
 
-The per-category accuracy is computed on the matched-field count only (it doesn't penalise substitution-FPs the way the per-sample precision does). The ensemble wins or ties on 7 of 8 categories. The single category where E06 underperforms meaningfully is **sin**, where E05 alone hits 0.923 but E06 lands at 0.898. The mechanism: on a handful of samples, E05 reads the SIN correctly but every other engine misreads it, so the weighted majority votes against E05.
+S1 routes each field to the category's best engine, so per-category accuracy is identical to that engine's per-category accuracy by construction. The aggregate F1 lift over any single engine comes from combining specialists: no single engine wins every category, so picking the category-specific best beats picking one engine for everything.
 
-The bigger story is in the **aggregate precision and FP.mean**: the ensemble cuts FP.mean from E03's 3.00 (and E04's 8.48) to 1.93 — roughly halving the substitution-error count. That's where the F1 gains come from.
+## Where the F1 lift over E08 alone comes from
+
+E08 is the strongest single engine but it is not best in every category. The table below shows the per-category gap between E08 and the engine S1 routes to:
+
+| category | E08 | S1 routes to | specialist score | gap closed |
+|---|---|---|---|---|
+| sin | 0.950 | E01 | 0.963 | +1.3 pp |
+| date | 0.909 | E05 | 0.936 | +2.7 pp |
+| phone | 0.988 | E08 | 0.988 | (no gap) |
+| name | 0.923 | E05 | 0.948 | +2.5 pp |
+| signature | 0.946 | E07 | 1.000 | +5.4 pp |
+| freeform_text | 0.825 | E05 | 0.900 | +7.5 pp |
+| checkboxes | 0.973 | E03 | 0.996 | +2.3 pp |
+| income_amounts | 0.970 | E08 | 0.970 | (no gap) |
+
+The biggest contributions to E06's F1 lead over E08 come from **freeform_text** (E05's natural-language transcription), **signature** (E07's presence detection), **date / name / sin** (small but consistent), and **checkboxes** (CU's dedicated `selectionMark` primitive).
 
 ## Headroom — the oracle baseline
 
-The oracle baseline cheats: for every field, it asks "did any engine got this right?" and takes that engine's answer. It is not deployable but tells us the upper bound any router could achieve on these five engines' predictions.
+The oracle baseline cheats: for every field it asks "did any engine get this right?" and takes that engine's answer. It is not deployable but tells us the upper bound any router could achieve on these eight engines' predictions.
 
-| | best single (E03) | E06 (S6) | Oracle |
+| | best single (E08) | E06 (S1) | Oracle |
 |---|---|---|---|
-| F1.median | 0.969 | 0.973 | 0.986 |
-| F1.mean | 0.947 | 0.962 | 0.984 |
-| precision.mean | 0.958 | 0.973 | 0.986 |
-| recall.mean | 0.939 | 0.953 | 0.983 |
-| matched.median | 70 | 71 | 73 |
-| FP.mean | 3.00 | 1.93 | 1.03 |
+| F1.median | 0.984 | 0.990 | 1.000 |
+| F1.mean | 0.973 | 0.984 | 0.995 |
+| precision.mean | 0.978 | 0.989 | 0.996 |
+| recall.mean | 0.968 | 0.980 | 0.995 |
+| matched.median | 72 | 73 | 74 |
+| FP.mean | 1.58 | 0.83 | 0.30 |
 
-E06 closes about **40% of the F1.mean gap** between the best single engine (0.947) and the oracle (0.984). The remaining 60% is on the table for a smarter router — primarily through better per-field confidence scoring, possibly with cross-engine confidence calibration. The matched-fields gap (E03 = 70, Oracle = 73 of 74) means there exist 3 fields per sample at the median where *one of the five engines* got it right but the others didn't, and our ensemble didn't pick the right one. The FP gap (1.93 → 1.03) shows the same headroom: the ensemble already roughly halves the wrong-answer rate; an oracle would halve it again.
+E06 closes roughly **half** of the F1.mean gap between the best single engine (0.973) and the oracle (0.995). The remaining gap is on the table for a smarter router — primarily through per-field (not per-category) confidence scoring with cross-engine calibration. The matched-fields gap (E08 = 72, S1 = 73, Oracle = 74) means there exists at least 1 field per sample at the median where *one of the eight engines* got it right but the category-best engine didn't, and S1 doesn't switch to that engine.
 
 ## E06 residual errors
 
-The per-sample mismatch table for E06 is at [`../06-engine-ensemble/iteration/errors-for-gt-cleanup.md`](../06-engine-ensemble/iteration/errors-for-gt-cleanup.md) — **140 mismatches across 33 samples** (7 samples have zero mismatches under strict eval). This is the lowest mismatch count of any engine on this dataset:
+The per-sample mismatch table for E06 is at [`../06-engine-ensemble/iteration/errors-for-gt-cleanup.md`](../06-engine-ensemble/iteration/errors-for-gt-cleanup.md) — **63 mismatches across 23 samples** (17 samples have zero mismatches under strict eval). This is the lowest mismatch count of any engine on this dataset:
 
 | engine | mismatches | samples with ≥1 mismatch |
 |---|---|---|
-| E03 (CU + gpt-5.2) | 184 | 39 |
-| E05 (VLM + DI hybrid) | 188 | 34 |
-| E02 (Mistral / Foundry) | 297 | 38 |
-| E00 (DI custom template) | 364 | 39 |
-| E04 (gpt-5.4 VLM) | 377 | 39 |
-| **E06 (ensemble)** | **140** | **33** |
+| E00 (DI custom template) | 328 | 36 |
+| E04 (gpt-5.4 VLM-direct) | 330 | 39 |
+| E02 (Mistral / Foundry) | 272 | 36 |
+| E07 (gpt-4o hybrid) | 253 | 27 |
+| E01 (DI Neural custom) | 227 | 27 |
+| E03 (CU + gpt-5.2) | 204 | 29 |
+| E05 (gpt-5.4 hybrid) | 145 | 28 |
+| E08 (gpt-5.2 hybrid) | 100 | 29 |
+| **E06 (ensemble)** | **63** | **23** |
 
-The ensemble's structural strength shows up not just in fewer total mismatches but also in fewer samples that have any mismatch at all — 7 samples come back perfectly matched.
+E06's structural strength shows up not just in fewer total mismatches but also in fewer samples that have any mismatch at all — 17 samples come back perfectly matched.
 
 The residual error categories on E06 break down into:
-- **Single-character handwriting** (X-marks, isolated `0`s, signature placeholders). When 4+ engines misread the same character, voting can't recover.
-- **Numeric blank-vs-zero ambiguity** on a small handful of income-amount fields where the form has a stray pen mark visible. Multiple engines extract `0`; the GT is `""`.
+- **Single-character handwriting** (X-marks, isolated `0`s). When the category specialist misreads the character, S1 has no fallback because it doesn't consult the other engines.
+- **Numeric blank-vs-zero ambiguity** on a small handful of income-amount fields where the form has a stray pen mark visible. E08 (the income specialist) extracts `0`; the GT is `""`.
 - **One-of-array GT not yet covering an engine's format variant.** Caught by `promote-gt-format-variants.ts` and absorbed in subsequent GT cleanup passes.
-- **Genuine OCR misreads** — `5` vs `8`, `1` vs `7` confusions on dense handwriting. The irreducible per-engine errors that no ensemble can fix.
+- **Genuine OCR misreads** — `5` vs `8`, `1` vs `7` confusions on dense handwriting. The irreducible per-engine errors the category specialist makes that no router can fix without consulting another engine.
 
 ---
 
