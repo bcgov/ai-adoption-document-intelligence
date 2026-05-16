@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-05-16T07:55:04.124Z",
+  "exportedAt": "2026-05-16T08:12:23.865Z",
   "exportFormatVersion": 1,
   "run": {
     "id": "1b16e3d4-5b50-4b77-bb13-6d617b424dbb",
@@ -5689,7 +5689,10 @@
             "field": "applicant_income_tax_refund",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "0\n0"
+            ],
             "confidence": null
           },
           {
@@ -5731,7 +5734,10 @@
             "field": "applicant_child_tax_benefits",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "0\n0"
+            ],
             "confidence": null
           },
           {
@@ -5953,13 +5959,19 @@
         "checkbox_family_assets_yes": "selected",
         "checkbox_school_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "unselected",
-        "applicant_income_tax_refund": "0",
+        "applicant_income_tax_refund": [
+          "0",
+          "0\n0"
+        ],
         "applicant_room_board_income": "0",
         "checkbox_need_assistance_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
         "spouse_employment_insurance": "",
         "spouse_workers_compensation": "",
-        "applicant_child_tax_benefits": "0",
+        "applicant_child_tax_benefits": [
+          "0",
+          "0\n0"
+        ],
         "checkbox_need_assistance_yes": "selected",
         "spouse_net_employment_income": "",
         "spouse_tax_credits_gst_credit": "",
@@ -6376,7 +6388,10 @@
           "field": "applicant_income_tax_refund",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "0\n0"
+          ],
           "confidence": null
         },
         {
@@ -6418,7 +6433,10 @@
           "field": "applicant_child_tax_benefits",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "0\n0"
+          ],
           "confidence": null
         },
         {
@@ -27736,7 +27754,10 @@
             "field": "applicant_employment_insurance",
             "matched": true,
             "predicted": 0,
-            "expected": 0,
+            "expected": [
+              "0",
+              "0\n0"
+            ],
             "confidence": null
           },
           {
@@ -27947,7 +27968,10 @@
         "checkbox_need_assistance_yes": "selected",
         "spouse_net_employment_income": 100,
         "spouse_tax_credits_gst_credit": 0,
-        "applicant_employment_insurance": 0,
+        "applicant_employment_insurance": [
+          "0",
+          "0\n0"
+        ],
         "applicant_workers_compensation": "0",
         "checkbox_employment_changes_no": "selected",
         "spouse_canada_pension_plan_cpp": 0,
@@ -28433,7 +28457,10 @@
           "field": "applicant_employment_insurance",
           "matched": true,
           "predicted": 0,
-          "expected": 0,
+          "expected": [
+            "0",
+            "0\n0"
+          ],
           "confidence": null
         },
         {
@@ -41511,7 +41538,10 @@
             "field": "applicant_net_employment_income",
             "matched": true,
             "predicted": 1594.65,
-            "expected": 1594.65,
+            "expected": [
+              "1594.65",
+              "$1,594.65"
+            ],
             "confidence": null
           },
           {
@@ -41622,7 +41652,10 @@
             "field": "applicant_income_tax_refund",
             "matched": true,
             "predicted": 1143.66,
-            "expected": 1143.66,
+            "expected": [
+              "1143.66",
+              "$1,143.66"
+            ],
             "confidence": null
           },
           {
@@ -41713,7 +41746,10 @@
             "field": "spouse_oas_gis",
             "matched": true,
             "predicted": 2326.11,
-            "expected": 2326.11,
+            "expected": [
+              "2326.11",
+              "2, 326 . 11"
+            ],
             "confidence": null
           },
           {
@@ -41880,7 +41916,10 @@
         "checkbox_moved_spouse_no": "unselected",
         "checkbox_warrant_spouse_yes": "selected",
         "checkbox_warrant_spouse_no": "unselected",
-        "applicant_net_employment_income": 1594.65,
+        "applicant_net_employment_income": [
+          "1594.65",
+          "$1,594.65"
+        ],
         "applicant_employment_insurance": 8740.25,
         "applicant_spousal_support_alimony": 289,
         "applicant_child_support": 2326.47,
@@ -41901,7 +41940,10 @@
           "3181.38",
           "$3181.38"
         ],
-        "applicant_income_tax_refund": 1143.66,
+        "applicant_income_tax_refund": [
+          "1143.66",
+          "$1,143.66"
+        ],
         "applicant_other_income_money_received": 6578.34,
         "applicant_income_of_dependent_children": 9495.78,
         "spouse_net_employment_income": 3472,
@@ -41914,7 +41956,10 @@
         "spouse_room_board_income": 6973,
         "spouse_workers_compensation": 7431.61,
         "spouse_private_pensions_retirement_disability": 9433.75,
-        "spouse_oas_gis": 2326.11,
+        "spouse_oas_gis": [
+          "2326.11",
+          "2, 326 . 11"
+        ],
         "spouse_trust_income": 4269,
         "spouse_canada_pension_plan_cpp": 4637.71,
         "spouse_tax_credits_gst_credit": 76.59,
@@ -42236,7 +42281,10 @@
           "field": "applicant_net_employment_income",
           "matched": true,
           "predicted": 1594.65,
-          "expected": 1594.65,
+          "expected": [
+            "1594.65",
+            "$1,594.65"
+          ],
           "confidence": null
         },
         {
@@ -42347,7 +42395,10 @@
           "field": "applicant_income_tax_refund",
           "matched": true,
           "predicted": 1143.66,
-          "expected": 1143.66,
+          "expected": [
+            "1143.66",
+            "$1,143.66"
+          ],
           "confidence": null
         },
         {
@@ -42438,7 +42489,10 @@
           "field": "spouse_oas_gis",
           "matched": true,
           "predicted": 2326.11,
-          "expected": 2326.11,
+          "expected": [
+            "2326.11",
+            "2, 326 . 11"
+          ],
           "confidence": null
         },
         {
@@ -42807,7 +42861,10 @@
             "field": "applicant_net_employment_income",
             "matched": true,
             "predicted": 1277.85,
-            "expected": 1277.85,
+            "expected": [
+              "1277.85",
+              "$1,277.85"
+            ],
             "confidence": null
           },
           {
@@ -42821,7 +42878,10 @@
             "field": "applicant_spousal_support_alimony",
             "matched": true,
             "predicted": 3235.08,
-            "expected": 3235.08,
+            "expected": [
+              "3235.08",
+              "3, 235.08"
+            ],
             "confidence": null
           },
           {
@@ -42863,7 +42923,10 @@
             "field": "applicant_workers_compensation",
             "matched": true,
             "predicted": 5210.48,
-            "expected": 5210.48,
+            "expected": [
+              "5210.48",
+              "5, 210.48"
+            ],
             "confidence": null
           },
           {
@@ -42891,7 +42954,10 @@
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 3409,
-            "expected": 3409,
+            "expected": [
+              "3409",
+              "3, 409"
+            ],
             "confidence": null
           },
           {
@@ -43027,7 +43093,10 @@
             "field": "spouse_tax_credits_gst_credit",
             "matched": true,
             "predicted": 3487.15,
-            "expected": 3487.15,
+            "expected": [
+              "3487.15",
+              "3, 487. 15"
+            ],
             "confidence": null
           },
           {
@@ -43182,19 +43251,31 @@
         "checkbox_moved_spouse_no": "selected",
         "checkbox_warrant_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_net_employment_income": 1277.85,
+        "applicant_net_employment_income": [
+          "1277.85",
+          "$1,277.85"
+        ],
         "applicant_employment_insurance": 9087.14,
-        "applicant_spousal_support_alimony": 3235.08,
+        "applicant_spousal_support_alimony": [
+          "3235.08",
+          "3, 235.08"
+        ],
         "applicant_child_support": 606.79,
         "applicant_workbc_financial_support": 2144.2,
         "applicant_student_funding_loans_bursaries": 2549.68,
         "applicant_rental_income": 6110,
         "applicant_room_board_income": 3534.68,
-        "applicant_workers_compensation": 5210.48,
+        "applicant_workers_compensation": [
+          "5210.48",
+          "5, 210.48"
+        ],
         "applicant_private_pensions_retirement_disability": 8510.23,
         "applicant_oas_gis": 6129.44,
         "applicant_trust_income": 6988,
-        "applicant_canada_pension_plan_cpp": 3409,
+        "applicant_canada_pension_plan_cpp": [
+          "3409",
+          "3, 409"
+        ],
         "applicant_tax_credits_gst_credit": 9691.67,
         "applicant_child_tax_benefits": 955.18,
         "applicant_income_tax_refund": 4572.86,
@@ -43216,7 +43297,10 @@
         "spouse_oas_gis": 9496,
         "spouse_trust_income": 2534,
         "spouse_canada_pension_plan_cpp": 9271,
-        "spouse_tax_credits_gst_credit": 3487.15,
+        "spouse_tax_credits_gst_credit": [
+          "3487.15",
+          "3, 487. 15"
+        ],
         "spouse_child_tax_benefits": [
           "6780.97",
           "$6780.97"
@@ -43545,7 +43629,10 @@
           "field": "applicant_net_employment_income",
           "matched": true,
           "predicted": 1277.85,
-          "expected": 1277.85,
+          "expected": [
+            "1277.85",
+            "$1,277.85"
+          ],
           "confidence": null
         },
         {
@@ -43559,7 +43646,10 @@
           "field": "applicant_spousal_support_alimony",
           "matched": true,
           "predicted": 3235.08,
-          "expected": 3235.08,
+          "expected": [
+            "3235.08",
+            "3, 235.08"
+          ],
           "confidence": null
         },
         {
@@ -43601,7 +43691,10 @@
           "field": "applicant_workers_compensation",
           "matched": true,
           "predicted": 5210.48,
-          "expected": 5210.48,
+          "expected": [
+            "5210.48",
+            "5, 210.48"
+          ],
           "confidence": null
         },
         {
@@ -43629,7 +43722,10 @@
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 3409,
-          "expected": 3409,
+          "expected": [
+            "3409",
+            "3, 409"
+          ],
           "confidence": null
         },
         {
@@ -43765,7 +43861,10 @@
           "field": "spouse_tax_credits_gst_credit",
           "matched": true,
           "predicted": 3487.15,
-          "expected": 3487.15,
+          "expected": [
+            "3487.15",
+            "3, 487. 15"
+          ],
           "confidence": null
         },
         {
@@ -44140,14 +44239,20 @@
             "field": "applicant_spousal_support_alimony",
             "matched": true,
             "predicted": 8800.13,
-            "expected": 8800.13,
+            "expected": [
+              "8800.13",
+              "8,800. 13"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_child_support",
             "matched": true,
             "predicted": 7117.97,
-            "expected": 7117.97,
+            "expected": [
+              "7117.97",
+              "7, 117.97"
+            ],
             "confidence": null
           },
           {
@@ -44266,7 +44371,10 @@
             "field": "spouse_spousal_support_alimony",
             "matched": true,
             "predicted": 1095.14,
-            "expected": 1095.14,
+            "expected": [
+              "1095.14",
+              "1, 095.14"
+            ],
             "confidence": null
           },
           {
@@ -44280,7 +44388,10 @@
             "field": "spouse_workbc_financial_support",
             "matched": true,
             "predicted": 1113,
-            "expected": 1113,
+            "expected": [
+              "1113",
+              "1, 11 3"
+            ],
             "confidence": null
           },
           {
@@ -44494,8 +44605,14 @@
           "$117.12"
         ],
         "applicant_employment_insurance": 1278,
-        "applicant_spousal_support_alimony": 8800.13,
-        "applicant_child_support": 7117.97,
+        "applicant_spousal_support_alimony": [
+          "8800.13",
+          "8,800. 13"
+        ],
+        "applicant_child_support": [
+          "7117.97",
+          "7, 117.97"
+        ],
         "applicant_workbc_financial_support": 7891.75,
         "applicant_student_funding_loans_bursaries": 9182,
         "applicant_rental_income": 9351.55,
@@ -44512,9 +44629,15 @@
         "applicant_income_of_dependent_children": 1797,
         "spouse_net_employment_income": 6214.03,
         "spouse_employment_insurance": 26,
-        "spouse_spousal_support_alimony": 1095.14,
+        "spouse_spousal_support_alimony": [
+          "1095.14",
+          "1, 095.14"
+        ],
         "spouse_child_support": 9628.11,
-        "spouse_workbc_financial_support": 1113,
+        "spouse_workbc_financial_support": [
+          "1113",
+          "1, 11 3"
+        ],
         "spouse_student_funding_loans_bursaries": 5837.89,
         "spouse_rental_income": 8391.6,
         "spouse_room_board_income": 3135.83,
@@ -44859,14 +44982,20 @@
           "field": "applicant_spousal_support_alimony",
           "matched": true,
           "predicted": 8800.13,
-          "expected": 8800.13,
+          "expected": [
+            "8800.13",
+            "8,800. 13"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_child_support",
           "matched": true,
           "predicted": 7117.97,
-          "expected": 7117.97,
+          "expected": [
+            "7117.97",
+            "7, 117.97"
+          ],
           "confidence": null
         },
         {
@@ -44985,7 +45114,10 @@
           "field": "spouse_spousal_support_alimony",
           "matched": true,
           "predicted": 1095.14,
-          "expected": 1095.14,
+          "expected": [
+            "1095.14",
+            "1, 095.14"
+          ],
           "confidence": null
         },
         {
@@ -44999,7 +45131,10 @@
           "field": "spouse_workbc_financial_support",
           "matched": true,
           "predicted": 1113,
-          "expected": 1113,
+          "expected": [
+            "1113",
+            "1, 11 3"
+          ],
           "confidence": null
         },
         {
@@ -45363,7 +45498,10 @@
             "field": "applicant_child_support",
             "matched": true,
             "predicted": 8310.93,
-            "expected": 8310.93,
+            "expected": [
+              "8310.93",
+              "8 , 310 . 93"
+            ],
             "confidence": null
           },
           {
@@ -45398,14 +45536,20 @@
             "field": "applicant_workers_compensation",
             "matched": true,
             "predicted": 3648,
-            "expected": 3648,
+            "expected": [
+              "3648",
+              "3, 648"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_private_pensions_retirement_disability",
             "matched": true,
             "predicted": 1341.05,
-            "expected": 1341.05,
+            "expected": [
+              "1341.05",
+              "$1,341.05"
+            ],
             "confidence": null
           },
           {
@@ -45614,13 +45758,22 @@
         "applicant_net_employment_income": 7971.1,
         "applicant_employment_insurance": 5270.81,
         "applicant_spousal_support_alimony": 5111.73,
-        "applicant_child_support": 8310.93,
+        "applicant_child_support": [
+          "8310.93",
+          "8 , 310 . 93"
+        ],
         "applicant_workbc_financial_support": 3752.68,
         "applicant_student_funding_loans_bursaries": 7007,
         "applicant_rental_income": 8749.25,
         "applicant_room_board_income": 4110.43,
-        "applicant_workers_compensation": 3648,
-        "applicant_private_pensions_retirement_disability": 1341.05,
+        "applicant_workers_compensation": [
+          "3648",
+          "3, 648"
+        ],
+        "applicant_private_pensions_retirement_disability": [
+          "1341.05",
+          "$1,341.05"
+        ],
         "applicant_oas_gis": [
           "2964.7",
           "$2964.70"
@@ -45900,7 +46053,10 @@
           "field": "applicant_child_support",
           "matched": true,
           "predicted": 8310.93,
-          "expected": 8310.93,
+          "expected": [
+            "8310.93",
+            "8 , 310 . 93"
+          ],
           "confidence": null
         },
         {
@@ -45935,14 +46091,20 @@
           "field": "applicant_workers_compensation",
           "matched": true,
           "predicted": 3648,
-          "expected": 3648,
+          "expected": [
+            "3648",
+            "3, 648"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_private_pensions_retirement_disability",
           "matched": true,
           "predicted": 1341.05,
-          "expected": 1341.05,
+          "expected": [
+            "1341.05",
+            "$1,341.05"
+          ],
           "confidence": null
         },
         {
@@ -47231,28 +47393,40 @@
             "field": "applicant_net_employment_income",
             "matched": true,
             "predicted": 2711.64,
-            "expected": 2711.64,
+            "expected": [
+              "2711.64",
+              "$2,711.64"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_employment_insurance",
             "matched": true,
             "predicted": 7969,
-            "expected": 7969,
+            "expected": [
+              "7969",
+              "7, 969"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_spousal_support_alimony",
             "matched": true,
             "predicted": 2101,
-            "expected": 2101,
+            "expected": [
+              "2101",
+              "2, 101"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_child_support",
             "matched": true,
             "predicted": 8452.18,
-            "expected": 8452.18,
+            "expected": [
+              "8452.18",
+              "8, 452 . 18"
+            ],
             "confidence": null
           },
           {
@@ -47301,7 +47475,10 @@
             "field": "applicant_oas_gis",
             "matched": true,
             "predicted": 7289.04,
-            "expected": 7289.04,
+            "expected": [
+              "7289.04",
+              "7, 289.04"
+            ],
             "confidence": null
           },
           {
@@ -47315,7 +47492,10 @@
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 6075.24,
-            "expected": 6075.24,
+            "expected": [
+              "6075.24",
+              "6, 075 . 24"
+            ],
             "confidence": null
           },
           {
@@ -47329,7 +47509,10 @@
             "field": "applicant_child_tax_benefits",
             "matched": true,
             "predicted": 3063,
-            "expected": 3063,
+            "expected": [
+              "3063",
+              "3, 06 3"
+            ],
             "confidence": null
           },
           {
@@ -47492,21 +47675,42 @@
           "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
           "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
         ],
-        "applicant_net_employment_income": 2711.64,
-        "applicant_employment_insurance": 7969,
-        "applicant_spousal_support_alimony": 2101,
-        "applicant_child_support": 8452.18,
+        "applicant_net_employment_income": [
+          "2711.64",
+          "$2,711.64"
+        ],
+        "applicant_employment_insurance": [
+          "7969",
+          "7, 969"
+        ],
+        "applicant_spousal_support_alimony": [
+          "2101",
+          "2, 101"
+        ],
+        "applicant_child_support": [
+          "8452.18",
+          "8, 452 . 18"
+        ],
         "applicant_workbc_financial_support": 9802.89,
         "applicant_student_funding_loans_bursaries": 9475,
         "applicant_rental_income": 5746.13,
         "applicant_room_board_income": 776.82,
         "applicant_workers_compensation": 8243.37,
         "applicant_private_pensions_retirement_disability": 4333.97,
-        "applicant_oas_gis": 7289.04,
+        "applicant_oas_gis": [
+          "7289.04",
+          "7, 289.04"
+        ],
         "applicant_trust_income": 5349.54,
-        "applicant_canada_pension_plan_cpp": 6075.24,
+        "applicant_canada_pension_plan_cpp": [
+          "6075.24",
+          "6, 075 . 24"
+        ],
         "applicant_tax_credits_gst_credit": 5765,
-        "applicant_child_tax_benefits": 3063,
+        "applicant_child_tax_benefits": [
+          "3063",
+          "3, 06 3"
+        ],
         "applicant_income_tax_refund": 2049.6,
         "applicant_other_income_money_received": 2591,
         "applicant_income_of_dependent_children": 6580,
@@ -47752,28 +47956,40 @@
           "field": "applicant_net_employment_income",
           "matched": true,
           "predicted": 2711.64,
-          "expected": 2711.64,
+          "expected": [
+            "2711.64",
+            "$2,711.64"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_employment_insurance",
           "matched": true,
           "predicted": 7969,
-          "expected": 7969,
+          "expected": [
+            "7969",
+            "7, 969"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_spousal_support_alimony",
           "matched": true,
           "predicted": 2101,
-          "expected": 2101,
+          "expected": [
+            "2101",
+            "2, 101"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_child_support",
           "matched": true,
           "predicted": 8452.18,
-          "expected": 8452.18,
+          "expected": [
+            "8452.18",
+            "8, 452 . 18"
+          ],
           "confidence": null
         },
         {
@@ -47822,7 +48038,10 @@
           "field": "applicant_oas_gis",
           "matched": true,
           "predicted": 7289.04,
-          "expected": 7289.04,
+          "expected": [
+            "7289.04",
+            "7, 289.04"
+          ],
           "confidence": null
         },
         {
@@ -47836,7 +48055,10 @@
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 6075.24,
-          "expected": 6075.24,
+          "expected": [
+            "6075.24",
+            "6, 075 . 24"
+          ],
           "confidence": null
         },
         {
@@ -47850,7 +48072,10 @@
           "field": "applicant_child_tax_benefits",
           "matched": true,
           "predicted": 3063,
-          "expected": 3063,
+          "expected": [
+            "3063",
+            "3, 06 3"
+          ],
           "confidence": null
         },
         {
@@ -48335,7 +48560,10 @@
             "field": "applicant_other_income_money_received",
             "matched": true,
             "predicted": 5158,
-            "expected": 5158,
+            "expected": [
+              "5158",
+              "5, 158"
+            ],
             "confidence": null
           },
           {
@@ -48603,7 +48831,10 @@
         "applicant_tax_credits_gst_credit": 2073.75,
         "applicant_child_tax_benefits": 9581.52,
         "applicant_income_tax_refund": null,
-        "applicant_other_income_money_received": 5158,
+        "applicant_other_income_money_received": [
+          "5158",
+          "5, 158"
+        ],
         "applicant_income_of_dependent_children": null,
         "spouse_net_employment_income": null,
         "spouse_employment_insurance": null,
@@ -49050,7 +49281,10 @@
           "field": "applicant_other_income_money_received",
           "matched": true,
           "predicted": 5158,
-          "expected": 5158,
+          "expected": [
+            "5158",
+            "5, 158"
+          ],
           "confidence": null
         },
         {

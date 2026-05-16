@@ -21,10 +21,10 @@ f1 **0.692**, precision 0.692, recall 0.692, matched 36 of 68, pass=`false`
 | field_key | predicted (engine, on the form) | expected (current GT) |
 |---|---|---|
 | `explain_changes` | "occur working at style expert has middle age similar pressure lawyer choice again before 1 floor year. Stop work had later illness work couple success student during fight become outside they." | ["Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. outside they.", "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.", "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."] |
-| `applicant_employment_insurance` | 769 | 7969 |
+| `applicant_employment_insurance` | 769 | ["7969", "7, 969"] |
 | `applicant_workbc_financial_support` | 4802.89 | 9802.89 |
 | `applicant_private_pensions_retirement_disability` | 4333.79 | 4333.97 |
-| `applicant_oas_gis` | 7284.04 | 7289.04 |
+| `applicant_oas_gis` | 7284.04 | ["7289.04", "7, 289.04"] |
 | `applicant_trust_income` | 5347.54 | 5349.54 |
 | `applicant_tax_credits_gst_credit` | 5.765 | 5765 |
 | `applicant_income_tax_refund` | 2047.6 | 2049.6 |
@@ -47,7 +47,7 @@ f1 **0.712**, precision 0.712, recall 0.712, matched 37 of 67, pass=`false`
 | `checkbox_warrant_no` | "unselected" | "selected" |
 | `explain_changes` | "Area bolice government shelter note. etc Computer my value work before local action practice stay. Our late add cell language involve admit relloc not pay million avg. Strateg" | ["Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.", "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy."] |
 | `applicant_net_employment_income` | 7471.1 | 7971.1 |
-| `applicant_child_support` | 8310.23 | 8310.93 |
+| `applicant_child_support` | 8310.23 | ["8310.93", "8 , 310 . 93"] |
 | `applicant_rental_income` | 8747.25 | 8749.25 |
 | `applicant_oas_gis` | 2464.7 | ["2964.7", "$2964.70"] |
 | `applicant_child_tax_benefits` | 4258.14 | 9238.14 |
@@ -72,7 +72,7 @@ f1 **0.730**, precision 0.730, recall 0.730, matched 54 of 94, pass=`false`
 | `checkbox_school_spouse_no` | "selected" | "unselected" |
 | `checkbox_moved_spouse_yes` | "unselected" | "selected" |
 | `checkbox_moved_spouse_no` | "selected" | "unselected" |
-| `applicant_net_employment_income` | 1544.65 | 1594.65 |
+| `applicant_net_employment_income` | 1544.65 | ["1594.65", "$1,594.65"] |
 | `applicant_child_support` | 2326.45 | 2326.47 |
 | `applicant_workers_compensation` | 9406.37 | 9906.37 |
 | `applicant_trust_income` | 981 | 9181 |
@@ -95,8 +95,8 @@ f1 **0.730**, precision 0.730, recall 0.730, matched 54 of 94, pass=`false`
 | `explain_changes` | "fay started a clerical arrive at cabela's source contain while care paid tax tonight involve quality analysis. Weight drop conference low rate some final sound poor year example shoulder similar instead mean. Lot." | "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot." |
 | `checkbox_employment_changes_spouse_yes` | "unselected" | "selected" |
 | `checkbox_employment_changes_spouse_no` | "selected" | "unselected" |
-| `applicant_spousal_support_alimony` | 8500.13 | 8800.13 |
-| `applicant_child_support` | 717.97 | 7117.97 |
+| `applicant_spousal_support_alimony` | 8500.13 | ["8800.13", "8,800. 13"] |
+| `applicant_child_support` | 717.97 | ["7117.97", "7, 117.97"] |
 | `applicant_workbc_financial_support` | 784.75 | 7891.75 |
 | `applicant_student_funding_loans_bursaries` | 9182.5 | 9182 |
 | `applicant_rental_income` | 4351.55 | 9351.55 |

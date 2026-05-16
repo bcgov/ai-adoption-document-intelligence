@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-05-16T07:55:00.130Z",
+  "exportedAt": "2026-05-16T08:12:18.446Z",
   "exportFormatVersion": 1,
   "run": {
     "id": "b715b129-678a-4728-aaf9-0a834d604cc8",
@@ -17,58 +17,58 @@
       "total_samples": 40,
       "passing_samples": 38,
       "failing_samples": 2,
-      "precision.mean": 0.9465806408813322,
-      "precision.median": 0.9649014778325123,
-      "precision.stdDev": 0.07373654240751962,
-      "precision.p5": 0.8783076923076923,
-      "precision.p25": 0.9324324324324325,
-      "precision.p75": 0.9861586757990868,
+      "precision.mean": 0.9569280023224435,
+      "precision.median": 0.972972972972973,
+      "precision.stdDev": 0.06837503608975432,
+      "precision.p5": 0.8898904109589041,
+      "precision.p25": 0.9587614155251142,
+      "precision.p75": 0.9864864864864865,
       "precision.p95": 1,
-      "precision.min": 0.546875,
+      "precision.min": 0.578125,
       "precision.max": 1,
-      "recall.mean": 0.911450893199658,
-      "recall.median": 0.9586187214611872,
-      "recall.stdDev": 0.10879880806367768,
-      "recall.p5": 0.7101351351351352,
-      "recall.p25": 0.902027027027027,
-      "recall.p75": 0.9863013698630136,
+      "recall.mean": 0.921821999668199,
+      "recall.median": 0.9725975975975976,
+      "recall.stdDev": 0.10860804094928214,
+      "recall.p5": 0.7107332742578644,
+      "recall.p25": 0.9227799227799227,
+      "recall.p75": 0.9864864864864865,
       "recall.p95": 1,
-      "recall.min": 0.5737704918032787,
+      "recall.min": 0.5945945945945946,
       "recall.max": 1,
-      "f1.mean": 0.9265912714834563,
-      "f1.median": 0.9586187214611872,
-      "f1.stdDev": 0.08685925973377291,
+      "f1.mean": 0.9369498904170752,
+      "f1.median": 0.9727878563495003,
+      "f1.stdDev": 0.08480208448404176,
       "f1.p5": 0.8041861610440779,
-      "f1.p25": 0.9081695331695331,
-      "f1.p75": 0.9798861852433282,
+      "f1.p25": 0.9244558258642767,
+      "f1.p75": 0.9864864864864865,
       "f1.p95": 1,
-      "f1.min": 0.5599999999999999,
+      "f1.min": 0.592,
       "f1.max": 1,
-      "truePositives.mean": 64.325,
-      "truePositives.median": 69,
-      "truePositives.stdDev": 10.083123276048942,
-      "truePositives.p5": 44,
+      "truePositives.mean": 64.975,
+      "truePositives.median": 69.5,
+      "truePositives.stdDev": 9.732644810122274,
+      "truePositives.p5": 50.650000000000006,
       "truePositives.p25": 55.5,
-      "truePositives.p75": 72,
+      "truePositives.p75": 72.25,
       "truePositives.p95": 74,
-      "truePositives.min": 35,
+      "truePositives.min": 37,
       "truePositives.max": 74,
-      "falsePositives.mean": 3.525,
+      "falsePositives.mean": 2.875,
       "falsePositives.median": 2,
-      "falsePositives.stdDev": 4.6850160085105355,
+      "falsePositives.stdDev": 4.394243393349986,
       "falsePositives.p5": 0,
       "falsePositives.p25": 1,
-      "falsePositives.p75": 4.25,
-      "falsePositives.p95": 8,
+      "falsePositives.p75": 3,
+      "falsePositives.p95": 7.049999999999997,
       "falsePositives.min": 0,
-      "falsePositives.max": 29,
-      "falseNegatives.mean": 6.275,
-      "falseNegatives.median": 3,
-      "falseNegatives.stdDev": 7.655022860841111,
+      "falsePositives.max": 27,
+      "falseNegatives.mean": 5.625,
+      "falseNegatives.median": 2,
+      "falseNegatives.stdDev": 7.725566322283435,
       "falseNegatives.p5": 0,
       "falseNegatives.p25": 1,
-      "falseNegatives.p75": 7.25,
-      "falseNegatives.p95": 21.249999999999986,
+      "falseNegatives.p75": 5.5,
+      "falseNegatives.p95": 21.14999999999999,
       "falseNegatives.min": 0,
       "falseNegatives.max": 30,
       "totalGroundTruthFields.mean": 71.3,
@@ -80,14 +80,14 @@
       "totalGroundTruthFields.p95": 74.05,
       "totalGroundTruthFields.min": 52,
       "totalGroundTruthFields.max": 75,
-      "matchedFields.mean": 64.325,
-      "matchedFields.median": 69,
-      "matchedFields.stdDev": 10.083123276048942,
-      "matchedFields.p5": 44,
+      "matchedFields.mean": 64.975,
+      "matchedFields.median": 69.5,
+      "matchedFields.stdDev": 9.732644810122274,
+      "matchedFields.p5": 50.650000000000006,
       "matchedFields.p25": 55.5,
-      "matchedFields.p75": 72,
+      "matchedFields.p75": 72.25,
       "matchedFields.p95": 74,
-      "matchedFields.min": 35,
+      "matchedFields.min": 37,
       "matchedFields.max": 74,
       "checkboxAccuracy.mean": 0,
       "checkboxAccuracy.median": 0,
@@ -123,58 +123,58 @@
     "total_samples": 40,
     "passing_samples": 38,
     "failing_samples": 2,
-    "precision.mean": 0.9465806408813322,
-    "precision.median": 0.9649014778325123,
-    "precision.stdDev": 0.07373654240751962,
-    "precision.p5": 0.8783076923076923,
-    "precision.p25": 0.9324324324324325,
-    "precision.p75": 0.9861586757990868,
+    "precision.mean": 0.9569280023224435,
+    "precision.median": 0.972972972972973,
+    "precision.stdDev": 0.06837503608975432,
+    "precision.p5": 0.8898904109589041,
+    "precision.p25": 0.9587614155251142,
+    "precision.p75": 0.9864864864864865,
     "precision.p95": 1,
-    "precision.min": 0.546875,
+    "precision.min": 0.578125,
     "precision.max": 1,
-    "recall.mean": 0.911450893199658,
-    "recall.median": 0.9586187214611872,
-    "recall.stdDev": 0.10879880806367768,
-    "recall.p5": 0.7101351351351352,
-    "recall.p25": 0.902027027027027,
-    "recall.p75": 0.9863013698630136,
+    "recall.mean": 0.921821999668199,
+    "recall.median": 0.9725975975975976,
+    "recall.stdDev": 0.10860804094928214,
+    "recall.p5": 0.7107332742578644,
+    "recall.p25": 0.9227799227799227,
+    "recall.p75": 0.9864864864864865,
     "recall.p95": 1,
-    "recall.min": 0.5737704918032787,
+    "recall.min": 0.5945945945945946,
     "recall.max": 1,
-    "f1.mean": 0.9265912714834563,
-    "f1.median": 0.9586187214611872,
-    "f1.stdDev": 0.08685925973377291,
+    "f1.mean": 0.9369498904170752,
+    "f1.median": 0.9727878563495003,
+    "f1.stdDev": 0.08480208448404176,
     "f1.p5": 0.8041861610440779,
-    "f1.p25": 0.9081695331695331,
-    "f1.p75": 0.9798861852433282,
+    "f1.p25": 0.9244558258642767,
+    "f1.p75": 0.9864864864864865,
     "f1.p95": 1,
-    "f1.min": 0.5599999999999999,
+    "f1.min": 0.592,
     "f1.max": 1,
-    "truePositives.mean": 64.325,
-    "truePositives.median": 69,
-    "truePositives.stdDev": 10.083123276048942,
-    "truePositives.p5": 44,
+    "truePositives.mean": 64.975,
+    "truePositives.median": 69.5,
+    "truePositives.stdDev": 9.732644810122274,
+    "truePositives.p5": 50.650000000000006,
     "truePositives.p25": 55.5,
-    "truePositives.p75": 72,
+    "truePositives.p75": 72.25,
     "truePositives.p95": 74,
-    "truePositives.min": 35,
+    "truePositives.min": 37,
     "truePositives.max": 74,
-    "falsePositives.mean": 3.525,
+    "falsePositives.mean": 2.875,
     "falsePositives.median": 2,
-    "falsePositives.stdDev": 4.6850160085105355,
+    "falsePositives.stdDev": 4.394243393349986,
     "falsePositives.p5": 0,
     "falsePositives.p25": 1,
-    "falsePositives.p75": 4.25,
-    "falsePositives.p95": 8,
+    "falsePositives.p75": 3,
+    "falsePositives.p95": 7.049999999999997,
     "falsePositives.min": 0,
-    "falsePositives.max": 29,
-    "falseNegatives.mean": 6.275,
-    "falseNegatives.median": 3,
-    "falseNegatives.stdDev": 7.655022860841111,
+    "falsePositives.max": 27,
+    "falseNegatives.mean": 5.625,
+    "falseNegatives.median": 2,
+    "falseNegatives.stdDev": 7.725566322283435,
     "falseNegatives.p5": 0,
     "falseNegatives.p25": 1,
-    "falseNegatives.p75": 7.25,
-    "falseNegatives.p95": 21.249999999999986,
+    "falseNegatives.p75": 5.5,
+    "falseNegatives.p95": 21.14999999999999,
     "falseNegatives.min": 0,
     "falseNegatives.max": 30,
     "totalGroundTruthFields.mean": 71.3,
@@ -186,14 +186,14 @@
     "totalGroundTruthFields.p95": 74.05,
     "totalGroundTruthFields.min": 52,
     "totalGroundTruthFields.max": 75,
-    "matchedFields.mean": 64.325,
-    "matchedFields.median": 69,
-    "matchedFields.stdDev": 10.083123276048942,
-    "matchedFields.p5": 44,
+    "matchedFields.mean": 64.975,
+    "matchedFields.median": 69.5,
+    "matchedFields.stdDev": 9.732644810122274,
+    "matchedFields.p5": 50.650000000000006,
     "matchedFields.p25": 55.5,
-    "matchedFields.p75": 72,
+    "matchedFields.p75": 72.25,
     "matchedFields.p95": 74,
-    "matchedFields.min": 35,
+    "matchedFields.min": 37,
     "matchedFields.max": 74,
     "checkboxAccuracy.mean": 0,
     "checkboxAccuracy.median": 0,
@@ -321,10 +321,10 @@
       "field": "applicant_canada_pension_plan_cpp",
       "fieldType": "number",
       "totalCount": 40,
-      "correctCount": 28,
-      "errorCount": 12,
-      "accuracy": 0.7,
-      "errorRate": 0.30000000000000004,
+      "correctCount": 30,
+      "errorCount": 10,
+      "accuracy": 0.75,
+      "errorRate": 0.25,
       "errors": [
         {
           "sampleId": "81 blank",
@@ -368,16 +368,6 @@
           "expected": 223
         },
         {
-          "sampleId": "synth-full (2)",
-          "predicted": "3, 409",
-          "expected": 3409
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "6, 075 . 24",
-          "expected": 6075.24
-        },
-        {
           "sampleId": "synth-regular (1)",
           "predicted": "9, 198",
           "expected": null
@@ -385,13 +375,113 @@
       ]
     },
     {
+      "field": "applicant_oas_gis",
+      "fieldType": "number",
+      "totalCount": 40,
+      "correctCount": 31,
+      "errorCount": 9,
+      "accuracy": 0.775,
+      "errorRate": 0.22499999999999998,
+      "errors": [
+        {
+          "sampleId": "81 blank",
+          "expected": "0"
+        },
+        {
+          "sampleId": "81 coffee",
+          "expected": 0
+        },
+        {
+          "sampleId": "Fake 1",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 5",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 7",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (6)",
+          "predicted": "D",
+          "expected": "0"
+        },
+        {
+          "sampleId": "manual sample (2)",
+          "predicted": 742.89,
+          "expected": 742.84
+        },
+        {
+          "sampleId": "manual sample (7)",
+          "predicted": "-",
+          "expected": ""
+        }
+      ]
+    },
+    {
+      "field": "applicant_employment_insurance",
+      "fieldType": "number",
+      "totalCount": 40,
+      "correctCount": 31,
+      "errorCount": 9,
+      "accuracy": 0.775,
+      "errorRate": 0.22499999999999998,
+      "errors": [
+        {
+          "sampleId": "81 blank",
+          "predicted": 5,
+          "expected": "0"
+        },
+        {
+          "sampleId": "81 coffee",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 1",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 5",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 7",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (6)",
+          "predicted": "O",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "0"
+        },
+        {
+          "sampleId": "manual sample (9)",
+          "predicted": 10,
+          "expected": "0"
+        }
+      ]
+    },
+    {
       "field": "applicant_spousal_support_alimony",
       "fieldType": "string",
       "totalCount": 40,
-      "correctCount": 28,
-      "errorCount": 12,
-      "accuracy": 0.7,
-      "errorRate": 0.30000000000000004,
+      "correctCount": 31,
+      "errorCount": 9,
+      "accuracy": 0.775,
+      "errorRate": 0.22499999999999998,
       "errors": [
         {
           "sampleId": "1 81",
@@ -432,306 +522,6 @@
           "sampleId": "HR0081 (10)",
           "predicted": "O",
           "expected": "0"
-        },
-        {
-          "sampleId": "synth-full (2)",
-          "predicted": "3, 235.08",
-          "expected": 3235.08
-        },
-        {
-          "sampleId": "synth-full (3)",
-          "predicted": "8,800. 13",
-          "expected": 8800.13
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "2, 101",
-          "expected": 2101
-        }
-      ]
-    },
-    {
-      "field": "applicant_employment_insurance",
-      "fieldType": "number",
-      "totalCount": 40,
-      "correctCount": 29,
-      "errorCount": 11,
-      "accuracy": 0.725,
-      "errorRate": 0.275,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "predicted": 5,
-          "expected": "0"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 1",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 4",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 5",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 7",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "O",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (9)",
-          "predicted": "0\n0",
-          "expected": 0
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "manual sample (9)",
-          "predicted": 10,
-          "expected": "0"
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "7, 969",
-          "expected": 7969
-        }
-      ]
-    },
-    {
-      "field": "applicant_net_employment_income",
-      "fieldType": "number",
-      "totalCount": 40,
-      "correctCount": 29,
-      "errorCount": 11,
-      "accuracy": 0.725,
-      "errorRate": 0.275,
-      "errors": [
-        {
-          "sampleId": "81 coffee",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 1",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 2",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 3",
-          "expected": "N/A"
-        },
-        {
-          "sampleId": "Fake 5",
-          "expected": "500"
-        },
-        {
-          "sampleId": "HR0081 (3)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "manual sample (2)",
-          "predicted": 1,
-          "expected": ""
-        },
-        {
-          "sampleId": "synth-full (1)",
-          "predicted": "$1,594.65",
-          "expected": 1594.65
-        },
-        {
-          "sampleId": "synth-full (2)",
-          "predicted": "$1,277.85",
-          "expected": 1277.85
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "$2,711.64",
-          "expected": 2711.64
-        }
-      ]
-    },
-    {
-      "field": "applicant_oas_gis",
-      "fieldType": "number",
-      "totalCount": 40,
-      "correctCount": 30,
-      "errorCount": 10,
-      "accuracy": 0.75,
-      "errorRate": 0.25,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "expected": "0"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": 0
-        },
-        {
-          "sampleId": "Fake 1",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 4",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 5",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 7",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "D",
-          "expected": "0"
-        },
-        {
-          "sampleId": "manual sample (2)",
-          "predicted": 742.89,
-          "expected": 742.84
-        },
-        {
-          "sampleId": "manual sample (7)",
-          "predicted": "-",
-          "expected": ""
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "7, 289.04",
-          "expected": 7289.04
-        }
-      ]
-    },
-    {
-      "field": "applicant_child_support",
-      "fieldType": "number",
-      "totalCount": 40,
-      "correctCount": 30,
-      "errorCount": 10,
-      "accuracy": 0.75,
-      "errorRate": 0.25,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "predicted": "E",
-          "expected": "0"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 1",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 4",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 5",
-          "expected": "250.50"
-        },
-        {
-          "sampleId": "HR0081 (9)",
-          "expected": 0
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "synth-full (3)",
-          "predicted": "7, 117.97",
-          "expected": 7117.97
-        },
-        {
-          "sampleId": "synth-no-spouse (1)",
-          "predicted": "8 , 310 . 93",
-          "expected": 8310.93
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "8, 452 . 18",
-          "expected": 8452.18
-        }
-      ]
-    },
-    {
-      "field": "applicant_income_tax_refund",
-      "fieldType": "string",
-      "totalCount": 40,
-      "correctCount": 31,
-      "errorCount": 9,
-      "accuracy": 0.775,
-      "errorRate": 0.22499999999999998,
-      "errors": [
-        {
-          "sampleId": "1 81",
-          "predicted": 6000,
-          "expected": [
-            "60.00",
-            "60"
-          ]
-        },
-        {
-          "sampleId": "81 blank",
-          "predicted": "0\n0",
-          "expected": "0"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 1",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 4",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (9)",
-          "predicted": "D",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "predicted": "O",
-          "expected": "0"
-        },
-        {
-          "sampleId": "manual sample (7)",
-          "predicted": 2680,
-          "expected": ""
-        },
-        {
-          "sampleId": "synth-full (1)",
-          "predicted": "$1,143.66",
-          "expected": 1143.66
         }
       ]
     },
@@ -949,53 +739,7 @@
       ]
     },
     {
-      "field": "applicant_child_tax_benefits",
-      "fieldType": "number",
-      "totalCount": 40,
-      "correctCount": 32,
-      "errorCount": 8,
-      "accuracy": 0.8,
-      "errorRate": 0.19999999999999996,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "predicted": "0\n0",
-          "expected": "0"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 1",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 4",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 5",
-          "predicted": "412 xx",
-          "expected": "412"
-        },
-        {
-          "sampleId": "Fake 7",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "3, 06 3",
-          "expected": 3063
-        }
-      ]
-    },
-    {
-      "field": "applicant_workers_compensation",
+      "field": "applicant_net_employment_income",
       "fieldType": "number",
       "totalCount": 40,
       "correctCount": 32,
@@ -1012,32 +756,29 @@
           "expected": "0"
         },
         {
-          "sampleId": "Fake 4",
+          "sampleId": "Fake 2",
           "expected": "0"
+        },
+        {
+          "sampleId": "Fake 3",
+          "expected": "N/A"
         },
         {
           "sampleId": "Fake 5",
-          "expected": "0"
+          "expected": "500"
         },
         {
-          "sampleId": "HR0081 (9)",
-          "predicted": "D",
+          "sampleId": "HR0081 (3)",
           "expected": "0"
         },
         {
           "sampleId": "HR0081 (10)",
-          "predicted": "O",
           "expected": "0"
         },
         {
-          "sampleId": "synth-full (2)",
-          "predicted": "5, 210.48",
-          "expected": 5210.48
-        },
-        {
-          "sampleId": "synth-no-spouse (1)",
-          "predicted": "3, 648",
-          "expected": 3648
+          "sampleId": "manual sample (2)",
+          "predicted": 1,
+          "expected": ""
         }
       ]
     },
@@ -1134,17 +875,17 @@
       ]
     },
     {
-      "field": "applicant_private_pensions_retirement_disability",
+      "field": "applicant_child_support",
       "fieldType": "number",
       "totalCount": 40,
-      "correctCount": 32,
-      "errorCount": 8,
-      "accuracy": 0.8,
-      "errorRate": 0.19999999999999996,
+      "correctCount": 33,
+      "errorCount": 7,
+      "accuracy": 0.825,
+      "errorRate": 0.17500000000000004,
       "errors": [
         {
           "sampleId": "81 blank",
-          "predicted": "5 0",
+          "predicted": "E",
           "expected": "0"
         },
         {
@@ -1161,20 +902,15 @@
         },
         {
           "sampleId": "Fake 5",
+          "expected": "250.50"
+        },
+        {
+          "sampleId": "HR0081 (9)",
+          "expected": 0
+        },
+        {
+          "sampleId": "HR0081 (10)",
           "expected": "0"
-        },
-        {
-          "sampleId": "Fake 7",
-          "expected": "0"
-        },
-        {
-          "sampleId": "manual sample (6)",
-          "expected": 480.23
-        },
-        {
-          "sampleId": "synth-no-spouse (1)",
-          "predicted": "$1,341.05",
-          "expected": 1341.05
         }
       ]
     },
@@ -1220,7 +956,7 @@
       ]
     },
     {
-      "field": "applicant_other_income_money_received",
+      "field": "applicant_income_tax_refund",
       "fieldType": "string",
       "totalCount": 40,
       "correctCount": 33,
@@ -1230,8 +966,11 @@
       "errors": [
         {
           "sampleId": "1 81",
-          "predicted": "o",
-          "expected": "0"
+          "predicted": 6000,
+          "expected": [
+            "60.00",
+            "60"
+          ]
         },
         {
           "sampleId": "81 coffee",
@@ -1246,19 +985,19 @@
           "expected": "0"
         },
         {
-          "sampleId": "Fake 7",
-          "predicted": "$",
+          "sampleId": "HR0081 (9)",
+          "predicted": "D",
           "expected": "0"
         },
         {
-          "sampleId": "HR0081 (9)",
-          "predicted": 72,
-          "expected": "22"
+          "sampleId": "HR0081 (10)",
+          "predicted": "O",
+          "expected": "0"
         },
         {
-          "sampleId": "synth-regular (1)",
-          "predicted": "5, 158",
-          "expected": 5158
+          "sampleId": "manual sample (7)",
+          "predicted": 2680,
+          "expected": ""
         }
       ]
     },
@@ -1304,6 +1043,46 @@
       ]
     },
     {
+      "field": "applicant_private_pensions_retirement_disability",
+      "fieldType": "number",
+      "totalCount": 40,
+      "correctCount": 33,
+      "errorCount": 7,
+      "accuracy": 0.825,
+      "errorRate": 0.17500000000000004,
+      "errors": [
+        {
+          "sampleId": "81 blank",
+          "predicted": "5 0",
+          "expected": "0"
+        },
+        {
+          "sampleId": "81 coffee",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 1",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 5",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 7",
+          "expected": "0"
+        },
+        {
+          "sampleId": "manual sample (6)",
+          "expected": 480.23
+        }
+      ]
+    },
+    {
       "field": "applicant_room_board_income",
       "fieldType": "number",
       "totalCount": 40,
@@ -1336,6 +1115,117 @@
           "sampleId": "HR0081 (6)",
           "predicted": "O",
           "expected": "0"
+        }
+      ]
+    },
+    {
+      "field": "applicant_child_tax_benefits",
+      "fieldType": "number",
+      "totalCount": 40,
+      "correctCount": 34,
+      "errorCount": 6,
+      "accuracy": 0.85,
+      "errorRate": 0.15000000000000002,
+      "errors": [
+        {
+          "sampleId": "81 coffee",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 1",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 5",
+          "predicted": "412 xx",
+          "expected": "412"
+        },
+        {
+          "sampleId": "Fake 7",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "0"
+        }
+      ]
+    },
+    {
+      "field": "applicant_workers_compensation",
+      "fieldType": "number",
+      "totalCount": 40,
+      "correctCount": 34,
+      "errorCount": 6,
+      "accuracy": 0.85,
+      "errorRate": 0.15000000000000002,
+      "errors": [
+        {
+          "sampleId": "81 coffee",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 1",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 5",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (9)",
+          "predicted": "D",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "predicted": "O",
+          "expected": "0"
+        }
+      ]
+    },
+    {
+      "field": "applicant_other_income_money_received",
+      "fieldType": "string",
+      "totalCount": 40,
+      "correctCount": 34,
+      "errorCount": 6,
+      "accuracy": 0.85,
+      "errorRate": 0.15000000000000002,
+      "errors": [
+        {
+          "sampleId": "1 81",
+          "predicted": "o",
+          "expected": "0"
+        },
+        {
+          "sampleId": "81 coffee",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 1",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 7",
+          "predicted": "$",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (9)",
+          "predicted": 72,
+          "expected": "22"
         }
       ]
     },
@@ -1431,61 +1321,6 @@
       ]
     },
     {
-      "field": "spouse_spousal_support_alimony",
-      "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 31,
-      "errorCount": 4,
-      "accuracy": 0.8857142857142857,
-      "errorRate": 0.11428571428571432,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "predicted": "a",
-          "expected": ""
-        },
-        {
-          "sampleId": "HR0081 (8)",
-          "expected": "16"
-        },
-        {
-          "sampleId": "HR0081 (9)",
-          "predicted": 1,
-          "expected": "0"
-        },
-        {
-          "sampleId": "synth-full (3)",
-          "predicted": "1, 095.14",
-          "expected": 1095.14
-        }
-      ]
-    },
-    {
-      "field": "spouse_oas_gis",
-      "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 32,
-      "errorCount": 3,
-      "accuracy": 0.9142857142857143,
-      "errorRate": 0.08571428571428574,
-      "errors": [
-        {
-          "sampleId": "HR0081 (9)",
-          "predicted": 5,
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "synth-full (1)",
-          "predicted": "2, 326 . 11",
-          "expected": 2326.11
-        }
-      ]
-    },
-    {
       "field": "spouse_trust_income",
       "fieldType": "string",
       "totalCount": 35,
@@ -1560,31 +1395,6 @@
       ]
     },
     {
-      "field": "spouse_tax_credits_gst_credit",
-      "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 32,
-      "errorCount": 3,
-      "accuracy": 0.9142857142857143,
-      "errorRate": 0.08571428571428574,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "predicted": 5,
-          "expected": ""
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "synth-full (2)",
-          "predicted": "3, 487. 15",
-          "expected": 3487.15
-        }
-      ]
-    },
-    {
       "field": "spouse_canada_pension_plan_cpp",
       "fieldType": "string",
       "totalCount": 35,
@@ -1609,7 +1419,7 @@
       ]
     },
     {
-      "field": "spouse_workbc_financial_support",
+      "field": "spouse_spousal_support_alimony",
       "fieldType": "string",
       "totalCount": 35,
       "correctCount": 32,
@@ -1619,17 +1429,17 @@
       "errors": [
         {
           "sampleId": "81 blank",
-          "predicted": 1,
+          "predicted": "a",
           "expected": ""
         },
         {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
+          "sampleId": "HR0081 (8)",
+          "expected": "16"
         },
         {
-          "sampleId": "synth-full (3)",
-          "predicted": "1, 11 3",
-          "expected": 1113
+          "sampleId": "HR0081 (9)",
+          "predicted": 1,
+          "expected": "0"
         }
       ]
     },
@@ -1860,6 +1670,26 @@
       ]
     },
     {
+      "field": "spouse_oas_gis",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 33,
+      "errorCount": 2,
+      "accuracy": 0.9428571428571428,
+      "errorRate": 0.05714285714285716,
+      "errors": [
+        {
+          "sampleId": "HR0081 (9)",
+          "predicted": 5,
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "0"
+        }
+      ]
+    },
+    {
       "field": "spouse_child_tax_benefits",
       "fieldType": "string",
       "totalCount": 35,
@@ -1871,6 +1701,46 @@
         {
           "sampleId": "81 blank",
           "predicted": "1\n5",
+          "expected": ""
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "0"
+        }
+      ]
+    },
+    {
+      "field": "spouse_tax_credits_gst_credit",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 33,
+      "errorCount": 2,
+      "accuracy": 0.9428571428571428,
+      "errorRate": 0.05714285714285716,
+      "errors": [
+        {
+          "sampleId": "81 blank",
+          "predicted": 5,
+          "expected": ""
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "0"
+        }
+      ]
+    },
+    {
+      "field": "spouse_workbc_financial_support",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 33,
+      "errorCount": 2,
+      "accuracy": 0.9428571428571428,
+      "errorRate": 0.05714285714285716,
+      "errors": [
+        {
+          "sampleId": "81 blank",
+          "predicted": 1,
           "expected": ""
         },
         {
@@ -6027,20 +5897,20 @@
       "sampleId": "81 blank",
       "metadata": {},
       "metrics": {
-        "precision": 0.546875,
-        "recall": 0.5737704918032787,
-        "f1": 0.5599999999999999,
-        "truePositives": 35,
-        "falsePositives": 29,
-        "falseNegatives": 26,
+        "precision": 0.578125,
+        "recall": 0.6065573770491803,
+        "f1": 0.592,
+        "truePositives": 37,
+        "falsePositives": 27,
+        "falseNegatives": 24,
         "totalGroundTruthFields": 75,
-        "matchedFields": 35,
+        "matchedFields": 37,
         "checkboxAccuracy": 0
       },
       "pass": false,
       "diagnostics": {
         "totalFields": 75,
-        "matchedFields": 35,
+        "matchedFields": 37,
         "missingFields": [
           "sin",
           "name",
@@ -6085,16 +5955,6 @@
             "field": "checkbox_moved_spouse_yes",
             "expected": "unselected",
             "predicted": "selected"
-          },
-          {
-            "field": "applicant_income_tax_refund",
-            "expected": "0",
-            "predicted": "0\n0"
-          },
-          {
-            "field": "applicant_child_tax_benefits",
-            "expected": "0",
-            "predicted": "0\n0"
           },
           {
             "field": "applicant_employment_insurance",
@@ -6437,9 +6297,12 @@
           },
           {
             "field": "applicant_income_tax_refund",
-            "matched": false,
+            "matched": true,
             "predicted": "0\n0",
-            "expected": "0",
+            "expected": [
+              "0",
+              "0\n0"
+            ],
             "confidence": null
           },
           {
@@ -6478,9 +6341,12 @@
           },
           {
             "field": "applicant_child_tax_benefits",
-            "matched": false,
+            "matched": true,
             "predicted": "0\n0",
-            "expected": "0",
+            "expected": [
+              "0",
+              "0\n0"
+            ],
             "confidence": null
           },
           {
@@ -6702,13 +6568,19 @@
         "checkbox_family_assets_yes": "selected",
         "checkbox_school_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "unselected",
-        "applicant_income_tax_refund": "0",
+        "applicant_income_tax_refund": [
+          "0",
+          "0\n0"
+        ],
         "applicant_room_board_income": "0",
         "checkbox_need_assistance_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
         "spouse_employment_insurance": "",
         "spouse_workers_compensation": "",
-        "applicant_child_tax_benefits": "0",
+        "applicant_child_tax_benefits": [
+          "0",
+          "0\n0"
+        ],
         "checkbox_need_assistance_yes": "selected",
         "spouse_net_employment_income": "",
         "spouse_tax_credits_gst_credit": "",
@@ -7116,9 +6988,12 @@
         },
         {
           "field": "applicant_income_tax_refund",
-          "matched": false,
+          "matched": true,
           "predicted": "0\n0",
-          "expected": "0",
+          "expected": [
+            "0",
+            "0\n0"
+          ],
           "confidence": null
         },
         {
@@ -7157,9 +7032,12 @@
         },
         {
           "field": "applicant_child_tax_benefits",
-          "matched": false,
+          "matched": true,
           "predicted": "0\n0",
-          "expected": "0",
+          "expected": [
+            "0",
+            "0\n0"
+          ],
           "confidence": null
         },
         {
@@ -26796,20 +26674,20 @@
       "sampleId": "HR0081 (9)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8857142857142857,
-        "recall": 0.8493150684931506,
-        "f1": 0.8671328671328671,
-        "truePositives": 62,
-        "falsePositives": 8,
-        "falseNegatives": 11,
+        "precision": 0.9,
+        "recall": 0.863013698630137,
+        "f1": 0.881118881118881,
+        "truePositives": 63,
+        "falsePositives": 7,
+        "falseNegatives": 10,
         "totalGroundTruthFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "missingFields": [
           "applicant_child_support",
           "spouse_income_tax_refund",
@@ -26832,11 +26710,6 @@
             "field": "spouse_workers_compensation",
             "expected": "0",
             "predicted": 8
-          },
-          {
-            "field": "applicant_employment_insurance",
-            "expected": 0,
-            "predicted": "0\n0"
           },
           {
             "field": "applicant_workers_compensation",
@@ -27238,9 +27111,12 @@
           },
           {
             "field": "applicant_employment_insurance",
-            "matched": false,
+            "matched": true,
             "predicted": "0\n0",
-            "expected": 0,
+            "expected": [
+              "0",
+              "0\n0"
+            ],
             "confidence": null
           },
           {
@@ -27449,7 +27325,10 @@
         "checkbox_need_assistance_yes": "selected",
         "spouse_net_employment_income": 100,
         "spouse_tax_credits_gst_credit": 0,
-        "applicant_employment_insurance": 0,
+        "applicant_employment_insurance": [
+          "0",
+          "0\n0"
+        ],
         "applicant_workers_compensation": "0",
         "checkbox_employment_changes_no": "selected",
         "spouse_canada_pension_plan_cpp": 0,
@@ -27932,9 +27811,12 @@
         },
         {
           "field": "applicant_employment_insurance",
-          "matched": false,
+          "matched": true,
           "predicted": "0\n0",
-          "expected": 0,
+          "expected": [
+            "0",
+            "0\n0"
+          ],
           "confidence": null
         },
         {
@@ -41988,39 +41870,23 @@
       "sampleId": "synth-full (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9594594594594594,
-        "recall": 0.9594594594594594,
-        "f1": 0.9594594594594594,
-        "truePositives": 71,
-        "falsePositives": 3,
-        "falseNegatives": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "truePositives": 74,
+        "falsePositives": 0,
+        "falseNegatives": 0,
         "totalGroundTruthFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 74,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 71,
+        "matchedFields": 74,
         "missingFields": [],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "applicant_net_employment_income",
-            "expected": 1594.65,
-            "predicted": "$1,594.65"
-          },
-          {
-            "field": "applicant_income_tax_refund",
-            "expected": 1143.66,
-            "predicted": "$1,143.66"
-          },
-          {
-            "field": "spouse_oas_gis",
-            "expected": 2326.11,
-            "predicted": "2, 326 . 11"
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "checkbox_need_assistance_yes",
@@ -42230,9 +42096,12 @@
           },
           {
             "field": "applicant_net_employment_income",
-            "matched": false,
+            "matched": true,
             "predicted": "$1,594.65",
-            "expected": 1594.65,
+            "expected": [
+              "1594.65",
+              "$1,594.65"
+            ],
             "confidence": null
           },
           {
@@ -42341,9 +42210,12 @@
           },
           {
             "field": "applicant_income_tax_refund",
-            "matched": false,
+            "matched": true,
             "predicted": "$1,143.66",
-            "expected": 1143.66,
+            "expected": [
+              "1143.66",
+              "$1,143.66"
+            ],
             "confidence": null
           },
           {
@@ -42432,9 +42304,12 @@
           },
           {
             "field": "spouse_oas_gis",
-            "matched": false,
+            "matched": true,
             "predicted": "2, 326 . 11",
-            "expected": 2326.11,
+            "expected": [
+              "2326.11",
+              "2, 326 . 11"
+            ],
             "confidence": null
           },
           {
@@ -42601,7 +42476,10 @@
         "checkbox_moved_spouse_no": "unselected",
         "checkbox_warrant_spouse_yes": "selected",
         "checkbox_warrant_spouse_no": "unselected",
-        "applicant_net_employment_income": 1594.65,
+        "applicant_net_employment_income": [
+          "1594.65",
+          "$1,594.65"
+        ],
         "applicant_employment_insurance": 8740.25,
         "applicant_spousal_support_alimony": 289,
         "applicant_child_support": 2326.47,
@@ -42622,7 +42500,10 @@
           "3181.38",
           "$3181.38"
         ],
-        "applicant_income_tax_refund": 1143.66,
+        "applicant_income_tax_refund": [
+          "1143.66",
+          "$1,143.66"
+        ],
         "applicant_other_income_money_received": 6578.34,
         "applicant_income_of_dependent_children": 9495.78,
         "spouse_net_employment_income": 3472,
@@ -42635,7 +42516,10 @@
         "spouse_room_board_income": 6973,
         "spouse_workers_compensation": 7431.61,
         "spouse_private_pensions_retirement_disability": 9433.75,
-        "spouse_oas_gis": 2326.11,
+        "spouse_oas_gis": [
+          "2326.11",
+          "2, 326 . 11"
+        ],
         "spouse_trust_income": 4269,
         "spouse_canada_pension_plan_cpp": 4637.71,
         "spouse_tax_credits_gst_credit": 76.59,
@@ -42956,9 +42840,12 @@
         },
         {
           "field": "applicant_net_employment_income",
-          "matched": false,
+          "matched": true,
           "predicted": "$1,594.65",
-          "expected": 1594.65,
+          "expected": [
+            "1594.65",
+            "$1,594.65"
+          ],
           "confidence": null
         },
         {
@@ -43067,9 +42954,12 @@
         },
         {
           "field": "applicant_income_tax_refund",
-          "matched": false,
+          "matched": true,
           "predicted": "$1,143.66",
-          "expected": 1143.66,
+          "expected": [
+            "1143.66",
+            "$1,143.66"
+          ],
           "confidence": null
         },
         {
@@ -43158,9 +43048,12 @@
         },
         {
           "field": "spouse_oas_gis",
-          "matched": false,
+          "matched": true,
           "predicted": "2, 326 . 11",
-          "expected": 2326.11,
+          "expected": [
+            "2326.11",
+            "2, 326 . 11"
+          ],
           "confidence": null
         },
         {
@@ -43299,48 +43192,23 @@
       "sampleId": "synth-full (2)",
       "metadata": {},
       "metrics": {
-        "precision": 0.918918918918919,
-        "recall": 0.918918918918919,
-        "f1": 0.918918918918919,
-        "truePositives": 68,
-        "falsePositives": 6,
-        "falseNegatives": 6,
+        "precision": 0.9864864864864865,
+        "recall": 0.9864864864864865,
+        "f1": 0.9864864864864865,
+        "truePositives": 73,
+        "falsePositives": 1,
+        "falseNegatives": 1,
         "totalGroundTruthFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 73,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 73,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
-          {
-            "field": "applicant_net_employment_income",
-            "expected": 1277.85,
-            "predicted": "$1,277.85"
-          },
-          {
-            "field": "applicant_spousal_support_alimony",
-            "expected": 3235.08,
-            "predicted": "3, 235.08"
-          },
-          {
-            "field": "applicant_workers_compensation",
-            "expected": 5210.48,
-            "predicted": "5, 210.48"
-          },
-          {
-            "field": "applicant_canada_pension_plan_cpp",
-            "expected": 3409,
-            "predicted": "3, 409"
-          },
-          {
-            "field": "spouse_tax_credits_gst_credit",
-            "expected": 3487.15,
-            "predicted": "3, 487. 15"
-          },
           {
             "field": "spouse_date",
             "expected": [
@@ -43560,9 +43428,12 @@
           },
           {
             "field": "applicant_net_employment_income",
-            "matched": false,
+            "matched": true,
             "predicted": "$1,277.85",
-            "expected": 1277.85,
+            "expected": [
+              "1277.85",
+              "$1,277.85"
+            ],
             "confidence": null
           },
           {
@@ -43574,9 +43445,12 @@
           },
           {
             "field": "applicant_spousal_support_alimony",
-            "matched": false,
+            "matched": true,
             "predicted": "3, 235.08",
-            "expected": 3235.08,
+            "expected": [
+              "3235.08",
+              "3, 235.08"
+            ],
             "confidence": null
           },
           {
@@ -43616,9 +43490,12 @@
           },
           {
             "field": "applicant_workers_compensation",
-            "matched": false,
+            "matched": true,
             "predicted": "5, 210.48",
-            "expected": 5210.48,
+            "expected": [
+              "5210.48",
+              "5, 210.48"
+            ],
             "confidence": null
           },
           {
@@ -43644,9 +43521,12 @@
           },
           {
             "field": "applicant_canada_pension_plan_cpp",
-            "matched": false,
+            "matched": true,
             "predicted": "3, 409",
-            "expected": 3409,
+            "expected": [
+              "3409",
+              "3, 409"
+            ],
             "confidence": null
           },
           {
@@ -43780,9 +43660,12 @@
           },
           {
             "field": "spouse_tax_credits_gst_credit",
-            "matched": false,
+            "matched": true,
             "predicted": "3, 487. 15",
-            "expected": 3487.15,
+            "expected": [
+              "3487.15",
+              "3, 487. 15"
+            ],
             "confidence": null
           },
           {
@@ -43938,19 +43821,31 @@
         "checkbox_moved_spouse_no": "selected",
         "checkbox_warrant_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_net_employment_income": 1277.85,
+        "applicant_net_employment_income": [
+          "1277.85",
+          "$1,277.85"
+        ],
         "applicant_employment_insurance": 9087.14,
-        "applicant_spousal_support_alimony": 3235.08,
+        "applicant_spousal_support_alimony": [
+          "3235.08",
+          "3, 235.08"
+        ],
         "applicant_child_support": 606.79,
         "applicant_workbc_financial_support": 2144.2,
         "applicant_student_funding_loans_bursaries": 2549.68,
         "applicant_rental_income": 6110,
         "applicant_room_board_income": 3534.68,
-        "applicant_workers_compensation": 5210.48,
+        "applicant_workers_compensation": [
+          "5210.48",
+          "5, 210.48"
+        ],
         "applicant_private_pensions_retirement_disability": 8510.23,
         "applicant_oas_gis": 6129.44,
         "applicant_trust_income": 6988,
-        "applicant_canada_pension_plan_cpp": 3409,
+        "applicant_canada_pension_plan_cpp": [
+          "3409",
+          "3, 409"
+        ],
         "applicant_tax_credits_gst_credit": 9691.67,
         "applicant_child_tax_benefits": 955.18,
         "applicant_income_tax_refund": 4572.86,
@@ -43972,7 +43867,10 @@
         "spouse_oas_gis": 9496,
         "spouse_trust_income": 2534,
         "spouse_canada_pension_plan_cpp": 9271,
-        "spouse_tax_credits_gst_credit": 3487.15,
+        "spouse_tax_credits_gst_credit": [
+          "3487.15",
+          "3, 487. 15"
+        ],
         "spouse_child_tax_benefits": [
           "6780.97",
           "$6780.97"
@@ -44300,9 +44198,12 @@
         },
         {
           "field": "applicant_net_employment_income",
-          "matched": false,
+          "matched": true,
           "predicted": "$1,277.85",
-          "expected": 1277.85,
+          "expected": [
+            "1277.85",
+            "$1,277.85"
+          ],
           "confidence": null
         },
         {
@@ -44314,9 +44215,12 @@
         },
         {
           "field": "applicant_spousal_support_alimony",
-          "matched": false,
+          "matched": true,
           "predicted": "3, 235.08",
-          "expected": 3235.08,
+          "expected": [
+            "3235.08",
+            "3, 235.08"
+          ],
           "confidence": null
         },
         {
@@ -44356,9 +44260,12 @@
         },
         {
           "field": "applicant_workers_compensation",
-          "matched": false,
+          "matched": true,
           "predicted": "5, 210.48",
-          "expected": 5210.48,
+          "expected": [
+            "5210.48",
+            "5, 210.48"
+          ],
           "confidence": null
         },
         {
@@ -44384,9 +44291,12 @@
         },
         {
           "field": "applicant_canada_pension_plan_cpp",
-          "matched": false,
+          "matched": true,
           "predicted": "3, 409",
-          "expected": 3409,
+          "expected": [
+            "3409",
+            "3, 409"
+          ],
           "confidence": null
         },
         {
@@ -44520,9 +44430,12 @@
         },
         {
           "field": "spouse_tax_credits_gst_credit",
-          "matched": false,
+          "matched": true,
           "predicted": "3, 487. 15",
-          "expected": 3487.15,
+          "expected": [
+            "3487.15",
+            "3, 487. 15"
+          ],
           "confidence": null
         },
         {
@@ -44650,20 +44563,20 @@
       "sampleId": "synth-full (3)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9324324324324325,
-        "recall": 0.9324324324324325,
-        "f1": 0.9324324324324325,
-        "truePositives": 69,
-        "falsePositives": 5,
-        "falseNegatives": 5,
+        "precision": 0.9864864864864865,
+        "recall": 0.9864864864864865,
+        "f1": 0.9864864864864865,
+        "truePositives": 73,
+        "falsePositives": 1,
+        "falseNegatives": 1,
         "totalGroundTruthFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 73,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 73,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -44671,26 +44584,6 @@
             "field": "explain_changes",
             "expected": "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot.",
             "predicted": "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot."
-          },
-          {
-            "field": "applicant_spousal_support_alimony",
-            "expected": 8800.13,
-            "predicted": "8,800. 13"
-          },
-          {
-            "field": "applicant_child_support",
-            "expected": 7117.97,
-            "predicted": "7, 117.97"
-          },
-          {
-            "field": "spouse_spousal_support_alimony",
-            "expected": 1095.14,
-            "predicted": "1, 095.14"
-          },
-          {
-            "field": "spouse_workbc_financial_support",
-            "expected": 1113,
-            "predicted": "1, 11 3"
           }
         ],
         "comparisonResults": [
@@ -44916,16 +44809,22 @@
           },
           {
             "field": "applicant_spousal_support_alimony",
-            "matched": false,
+            "matched": true,
             "predicted": "8,800. 13",
-            "expected": 8800.13,
+            "expected": [
+              "8800.13",
+              "8,800. 13"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_child_support",
-            "matched": false,
+            "matched": true,
             "predicted": "7, 117.97",
-            "expected": 7117.97,
+            "expected": [
+              "7117.97",
+              "7, 117.97"
+            ],
             "confidence": null
           },
           {
@@ -45042,9 +44941,12 @@
           },
           {
             "field": "spouse_spousal_support_alimony",
-            "matched": false,
+            "matched": true,
             "predicted": "1, 095.14",
-            "expected": 1095.14,
+            "expected": [
+              "1095.14",
+              "1, 095.14"
+            ],
             "confidence": null
           },
           {
@@ -45056,9 +44958,12 @@
           },
           {
             "field": "spouse_workbc_financial_support",
-            "matched": false,
+            "matched": true,
             "predicted": "1, 11 3",
-            "expected": 1113,
+            "expected": [
+              "1113",
+              "1, 11 3"
+            ],
             "confidence": null
           },
           {
@@ -45272,8 +45177,14 @@
           "$117.12"
         ],
         "applicant_employment_insurance": 1278,
-        "applicant_spousal_support_alimony": 8800.13,
-        "applicant_child_support": 7117.97,
+        "applicant_spousal_support_alimony": [
+          "8800.13",
+          "8,800. 13"
+        ],
+        "applicant_child_support": [
+          "7117.97",
+          "7, 117.97"
+        ],
         "applicant_workbc_financial_support": 7891.75,
         "applicant_student_funding_loans_bursaries": 9182,
         "applicant_rental_income": 9351.55,
@@ -45290,9 +45201,15 @@
         "applicant_income_of_dependent_children": 1797,
         "spouse_net_employment_income": 6214.03,
         "spouse_employment_insurance": 26,
-        "spouse_spousal_support_alimony": 1095.14,
+        "spouse_spousal_support_alimony": [
+          "1095.14",
+          "1, 095.14"
+        ],
         "spouse_child_support": 9628.11,
-        "spouse_workbc_financial_support": 1113,
+        "spouse_workbc_financial_support": [
+          "1113",
+          "1, 11 3"
+        ],
         "spouse_student_funding_loans_bursaries": 5837.89,
         "spouse_rental_income": 8391.6,
         "spouse_room_board_income": 3135.83,
@@ -45636,16 +45553,22 @@
         },
         {
           "field": "applicant_spousal_support_alimony",
-          "matched": false,
+          "matched": true,
           "predicted": "8,800. 13",
-          "expected": 8800.13,
+          "expected": [
+            "8800.13",
+            "8,800. 13"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_child_support",
-          "matched": false,
+          "matched": true,
           "predicted": "7, 117.97",
-          "expected": 7117.97,
+          "expected": [
+            "7117.97",
+            "7, 117.97"
+          ],
           "confidence": null
         },
         {
@@ -45762,9 +45685,12 @@
         },
         {
           "field": "spouse_spousal_support_alimony",
-          "matched": false,
+          "matched": true,
           "predicted": "1, 095.14",
-          "expected": 1095.14,
+          "expected": [
+            "1095.14",
+            "1, 095.14"
+          ],
           "confidence": null
         },
         {
@@ -45776,9 +45702,12 @@
         },
         {
           "field": "spouse_workbc_financial_support",
-          "matched": false,
+          "matched": true,
           "predicted": "1, 11 3",
-          "expected": 1113,
+          "expected": [
+            "1113",
+            "1, 11 3"
+          ],
           "confidence": null
         },
         {
@@ -45962,39 +45891,23 @@
       "sampleId": "synth-no-spouse (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9423076923076923,
-        "recall": 0.9423076923076923,
-        "f1": 0.9423076923076923,
-        "truePositives": 49,
-        "falsePositives": 3,
-        "falseNegatives": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "truePositives": 52,
+        "falsePositives": 0,
+        "falseNegatives": 0,
         "totalGroundTruthFields": 52,
-        "matchedFields": 49,
+        "matchedFields": 52,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 52,
-        "matchedFields": 49,
+        "matchedFields": 52,
         "missingFields": [],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "applicant_child_support",
-            "expected": 8310.93,
-            "predicted": "8 , 310 . 93"
-          },
-          {
-            "field": "applicant_workers_compensation",
-            "expected": 3648,
-            "predicted": "3, 648"
-          },
-          {
-            "field": "applicant_private_pensions_retirement_disability",
-            "expected": 1341.05,
-            "predicted": "$1,341.05"
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "checkbox_need_assistance_yes",
@@ -46156,9 +46069,12 @@
           },
           {
             "field": "applicant_child_support",
-            "matched": false,
+            "matched": true,
             "predicted": "8 , 310 . 93",
-            "expected": 8310.93,
+            "expected": [
+              "8310.93",
+              "8 , 310 . 93"
+            ],
             "confidence": null
           },
           {
@@ -46191,16 +46107,22 @@
           },
           {
             "field": "applicant_workers_compensation",
-            "matched": false,
+            "matched": true,
             "predicted": "3, 648",
-            "expected": 3648,
+            "expected": [
+              "3648",
+              "3, 648"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_private_pensions_retirement_disability",
-            "matched": false,
+            "matched": true,
             "predicted": "$1,341.05",
-            "expected": 1341.05,
+            "expected": [
+              "1341.05",
+              "$1,341.05"
+            ],
             "confidence": null
           },
           {
@@ -46409,13 +46331,22 @@
         "applicant_net_employment_income": 7971.1,
         "applicant_employment_insurance": 5270.81,
         "applicant_spousal_support_alimony": 5111.73,
-        "applicant_child_support": 8310.93,
+        "applicant_child_support": [
+          "8310.93",
+          "8 , 310 . 93"
+        ],
         "applicant_workbc_financial_support": 3752.68,
         "applicant_student_funding_loans_bursaries": 7007,
         "applicant_rental_income": 8749.25,
         "applicant_room_board_income": 4110.43,
-        "applicant_workers_compensation": 3648,
-        "applicant_private_pensions_retirement_disability": 1341.05,
+        "applicant_workers_compensation": [
+          "3648",
+          "3, 648"
+        ],
+        "applicant_private_pensions_retirement_disability": [
+          "1341.05",
+          "$1,341.05"
+        ],
         "applicant_oas_gis": [
           "2964.7",
           "$2964.70"
@@ -46694,9 +46625,12 @@
         },
         {
           "field": "applicant_child_support",
-          "matched": false,
+          "matched": true,
           "predicted": "8 , 310 . 93",
-          "expected": 8310.93,
+          "expected": [
+            "8310.93",
+            "8 , 310 . 93"
+          ],
           "confidence": null
         },
         {
@@ -46729,16 +46663,22 @@
         },
         {
           "field": "applicant_workers_compensation",
-          "matched": false,
+          "matched": true,
           "predicted": "3, 648",
-          "expected": 3648,
+          "expected": [
+            "3648",
+            "3, 648"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_private_pensions_retirement_disability",
-          "matched": false,
+          "matched": true,
           "predicted": "$1,341.05",
-          "expected": 1341.05,
+          "expected": [
+            "1341.05",
+            "$1,341.05"
+          ],
           "confidence": null
         },
         {
@@ -47857,20 +47797,20 @@
       "sampleId": "synth-no-spouse (3)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8461538461538461,
-        "recall": 0.8461538461538461,
-        "f1": 0.8461538461538461,
-        "truePositives": 44,
-        "falsePositives": 8,
-        "falseNegatives": 8,
+        "precision": 0.9807692307692307,
+        "recall": 0.9807692307692307,
+        "f1": 0.9807692307692307,
+        "truePositives": 51,
+        "falsePositives": 1,
+        "falseNegatives": 1,
         "totalGroundTruthFields": 52,
-        "matchedFields": 44,
+        "matchedFields": 51,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 52,
-        "matchedFields": 44,
+        "matchedFields": 51,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -47883,41 +47823,6 @@
               "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
             ],
             "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they."
-          },
-          {
-            "field": "applicant_net_employment_income",
-            "expected": 2711.64,
-            "predicted": "$2,711.64"
-          },
-          {
-            "field": "applicant_employment_insurance",
-            "expected": 7969,
-            "predicted": "7, 969"
-          },
-          {
-            "field": "applicant_spousal_support_alimony",
-            "expected": 2101,
-            "predicted": "2, 101"
-          },
-          {
-            "field": "applicant_child_support",
-            "expected": 8452.18,
-            "predicted": "8, 452 . 18"
-          },
-          {
-            "field": "applicant_oas_gis",
-            "expected": 7289.04,
-            "predicted": "7, 289.04"
-          },
-          {
-            "field": "applicant_canada_pension_plan_cpp",
-            "expected": 6075.24,
-            "predicted": "6, 075 . 24"
-          },
-          {
-            "field": "applicant_child_tax_benefits",
-            "expected": 3063,
-            "predicted": "3, 06 3"
           }
         ],
         "comparisonResults": [
@@ -48061,30 +47966,42 @@
           },
           {
             "field": "applicant_net_employment_income",
-            "matched": false,
+            "matched": true,
             "predicted": "$2,711.64",
-            "expected": 2711.64,
+            "expected": [
+              "2711.64",
+              "$2,711.64"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_employment_insurance",
-            "matched": false,
+            "matched": true,
             "predicted": "7, 969",
-            "expected": 7969,
+            "expected": [
+              "7969",
+              "7, 969"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_spousal_support_alimony",
-            "matched": false,
+            "matched": true,
             "predicted": "2, 101",
-            "expected": 2101,
+            "expected": [
+              "2101",
+              "2, 101"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_child_support",
-            "matched": false,
+            "matched": true,
             "predicted": "8, 452 . 18",
-            "expected": 8452.18,
+            "expected": [
+              "8452.18",
+              "8, 452 . 18"
+            ],
             "confidence": null
           },
           {
@@ -48131,9 +48048,12 @@
           },
           {
             "field": "applicant_oas_gis",
-            "matched": false,
+            "matched": true,
             "predicted": "7, 289.04",
-            "expected": 7289.04,
+            "expected": [
+              "7289.04",
+              "7, 289.04"
+            ],
             "confidence": null
           },
           {
@@ -48145,9 +48065,12 @@
           },
           {
             "field": "applicant_canada_pension_plan_cpp",
-            "matched": false,
+            "matched": true,
             "predicted": "6, 075 . 24",
-            "expected": 6075.24,
+            "expected": [
+              "6075.24",
+              "6, 075 . 24"
+            ],
             "confidence": null
           },
           {
@@ -48159,9 +48082,12 @@
           },
           {
             "field": "applicant_child_tax_benefits",
-            "matched": false,
+            "matched": true,
             "predicted": "3, 06 3",
-            "expected": 3063,
+            "expected": [
+              "3063",
+              "3, 06 3"
+            ],
             "confidence": null
           },
           {
@@ -48324,21 +48250,42 @@
           "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
           "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
         ],
-        "applicant_net_employment_income": 2711.64,
-        "applicant_employment_insurance": 7969,
-        "applicant_spousal_support_alimony": 2101,
-        "applicant_child_support": 8452.18,
+        "applicant_net_employment_income": [
+          "2711.64",
+          "$2,711.64"
+        ],
+        "applicant_employment_insurance": [
+          "7969",
+          "7, 969"
+        ],
+        "applicant_spousal_support_alimony": [
+          "2101",
+          "2, 101"
+        ],
+        "applicant_child_support": [
+          "8452.18",
+          "8, 452 . 18"
+        ],
         "applicant_workbc_financial_support": 9802.89,
         "applicant_student_funding_loans_bursaries": 9475,
         "applicant_rental_income": 5746.13,
         "applicant_room_board_income": 776.82,
         "applicant_workers_compensation": 8243.37,
         "applicant_private_pensions_retirement_disability": 4333.97,
-        "applicant_oas_gis": 7289.04,
+        "applicant_oas_gis": [
+          "7289.04",
+          "7, 289.04"
+        ],
         "applicant_trust_income": 5349.54,
-        "applicant_canada_pension_plan_cpp": 6075.24,
+        "applicant_canada_pension_plan_cpp": [
+          "6075.24",
+          "6, 075 . 24"
+        ],
         "applicant_tax_credits_gst_credit": 5765,
-        "applicant_child_tax_benefits": 3063,
+        "applicant_child_tax_benefits": [
+          "3063",
+          "3, 06 3"
+        ],
         "applicant_income_tax_refund": 2049.6,
         "applicant_other_income_money_received": 2591,
         "applicant_income_of_dependent_children": 6580,
@@ -48583,30 +48530,42 @@
         },
         {
           "field": "applicant_net_employment_income",
-          "matched": false,
+          "matched": true,
           "predicted": "$2,711.64",
-          "expected": 2711.64,
+          "expected": [
+            "2711.64",
+            "$2,711.64"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_employment_insurance",
-          "matched": false,
+          "matched": true,
           "predicted": "7, 969",
-          "expected": 7969,
+          "expected": [
+            "7969",
+            "7, 969"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_spousal_support_alimony",
-          "matched": false,
+          "matched": true,
           "predicted": "2, 101",
-          "expected": 2101,
+          "expected": [
+            "2101",
+            "2, 101"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_child_support",
-          "matched": false,
+          "matched": true,
           "predicted": "8, 452 . 18",
-          "expected": 8452.18,
+          "expected": [
+            "8452.18",
+            "8, 452 . 18"
+          ],
           "confidence": null
         },
         {
@@ -48653,9 +48612,12 @@
         },
         {
           "field": "applicant_oas_gis",
-          "matched": false,
+          "matched": true,
           "predicted": "7, 289.04",
-          "expected": 7289.04,
+          "expected": [
+            "7289.04",
+            "7, 289.04"
+          ],
           "confidence": null
         },
         {
@@ -48667,9 +48629,12 @@
         },
         {
           "field": "applicant_canada_pension_plan_cpp",
-          "matched": false,
+          "matched": true,
           "predicted": "6, 075 . 24",
-          "expected": 6075.24,
+          "expected": [
+            "6075.24",
+            "6, 075 . 24"
+          ],
           "confidence": null
         },
         {
@@ -48681,9 +48646,12 @@
         },
         {
           "field": "applicant_child_tax_benefits",
-          "matched": false,
+          "matched": true,
           "predicted": "3, 06 3",
-          "expected": 3063,
+          "expected": [
+            "3063",
+            "3, 06 3"
+          ],
           "confidence": null
         },
         {
@@ -48826,32 +48794,26 @@
       "sampleId": "synth-regular (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9583333333333334,
-        "recall": 0.9583333333333334,
-        "f1": 0.9583333333333334,
-        "truePositives": 69,
-        "falsePositives": 3,
-        "falseNegatives": 3,
+        "precision": 0.9722222222222222,
+        "recall": 0.9722222222222222,
+        "f1": 0.9722222222222222,
+        "truePositives": 70,
+        "falsePositives": 2,
+        "falseNegatives": 2,
         "totalGroundTruthFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 69,
+        "matchedFields": 70,
         "missingFields": [
           "spouse_trust_income",
           "spouse_canada_pension_plan_cpp"
         ],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "applicant_other_income_money_received",
-            "expected": 5158,
-            "predicted": "5, 158"
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "checkbox_need_assistance_yes",
@@ -49175,9 +49137,12 @@
           },
           {
             "field": "applicant_other_income_money_received",
-            "matched": false,
+            "matched": true,
             "predicted": "5, 158",
-            "expected": 5158,
+            "expected": [
+              "5158",
+              "5, 158"
+            ],
             "confidence": null
           },
           {
@@ -49443,7 +49408,10 @@
         "applicant_tax_credits_gst_credit": 2073.75,
         "applicant_child_tax_benefits": 9581.52,
         "applicant_income_tax_refund": null,
-        "applicant_other_income_money_received": 5158,
+        "applicant_other_income_money_received": [
+          "5158",
+          "5, 158"
+        ],
         "applicant_income_of_dependent_children": null,
         "spouse_net_employment_income": null,
         "spouse_employment_insurance": null,
@@ -49889,9 +49857,12 @@
         },
         {
           "field": "applicant_other_income_money_received",
-          "matched": false,
+          "matched": true,
           "predicted": "5, 158",
-          "expected": 5158,
+          "expected": [
+            "5158",
+            "5, 158"
+          ],
           "confidence": null
         },
         {

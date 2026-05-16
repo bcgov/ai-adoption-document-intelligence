@@ -47,13 +47,19 @@
     "checkbox_family_assets_yes": "selected",
     "checkbox_school_spouse_yes": "unselected",
     "checkbox_warrant_spouse_no": "unselected",
-    "applicant_income_tax_refund": "0",
+    "applicant_income_tax_refund": [
+        "0",
+        "0\n0"
+    ],
     "applicant_room_board_income": "0",
     "checkbox_need_assistance_no": "unselected",
     "checkbox_warrant_spouse_yes": "unselected",
     "spouse_employment_insurance": "",
     "spouse_workers_compensation": "",
-    "applicant_child_tax_benefits": "0",
+    "applicant_child_tax_benefits": [
+        "0",
+        "0\n0"
+    ],
     "checkbox_need_assistance_yes": "selected",
     "spouse_net_employment_income": "",
     "spouse_tax_credits_gst_credit": "",
