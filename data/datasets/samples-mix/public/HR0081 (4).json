@@ -172,12 +172,14 @@
     "checkbox_employment_changes_spouse_no": "selected",
     "applicant_income_of_dependent_children": [
         "900.00",
-        "$900.00"
+        "$900.00",
+        "900"
     ],
     "checkbox_employment_changes_spouse_yes": "unselected",
     "spouse_student_funding_loans_bursaries": [
         "900.00",
-        "$900.00"
+        "$900.00",
+        "900"
     ],
     "applicant_student_funding_loans_bursaries": [
         "0",

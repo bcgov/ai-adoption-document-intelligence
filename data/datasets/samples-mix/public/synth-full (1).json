@@ -17,7 +17,10 @@
     "checkbox_moved_no": "selected",
     "checkbox_warrant_yes": "selected",
     "checkbox_warrant_no": "unselected",
-    "explain_changes": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+    "explain_changes": [
+        "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+        "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+    ],
     "checkbox_employment_changes_spouse_yes": "unselected",
     "checkbox_employment_changes_spouse_no": "selected",
     "checkbox_school_spouse_yes": "selected",

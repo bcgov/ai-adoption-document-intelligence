@@ -12,7 +12,11 @@
     "spouse_name": "",
     "spouse_phone": "",
     "spouse_oas_gis": "",
-    "explain_changes": "Started part time job, documents attached",
+    "explain_changes": [
+        "Started part time job, documents attached",
+        "Started part time job, documents\nattached",
+        "Started part time job, documents attached."
+    ],
     "checkbox_work_no": "unselected",
     "spouse_signature": "",
     "applicant_oas_gis": 0,

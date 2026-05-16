@@ -10,7 +10,10 @@
     ],
     "name": "Jennifer Lee",
     "phone": "234-556-7890",
-    "signature": "JLee",
+    "signature": [
+        "JLee",
+        "Jlee"
+    ],
     "spouse_sin": "",
     "spouse_date": "",
     "spouse_name": "",

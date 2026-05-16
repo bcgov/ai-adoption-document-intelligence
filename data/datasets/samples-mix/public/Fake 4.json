@@ -16,7 +16,10 @@
     "spouse_name": "",
     "spouse_phone": "",
     "spouse_oas_gis": "",
-    "explain_changes": "Lost job, taking course to find new work.",
+    "explain_changes": [
+        "Lost job, taking course to find new work.",
+        "Lost job, taking course to find\nnew work."
+    ],
     "checkbox_work_no": "selected",
     "spouse_signature": "",
     "applicant_oas_gis": "0",

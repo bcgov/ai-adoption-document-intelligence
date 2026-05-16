@@ -17,7 +17,12 @@
     "checkbox_moved_no": "selected",
     "checkbox_warrant_yes": "unselected",
     "checkbox_warrant_no": "selected",
-    "explain_changes": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+    "explain_changes": [
+        "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+        "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+        "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+        "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+    ],
     "applicant_net_employment_income": 2711.64,
     "applicant_employment_insurance": 7969,
     "applicant_spousal_support_alimony": 2101,

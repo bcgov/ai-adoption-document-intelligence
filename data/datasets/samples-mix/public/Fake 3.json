@@ -67,7 +67,10 @@
     "checkbox_employment_changes_yes": "unselected",
     "spouse_workbc_financial_support": "",
     "applicant_tax_credits_gst_credit": "N/A",
-    "applicant_canada_pension_plan_cpp": "N/A",
+    "applicant_canada_pension_plan_cpp": [
+        "N/A",
+        "$ N/A"
+    ],
     "applicant_spousal_support_alimony": "N/A",
     "applicant_workbc_financial_support": "N/A",
     "spouse_other_income_money_received": "",

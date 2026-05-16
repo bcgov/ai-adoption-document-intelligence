@@ -22,15 +22,25 @@
  *   - Income-like fields (any `applicant_*` / `spouse_*` field that isn't
  *     a name/phone/sin/date/signature/email and whose GT parses as a
  *     numeric scalar): a `$`-prefixed/suffixed prediction with the same
- *     numeric value is a variant. E.g. `"$0"` and `"0"`, `"$900.00"` and
- *     `"900.00"`, `"50$"` and `"50"`. Predictions without `$` chrome are
- *     not promoted by this rule (only by exact equality, which would
- *     already match without GT promotion).
+ *     numeric value is a variant (`"$0"` vs `"0"`, `"$900.00"` vs `"900.00"`,
+ *     `"50$"` vs `"50"`); AND numeric-equality across type boundaries
+ *     (`900` number vs `"900.00"` string, `26.8` vs `"26.80"`, `60` vs
+ *     `"60.00"`). Also accepts non-numeric-stripped equality (`"$ N/A"`
+ *     vs `"N/A"`).
+ *   - Text-like fields (`name`, `spouse_name`, `signature`, `spouse_signature`,
+ *     `explain_changes`): whitespace-only differences (line breaks, multiple
+ *     spaces collapsed), case-only differences, and trailing-punctuation-only
+ *     differences are accepted as variants. E.g. `"Lost job, taking course
+ *     to find\nnew work."` vs `"Lost job, taking course to find new work."`;
+ *     `"HOMELESS"` vs `"Homeless"`; `"Smith Fake."` vs `"Smith Fake"`. The
+ *     check applies all three normalisations together — any combination of
+ *     case / whitespace / trailing-punct differences is accepted.
  *
  * Skipped (not promoted, even if mismatched):
  *
- *   - Fields outside the sin/date/phone allowlist AND not income-like
- *     (e.g. signature, name, explain_changes) — those need manual review.
+ *   - Fields outside the sin/date/phone allowlist AND not income-like AND
+ *     not text-like (e.g. email, address, checkbox state) — those need
+ *     manual review.
  *   - Sentinel labels in GT (`":present:"`, `":garbled:"`,
  *     `"KEY PLAYER MISSING"`, `"Spouse Missing"`, `"Missed Box"`,
  *     `"Blank Declaration"`, `"Homeless"`) — these were never on the
@@ -128,10 +138,76 @@ function stripCurrencyChrome(v: string): string {
 function isCurrencyFormatVariant(predicted: string, expected: string): boolean {
   const stripped = stripCurrencyChrome(predicted);
   if (stripped === predicted) return false; // no $ to strip → not a currency variant
+  // Numeric equivalence: "$900.00" vs "900.00", "$0" vs "0", "$2964.70" vs "2964.7"
   const p = parseNumericLike(stripped);
   const e = parseNumericLike(expected);
+  if (p !== null && e !== null && p === e) return true;
+  // Non-numeric stripped equality: "$ N/A" vs "N/A" (engine reads the form's
+  // pre-printed dollar chrome along with whatever non-numeric value follows).
+  if (stripped === expected.trim()) return true;
+  return false;
+}
+
+/**
+ * Numeric equivalence variants for income-like fields. Engines disagree on
+ * whether to return `900` (number), `"900"` (string), `"900.00"` (string with
+ * fractional padding), or `"900.0"` — all the same value. Promotes the GT
+ * scalar to a one-of array containing the engine's exact rendering so the
+ * comparison passes on `exact` rule without losing the canonical form.
+ */
+function isNumericEqualityVariant(
+  predicted: unknown,
+  expected: unknown,
+): boolean {
+  const p =
+    typeof predicted === "number" ? predicted : parseNumericLike(predicted);
+  const e =
+    typeof expected === "number" ? expected : parseNumericLike(expected);
   if (p === null || e === null) return false;
   return p === e;
+}
+
+/**
+ * Free-text fields where whitespace, case, and trailing-punctuation
+ * differences between engine and GT represent the same transcription. These
+ * are the fields where handwriting variance (line breaks, capitalisation
+ * style, trailing period) is naturally ambiguous.
+ */
+const TEXT_LIKE_FIELDS = new Set<string>([
+  "name",
+  "spouse_name",
+  "signature",
+  "spouse_signature",
+  "explain_changes",
+]);
+
+function isTextLikeField(field: string): boolean {
+  return TEXT_LIKE_FIELDS.has(field);
+}
+
+function normalizeWhitespace(v: string): string {
+  // Collapse all whitespace runs (incl. \n, \t, multiple spaces) to a single
+  // space, trim. So "Lost job, taking course to find\nnew work." normalises
+  // identically with "Lost job, taking course to find new work."
+  return v.replace(/\s+/g, " ").trim();
+}
+
+function stripTrailingPunct(v: string): string {
+  return v.replace(/[.,;:!?]+$/, "");
+}
+
+function isTextEquivalenceVariant(
+  predicted: string,
+  expected: string,
+): boolean {
+  // Any combination of normalisations counts — whitespace AND case AND
+  // trailing-punct stripped should be equal.
+  const normP = stripTrailingPunct(
+    normalizeWhitespace(predicted),
+  ).toLowerCase();
+  const normE = stripTrailingPunct(normalizeWhitespace(expected)).toLowerCase();
+  if (predicted === expected) return false;
+  return normP === normE;
 }
 
 const SENTINEL_GT_VALUES = new Set<string>([
@@ -300,9 +376,21 @@ function isVariantOfAny(
     return expectedAlternates.some((e) => isPhoneFormatVariant(predicted, e));
   }
   if (isIncomeLikeField(field)) {
-    return expectedAlternates.some((e) =>
-      isCurrencyFormatVariant(predicted, e),
-    );
+    if (expectedAlternates.some((e) => isCurrencyFormatVariant(predicted, e))) {
+      return true;
+    }
+    if (
+      expectedAlternates.some((e) => isNumericEqualityVariant(predicted, e))
+    ) {
+      return true;
+    }
+  }
+  if (isTextLikeField(field)) {
+    if (
+      expectedAlternates.some((e) => isTextEquivalenceVariant(predicted, e))
+    ) {
+      return true;
+    }
   }
   return false;
 }
@@ -312,7 +400,10 @@ function classifyPromotion(
   predicted: unknown,
   expected: unknown,
 ): Promotion | null {
-  const eligible = PROMOTABLE_FIELDS.has(field) || isIncomeLikeField(field);
+  const eligible =
+    PROMOTABLE_FIELDS.has(field) ||
+    isIncomeLikeField(field) ||
+    isTextLikeField(field);
   if (!eligible) return null;
   if (predicted === null || predicted === undefined || predicted === "") {
     return null;
@@ -322,14 +413,25 @@ function classifyPromotion(
   }
   const predictedScalar = String(predicted);
 
+  // For text-like fields the sentinel-skip is too aggressive — values like
+  // "Homeless" or "Spouse Missing" can legitimately be read by engines with
+  // case/whitespace/trailing-punct drift. The text-equivalence check is
+  // conservative enough that an alternate accepted by it is still recognisably
+  // the same transcription. For format-allowlist fields (sin/date/phone) and
+  // income-like fields, the sentinel block stays — promoting a numeric/format
+  // variant of a sentinel doesn't make sense.
+  const honourSentinel = !isTextLikeField(field);
+
   if (Array.isArray(expected)) {
     // GT is already an array — extend it if the prediction is a calendar-/
-    // digit-/currency-equivalent variant of any existing alternate that isn't
-    // already listed verbatim.
+    // digit-/currency-/numeric-/text-equivalent variant of any existing
+    // alternate that isn't already listed verbatim.
     const alternates = expected.map(String).filter((s) => s.length > 0);
     if (alternates.length === 0) return null;
     if (alternates.includes(predictedScalar)) return null;
-    if (alternates.some((s) => SENTINEL_GT_VALUES.has(s))) return null;
+    if (honourSentinel && alternates.some((s) => SENTINEL_GT_VALUES.has(s))) {
+      return null;
+    }
     if (!isVariantOfAny(field, predictedScalar, alternates)) return null;
     return {
       sampleId: "",
@@ -342,7 +444,7 @@ function classifyPromotion(
   }
 
   const expectedScalar = String(expected);
-  if (SENTINEL_GT_VALUES.has(expectedScalar)) return null;
+  if (honourSentinel && SENTINEL_GT_VALUES.has(expectedScalar)) return null;
   if (expectedScalar === predictedScalar) return null;
 
   let isVariant = false;
@@ -353,7 +455,11 @@ function classifyPromotion(
   } else if (field === "phone" || field === "spouse_phone") {
     isVariant = isPhoneFormatVariant(predictedScalar, expectedScalar);
   } else if (isIncomeLikeField(field)) {
-    isVariant = isCurrencyFormatVariant(predictedScalar, expectedScalar);
+    isVariant =
+      isCurrencyFormatVariant(predictedScalar, expectedScalar) ||
+      isNumericEqualityVariant(predicted, expected);
+  } else if (isTextLikeField(field)) {
+    isVariant = isTextEquivalenceVariant(predictedScalar, expectedScalar);
   }
   if (!isVariant) return null;
 
