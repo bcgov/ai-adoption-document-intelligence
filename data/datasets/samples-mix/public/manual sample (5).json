@@ -17,7 +17,10 @@
         "Nov 25, 2025",
         "2025-11-25"
     ],
-    "spouse_name": "Harold Wilson",
+    "spouse_name": [
+        "Harold Wilson",
+        "harold Wilson"
+    ],
     "spouse_phone": "+1 236-789-387",
     "spouse_oas_gis": 0,
     "explain_changes": "Rent increased, see lease update",

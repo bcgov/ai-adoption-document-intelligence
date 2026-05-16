@@ -17,7 +17,10 @@
     "checkbox_moved_no": "selected",
     "checkbox_warrant_yes": "selected",
     "checkbox_warrant_no": "unselected",
-    "explain_changes": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+    "explain_changes": [
+        "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+        "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+    ],
     "checkbox_employment_changes_spouse_yes": "unselected",
     "checkbox_employment_changes_spouse_no": "selected",
     "checkbox_school_spouse_yes": "unselected",
@@ -84,13 +87,19 @@
         "209 721 664",
         "209-721-664"
     ],
-    "spouse_signature": "Kathryn M.",
+    "spouse_signature": [
+        "Kathryn M.",
+        "kathryn m."
+    ],
     "spouse_date": [
         "05-01-2003",
         "05/01/2003",
         "2003-01-05"
     ],
-    "spouse_name": "Kathryn Macias",
+    "spouse_name": [
+        "Kathryn Macias",
+        "kathryn macias"
+    ],
     "spouse_phone": "564642185",
     "spouse_sin": [
         "643016433",

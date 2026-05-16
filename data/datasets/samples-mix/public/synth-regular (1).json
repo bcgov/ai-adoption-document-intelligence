@@ -17,7 +17,12 @@
     "checkbox_moved_no": "unselected",
     "checkbox_warrant_yes": "unselected",
     "checkbox_warrant_no": "selected",
-    "explain_changes": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+    "explain_changes": [
+        "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+        "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+        "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+        "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+    ],
     "checkbox_employment_changes_spouse_yes": "selected",
     "checkbox_employment_changes_spouse_no": "unselected",
     "checkbox_school_spouse_yes": "selected",

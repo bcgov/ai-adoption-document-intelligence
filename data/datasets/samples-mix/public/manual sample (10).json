@@ -16,7 +16,10 @@
     "spouse_name": "",
     "spouse_phone": "",
     "spouse_oas_gis": "",
-    "explain_changes": "New roommate, room /board income enclosed",
+    "explain_changes": [
+        "New roommate, room /board income enclosed",
+        "new roommate, room /board income\nenclosed"
+    ],
     "checkbox_work_no": "unselected",
     "spouse_signature": "",
     "applicant_oas_gis": 300,

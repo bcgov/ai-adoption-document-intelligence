@@ -18,10 +18,16 @@
         "123-456-788"
     ],
     "spouse_date": "",
-    "spouse_name": "Lisa O'connor",
+    "spouse_name": [
+        "Lisa O'connor",
+        "Lisa O'Connor"
+    ],
     "spouse_phone": "(321)-246-2143",
     "spouse_oas_gis": 1580.23,
-    "explain_changes": "Changed address, proof of move",
+    "explain_changes": [
+        "Changed address, proof of move",
+        "changed address, proof of move"
+    ],
     "checkbox_work_no": "unselected",
     "spouse_signature": "LOConnor",
     "applicant_oas_gis": "",
@@ -45,7 +51,10 @@
     "checkbox_work_spouse_no": "selected",
     "checkbox_moved_spouse_no": "selected",
     "checkbox_work_spouse_yes": "unselected",
-    "spouse_income_tax_refund": "26.80",
+    "spouse_income_tax_refund": [
+        "26.80",
+        "26.8"
+    ],
     "spouse_room_board_income": "",
     "checkbox_family_assets_no": "unselected",
     "checkbox_moved_spouse_yes": "unselected",

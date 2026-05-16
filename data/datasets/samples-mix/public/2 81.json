@@ -6,7 +6,10 @@
     "date": "",
     "name": "Spouse Missing",
     "phone": "",
-    "signature": "Spouse Missing",
+    "signature": [
+        "Spouse Missing",
+        "spouse Missing"
+    ],
     "spouse_sin": "",
     "spouse_date": "",
     "spouse_name": "",

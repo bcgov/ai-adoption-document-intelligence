@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-05-12T15:43:38.629Z",
+  "exportedAt": "2026-05-16T07:54:59.568Z",
   "exportFormatVersion": 1,
   "run": {
     "id": "b432a65a-a52f-4ac7-85ed-4b46df05ba6a",
@@ -17,58 +17,58 @@
       "total_samples": 40,
       "passing_samples": 34,
       "failing_samples": 6,
-      "precision.mean": 0.9171316471630803,
+      "precision.mean": 0.9200236232009178,
       "precision.median": 0.9328828828828829,
-      "precision.stdDev": 0.06368325288094859,
-      "precision.p5": 0.7933125162633359,
-      "precision.p25": 0.8779618659755646,
+      "precision.stdDev": 0.06308854045359225,
+      "precision.p5": 0.794094304388422,
+      "precision.p25": 0.8907499048344119,
       "precision.p75": 0.972972972972973,
-      "precision.p95": 0.9864864864864865,
-      "precision.min": 0.7777777777777778,
+      "precision.p95": 1,
+      "precision.min": 0.7868852459016393,
       "precision.max": 1,
-      "recall.mean": 0.8991821170441032,
+      "recall.mean": 0.9018707681816979,
       "recall.median": 0.9498754669987547,
-      "recall.stdDev": 0.1370795092814763,
-      "recall.p5": 0.6652252252252252,
-      "recall.p25": 0.9123141627543035,
-      "recall.p75": 0.9807692307692307,
-      "recall.p95": 0.9864864864864865,
+      "recall.stdDev": 0.13672661599211702,
+      "recall.p5": 0.6658918918918919,
+      "recall.p25": 0.9208583047945206,
+      "recall.p75": 0.9849404117009751,
+      "recall.p95": 1,
       "recall.min": 0.40540540540540543,
       "recall.max": 1,
-      "f1.mean": 0.9034677628276062,
+      "f1.mean": 0.9062301010640823,
       "f1.median": 0.9387755102040816,
-      "f1.stdDev": 0.10220274319166874,
-      "f1.p5": 0.7200757575757576,
+      "f1.stdDev": 0.1016564661688407,
+      "f1.p5": 0.7209090909090909,
       "f1.p25": 0.8885728668512459,
       "f1.p75": 0.9745573159366264,
-      "f1.p95": 0.9864864864864865,
+      "f1.p95": 1,
       "f1.min": 0.5607476635514019,
       "f1.max": 1,
-      "truePositives.mean": 62.2,
-      "truePositives.median": 66,
-      "truePositives.stdDev": 10.540872829135166,
-      "truePositives.p5": 47.35,
+      "truePositives.mean": 62.375,
+      "truePositives.median": 67,
+      "truePositives.stdDev": 10.451525008342085,
+      "truePositives.p5": 47.400000000000006,
       "truePositives.p25": 53.5,
       "truePositives.p75": 71,
       "truePositives.p95": 72.05,
       "truePositives.min": 30,
       "truePositives.max": 73,
-      "falsePositives.mean": 5.6,
+      "falsePositives.mean": 5.425,
       "falsePositives.median": 5,
-      "falsePositives.stdDev": 4.158124577258358,
-      "falsePositives.p5": 1,
+      "falsePositives.stdDev": 4.140576650661113,
+      "falsePositives.p5": 0,
       "falsePositives.p25": 2,
-      "falsePositives.p75": 9,
+      "falsePositives.p75": 8,
       "falsePositives.p95": 13,
       "falsePositives.min": 0,
       "falsePositives.max": 14,
-      "falseNegatives.mean": 7.275,
+      "falseNegatives.mean": 7.1,
       "falseNegatives.median": 3.5,
-      "falseNegatives.stdDev": 10.151323805297515,
-      "falseNegatives.p5": 1,
+      "falseNegatives.stdDev": 10.108906963663284,
+      "falseNegatives.p5": 0,
       "falseNegatives.p25": 1,
-      "falseNegatives.p75": 6.25,
-      "falseNegatives.p95": 24.799999999999955,
+      "falseNegatives.p75": 5.25,
+      "falseNegatives.p95": 24.749999999999957,
       "falseNegatives.min": 0,
       "falseNegatives.max": 44,
       "totalGroundTruthFields.mean": 71.3,
@@ -80,10 +80,10 @@
       "totalGroundTruthFields.p95": 74.05,
       "totalGroundTruthFields.min": 52,
       "totalGroundTruthFields.max": 75,
-      "matchedFields.mean": 62.2,
-      "matchedFields.median": 66,
-      "matchedFields.stdDev": 10.540872829135166,
-      "matchedFields.p5": 47.35,
+      "matchedFields.mean": 62.375,
+      "matchedFields.median": 67,
+      "matchedFields.stdDev": 10.451525008342085,
+      "matchedFields.p5": 47.400000000000006,
       "matchedFields.p25": 53.5,
       "matchedFields.p75": 71,
       "matchedFields.p95": 72.05,
@@ -123,58 +123,58 @@
     "total_samples": 40,
     "passing_samples": 34,
     "failing_samples": 6,
-    "precision.mean": 0.9171316471630803,
+    "precision.mean": 0.9200236232009178,
     "precision.median": 0.9328828828828829,
-    "precision.stdDev": 0.06368325288094859,
-    "precision.p5": 0.7933125162633359,
-    "precision.p25": 0.8779618659755646,
+    "precision.stdDev": 0.06308854045359225,
+    "precision.p5": 0.794094304388422,
+    "precision.p25": 0.8907499048344119,
     "precision.p75": 0.972972972972973,
-    "precision.p95": 0.9864864864864865,
-    "precision.min": 0.7777777777777778,
+    "precision.p95": 1,
+    "precision.min": 0.7868852459016393,
     "precision.max": 1,
-    "recall.mean": 0.8991821170441032,
+    "recall.mean": 0.9018707681816979,
     "recall.median": 0.9498754669987547,
-    "recall.stdDev": 0.1370795092814763,
-    "recall.p5": 0.6652252252252252,
-    "recall.p25": 0.9123141627543035,
-    "recall.p75": 0.9807692307692307,
-    "recall.p95": 0.9864864864864865,
+    "recall.stdDev": 0.13672661599211702,
+    "recall.p5": 0.6658918918918919,
+    "recall.p25": 0.9208583047945206,
+    "recall.p75": 0.9849404117009751,
+    "recall.p95": 1,
     "recall.min": 0.40540540540540543,
     "recall.max": 1,
-    "f1.mean": 0.9034677628276062,
+    "f1.mean": 0.9062301010640823,
     "f1.median": 0.9387755102040816,
-    "f1.stdDev": 0.10220274319166874,
-    "f1.p5": 0.7200757575757576,
+    "f1.stdDev": 0.1016564661688407,
+    "f1.p5": 0.7209090909090909,
     "f1.p25": 0.8885728668512459,
     "f1.p75": 0.9745573159366264,
-    "f1.p95": 0.9864864864864865,
+    "f1.p95": 1,
     "f1.min": 0.5607476635514019,
     "f1.max": 1,
-    "truePositives.mean": 62.2,
-    "truePositives.median": 66,
-    "truePositives.stdDev": 10.540872829135166,
-    "truePositives.p5": 47.35,
+    "truePositives.mean": 62.375,
+    "truePositives.median": 67,
+    "truePositives.stdDev": 10.451525008342085,
+    "truePositives.p5": 47.400000000000006,
     "truePositives.p25": 53.5,
     "truePositives.p75": 71,
     "truePositives.p95": 72.05,
     "truePositives.min": 30,
     "truePositives.max": 73,
-    "falsePositives.mean": 5.6,
+    "falsePositives.mean": 5.425,
     "falsePositives.median": 5,
-    "falsePositives.stdDev": 4.158124577258358,
-    "falsePositives.p5": 1,
+    "falsePositives.stdDev": 4.140576650661113,
+    "falsePositives.p5": 0,
     "falsePositives.p25": 2,
-    "falsePositives.p75": 9,
+    "falsePositives.p75": 8,
     "falsePositives.p95": 13,
     "falsePositives.min": 0,
     "falsePositives.max": 14,
-    "falseNegatives.mean": 7.275,
+    "falseNegatives.mean": 7.1,
     "falseNegatives.median": 3.5,
-    "falseNegatives.stdDev": 10.151323805297515,
-    "falseNegatives.p5": 1,
+    "falseNegatives.stdDev": 10.108906963663284,
+    "falseNegatives.p5": 0,
     "falseNegatives.p25": 1,
-    "falseNegatives.p75": 6.25,
-    "falseNegatives.p95": 24.799999999999955,
+    "falseNegatives.p75": 5.25,
+    "falseNegatives.p95": 24.749999999999957,
     "falseNegatives.min": 0,
     "falseNegatives.max": 44,
     "totalGroundTruthFields.mean": 71.3,
@@ -186,10 +186,10 @@
     "totalGroundTruthFields.p95": 74.05,
     "totalGroundTruthFields.min": 52,
     "totalGroundTruthFields.max": 75,
-    "matchedFields.mean": 62.2,
-    "matchedFields.median": 66,
-    "matchedFields.stdDev": 10.540872829135166,
-    "matchedFields.p5": 47.35,
+    "matchedFields.mean": 62.375,
+    "matchedFields.median": 67,
+    "matchedFields.stdDev": 10.451525008342085,
+    "matchedFields.p5": 47.400000000000006,
     "matchedFields.p25": 53.5,
     "matchedFields.p75": 71,
     "matchedFields.p95": 72.05,
@@ -210,10 +210,10 @@
       "field": "signature",
       "fieldType": "string",
       "totalCount": 40,
-      "correctCount": 13,
-      "errorCount": 27,
-      "accuracy": 0.325,
-      "errorRate": 0.675,
+      "correctCount": 14,
+      "errorCount": 26,
+      "accuracy": 0.35,
+      "errorRate": 0.65,
       "errors": [
         {
           "sampleId": "81 blank",
@@ -231,7 +231,10 @@
         {
           "sampleId": "Fake 2",
           "predicted": "nsadue Dahl",
-          "expected": "Smith Fake"
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ]
         },
         {
           "sampleId": "Fake 3",
@@ -256,7 +259,10 @@
         {
           "sampleId": "Fake 7",
           "predicted": "Applicant Signature SIGNATURE",
-          "expected": "SIGNATURE"
+          "expected": [
+            "SIGNATURE",
+            "Signature"
+          ]
         },
         {
           "sampleId": "HR0081 (3)",
@@ -311,7 +317,10 @@
         {
           "sampleId": "manual sample (4)",
           "predicted": "Applicant Signature JLee",
-          "expected": "JLee"
+          "expected": [
+            "JLee",
+            "Jlee"
+          ]
         },
         {
           "sampleId": "manual sample (5)",
@@ -342,11 +351,6 @@
           "sampleId": "manual sample (10)",
           "predicted": "Applicant Signature Mbran",
           "expected": "MBrown"
-        },
-        {
-          "sampleId": "synth-regular (3)",
-          "predicted": "w. P.",
-          "expected": "W. P."
         }
       ]
     },
@@ -376,7 +380,10 @@
         {
           "sampleId": "HR0081 (4)",
           "predicted": "TOTAL CHEQUE",
-          "expected": "0"
+          "expected": [
+            "0",
+            "$0"
+          ]
         },
         {
           "sampleId": "HR0081 (5)",
@@ -438,10 +445,10 @@
       "field": "explain_changes",
       "fieldType": "string",
       "totalCount": 40,
-      "correctCount": 23,
-      "errorCount": 17,
-      "accuracy": 0.575,
-      "errorRate": 0.42500000000000004,
+      "correctCount": 25,
+      "errorCount": 15,
+      "accuracy": 0.625,
+      "errorRate": 0.375,
       "errors": [
         {
           "sampleId": "1 81",
@@ -464,11 +471,6 @@
           "expected": ""
         },
         {
-          "sampleId": "81 coffee",
-          "predicted": "HOMELESS",
-          "expected": "Homeless"
-        },
-        {
           "sampleId": "Fake 1",
           "predicted": "Applicant Signature",
           "expected": ""
@@ -486,7 +488,11 @@
         {
           "sampleId": "manual sample (2)",
           "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay",
-          "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached"
+          "expected": [
+            "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+            "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+            "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+          ]
         },
         {
           "sampleId": "manual sample (4)",
@@ -496,27 +502,32 @@
         {
           "sampleId": "manual sample (7)",
           "predicted": "changed address , proof of move",
-          "expected": "Changed address, proof of move"
+          "expected": [
+            "Changed address, proof of move",
+            "changed address, proof of move"
+          ]
         },
         {
           "sampleId": "manual sample (9)",
           "predicted": "Child support started, record altached",
-          "expected": "Child support started, record attached"
+          "expected": [
+            "Child support started, record attached",
+            "child support started, record attached",
+            "Child support started, record attached."
+          ]
         },
         {
           "sampleId": "manual sample (10)",
           "predicted": "new roommate, room/board income",
-          "expected": "New roommate, room /board income enclosed"
+          "expected": [
+            "New roommate, room /board income enclosed",
+            "new roommate, room /board income\nenclosed"
+          ]
         },
         {
           "sampleId": "synth-full (3)",
           "predicted": "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot.",
           "expected": "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot."
-        },
-        {
-          "sampleId": "synth-no-spouse (1)",
-          "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
-          "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy."
         },
         {
           "sampleId": "synth-no-spouse (2)",
@@ -526,7 +537,12 @@
         {
           "sampleId": "synth-no-spouse (3)",
           "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they.",
-          "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+          "expected": [
+            "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+            "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+          ]
         }
       ]
     },
@@ -571,7 +587,10 @@
         {
           "sampleId": "Fake 2",
           "predicted": "Applicant Telephone",
-          "expected": "Smith Fake"
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ]
         },
         {
           "sampleId": "Fake 3",
@@ -586,7 +605,10 @@
         {
           "sampleId": "Fake 5",
           "predicted": "X Kellykapoor Kapoor KR",
-          "expected": "Kelly Kapoor"
+          "expected": [
+            "Kelly Kapoor",
+            "Kelly kapoor"
+          ]
         },
         {
           "sampleId": "Fake 6",
@@ -668,122 +690,6 @@
           "sampleId": "manual sample (2)",
           "predicted": 1,
           "expected": ""
-        }
-      ]
-    },
-    {
-      "field": "applicant_income_of_dependent_children",
-      "fieldType": "number",
-      "totalCount": 40,
-      "correctCount": 29,
-      "errorCount": 11,
-      "accuracy": 0.725,
-      "errorRate": 0.275,
-      "errors": [
-        {
-          "sampleId": "3 81",
-          "predicted": "$",
-          "expected": ""
-        },
-        {
-          "sampleId": "81 blank",
-          "expected": "0"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 1",
-          "predicted": "$",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 4",
-          "predicted": "$",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 7",
-          "expected": 0
-        },
-        {
-          "sampleId": "HR0081 (2)",
-          "predicted": "2026-03-26",
-          "expected": ""
-        },
-        {
-          "sampleId": "HR0081 (3)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (4)",
-          "predicted": 900,
-          "expected": "900.00"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "W",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        }
-      ]
-    },
-    {
-      "field": "spouse_name",
-      "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 26,
-      "errorCount": 9,
-      "accuracy": 0.7428571428571429,
-      "errorRate": 0.2571428571428571,
-      "errors": [
-        {
-          "sampleId": "1 81",
-          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
-          "expected": ""
-        },
-        {
-          "sampleId": "2 81",
-          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
-          "expected": ""
-        },
-        {
-          "sampleId": "Fake 2",
-          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
-          "expected": ""
-        },
-        {
-          "sampleId": "Fake 5",
-          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
-          "expected": ""
-        },
-        {
-          "sampleId": "Fake 6",
-          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
-          "expected": ""
-        },
-        {
-          "sampleId": "Fake 7",
-          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
-          "expected": ""
-        },
-        {
-          "sampleId": "HR0081 (4)",
-          "expected": ":garbled:"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "April Lune",
-          "expected": "April Luna"
-        },
-        {
-          "sampleId": "manual sample (7)",
-          "predicted": "Lisa O'Connor",
-          "expected": "Lisa O'connor"
         }
       ]
     },
@@ -1078,6 +984,112 @@
       ]
     },
     {
+      "field": "applicant_income_of_dependent_children",
+      "fieldType": "number",
+      "totalCount": 40,
+      "correctCount": 30,
+      "errorCount": 10,
+      "accuracy": 0.75,
+      "errorRate": 0.25,
+      "errors": [
+        {
+          "sampleId": "3 81",
+          "predicted": "$",
+          "expected": ""
+        },
+        {
+          "sampleId": "81 blank",
+          "expected": "0"
+        },
+        {
+          "sampleId": "81 coffee",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 1",
+          "predicted": "$",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "predicted": "$",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 7",
+          "expected": 0
+        },
+        {
+          "sampleId": "HR0081 (2)",
+          "predicted": "2026-03-26",
+          "expected": ""
+        },
+        {
+          "sampleId": "HR0081 (3)",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (6)",
+          "predicted": "W",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "0"
+        }
+      ]
+    },
+    {
+      "field": "spouse_name",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 27,
+      "errorCount": 8,
+      "accuracy": 0.7714285714285715,
+      "errorRate": 0.22857142857142854,
+      "errors": [
+        {
+          "sampleId": "1 81",
+          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
+          "expected": ""
+        },
+        {
+          "sampleId": "2 81",
+          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
+          "expected": ""
+        },
+        {
+          "sampleId": "Fake 2",
+          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
+          "expected": ""
+        },
+        {
+          "sampleId": "Fake 5",
+          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
+          "expected": ""
+        },
+        {
+          "sampleId": "Fake 6",
+          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
+          "expected": ""
+        },
+        {
+          "sampleId": "Fake 7",
+          "predicted": "INCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE",
+          "expected": ""
+        },
+        {
+          "sampleId": "HR0081 (4)",
+          "expected": ":garbled:"
+        },
+        {
+          "sampleId": "HR0081 (6)",
+          "predicted": "April Lune",
+          "expected": "April Luna"
+        }
+      ]
+    },
+    {
       "field": "applicant_child_support",
       "fieldType": "number",
       "totalCount": 40,
@@ -1127,59 +1139,6 @@
         {
           "sampleId": "HR0081 (10)",
           "expected": "0"
-        }
-      ]
-    },
-    {
-      "field": "applicant_canada_pension_plan_cpp",
-      "fieldType": "number",
-      "totalCount": 40,
-      "correctCount": 31,
-      "errorCount": 9,
-      "accuracy": 0.775,
-      "errorRate": 0.22499999999999998,
-      "errors": [
-        {
-          "sampleId": "81 blank",
-          "expected": "0"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 1",
-          "predicted": "$",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 3",
-          "predicted": "$ N/A",
-          "expected": "N/A"
-        },
-        {
-          "sampleId": "Fake 4",
-          "predicted": "$",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 5",
-          "expected": "0"
-        },
-        {
-          "sampleId": "Fake 7",
-          "predicted": 8,
-          "expected": "0"
-        },
-        {
-          "sampleId": "manual sample (2)",
-          "predicted": 68234,
-          "expected": "682.34"
-        },
-        {
-          "sampleId": "manual sample (6)",
-          "predicted": 123,
-          "expected": 223
         }
       ]
     },
@@ -1424,6 +1383,54 @@
       ]
     },
     {
+      "field": "applicant_canada_pension_plan_cpp",
+      "fieldType": "number",
+      "totalCount": 40,
+      "correctCount": 32,
+      "errorCount": 8,
+      "accuracy": 0.8,
+      "errorRate": 0.19999999999999996,
+      "errors": [
+        {
+          "sampleId": "81 blank",
+          "expected": "0"
+        },
+        {
+          "sampleId": "81 coffee",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 1",
+          "predicted": "$",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 4",
+          "predicted": "$",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 5",
+          "expected": "0"
+        },
+        {
+          "sampleId": "Fake 7",
+          "predicted": 8,
+          "expected": "0"
+        },
+        {
+          "sampleId": "manual sample (2)",
+          "predicted": 68234,
+          "expected": "682.34"
+        },
+        {
+          "sampleId": "manual sample (6)",
+          "predicted": 123,
+          "expected": 223
+        }
+      ]
+    },
+    {
       "field": "applicant_student_funding_loans_bursaries",
       "fieldType": "number",
       "totalCount": 40,
@@ -1481,7 +1488,10 @@
         {
           "sampleId": "1 81",
           "predicted": 6000,
-          "expected": "60.00"
+          "expected": [
+            "60.00",
+            "60"
+          ]
         },
         {
           "sampleId": "81 blank",
@@ -1657,7 +1667,8 @@
           "expected": [
             "789788425",
             "789 788 425",
-            "789-788-425"
+            "789-788-425",
+            "789-788- 425"
           ]
         }
       ]
@@ -2139,30 +2150,6 @@
       ]
     },
     {
-      "field": "spouse_student_funding_loans_bursaries",
-      "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 32,
-      "errorCount": 3,
-      "accuracy": 0.9142857142857143,
-      "errorRate": 0.08571428571428574,
-      "errors": [
-        {
-          "sampleId": "HR0081 (4)",
-          "predicted": 900,
-          "expected": "900.00"
-        },
-        {
-          "sampleId": "HR0081 (9)",
-          "expected": "0"
-        },
-        {
-          "sampleId": "HR0081 (10)",
-          "expected": "0"
-        }
-      ]
-    },
-    {
       "field": "checkbox_moved_no",
       "fieldType": "string",
       "totalCount": 40,
@@ -2248,7 +2235,10 @@
         {
           "sampleId": "manual sample (7)",
           "predicted": 2680,
-          "expected": "26.80"
+          "expected": [
+            "26.80",
+            "26.8"
+          ]
         }
       ]
     },
@@ -2273,6 +2263,25 @@
     },
     {
       "field": "spouse_workers_compensation",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 33,
+      "errorCount": 2,
+      "accuracy": 0.9428571428571428,
+      "errorRate": 0.05714285714285716,
+      "errors": [
+        {
+          "sampleId": "HR0081 (9)",
+          "expected": "0"
+        },
+        {
+          "sampleId": "HR0081 (10)",
+          "expected": "0"
+        }
+      ]
+    },
+    {
+      "field": "spouse_student_funding_loans_bursaries",
       "fieldType": "string",
       "totalCount": 35,
       "correctCount": 33,
@@ -2769,7 +2778,10 @@
           },
           {
             "field": "applicant_income_tax_refund",
-            "expected": "60.00",
+            "expected": [
+              "60.00",
+              "60"
+            ],
             "predicted": 6000
           }
         ],
@@ -3082,7 +3094,10 @@
             "field": "applicant_income_tax_refund",
             "matched": false,
             "predicted": 6000,
-            "expected": "60.00",
+            "expected": [
+              "60.00",
+              "60"
+            ],
             "confidence": null
           },
           {
@@ -3344,7 +3359,10 @@
         "checkbox_family_assets_yes": "unselected",
         "checkbox_school_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_income_tax_refund": "60.00",
+        "applicant_income_tax_refund": [
+          "60.00",
+          "60"
+        ],
         "applicant_room_board_income": 0,
         "checkbox_need_assistance_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
@@ -3762,7 +3780,10 @@
           "field": "applicant_income_tax_refund",
           "matched": false,
           "predicted": 6000,
-          "expected": "60.00",
+          "expected": [
+            "60.00",
+            "60"
+          ],
           "confidence": null
         },
         {
@@ -4043,7 +4064,10 @@
             "field": "signature",
             "matched": true,
             "predicted": "Spouse Missing",
-            "expected": "Spouse Missing",
+            "expected": [
+              "Spouse Missing",
+              "spouse Missing"
+            ],
             "confidence": null
           },
           {
@@ -4539,7 +4563,10 @@
         "date": "",
         "name": "Spouse Missing",
         "phone": "",
-        "signature": "Spouse Missing",
+        "signature": [
+          "Spouse Missing",
+          "spouse Missing"
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -4723,7 +4750,10 @@
           "field": "signature",
           "matched": true,
           "predicted": "Spouse Missing",
-          "expected": "Spouse Missing",
+          "expected": [
+            "Spouse Missing",
+            "spouse Missing"
+          ],
           "confidence": null
         },
         {
@@ -7647,20 +7677,20 @@
       "sampleId": "81 coffee",
       "metadata": {},
       "metrics": {
-        "precision": 0.7777777777777778,
-        "recall": 0.4666666666666667,
-        "f1": 0.5833333333333334,
-        "truePositives": 35,
-        "falsePositives": 10,
-        "falseNegatives": 40,
+        "precision": 0.8,
+        "recall": 0.48,
+        "f1": 0.6,
+        "truePositives": 36,
+        "falsePositives": 9,
+        "falseNegatives": 39,
         "totalGroundTruthFields": 75,
-        "matchedFields": 35,
+        "matchedFields": 36,
         "checkboxAccuracy": 0
       },
       "pass": false,
       "diagnostics": {
         "totalFields": 75,
-        "matchedFields": 35,
+        "matchedFields": 36,
         "missingFields": [
           "signature",
           "checkbox_moved_no",
@@ -7713,11 +7743,6 @@
             "field": "name",
             "expected": "Missed Box",
             "predicted": "PHERE CHE GUE"
-          },
-          {
-            "field": "explain_changes",
-            "expected": "Homeless",
-            "predicted": "HOMELESS"
           },
           {
             "field": "applicant_oas_gis",
@@ -7833,9 +7858,12 @@
           },
           {
             "field": "explain_changes",
-            "matched": false,
+            "matched": true,
             "predicted": "HOMELESS",
-            "expected": "Homeless",
+            "expected": [
+              "Homeless",
+              "HOMELESS"
+            ],
             "confidence": null
           },
           {
@@ -8268,7 +8296,10 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Homeless",
+        "explain_changes": [
+          "Homeless",
+          "HOMELESS"
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": 0,
@@ -8493,9 +8524,12 @@
         },
         {
           "field": "explain_changes",
-          "matched": false,
+          "matched": true,
           "predicted": "HOMELESS",
-          "expected": "Homeless",
+          "expected": [
+            "Homeless",
+            "HOMELESS"
+          ],
           "confidence": null
         },
         {
@@ -10200,12 +10234,18 @@
           },
           {
             "field": "name",
-            "expected": "Smith Fake",
+            "expected": [
+              "Smith Fake",
+              "Smith Fake."
+            ],
             "predicted": "Applicant Telephone"
           },
           {
             "field": "signature",
-            "expected": "Smith Fake",
+            "expected": [
+              "Smith Fake",
+              "Smith Fake."
+            ],
             "predicted": "nsadue Dahl"
           }
         ],
@@ -10235,7 +10275,10 @@
             "field": "name",
             "matched": false,
             "predicted": "Applicant Telephone",
-            "expected": "Smith Fake",
+            "expected": [
+              "Smith Fake",
+              "Smith Fake."
+            ],
             "confidence": null
           },
           {
@@ -10249,7 +10292,10 @@
             "field": "signature",
             "matched": false,
             "predicted": "nsadue Dahl",
-            "expected": "Smith Fake",
+            "expected": [
+              "Smith Fake",
+              "Smith Fake."
+            ],
             "confidence": null
           },
           {
@@ -10745,9 +10791,15 @@
           "2026-04-02",
           "April 2,2026"
         ],
-        "name": "Smith Fake",
+        "name": [
+          "Smith Fake",
+          "Smith Fake."
+        ],
         "phone": "",
-        "signature": "Smith Fake",
+        "signature": [
+          "Smith Fake",
+          "Smith Fake."
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -10921,7 +10973,10 @@
           "field": "name",
           "matched": false,
           "predicted": "Applicant Telephone",
-          "expected": "Smith Fake",
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ],
           "confidence": null
         },
         {
@@ -10935,7 +10990,10 @@
           "field": "signature",
           "matched": false,
           "predicted": "nsadue Dahl",
-          "expected": "Smith Fake",
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ],
           "confidence": null
         },
         {
@@ -11426,20 +11484,20 @@
       "sampleId": "Fake 3",
       "metadata": {},
       "metrics": {
-        "precision": 0.8732394366197183,
-        "recall": 0.8611111111111112,
-        "f1": 0.8671328671328671,
-        "truePositives": 62,
-        "falsePositives": 9,
-        "falseNegatives": 10,
+        "precision": 0.8873239436619719,
+        "recall": 0.875,
+        "f1": 0.881118881118881,
+        "truePositives": 63,
+        "falsePositives": 8,
+        "falseNegatives": 9,
         "totalGroundTruthFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 62,
+        "matchedFields": 63,
         "missingFields": [
           "checkbox_need_assistance_no",
           "checkbox_need_assistance_yes",
@@ -11476,11 +11534,6 @@
             "field": "applicant_employment_insurance",
             "expected": "N/A",
             "predicted": "$"
-          },
-          {
-            "field": "applicant_canada_pension_plan_cpp",
-            "expected": "N/A",
-            "predicted": "$ N/A"
           }
         ],
         "comparisonResults": [
@@ -11923,9 +11976,12 @@
           },
           {
             "field": "applicant_canada_pension_plan_cpp",
-            "matched": false,
+            "matched": true,
             "predicted": "$ N/A",
-            "expected": "N/A",
+            "expected": [
+              "N/A",
+              "$ N/A"
+            ],
             "confidence": null
           },
           {
@@ -12076,7 +12132,10 @@
         "checkbox_employment_changes_yes": "unselected",
         "spouse_workbc_financial_support": "",
         "applicant_tax_credits_gst_credit": "N/A",
-        "applicant_canada_pension_plan_cpp": "N/A",
+        "applicant_canada_pension_plan_cpp": [
+          "N/A",
+          "$ N/A"
+        ],
         "applicant_spousal_support_alimony": "N/A",
         "applicant_workbc_financial_support": "N/A",
         "spouse_other_income_money_received": "",
@@ -12606,9 +12665,12 @@
         },
         {
           "field": "applicant_canada_pension_plan_cpp",
-          "matched": false,
+          "matched": true,
           "predicted": "$ N/A",
-          "expected": "N/A",
+          "expected": [
+            "N/A",
+            "$ N/A"
+          ],
           "confidence": null
         },
         {
@@ -12860,7 +12922,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Lost job, taking course to find new work.",
-            "expected": "Lost job, taking course to find new work.",
+            "expected": [
+              "Lost job, taking course to find new work.",
+              "Lost job, taking course to find\nnew work."
+            ],
             "confidence": null
           },
           {
@@ -13312,7 +13377,10 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Lost job, taking course to find new work.",
+        "explain_changes": [
+          "Lost job, taking course to find new work.",
+          "Lost job, taking course to find\nnew work."
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": "0",
@@ -13536,7 +13604,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Lost job, taking course to find new work.",
-          "expected": "Lost job, taking course to find new work.",
+          "expected": [
+            "Lost job, taking course to find new work.",
+            "Lost job, taking course to find\nnew work."
+          ],
           "confidence": null
         },
         {
@@ -14001,7 +14072,10 @@
         "mismatchedFields": [
           {
             "field": "name",
-            "expected": "Kelly Kapoor",
+            "expected": [
+              "Kelly Kapoor",
+              "Kelly kapoor"
+            ],
             "predicted": "X Kellykapoor Kapoor KR"
           },
           {
@@ -14084,7 +14158,10 @@
             "field": "name",
             "matched": false,
             "predicted": "X Kellykapoor Kapoor KR",
-            "expected": "Kelly Kapoor",
+            "expected": [
+              "Kelly Kapoor",
+              "Kelly kapoor"
+            ],
             "confidence": null
           },
           {
@@ -14588,7 +14665,10 @@
           "X321798231"
         ],
         "date": "2026-04-02",
-        "name": "Kelly Kapoor",
+        "name": [
+          "Kelly Kapoor",
+          "Kelly kapoor"
+        ],
         "phone": "",
         "signature": "Kelly",
         "spouse_sin": "",
@@ -14762,7 +14842,10 @@
           "field": "name",
           "matched": false,
           "predicted": "X Kellykapoor Kapoor KR",
-          "expected": "Kelly Kapoor",
+          "expected": [
+            "Kelly Kapoor",
+            "Kelly kapoor"
+          ],
           "confidence": null
         },
         {
@@ -16544,7 +16627,10 @@
           },
           {
             "field": "signature",
-            "expected": "SIGNATURE",
+            "expected": [
+              "SIGNATURE",
+              "Signature"
+            ],
             "predicted": "Applicant Signature SIGNATURE"
           },
           {
@@ -16615,7 +16701,10 @@
             "field": "signature",
             "matched": false,
             "predicted": "Applicant Signature SIGNATURE",
-            "expected": "SIGNATURE",
+            "expected": [
+              "SIGNATURE",
+              "Signature"
+            ],
             "confidence": null
           },
           {
@@ -17105,7 +17194,10 @@
         "date": "2026APR02",
         "name": ":garbled:",
         "phone": "",
-        "signature": "SIGNATURE",
+        "signature": [
+          "SIGNATURE",
+          "Signature"
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -17290,7 +17382,10 @@
           "field": "signature",
           "matched": false,
           "predicted": "Applicant Signature SIGNATURE",
-          "expected": "SIGNATURE",
+          "expected": [
+            "SIGNATURE",
+            "Signature"
+          ],
           "confidence": null
         },
         {
@@ -20270,20 +20365,20 @@
       "sampleId": "HR0081 (4)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8904109589041096,
-        "recall": 0.9027777777777778,
-        "f1": 0.896551724137931,
-        "truePositives": 65,
-        "falsePositives": 8,
-        "falseNegatives": 7,
+        "precision": 0.9178082191780822,
+        "recall": 0.9305555555555556,
+        "f1": 0.9241379310344828,
+        "truePositives": 67,
+        "falsePositives": 6,
+        "falseNegatives": 5,
         "totalGroundTruthFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 67,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 67,
         "missingFields": [
           "spouse_name"
         ],
@@ -20316,18 +20411,11 @@
           },
           {
             "field": "spouse_other_income_money_received",
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "predicted": "TOTAL CHEQUE"
-          },
-          {
-            "field": "applicant_income_of_dependent_children",
-            "expected": "900.00",
-            "predicted": 900
-          },
-          {
-            "field": "spouse_student_funding_loans_bursaries",
-            "expected": "900.00",
-            "predicted": 900
           }
         ],
         "comparisonResults": [
@@ -20413,7 +20501,10 @@
             "field": "spouse_oas_gis",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20441,7 +20532,10 @@
             "field": "applicant_oas_gis",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20518,21 +20612,30 @@
             "field": "spouse_child_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_rental_income",
             "matched": true,
             "predicted": 50,
-            "expected": "50",
+            "expected": [
+              "50",
+              "50$"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_trust_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20546,14 +20649,20 @@
             "field": "applicant_child_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_rental_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "0$"
+            ],
             "confidence": null
           },
           {
@@ -20588,14 +20697,20 @@
             "field": "spouse_income_tax_refund",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_room_board_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20623,7 +20738,10 @@
             "field": "spouse_child_tax_benefits",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20651,14 +20769,20 @@
             "field": "applicant_income_tax_refund",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_room_board_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20679,21 +20803,30 @@
             "field": "spouse_employment_insurance",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_workers_compensation",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_child_tax_benefits",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20707,28 +20840,40 @@
             "field": "spouse_net_employment_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_tax_credits_gst_credit",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_employment_insurance",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_workers_compensation",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20742,21 +20887,30 @@
             "field": "spouse_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_spousal_support_alimony",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_net_employment_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20770,49 +20924,70 @@
             "field": "spouse_workbc_financial_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_tax_credits_gst_credit",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_spousal_support_alimony",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_workbc_financial_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_other_income_money_received",
             "matched": false,
             "predicted": "TOTAL CHEQUE",
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_other_income_money_received",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -20824,9 +20999,13 @@
           },
           {
             "field": "applicant_income_of_dependent_children",
-            "matched": false,
+            "matched": true,
             "predicted": 900,
-            "expected": "900.00",
+            "expected": [
+              "900.00",
+              "$900.00",
+              "900"
+            ],
             "confidence": null
           },
           {
@@ -20838,30 +21017,43 @@
           },
           {
             "field": "spouse_student_funding_loans_bursaries",
-            "matched": false,
+            "matched": true,
             "predicted": 900,
-            "expected": "900.00",
+            "expected": [
+              "900.00",
+              "$900.00",
+              "900"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_student_funding_loans_bursaries",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_private_pensions_retirement_disability",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_private_pensions_retirement_disability",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           }
         ]
@@ -20892,11 +21084,17 @@
         ],
         "spouse_name": ":garbled:",
         "spouse_phone": "",
-        "spouse_oas_gis": "0",
+        "spouse_oas_gis": [
+          "0",
+          "$0"
+        ],
         "explain_changes": "",
         "checkbox_work_no": "selected",
         "spouse_signature": "Dave smart",
-        "applicant_oas_gis": "0",
+        "applicant_oas_gis": [
+          "0",
+          "$0"
+        ],
         "checkbox_moved_no": "selected",
         "checkbox_work_yes": "unselected",
         "checkbox_moved_yes": "unselected",
@@ -20907,56 +21105,154 @@
         "spouse_trust_income": "0",
         "checkbox_shelter_yes": "unselected",
         "checkbox_warrant_yes": "unselected",
-        "spouse_child_support": "0",
-        "spouse_rental_income": "50",
-        "applicant_trust_income": "0",
+        "spouse_child_support": [
+          "0",
+          "$0"
+        ],
+        "spouse_rental_income": [
+          "50",
+          "50$"
+        ],
+        "applicant_trust_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_dependants_no": "selected",
-        "applicant_child_support": "0",
-        "applicant_rental_income": "0",
+        "applicant_child_support": [
+          "0",
+          "$0"
+        ],
+        "applicant_rental_income": [
+          "0",
+          "0$"
+        ],
         "checkbox_dependants_yes": "unselected",
         "checkbox_work_spouse_no": "selected",
         "checkbox_moved_spouse_no": "selected",
         "checkbox_work_spouse_yes": "unselected",
-        "spouse_income_tax_refund": "0",
-        "spouse_room_board_income": "0",
+        "spouse_income_tax_refund": [
+          "0",
+          "$0"
+        ],
+        "spouse_room_board_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_family_assets_no": "selected",
         "checkbox_moved_spouse_yes": "unselected",
         "checkbox_school_spouse_no": "selected",
-        "spouse_child_tax_benefits": "0",
+        "spouse_child_tax_benefits": [
+          "0",
+          "$0"
+        ],
         "checkbox_family_assets_yes": "unselected",
         "checkbox_school_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_income_tax_refund": "0",
-        "applicant_room_board_income": "0",
+        "applicant_income_tax_refund": [
+          "0",
+          "$0"
+        ],
+        "applicant_room_board_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_need_assistance_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
-        "spouse_employment_insurance": "0",
-        "spouse_workers_compensation": "0",
-        "applicant_child_tax_benefits": "0",
+        "spouse_employment_insurance": [
+          "0",
+          "$0"
+        ],
+        "spouse_workers_compensation": [
+          "0",
+          "$0"
+        ],
+        "applicant_child_tax_benefits": [
+          "0",
+          "$0"
+        ],
         "checkbox_need_assistance_yes": "selected",
-        "spouse_net_employment_income": "0",
-        "spouse_tax_credits_gst_credit": "0",
-        "applicant_employment_insurance": "0",
-        "applicant_workers_compensation": "0",
+        "spouse_net_employment_income": [
+          "0",
+          "$0"
+        ],
+        "spouse_tax_credits_gst_credit": [
+          "0",
+          "$0"
+        ],
+        "applicant_employment_insurance": [
+          "0",
+          "$0"
+        ],
+        "applicant_workers_compensation": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_no": "selected",
-        "spouse_canada_pension_plan_cpp": "0",
-        "spouse_spousal_support_alimony": "0",
-        "applicant_net_employment_income": "0",
+        "spouse_canada_pension_plan_cpp": [
+          "0",
+          "$0"
+        ],
+        "spouse_spousal_support_alimony": [
+          "0",
+          "$0"
+        ],
+        "applicant_net_employment_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_yes": "unselected",
-        "spouse_workbc_financial_support": "0",
-        "applicant_tax_credits_gst_credit": "0",
-        "applicant_canada_pension_plan_cpp": "0",
-        "applicant_spousal_support_alimony": "0",
-        "applicant_workbc_financial_support": "0",
-        "spouse_other_income_money_received": "0",
-        "applicant_other_income_money_received": "0",
+        "spouse_workbc_financial_support": [
+          "0",
+          "$0"
+        ],
+        "applicant_tax_credits_gst_credit": [
+          "0",
+          "$0"
+        ],
+        "applicant_canada_pension_plan_cpp": [
+          "0",
+          "$0"
+        ],
+        "applicant_spousal_support_alimony": [
+          "0",
+          "$0"
+        ],
+        "applicant_workbc_financial_support": [
+          "0",
+          "$0"
+        ],
+        "spouse_other_income_money_received": [
+          "0",
+          "$0"
+        ],
+        "applicant_other_income_money_received": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_spouse_no": "selected",
-        "applicant_income_of_dependent_children": "900.00",
+        "applicant_income_of_dependent_children": [
+          "900.00",
+          "$900.00",
+          "900"
+        ],
         "checkbox_employment_changes_spouse_yes": "unselected",
-        "spouse_student_funding_loans_bursaries": "900.00",
-        "applicant_student_funding_loans_bursaries": "0",
-        "spouse_private_pensions_retirement_disability": "0",
-        "applicant_private_pensions_retirement_disability": "0"
+        "spouse_student_funding_loans_bursaries": [
+          "900.00",
+          "$900.00",
+          "900"
+        ],
+        "applicant_student_funding_loans_bursaries": [
+          "0",
+          "$0"
+        ],
+        "spouse_private_pensions_retirement_disability": [
+          "0",
+          "$0"
+        ],
+        "applicant_private_pensions_retirement_disability": [
+          "0",
+          "$0"
+        ]
       },
       "prediction": {
         "checkbox_need_assistance_no": "unselected",
@@ -21118,7 +21414,10 @@
           "field": "spouse_oas_gis",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21146,7 +21445,10 @@
           "field": "applicant_oas_gis",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21223,21 +21525,30 @@
           "field": "spouse_child_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_rental_income",
           "matched": true,
           "predicted": 50,
-          "expected": "50",
+          "expected": [
+            "50",
+            "50$"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_trust_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21251,14 +21562,20 @@
           "field": "applicant_child_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_rental_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "0$"
+          ],
           "confidence": null
         },
         {
@@ -21293,14 +21610,20 @@
           "field": "spouse_income_tax_refund",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_room_board_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21328,7 +21651,10 @@
           "field": "spouse_child_tax_benefits",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21356,14 +21682,20 @@
           "field": "applicant_income_tax_refund",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_room_board_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21384,21 +21716,30 @@
           "field": "spouse_employment_insurance",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_workers_compensation",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_child_tax_benefits",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21412,28 +21753,40 @@
           "field": "spouse_net_employment_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_tax_credits_gst_credit",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_employment_insurance",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_workers_compensation",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21447,21 +21800,30 @@
           "field": "spouse_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_spousal_support_alimony",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_net_employment_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21475,49 +21837,70 @@
           "field": "spouse_workbc_financial_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_tax_credits_gst_credit",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_spousal_support_alimony",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_workbc_financial_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_other_income_money_received",
           "matched": false,
           "predicted": "TOTAL CHEQUE",
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_other_income_money_received",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -21529,9 +21912,13 @@
         },
         {
           "field": "applicant_income_of_dependent_children",
-          "matched": false,
+          "matched": true,
           "predicted": 900,
-          "expected": "900.00",
+          "expected": [
+            "900.00",
+            "$900.00",
+            "900"
+          ],
           "confidence": null
         },
         {
@@ -21543,30 +21930,43 @@
         },
         {
           "field": "spouse_student_funding_loans_bursaries",
-          "matched": false,
+          "matched": true,
           "predicted": 900,
-          "expected": "900.00",
+          "expected": [
+            "900.00",
+            "$900.00",
+            "900"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_student_funding_loans_bursaries",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_private_pensions_retirement_disability",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_private_pensions_retirement_disability",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         }
       ],
@@ -24221,7 +24621,10 @@
             "field": "applicant_oas_gis",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24312,7 +24715,10 @@
             "field": "applicant_trust_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24326,14 +24732,20 @@
             "field": "applicant_child_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_rental_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24431,14 +24843,20 @@
             "field": "applicant_income_tax_refund",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_room_board_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24473,7 +24891,10 @@
             "field": "applicant_child_tax_benefits",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24501,14 +24922,20 @@
             "field": "applicant_employment_insurance",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_workers_compensation",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24536,7 +24963,10 @@
             "field": "applicant_net_employment_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24557,28 +24987,40 @@
             "field": "applicant_tax_credits_gst_credit",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_spousal_support_alimony",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_workbc_financial_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24592,7 +25034,10 @@
             "field": "applicant_other_income_money_received",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24606,7 +25051,10 @@
             "field": "applicant_income_of_dependent_children",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24627,7 +25075,10 @@
             "field": "applicant_student_funding_loans_bursaries",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -24641,7 +25092,10 @@
             "field": "applicant_private_pensions_retirement_disability",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           }
         ]
@@ -24664,7 +25118,10 @@
         "explain_changes": "Separated from spouse",
         "checkbox_work_no": "selected",
         "spouse_signature": "",
-        "applicant_oas_gis": "0",
+        "applicant_oas_gis": [
+          "0",
+          "$0"
+        ],
         "checkbox_moved_no": "selected",
         "checkbox_work_yes": "unselected",
         "checkbox_moved_yes": "unselected",
@@ -24677,10 +25134,19 @@
         "checkbox_warrant_yes": "unselected",
         "spouse_child_support": "",
         "spouse_rental_income": "",
-        "applicant_trust_income": "0",
+        "applicant_trust_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_dependants_no": "unselected",
-        "applicant_child_support": "0",
-        "applicant_rental_income": "0",
+        "applicant_child_support": [
+          "0",
+          "$0"
+        ],
+        "applicant_rental_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_dependants_yes": "selected",
         "checkbox_work_spouse_no": "selected",
         "checkbox_moved_spouse_no": "selected",
@@ -24694,37 +25160,79 @@
         "checkbox_family_assets_yes": "unselected",
         "checkbox_school_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_income_tax_refund": "0",
-        "applicant_room_board_income": "0",
+        "applicant_income_tax_refund": [
+          "0",
+          "$0"
+        ],
+        "applicant_room_board_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_need_assistance_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
         "spouse_employment_insurance": "",
         "spouse_workers_compensation": "",
-        "applicant_child_tax_benefits": "0",
+        "applicant_child_tax_benefits": [
+          "0",
+          "$0"
+        ],
         "checkbox_need_assistance_yes": "selected",
         "spouse_net_employment_income": "",
         "spouse_tax_credits_gst_credit": "",
-        "applicant_employment_insurance": "0",
-        "applicant_workers_compensation": "0",
+        "applicant_employment_insurance": [
+          "0",
+          "$0"
+        ],
+        "applicant_workers_compensation": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_no": "unselected",
         "spouse_canada_pension_plan_cpp": "",
         "spouse_spousal_support_alimony": "",
-        "applicant_net_employment_income": "0",
+        "applicant_net_employment_income": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_yes": "selected",
         "spouse_workbc_financial_support": "",
-        "applicant_tax_credits_gst_credit": "0",
-        "applicant_canada_pension_plan_cpp": "0",
-        "applicant_spousal_support_alimony": "0",
-        "applicant_workbc_financial_support": "0",
+        "applicant_tax_credits_gst_credit": [
+          "0",
+          "$0"
+        ],
+        "applicant_canada_pension_plan_cpp": [
+          "0",
+          "$0"
+        ],
+        "applicant_spousal_support_alimony": [
+          "0",
+          "$0"
+        ],
+        "applicant_workbc_financial_support": [
+          "0",
+          "$0"
+        ],
         "spouse_other_income_money_received": "",
-        "applicant_other_income_money_received": "0",
+        "applicant_other_income_money_received": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_spouse_no": "selected",
-        "applicant_income_of_dependent_children": "0",
+        "applicant_income_of_dependent_children": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_spouse_yes": "unselected",
         "spouse_student_funding_loans_bursaries": "",
-        "applicant_student_funding_loans_bursaries": "0",
+        "applicant_student_funding_loans_bursaries": [
+          "0",
+          "$0"
+        ],
         "spouse_private_pensions_retirement_disability": "",
-        "applicant_private_pensions_retirement_disability": "0"
+        "applicant_private_pensions_retirement_disability": [
+          "0",
+          "$0"
+        ]
       },
       "prediction": {
         "checkbox_need_assistance_no": "unselected",
@@ -24903,7 +25411,10 @@
           "field": "applicant_oas_gis",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -24994,7 +25505,10 @@
           "field": "applicant_trust_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25008,14 +25522,20 @@
           "field": "applicant_child_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_rental_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25113,14 +25633,20 @@
           "field": "applicant_income_tax_refund",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_room_board_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25155,7 +25681,10 @@
           "field": "applicant_child_tax_benefits",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25183,14 +25712,20 @@
           "field": "applicant_employment_insurance",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_workers_compensation",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25218,7 +25753,10 @@
           "field": "applicant_net_employment_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25239,28 +25777,40 @@
           "field": "applicant_tax_credits_gst_credit",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_spousal_support_alimony",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_workbc_financial_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25274,7 +25824,10 @@
           "field": "applicant_other_income_money_received",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25288,7 +25841,10 @@
           "field": "applicant_income_of_dependent_children",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25309,7 +25865,10 @@
           "field": "applicant_student_funding_loans_bursaries",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -25323,7 +25882,10 @@
           "field": "applicant_private_pensions_retirement_disability",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         }
       ],
@@ -25443,7 +26005,10 @@
             "field": "spouse_oas_gis",
             "matched": true,
             "predicted": 58,
-            "expected": "58",
+            "expected": [
+              "58",
+              "$58"
+            ],
             "confidence": null
           },
           {
@@ -25471,7 +26036,10 @@
             "field": "applicant_oas_gis",
             "matched": true,
             "predicted": 22,
-            "expected": "22",
+            "expected": [
+              "22",
+              "$22"
+            ],
             "confidence": null
           },
           {
@@ -25527,7 +26095,10 @@
             "field": "spouse_trust_income",
             "matched": true,
             "predicted": 22,
-            "expected": "22",
+            "expected": [
+              "22",
+              "$22"
+            ],
             "confidence": null
           },
           {
@@ -25548,21 +26119,30 @@
             "field": "spouse_child_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_rental_income",
             "matched": true,
             "predicted": 52,
-            "expected": "52",
+            "expected": [
+              "52",
+              "52$"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_trust_income",
             "matched": true,
             "predicted": 22,
-            "expected": "22",
+            "expected": [
+              "22",
+              "$22"
+            ],
             "confidence": null
           },
           {
@@ -25576,7 +26156,10 @@
             "field": "applicant_child_support",
             "matched": true,
             "predicted": 65,
-            "expected": "65",
+            "expected": [
+              "65",
+              "$65"
+            ],
             "confidence": null
           },
           {
@@ -25618,14 +26201,20 @@
             "field": "spouse_income_tax_refund",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_room_board_income",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0.00"
+            ],
             "confidence": null
           },
           {
@@ -25653,7 +26242,10 @@
             "field": "spouse_child_tax_benefits",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -25681,7 +26273,10 @@
             "field": "applicant_income_tax_refund",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -25716,14 +26311,20 @@
             "field": "spouse_workers_compensation",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_child_tax_benefits",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -25744,14 +26345,20 @@
             "field": "spouse_tax_credits_gst_credit",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "0$"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_employment_insurance",
             "matched": true,
             "predicted": 20,
-            "expected": "20",
+            "expected": [
+              "20",
+              "$20"
+            ],
             "confidence": null
           },
           {
@@ -25772,7 +26379,10 @@
             "field": "spouse_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 22,
-            "expected": "22",
+            "expected": [
+              "22",
+              "$22"
+            ],
             "confidence": null
           },
           {
@@ -25786,7 +26396,10 @@
             "field": "applicant_net_employment_income",
             "matched": true,
             "predicted": 500,
-            "expected": "500",
+            "expected": [
+              "500",
+              "$500.00"
+            ],
             "confidence": null
           },
           {
@@ -25800,49 +26413,70 @@
             "field": "spouse_workbc_financial_support",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_tax_credits_gst_credit",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_spousal_support_alimony",
             "matched": true,
             "predicted": 20,
-            "expected": "20",
+            "expected": [
+              "20",
+              "$20"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_workbc_financial_support",
             "matched": true,
             "predicted": 55,
-            "expected": "55",
+            "expected": [
+              "55",
+              "$55"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_other_income_money_received",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_other_income_money_received",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -25856,7 +26490,10 @@
             "field": "applicant_income_of_dependent_children",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
@@ -25870,28 +26507,40 @@
             "field": "spouse_student_funding_loans_bursaries",
             "matched": true,
             "predicted": 85,
-            "expected": "85",
+            "expected": [
+              "85",
+              "$85"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_student_funding_loans_bursaries",
             "matched": true,
             "predicted": 18,
-            "expected": "18",
+            "expected": [
+              "18",
+              "$18"
+            ],
             "confidence": null
           },
           {
             "field": "spouse_private_pensions_retirement_disability",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_private_pensions_retirement_disability",
             "matched": true,
             "predicted": 0,
-            "expected": "0",
+            "expected": [
+              "0",
+              "$0"
+            ],
             "confidence": null
           }
         ]
@@ -25914,11 +26563,17 @@
         "spouse_date": "2026-03-18",
         "spouse_name": "lece",
         "spouse_phone": "",
-        "spouse_oas_gis": "58",
+        "spouse_oas_gis": [
+          "58",
+          "$58"
+        ],
         "explain_changes": "",
         "checkbox_work_no": "selected",
         "spouse_signature": "Donna Eight",
-        "applicant_oas_gis": "22",
+        "applicant_oas_gis": [
+          "22",
+          "$22"
+        ],
         "checkbox_moved_no": "selected",
         "checkbox_work_yes": "unselected",
         "checkbox_moved_yes": "unselected",
@@ -25926,59 +26581,140 @@
         "checkbox_school_yes": "unselected",
         "checkbox_shelter_no": "selected",
         "checkbox_warrant_no": "unselected",
-        "spouse_trust_income": "22",
+        "spouse_trust_income": [
+          "22",
+          "$22"
+        ],
         "checkbox_shelter_yes": "unselected",
         "checkbox_warrant_yes": "unselected",
-        "spouse_child_support": "0",
-        "spouse_rental_income": "52",
-        "applicant_trust_income": "22",
+        "spouse_child_support": [
+          "0",
+          "$0"
+        ],
+        "spouse_rental_income": [
+          "52",
+          "52$"
+        ],
+        "applicant_trust_income": [
+          "22",
+          "$22"
+        ],
         "checkbox_dependants_no": "selected",
-        "applicant_child_support": "65",
+        "applicant_child_support": [
+          "65",
+          "$65"
+        ],
         "applicant_rental_income": 0,
         "checkbox_dependants_yes": "unselected",
         "checkbox_work_spouse_no": "selected",
         "checkbox_moved_spouse_no": "selected",
         "checkbox_work_spouse_yes": "unselected",
-        "spouse_income_tax_refund": "0",
-        "spouse_room_board_income": "0",
+        "spouse_income_tax_refund": [
+          "0",
+          "$0"
+        ],
+        "spouse_room_board_income": [
+          "0",
+          "$0.00"
+        ],
         "checkbox_family_assets_no": "selected",
         "checkbox_moved_spouse_yes": "unselected",
         "checkbox_school_spouse_no": "selected",
-        "spouse_child_tax_benefits": "0",
+        "spouse_child_tax_benefits": [
+          "0",
+          "$0"
+        ],
         "checkbox_family_assets_yes": "unselected",
         "checkbox_school_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_income_tax_refund": "0",
+        "applicant_income_tax_refund": [
+          "0",
+          "$0"
+        ],
         "applicant_room_board_income": 0,
         "checkbox_need_assistance_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
         "spouse_employment_insurance": "",
-        "spouse_workers_compensation": "0",
-        "applicant_child_tax_benefits": "0",
+        "spouse_workers_compensation": [
+          "0",
+          "$0"
+        ],
+        "applicant_child_tax_benefits": [
+          "0",
+          "$0"
+        ],
         "checkbox_need_assistance_yes": "selected",
         "spouse_net_employment_income": "75",
-        "spouse_tax_credits_gst_credit": "0",
-        "applicant_employment_insurance": "20",
+        "spouse_tax_credits_gst_credit": [
+          "0",
+          "0$"
+        ],
+        "applicant_employment_insurance": [
+          "20",
+          "$20"
+        ],
         "applicant_workers_compensation": 15,
         "checkbox_employment_changes_no": "selected",
-        "spouse_canada_pension_plan_cpp": "22",
+        "spouse_canada_pension_plan_cpp": [
+          "22",
+          "$22"
+        ],
         "spouse_spousal_support_alimony": "16",
-        "applicant_net_employment_income": "500",
+        "applicant_net_employment_income": [
+          "500",
+          "$500.00"
+        ],
         "checkbox_employment_changes_yes": "unselected",
-        "spouse_workbc_financial_support": "0",
-        "applicant_tax_credits_gst_credit": "0",
-        "applicant_canada_pension_plan_cpp": "0",
-        "applicant_spousal_support_alimony": "20",
-        "applicant_workbc_financial_support": "55",
-        "spouse_other_income_money_received": "0",
-        "applicant_other_income_money_received": "0",
+        "spouse_workbc_financial_support": [
+          "0",
+          "$0"
+        ],
+        "applicant_tax_credits_gst_credit": [
+          "0",
+          "$0"
+        ],
+        "applicant_canada_pension_plan_cpp": [
+          "0",
+          "$0"
+        ],
+        "applicant_spousal_support_alimony": [
+          "20",
+          "$20"
+        ],
+        "applicant_workbc_financial_support": [
+          "55",
+          "$55"
+        ],
+        "spouse_other_income_money_received": [
+          "0",
+          "$0"
+        ],
+        "applicant_other_income_money_received": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_spouse_no": "selected",
-        "applicant_income_of_dependent_children": "0",
+        "applicant_income_of_dependent_children": [
+          "0",
+          "$0"
+        ],
         "checkbox_employment_changes_spouse_yes": "unselected",
-        "spouse_student_funding_loans_bursaries": "85",
-        "applicant_student_funding_loans_bursaries": "18",
-        "spouse_private_pensions_retirement_disability": "0",
-        "applicant_private_pensions_retirement_disability": "0"
+        "spouse_student_funding_loans_bursaries": [
+          "85",
+          "$85"
+        ],
+        "applicant_student_funding_loans_bursaries": [
+          "18",
+          "$18"
+        ],
+        "spouse_private_pensions_retirement_disability": [
+          "0",
+          "$0"
+        ],
+        "applicant_private_pensions_retirement_disability": [
+          "0",
+          "$0"
+        ]
       },
       "prediction": {
         "applicant_rental_income": 0,
@@ -26132,7 +26868,10 @@
           "field": "spouse_oas_gis",
           "matched": true,
           "predicted": 58,
-          "expected": "58",
+          "expected": [
+            "58",
+            "$58"
+          ],
           "confidence": null
         },
         {
@@ -26160,7 +26899,10 @@
           "field": "applicant_oas_gis",
           "matched": true,
           "predicted": 22,
-          "expected": "22",
+          "expected": [
+            "22",
+            "$22"
+          ],
           "confidence": null
         },
         {
@@ -26216,7 +26958,10 @@
           "field": "spouse_trust_income",
           "matched": true,
           "predicted": 22,
-          "expected": "22",
+          "expected": [
+            "22",
+            "$22"
+          ],
           "confidence": null
         },
         {
@@ -26237,21 +26982,30 @@
           "field": "spouse_child_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_rental_income",
           "matched": true,
           "predicted": 52,
-          "expected": "52",
+          "expected": [
+            "52",
+            "52$"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_trust_income",
           "matched": true,
           "predicted": 22,
-          "expected": "22",
+          "expected": [
+            "22",
+            "$22"
+          ],
           "confidence": null
         },
         {
@@ -26265,7 +27019,10 @@
           "field": "applicant_child_support",
           "matched": true,
           "predicted": 65,
-          "expected": "65",
+          "expected": [
+            "65",
+            "$65"
+          ],
           "confidence": null
         },
         {
@@ -26307,14 +27064,20 @@
           "field": "spouse_income_tax_refund",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_room_board_income",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0.00"
+          ],
           "confidence": null
         },
         {
@@ -26342,7 +27105,10 @@
           "field": "spouse_child_tax_benefits",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -26370,7 +27136,10 @@
           "field": "applicant_income_tax_refund",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -26405,14 +27174,20 @@
           "field": "spouse_workers_compensation",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_child_tax_benefits",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -26433,14 +27208,20 @@
           "field": "spouse_tax_credits_gst_credit",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "0$"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_employment_insurance",
           "matched": true,
           "predicted": 20,
-          "expected": "20",
+          "expected": [
+            "20",
+            "$20"
+          ],
           "confidence": null
         },
         {
@@ -26461,7 +27242,10 @@
           "field": "spouse_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 22,
-          "expected": "22",
+          "expected": [
+            "22",
+            "$22"
+          ],
           "confidence": null
         },
         {
@@ -26475,7 +27259,10 @@
           "field": "applicant_net_employment_income",
           "matched": true,
           "predicted": 500,
-          "expected": "500",
+          "expected": [
+            "500",
+            "$500.00"
+          ],
           "confidence": null
         },
         {
@@ -26489,49 +27276,70 @@
           "field": "spouse_workbc_financial_support",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_tax_credits_gst_credit",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_spousal_support_alimony",
           "matched": true,
           "predicted": 20,
-          "expected": "20",
+          "expected": [
+            "20",
+            "$20"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_workbc_financial_support",
           "matched": true,
           "predicted": 55,
-          "expected": "55",
+          "expected": [
+            "55",
+            "$55"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_other_income_money_received",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_other_income_money_received",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -26545,7 +27353,10 @@
           "field": "applicant_income_of_dependent_children",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
@@ -26559,28 +27370,40 @@
           "field": "spouse_student_funding_loans_bursaries",
           "matched": true,
           "predicted": 85,
-          "expected": "85",
+          "expected": [
+            "85",
+            "$85"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_student_funding_loans_bursaries",
           "matched": true,
           "predicted": 18,
-          "expected": "18",
+          "expected": [
+            "18",
+            "$18"
+          ],
           "confidence": null
         },
         {
           "field": "spouse_private_pensions_retirement_disability",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_private_pensions_retirement_disability",
           "matched": true,
           "predicted": 0,
-          "expected": "0",
+          "expected": [
+            "0",
+            "$0"
+          ],
           "confidence": null
         }
       ],
@@ -26619,7 +27442,8 @@
             "expected": [
               "789788425",
               "789 788 425",
-              "789-788-425"
+              "789-788-425",
+              "789-788- 425"
             ],
             "predicted": "425"
           },
@@ -26657,7 +27481,8 @@
             "expected": [
               "789788425",
               "789 788 425",
-              "789-788-425"
+              "789-788-425",
+              "789-788- 425"
             ],
             "confidence": null
           },
@@ -27181,7 +28006,8 @@
         "sin": [
           "789788425",
           "789 788 425",
-          "789-788-425"
+          "789-788-425",
+          "789-788- 425"
         ],
         "date": "2026-03-26",
         "name": "Dave Nine",
@@ -27349,7 +28175,8 @@
           "expected": [
             "789788425",
             "789 788 425",
-            "789-788-425"
+            "789-788-425",
+            "789-788- 425"
           ],
           "confidence": null
         },
@@ -29237,7 +30064,11 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Started part time job, documents attached",
-            "expected": "Started part time job, documents attached",
+            "expected": [
+              "Started part time job, documents attached",
+              "Started part time job, documents\nattached",
+              "Started part time job, documents attached."
+            ],
             "confidence": null
           },
           {
@@ -29696,7 +30527,11 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Started part time job, documents attached",
+        "explain_changes": [
+          "Started part time job, documents attached",
+          "Started part time job, documents\nattached",
+          "Started part time job, documents attached."
+        ],
         "checkbox_work_no": "unselected",
         "spouse_signature": "",
         "applicant_oas_gis": 0,
@@ -29916,7 +30751,11 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Started part time job, documents attached",
-          "expected": "Started part time job, documents attached",
+          "expected": [
+            "Started part time job, documents attached",
+            "Started part time job, documents\nattached",
+            "Started part time job, documents attached."
+          ],
           "confidence": null
         },
         {
@@ -30392,7 +31231,11 @@
           },
           {
             "field": "explain_changes",
-            "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+            "expected": [
+              "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+              "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+              "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+            ],
             "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay"
           },
           {
@@ -30485,7 +31328,11 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay",
-            "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+            "expected": [
+              "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+              "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+              "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+            ],
             "confidence": null
           },
           {
@@ -30946,7 +31793,11 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+        "explain_changes": [
+          "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+          "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+          "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": 742.84,
@@ -31167,7 +32018,11 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay",
-          "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+          "expected": [
+            "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+            "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+            "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+          ],
           "confidence": null
         },
         {
@@ -32911,7 +33766,10 @@
         "mismatchedFields": [
           {
             "field": "signature",
-            "expected": "JLee",
+            "expected": [
+              "JLee",
+              "Jlee"
+            ],
             "predicted": "Applicant Signature JLee"
           },
           {
@@ -32960,7 +33818,10 @@
             "field": "signature",
             "matched": false,
             "predicted": "Applicant Signature JLee",
-            "expected": "JLee",
+            "expected": [
+              "JLee",
+              "Jlee"
+            ],
             "confidence": null
           },
           {
@@ -33303,7 +34164,10 @@
             "field": "applicant_employment_insurance",
             "matched": true,
             "predicted": 230,
-            "expected": "230",
+            "expected": [
+              "230",
+              "230 $"
+            ],
             "confidence": null
           },
           {
@@ -33460,7 +34324,10 @@
         ],
         "name": "Jennifer Lee",
         "phone": "234-556-7890",
-        "signature": "JLee",
+        "signature": [
+          "JLee",
+          "Jlee"
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -33509,7 +34376,10 @@
         "checkbox_need_assistance_yes": "unselected",
         "spouse_net_employment_income": "",
         "spouse_tax_credits_gst_credit": "",
-        "applicant_employment_insurance": "230",
+        "applicant_employment_insurance": [
+          "230",
+          "230 $"
+        ],
         "applicant_workers_compensation": 0,
         "checkbox_employment_changes_no": "unselected",
         "spouse_canada_pension_plan_cpp": "",
@@ -33648,7 +34518,10 @@
           "field": "signature",
           "matched": false,
           "predicted": "Applicant Signature JLee",
-          "expected": "JLee",
+          "expected": [
+            "JLee",
+            "Jlee"
+          ],
           "confidence": null
         },
         {
@@ -33991,7 +34864,10 @@
           "field": "applicant_employment_insurance",
           "matched": true,
           "predicted": 230,
-          "expected": "230",
+          "expected": [
+            "230",
+            "230 $"
+          ],
           "confidence": null
         },
         {
@@ -34242,7 +35118,10 @@
             "field": "spouse_name",
             "matched": true,
             "predicted": "Harold Wilson",
-            "expected": "Harold Wilson",
+            "expected": [
+              "Harold Wilson",
+              "harold Wilson"
+            ],
             "confidence": null
           },
           {
@@ -34728,7 +35607,10 @@
           "Nov 25, 2025",
           "2025-11-25"
         ],
-        "spouse_name": "Harold Wilson",
+        "spouse_name": [
+          "Harold Wilson",
+          "harold Wilson"
+        ],
         "spouse_phone": "+1 236-789-387",
         "spouse_oas_gis": 0,
         "explain_changes": "Rent increased, see lease update",
@@ -34938,7 +35820,10 @@
           "field": "spouse_name",
           "matched": true,
           "predicted": "Harold Wilson",
-          "expected": "Harold Wilson",
+          "expected": [
+            "Harold Wilson",
+            "harold Wilson"
+          ],
           "confidence": null
         },
         {
@@ -36669,20 +37554,20 @@
       "sampleId": "manual sample (7)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8783783783783784,
-        "recall": 0.9154929577464789,
-        "f1": 0.896551724137931,
-        "truePositives": 65,
-        "falsePositives": 9,
-        "falseNegatives": 6,
+        "precision": 0.8918918918918919,
+        "recall": 0.9295774647887324,
+        "f1": 0.9103448275862069,
+        "truePositives": 66,
+        "falsePositives": 8,
+        "falseNegatives": 5,
         "totalGroundTruthFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 66,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 65,
+        "matchedFields": 66,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -36692,18 +37577,16 @@
             "predicted": "Applicant Signature Pacenar"
           },
           {
-            "field": "spouse_name",
-            "expected": "Lisa O'connor",
-            "predicted": "Lisa O'Connor"
-          },
-          {
             "field": "spouse_phone",
             "expected": "(321)-246-2143",
             "predicted": "(3211-246-2143"
           },
           {
             "field": "explain_changes",
-            "expected": "Changed address, proof of move",
+            "expected": [
+              "Changed address, proof of move",
+              "changed address, proof of move"
+            ],
             "predicted": "changed address , proof of move"
           },
           {
@@ -36713,7 +37596,10 @@
           },
           {
             "field": "spouse_income_tax_refund",
-            "expected": "26.80",
+            "expected": [
+              "26.80",
+              "26.8"
+            ],
             "predicted": 2680
           }
         ],
@@ -36781,9 +37667,12 @@
           },
           {
             "field": "spouse_name",
-            "matched": false,
+            "matched": true,
             "predicted": "Lisa O'Connor",
-            "expected": "Lisa O'connor",
+            "expected": [
+              "Lisa O'connor",
+              "Lisa O'Connor"
+            ],
             "confidence": null
           },
           {
@@ -36804,7 +37693,10 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "changed address , proof of move",
-            "expected": "Changed address, proof of move",
+            "expected": [
+              "Changed address, proof of move",
+              "changed address, proof of move"
+            ],
             "confidence": null
           },
           {
@@ -36972,7 +37864,10 @@
             "field": "spouse_income_tax_refund",
             "matched": false,
             "predicted": 2680,
-            "expected": "26.80",
+            "expected": [
+              "26.80",
+              "26.8"
+            ],
             "confidence": null
           },
           {
@@ -37270,10 +38165,16 @@
           "123-456-788"
         ],
         "spouse_date": "",
-        "spouse_name": "Lisa O'connor",
+        "spouse_name": [
+          "Lisa O'connor",
+          "Lisa O'Connor"
+        ],
         "spouse_phone": "(321)-246-2143",
         "spouse_oas_gis": 1580.23,
-        "explain_changes": "Changed address, proof of move",
+        "explain_changes": [
+          "Changed address, proof of move",
+          "changed address, proof of move"
+        ],
         "checkbox_work_no": "unselected",
         "spouse_signature": "LOConnor",
         "applicant_oas_gis": "",
@@ -37297,7 +38198,10 @@
         "checkbox_work_spouse_no": "selected",
         "checkbox_moved_spouse_no": "selected",
         "checkbox_work_spouse_yes": "unselected",
-        "spouse_income_tax_refund": "26.80",
+        "spouse_income_tax_refund": [
+          "26.80",
+          "26.8"
+        ],
         "spouse_room_board_income": "",
         "checkbox_family_assets_no": "unselected",
         "checkbox_moved_spouse_yes": "unselected",
@@ -37479,9 +38383,12 @@
         },
         {
           "field": "spouse_name",
-          "matched": false,
+          "matched": true,
           "predicted": "Lisa O'Connor",
-          "expected": "Lisa O'connor",
+          "expected": [
+            "Lisa O'connor",
+            "Lisa O'Connor"
+          ],
           "confidence": null
         },
         {
@@ -37502,7 +38409,10 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "changed address , proof of move",
-          "expected": "Changed address, proof of move",
+          "expected": [
+            "Changed address, proof of move",
+            "changed address, proof of move"
+          ],
           "confidence": null
         },
         {
@@ -37670,7 +38580,10 @@
           "field": "spouse_income_tax_refund",
           "matched": false,
           "predicted": 2680,
-          "expected": "26.80",
+          "expected": [
+            "26.80",
+            "26.8"
+          ],
           "confidence": null
         },
         {
@@ -39224,7 +40137,11 @@
           },
           {
             "field": "explain_changes",
-            "expected": "Child support started, record attached",
+            "expected": [
+              "Child support started, record attached",
+              "child support started, record attached",
+              "Child support started, record attached."
+            ],
             "predicted": "Child support started, record altached"
           },
           {
@@ -39320,7 +40237,11 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "Child support started, record altached",
-            "expected": "Child support started, record attached",
+            "expected": [
+              "Child support started, record attached",
+              "child support started, record attached",
+              "Child support started, record attached."
+            ],
             "confidence": null
           },
           {
@@ -39784,7 +40705,11 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Child support started, record attached",
+        "explain_changes": [
+          "Child support started, record attached",
+          "child support started, record attached",
+          "Child support started, record attached."
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": 0,
@@ -40008,7 +40933,11 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "Child support started, record altached",
-          "expected": "Child support started, record attached",
+          "expected": [
+            "Child support started, record attached",
+            "child support started, record attached",
+            "Child support started, record attached."
+          ],
           "confidence": null
         },
         {
@@ -40483,7 +41412,10 @@
           },
           {
             "field": "explain_changes",
-            "expected": "New roommate, room /board income enclosed",
+            "expected": [
+              "New roommate, room /board income enclosed",
+              "new roommate, room /board income\nenclosed"
+            ],
             "predicted": "new roommate, room/board income"
           }
         ],
@@ -40569,7 +41501,10 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "new roommate, room/board income",
-            "expected": "New roommate, room /board income enclosed",
+            "expected": [
+              "New roommate, room /board income enclosed",
+              "new roommate, room /board income\nenclosed"
+            ],
             "confidence": null
           },
           {
@@ -41033,7 +41968,10 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "New roommate, room /board income enclosed",
+        "explain_changes": [
+          "New roommate, room /board income enclosed",
+          "new roommate, room /board income\nenclosed"
+        ],
         "checkbox_work_no": "unselected",
         "spouse_signature": "",
         "applicant_oas_gis": 300,
@@ -41257,7 +42195,10 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "new roommate, room/board income",
-          "expected": "New roommate, room /board income enclosed",
+          "expected": [
+            "New roommate, room /board income enclosed",
+            "new roommate, room /board income\nenclosed"
+          ],
           "confidence": null
         },
         {
@@ -41872,7 +42813,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
-            "expected": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+            "expected": [
+              "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+              "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+            ],
             "confidence": null
           },
           {
@@ -42019,7 +42963,10 @@
             "field": "applicant_oas_gis",
             "matched": true,
             "predicted": 1297.16,
-            "expected": 1297.16,
+            "expected": [
+              "1297.16",
+              "$1297.16"
+            ],
             "confidence": null
           },
           {
@@ -42047,7 +42994,10 @@
             "field": "applicant_child_tax_benefits",
             "matched": true,
             "predicted": 3181.38,
-            "expected": 3181.38,
+            "expected": [
+              "3181.38",
+              "$3181.38"
+            ],
             "confidence": null
           },
           {
@@ -42298,7 +43248,10 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "selected",
         "checkbox_warrant_no": "unselected",
-        "explain_changes": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+        "explain_changes": [
+          "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+          "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+        ],
         "checkbox_employment_changes_spouse_yes": "unselected",
         "checkbox_employment_changes_spouse_no": "selected",
         "checkbox_school_spouse_yes": "selected",
@@ -42319,11 +43272,17 @@
         "applicant_room_board_income": 8641,
         "applicant_workers_compensation": 9906.37,
         "applicant_private_pensions_retirement_disability": 8281.78,
-        "applicant_oas_gis": 1297.16,
+        "applicant_oas_gis": [
+          "1297.16",
+          "$1297.16"
+        ],
         "applicant_trust_income": 9181,
         "applicant_canada_pension_plan_cpp": 5057.31,
         "applicant_tax_credits_gst_credit": 7986.99,
-        "applicant_child_tax_benefits": 3181.38,
+        "applicant_child_tax_benefits": [
+          "3181.38",
+          "$3181.38"
+        ],
         "applicant_income_tax_refund": 1143.66,
         "applicant_other_income_money_received": 6578.34,
         "applicant_income_of_dependent_children": 9495.78,
@@ -42580,7 +43539,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
-          "expected": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+          "expected": [
+            "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+            "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+          ],
           "confidence": null
         },
         {
@@ -42727,7 +43689,10 @@
           "field": "applicant_oas_gis",
           "matched": true,
           "predicted": 1297.16,
-          "expected": 1297.16,
+          "expected": [
+            "1297.16",
+            "$1297.16"
+          ],
           "confidence": null
         },
         {
@@ -42755,7 +43720,10 @@
           "field": "applicant_child_tax_benefits",
           "matched": true,
           "predicted": 3181.38,
-          "expected": 3181.38,
+          "expected": [
+            "3181.38",
+            "$3181.38"
+          ],
           "confidence": null
         },
         {
@@ -43146,7 +44114,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
-            "expected": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+            "expected": [
+              "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+              "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+            ],
             "confidence": null
           },
           {
@@ -43377,7 +44348,10 @@
             "field": "spouse_workbc_financial_support",
             "matched": true,
             "predicted": 1548.05,
-            "expected": 1548.05,
+            "expected": [
+              "1548.05",
+              "$1548.05"
+            ],
             "confidence": null
           },
           {
@@ -43447,7 +44421,10 @@
             "field": "spouse_child_tax_benefits",
             "matched": true,
             "predicted": 6780.97,
-            "expected": 6780.97,
+            "expected": [
+              "6780.97",
+              "$6780.97"
+            ],
             "confidence": null
           },
           {
@@ -43513,7 +44490,10 @@
             "field": "spouse_signature",
             "matched": true,
             "predicted": "Kathryn M.",
-            "expected": "Kathryn M.",
+            "expected": [
+              "Kathryn M.",
+              "kathryn m."
+            ],
             "confidence": null
           },
           {
@@ -43531,7 +44511,10 @@
             "field": "spouse_name",
             "matched": true,
             "predicted": "Kathryn Macias",
-            "expected": "Kathryn Macias",
+            "expected": [
+              "Kathryn Macias",
+              "kathryn macias"
+            ],
             "confidence": null
           },
           {
@@ -43573,7 +44556,10 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "selected",
         "checkbox_warrant_no": "unselected",
-        "explain_changes": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+        "explain_changes": [
+          "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+          "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+        ],
         "checkbox_employment_changes_spouse_yes": "unselected",
         "checkbox_employment_changes_spouse_no": "selected",
         "checkbox_school_spouse_yes": "unselected",
@@ -43606,7 +44592,10 @@
         "spouse_employment_insurance": 6780.14,
         "spouse_spousal_support_alimony": 8030,
         "spouse_child_support": 4693.85,
-        "spouse_workbc_financial_support": 1548.05,
+        "spouse_workbc_financial_support": [
+          "1548.05",
+          "$1548.05"
+        ],
         "spouse_student_funding_loans_bursaries": 3613,
         "spouse_rental_income": 530,
         "spouse_room_board_income": 9333,
@@ -43616,7 +44605,10 @@
         "spouse_trust_income": 2534,
         "spouse_canada_pension_plan_cpp": 9271,
         "spouse_tax_credits_gst_credit": 3487.15,
-        "spouse_child_tax_benefits": 6780.97,
+        "spouse_child_tax_benefits": [
+          "6780.97",
+          "$6780.97"
+        ],
         "spouse_income_tax_refund": 9001.58,
         "spouse_other_income_money_received": 6770.07,
         "signature": "R. B.",
@@ -43634,13 +44626,19 @@
           "209 721 664",
           "209-721-664"
         ],
-        "spouse_signature": "Kathryn M.",
+        "spouse_signature": [
+          "Kathryn M.",
+          "kathryn m."
+        ],
         "spouse_date": [
           "05-01-2003",
           "05/01/2003",
           "2003-01-05"
         ],
-        "spouse_name": "Kathryn Macias",
+        "spouse_name": [
+          "Kathryn Macias",
+          "kathryn macias"
+        ],
         "spouse_phone": "564642185",
         "spouse_sin": [
           "643016433",
@@ -43856,7 +44854,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
-          "expected": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+          "expected": [
+            "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+            "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+          ],
           "confidence": null
         },
         {
@@ -44087,7 +45088,10 @@
           "field": "spouse_workbc_financial_support",
           "matched": true,
           "predicted": 1548.05,
-          "expected": 1548.05,
+          "expected": [
+            "1548.05",
+            "$1548.05"
+          ],
           "confidence": null
         },
         {
@@ -44157,7 +45161,10 @@
           "field": "spouse_child_tax_benefits",
           "matched": true,
           "predicted": 6780.97,
-          "expected": 6780.97,
+          "expected": [
+            "6780.97",
+            "$6780.97"
+          ],
           "confidence": null
         },
         {
@@ -44223,7 +45230,10 @@
           "field": "spouse_signature",
           "matched": true,
           "predicted": "Kathryn M.",
-          "expected": "Kathryn M.",
+          "expected": [
+            "Kathryn M.",
+            "kathryn m."
+          ],
           "confidence": null
         },
         {
@@ -44241,7 +45251,10 @@
           "field": "spouse_name",
           "matched": true,
           "predicted": "Kathryn Macias",
-          "expected": "Kathryn Macias",
+          "expected": [
+            "Kathryn Macias",
+            "kathryn macias"
+          ],
           "confidence": null
         },
         {
@@ -44500,7 +45513,10 @@
             "field": "applicant_net_employment_income",
             "matched": true,
             "predicted": 117.12,
-            "expected": 117.12,
+            "expected": [
+              "117.12",
+              "$117.12"
+            ],
             "confidence": null
           },
           {
@@ -44731,7 +45747,10 @@
             "field": "spouse_income_tax_refund",
             "matched": true,
             "predicted": 619.44,
-            "expected": 619.44,
+            "expected": [
+              "619.44",
+              "$619.44"
+            ],
             "confidence": null
           },
           {
@@ -44860,7 +45879,10 @@
         "checkbox_moved_spouse_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_net_employment_income": 117.12,
+        "applicant_net_employment_income": [
+          "117.12",
+          "$117.12"
+        ],
         "applicant_employment_insurance": 1278,
         "applicant_spousal_support_alimony": 8800.13,
         "applicant_child_support": 7117.97,
@@ -44893,7 +45915,10 @@
         "spouse_canada_pension_plan_cpp": 3873,
         "spouse_tax_credits_gst_credit": 2968,
         "spouse_child_tax_benefits": 6158.08,
-        "spouse_income_tax_refund": 619.44,
+        "spouse_income_tax_refund": [
+          "619.44",
+          "$619.44"
+        ],
         "spouse_other_income_money_received": 6383.67,
         "signature": "D. F.",
         "date": [
@@ -45208,7 +46233,10 @@
           "field": "applicant_net_employment_income",
           "matched": true,
           "predicted": 117.12,
-          "expected": 117.12,
+          "expected": [
+            "117.12",
+            "$117.12"
+          ],
           "confidence": null
         },
         {
@@ -45439,7 +46467,10 @@
           "field": "spouse_income_tax_refund",
           "matched": true,
           "predicted": 619.44,
-          "expected": 619.44,
+          "expected": [
+            "619.44",
+            "$619.44"
+          ],
           "confidence": null
         },
         {
@@ -45543,29 +46574,23 @@
       "sampleId": "synth-no-spouse (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9807692307692307,
-        "recall": 0.9807692307692307,
-        "f1": 0.9807692307692307,
-        "truePositives": 51,
-        "falsePositives": 1,
-        "falseNegatives": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "truePositives": 52,
+        "falsePositives": 0,
+        "falseNegatives": 0,
         "totalGroundTruthFields": 52,
-        "matchedFields": 51,
+        "matchedFields": 52,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 52,
-        "matchedFields": 51,
+        "matchedFields": 52,
         "missingFields": [],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "explain_changes",
-            "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
-            "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy."
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "checkbox_need_assistance_yes",
@@ -45695,9 +46720,13 @@
           },
           {
             "field": "explain_changes",
-            "matched": false,
+            "matched": true,
             "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
-            "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+            "expected": [
+              "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+              "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
+              "Area both notice government behavior note step.\nComputer cup value war before local action\npractice stay. Our Late add call language involve\nadmit million front play million drug. Strategy."
+            ],
             "confidence": null
           },
           {
@@ -45774,14 +46803,20 @@
             "field": "applicant_oas_gis",
             "matched": true,
             "predicted": 2964.7,
-            "expected": 2964.7,
+            "expected": [
+              "2964.7",
+              "$2964.70"
+            ],
             "confidence": null
           },
           {
             "field": "applicant_trust_income",
             "matched": true,
             "predicted": 543.76,
-            "expected": 543.76,
+            "expected": [
+              "543.76",
+              "$543.76"
+            ],
             "confidence": null
           },
           {
@@ -45809,7 +46844,10 @@
             "field": "applicant_income_tax_refund",
             "matched": true,
             "predicted": 1574.2,
-            "expected": 1574.2,
+            "expected": [
+              "1574.2",
+              "$1574.20"
+            ],
             "confidence": null
           },
           {
@@ -45959,7 +46997,11 @@
         "checkbox_moved_no": "unselected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+        "explain_changes": [
+          "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+          "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
+          "Area both notice government behavior note step.\nComputer cup value war before local action\npractice stay. Our Late add call language involve\nadmit million front play million drug. Strategy."
+        ],
         "applicant_net_employment_income": 7971.1,
         "applicant_employment_insurance": 5270.81,
         "applicant_spousal_support_alimony": 5111.73,
@@ -45970,12 +47012,21 @@
         "applicant_room_board_income": 4110.43,
         "applicant_workers_compensation": 3648,
         "applicant_private_pensions_retirement_disability": 1341.05,
-        "applicant_oas_gis": 2964.7,
-        "applicant_trust_income": 543.76,
+        "applicant_oas_gis": [
+          "2964.7",
+          "$2964.70"
+        ],
+        "applicant_trust_income": [
+          "543.76",
+          "$543.76"
+        ],
         "applicant_canada_pension_plan_cpp": 7618.66,
         "applicant_tax_credits_gst_credit": 3827.31,
         "applicant_child_tax_benefits": 9238.14,
-        "applicant_income_tax_refund": 1574.2,
+        "applicant_income_tax_refund": [
+          "1574.2",
+          "$1574.20"
+        ],
         "applicant_other_income_money_received": 408.29,
         "applicant_income_of_dependent_children": 9178.03,
         "signature": "Thomas Andrade",
@@ -46207,9 +47258,13 @@
         },
         {
           "field": "explain_changes",
-          "matched": false,
+          "matched": true,
           "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
-          "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+          "expected": [
+            "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+            "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
+            "Area both notice government behavior note step.\nComputer cup value war before local action\npractice stay. Our Late add call language involve\nadmit million front play million drug. Strategy."
+          ],
           "confidence": null
         },
         {
@@ -46286,14 +47341,20 @@
           "field": "applicant_oas_gis",
           "matched": true,
           "predicted": 2964.7,
-          "expected": 2964.7,
+          "expected": [
+            "2964.7",
+            "$2964.70"
+          ],
           "confidence": null
         },
         {
           "field": "applicant_trust_income",
           "matched": true,
           "predicted": 543.76,
-          "expected": 543.76,
+          "expected": [
+            "543.76",
+            "$543.76"
+          ],
           "confidence": null
         },
         {
@@ -46321,7 +47382,10 @@
           "field": "applicant_income_tax_refund",
           "matched": true,
           "predicted": 1574.2,
-          "expected": 1574.2,
+          "expected": [
+            "1574.2",
+            "$1574.20"
+          ],
           "confidence": null
         },
         {
@@ -46688,7 +47752,10 @@
             "field": "applicant_oas_gis",
             "matched": true,
             "predicted": 4277.55,
-            "expected": 4277.55,
+            "expected": [
+              "4277.55",
+              "$4277.55"
+            ],
             "confidence": null
           },
           {
@@ -46702,7 +47769,10 @@
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": 1178.66,
-            "expected": 1178.66,
+            "expected": [
+              "1178.66",
+              "$1178.66"
+            ],
             "confidence": null
           },
           {
@@ -46884,9 +47954,15 @@
         "applicant_room_board_income": 7372.93,
         "applicant_workers_compensation": 3714.65,
         "applicant_private_pensions_retirement_disability": 5804.1,
-        "applicant_oas_gis": 4277.55,
+        "applicant_oas_gis": [
+          "4277.55",
+          "$4277.55"
+        ],
         "applicant_trust_income": 2758.04,
-        "applicant_canada_pension_plan_cpp": 1178.66,
+        "applicant_canada_pension_plan_cpp": [
+          "1178.66",
+          "$1178.66"
+        ],
         "applicant_tax_credits_gst_credit": 3588.77,
         "applicant_child_tax_benefits": 2855.64,
         "applicant_income_tax_refund": 6748,
@@ -47200,7 +48276,10 @@
           "field": "applicant_oas_gis",
           "matched": true,
           "predicted": 4277.55,
-          "expected": 4277.55,
+          "expected": [
+            "4277.55",
+            "$4277.55"
+          ],
           "confidence": null
         },
         {
@@ -47214,7 +48293,10 @@
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": 1178.66,
-          "expected": 1178.66,
+          "expected": [
+            "1178.66",
+            "$1178.66"
+          ],
           "confidence": null
         },
         {
@@ -47390,7 +48472,12 @@
         "mismatchedFields": [
           {
             "field": "explain_changes",
-            "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "expected": [
+              "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+              "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+            ],
             "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they."
           },
           {
@@ -47530,7 +48617,12 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they.",
-            "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "expected": [
+              "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+              "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+            ],
             "confidence": null
           },
           {
@@ -47792,7 +48884,12 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+        "explain_changes": [
+          "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+          "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+          "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+          "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+        ],
         "applicant_net_employment_income": 2711.64,
         "applicant_employment_insurance": 7969,
         "applicant_spousal_support_alimony": 2101,
@@ -48042,7 +49139,12 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they.",
-          "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+          "expected": [
+            "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+            "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+          ],
           "confidence": null
         },
         {
@@ -48449,7 +49551,12 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
-            "expected": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+            "expected": [
+              "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+              "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+              "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+              "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+            ],
             "confidence": null
           },
           {
@@ -48874,7 +49981,12 @@
         "checkbox_moved_no": "unselected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+        "explain_changes": [
+          "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+          "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+          "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+          "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+        ],
         "checkbox_employment_changes_spouse_yes": "selected",
         "checkbox_employment_changes_spouse_no": "unselected",
         "checkbox_school_spouse_yes": "selected",
@@ -49155,7 +50267,12 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
-          "expected": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+          "expected": [
+            "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+            "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+            "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+            "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+          ],
           "confidence": null
         },
         {
@@ -49714,7 +50831,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
-            "expected": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+            "expected": [
+              "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+              "Play half agree memory event stock than bit could.\nAlone first Mr so anything inside total third\naffect modern."
+            ],
             "confidence": null
           },
           {
@@ -49976,7 +51096,10 @@
         "checkbox_moved_no": "unselected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+        "explain_changes": [
+          "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+          "Play half agree memory event stock than bit could.\nAlone first Mr so anything inside total third\naffect modern."
+        ],
         "applicant_net_employment_income": null,
         "applicant_employment_insurance": 0,
         "applicant_spousal_support_alimony": null,
@@ -50226,7 +51349,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
-          "expected": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+          "expected": [
+            "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+            "Play half agree memory event stock than bit could.\nAlone first Mr so anything inside total third\naffect modern."
+          ],
           "confidence": null
         },
         {
@@ -50474,29 +51600,23 @@
       "sampleId": "synth-regular (3)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9807692307692307,
-        "recall": 0.9807692307692307,
-        "f1": 0.9807692307692307,
-        "truePositives": 51,
-        "falsePositives": 1,
-        "falseNegatives": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "truePositives": 52,
+        "falsePositives": 0,
+        "falseNegatives": 0,
         "totalGroundTruthFields": 52,
-        "matchedFields": 51,
+        "matchedFields": 52,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 52,
-        "matchedFields": 51,
+        "matchedFields": 52,
         "missingFields": [],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "signature",
-            "expected": "W. P.",
-            "predicted": "w. P."
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "checkbox_need_assistance_yes",
@@ -50628,7 +51748,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
-            "expected": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+            "expected": [
+              "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+              "Group think around paper always recognize so\nreduce defense power. Money worry scientist\ntrouble surface part hand interesting. Someone\nagain affect beat court."
+            ],
             "confidence": null
           },
           {
@@ -50759,9 +51882,12 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "w. P.",
-            "expected": "W. P.",
+            "expected": [
+              "W. P.",
+              "w. P."
+            ],
             "confidence": null
           },
           {
@@ -50890,7 +52016,10 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+        "explain_changes": [
+          "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+          "Group think around paper always recognize so\nreduce defense power. Money worry scientist\ntrouble surface part hand interesting. Someone\nagain affect beat court."
+        ],
         "applicant_net_employment_income": null,
         "applicant_employment_insurance": 6121.6,
         "applicant_spousal_support_alimony": null,
@@ -50909,7 +52038,10 @@
         "applicant_income_tax_refund": null,
         "applicant_other_income_money_received": null,
         "applicant_income_of_dependent_children": null,
-        "signature": "W. P.",
+        "signature": [
+          "W. P.",
+          "w. P."
+        ],
         "date": [
           "2006-04-16",
           "2006-Apr-16"
@@ -51140,7 +52272,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
-          "expected": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+          "expected": [
+            "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+            "Group think around paper always recognize so\nreduce defense power. Money worry scientist\ntrouble surface part hand interesting. Someone\nagain affect beat court."
+          ],
           "confidence": null
         },
         {
@@ -51271,9 +52406,12 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "w. P.",
-          "expected": "W. P.",
+          "expected": [
+            "W. P.",
+            "w. P."
+          ],
           "confidence": null
         },
         {

@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-05-16T00:46:29.159Z",
+  "exportedAt": "2026-05-16T07:55:00.130Z",
   "exportFormatVersion": 1,
   "run": {
     "id": "b715b129-678a-4728-aaf9-0a834d604cc8",
@@ -13,62 +13,62 @@
     "startedAt": "2026-05-16T00:09:07.623Z",
     "completedAt": "2026-05-16T00:11:45.259Z",
     "metrics": {
-      "pass_rate": 0.925,
+      "pass_rate": 0.95,
       "total_samples": 40,
-      "passing_samples": 37,
-      "failing_samples": 3,
-      "precision.mean": 0.9437065515436522,
-      "precision.median": 0.9624883504193849,
-      "precision.stdDev": 0.07394970383367372,
-      "precision.p5": 0.8751844046364594,
-      "precision.p25": 0.922037422037422,
-      "precision.p75": 0.9828914141414141,
+      "passing_samples": 38,
+      "failing_samples": 2,
+      "precision.mean": 0.9465806408813322,
+      "precision.median": 0.9649014778325123,
+      "precision.stdDev": 0.07373654240751962,
+      "precision.p5": 0.8783076923076923,
+      "precision.p25": 0.9324324324324325,
+      "precision.p75": 0.9861586757990868,
       "precision.p95": 1,
       "precision.min": 0.546875,
       "precision.max": 1,
-      "recall.mean": 0.9087713527341588,
+      "recall.mean": 0.911450893199658,
       "recall.median": 0.9586187214611872,
-      "recall.stdDev": 0.10931124198223709,
-      "recall.p5": 0.6972972972972974,
+      "recall.stdDev": 0.10879880806367768,
+      "recall.p5": 0.7101351351351352,
       "recall.p25": 0.902027027027027,
-      "recall.p75": 0.9821522655426764,
+      "recall.p75": 0.9863013698630136,
       "recall.p95": 1,
       "recall.min": 0.5737704918032787,
       "recall.max": 1,
-      "f1.mean": 0.92382943055401,
+      "f1.mean": 0.9265912714834563,
       "f1.median": 0.9586187214611872,
-      "f1.stdDev": 0.08743840309024388,
-      "f1.p5": 0.7896823442501846,
-      "f1.p25": 0.9028302778302778,
+      "f1.stdDev": 0.08685925973377291,
+      "f1.p5": 0.8041861610440779,
+      "f1.p25": 0.9081695331695331,
       "f1.p75": 0.9798861852433282,
       "f1.p95": 1,
       "f1.min": 0.5599999999999999,
       "f1.max": 1,
-      "truePositives.mean": 64.15,
+      "truePositives.mean": 64.325,
       "truePositives.median": 69,
-      "truePositives.stdDev": 10.187124226198481,
+      "truePositives.stdDev": 10.083123276048942,
       "truePositives.p5": 44,
       "truePositives.p25": 55.5,
       "truePositives.p75": 72,
       "truePositives.p95": 74,
       "truePositives.min": 35,
       "truePositives.max": 74,
-      "falsePositives.mean": 3.7,
-      "falsePositives.median": 2.5,
-      "falsePositives.stdDev": 4.702127178203499,
+      "falsePositives.mean": 3.525,
+      "falsePositives.median": 2,
+      "falsePositives.stdDev": 4.6850160085105355,
       "falsePositives.p5": 0,
       "falsePositives.p25": 1,
-      "falsePositives.p75": 5,
-      "falsePositives.p95": 8.049999999999997,
+      "falsePositives.p75": 4.25,
+      "falsePositives.p95": 8,
       "falsePositives.min": 0,
       "falsePositives.max": 29,
-      "falseNegatives.mean": 6.45,
+      "falseNegatives.mean": 6.275,
       "falseNegatives.median": 3,
-      "falseNegatives.stdDev": 7.706977358212491,
+      "falseNegatives.stdDev": 7.655022860841111,
       "falseNegatives.p5": 0,
       "falseNegatives.p25": 1,
       "falseNegatives.p75": 7.25,
-      "falseNegatives.p95": 22.19999999999999,
+      "falseNegatives.p95": 21.249999999999986,
       "falseNegatives.min": 0,
       "falseNegatives.max": 30,
       "totalGroundTruthFields.mean": 71.3,
@@ -80,9 +80,9 @@
       "totalGroundTruthFields.p95": 74.05,
       "totalGroundTruthFields.min": 52,
       "totalGroundTruthFields.max": 75,
-      "matchedFields.mean": 64.15,
+      "matchedFields.mean": 64.325,
       "matchedFields.median": 69,
-      "matchedFields.stdDev": 10.187124226198481,
+      "matchedFields.stdDev": 10.083123276048942,
       "matchedFields.p5": 44,
       "matchedFields.p25": 55.5,
       "matchedFields.p75": 72,
@@ -119,62 +119,62 @@
     "createdAt": "2026-05-16T00:09:07.566Z"
   },
   "metrics": {
-    "pass_rate": 0.925,
+    "pass_rate": 0.95,
     "total_samples": 40,
-    "passing_samples": 37,
-    "failing_samples": 3,
-    "precision.mean": 0.9437065515436522,
-    "precision.median": 0.9624883504193849,
-    "precision.stdDev": 0.07394970383367372,
-    "precision.p5": 0.8751844046364594,
-    "precision.p25": 0.922037422037422,
-    "precision.p75": 0.9828914141414141,
+    "passing_samples": 38,
+    "failing_samples": 2,
+    "precision.mean": 0.9465806408813322,
+    "precision.median": 0.9649014778325123,
+    "precision.stdDev": 0.07373654240751962,
+    "precision.p5": 0.8783076923076923,
+    "precision.p25": 0.9324324324324325,
+    "precision.p75": 0.9861586757990868,
     "precision.p95": 1,
     "precision.min": 0.546875,
     "precision.max": 1,
-    "recall.mean": 0.9087713527341588,
+    "recall.mean": 0.911450893199658,
     "recall.median": 0.9586187214611872,
-    "recall.stdDev": 0.10931124198223709,
-    "recall.p5": 0.6972972972972974,
+    "recall.stdDev": 0.10879880806367768,
+    "recall.p5": 0.7101351351351352,
     "recall.p25": 0.902027027027027,
-    "recall.p75": 0.9821522655426764,
+    "recall.p75": 0.9863013698630136,
     "recall.p95": 1,
     "recall.min": 0.5737704918032787,
     "recall.max": 1,
-    "f1.mean": 0.92382943055401,
+    "f1.mean": 0.9265912714834563,
     "f1.median": 0.9586187214611872,
-    "f1.stdDev": 0.08743840309024388,
-    "f1.p5": 0.7896823442501846,
-    "f1.p25": 0.9028302778302778,
+    "f1.stdDev": 0.08685925973377291,
+    "f1.p5": 0.8041861610440779,
+    "f1.p25": 0.9081695331695331,
     "f1.p75": 0.9798861852433282,
     "f1.p95": 1,
     "f1.min": 0.5599999999999999,
     "f1.max": 1,
-    "truePositives.mean": 64.15,
+    "truePositives.mean": 64.325,
     "truePositives.median": 69,
-    "truePositives.stdDev": 10.187124226198481,
+    "truePositives.stdDev": 10.083123276048942,
     "truePositives.p5": 44,
     "truePositives.p25": 55.5,
     "truePositives.p75": 72,
     "truePositives.p95": 74,
     "truePositives.min": 35,
     "truePositives.max": 74,
-    "falsePositives.mean": 3.7,
-    "falsePositives.median": 2.5,
-    "falsePositives.stdDev": 4.702127178203499,
+    "falsePositives.mean": 3.525,
+    "falsePositives.median": 2,
+    "falsePositives.stdDev": 4.6850160085105355,
     "falsePositives.p5": 0,
     "falsePositives.p25": 1,
-    "falsePositives.p75": 5,
-    "falsePositives.p95": 8.049999999999997,
+    "falsePositives.p75": 4.25,
+    "falsePositives.p95": 8,
     "falsePositives.min": 0,
     "falsePositives.max": 29,
-    "falseNegatives.mean": 6.45,
+    "falseNegatives.mean": 6.275,
     "falseNegatives.median": 3,
-    "falseNegatives.stdDev": 7.706977358212491,
+    "falseNegatives.stdDev": 7.655022860841111,
     "falseNegatives.p5": 0,
     "falseNegatives.p25": 1,
     "falseNegatives.p75": 7.25,
-    "falseNegatives.p95": 22.19999999999999,
+    "falseNegatives.p95": 21.249999999999986,
     "falseNegatives.min": 0,
     "falseNegatives.max": 30,
     "totalGroundTruthFields.mean": 71.3,
@@ -186,9 +186,9 @@
     "totalGroundTruthFields.p95": 74.05,
     "totalGroundTruthFields.min": 52,
     "totalGroundTruthFields.max": 75,
-    "matchedFields.mean": 64.15,
+    "matchedFields.mean": 64.325,
     "matchedFields.median": 69,
-    "matchedFields.stdDev": 10.187124226198481,
+    "matchedFields.stdDev": 10.083123276048942,
     "matchedFields.p5": 44,
     "matchedFields.p25": 55.5,
     "matchedFields.p75": 72,
@@ -210,10 +210,10 @@
       "field": "signature",
       "fieldType": "string",
       "totalCount": 40,
-      "correctCount": 19,
-      "errorCount": 21,
-      "accuracy": 0.475,
-      "errorRate": 0.525,
+      "correctCount": 20,
+      "errorCount": 20,
+      "accuracy": 0.5,
+      "errorRate": 0.5,
       "errors": [
         {
           "sampleId": "81 blank",
@@ -232,7 +232,10 @@
         {
           "sampleId": "Fake 2",
           "predicted": "Applicant Signature nsadue Dahl",
-          "expected": "Smith Fake"
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ]
         },
         {
           "sampleId": "Fake 3",
@@ -311,82 +314,6 @@
           "sampleId": "manual sample (10)",
           "predicted": "Mbran",
           "expected": "MBrown"
-        },
-        {
-          "sampleId": "synth-regular (3)",
-          "predicted": "w. P.",
-          "expected": "W. P."
-        }
-      ]
-    },
-    {
-      "field": "explain_changes",
-      "fieldType": "string",
-      "totalCount": 40,
-      "correctCount": 28,
-      "errorCount": 12,
-      "accuracy": 0.7,
-      "errorRate": 0.30000000000000004,
-      "errors": [
-        {
-          "sampleId": "81 coffee",
-          "predicted": "HOMELESS",
-          "expected": "Homeless"
-        },
-        {
-          "sampleId": "Fake 4",
-          "predicted": "Lost job, taking course to find\nnew work.",
-          "expected": "Lost job, taking course to find new work."
-        },
-        {
-          "sampleId": "HR0081 (3)",
-          "predicted": "YA",
-          "expected": "N/A"
-        },
-        {
-          "sampleId": "manual sample (2)",
-          "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
-          "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached"
-        },
-        {
-          "sampleId": "manual sample (4)",
-          "predicted": "no changes. Continue to receive CPP.\nDAS, Private pension",
-          "expected": "No changes, Continue to receive CPP, OAS, private pension"
-        },
-        {
-          "sampleId": "manual sample (7)",
-          "predicted": "changed address , proof of move",
-          "expected": "Changed address, proof of move"
-        },
-        {
-          "sampleId": "manual sample (9)",
-          "predicted": "Child support started, record altached",
-          "expected": "Child support started, record attached"
-        },
-        {
-          "sampleId": "manual sample (10)",
-          "predicted": "new roommate, room/board income\nenclosed",
-          "expected": "New roommate, room /board income enclosed"
-        },
-        {
-          "sampleId": "synth-full (3)",
-          "predicted": "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot.",
-          "expected": "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot."
-        },
-        {
-          "sampleId": "synth-no-spouse (1)",
-          "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
-          "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy."
-        },
-        {
-          "sampleId": "synth-no-spouse (2)",
-          "predicted": "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. worker task which white price clsc world.",
-          "expected": "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world."
-        },
-        {
-          "sampleId": "synth-no-spouse (3)",
-          "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they.",
-          "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
         }
       ]
     },
@@ -753,59 +680,6 @@
       ]
     },
     {
-      "field": "name",
-      "fieldType": "string",
-      "totalCount": 40,
-      "correctCount": 31,
-      "errorCount": 9,
-      "accuracy": 0.775,
-      "errorRate": 0.22499999999999998,
-      "errors": [
-        {
-          "sampleId": "1 81",
-          "expected": "X"
-        },
-        {
-          "sampleId": "2 81",
-          "predicted": "Spouse Mission",
-          "expected": "Spouse Missing"
-        },
-        {
-          "sampleId": "81 blank",
-          "expected": "Blank Declaration"
-        },
-        {
-          "sampleId": "81 coffee",
-          "expected": "Missed Box"
-        },
-        {
-          "sampleId": "Fake 2",
-          "predicted": "Smith Fake.",
-          "expected": "Smith Fake"
-        },
-        {
-          "sampleId": "Fake 4",
-          "predicted": "Sim Habert",
-          "expected": "Jim Halpert"
-        },
-        {
-          "sampleId": "Fake 5",
-          "predicted": "Kellykapoor Kapoor",
-          "expected": "Kelly Kapoor"
-        },
-        {
-          "sampleId": "Fake 7",
-          "predicted": "Sejuntan",
-          "expected": ":garbled:"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "les una",
-          "expected": "Les Luna"
-        }
-      ]
-    },
-    {
       "field": "applicant_income_tax_refund",
       "fieldType": "string",
       "totalCount": 40,
@@ -817,7 +691,10 @@
         {
           "sampleId": "1 81",
           "predicted": 6000,
-          "expected": "60.00"
+          "expected": [
+            "60.00",
+            "60"
+          ]
         },
         {
           "sampleId": "81 blank",
@@ -905,6 +782,123 @@
           "sampleId": "manual sample (6)",
           "predicted": 56024,
           "expected": "560.24"
+        }
+      ]
+    },
+    {
+      "field": "name",
+      "fieldType": "string",
+      "totalCount": 40,
+      "correctCount": 32,
+      "errorCount": 8,
+      "accuracy": 0.8,
+      "errorRate": 0.19999999999999996,
+      "errors": [
+        {
+          "sampleId": "1 81",
+          "expected": "X"
+        },
+        {
+          "sampleId": "2 81",
+          "predicted": "Spouse Mission",
+          "expected": "Spouse Missing"
+        },
+        {
+          "sampleId": "81 blank",
+          "expected": "Blank Declaration"
+        },
+        {
+          "sampleId": "81 coffee",
+          "expected": "Missed Box"
+        },
+        {
+          "sampleId": "Fake 4",
+          "predicted": "Sim Habert",
+          "expected": "Jim Halpert"
+        },
+        {
+          "sampleId": "Fake 5",
+          "predicted": "Kellykapoor Kapoor",
+          "expected": [
+            "Kelly Kapoor",
+            "Kelly kapoor"
+          ]
+        },
+        {
+          "sampleId": "Fake 7",
+          "predicted": "Sejuntan",
+          "expected": ":garbled:"
+        },
+        {
+          "sampleId": "HR0081 (6)",
+          "predicted": "les una",
+          "expected": "Les Luna"
+        }
+      ]
+    },
+    {
+      "field": "explain_changes",
+      "fieldType": "string",
+      "totalCount": 40,
+      "correctCount": 32,
+      "errorCount": 8,
+      "accuracy": 0.8,
+      "errorRate": 0.19999999999999996,
+      "errors": [
+        {
+          "sampleId": "HR0081 (3)",
+          "predicted": "YA",
+          "expected": "N/A"
+        },
+        {
+          "sampleId": "manual sample (4)",
+          "predicted": "no changes. Continue to receive CPP.\nDAS, Private pension",
+          "expected": "No changes, Continue to receive CPP, OAS, private pension"
+        },
+        {
+          "sampleId": "manual sample (7)",
+          "predicted": "changed address , proof of move",
+          "expected": [
+            "Changed address, proof of move",
+            "changed address, proof of move"
+          ]
+        },
+        {
+          "sampleId": "manual sample (9)",
+          "predicted": "Child support started, record altached",
+          "expected": [
+            "Child support started, record attached",
+            "child support started, record attached",
+            "Child support started, record attached."
+          ]
+        },
+        {
+          "sampleId": "manual sample (10)",
+          "predicted": "new roommate, room/board income\nenclosed",
+          "expected": [
+            "New roommate, room /board income enclosed",
+            "new roommate, room /board income\nenclosed"
+          ]
+        },
+        {
+          "sampleId": "synth-full (3)",
+          "predicted": "Page strategy sec democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot.",
+          "expected": "Page strategy see democratic arrive bad establish source contain until clear paper glass tax tonight involve quality analysis. Weight drop conference town rate some final sound poor year example shoulder similar instead mean. Lot."
+        },
+        {
+          "sampleId": "synth-no-spouse (2)",
+          "predicted": "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. worker task which white price clsc world.",
+          "expected": "Learn choose throw feeling season assume work up next. Land state military public wrong film hope really. Worker task which white price else world."
+        },
+        {
+          "sampleId": "synth-no-spouse (3)",
+          "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they.",
+          "expected": [
+            "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+            "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+          ]
         }
       ]
     },
@@ -1400,7 +1394,10 @@
         },
         {
           "sampleId": "manual sample (7)",
-          "expected": "26.80"
+          "expected": [
+            "26.80",
+            "26.8"
+          ]
         }
       ]
     },
@@ -1460,31 +1457,6 @@
           "sampleId": "synth-full (3)",
           "predicted": "1, 095.14",
           "expected": 1095.14
-        }
-      ]
-    },
-    {
-      "field": "spouse_name",
-      "fieldType": "string",
-      "totalCount": 35,
-      "correctCount": 32,
-      "errorCount": 3,
-      "accuracy": 0.9142857142857143,
-      "errorRate": 0.08571428571428574,
-      "errors": [
-        {
-          "sampleId": "HR0081 (4)",
-          "expected": ":garbled:"
-        },
-        {
-          "sampleId": "HR0081 (6)",
-          "predicted": "April Lune",
-          "expected": "April Luna"
-        },
-        {
-          "sampleId": "manual sample (7)",
-          "predicted": "Lisa O'Connor",
-          "expected": "Lisa O'connor"
         }
       ]
     },
@@ -1844,6 +1816,26 @@
             "05/01/2003",
             "2003-01-05"
           ]
+        }
+      ]
+    },
+    {
+      "field": "spouse_name",
+      "fieldType": "string",
+      "totalCount": 35,
+      "correctCount": 33,
+      "errorCount": 2,
+      "accuracy": 0.9428571428571428,
+      "errorRate": 0.05714285714285716,
+      "errors": [
+        {
+          "sampleId": "HR0081 (4)",
+          "expected": ":garbled:"
+        },
+        {
+          "sampleId": "HR0081 (6)",
+          "predicted": "April Lune",
+          "expected": "April Luna"
         }
       ]
     },
@@ -2349,7 +2341,10 @@
         "mismatchedFields": [
           {
             "field": "applicant_income_tax_refund",
-            "expected": "60.00",
+            "expected": [
+              "60.00",
+              "60"
+            ],
             "predicted": 6000
           },
           {
@@ -2666,7 +2661,10 @@
             "field": "applicant_income_tax_refund",
             "matched": false,
             "predicted": 6000,
-            "expected": "60.00",
+            "expected": [
+              "60.00",
+              "60"
+            ],
             "confidence": null
           },
           {
@@ -2928,7 +2926,10 @@
         "checkbox_family_assets_yes": "unselected",
         "checkbox_school_spouse_yes": "unselected",
         "checkbox_warrant_spouse_no": "selected",
-        "applicant_income_tax_refund": "60.00",
+        "applicant_income_tax_refund": [
+          "60.00",
+          "60"
+        ],
         "applicant_room_board_income": 0,
         "checkbox_need_assistance_no": "unselected",
         "checkbox_warrant_spouse_yes": "unselected",
@@ -3345,7 +3346,10 @@
           "field": "applicant_income_tax_refund",
           "matched": false,
           "predicted": 6000,
-          "expected": "60.00",
+          "expected": [
+            "60.00",
+            "60"
+          ],
           "confidence": null
         },
         {
@@ -3624,7 +3628,10 @@
             "field": "signature",
             "matched": true,
             "predicted": "Spouse Missing",
-            "expected": "Spouse Missing",
+            "expected": [
+              "Spouse Missing",
+              "spouse Missing"
+            ],
             "confidence": null
           },
           {
@@ -4120,7 +4127,10 @@
         "date": "",
         "name": "Spouse Missing",
         "phone": "",
-        "signature": "Spouse Missing",
+        "signature": [
+          "Spouse Missing",
+          "spouse Missing"
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -4304,7 +4314,10 @@
           "field": "signature",
           "matched": true,
           "predicted": "Spouse Missing",
-          "expected": "Spouse Missing",
+          "expected": [
+            "Spouse Missing",
+            "spouse Missing"
+          ],
           "confidence": null
         },
         {
@@ -7324,20 +7337,20 @@
       "sampleId": "81 coffee",
       "metadata": {},
       "metrics": {
-        "precision": 0.9464285714285714,
-        "recall": 0.7066666666666667,
-        "f1": 0.8091603053435114,
-        "truePositives": 53,
-        "falsePositives": 3,
-        "falseNegatives": 22,
+        "precision": 0.9642857142857143,
+        "recall": 0.72,
+        "f1": 0.8244274809160306,
+        "truePositives": 54,
+        "falsePositives": 2,
+        "falseNegatives": 21,
         "totalGroundTruthFields": 75,
-        "matchedFields": 53,
+        "matchedFields": 54,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 75,
-        "matchedFields": 53,
+        "matchedFields": 54,
         "missingFields": [
           "name",
           "applicant_oas_gis",
@@ -7370,11 +7383,6 @@
             "field": "signature",
             "expected": "Missed Box",
             "predicted": "Mont 16xx\nMistED Bor\nTo"
-          },
-          {
-            "field": "explain_changes",
-            "expected": "Homeless",
-            "predicted": "HOMELESS"
           }
         ],
         "comparisonResults": [
@@ -7460,9 +7468,12 @@
           },
           {
             "field": "explain_changes",
-            "matched": false,
+            "matched": true,
             "predicted": "HOMELESS",
-            "expected": "Homeless",
+            "expected": [
+              "Homeless",
+              "HOMELESS"
+            ],
             "confidence": null
           },
           {
@@ -7906,7 +7917,10 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Homeless",
+        "explain_changes": [
+          "Homeless",
+          "HOMELESS"
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": 0,
@@ -8131,9 +8145,12 @@
         },
         {
           "field": "explain_changes",
-          "matched": false,
+          "matched": true,
           "predicted": "HOMELESS",
-          "expected": "Homeless",
+          "expected": [
+            "Homeless",
+            "HOMELESS"
+          ],
           "confidence": null
         },
         {
@@ -9771,20 +9788,20 @@
       "sampleId": "Fake 2",
       "metadata": {},
       "metrics": {
-        "precision": 0.9444444444444444,
-        "recall": 0.9315068493150684,
-        "f1": 0.9379310344827586,
-        "truePositives": 68,
-        "falsePositives": 4,
-        "falseNegatives": 5,
+        "precision": 0.9583333333333334,
+        "recall": 0.9452054794520548,
+        "f1": 0.9517241379310345,
+        "truePositives": 69,
+        "falsePositives": 3,
+        "falseNegatives": 4,
         "totalGroundTruthFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 69,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 69,
         "missingFields": [
           "spouse_net_employment_income",
           "applicant_net_employment_income"
@@ -9801,13 +9818,11 @@
             "predicted": "198529\n321"
           },
           {
-            "field": "name",
-            "expected": "Smith Fake",
-            "predicted": "Smith Fake."
-          },
-          {
             "field": "signature",
-            "expected": "Smith Fake",
+            "expected": [
+              "Smith Fake",
+              "Smith Fake."
+            ],
             "predicted": "Applicant Signature nsadue Dahl"
           }
         ],
@@ -9835,9 +9850,12 @@
           },
           {
             "field": "name",
-            "matched": false,
+            "matched": true,
             "predicted": "Smith Fake.",
-            "expected": "Smith Fake",
+            "expected": [
+              "Smith Fake",
+              "Smith Fake."
+            ],
             "confidence": null
           },
           {
@@ -9851,7 +9869,10 @@
             "field": "signature",
             "matched": false,
             "predicted": "Applicant Signature nsadue Dahl",
-            "expected": "Smith Fake",
+            "expected": [
+              "Smith Fake",
+              "Smith Fake."
+            ],
             "confidence": null
           },
           {
@@ -10347,9 +10368,15 @@
           "2026-04-02",
           "April 2,2026"
         ],
-        "name": "Smith Fake",
+        "name": [
+          "Smith Fake",
+          "Smith Fake."
+        ],
         "phone": "",
-        "signature": "Smith Fake",
+        "signature": [
+          "Smith Fake",
+          "Smith Fake."
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -10521,9 +10548,12 @@
         },
         {
           "field": "name",
-          "matched": false,
+          "matched": true,
           "predicted": "Smith Fake.",
-          "expected": "Smith Fake",
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ],
           "confidence": null
         },
         {
@@ -10537,7 +10567,10 @@
           "field": "signature",
           "matched": false,
           "predicted": "Applicant Signature nsadue Dahl",
-          "expected": "Smith Fake",
+          "expected": [
+            "Smith Fake",
+            "Smith Fake."
+          ],
           "confidence": null
         },
         {
@@ -11504,7 +11537,10 @@
             "field": "applicant_canada_pension_plan_cpp",
             "matched": true,
             "predicted": "N/A",
-            "expected": "N/A",
+            "expected": [
+              "N/A",
+              "$ N/A"
+            ],
             "confidence": null
           },
           {
@@ -11653,7 +11689,10 @@
         "checkbox_employment_changes_yes": "unselected",
         "spouse_workbc_financial_support": "",
         "applicant_tax_credits_gst_credit": "N/A",
-        "applicant_canada_pension_plan_cpp": "N/A",
+        "applicant_canada_pension_plan_cpp": [
+          "N/A",
+          "$ N/A"
+        ],
         "applicant_spousal_support_alimony": "N/A",
         "applicant_workbc_financial_support": "N/A",
         "spouse_other_income_money_received": "",
@@ -12184,7 +12223,10 @@
           "field": "applicant_canada_pension_plan_cpp",
           "matched": true,
           "predicted": "N/A",
-          "expected": "N/A",
+          "expected": [
+            "N/A",
+            "$ N/A"
+          ],
           "confidence": null
         },
         {
@@ -12269,20 +12311,20 @@
       "sampleId": "Fake 4",
       "metadata": {},
       "metrics": {
-        "precision": 0.9122807017543859,
-        "recall": 0.7027027027027027,
-        "f1": 0.7938931297709922,
-        "truePositives": 52,
-        "falsePositives": 5,
-        "falseNegatives": 22,
+        "precision": 0.9298245614035088,
+        "recall": 0.7162162162162162,
+        "f1": 0.8091603053435115,
+        "truePositives": 53,
+        "falsePositives": 4,
+        "falseNegatives": 21,
         "totalGroundTruthFields": 74,
-        "matchedFields": 52,
+        "matchedFields": 53,
         "checkboxAccuracy": 0
       },
-      "pass": false,
+      "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 52,
+        "matchedFields": 53,
         "missingFields": [
           "applicant_oas_gis",
           "applicant_trust_income",
@@ -12313,11 +12355,6 @@
             "field": "signature",
             "expected": "Jim Halpert",
             "predicted": "Jim Haupt"
-          },
-          {
-            "field": "explain_changes",
-            "expected": "Lost job, taking course to find new work.",
-            "predicted": "Lost job, taking course to find\nnew work."
           },
           {
             "field": "checkbox_moved_spouse_yes",
@@ -12410,9 +12447,12 @@
           },
           {
             "field": "explain_changes",
-            "matched": false,
+            "matched": true,
             "predicted": "Lost job, taking course to find\nnew work.",
-            "expected": "Lost job, taking course to find new work.",
+            "expected": [
+              "Lost job, taking course to find new work.",
+              "Lost job, taking course to find\nnew work."
+            ],
             "confidence": null
           },
           {
@@ -12859,7 +12899,10 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Lost job, taking course to find new work.",
+        "explain_changes": [
+          "Lost job, taking course to find new work.",
+          "Lost job, taking course to find\nnew work."
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": "0",
@@ -13081,9 +13124,12 @@
         },
         {
           "field": "explain_changes",
-          "matched": false,
+          "matched": true,
           "predicted": "Lost job, taking course to find\nnew work.",
-          "expected": "Lost job, taking course to find new work.",
+          "expected": [
+            "Lost job, taking course to find new work.",
+            "Lost job, taking course to find\nnew work."
+          ],
           "confidence": null
         },
         {
@@ -13553,7 +13599,10 @@
         "mismatchedFields": [
           {
             "field": "name",
-            "expected": "Kelly Kapoor",
+            "expected": [
+              "Kelly Kapoor",
+              "Kelly kapoor"
+            ],
             "predicted": "Kellykapoor Kapoor"
           },
           {
@@ -13586,7 +13635,10 @@
             "field": "name",
             "matched": false,
             "predicted": "Kellykapoor Kapoor",
-            "expected": "Kelly Kapoor",
+            "expected": [
+              "Kelly Kapoor",
+              "Kelly kapoor"
+            ],
             "confidence": null
           },
           {
@@ -14080,7 +14132,10 @@
           "X321798231"
         ],
         "date": "2026-04-02",
-        "name": "Kelly Kapoor",
+        "name": [
+          "Kelly Kapoor",
+          "Kelly kapoor"
+        ],
         "phone": "",
         "signature": "Kelly",
         "spouse_sin": "",
@@ -14254,7 +14309,10 @@
           "field": "name",
           "matched": false,
           "predicted": "Kellykapoor Kapoor",
-          "expected": "Kelly Kapoor",
+          "expected": [
+            "Kelly Kapoor",
+            "Kelly kapoor"
+          ],
           "confidence": null
         },
         {
@@ -16076,7 +16134,10 @@
             "field": "signature",
             "matched": true,
             "predicted": "SIGNATURE",
-            "expected": "SIGNATURE",
+            "expected": [
+              "SIGNATURE",
+              "Signature"
+            ],
             "confidence": null
           },
           {
@@ -16565,7 +16626,10 @@
         "date": "2026APR02",
         "name": ":garbled:",
         "phone": "",
-        "signature": "SIGNATURE",
+        "signature": [
+          "SIGNATURE",
+          "Signature"
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -16750,7 +16814,10 @@
           "field": "signature",
           "matched": true,
           "predicted": "SIGNATURE",
-          "expected": "SIGNATURE",
+          "expected": [
+            "SIGNATURE",
+            "Signature"
+          ],
           "confidence": null
         },
         {
@@ -20325,7 +20392,8 @@
             "predicted": "$900.00",
             "expected": [
               "900.00",
-              "$900.00"
+              "$900.00",
+              "900"
             ],
             "confidence": null
           },
@@ -20342,7 +20410,8 @@
             "predicted": "$900.00",
             "expected": [
               "900.00",
-              "$900.00"
+              "$900.00",
+              "900"
             ],
             "confidence": null
           },
@@ -20552,12 +20621,14 @@
         "checkbox_employment_changes_spouse_no": "selected",
         "applicant_income_of_dependent_children": [
           "900.00",
-          "$900.00"
+          "$900.00",
+          "900"
         ],
         "checkbox_employment_changes_spouse_yes": "unselected",
         "spouse_student_funding_loans_bursaries": [
           "900.00",
-          "$900.00"
+          "$900.00",
+          "900"
         ],
         "applicant_student_funding_loans_bursaries": [
           "0",
@@ -21234,7 +21305,8 @@
           "predicted": "$900.00",
           "expected": [
             "900.00",
-            "$900.00"
+            "$900.00",
+            "900"
           ],
           "confidence": null
         },
@@ -21251,7 +21323,8 @@
           "predicted": "$900.00",
           "expected": [
             "900.00",
-            "$900.00"
+            "$900.00",
+            "900"
           ],
           "confidence": null
         },
@@ -29377,7 +29450,11 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Started part time job, documents attached",
-            "expected": "Started part time job, documents attached",
+            "expected": [
+              "Started part time job, documents attached",
+              "Started part time job, documents\nattached",
+              "Started part time job, documents attached."
+            ],
             "confidence": null
           },
           {
@@ -29837,7 +29914,11 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Started part time job, documents attached",
+        "explain_changes": [
+          "Started part time job, documents attached",
+          "Started part time job, documents\nattached",
+          "Started part time job, documents attached."
+        ],
         "checkbox_work_no": "unselected",
         "spouse_signature": "",
         "applicant_oas_gis": 0,
@@ -30057,7 +30138,11 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Started part time job, documents attached",
-          "expected": "Started part time job, documents attached",
+          "expected": [
+            "Started part time job, documents attached",
+            "Started part time job, documents\nattached",
+            "Started part time job, documents attached."
+          ],
           "confidence": null
         },
         {
@@ -30508,20 +30593,20 @@
       "sampleId": "manual sample (2)",
       "metadata": {},
       "metrics": {
-        "precision": 0.918918918918919,
-        "recall": 0.9444444444444444,
-        "f1": 0.9315068493150684,
-        "truePositives": 68,
-        "falsePositives": 6,
-        "falseNegatives": 4,
+        "precision": 0.9324324324324325,
+        "recall": 0.9583333333333334,
+        "f1": 0.9452054794520548,
+        "truePositives": 69,
+        "falsePositives": 5,
+        "falseNegatives": 3,
         "totalGroundTruthFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 69,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 68,
+        "matchedFields": 69,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
@@ -30529,11 +30614,6 @@
             "field": "signature",
             "expected": "SThompson",
             "predicted": "Station"
-          },
-          {
-            "field": "explain_changes",
-            "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
-            "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached"
           },
           {
             "field": "applicant_oas_gis",
@@ -30623,9 +30703,13 @@
           },
           {
             "field": "explain_changes",
-            "matched": false,
+            "matched": true,
             "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
-            "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+            "expected": [
+              "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+              "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+              "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+            ],
             "confidence": null
           },
           {
@@ -31086,7 +31170,11 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+        "explain_changes": [
+          "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+          "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+          "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": 742.84,
@@ -31305,9 +31393,13 @@
         },
         {
           "field": "explain_changes",
-          "matched": false,
+          "matched": true,
           "predicted": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
-          "expected": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+          "expected": [
+            "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+            "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+            "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+          ],
           "confidence": null
         },
         {
@@ -33091,7 +33183,10 @@
             "field": "signature",
             "matched": true,
             "predicted": "JLee",
-            "expected": "JLee",
+            "expected": [
+              "JLee",
+              "Jlee"
+            ],
             "confidence": null
           },
           {
@@ -33594,7 +33689,10 @@
         ],
         "name": "Jennifer Lee",
         "phone": "234-556-7890",
-        "signature": "JLee",
+        "signature": [
+          "JLee",
+          "Jlee"
+        ],
         "spouse_sin": "",
         "spouse_date": "",
         "spouse_name": "",
@@ -33785,7 +33883,10 @@
           "field": "signature",
           "matched": true,
           "predicted": "JLee",
-          "expected": "JLee",
+          "expected": [
+            "JLee",
+            "Jlee"
+          ],
           "confidence": null
         },
         {
@@ -34369,7 +34470,10 @@
             "field": "spouse_name",
             "matched": true,
             "predicted": "Harold Wilson",
-            "expected": "Harold Wilson",
+            "expected": [
+              "Harold Wilson",
+              "harold Wilson"
+            ],
             "confidence": null
           },
           {
@@ -34855,7 +34959,10 @@
           "Nov 25, 2025",
           "2025-11-25"
         ],
-        "spouse_name": "Harold Wilson",
+        "spouse_name": [
+          "Harold Wilson",
+          "harold Wilson"
+        ],
         "spouse_phone": "+1 236-789-387",
         "spouse_oas_gis": 0,
         "explain_changes": "Rent increased, see lease update",
@@ -35065,7 +35172,10 @@
           "field": "spouse_name",
           "matched": true,
           "predicted": "Harold Wilson",
-          "expected": "Harold Wilson",
+          "expected": [
+            "Harold Wilson",
+            "harold Wilson"
+          ],
           "confidence": null
         },
         {
@@ -36796,20 +36906,20 @@
       "sampleId": "manual sample (7)",
       "metadata": {},
       "metrics": {
-        "precision": 0.8767123287671232,
-        "recall": 0.9142857142857143,
-        "f1": 0.8951048951048951,
-        "truePositives": 64,
-        "falsePositives": 9,
-        "falseNegatives": 6,
+        "precision": 0.8904109589041096,
+        "recall": 0.9285714285714286,
+        "f1": 0.9090909090909091,
+        "truePositives": 65,
+        "falsePositives": 8,
+        "falseNegatives": 5,
         "totalGroundTruthFields": 74,
-        "matchedFields": 64,
+        "matchedFields": 65,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 74,
-        "matchedFields": 64,
+        "matchedFields": 65,
         "missingFields": [
           "spouse_income_tax_refund"
         ],
@@ -36821,18 +36931,16 @@
             "predicted": "Pacenar"
           },
           {
-            "field": "spouse_name",
-            "expected": "Lisa O'connor",
-            "predicted": "Lisa O'Connor"
-          },
-          {
             "field": "spouse_phone",
             "expected": "(321)-246-2143",
             "predicted": "(3211-246-2143"
           },
           {
             "field": "explain_changes",
-            "expected": "Changed address, proof of move",
+            "expected": [
+              "Changed address, proof of move",
+              "changed address, proof of move"
+            ],
             "predicted": "changed address , proof of move"
           },
           {
@@ -36905,9 +37013,12 @@
           },
           {
             "field": "spouse_name",
-            "matched": false,
+            "matched": true,
             "predicted": "Lisa O'Connor",
-            "expected": "Lisa O'connor",
+            "expected": [
+              "Lisa O'connor",
+              "Lisa O'Connor"
+            ],
             "confidence": null
           },
           {
@@ -36928,7 +37039,10 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "changed address , proof of move",
-            "expected": "Changed address, proof of move",
+            "expected": [
+              "Changed address, proof of move",
+              "changed address, proof of move"
+            ],
             "confidence": null
           },
           {
@@ -37095,7 +37209,10 @@
           {
             "field": "spouse_income_tax_refund",
             "matched": false,
-            "expected": "26.80",
+            "expected": [
+              "26.80",
+              "26.8"
+            ],
             "confidence": null
           },
           {
@@ -37393,10 +37510,16 @@
           "123-456-788"
         ],
         "spouse_date": "",
-        "spouse_name": "Lisa O'connor",
+        "spouse_name": [
+          "Lisa O'connor",
+          "Lisa O'Connor"
+        ],
         "spouse_phone": "(321)-246-2143",
         "spouse_oas_gis": 1580.23,
-        "explain_changes": "Changed address, proof of move",
+        "explain_changes": [
+          "Changed address, proof of move",
+          "changed address, proof of move"
+        ],
         "checkbox_work_no": "unselected",
         "spouse_signature": "LOConnor",
         "applicant_oas_gis": "",
@@ -37420,7 +37543,10 @@
         "checkbox_work_spouse_no": "selected",
         "checkbox_moved_spouse_no": "selected",
         "checkbox_work_spouse_yes": "unselected",
-        "spouse_income_tax_refund": "26.80",
+        "spouse_income_tax_refund": [
+          "26.80",
+          "26.8"
+        ],
         "spouse_room_board_income": "",
         "checkbox_family_assets_no": "unselected",
         "checkbox_moved_spouse_yes": "unselected",
@@ -37602,9 +37728,12 @@
         },
         {
           "field": "spouse_name",
-          "matched": false,
+          "matched": true,
           "predicted": "Lisa O'Connor",
-          "expected": "Lisa O'connor",
+          "expected": [
+            "Lisa O'connor",
+            "Lisa O'Connor"
+          ],
           "confidence": null
         },
         {
@@ -37625,7 +37754,10 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "changed address , proof of move",
-          "expected": "Changed address, proof of move",
+          "expected": [
+            "Changed address, proof of move",
+            "changed address, proof of move"
+          ],
           "confidence": null
         },
         {
@@ -37792,7 +37924,10 @@
         {
           "field": "spouse_income_tax_refund",
           "matched": false,
-          "expected": "26.80",
+          "expected": [
+            "26.80",
+            "26.8"
+          ],
           "confidence": null
         },
         {
@@ -39341,7 +39476,11 @@
         "mismatchedFields": [
           {
             "field": "explain_changes",
-            "expected": "Child support started, record attached",
+            "expected": [
+              "Child support started, record attached",
+              "child support started, record attached",
+              "Child support started, record attached."
+            ],
             "predicted": "Child support started, record altached"
           },
           {
@@ -39437,7 +39576,11 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "Child support started, record altached",
-            "expected": "Child support started, record attached",
+            "expected": [
+              "Child support started, record attached",
+              "child support started, record attached",
+              "Child support started, record attached."
+            ],
             "confidence": null
           },
           {
@@ -39901,7 +40044,11 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "Child support started, record attached",
+        "explain_changes": [
+          "Child support started, record attached",
+          "child support started, record attached",
+          "Child support started, record attached."
+        ],
         "checkbox_work_no": "selected",
         "spouse_signature": "",
         "applicant_oas_gis": 0,
@@ -40125,7 +40272,11 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "Child support started, record altached",
-          "expected": "Child support started, record attached",
+          "expected": [
+            "Child support started, record attached",
+            "child support started, record attached",
+            "Child support started, record attached."
+          ],
           "confidence": null
         },
         {
@@ -40600,7 +40751,10 @@
           },
           {
             "field": "explain_changes",
-            "expected": "New roommate, room /board income enclosed",
+            "expected": [
+              "New roommate, room /board income enclosed",
+              "new roommate, room /board income\nenclosed"
+            ],
             "predicted": "new roommate, room/board income\nenclosed"
           }
         ],
@@ -40686,7 +40840,10 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "new roommate, room/board income\nenclosed",
-            "expected": "New roommate, room /board income enclosed",
+            "expected": [
+              "New roommate, room /board income enclosed",
+              "new roommate, room /board income\nenclosed"
+            ],
             "confidence": null
           },
           {
@@ -41150,7 +41307,10 @@
         "spouse_name": "",
         "spouse_phone": "",
         "spouse_oas_gis": "",
-        "explain_changes": "New roommate, room /board income enclosed",
+        "explain_changes": [
+          "New roommate, room /board income enclosed",
+          "new roommate, room /board income\nenclosed"
+        ],
         "checkbox_work_no": "unselected",
         "spouse_signature": "",
         "applicant_oas_gis": 300,
@@ -41374,7 +41534,10 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "new roommate, room/board income\nenclosed",
-          "expected": "New roommate, room /board income enclosed",
+          "expected": [
+            "New roommate, room /board income enclosed",
+            "new roommate, room /board income\nenclosed"
+          ],
           "confidence": null
         },
         {
@@ -41989,7 +42152,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
-            "expected": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+            "expected": [
+              "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+              "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+            ],
             "confidence": null
           },
           {
@@ -42421,7 +42587,10 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "selected",
         "checkbox_warrant_no": "unselected",
-        "explain_changes": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+        "explain_changes": [
+          "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+          "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+        ],
         "checkbox_employment_changes_spouse_yes": "unselected",
         "checkbox_employment_changes_spouse_no": "selected",
         "checkbox_school_spouse_yes": "selected",
@@ -42709,7 +42878,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
-          "expected": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+          "expected": [
+            "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+            "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+          ],
           "confidence": null
         },
         {
@@ -43310,7 +43482,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
-            "expected": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+            "expected": [
+              "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+              "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+            ],
             "confidence": null
           },
           {
@@ -43683,7 +43858,10 @@
             "field": "spouse_signature",
             "matched": true,
             "predicted": "Kathryn M.",
-            "expected": "Kathryn M.",
+            "expected": [
+              "Kathryn M.",
+              "kathryn m."
+            ],
             "confidence": null
           },
           {
@@ -43701,7 +43879,10 @@
             "field": "spouse_name",
             "matched": true,
             "predicted": "Kathryn Macias",
-            "expected": "Kathryn Macias",
+            "expected": [
+              "Kathryn Macias",
+              "kathryn macias"
+            ],
             "confidence": null
           },
           {
@@ -43743,7 +43924,10 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "selected",
         "checkbox_warrant_no": "unselected",
-        "explain_changes": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+        "explain_changes": [
+          "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+          "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+        ],
         "checkbox_employment_changes_spouse_yes": "unselected",
         "checkbox_employment_changes_spouse_no": "selected",
         "checkbox_school_spouse_yes": "unselected",
@@ -43810,13 +43994,19 @@
           "209 721 664",
           "209-721-664"
         ],
-        "spouse_signature": "Kathryn M.",
+        "spouse_signature": [
+          "Kathryn M.",
+          "kathryn m."
+        ],
         "spouse_date": [
           "05-01-2003",
           "05/01/2003",
           "2003-01-05"
         ],
-        "spouse_name": "Kathryn Macias",
+        "spouse_name": [
+          "Kathryn Macias",
+          "kathryn macias"
+        ],
         "spouse_phone": "564642185",
         "spouse_sin": [
           "643016433",
@@ -44032,7 +44222,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
-          "expected": "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+          "expected": [
+            "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+            "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+          ],
           "confidence": null
         },
         {
@@ -44405,7 +44598,10 @@
           "field": "spouse_signature",
           "matched": true,
           "predicted": "Kathryn M.",
-          "expected": "Kathryn M.",
+          "expected": [
+            "Kathryn M.",
+            "kathryn m."
+          ],
           "confidence": null
         },
         {
@@ -44423,7 +44619,10 @@
           "field": "spouse_name",
           "matched": true,
           "predicted": "Kathryn Macias",
-          "expected": "Kathryn Macias",
+          "expected": [
+            "Kathryn Macias",
+            "kathryn macias"
+          ],
           "confidence": null
         },
         {
@@ -45763,28 +45962,23 @@
       "sampleId": "synth-no-spouse (1)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9230769230769231,
-        "recall": 0.9230769230769231,
-        "f1": 0.9230769230769231,
-        "truePositives": 48,
-        "falsePositives": 4,
-        "falseNegatives": 4,
+        "precision": 0.9423076923076923,
+        "recall": 0.9423076923076923,
+        "f1": 0.9423076923076923,
+        "truePositives": 49,
+        "falsePositives": 3,
+        "falseNegatives": 3,
         "totalGroundTruthFields": 52,
-        "matchedFields": 48,
+        "matchedFields": 49,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 52,
-        "matchedFields": 48,
+        "matchedFields": 49,
         "missingFields": [],
         "extraFields": [],
         "mismatchedFields": [
-          {
-            "field": "explain_changes",
-            "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
-            "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy."
-          },
           {
             "field": "applicant_child_support",
             "expected": 8310.93,
@@ -45930,9 +46124,13 @@
           },
           {
             "field": "explain_changes",
-            "matched": false,
+            "matched": true,
             "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
-            "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+            "expected": [
+              "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+              "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
+              "Area both notice government behavior note step.\nComputer cup value war before local action\npractice stay. Our Late add call language involve\nadmit million front play million drug. Strategy."
+            ],
             "confidence": null
           },
           {
@@ -46203,7 +46401,11 @@
         "checkbox_moved_no": "unselected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+        "explain_changes": [
+          "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+          "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
+          "Area both notice government behavior note step.\nComputer cup value war before local action\npractice stay. Our Late add call language involve\nadmit million front play million drug. Strategy."
+        ],
         "applicant_net_employment_income": 7971.1,
         "applicant_employment_insurance": 5270.81,
         "applicant_spousal_support_alimony": 5111.73,
@@ -46460,9 +46662,13 @@
         },
         {
           "field": "explain_changes",
-          "matched": false,
+          "matched": true,
           "predicted": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
-          "expected": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+          "expected": [
+            "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+            "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
+            "Area both notice government behavior note step.\nComputer cup value war before local action\npractice stay. Our Late add call language involve\nadmit million front play million drug. Strategy."
+          ],
           "confidence": null
         },
         {
@@ -47670,7 +47876,12 @@
         "mismatchedFields": [
           {
             "field": "explain_changes",
-            "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "expected": [
+              "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+              "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+            ],
             "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they."
           },
           {
@@ -47840,7 +48051,12 @@
             "field": "explain_changes",
             "matched": false,
             "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they.",
-            "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "expected": [
+              "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+              "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+              "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+            ],
             "confidence": null
           },
           {
@@ -48102,7 +48318,12 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+        "explain_changes": [
+          "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+          "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+          "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+          "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+        ],
         "applicant_net_employment_income": 2711.64,
         "applicant_employment_insurance": 7969,
         "applicant_spousal_support_alimony": 2101,
@@ -48352,7 +48573,12 @@
           "field": "explain_changes",
           "matched": false,
           "predicted": "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green . Stop walk head later billion word example success student during fight become. Outside they.",
-          "expected": "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+          "expected": [
+            "Occur yourself few single expert his middle ago similar pressure lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "occur yourself few single expert his middle ago\nsimilar pressure lawyer entire again Democrat\nfloor green. Stop walk head later billion word\nexample success student during fight become.\noutside they.",
+            "occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they.",
+            "Occur yourself few single expert his middle ago similar pressure Lawyer entire again Democrat floor green. Stop walk head later billion word example success student during fight become. Outside they."
+          ],
           "confidence": null
         },
         {
@@ -48757,7 +48983,12 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
-            "expected": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+            "expected": [
+              "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+              "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+              "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+              "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+            ],
             "confidence": null
           },
           {
@@ -49180,7 +49411,12 @@
         "checkbox_moved_no": "unselected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+        "explain_changes": [
+          "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+          "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+          "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+          "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+        ],
         "checkbox_employment_changes_spouse_yes": "selected",
         "checkbox_employment_changes_spouse_no": "unselected",
         "checkbox_school_spouse_yes": "selected",
@@ -49461,7 +49697,12 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
-          "expected": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+          "expected": [
+            "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+            "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+            "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+            "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+          ],
           "confidence": null
         },
         {
@@ -50018,7 +50259,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
-            "expected": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+            "expected": [
+              "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+              "Play half agree memory event stock than bit could.\nAlone first Mr so anything inside total third\naffect modern."
+            ],
             "confidence": null
           },
           {
@@ -50280,7 +50524,10 @@
         "checkbox_moved_no": "unselected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+        "explain_changes": [
+          "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+          "Play half agree memory event stock than bit could.\nAlone first Mr so anything inside total third\naffect modern."
+        ],
         "applicant_net_employment_income": null,
         "applicant_employment_insurance": 0,
         "applicant_spousal_support_alimony": null,
@@ -50530,7 +50777,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
-          "expected": "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+          "expected": [
+            "Play half agree memory event stock than bit could. Alone first Mr so anything inside total third affect modern.",
+            "Play half agree memory event stock than bit could.\nAlone first Mr so anything inside total third\naffect modern."
+          ],
           "confidence": null
         },
         {
@@ -50778,29 +51028,23 @@
       "sampleId": "synth-regular (3)",
       "metadata": {},
       "metrics": {
-        "precision": 0.9807692307692307,
-        "recall": 0.9807692307692307,
-        "f1": 0.9807692307692307,
-        "truePositives": 51,
-        "falsePositives": 1,
-        "falseNegatives": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "truePositives": 52,
+        "falsePositives": 0,
+        "falseNegatives": 0,
         "totalGroundTruthFields": 52,
-        "matchedFields": 51,
+        "matchedFields": 52,
         "checkboxAccuracy": 0
       },
       "pass": true,
       "diagnostics": {
         "totalFields": 52,
-        "matchedFields": 51,
+        "matchedFields": 52,
         "missingFields": [],
         "extraFields": [],
-        "mismatchedFields": [
-          {
-            "field": "signature",
-            "expected": "W. P.",
-            "predicted": "w. P."
-          }
-        ],
+        "mismatchedFields": [],
         "comparisonResults": [
           {
             "field": "checkbox_need_assistance_yes",
@@ -50932,7 +51176,10 @@
             "field": "explain_changes",
             "matched": true,
             "predicted": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
-            "expected": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+            "expected": [
+              "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+              "Group think around paper always recognize so\nreduce defense power. Money worry scientist\ntrouble surface part hand interesting. Someone\nagain affect beat court."
+            ],
             "confidence": null
           },
           {
@@ -51063,9 +51310,12 @@
           },
           {
             "field": "signature",
-            "matched": false,
+            "matched": true,
             "predicted": "w. P.",
-            "expected": "W. P.",
+            "expected": [
+              "W. P.",
+              "w. P."
+            ],
             "confidence": null
           },
           {
@@ -51194,7 +51444,10 @@
         "checkbox_moved_no": "selected",
         "checkbox_warrant_yes": "unselected",
         "checkbox_warrant_no": "selected",
-        "explain_changes": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+        "explain_changes": [
+          "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+          "Group think around paper always recognize so\nreduce defense power. Money worry scientist\ntrouble surface part hand interesting. Someone\nagain affect beat court."
+        ],
         "applicant_net_employment_income": null,
         "applicant_employment_insurance": 6121.6,
         "applicant_spousal_support_alimony": null,
@@ -51213,7 +51466,10 @@
         "applicant_income_tax_refund": null,
         "applicant_other_income_money_received": null,
         "applicant_income_of_dependent_children": null,
-        "signature": "W. P.",
+        "signature": [
+          "W. P.",
+          "w. P."
+        ],
         "date": [
           "2006-04-16",
           "2006-Apr-16"
@@ -51444,7 +51700,10 @@
           "field": "explain_changes",
           "matched": true,
           "predicted": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
-          "expected": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+          "expected": [
+            "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+            "Group think around paper always recognize so\nreduce defense power. Money worry scientist\ntrouble surface part hand interesting. Someone\nagain affect beat court."
+          ],
           "confidence": null
         },
         {
@@ -51575,9 +51834,12 @@
         },
         {
           "field": "signature",
-          "matched": false,
+          "matched": true,
           "predicted": "w. P.",
-          "expected": "W. P.",
+          "expected": [
+            "W. P.",
+            "w. P."
+          ],
           "confidence": null
         },
         {

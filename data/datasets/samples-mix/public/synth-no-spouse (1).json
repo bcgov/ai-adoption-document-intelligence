@@ -17,7 +17,11 @@
     "checkbox_moved_no": "unselected",
     "checkbox_warrant_yes": "unselected",
     "checkbox_warrant_no": "selected",
-    "explain_changes": "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+    "explain_changes": [
+        "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our late add call language involve admit million front play million drug. Strategy.",
+        "Area both notice government behavior note step. Computer cup value war before local action practice stay. Our Late add call language involve admit million front play million drug. Strategy.",
+        "Area both notice government behavior note step.\nComputer cup value war before local action\npractice stay. Our Late add call language involve\nadmit million front play million drug. Strategy."
+    ],
     "applicant_net_employment_income": 7971.1,
     "applicant_employment_insurance": 5270.81,
     "applicant_spousal_support_alimony": 5111.73,

@@ -13,7 +13,11 @@
     "spouse_name": "",
     "spouse_phone": "",
     "spouse_oas_gis": "",
-    "explain_changes": "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+    "explain_changes": [
+        "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay stubs attached",
+        "Working part-time at Save-on-Foods, 20 hours a week. Started Oct 12. Pay Stubs attached",
+        "Working part-time at Save-on-Foods,\n20 hours a week. Started Oct 12. Pay\nstubs attached"
+    ],
     "checkbox_work_no": "selected",
     "spouse_signature": "",
     "applicant_oas_gis": 742.84,

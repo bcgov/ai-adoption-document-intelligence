@@ -45,7 +45,10 @@
     "checkbox_family_assets_yes": "unselected",
     "checkbox_school_spouse_yes": "unselected",
     "checkbox_warrant_spouse_no": "selected",
-    "applicant_income_tax_refund": "60.00",
+    "applicant_income_tax_refund": [
+        "60.00",
+        "60"
+    ],
     "applicant_room_board_income": 0,
     "checkbox_need_assistance_no": "unselected",
     "checkbox_warrant_spouse_yes": "unselected",
