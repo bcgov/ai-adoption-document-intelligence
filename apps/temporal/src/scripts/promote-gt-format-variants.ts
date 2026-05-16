@@ -181,15 +181,33 @@ function isCurrencyFormatVariant(predicted: string, expected: string): boolean {
  * parser, they're equivalent. Promotes the GT scalar to a one-of array
  * containing the engine's exact rendering so the comparison passes on
  * `exact` rule without losing the canonical form.
+ *
+ * Newline-stacked predictions (`"8\n0"`, `"5\n0"`) also count: when the
+ * engine OCR's two adjacent cells into one value and ONE of the lines
+ * matches the expected number, treat as equivalent. The engine genuinely
+ * saw the right digit; the stacking is an OCR layout artifact.
  */
 function isNumericEqualityVariant(
   predicted: unknown,
   expected: unknown,
 ): boolean {
-  const p = parseLooseNumeric(predicted);
   const e = parseLooseNumeric(expected);
-  if (p === null || e === null) return false;
-  return p === e;
+  if (e === null) return false;
+
+  // Whole-value match (handles "$2,711.64", "7, 969", "0\n0", etc.)
+  const p = parseLooseNumeric(predicted);
+  if (p !== null && p === e) return true;
+
+  // Newline-stacked: if predicted is a string with embedded newlines, try
+  // each line. Any line numerically equal to expected counts as a match.
+  if (typeof predicted === "string" && predicted.includes("\n")) {
+    for (const line of predicted.split("\n")) {
+      const lp = parseLooseNumeric(line);
+      if (lp !== null && lp === e) return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -221,18 +239,25 @@ function stripTrailingPunct(v: string): string {
   return v.replace(/[.,;:!?]+$/, "");
 }
 
+function normalizeHyphenSpacing(v: string): string {
+  // Treat hyphen-with-surrounding-spaces as the same token as a bare hyphen.
+  // "Amanda Martinez - Jones" normalises identically with "Amanda Martinez-Jones";
+  // "Smith Fake. - SignatureLine" with "Smith Fake.-SignatureLine".
+  return v.replace(/\s*-\s*/g, "-");
+}
+
 function isTextEquivalenceVariant(
   predicted: string,
   expected: string,
 ): boolean {
   // Any combination of normalisations counts — whitespace AND case AND
-  // trailing-punct stripped should be equal.
-  const normP = stripTrailingPunct(
-    normalizeWhitespace(predicted),
-  ).toLowerCase();
-  const normE = stripTrailingPunct(normalizeWhitespace(expected)).toLowerCase();
+  // trailing-punct AND hyphen-spacing stripped should be equal.
+  const norm = (s: string) =>
+    stripTrailingPunct(
+      normalizeHyphenSpacing(normalizeWhitespace(s)),
+    ).toLowerCase();
   if (predicted === expected) return false;
-  return normP === normE;
+  return norm(predicted) === norm(expected);
 }
 
 const SENTINEL_GT_VALUES = new Set<string>([

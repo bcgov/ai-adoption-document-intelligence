@@ -1099,4 +1099,174 @@ describe("SchemaAwareEvaluator", () => {
       expect(result.metrics.precision).toBeCloseTo(1.0, 3);
     });
   });
+
+  describe(":garbled: wildcard sentinel", () => {
+    it("matches any prediction when expected is the scalar :garbled:", async () => {
+      const groundTruth = { spouse_name: ":garbled:" };
+      const prediction = { spouse_name: "Whatever The Engine Read" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "garbled-wildcard-scalar",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.pass).toBe(true);
+    });
+
+    it("matches null prediction when expected is :garbled: (cell is unscored)", async () => {
+      const groundTruth = { spouse_name: ":garbled:" };
+      const prediction = { spouse_name: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "garbled-wildcard-null",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("matches when any alternate in an array GT is :garbled:", async () => {
+      const groundTruth = { signature: [":garbled:", "some_value"] };
+      const prediction = { signature: "totally_different" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "garbled-wildcard-array",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      // signature is presence-only AND :garbled: is wildcard — either path
+      // produces a match; the wildcard short-circuits first.
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+  });
+
+  describe("presence-only signature fields", () => {
+    it("matches when both prediction and GT are non-null on signature, regardless of value", async () => {
+      const groundTruth = { signature: "JLee" };
+      const prediction = { signature: "Kradel" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-presence-match",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
+    });
+
+    it("does not match when prediction is null but GT has a signature value (engine missed it)", async () => {
+      const groundTruth = { signature: "JLee" };
+      const prediction = { signature: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-presence-miss",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(0);
+      expect(result.metrics.falseNegatives).toBe(1);
+    });
+
+    it("does not match when prediction is non-null but GT is blank (engine hallucinated a signature)", async () => {
+      const groundTruth = { spouse_signature: "" };
+      const prediction = { spouse_signature: "MysteryGuy" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-hallucinated",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(0);
+      expect(result.metrics.falsePositives).toBe(1);
+    });
+
+    it("matches when both are blank (no signature on either side)", async () => {
+      const groundTruth = { signature: "" };
+      const prediction = { signature: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-both-blank",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("applies presence rule to spouse_signature too", async () => {
+      const groundTruth = { spouse_signature: "AnyValue" };
+      const prediction = { spouse_signature: "X" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "spouse-signature-presence",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+  });
 });
