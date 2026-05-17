@@ -1,6 +1,10 @@
 node_modules
 .DS_Store
 
+# Python bytecode caches
+__pycache__/
+*.pyc
+
 # SpecStory
 .specstory/
 /.claude/settings.loca.json
