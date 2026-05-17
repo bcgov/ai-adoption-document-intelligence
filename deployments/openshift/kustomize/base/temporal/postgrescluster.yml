@@ -20,7 +20,7 @@ spec:
           - 'ReadWriteOnce'
         resources:
           requests:
-            storage: 1.5Gi
+            storage: 5Gi
       sidecars:
         replicaCertCopy:
           resources:
@@ -30,7 +30,7 @@ spec:
   backups:
     pgbackrest:
       global:
-        repo1-retention-full: '30'
+        repo1-retention-full: '7'
         repo1-retention-full-type: time
       repos:
         - name: repo1
@@ -44,7 +44,7 @@ spec:
                 - 'ReadWriteOnce'
               resources:
                 requests:
-                  storage: 10Gi
+                  storage: 22Gi
       repoHost:
         resources:
           requests:
