@@ -46,6 +46,7 @@ import { flattenClassifiedDocuments } from "./activities/flatten-classified-docu
 import { normalizeDocumentOrientation } from "./activities/normalize-document-orientation";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
+import { recoverNumericZerosFromCheckboxes } from "./activities/ocr-recover-numeric-zeros";
 import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
 import { selectClassifiedPages } from "./activities/select-classified-pages";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
@@ -253,6 +254,17 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Field normalization (whitespace, digit grouping, dates); optional documentType for schema-aware rules",
+});
+
+register({
+  activityType: "ocr.recoverNumericZerosFromCheckboxes",
+  activityFn: recoverNumericZerosFromCheckboxes as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Recover numeric values from table cells where Azure DI misread a digit (commonly '0') as a selection mark. Driven entirely by per-table configuration in node parameters.",
 });
 
 // -- Benchmark activities ---------------------------------------------------

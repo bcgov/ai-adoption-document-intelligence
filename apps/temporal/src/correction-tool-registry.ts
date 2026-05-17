@@ -168,6 +168,22 @@ const CORRECTION_TOOL_REGISTRY: CorrectionToolManifestEntry[] = [
     ],
     tags: ["whitespace", "formatting", "normalization", "dates", "numbers"],
   },
+  {
+    toolId: "ocr.recoverNumericZerosFromCheckboxes",
+    label: "Recover Numeric Zeros from Checkboxes",
+    description:
+      "Recover numeric values (typically 0) for custom-model fields that Azure DI failed to extract because it misread the digit as a selection mark. Driven entirely by per-table configuration in node parameters: locate a target table by header text, map prefixes to columns and suffixes to rows, and recover only cells that contain a selection-mark marker (no digits, no letters) and overlap an actual page-level selectionMark. Never overwrites fields that already have a value.",
+    parameters: [
+      {
+        name: "tables",
+        type: "object",
+        description:
+          "Array of per-table recovery rules. Each entry: { find: { firstCellTextContains | firstCellTextEquals }, columns: [{ prefix, headerEquals | headerContains }], rows: [{ suffix, labelEquals | labelContains }], recoveryValue?: number (default 0), cellEligibility?: { stripBeforeCheck?: string[] (default [$, €, £, ¥, :selected:, :unselected:]), requireSelectionMarkInCell?: boolean (default true), acceptedMarkStates?: ['selected'|'unselected'] (default any) } }",
+        required: false,
+      },
+    ],
+    tags: ["recovery", "checkbox", "numeric", "table", "zero"],
+  },
 ];
 
 /**

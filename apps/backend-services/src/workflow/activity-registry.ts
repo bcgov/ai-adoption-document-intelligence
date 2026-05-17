@@ -63,6 +63,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Field normalization; optional documentType (LabelingProject id) for schema-aware rules per field_type",
     },
+    "ocr.recoverNumericZerosFromCheckboxes": {
+      description:
+        "Recover numeric values for custom-model fields that Azure DI misread as selection marks; per-table config in node parameters maps prefix→column and suffix→row",
+    },
     getWorkflowGraphConfig: {
       description: "Load workflow configuration from database",
     },
