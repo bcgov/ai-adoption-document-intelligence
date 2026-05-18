@@ -2,7 +2,7 @@
 
 This document records how the data, plots, and tables in `SDPR_OCR_Performance_Report_V2.md` are generated. It exists so the report numbers are reproducible — anyone (human or AI session) can re-derive the headline accuracy, the per-category HITL trade-off, and the underlying CSVs by running the pipeline against the share's benchmark exports.
 
-The companion script README ([scripts/benchmark analysis/README.md](../scripts/benchmark%20analysis/README.md)) covers each tool in detail; this document focuses on the SDPR-specific pipeline and the policy decisions baked into it.
+The companion script README ([`README.md`](README.md), same directory) covers each tool in detail; this document focuses on the SDPR-specific pipeline and the policy decisions baked into it. All command examples below assume you are running from the repository root.
 
 ## Inputs
 
