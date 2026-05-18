@@ -132,7 +132,12 @@
               { "suffix": "income_tax_refund", "labelEquals": "Income Tax Refund" },
               { "suffix": "other_income_money_received", "labelEquals": "All other income / money received" },
               { "suffix": "income_of_dependent_children", "labelEquals": "Income of Dependent Children" }
-            ]
+            ],
+            "fallbackTableFinder": {
+              "shape": { "minRowCount": 18, "maxRowCount": 21, "minColumnCount": 2, "maxColumnCount": 3 },
+              "labelAnchor": { "minLabelMatches": 12 },
+              "positionalAnchor": { "minVotes": 3, "dominanceRatio": 2.0 }
+            }
           }
         ]
       },

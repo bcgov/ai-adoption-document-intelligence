@@ -172,13 +172,13 @@ const CORRECTION_TOOL_REGISTRY: CorrectionToolManifestEntry[] = [
     toolId: "ocr.recoverNumericZerosFromCheckboxes",
     label: "Recover Numeric Zeros from Checkboxes",
     description:
-      "Recover numeric values (typically 0) for custom-model fields that Azure DI failed to extract because it misread the digit as a selection mark. Driven entirely by per-table configuration in node parameters: locate a target table by header text, map prefixes to columns and suffixes to rows, and recover only cells that contain a selection-mark marker (no digits, no letters) and overlap an actual page-level selectionMark. Never overwrites fields that already have a value.",
+      "Recover numeric values (typically 0) for custom-model fields that Azure DI failed to extract because it misread the digit as a selection mark. Driven entirely by per-table configuration in node parameters: locate the target table (by title text; or fall back to row-label anchor or positional anchor with offset vote), map prefixes to columns and suffixes to rows, and recover only cells that contain a selection-mark marker (no digits, no letters) and overlap an actual page-level selectionMark. Never overwrites fields that already have a value.",
     parameters: [
       {
         name: "tables",
         type: "object",
         description:
-          "Array of per-table recovery rules. Each entry: { find: { firstCellTextContains | firstCellTextEquals }, columns: [{ prefix, headerEquals | headerContains }], rows: [{ suffix, labelEquals | labelContains }], recoveryValue?: number (default 0), cellEligibility?: { stripBeforeCheck?: string[] (default [$, €, £, ¥, :selected:, :unselected:]), requireSelectionMarkInCell?: boolean (default true), acceptedMarkStates?: ['selected'|'unselected'] (default any) } }",
+          "Array of per-table recovery rules. Each entry: { find: { firstCellTextContains | firstCellTextEquals }, columns: [{ prefix, headerEquals | headerContains }], rows: [{ suffix, labelEquals | labelContains }], recoveryValue?: number (default 0), cellEligibility?: { stripBeforeCheck?: string[] (default [$, €, £, ¥, :selected:, :unselected:]), requireSelectionMarkInCell?: boolean (default true), acceptedMarkStates?: ['selected'|'unselected'] (default any) }, fallbackTableFinder?: { shape: { minRowCount, maxRowCount, minColumnCount, maxColumnCount }, labelAnchor?: { minLabelMatches }, positionalAnchor?: { minVotes (default 3), dominanceRatio (default 2.0) } } }. The fallbackTableFinder is opt-in: title anchor always tried first; labelAnchor scans by shape for tables where ≥ minLabelMatches row labels appear in column 0; positionalAnchor scans by shape and uses loose-substring label paragraphs on the page to vote on a row-index offset (column→prefix mapping comes from sorting columns by midX). Forms with the columns[] declared in left-to-right page order are recommended.",
         required: false,
       },
     ],

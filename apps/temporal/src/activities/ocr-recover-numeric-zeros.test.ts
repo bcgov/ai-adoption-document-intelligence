@@ -483,4 +483,488 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       ],
     ).toBe(1);
   });
+
+  // -------------------------------------------------------------------------
+  // Group A — label-anchor fallback (when title isn't found in r0c0)
+  // -------------------------------------------------------------------------
+
+  it("Group A: falls back to row-label anchor when the title r0c0 doesn't match", async () => {
+    // 18-row, 3-col candidate table where r0c0 is *blank* (Azure dropped the
+    // "Declare all income" title), but column 0 contains the printed row
+    // labels. Should be located by the label-anchor finder.
+    const cells: TableCell[] = [
+      // r0c0 = blank (no title)
+      makeCell(0, 0, "", [0, 0, 50, 10]),
+      makeCell(0, 1, "", [50, 0, 70, 10]),
+      makeCell(0, 2, "", [70, 0, 90, 10]),
+    ];
+    const labels = [
+      "Net Employment Income",
+      "Employment Insurance",
+      "Spousal Support / Alimony",
+      "Child Support",
+      "WorkBC Financial Support",
+      "Student Funding (eg: Loans, Bursaries)",
+      "Rental Income",
+      "Room / Board Income",
+      "Worker's Compensation",
+      "Private Pensions (eg: Retirement, Disability)",
+      "OAS / GIS",
+      "Trust Income",
+    ];
+    labels.forEach((label, i) => {
+      const y = 10 + i * 10;
+      cells.push(makeCell(i + 1, 0, label, [0, y, 50, y + 10]));
+      cells.push(makeCell(i + 1, 1, "$ :unselected:", [50, y, 70, y + 10]));
+      cells.push(makeCell(i + 1, 2, "$ :unselected:", [70, y, 90, y + 10]));
+    });
+    // Selection marks overlapping every value cell (so eligibility passes)
+    const marks: SelectionMark[] = [];
+    labels.forEach((_label, i) => {
+      const y = 10 + i * 10;
+      marks.push(makeMark("unselected", [55, y + 2, 60, y + 8]));
+      marks.push(makeMark("unselected", [75, y + 2, 80, y + 8]));
+    });
+    const fields: Record<string, Record<string, unknown>> = {};
+    labels.forEach((label) => {
+      const suffix = label
+        .toLowerCase()
+        .replace(/[()/'.]/g, "")
+        .replace(/eg:/g, "")
+        .replace(/[ ,]+/g, "_");
+      fields[`applicant_${suffix}`] = { type: "number" };
+      fields[`spouse_${suffix}`] = { type: "number" };
+    });
+
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "test",
+      fileName: "doc.pdf",
+      fileType: "pdf",
+      modelId: "custom",
+      extractedText: "",
+      pages: [makePage(marks)],
+      tables: [
+        {
+          rowCount: labels.length + 1,
+          columnCount: 3,
+          cells,
+          boundingRegions: [],
+          spans: [],
+        },
+      ],
+      paragraphs: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [
+        {
+          docType: "test",
+          fields: fields as never,
+        },
+      ],
+      processedAt: new Date().toISOString(),
+    };
+
+    const out = await recoverNumericZerosFromCheckboxes({
+      ocrResult,
+      tables: [
+        {
+          find: { firstCellTextContains: "Declare all income" },
+          columns: [
+            { prefix: "applicant_", headerEquals: "Applicant" },
+            { prefix: "spouse_", headerEquals: "Spouse" },
+          ],
+          rows: labels.map((label) => ({
+            suffix: label
+              .toLowerCase()
+              .replace(/[()/'.]/g, "")
+              .replace(/eg:/g, "")
+              .replace(/[ ,]+/g, "_"),
+            labelEquals: label,
+          })),
+          fallbackTableFinder: {
+            shape: {
+              minRowCount: 12,
+              maxRowCount: 22,
+              minColumnCount: 2,
+              maxColumnCount: 3,
+            },
+            labelAnchor: { minLabelMatches: 10 },
+          },
+        },
+      ],
+    });
+
+    // Title would not have located the table; label-anchor must have fired.
+    expect(
+      (out.metadata?.tableFinderStrategy as Record<string, string>).config_0,
+    ).toBe("label-anchor");
+    // 12 label rows × 2 columns = 24 candidate cells, but the column map
+    // depends on the header matcher. In this fixture there is no Applicant /
+    // Spouse header row, so columnMap is empty and recoveries land on 0
+    // cells. We assert the table-finder strategy fired regardless — the
+    // column-resolution failure is logged via unresolved selectors.
+    expect(
+      (out.metadata?.unresolvedSelectors as string[]).filter((s) =>
+        s.startsWith("column:"),
+      ).length,
+    ).toBe(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // Group B — positional-anchor fallback (when title AND row labels miss)
+  // -------------------------------------------------------------------------
+
+  it("Group B: maps rows via offset-vote on label paragraphs when col 0 has no labels", async () => {
+    // 19-row, 2-col candidate table where column 0 is value cells (not
+    // labels). Row labels exist as paragraphs on the page (matched via
+    // loose substring). The offset-vote tally should agree on a single
+    // offset and the column map should fall out of left-to-right midX.
+    const labels = [
+      "Net Employment Income",
+      "Employment Insurance",
+      "Spousal Support / Alimony",
+      "Child Support",
+      "WorkBC Financial Support",
+      "Student Funding (eg: Loans, Bursaries)",
+      "Rental Income",
+      "Room / Board Income",
+      "Worker's Compensation",
+      "Private Pensions (eg: Retirement, Disability)",
+      "OAS / GIS",
+      "Trust Income",
+      "Canada Pension Plan (CPP)",
+      "Tax Credits (eg: GST Credit)",
+      "Child Tax Benefits",
+      "Income Tax Refund",
+      "All other income / money received",
+      "Income of Dependent Children",
+    ];
+    const cells: TableCell[] = [];
+    // 19 rows of value-only cells (no row 0 header in the table)
+    for (let r = 0; r < 19; r++) {
+      const y = 100 + r * 20;
+      cells.push(makeCell(r, 0, "$ :unselected:", [600, y, 700, y + 18]));
+      cells.push(makeCell(r, 1, "$ :unselected:", [750, y, 800, y + 18]));
+    }
+    // Selection marks overlapping every cell
+    const marks: SelectionMark[] = [];
+    for (let r = 0; r < 19; r++) {
+      const y = 100 + r * 20;
+      marks.push(makeMark("unselected", [620, y + 5, 640, y + 15]));
+      marks.push(makeMark("unselected", [770, y + 5, 790, y + 15]));
+    }
+    // Row-label paragraphs sit on the page at midY values that align with
+    // the candidate table's rows 1..18 (so the dominant offset = -1).
+    const paragraphs = labels.map((label, i) => {
+      const tableRow = i + 1; // label_index 0 → table row 1
+      const y = 100 + tableRow * 20;
+      return {
+        content: label,
+        boundingRegions: [
+          { pageNumber: 1, polygon: rectPolygon(50, y + 4, 500, y + 16) },
+        ],
+        spans: [],
+      };
+    });
+    const fields: Record<string, Record<string, unknown>> = {};
+    const rowsCfg = labels.map((label) => {
+      const suffix = label
+        .toLowerCase()
+        .replace(/[()/'.]/g, "")
+        .replace(/eg:/g, "")
+        .replace(/[ ,]+/g, "_");
+      fields[`applicant_${suffix}`] = { type: "number" };
+      fields[`spouse_${suffix}`] = { type: "number" };
+      return { suffix, labelEquals: label };
+    });
+
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "test",
+      fileName: "doc.pdf",
+      fileType: "pdf",
+      modelId: "custom",
+      extractedText: "",
+      pages: [makePage(marks)],
+      tables: [
+        {
+          rowCount: 19,
+          columnCount: 2,
+          cells,
+          boundingRegions: [],
+          spans: [],
+        },
+      ],
+      paragraphs,
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [
+        {
+          docType: "test",
+          fields: fields as never,
+        },
+      ],
+      processedAt: new Date().toISOString(),
+    };
+
+    const out = await recoverNumericZerosFromCheckboxes({
+      ocrResult,
+      tables: [
+        {
+          find: { firstCellTextContains: "Declare all income" },
+          columns: [
+            { prefix: "applicant_", headerEquals: "Applicant" },
+            { prefix: "spouse_", headerEquals: "Spouse" },
+          ],
+          rows: rowsCfg,
+          fallbackTableFinder: {
+            shape: {
+              minRowCount: 18,
+              maxRowCount: 21,
+              minColumnCount: 2,
+              maxColumnCount: 3,
+            },
+            labelAnchor: { minLabelMatches: 12 },
+            positionalAnchor: { minVotes: 3, dominanceRatio: 2.0 },
+          },
+        },
+      ],
+    });
+
+    expect(
+      (out.metadata?.tableFinderStrategy as Record<string, string>).config_0,
+    ).toBe("positional-anchor");
+    // 18 label rows × 2 columns × all-eligible cells = 36 recoveries.
+    expect(out.metadata?.applied).toBe(36);
+    expect(
+      (out.metadata?.appliedByStrategy as Record<string, number>)[
+        "positional-anchor"
+      ],
+    ).toBe(36);
+    const recoveredFields = out.ocrResult.documents?.[0]?.fields;
+    expect(recoveredFields).toBeDefined();
+    if (!recoveredFields) throw new Error("missing");
+    expect(recoveredFields.applicant_net_employment_income.valueNumber).toBe(0);
+    expect(recoveredFields.spouse_net_employment_income.valueNumber).toBe(0);
+    expect(
+      recoveredFields.applicant_income_of_dependent_children.valueNumber,
+    ).toBe(0);
+    expect(
+      recoveredFields.spouse_income_of_dependent_children.valueNumber,
+    ).toBe(0);
+  });
+
+  it("Group B: skips when offset-vote has no dominant winner", async () => {
+    // A pathological candidate where the row-label Y positions don't align
+    // with the table rows in any consistent way — votes split across many
+    // offsets and the dominance gate refuses to commit.
+    const cells: TableCell[] = [];
+    for (let r = 0; r < 19; r++) {
+      const y = 100 + r * 20;
+      cells.push(makeCell(r, 0, "$ :unselected:", [600, y, 700, y + 18]));
+      cells.push(makeCell(r, 1, "$ :unselected:", [750, y, 800, y + 18]));
+    }
+    const marks: SelectionMark[] = [];
+    for (let r = 0; r < 19; r++) {
+      const y = 100 + r * 20;
+      marks.push(makeMark("unselected", [620, y + 5, 640, y + 15]));
+    }
+    // Only 2 label paragraphs, at very different offsets → top_votes=1, below threshold.
+    const paragraphs = [
+      {
+        content: "Net Employment Income",
+        boundingRegions: [
+          { pageNumber: 1, polygon: rectPolygon(50, 100, 500, 116) },
+        ],
+        spans: [],
+      },
+      {
+        content: "OAS / GIS",
+        boundingRegions: [
+          { pageNumber: 1, polygon: rectPolygon(50, 500, 500, 516) },
+        ],
+        spans: [],
+      },
+    ];
+    const fields: Record<string, Record<string, unknown>> = {
+      applicant_net_employment_income: { type: "number" },
+      applicant_oas_gis: { type: "number" },
+    };
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "test",
+      fileName: "doc.pdf",
+      fileType: "pdf",
+      modelId: "custom",
+      extractedText: "",
+      pages: [makePage(marks)],
+      tables: [
+        {
+          rowCount: 19,
+          columnCount: 2,
+          cells,
+          boundingRegions: [],
+          spans: [],
+        },
+      ],
+      paragraphs,
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [{ docType: "test", fields: fields as never }],
+      processedAt: new Date().toISOString(),
+    };
+    const out = await recoverNumericZerosFromCheckboxes({
+      ocrResult,
+      tables: [
+        {
+          find: { firstCellTextContains: "Declare all income" },
+          columns: [{ prefix: "applicant_", headerEquals: "Applicant" }],
+          rows: [
+            {
+              suffix: "net_employment_income",
+              labelEquals: "Net Employment Income",
+            },
+            { suffix: "oas_gis", labelEquals: "OAS / GIS" },
+          ],
+          fallbackTableFinder: {
+            shape: {
+              minRowCount: 18,
+              maxRowCount: 21,
+              minColumnCount: 2,
+              maxColumnCount: 3,
+            },
+            positionalAnchor: { minVotes: 3, dominanceRatio: 2.0 },
+          },
+        },
+      ],
+    });
+    // Title misses (no r0c0 match), label-anchor not configured + col0 has no
+    // labels, positional anchor below min_votes threshold → no flips.
+    expect(
+      (out.metadata?.tableFinderStrategy as Record<string, string>).config_0,
+    ).toBe("not-found");
+    expect(out.metadata?.applied).toBe(0);
+  });
+
+  it("Group B: 19×3 candidate with a pure-currency column gets that column dropped", async () => {
+    // 19×3 with col 0 = '$' only, col 1 = applicant values, col 2 = spouse
+    // values. Column count > prefix count → the pure-currency column 0 is
+    // dropped, leaving (col 1, col 2) mapped to (applicant_, spouse_).
+    const cells: TableCell[] = [];
+    for (let r = 0; r < 19; r++) {
+      const y = 100 + r * 20;
+      cells.push(makeCell(r, 0, "$", [500, y, 540, y + 18])); // pure currency
+      cells.push(makeCell(r, 1, "$ :unselected:", [600, y, 700, y + 18]));
+      cells.push(makeCell(r, 2, "$ :unselected:", [750, y, 800, y + 18]));
+    }
+    const marks: SelectionMark[] = [];
+    for (let r = 0; r < 19; r++) {
+      const y = 100 + r * 20;
+      marks.push(makeMark("unselected", [620, y + 5, 640, y + 15]));
+      marks.push(makeMark("unselected", [770, y + 5, 790, y + 15]));
+    }
+    const labels = [
+      "Net Employment Income",
+      "Employment Insurance",
+      "Spousal Support / Alimony",
+      "Child Support",
+      "WorkBC Financial Support",
+      "Student Funding (eg: Loans, Bursaries)",
+      "Rental Income",
+      "Room / Board Income",
+      "Worker's Compensation",
+      "Private Pensions (eg: Retirement, Disability)",
+      "OAS / GIS",
+      "Trust Income",
+      "Canada Pension Plan (CPP)",
+      "Tax Credits (eg: GST Credit)",
+      "Child Tax Benefits",
+      "Income Tax Refund",
+      "All other income / money received",
+      "Income of Dependent Children",
+    ];
+    const paragraphs = labels.map((label, i) => {
+      const tableRow = i + 1;
+      const y = 100 + tableRow * 20;
+      return {
+        content: label,
+        boundingRegions: [
+          { pageNumber: 1, polygon: rectPolygon(50, y + 4, 480, y + 16) },
+        ],
+        spans: [],
+      };
+    });
+    const fields: Record<string, Record<string, unknown>> = {};
+    const rowsCfg = labels.map((label) => {
+      const suffix = label
+        .toLowerCase()
+        .replace(/[()/'.]/g, "")
+        .replace(/eg:/g, "")
+        .replace(/[ ,]+/g, "_");
+      fields[`applicant_${suffix}`] = { type: "number" };
+      fields[`spouse_${suffix}`] = { type: "number" };
+      return { suffix, labelEquals: label };
+    });
+
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "test",
+      fileName: "doc.pdf",
+      fileType: "pdf",
+      modelId: "custom",
+      extractedText: "",
+      pages: [makePage(marks)],
+      tables: [
+        {
+          rowCount: 19,
+          columnCount: 3,
+          cells,
+          boundingRegions: [],
+          spans: [],
+        },
+      ],
+      paragraphs,
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [{ docType: "test", fields: fields as never }],
+      processedAt: new Date().toISOString(),
+    };
+
+    const out = await recoverNumericZerosFromCheckboxes({
+      ocrResult,
+      tables: [
+        {
+          find: { firstCellTextContains: "Declare all income" },
+          columns: [
+            { prefix: "applicant_", headerEquals: "Applicant" },
+            { prefix: "spouse_", headerEquals: "Spouse" },
+          ],
+          rows: rowsCfg,
+          fallbackTableFinder: {
+            shape: {
+              minRowCount: 18,
+              maxRowCount: 21,
+              minColumnCount: 2,
+              maxColumnCount: 3,
+            },
+            positionalAnchor: { minVotes: 3, dominanceRatio: 2.0 },
+          },
+        },
+      ],
+    });
+
+    expect(
+      (out.metadata?.tableFinderStrategy as Record<string, string>).config_0,
+    ).toBe("positional-anchor");
+    expect(out.metadata?.applied).toBe(36);
+  });
 });
