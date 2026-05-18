@@ -2,6 +2,8 @@
 
 Local helpers for inspecting a downloaded benchmark run.
 
+**For the SDPR V2 report end-to-end pipeline (which inputs, which scripts, which flags, what policy decisions are baked in) see [`SDPR_V2_REPORT_PIPELINE.md`](SDPR_V2_REPORT_PIPELINE.md) in this directory. This README documents each tool in isolation.**
+
 **If you want to re-regenerate everything for a share-based run, run [`regenerate-reports-share.sh`](#full-re-regeneration-pipeline-regenerate-reports-sharesh) — do NOT chain the individual wrappers by hand. The order and flags are easy to get wrong and the failure mode (partial state in committed reports) is silent.**
 
 - `regenerate-reports-share.sh` — **canonical end-to-end wrapper.** Runs normalize → recover-numeric-zeros → analyze → report-errors in order against share data. One arg (base dir). Use this every time you want fresh reports.
