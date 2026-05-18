@@ -82,9 +82,18 @@ SDPR_TABLE_CONFIG: list[dict[str, Any]] = [
             "stripBeforeCheck": ["$", "€", "£", "¥", ":selected:", ":unselected:"],
             "requireSelectionMarkInCell": True,
         },
+        # Mirror the production workflow's fallback table-finder config so the
+        # diagnostic verdicts reflect what the recovery activity actually does
+        # (not just the title-anchor strategy).
+        "fallbackTableFinder": {
+            "shape": {"minRowCount": 18, "maxRowCount": 21, "minColumnCount": 2, "maxColumnCount": 3},
+            "labelAnchor": {"minLabelMatches": 12},
+            "positionalAnchor": {"minVotes": 3, "dominanceRatio": 2.0},
+        },
     },
 ]
 DEFAULT_STRIP_TOKENS = ["$", "€", "£", "¥", ":selected:", ":unselected:"]
+CURRENCY_TOKENS = ["$", "€", "£", "¥"]
 
 # ---------------------------------------------------------------------------
 # Geometry + text helpers (mirror recover-numeric-zeros.py)
@@ -230,6 +239,228 @@ def get_cell(table: dict, row_index: int, column_index: int) -> dict | None:
     )
 
 
+# ---------------------------------------------------------------------------
+# A+B helpers (kept in sync with recover-numeric-zeros.py)
+# ---------------------------------------------------------------------------
+
+def normalize_loose(value: Any) -> str:
+    if value is None:
+        return ""
+    return re.sub(r"\s+", " ", str(value)).strip().lower()
+
+
+def loose_contains(haystack: str, needle: str) -> bool:
+    if not haystack or not needle:
+        return False
+    return normalize_loose(needle) in normalize_loose(haystack)
+
+
+def table_page_number(table: dict) -> int | None:
+    for c in table.get("cells") or []:
+        regs = c.get("boundingRegions") or []
+        if regs and regs[0].get("pageNumber") is not None:
+            return regs[0]["pageNumber"]
+    return None
+
+
+def table_row_midYs(table: dict, anchor_column: int = 0) -> dict[int, float]:
+    rc = table.get("rowCount") or 0
+    out: dict[int, float] = {}
+    for r in range(rc):
+        candidates = [
+            c for c in (table.get("cells") or [])
+            if c.get("rowIndex") == r and c.get("columnIndex") == anchor_column
+        ] or [c for c in (table.get("cells") or []) if c.get("rowIndex") == r]
+        for c in candidates:
+            regs = c.get("boundingRegions") or []
+            if not regs:
+                continue
+            bx = polygon_bbox(regs[0].get("polygon"))
+            if bx:
+                out[r] = (bx[1] + bx[3]) / 2
+                break
+    return out
+
+
+def table_col_midXs(table: dict) -> dict[int, float]:
+    cc = table.get("columnCount") or 0
+    sums: dict[int, list[float]] = {ci: [] for ci in range(cc)}
+    for c in table.get("cells") or []:
+        ci = c.get("columnIndex")
+        if not isinstance(ci, int) or ci < 0 or ci >= cc:
+            continue
+        regs = c.get("boundingRegions") or []
+        if not regs:
+            continue
+        bx = polygon_bbox(regs[0].get("polygon"))
+        if bx:
+            sums[ci].append((bx[0] + bx[2]) / 2)
+    return {ci: sum(xs) / len(xs) for ci, xs in sums.items() if xs}
+
+
+def column_is_pure_currency_prefix(table: dict, col_idx: int) -> bool:
+    col_cells = [c for c in (table.get("cells") or []) if c.get("columnIndex") == col_idx]
+    if not col_cells:
+        return False
+    pure = 0
+    for c in col_cells:
+        stripped = c.get("content", "") or ""
+        for tok in CURRENCY_TOKENS:
+            stripped = stripped.replace(tok, "")
+        stripped = re.sub(r"\s+", "", stripped)
+        if stripped == "":
+            pure += 1
+    return pure >= 0.7 * len(col_cells)
+
+
+def candidate_tables_by_shape(tables: list[dict], shape_cfg: dict | None) -> list[tuple[int, dict]]:
+    shape_cfg = shape_cfg or {}
+    min_rc = shape_cfg.get("minRowCount", 18)
+    max_rc = shape_cfg.get("maxRowCount", 21)
+    min_cc = shape_cfg.get("minColumnCount", 2)
+    max_cc = shape_cfg.get("maxColumnCount", 3)
+    out: list[tuple[int, dict]] = []
+    for i, t in enumerate(tables):
+        rc = t.get("rowCount")
+        cc = t.get("columnCount")
+        if not isinstance(rc, int) or not isinstance(cc, int):
+            continue
+        if min_rc <= rc <= max_rc and min_cc <= cc <= max_cc:
+            out.append((i, t))
+    return out
+
+
+def find_table_by_row_labels(tables: list[dict], cfg: dict) -> tuple[dict, int, dict[str, int], dict[str, int]] | None:
+    fb = cfg.get("fallbackTableFinder") or {}
+    la = fb.get("labelAnchor")
+    if not la:
+        return None
+    min_matches = la.get("minLabelMatches", 12)
+    for ti, t in candidate_tables_by_shape(tables, fb.get("shape")):
+        row_map = resolve_row_indexes(t, cfg["rows"])
+        if len(row_map) >= min_matches:
+            column_map = resolve_column_indexes(t, cfg["columns"])
+            return t, ti, column_map, row_map
+    return None
+
+
+def find_label_paragraph_anchors(
+    analyze_result: dict, page_no: int | None, rows_cfg: list[dict]
+) -> list[tuple[int, str, float]]:
+    out: list[tuple[int, str, float]] = []
+    same_page: list[dict] = []
+    for p in (analyze_result.get("paragraphs") or []):
+        regs = p.get("boundingRegions") or []
+        if not regs:
+            continue
+        if page_no is not None and regs[0].get("pageNumber") != page_no:
+            continue
+        bx = polygon_bbox(regs[0].get("polygon"))
+        if not bx:
+            continue
+        same_page.append({"text": (p.get("content") or ""), "midY": (bx[1] + bx[3]) / 2})
+    for label_idx, row in enumerate(rows_cfg):
+        needle = row.get("labelEquals") or row.get("labelContains") or ""
+        if not needle:
+            continue
+        for para in same_page:
+            if loose_contains(para["text"], needle):
+                out.append((label_idx, row["suffix"], para["midY"]))
+                break
+    return out
+
+
+def build_positional_column_map(table: dict, columns_cfg: list[dict]) -> dict[str, int] | None:
+    midXs = table_col_midXs(table)
+    cc = table.get("columnCount") or 0
+    if len(midXs) < len(columns_cfg):
+        return None
+    if cc == len(columns_cfg):
+        sorted_cols = sorted(midXs.items(), key=lambda kv: kv[1])
+        return {col["prefix"]: ci for col, (ci, _x) in zip(columns_cfg, sorted_cols)}
+    if cc > len(columns_cfg):
+        keep = [(ci, mx) for ci, mx in midXs.items() if not column_is_pure_currency_prefix(table, ci)]
+        if len(keep) != len(columns_cfg):
+            return None
+        keep.sort(key=lambda x: x[1])
+        return {col["prefix"]: ci for col, (ci, _x) in zip(columns_cfg, keep)}
+    return None
+
+
+def build_positional_row_map(
+    table: dict, anchors: list[tuple[int, str, float]], rows_cfg: list[dict],
+    min_votes: int, dominance_ratio: float,
+) -> tuple[dict[str, int], int, int, int] | None:
+    if not anchors:
+        return None
+    row_midYs = table_row_midYs(table, anchor_column=0)
+    if not row_midYs:
+        return None
+    votes: Counter = Counter()
+    for label_idx, _sfx, lab_y in anchors:
+        nearest = min(row_midYs.items(), key=lambda kv: abs(kv[1] - lab_y))[0]
+        votes[label_idx - nearest] += 1
+    ranked = votes.most_common()
+    if not ranked:
+        return None
+    top_o, top_v = ranked[0]
+    sec_v = ranked[1][1] if len(ranked) > 1 else 0
+    if top_v < min_votes or top_v < dominance_ratio * sec_v:
+        return None
+    rc = table.get("rowCount") or 0
+    row_map: dict[str, int] = {}
+    for label_idx, row in enumerate(rows_cfg):
+        ri = label_idx - top_o
+        if 0 <= ri < rc:
+            row_map[row["suffix"]] = ri
+    return row_map, top_o, top_v, sec_v
+
+
+def find_table_by_positional_anchor(
+    tables: list[dict], analyze_result: dict, cfg: dict,
+) -> tuple[dict, int, dict[str, int], dict[str, int]] | None:
+    fb = cfg.get("fallbackTableFinder") or {}
+    pa = fb.get("positionalAnchor")
+    if not pa:
+        return None
+    min_votes = pa.get("minVotes", 3)
+    dominance = pa.get("dominanceRatio", 2.0)
+    for ti, t in candidate_tables_by_shape(tables, fb.get("shape")):
+        column_map = build_positional_column_map(t, cfg["columns"])
+        if column_map is None:
+            continue
+        page_no = table_page_number(t)
+        anchors = find_label_paragraph_anchors(analyze_result, page_no, cfg["rows"])
+        if not anchors:
+            continue
+        r = build_positional_row_map(t, anchors, cfg["rows"], min_votes, dominance)
+        if r is None:
+            continue
+        row_map, _o, _tv, _sv = r
+        return t, ti, column_map, row_map
+    return None
+
+
+def locate_table(
+    tables: list[dict], analyze_result: dict, cfg: dict,
+) -> tuple[dict, int, dict[str, int], dict[str, int], str] | None:
+    """Try title → label-anchor → positional-anchor. Returns
+    (table, table_index, column_map, row_map, strategy)."""
+    located = find_table(tables, cfg["find"])
+    if located is not None:
+        t, idx = located
+        return t, idx, resolve_column_indexes(t, cfg["columns"]), resolve_row_indexes(t, cfg["rows"]), "title-anchor"
+    la = find_table_by_row_labels(tables, cfg)
+    if la is not None:
+        t, idx, cm, rm = la
+        return t, idx, cm, rm, "label-anchor"
+    pa = find_table_by_positional_anchor(tables, analyze_result, cfg)
+    if pa is not None:
+        t, idx, cm, rm = pa
+        return t, idx, cm, rm, "positional-anchor"
+    return None
+
+
 def parse_expected_number(value: Any) -> float | None:
     if value is None:
         return None
@@ -336,14 +567,17 @@ def render_sample_markdown(
     detail_by_field = {d.get("field"): d for d in missing_fields_details}
 
     for ci_cfg, cfg in enumerate(table_configs):
-        located = find_table(tables, cfg["find"])
+        # Use the full A+B-aware locator so verdicts mirror production behavior.
+        located_full = locate_table(tables, analyze_result, cfg)
+        located = (located_full[0], located_full[1]) if located_full else None
+        strategy_label = located_full[4] if located_full else "not-found"
         if located is None:
             stats["configuredTablesMissing"] += 1
-            md.append(f"## Configured table #{ci_cfg}: NOT FOUND")
+            md.append(f"## Configured table #{ci_cfg}: NOT FOUND (no strategy located it)")
             md.append("")
             md.append(f"- Configured `find`: `{json.dumps(cfg.get('find'))}`")
             md.append(
-                "- No Azure DI table matched. This is the likely root cause for every missing zero whose field maps into this table."
+                f"- Title anchor + label anchor + positional anchor all failed."
             )
             md.append("")
 
@@ -703,9 +937,8 @@ def render_sample_markdown(
             continue
 
         stats["configuredTablesFound"] += 1
-        table, table_index = located
-        column_map = resolve_column_indexes(table, cfg["columns"])
-        row_map = resolve_row_indexes(table, cfg["rows"])
+        # Use the locator's maps directly so we get whichever strategy fired.
+        table, table_index, column_map, row_map, strategy_label = located_full
         strip_tokens = (cfg.get("cellEligibility") or {}).get("stripBeforeCheck") or DEFAULT_STRIP_TOKENS
         require_mark = (cfg.get("cellEligibility") or {}).get("requireSelectionMarkInCell", True)
         recovery_value = cfg.get("recoveryValue", 0)
@@ -796,7 +1029,7 @@ def render_sample_markdown(
                 })
 
         # Render this configured table
-        md.append(f"## Configured table #{ci_cfg} → Azure table {table_index}")
+        md.append(f"## Configured table #{ci_cfg} → Azure table {table_index} (located via `{strategy_label}`)")
         md.append("")
         md.append(f"- `find`: `{json.dumps(cfg.get('find'))}`")
         md.append(
