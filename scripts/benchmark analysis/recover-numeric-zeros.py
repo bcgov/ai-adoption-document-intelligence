@@ -3,22 +3,51 @@
 Recover numeric zeros in a benchmark JSON that the custom Azure DI model
 missed because the prebuilt-layout step parsed a `0` as a selection mark.
 
-This is the standalone counterpart to the temporal activity
-`ocr.recoverNumericZerosFromCheckboxes` — same algorithm, applied to an
-already-evaluated benchmark export instead of mutating the OCR result mid-
-pipeline. For every per-sample evaluationDetail whose `field` is configured
-on an income-style row/column and whose `expected` equals the configured
-recovery value, we look up the matching table cell in the OCR cache for
-that sample and, when it shows a selection-mark glyph instead of any digit
-or letter, flip `matched: true` and stamp `matchedVia: "recovered:checkbox-zero"`.
+Three table-finder strategies are tried in order per configured table:
 
-Eligibility (per cell, identical to the activity):
-  1. Cell content has no digits and no letters after stripping configured
-     tokens (default: `$`, `€`, `£`, `¥`, `:selected:`, `:unselected:`).
-  2. At least one `pages[].selectionMarks[*]` polygon overlaps the cell's
-     bounding region.
-  3. The benchmark detail is currently unmatched and its `expected`
-     parses to the configured recovery value.
+  1. Title anchor (the original strategy):
+     find the OCR table whose first cell (r0c0) text contains the configured
+     `find.firstCellTextContains` (or equals `find.firstCellTextEquals`).
+
+  2. Row-label anchor (Group A fallback):
+     when the title isn't found, scan candidate tables by shape
+     (rowCount 18..21 × columnCount 2..3) for one where ≥12 of the
+     configured row-label texts appear in column 0 (case-insensitive
+     contains). The first such table wins; column mapping uses the
+     existing header-text matcher.
+
+  3. Positional anchor (Group B fallback):
+     when neither title nor row-label match, look for a candidate
+     by shape AND derive the row-index mapping via a loose-substring
+     match on the page paragraphs: for each found label paragraph,
+     pair its midY with the candidate table's row whose midY is
+     closest, vote `offset = label_index - row_index`, and apply the
+     dominant offset uniformly. Column mapping is derived by sorting
+     the candidate's columns by midX and assigning them left-to-right
+     to the config's prefixes; if the candidate has one more column
+     than there are prefixes, the column whose cells are "pure
+     currency prefix" (mostly just `$`/`€`/`£`/`¥`) is dropped.
+
+     The positional anchor is gated by a dominance rule:
+       top_votes >= 3 AND top_votes >= 2 * second_votes
+     to avoid mis-mapping when the vote tally is split or sparse.
+
+Per-cell eligibility (identical across all three strategies):
+  - The cell's content has no digits and no letters after stripping
+    configured tokens (default: `$`, `€`, `£`, `¥`, `:selected:`,
+    `:unselected:`).
+  - At least one `pages[].selectionMarks[*]` polygon overlaps the cell's
+    bounding region.
+  - The benchmark detail must currently be unmatched AND its `expected`
+    must parse to the configured recovery value.
+
+A flipped detail gets stamped with `matched: true`, `matchedVia:
+"recovered:checkbox-zero"`, `recoveryStrategy:
+"title-anchor"|"label-anchor"|"positional-anchor"`, and `recoveredValue:
+<value>`. The CSV `rule` column reflects the strategy
+("recovered:checkbox-zero", "recovered:checkbox-zero-label-anchor",
+"recovered:checkbox-zero-positional") so downstream analysis can split
+by source.
 
 Mapping is driven entirely by an inline table config (SDPR built-in;
 override with --table-config-json):
@@ -38,9 +67,8 @@ Outputs:
   --changes  : path to write the recovery audit CSV
                   columns: sampleId,field,rule,predicted,expected
                   (`predicted` is the value the model emitted before
-                  recovery — useful when reviewing what was flipped.
-                  Column order matches normalize-benchmark.py so the two
-                  audits can be merged into a single changes.csv.)
+                  recovery. Column order matches normalize-benchmark.py
+                  so the two audits can be merged into a single CSV.)
   --merge-into-changes <path>
                 When set, the script reads the given CSV first, drops any
                 existing rows whose `rule` begins with "recovered:" (to
@@ -100,21 +128,40 @@ SDPR_TABLE_CONFIG: list[dict[str, Any]] = [
             "stripBeforeCheck": ["$", "€", "£", "¥", ":selected:", ":unselected:"],
             "requireSelectionMarkInCell": True,
         },
+        "fallbackTableFinder": {
+            "shape": {"minRowCount": 18, "maxRowCount": 21, "minColumnCount": 2, "maxColumnCount": 3},
+            "labelAnchor": {"minLabelMatches": 12},
+            "positionalAnchor": {"minVotes": 3, "dominanceRatio": 2.0},
+        },
     },
 ]
 
 DEFAULT_STRIP_TOKENS = ["$", "€", "£", "¥", ":selected:", ":unselected:"]
+CURRENCY_TOKENS = ["$", "€", "£", "¥"]
+RECOVERY_RULE_PREFIX = "recovered:checkbox-zero"
+STRATEGY_RULES = {
+    "title-anchor": "recovered:checkbox-zero",
+    "label-anchor": "recovered:checkbox-zero-label-anchor",
+    "positional-anchor": "recovered:checkbox-zero-positional",
+}
 
 # ---------------------------------------------------------------------------
-# Text + geometry helpers (mirror ocr-recover-numeric-zeros.ts)
+# Text + geometry helpers
 # ---------------------------------------------------------------------------
 
 
 def normalize_text(value: Any) -> str:
     if value is None:
         return ""
-    s = str(value)
-    return re.sub(r"\s+", " ", s).strip()
+    return re.sub(r"\s+", " ", str(value)).strip()
+
+
+def normalize_loose(value: Any) -> str:
+    """Case-insensitive, whitespace-collapsed normalization for substring contains.
+    Newlines and runs of whitespace become a single space."""
+    if value is None:
+        return ""
+    return re.sub(r"\s+", " ", str(value)).strip().lower()
 
 
 def matches_equals(actual: str, expected: str | None) -> bool:
@@ -127,6 +174,15 @@ def matches_contains(actual: str, expected: str | None) -> bool:
     if not expected:
         return False
     return normalize_text(expected).lower() in normalize_text(actual).lower()
+
+
+def loose_contains(haystack: str, needle: str) -> bool:
+    """Case+whitespace-normalized substring contains. Used by Group-B
+    label-paragraph matching: longer paragraphs that wrap the label
+    (e.g. "Net Employment Income $0") still match the label."""
+    if not needle or not haystack:
+        return False
+    return normalize_loose(needle) in normalize_loose(haystack)
 
 
 def polygon_bbox(polygon: list[float] | None) -> tuple[float, float, float, float] | None:
@@ -173,65 +229,6 @@ def cell_has_selection_mark(cell: dict, pages: list[dict], accepted_states: list
     return False
 
 
-def find_table(tables: list[dict], find_cfg: dict) -> tuple[dict, int] | None:
-    for i, table in enumerate(tables):
-        first_cell = next(
-            (c for c in (table.get("cells") or []) if c.get("rowIndex") == 0 and c.get("columnIndex") == 0),
-            None,
-        )
-        content = (first_cell or {}).get("content", "") or ""
-        eq = find_cfg.get("firstCellTextEquals")
-        ct = find_cfg.get("firstCellTextContains")
-        if eq and matches_equals(content, eq):
-            return table, i
-        if ct and matches_contains(content, ct):
-            return table, i
-    return None
-
-
-def resolve_column_indexes(table: dict, columns: list[dict]) -> dict[str, int]:
-    out: dict[str, int] = {}
-    cells = table.get("cells") or []
-    header_cells = [
-        c
-        for c in cells
-        if c.get("kind") == "columnHeader"
-        or (c.get("rowIndex") in (0, 1) and len(normalize_text(c.get("content"))) > 0)
-    ]
-    for col in columns:
-        hit = next(
-            (
-                c
-                for c in header_cells
-                if matches_equals(c.get("content", ""), col.get("headerEquals"))
-                or matches_contains(c.get("content", ""), col.get("headerContains"))
-            ),
-            None,
-        )
-        if hit is not None:
-            out[col["prefix"]] = hit["columnIndex"]
-    return out
-
-
-def resolve_row_indexes(table: dict, rows: list[dict]) -> dict[str, int]:
-    out: dict[str, int] = {}
-    cells = table.get("cells") or []
-    label_cells = [c for c in cells if c.get("columnIndex") == 0]
-    for row in rows:
-        hit = next(
-            (
-                c
-                for c in label_cells
-                if matches_equals(c.get("content", ""), row.get("labelEquals"))
-                or matches_contains(c.get("content", ""), row.get("labelContains"))
-            ),
-            None,
-        )
-        if hit is not None:
-            out[row["suffix"]] = hit["rowIndex"]
-    return out
-
-
 def get_cell(table: dict, row_index: int, column_index: int) -> dict | None:
     return next(
         (
@@ -261,8 +258,361 @@ def parse_expected_number(value: Any) -> float | None:
 
 
 # ---------------------------------------------------------------------------
-# Per-sample recovery
+# Table geometry helpers
 # ---------------------------------------------------------------------------
+
+
+def table_page_number(table: dict) -> int | None:
+    """Resolve which page the table lives on by looking at any cell's bbox."""
+    for c in table.get("cells") or []:
+        regs = c.get("boundingRegions") or []
+        if regs and regs[0].get("pageNumber") is not None:
+            return regs[0]["pageNumber"]
+    return None
+
+
+def table_row_midYs(table: dict, anchor_column: int = 0) -> dict[int, float]:
+    """Return {row_index: midY} computed from cells in the given column.
+    Falls back to any column when the anchor column lacks bboxes."""
+    rc = table.get("rowCount") or 0
+    midYs: dict[int, float] = {}
+    for r in range(rc):
+        candidates = [
+            c for c in (table.get("cells") or [])
+            if c.get("rowIndex") == r and c.get("columnIndex") == anchor_column
+        ] or [c for c in (table.get("cells") or []) if c.get("rowIndex") == r]
+        for c in candidates:
+            regs = c.get("boundingRegions") or []
+            if not regs:
+                continue
+            bx = polygon_bbox(regs[0].get("polygon"))
+            if bx:
+                midYs[r] = (bx[1] + bx[3]) / 2
+                break
+    return midYs
+
+
+def table_col_midXs(table: dict) -> dict[int, float]:
+    """Return {col_index: midX} averaged across whichever rows have bboxes."""
+    cc = table.get("columnCount") or 0
+    sums: dict[int, list[float]] = {ci: [] for ci in range(cc)}
+    for c in table.get("cells") or []:
+        ci = c.get("columnIndex")
+        if not isinstance(ci, int) or ci < 0 or ci >= cc:
+            continue
+        regs = c.get("boundingRegions") or []
+        if not regs:
+            continue
+        bx = polygon_bbox(regs[0].get("polygon"))
+        if bx:
+            sums[ci].append((bx[0] + bx[2]) / 2)
+    return {ci: (sum(xs) / len(xs)) for ci, xs in sums.items() if xs}
+
+
+def column_is_pure_currency_prefix(table: dict, col_idx: int) -> bool:
+    """True if ≥70% of the column's cells contain only currency prefixes
+    (no digits/letters after stripping `$ € £ ¥` + whitespace)."""
+    col_cells = [c for c in (table.get("cells") or []) if c.get("columnIndex") == col_idx]
+    if not col_cells:
+        return False
+    pure = 0
+    for c in col_cells:
+        content = c.get("content", "") or ""
+        stripped = content
+        for tok in CURRENCY_TOKENS:
+            stripped = stripped.replace(tok, "")
+        stripped = re.sub(r"\s+", "", stripped)
+        if stripped == "":
+            pure += 1
+    return pure >= 0.7 * len(col_cells)
+
+
+# ---------------------------------------------------------------------------
+# Strategy 1 — Title anchor
+# ---------------------------------------------------------------------------
+
+
+def find_table_by_title(tables: list[dict], find_cfg: dict) -> tuple[dict, int] | None:
+    for i, table in enumerate(tables):
+        first_cell = next(
+            (c for c in (table.get("cells") or []) if c.get("rowIndex") == 0 and c.get("columnIndex") == 0),
+            None,
+        )
+        content = (first_cell or {}).get("content", "") or ""
+        eq = find_cfg.get("firstCellTextEquals")
+        ct = find_cfg.get("firstCellTextContains")
+        if eq and matches_equals(content, eq):
+            return table, i
+        if ct and matches_contains(content, ct):
+            return table, i
+    return None
+
+
+def resolve_column_indexes_by_header(table: dict, columns: list[dict]) -> dict[str, int]:
+    """Column → prefix via configured header text. Used by title and label-anchor strategies."""
+    out: dict[str, int] = {}
+    cells = table.get("cells") or []
+    header_cells = [
+        c
+        for c in cells
+        if c.get("kind") == "columnHeader"
+        or (c.get("rowIndex") in (0, 1) and len(normalize_text(c.get("content"))) > 0)
+    ]
+    for col in columns:
+        hit = next(
+            (
+                c
+                for c in header_cells
+                if matches_equals(c.get("content", ""), col.get("headerEquals"))
+                or matches_contains(c.get("content", ""), col.get("headerContains"))
+            ),
+            None,
+        )
+        if hit is not None:
+            out[col["prefix"]] = hit["columnIndex"]
+    return out
+
+
+def resolve_row_indexes_by_label(table: dict, rows: list[dict]) -> dict[str, int]:
+    """Row → suffix via configured label text in column 0. Used by title and label-anchor strategies."""
+    out: dict[str, int] = {}
+    cells = table.get("cells") or []
+    label_cells = [c for c in cells if c.get("columnIndex") == 0]
+    for row in rows:
+        hit = next(
+            (
+                c
+                for c in label_cells
+                if matches_equals(c.get("content", ""), row.get("labelEquals"))
+                or matches_contains(c.get("content", ""), row.get("labelContains"))
+            ),
+            None,
+        )
+        if hit is not None:
+            out[row["suffix"]] = hit["rowIndex"]
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Shape filter shared by Group A + Group B
+# ---------------------------------------------------------------------------
+
+
+def candidate_tables_by_shape(tables: list[dict], shape_cfg: dict) -> list[tuple[int, dict]]:
+    min_rc = shape_cfg.get("minRowCount", 18)
+    max_rc = shape_cfg.get("maxRowCount", 21)
+    min_cc = shape_cfg.get("minColumnCount", 2)
+    max_cc = shape_cfg.get("maxColumnCount", 3)
+    out: list[tuple[int, dict]] = []
+    for i, t in enumerate(tables):
+        rc = t.get("rowCount")
+        cc = t.get("columnCount")
+        if not isinstance(rc, int) or not isinstance(cc, int):
+            continue
+        if min_rc <= rc <= max_rc and min_cc <= cc <= max_cc:
+            out.append((i, t))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Strategy 2 — Row-label anchor (Group A)
+# ---------------------------------------------------------------------------
+
+
+def find_table_by_row_labels(
+    tables: list[dict],
+    cfg: dict,
+) -> tuple[dict, int, dict[str, int], dict[str, int]] | None:
+    """Locate the income table by finding a candidate whose column-0 cells
+    contain enough configured row-label texts. Returns (table, table_index,
+    column_map, row_map) on success."""
+    fb = cfg.get("fallbackTableFinder") or {}
+    shape = fb.get("shape") or {}
+    min_matches = (fb.get("labelAnchor") or {}).get("minLabelMatches", 12)
+
+    candidates = candidate_tables_by_shape(tables, shape)
+    for ti, t in candidates:
+        row_map = resolve_row_indexes_by_label(t, cfg["rows"])
+        if len(row_map) >= min_matches:
+            column_map = resolve_column_indexes_by_header(t, cfg["columns"])
+            return t, ti, column_map, row_map
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Strategy 3 — Positional anchor via offset vote (Group B)
+# ---------------------------------------------------------------------------
+
+
+def find_label_paragraph_anchors(
+    analyze_result: dict,
+    page_no: int | None,
+    rows_cfg: list[dict],
+) -> list[tuple[int, str, float]]:
+    """Return [(label_index, suffix, midY), …] for every expected row label
+    found via loose substring on a page paragraph. First paragraph hit per
+    label only."""
+    out: list[tuple[int, str, float]] = []
+    paras = analyze_result.get("paragraphs") or []
+    same_page = []
+    for p in paras:
+        regs = p.get("boundingRegions") or []
+        if not regs:
+            continue
+        if page_no is not None and regs[0].get("pageNumber") != page_no:
+            continue
+        bx = polygon_bbox(regs[0].get("polygon"))
+        if not bx:
+            continue
+        same_page.append({"text": (p.get("content") or ""), "midY": (bx[1] + bx[3]) / 2})
+
+    for label_idx, row in enumerate(rows_cfg):
+        needle = row.get("labelEquals") or row.get("labelContains") or ""
+        if not needle:
+            continue
+        for p in same_page:
+            if loose_contains(p["text"], needle):
+                out.append((label_idx, row["suffix"], p["midY"]))
+                break
+    return out
+
+
+def build_positional_column_map(
+    table: dict,
+    columns_cfg: list[dict],
+) -> dict[str, int] | None:
+    """Sort the candidate table's columns by midX and assign left→right to
+    the config's prefixes. If the candidate has one more column than there
+    are prefixes, drop the column(s) whose cells are predominantly
+    pure-currency-prefix. Returns {prefix: col_idx} or None."""
+    midXs = table_col_midXs(table)
+    cc = table.get("columnCount") or 0
+    if len(midXs) < len(columns_cfg):
+        return None  # not enough columns with bboxes
+
+    # If columnCount matches prefix count, direct sort+map.
+    if cc == len(columns_cfg):
+        sorted_cols = sorted(midXs.items(), key=lambda kv: kv[1])
+        return {col["prefix"]: ci for col, (ci, _x) in zip(columns_cfg, sorted_cols)}
+
+    # If there are more columns than prefixes, drop pure-currency columns
+    # until counts match. If we can't reduce to the exact count, refuse.
+    if cc > len(columns_cfg):
+        keep = []
+        for ci, midX in midXs.items():
+            if column_is_pure_currency_prefix(table, ci):
+                continue
+            keep.append((ci, midX))
+        if len(keep) != len(columns_cfg):
+            return None
+        keep_sorted = sorted(keep, key=lambda x: x[1])
+        return {col["prefix"]: ci for col, (ci, _x) in zip(columns_cfg, keep_sorted)}
+
+    return None
+
+
+def build_positional_row_map(
+    table: dict,
+    anchors: list[tuple[int, str, float]],
+    rows_cfg: list[dict],
+    min_votes: int,
+    dominance_ratio: float,
+) -> tuple[dict[str, int], int, int, int] | None:
+    """Vote on `offset = label_index - row_index` per anchor. If the top
+    offset has ≥min_votes AND ≥(dominance_ratio × second_votes), apply it
+    uniformly. Returns (row_map, dominant_offset, top_votes, second_votes)
+    on success. row_map only includes rows that land within the table's
+    actual row range."""
+    if not anchors:
+        return None
+    row_midYs = table_row_midYs(table, anchor_column=0)
+    if not row_midYs:
+        return None
+    offset_votes: Counter = Counter()
+    for label_idx, _suffix, lab_y in anchors:
+        nearest_row = min(row_midYs.items(), key=lambda kv: abs(kv[1] - lab_y))[0]
+        offset_votes[label_idx - nearest_row] += 1
+    ranked = offset_votes.most_common()
+    if not ranked:
+        return None
+    top_offset, top_votes = ranked[0]
+    second_votes = ranked[1][1] if len(ranked) > 1 else 0
+    if top_votes < min_votes:
+        return None
+    if top_votes < dominance_ratio * second_votes:
+        return None
+
+    rc = table.get("rowCount") or 0
+    row_map: dict[str, int] = {}
+    for label_idx, row in enumerate(rows_cfg):
+        ri = label_idx - top_offset
+        if 0 <= ri < rc:
+            row_map[row["suffix"]] = ri
+    return row_map, top_offset, top_votes, second_votes
+
+
+def find_table_by_positional_anchor(
+    tables: list[dict],
+    analyze_result: dict,
+    cfg: dict,
+) -> tuple[dict, int, dict[str, int], dict[str, int], int] | None:
+    """Group-B fallback. Returns (table, idx, column_map, row_map, dominant_offset)."""
+    fb = cfg.get("fallbackTableFinder") or {}
+    shape = fb.get("shape") or {}
+    pa = fb.get("positionalAnchor") or {}
+    min_votes = int(pa.get("minVotes", 3))
+    dominance_ratio = float(pa.get("dominanceRatio", 2.0))
+
+    candidates = candidate_tables_by_shape(tables, shape)
+    for ti, t in candidates:
+        column_map = build_positional_column_map(t, cfg["columns"])
+        if column_map is None:
+            continue
+        page_no = table_page_number(t)
+        anchors = find_label_paragraph_anchors(analyze_result, page_no, cfg["rows"])
+        if not anchors:
+            continue
+        result = build_positional_row_map(t, anchors, cfg["rows"], min_votes, dominance_ratio)
+        if result is None:
+            continue
+        row_map, dominant_offset, _, _ = result
+        return t, ti, column_map, row_map, dominant_offset
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Per-sample recovery (orchestrates the three strategies + cell eligibility)
+# ---------------------------------------------------------------------------
+
+
+def locate_table(
+    tables: list[dict],
+    analyze_result: dict,
+    cfg: dict,
+) -> tuple[dict, int, dict[str, int], dict[str, int], str] | None:
+    """Try title → label-anchor → positional-anchor. Returns
+    (table, table_index, column_map, row_map, strategy_name) or None."""
+    # 1. Title
+    located = find_table_by_title(tables, cfg.get("find") or {})
+    if located is not None:
+        table, idx = located
+        column_map = resolve_column_indexes_by_header(table, cfg["columns"])
+        row_map = resolve_row_indexes_by_label(table, cfg["rows"])
+        return table, idx, column_map, row_map, "title-anchor"
+
+    # 2. Label anchor (Group A)
+    la = find_table_by_row_labels(tables, cfg)
+    if la is not None:
+        table, idx, column_map, row_map = la
+        return table, idx, column_map, row_map, "label-anchor"
+
+    # 3. Positional anchor (Group B)
+    pa = find_table_by_positional_anchor(tables, analyze_result, cfg)
+    if pa is not None:
+        table, idx, column_map, row_map, _offset = pa
+        return table, idx, column_map, row_map, "positional-anchor"
+
+    return None
 
 
 def recover_for_sample(
@@ -292,13 +642,11 @@ def recover_for_sample(
         require_mark = elig.get("requireSelectionMarkInCell", True)
         accepted_states = elig.get("acceptedMarkStates") or None
 
-        located = find_table(tables, cfg["find"])
+        located = locate_table(tables, analyze_result, cfg)
         if located is None:
             continue
-        table, table_index = located
-
-        column_map = resolve_column_indexes(table, cfg["columns"])
-        row_map = resolve_row_indexes(table, cfg["rows"])
+        table, table_index, column_map, row_map, strategy = located
+        rule_label = STRATEGY_RULES[strategy]
 
         for row in cfg["rows"]:
             ri = row_map.get(row["suffix"])
@@ -312,18 +660,20 @@ def recover_for_sample(
                 detail = detail_by_field.get(field_key)
                 if detail is None:
                     continue
-                # Idempotency: if this detail was already flipped by a
-                # prior run of this script, re-emit the audit row but skip
-                # mutation. That way re-runs produce a complete changes.csv
-                # without depending on having the original benchmark JSON.
+
+                # Idempotency: if this detail was already flipped by any
+                # recovery strategy, re-emit the audit row but skip
+                # mutation. The strategy of the prior run is preserved.
+                prior_via = detail.get("matchedVia") or ""
                 already_recovered = (
                     detail.get("matched") is True
-                    and detail.get("matchedVia") == "recovered:checkbox-zero"
+                    and isinstance(prior_via, str)
+                    and prior_via == "recovered:checkbox-zero"
                 )
                 if detail.get("matched") is True and not already_recovered:
                     continue
-                # Only recover when the expected value matches our configured
-                # recovery value — protects against flipping unrelated mismatches.
+
+                # Only recover when expected parses to the configured value.
                 exp_num = parse_expected_number(detail.get("expected"))
                 if exp_num is None or float(exp_num) != float(recovery_value):
                     continue
@@ -336,15 +686,22 @@ def recover_for_sample(
                     continue
 
                 prior_predicted = detail.get("predicted")
-                if not already_recovered:
+                effective_strategy = strategy
+                if already_recovered:
+                    # Preserve the prior strategy if it was set, else default to title-anchor.
+                    effective_strategy = detail.get("recoveryStrategy") or "title-anchor"
+                else:
                     detail["matched"] = True
                     detail["matchedVia"] = "recovered:checkbox-zero"
                     detail["recoveredValue"] = recovery_value
+                    detail["recoveryStrategy"] = strategy
+
                 recoveries.append(
                     {
                         "sampleId": sid,
                         "field": field_key,
-                        "rule": "recovered:checkbox-zero",
+                        "rule": STRATEGY_RULES[effective_strategy],
+                        "strategy": effective_strategy,
                         "expected": detail.get("expected"),
                         "priorPredicted": prior_predicted,
                         "tableIndex": table_index,
@@ -357,9 +714,7 @@ def recover_for_sample(
 
 
 # ---------------------------------------------------------------------------
-# perFieldResults rebuild (compatible with the existing normalize-benchmark
-# output so analyze.js consumes both identically). Logic mirrors
-# scripts/benchmark analysis/normalize-benchmark.py:recompute_per_field_results.
+# perFieldResults rebuild (compatible with normalize-benchmark.py)
 # ---------------------------------------------------------------------------
 
 
@@ -522,16 +877,13 @@ def main(argv: list[str]) -> int:
     missing_ocr_cache_for: list[str] = []
     for sample in samples:
         sid = sample.get("sampleId", "?")
-        # Try direct + suffix-tolerant lookup
         cache_entry = ocr_cache.get(sid)
         if cache_entry is None:
-            # Try stripping common image suffixes from the benchmark sid
             for sfx in (".jpg", ".jpeg", ".png", ".pdf", ".tif", ".tiff"):
                 if sid.endswith(sfx) and sid[: -len(sfx)] in ocr_cache:
                     cache_entry = ocr_cache[sid[: -len(sfx)]]
                     break
         if cache_entry is None:
-            # And vice-versa: cached sid had extension, benchmark sid did not
             for sfx in (".jpg", ".jpeg", ".png", ".pdf", ".tif", ".tiff"):
                 if sid + sfx in ocr_cache:
                     cache_entry = ocr_cache[sid + sfx]
@@ -541,24 +893,25 @@ def main(argv: list[str]) -> int:
             continue
         all_recoveries.extend(recover_for_sample(sample, cache_entry, table_configs))
 
-    # Rebuild perFieldResults from the mutated details so downstream tooling
-    # (analyze.js, compare-engines.py) sees consistent counts.
+    # Rebuild perFieldResults
     raw["perFieldResults"] = recompute_per_field_results(samples)
 
-    # Stamp the recovery marker — extend any existing normalization stamp.
+    # Stamp the recovery marker.
+    by_strategy = Counter(r["strategy"] for r in all_recoveries if not r.get("alreadyRecovered"))
     raw.setdefault("numericZeroRecovery", {}).update(
         {
             "appliedBy": "scripts/benchmark analysis/recover-numeric-zeros.py",
-            "flippedCount": len(all_recoveries),
+            "flippedCount": sum(1 for r in all_recoveries if not r.get("alreadyRecovered")),
+            "reEmittedCount": sum(1 for r in all_recoveries if r.get("alreadyRecovered")),
             "samplesMissingOcrCache": len(missing_ocr_cache_for),
+            "byStrategy": dict(by_strategy),
         }
     )
 
-    # Write outputs
+    # Write benchmark JSON
     Path(args.out).write_text(json.dumps(raw, ensure_ascii=False, indent=2), "utf-8")
 
-    # Build the row list for the recovery CSV — column order matches
-    # normalize-benchmark.py so the two audits can be merged trivially.
+    # Recovery CSV rows
     recovery_rows: list[list[str]] = []
     for r in all_recoveries:
         recovery_rows.append(
@@ -574,9 +927,6 @@ def main(argv: list[str]) -> int:
     merged_existing_count = 0
     merged_rows: list[list[str]] = []
     if args.merge_into_changes:
-        # Read existing rows from the merge source, preserving any non-
-        # recovery rule entries verbatim. Drop existing "recovered:" rows
-        # so re-running this script doesn't accumulate duplicates.
         with open(args.merge_into_changes, "r", newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
             header = next(reader, None)
@@ -589,7 +939,7 @@ def main(argv: list[str]) -> int:
                 if not row:
                     continue
                 rule = row[2] if len(row) > 2 else ""
-                if isinstance(rule, str) and rule.startswith("recovered:"):
+                if isinstance(rule, str) and rule.startswith(RECOVERY_RULE_PREFIX):
                     continue
                 merged_rows.append(row)
                 merged_existing_count += 1
@@ -602,13 +952,14 @@ def main(argv: list[str]) -> int:
         for row in merged_rows:
             w.writerow(row)
 
-    # Stderr-only summary (counts; safe to surface).
+    # Stderr summary
     by_field = Counter(r["field"] for r in all_recoveries)
     newly_flipped = sum(1 for r in all_recoveries if not r.get("alreadyRecovered"))
     re_emitted = sum(1 for r in all_recoveries if r.get("alreadyRecovered"))
     sys.stderr.write(
         f"recovery rows: {len(all_recoveries)} (newly flipped: {newly_flipped}, re-emitted from prior run: {re_emitted}) across {len(samples)} samples\n"
     )
+    sys.stderr.write(f"  by strategy (new flips only): {dict(by_strategy)}\n")
     sys.stderr.write(f"  samples missing OCR cache: {len(missing_ocr_cache_for)}\n")
     if args.merge_into_changes:
         sys.stderr.write(
