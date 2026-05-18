@@ -41,6 +41,8 @@ OUT=""
 CHANGES=""
 STRIP_SUFFIX=""
 MERGE_INTO_CHANGES=""
+MERGE_INTO_CHANGES_SET=0
+NO_MERGE=0
 
 usage() {
     cat <<EOF
@@ -62,6 +64,13 @@ Args (all support UNC paths):
                       Existing rows are preserved except any with rule
                       starting "recovered:" (those are replaced by this
                       run's output). The merged CSV is written to --changes.
+                      DEFAULT: when omitted, defaults to the value of
+                      --changes if that file exists. This preserves any
+                      prior normalizer rows in the CSV. Pass --no-merge
+                      to opt out (recovery rows only — overwrites --changes).
+  --no-merge          Explicitly disable the default merge behavior. Use
+                      when you want --changes to contain ONLY this run's
+                      recovery rows.
 EOF
 }
 
@@ -72,7 +81,8 @@ while [[ $# -gt 0 ]]; do
         --out)                    OUT="$2"; shift 2 ;;
         --changes)                CHANGES="$2"; shift 2 ;;
         --strip-sample-id-suffix) STRIP_SUFFIX="$2"; shift 2 ;;
-        --merge-into-changes)     MERGE_INTO_CHANGES="$2"; shift 2 ;;
+        --merge-into-changes)     MERGE_INTO_CHANGES="$2"; MERGE_INTO_CHANGES_SET=1; shift 2 ;;
+        --no-merge)               NO_MERGE=1; shift ;;
         -h|--help)                usage; exit 0 ;;
         *)
             echo "error: unexpected arg: $1" >&2
@@ -94,6 +104,40 @@ fi
 
 # Escape a value for safe interpolation inside a PowerShell single-quoted literal.
 ps_q() { local s="$1"; printf '%s' "${s//\'/\'\'}"; }
+
+# ---- Defensive default for --merge-into-changes -------------------------
+# Without this, running with only --changes (no --merge-into-changes) would
+# overwrite the changes CSV with this run's recovery rows only, losing any
+# prior normalizer rows. The combined wrapper `regenerate-reports-share.sh`
+# relies on this defaulting, so do not remove it unless you also update the
+# wrapper.
+#
+# Conflict resolution:
+#   --no-merge wins (explicit opt-out) → no merge regardless of file state.
+#   --merge-into-changes explicitly set → use that path.
+#   Else, if --changes already exists → default merge source to --changes.
+#   Else → no merge (first-ever run; no prior rows to preserve).
+if [[ "$NO_MERGE" -eq 1 ]]; then
+    if [[ "$MERGE_INTO_CHANGES_SET" -eq 1 ]]; then
+        echo "error: --merge-into-changes and --no-merge are mutually exclusive" >&2
+        exit 2
+    fi
+    MERGE_INTO_CHANGES=""
+elif [[ "$MERGE_INTO_CHANGES_SET" -eq 0 && -n "$CHANGES" ]]; then
+    if [[ "$CHANGES" == \\\\* || "$CHANGES" == //* ]]; then
+        CHANGES_ESC=$(ps_q "$CHANGES")
+        CHANGES_EXISTS=$("$POWERSHELL" -NoProfile -Command \
+            "if (Test-Path -LiteralPath '${CHANGES_ESC}') { 'yes' } else { 'no' }" \
+            2>/dev/null | tr -d '\r')
+        if [[ "$CHANGES_EXISTS" == "yes" ]]; then
+            MERGE_INTO_CHANGES="$CHANGES"
+            echo "info: defaulting --merge-into-changes to --changes (preserves prior rows); pass --no-merge to opt out" >&2
+        fi
+    elif [[ -f "$CHANGES" ]]; then
+        MERGE_INTO_CHANGES="$CHANGES"
+        echo "info: defaulting --merge-into-changes to --changes (preserves prior rows); pass --no-merge to opt out" >&2
+    fi
+fi
 
 # ---- Verify OCR cache directory + count files (counts only, no names) ----
 OCR_DIR_ESC=$(ps_q "$OCR_CACHE_DIR")
