@@ -14,13 +14,29 @@ Usage:
         --out-dir <dir>
 
 Outputs (in <dir>):
-    wrong-by-category.csv      — condensed: (category, field, predicted,
-                                  expected, count_<engine> ...). One row per
-                                  unique (predicted, expected) tuple across
-                                  fields. Sorted by category, then count
-                                  desc within each category. Designed for
-                                  scanning common mismatch patterns to find
-                                  candidate normalisation rules.
+    wrong-by-category.csv      — one row per non-matched (sampleId, field)
+                                  cell from the target engine (the last
+                                  one in argv; baseline first, target
+                                  last by wrapper convention). Always-
+                                  emitted columns: sampleId, category,
+                                  field, kind, predicted, expected,
+                                  confidence. `kind` is `wrong` / `missing`
+                                  / `extra` (matches analyze.js).
+                                  When ≥2 engines are passed, three extra
+                                  columns are appended: baseline_kind,
+                                  baseline_predicted, vs_baseline. The
+                                  `vs_baseline` flag is one of regression
+                                  (baseline matched, target errors), drift
+                                  (both failed, different kinds), same-
+                                  kind (both failed same way), or new-cell
+                                  (baseline didn't evaluate the cell).
+                                  Single-engine: sorted by category →
+                                  field → sampleId. Multi-engine: sorted
+                                  by vs_baseline rank (regressions first)
+                                  → category → field → sampleId. Row count
+                                  equals the target engine's "Total errors"
+                                  in the .md report regardless of
+                                  baseline presence.
 
     missing-comparison.csv     — only emitted when ≥2 engines passed. One
                                   row per (sampleId, field) that is a
@@ -153,61 +169,109 @@ def serialize_value(v: Any) -> str:
     return str(v)
 
 
+def _vs_baseline_flag(target_kind: str, baseline_kind: str) -> str:
+    """Classify a target error against the baseline's status at the same
+    (sampleId, field) cell. Helps surface where the target engine has
+    regressed, drifted, or merely inherited a pre-existing failure."""
+    if baseline_kind == "absent":
+        return "new-cell"  # cell not evaluated in baseline
+    if baseline_kind == "matched":
+        return "regression"  # baseline got it right, target now errors
+    if baseline_kind == target_kind:
+        return "same-kind"  # both fail with the same error kind
+    return "drift"  # both fail, but with different error kinds
+
+
 def write_wrong_by_category_csv(
-    engines: list[tuple[str, dict[tuple[str, str], dict]]],
+    target_label: str,
+    target_preds: dict[tuple[str, str], dict],
     out_path: Path,
-) -> None:
-    """Per (category, field, predicted, expected) tuple, count occurrences
-    in each engine's wrong-class errors. Sorted by category, then by total
-    count desc within each category.
+    baseline: tuple[str, dict[tuple[str, str], dict]] | None = None,
+) -> int:
+    """One row per non-matched (sampleId, field) cell from a SINGLE engine.
 
-    "wrong" here is the strict error class: both predicted and expected are
-    non-empty but don't match exactly. Format-variant analysis is the main
-    use case (the user scans for systematic patterns like trailing-period
-    differences, $-prefix on numerics, etc.) — those are the rows worth
-    promoting into the normaliser."""
-    # Aggregate counts: key → {engine_label: count}
-    counts: dict[tuple[str, str, str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for label, preds in engines:
-        for (sid, field), info in preds.items():
-            if info["kind"] != "wrong":
-                continue
-            category = classify_field(field)
-            key = (
-                category,
-                field,
-                serialize_value(info["predicted"]),
-                serialize_value(info["expected"]),
-            )
-            counts[key][label] += 1
+    Always-emitted columns:
+        sampleId, category, field, kind, predicted, expected, confidence
 
-    rows = []
-    for (category, field, pred, exp), per_engine in counts.items():
+    Where `kind` is `wrong` / `missing` / `extra` (matches analyze.js
+    classification). Sorted by category → field → sampleId.
+
+    When `baseline` is provided (multi-engine invocation), three extra
+    columns are appended for cross-engine context:
+        baseline_kind        — matched / wrong / missing / extra / absent
+        baseline_predicted   — baseline's predicted value (raw)
+        vs_baseline          — regression / drift / same-kind / new-cell
+
+    With baseline context, rows are sorted by `vs_baseline` rank (most
+    concerning first: regression > drift > same-kind > new-cell), then by
+    category → field → sampleId, so the regressions surface at the top.
+
+    Row count equals the target engine's "Total errors" as reported by
+    analyze.js in the .md report — every non-matched cell shows up once,
+    independent of whether baseline context is included.
+
+    Returns the row count (caller verifies vs the .md total)."""
+    rows: list[dict] = []
+    baseline_preds = baseline[1] if baseline else None
+    for (sid, field), info in target_preds.items():
+        kind = info["kind"]
+        if kind == "matched":
+            continue
         row = {
-            "category": category,
+            "sampleId": sid,
+            "category": classify_field(field),
             "field": field,
-            "predicted": pred,
-            "expected": exp,
-            "total": sum(per_engine.values()),
+            "kind": kind,
+            "predicted": serialize_value(info["predicted"]),
+            "expected": serialize_value(info["expected"]),
+            "confidence": info["confidence"] if info["confidence"] is not None else "",
         }
-        for label, _ in engines:
-            row[f"count_{label}"] = per_engine.get(label, 0)
+        if baseline_preds is not None:
+            b_info = baseline_preds.get((sid, field))
+            b_kind = b_info["kind"] if b_info else "absent"
+            b_pred = serialize_value(b_info["predicted"]) if b_info else ""
+            row["baseline_kind"] = b_kind
+            row["baseline_predicted"] = b_pred
+            row["vs_baseline"] = _vs_baseline_flag(kind, b_kind)
         rows.append(row)
 
-    # Order by category (as listed in CATEGORY_ORDER), then total desc within.
     cat_rank = {c: i for i, c in enumerate(CATEGORY_ORDER)}
-    rows.sort(key=lambda r: (cat_rank.get(r["category"], 99), -r["total"], r["field"]))
+    if baseline_preds is not None:
+        vs_rank = {"regression": 0, "drift": 1, "same-kind": 2, "new-cell": 3}
+        rows.sort(key=lambda r: (
+            vs_rank.get(r["vs_baseline"], 99),
+            cat_rank.get(r["category"], 99),
+            r["field"],
+            r["sampleId"],
+        ))
+    else:
+        rows.sort(key=lambda r: (
+            cat_rank.get(r["category"], 99),
+            r["field"],
+            r["sampleId"],
+        ))
 
-    header = (
-        ["category", "field", "predicted", "expected", "total"]
-        + [f"count_{label}" for label, _ in engines]
-    )
+    header = ["sampleId", "category", "field", "kind", "predicted", "expected", "confidence"]
+    if baseline_preds is not None:
+        header += ["baseline_kind", "baseline_predicted", "vs_baseline"]
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(header)
         for r in rows:
             w.writerow([r[c] for c in header])
-    print(f"wrote {out_path} ({len(rows)} unique mismatch patterns)", file=sys.stderr)
+
+    by_kind: dict[str, int] = defaultdict(int)
+    by_vs: dict[str, int] = defaultdict(int)
+    for r in rows:
+        by_kind[r["kind"]] += 1
+        if "vs_baseline" in r:
+            by_vs[r["vs_baseline"]] += 1
+    msg = f"wrote {out_path} ({len(rows)} non-matched cells from '{target_label}'; by kind: {dict(by_kind)}"
+    if baseline_preds is not None:
+        msg += f"; vs baseline '{baseline[0]}': {dict(by_vs)}"
+    msg += ")"
+    print(msg, file=sys.stderr)
+    return len(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +409,16 @@ def main(argv: list[str]) -> int:
             return 1
         engines.append((label, load_engine(label, path)))
 
-    write_wrong_by_category_csv(engines, args.out_dir / "wrong-by-category.csv")
+    # wrong-by-category is per-engine; the LAST engine in argv is the target
+    # (by convention the wrapper passes baseline first, target last). When
+    # ≥2 engines are passed, the first becomes baseline context for the
+    # report.
+    target_label, target_preds = engines[-1]
+    baseline = engines[0] if len(engines) >= 2 else None
+    write_wrong_by_category_csv(
+        target_label, target_preds, args.out_dir / "wrong-by-category.csv",
+        baseline=baseline,
+    )
     if len(engines) >= 2:
         write_missing_comparison_csv(engines, args.out_dir / "missing-comparison.csv")
 
