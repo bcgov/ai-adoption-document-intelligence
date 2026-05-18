@@ -108,8 +108,9 @@ class Prediction:
     category: str
     confidence: float
     matched: bool
-    predicted_is_empty: bool   # the model returned null / empty for this cell
-    expected_is_empty: bool    # ground truth is null / empty for this cell
+    predicted_is_empty: bool      # the model returned null / empty for this cell
+    expected_is_empty: bool       # ground truth is null / empty for this cell
+    predicted_is_trivial: bool    # predicted is empty or "looks like 0" — see _predicted_looks_trivial
 
 
 TARGET_RECALLS = [0.50, 0.70, 0.80, 0.90, 0.95, 0.99]
@@ -125,6 +126,38 @@ def _is_empty_value(v: Any) -> bool:
     return False
 
 
+def _predicted_looks_trivial(value: Any) -> bool:
+    """A prediction is 'trivial' if its operational meaning is 'no value to
+    verify here'. This includes the empty case AND any value the normaliser
+    would map to 0:
+
+      - empty / null / whitespace
+      - any single non-whitespace character (letter, digit, symbol) — the
+        normaliser maps these to 0 when expected is 0 (income-single-char-
+        zero / income-single-digit-to-zero rules)
+      - any single-digit integer (0–9) reported as a number, not a string
+
+    A trivial prediction is operationally equivalent to a blank: the operator
+    sees nothing of substance to verify on the form. This rule depends only
+    on the prediction (not on ground truth), so it can be applied in
+    production where matched/unmatched isn't known at decision time.
+    """
+    if value is None:
+        return True
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        # Single-digit integer-equivalent (0..9). Avoids treating 10, 10.5, etc.
+        try:
+            return -10 < value < 10 and float(value) == int(value)
+        except (ValueError, OverflowError):
+            return False
+    if isinstance(value, str):
+        stripped = value.strip()
+        return len(stripped) <= 1
+    return False
+
+
 def load_predictions(path: Path) -> list[Prediction]:
     raw = json.loads(path.read_text("utf-8"))
     out: list[Prediction] = []
@@ -134,8 +167,10 @@ def load_predictions(path: Path) -> list[Prediction]:
             conf = det.get("confidence")
             if not isinstance(field, str) or not isinstance(conf, (int, float)):
                 continue
-            pred_empty = ("predicted" not in det) or _is_empty_value(det.get("predicted"))
+            predicted_raw = det.get("predicted") if "predicted" in det else None
+            pred_empty = ("predicted" not in det) or _is_empty_value(predicted_raw)
             exp_empty = _is_empty_value(det.get("expected"))
+            pred_trivial = pred_empty or _predicted_looks_trivial(predicted_raw)
             out.append(Prediction(
                 field=field,
                 category=classify_field(field),
@@ -143,6 +178,7 @@ def load_predictions(path: Path) -> list[Prediction]:
                 matched=det.get("matched") is True,
                 predicted_is_empty=pred_empty,
                 expected_is_empty=exp_empty,
+                predicted_is_trivial=pred_trivial,
             ))
     return out
 
@@ -173,7 +209,7 @@ def filter_predictions_for_category(
 # ---------------------------------------------------------------------------
 
 
-def _reviewable(p: Prediction) -> bool:
+def _reviewable_default(p: Prediction) -> bool:
     """A prediction is reviewable if there is actually something to verify:
     either the model produced a value, or the form ground truth had one. If
     both sides are empty (correct blank), there's nothing for the operator
@@ -184,10 +220,22 @@ def _reviewable(p: Prediction) -> bool:
     return not (p.predicted_is_empty and p.expected_is_empty)
 
 
+def _reviewable_skip_trivial(p: Prediction) -> bool:
+    """For categories where trivial predictions carry no verification work
+    (e.g. income — a single-digit or blank prediction operationally means
+    'no income from this category', which the operator confirms in roughly
+    the time it takes to glance at the form), exclude any prediction whose
+    *predicted* value is empty or a single character (the same shapes the
+    normaliser would map to 0). This is a prediction-side rule — it works
+    in production where matched/unmatched isn't known at decision time."""
+    return not p.predicted_is_trivial
+
+
 def sweep_for_category(
     preds: list[Prediction],
     targets: list[float],
     docs_count: int,
+    skip_trivial: bool = False,
 ) -> list[dict]:
     """For each target recall, find the smallest discrete threshold T (in
     0.01 steps) that flags ≥ target * total_errors errors, and report the
@@ -199,9 +247,10 @@ def sweep_for_category(
     blank predictions don't count even when flagged below T, because the
     operator has nothing to compare against.
     """
+    reviewable_fn = _reviewable_skip_trivial if skip_trivial else _reviewable_default
     errors = [p for p in preds if not p.matched]
     total_errors = len(errors)
-    filled_predictions = sum(1 for p in preds if _reviewable(p))
+    filled_predictions = sum(1 for p in preds if reviewable_fn(p))
     rows: list[dict] = []
     for target in targets:
         if total_errors == 0:
@@ -227,7 +276,7 @@ def sweep_for_category(
         t = (np.ceil((cutoff + 1e-9) / 0.01) * 0.01).item()
         t = round(min(t, 1.00), 2)
         flagged = [p for p in preds if p.confidence < t]
-        flagged_reviewable = [p for p in flagged if _reviewable(p)]
+        flagged_reviewable = [p for p in flagged if reviewable_fn(p)]
         errors_caught = sum(1 for p in flagged if not p.matched)
         residual = total_errors - errors_caught
         rows.append({
@@ -251,10 +300,13 @@ def sweep_full_curve(
     preds: list[Prediction],
     docs_count: int,
     step: float = 0.01,
+    skip_trivial: bool = False,
 ) -> list[dict]:
     """Continuous-threshold curve for plotting (X = reviews/100, Y = recall).
-    Same `_reviewable` filter as `sweep_for_category` — workload skips
-    correct-blank cells."""
+    Workload semantics match `sweep_for_category` — correct-blank cells are
+    always excluded; trivial-predicted cells are also excluded when
+    `skip_trivial` is set."""
+    reviewable_fn = _reviewable_skip_trivial if skip_trivial else _reviewable_default
     errors_total = sum(1 for p in preds if not p.matched)
     if errors_total == 0:
         return []
@@ -262,7 +314,7 @@ def sweep_full_curve(
     rows = []
     for t in thresholds:
         flagged = [p for p in preds if p.confidence < t]
-        flagged_reviewable = [p for p in flagged if _reviewable(p)]
+        flagged_reviewable = [p for p in flagged if reviewable_fn(p)]
         errors_caught = sum(1 for p in flagged if not p.matched)
         rows.append({
             "threshold": t,
@@ -484,6 +536,19 @@ def main(argv: list[str]) -> int:
             "inflate the confidence-gated review workload."
         ),
     )
+    ap.add_argument(
+        "--skip-trivial-predictions-in-categories",
+        default="",
+        help=(
+            "comma-separated category list where the workload metric should "
+            "exclude predictions whose value is empty or a single character "
+            "(values the normaliser maps to 0). Operationally, a single-char "
+            "or blank prediction means 'no value to verify here' on the form "
+            "and takes negligible reviewer time. The rule is prediction-only "
+            "and works in production (no GT knowledge required). Errors are "
+            "still counted in recall calculations — only workload is filtered."
+        ),
+    )
     args = ap.parse_args(argv)
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -498,6 +563,10 @@ def main(argv: list[str]) -> int:
 
     exclude_missing = {
         c.strip() for c in args.exclude_missing_in_categories.split(",")
+        if c.strip()
+    }
+    skip_trivial = {
+        c.strip() for c in args.skip_trivial_predictions_in_categories.split(",")
         if c.strip()
     }
 
@@ -524,8 +593,15 @@ def main(argv: list[str]) -> int:
                 f"  {cat}: dropped {n_dropped} missing-class predictions (--exclude-missing-in-categories)",
                 file=sys.stderr,
             )
-        by_category_sweep[cat] = sweep_for_category(cat_preds, TARGET_RECALLS, args.docs_count)
-        full_curves[cat] = sweep_full_curve(cat_preds, args.docs_count)
+        cat_skip_trivial = cat in skip_trivial
+        if cat_skip_trivial:
+            n_trivial_in_pool = sum(1 for p in cat_preds if p.predicted_is_trivial)
+            print(
+                f"  {cat}: workload skips {n_trivial_in_pool} trivial-prediction cells (--skip-trivial-predictions-in-categories)",
+                file=sys.stderr,
+            )
+        by_category_sweep[cat] = sweep_for_category(cat_preds, TARGET_RECALLS, args.docs_count, skip_trivial=cat_skip_trivial)
+        full_curves[cat] = sweep_full_curve(cat_preds, args.docs_count, skip_trivial=cat_skip_trivial)
 
     write_per_category_csv(by_category_sweep, args.out_dir / "hitl-per-category.csv")
     write_combined_csv(by_category_sweep, TARGET_RECALLS, args.docs_count, args.out_dir / "hitl-combined.csv")
