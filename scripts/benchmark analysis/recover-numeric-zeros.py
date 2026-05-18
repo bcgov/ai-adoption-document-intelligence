@@ -197,7 +197,24 @@ def bbox_overlaps(a: tuple[float, float, float, float], b: tuple[float, float, f
     return not (a[2] < b[0] or b[2] < a[0] or a[3] < b[1] or b[3] < a[1])
 
 
-def cell_is_eligible_by_content(content: str, strip_tokens: list[str]) -> bool:
+def cell_is_eligible_by_content(
+    content: str,
+    strip_tokens: list[str],
+    recovery_value: float | int | None = None,
+) -> bool:
+    """A cell is eligible if, after stripping the configured tokens and
+    collapsing whitespace, ANY of these holds:
+      - the remaining string is empty (the only thing in the cell was a
+        currency/selection-mark marker — classic checkbox-as-zero pattern)
+      - the remaining string contains no digits and no letters (e.g. lone
+        punctuation left over after stripping)
+      - the remaining string parses to the configured `recovery_value`
+        (e.g. `'0'`, `'0.00'`, `'0,00'` when recovery_value=0). This
+        covers cells where Azure DI's layout step recognized the digit
+        AND a stray selection mark in the same cell — the custom model
+        emitted null but the digit is provably present.
+    The selection-mark-overlap gate is applied separately by the caller,
+    so we still require a real checkbox glyph in the cell."""
     stripped = content
     for tok in strip_tokens:
         if not tok:
@@ -206,7 +223,15 @@ def cell_is_eligible_by_content(content: str, strip_tokens: list[str]) -> bool:
     stripped = re.sub(r"\s+", "", stripped)
     if not stripped:
         return True
-    return re.search(r"[A-Za-z0-9]", stripped) is None
+    if re.search(r"[A-Za-z0-9]", stripped) is None:
+        return True
+    if recovery_value is not None:
+        try:
+            parsed = float(stripped.replace(",", "."))
+            return parsed == float(recovery_value)
+        except ValueError:
+            return False
+    return False
 
 
 def cell_has_selection_mark(cell: dict, pages: list[dict], accepted_states: list[str] | None = None) -> bool:
@@ -680,7 +705,9 @@ def recover_for_sample(
                 cell = get_cell(table, ri, ci)
                 if cell is None:
                     continue
-                if not cell_is_eligible_by_content(cell.get("content", "") or "", strip_tokens):
+                if not cell_is_eligible_by_content(
+                    cell.get("content", "") or "", strip_tokens, recovery_value
+                ):
                     continue
                 if require_mark and not cell_has_selection_mark(cell, pages, accepted_states):
                     continue

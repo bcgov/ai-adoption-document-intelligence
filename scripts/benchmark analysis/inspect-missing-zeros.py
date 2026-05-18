@@ -141,11 +141,28 @@ def cell_strip(content: str, strip_tokens: list[str]) -> str:
     return re.sub(r"\s+", "", stripped)
 
 
-def cell_is_eligible_by_content(content: str, strip_tokens: list[str]) -> bool:
+def cell_is_eligible_by_content(
+    content: str,
+    strip_tokens: list[str],
+    recovery_value: float | int | None = None,
+) -> bool:
+    """See recover-numeric-zeros.py for full semantics. After stripping the
+    configured tokens, eligible iff: empty, OR no digits/letters remain, OR
+    the remaining string parses to `recovery_value` (covers cells like
+    `'$ 0\\n:selected:'` where Azure recognized both the digit and a stray
+    selection mark in the same cell)."""
     stripped = cell_strip(content, strip_tokens)
     if not stripped:
         return True
-    return re.search(r"[A-Za-z0-9]", stripped) is None
+    if re.search(r"[A-Za-z0-9]", stripped) is None:
+        return True
+    if recovery_value is not None:
+        try:
+            parsed = float(stripped.replace(",", "."))
+            return parsed == float(recovery_value)
+        except ValueError:
+            return False
+    return False
 
 
 def marks_overlapping_cell(
@@ -981,7 +998,7 @@ def render_sample_markdown(
 
                 cell_content = cell.get("content", "") or ""
                 stripped = cell_strip(cell_content, strip_tokens)
-                content_ok = cell_is_eligible_by_content(cell_content, strip_tokens)
+                content_ok = cell_is_eligible_by_content(cell_content, strip_tokens, recovery_value)
                 marks = marks_overlapping_cell(cell, pages)
                 marks_ok = (not require_mark) or (len(marks) > 0)
                 exp_num = parse_expected_number(detail.get("expected"))
