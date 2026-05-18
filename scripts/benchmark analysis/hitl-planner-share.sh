@@ -35,7 +35,7 @@ EXTRA=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --out-dir)   OUT_DIR="$2"; shift 2 ;;
-        --categories|--docs-count|--engine-label)
+        --categories|--docs-count|--engine-label|--exclude-missing-in-categories)
             EXTRA+=("$1" "$2"); shift 2 ;;
         -h|--help)
             sed -n 's/^# //p; s/^#//p' "$0" | sed -n '1,16p'
