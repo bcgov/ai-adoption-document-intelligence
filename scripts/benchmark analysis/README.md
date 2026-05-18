@@ -11,7 +11,7 @@ Local helpers for inspecting a downloaded benchmark run.
 - `normalize-benchmark.py` — post-process a benchmark JSON to flip format-only mismatches (sin/phone digit-only, date calendar-parse, income currency / numeric-equality, text-like whitespace+case+punct, name/freeform fuzzy) to `matched: true`. Produces a parallel JSON the same shape, plus an audit CSV listing every flipped error.
 - `normalize-benchmark-share.sh` — wrapper that runs the normaliser against share data without staging the JSON to local disk (input stream through a named pipe; outputs land in `/dev/shm` tmpfs, then copy to the share).
 - `recover-numeric-zeros.py` + `recover-numeric-zeros-share.sh` — flip missing-zero income errors where the OCR cache shows a selection mark in the cell. Merges its recovery rows into the normaliser's `changes.csv` by default (preserves prior normaliser rows; `--no-merge` opts out).
-- `report-errors.py` + `report-errors-share.sh` — two audit CSVs from one or more benchmark JSONs: `wrong-by-category.csv` (per-occurrence detail of every non-matched cell in the target engine — sampleId, category, field, kind, predicted, expected, confidence — sorted by category → field → sampleId; row count equals the engine's "Total errors" in the .md report) and `missing-comparison.csv` (per `(sampleId, field)` cell with a missing error in any non-baseline engine, flagged as `new in <eng>` / `regressed from wrong` / `still missing` relative to the baseline). UNC inputs / outputs handled by the wrapper, same streaming pattern as the normaliser.
+- `report-errors.py` + `report-errors-share.sh` — two audit CSVs from one or more benchmark JSONs: `wrong-by-category.csv` (per-occurrence detail of every non-matched cell in the target engine — sampleId, category, field, kind, predicted, expected, confidence; multi-engine invocations also append baseline_kind / baseline_predicted / vs_baseline so regressions vs baseline surface first) and `missing-comparison.csv` (per `(sampleId, field)` cell with a missing error in any non-baseline engine, flagged as `new in <eng>` / `regressed from wrong` / `still missing` relative to the baseline). UNC inputs / outputs handled by the wrapper, same streaming pattern as the normaliser.
 - `hitl-planner.py` + `hitl-planner-share.sh` — target-recall HITL capacity planner for a single engine. Sweeps a 6-level recall ladder (50 / 70 / 80 / 90 / 95 / 99%) across an allowlist of categories (default: `income_amounts`, `sin`, `phone`), picks per-category thresholds independently, and reports combined reviews per 100 docs. Writes `hitl-per-category.csv`, `hitl-combined.csv`, and `hitl-curves.png` (one log-scale chart with per-category recall lines and operating-point dots). Models confidence-gating on ALL predictions (no skip-blank optimisation) — null predictions still carry confidence scores, so missing errors are catchable by the gate.
 - `inspect-keys.py` — diagnostic that prints just the schema of a benchmark JSON (no values) so you can verify the shape before adding new analyses.
 - `md-to-pdf.js` — renders any markdown file to PDF via headless Edge / Chrome (used to ship the analysis or related reports as a PDF).
@@ -305,7 +305,9 @@ bash "scripts/benchmark analysis/report-errors-share.sh" \
 
 ### `wrong-by-category.csv` — per-occurrence error detail for the target engine
 
-One row per non-matched `(sampleId, field)` cell in the target engine (the LAST engine in argv — by convention `report-errors-share.sh` and `regenerate-reports-share.sh` pass the baseline first and the target neural last). Columns:
+One row per non-matched `(sampleId, field)` cell in the target engine (the LAST engine in argv — by convention `report-errors-share.sh` and `regenerate-reports-share.sh` pass the baseline first and the target neural last).
+
+Always-emitted columns:
 
 | column | meaning |
 |---|---|
@@ -317,7 +319,31 @@ One row per non-matched `(sampleId, field)` cell in the target engine (the LAST 
 | `expected` | ground-truth value |
 | `confidence` | engine's confidence score for this cell (blank if not reported) |
 
-Sorted by category → field → sampleId so same-field errors cluster together. **Row count equals the engine's "Total errors" in the `.md` report** — every non-matched cell appears exactly once. Use this as the source-of-truth audit log for investigating individual errors (open in Excel, filter by `kind=wrong` or by `field`, sort by `confidence` to find low-confidence mistakes).
+When **≥2 engines** are passed (the first is the baseline by wrapper convention), three extra columns are appended for cross-engine context:
+
+| column | meaning |
+|---|---|
+| `baseline_kind` | the baseline's state at the same `(sampleId, field)` cell: `matched`, `wrong`, `missing`, `extra`, or `absent` (cell not evaluated by baseline at all) |
+| `baseline_predicted` | baseline's predicted value for that cell (raw, or blank if `absent`) |
+| `vs_baseline` | flag summarising the change vs baseline (see table below) |
+
+`vs_baseline` flag values:
+
+| value | meaning | use case |
+|---|---|---|
+| `regression` | baseline matched correctly, target has any error kind | spot what the target engine **introduced** — the most concerning class |
+| `drift` | both failed, but with different error kinds | engine swapped one failure mode for another (e.g. baseline `wrong`, target `missing`) — sometimes a partial win, sometimes worse |
+| `same-kind` | baseline and target both failed with the same kind | shared failure — likely a hard cell, not a target-specific bug |
+| `new-cell` | the cell didn't exist in the baseline's predictions | new field; can't compare |
+
+**Sort order:**
+
+- Single-engine: category → field → sampleId.
+- Multi-engine: `vs_baseline` rank first (regression > drift > same-kind > new-cell), then category → field → sampleId — so regressions surface at the top of the file.
+
+**Row count guarantee:** equals the target engine's "Total errors" in the `.md` report regardless of baseline presence — every non-matched cell appears exactly once.
+
+Use this as the source-of-truth audit log for investigating individual errors. Open in Excel, filter `vs_baseline=regression` to scan what neural broke that template handled, or filter `kind=wrong AND vs_baseline=drift` to find cases where neural picks a different wrong answer than template.
 
 ### `missing-comparison.csv` — flag new missings vs. a baseline
 
