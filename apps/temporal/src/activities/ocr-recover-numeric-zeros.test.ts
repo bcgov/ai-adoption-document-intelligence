@@ -967,4 +967,137 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     ).toBe("positional-anchor");
     expect(out.metadata?.applied).toBe(36);
   });
+
+  // -------------------------------------------------------------------------
+  // Self-fix #1 — accept cells where stripped content parses to recoveryValue
+  // -------------------------------------------------------------------------
+
+  it("Self-fix #1: recovers '$ 0' cells where Azure saw both the digit AND a selection mark", async () => {
+    // Cell content looks like '$ 0\n:selected:' — Azure DI's layout step
+    // recognized both the 0 digit AND a stray selection mark in the same
+    // cell. Original rule rejected because of the digit; new rule accepts
+    // since the digit IS the recovery value AND a mark overlaps the cell.
+    const cells: TableCell[] = [
+      makeCell(0, 0, "Declare all income", [0, 0, 100, 10], "columnHeader"),
+      makeCell(1, 1, "Applicant", [50, 10, 70, 20], "columnHeader"),
+      makeCell(2, 0, "Net Employment Income", [0, 20, 50, 30]),
+      makeCell(2, 1, "$ 0\n:selected:", [50, 20, 70, 30]),
+      makeCell(3, 0, "Rental Income", [0, 30, 50, 40]),
+      makeCell(3, 1, "$ 0.00", [50, 30, 70, 40]),
+    ];
+    // Both cells have an overlapping selection mark (required by the
+    // existing eligibility gate, which Self-fix #1 does not relax).
+    const marks: SelectionMark[] = [
+      makeMark("selected", [55, 22, 60, 27]),
+      makeMark("unselected", [55, 32, 60, 37]),
+    ];
+    const fields: Record<string, Record<string, unknown>> = {
+      applicant_net_employment_income: { type: "number", confidence: 0.3 },
+      applicant_rental_income: { type: "number", confidence: 0.5 },
+    };
+    const ocrResult = makeOcrResult({ cells, fields, marks });
+
+    const out = await recoverNumericZerosFromCheckboxes({
+      ocrResult,
+      tables: [
+        {
+          find: { firstCellTextContains: "Declare all income" },
+          columns: [{ prefix: "applicant_", headerEquals: "Applicant" }],
+          rows: [
+            {
+              suffix: "net_employment_income",
+              labelEquals: "Net Employment Income",
+            },
+            { suffix: "rental_income", labelEquals: "Rental Income" },
+          ],
+        },
+      ],
+    });
+
+    const recovered = out.ocrResult.documents?.[0]?.fields;
+    if (!recovered) throw new Error("missing");
+    expect(recovered.applicant_net_employment_income.valueNumber).toBe(0);
+    expect(recovered.applicant_rental_income.valueNumber).toBe(0);
+    expect(out.metadata?.applied).toBe(2);
+  });
+
+  it("Self-fix #1: a '$ 0' cell with NO overlapping mark is still rejected", async () => {
+    // The new rule widens content eligibility but does NOT relax the
+    // selection-mark requirement. A '$ 0' cell with zero overlapping marks
+    // must remain rejected — that's a "model missed a recognized 0" pattern,
+    // not a "checkbox-as-zero" pattern.
+    const cells: TableCell[] = [
+      makeCell(0, 0, "Declare all income", [0, 0, 100, 10], "columnHeader"),
+      makeCell(1, 1, "Applicant", [50, 10, 70, 20], "columnHeader"),
+      makeCell(2, 0, "Net Employment Income", [0, 20, 50, 30]),
+      makeCell(2, 1, "$ 0", [50, 20, 70, 30]),
+    ];
+    const fields: Record<string, Record<string, unknown>> = {
+      applicant_net_employment_income: { type: "number", confidence: 0.5 },
+    };
+    const ocrResult = makeOcrResult({ cells, fields, marks: [] });
+
+    const out = await recoverNumericZerosFromCheckboxes({
+      ocrResult,
+      tables: [
+        {
+          find: { firstCellTextContains: "Declare all income" },
+          columns: [{ prefix: "applicant_", headerEquals: "Applicant" }],
+          rows: [
+            {
+              suffix: "net_employment_income",
+              labelEquals: "Net Employment Income",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(out.metadata?.applied).toBe(0);
+    expect(
+      (out.metadata?.skippedByReason as Record<string, number>)[
+        "no_selection_mark_in_cell"
+      ],
+    ).toBe(1);
+  });
+
+  it("Self-fix #1: non-zero digit cells are still rejected even with overlapping mark", async () => {
+    // Cell content '$ 5' with a mark overlap: stripped='5' parses to 5, not
+    // 0 (the recoveryValue), so eligibility still fails. Critical: this
+    // protects against turning real-value cells into 0.
+    const cells: TableCell[] = [
+      makeCell(0, 0, "Declare all income", [0, 0, 100, 10], "columnHeader"),
+      makeCell(1, 1, "Applicant", [50, 10, 70, 20], "columnHeader"),
+      makeCell(2, 0, "Net Employment Income", [0, 20, 50, 30]),
+      makeCell(2, 1, "$ 5", [50, 20, 70, 30]),
+    ];
+    const marks = [makeMark("unselected", [55, 22, 60, 27])];
+    const fields: Record<string, Record<string, unknown>> = {
+      applicant_net_employment_income: { type: "number", confidence: 0.5 },
+    };
+    const ocrResult = makeOcrResult({ cells, fields, marks });
+
+    const out = await recoverNumericZerosFromCheckboxes({
+      ocrResult,
+      tables: [
+        {
+          find: { firstCellTextContains: "Declare all income" },
+          columns: [{ prefix: "applicant_", headerEquals: "Applicant" }],
+          rows: [
+            {
+              suffix: "net_employment_income",
+              labelEquals: "Net Employment Income",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(out.metadata?.applied).toBe(0);
+    expect(
+      (out.metadata?.skippedByReason as Record<string, number>)[
+        "cell_has_digits_or_letters"
+      ],
+    ).toBe(1);
+  });
 });

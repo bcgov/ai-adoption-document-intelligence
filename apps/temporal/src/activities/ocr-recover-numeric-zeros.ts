@@ -255,9 +255,26 @@ function cellHasSelectionMark(
   return false;
 }
 
+/**
+ * A cell is eligible if, after stripping the configured tokens and collapsing
+ * whitespace, ANY of these holds:
+ *   - the remaining string is empty (the only thing in the cell was a
+ *     currency/selection-mark marker — classic checkbox-as-zero pattern);
+ *   - the remaining string contains no digits and no letters (e.g. lone
+ *     punctuation left over after stripping);
+ *   - the remaining string parses to the configured `recoveryValue` (e.g.
+ *     `"0"`, `"0.00"`, `"0,00"` when recoveryValue=0). This covers cells
+ *     like `"$ 0\n:selected:"` where Azure DI's layout step recognized the
+ *     digit AND a stray selection mark in the same cell — the custom model
+ *     emitted null but the digit is provably present.
+ *
+ * The selection-mark-overlap gate is applied separately by the caller, so we
+ * still require a real checkbox glyph in the cell.
+ */
 function cellIsEligibleByContent(
   content: string,
   stripTokens: string[],
+  recoveryValue?: number,
 ): boolean {
   let stripped = content;
   for (const token of stripTokens) {
@@ -267,7 +284,12 @@ function cellIsEligibleByContent(
   }
   stripped = stripped.replace(/\s+/g, "");
   if (stripped.length === 0) return true;
-  return !/[A-Za-z0-9]/.test(stripped);
+  if (!/[A-Za-z0-9]/.test(stripped)) return true;
+  if (typeof recoveryValue === "number") {
+    const parsed = Number(stripped.replace(",", "."));
+    if (!Number.isNaN(parsed) && parsed === recoveryValue) return true;
+  }
+  return false;
 }
 
 function fieldIsEmpty(field: AzureDocumentFieldValue | undefined): boolean {
@@ -842,7 +864,9 @@ export async function recoverNumericZerosFromCheckboxes(
           skipped.push({ fieldKey, reason: "cell_not_found" });
           continue;
         }
-        if (!cellIsEligibleByContent(cell.content, stripTokens)) {
+        if (
+          !cellIsEligibleByContent(cell.content, stripTokens, recoveryValue)
+        ) {
           skipped.push({ fieldKey, reason: "cell_has_digits_or_letters" });
           continue;
         }
