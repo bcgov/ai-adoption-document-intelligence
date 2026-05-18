@@ -108,9 +108,21 @@ class Prediction:
     category: str
     confidence: float
     matched: bool
+    predicted_is_empty: bool   # the model returned null / empty for this cell
+    expected_is_empty: bool    # ground truth is null / empty for this cell
 
 
 TARGET_RECALLS = [0.50, 0.70, 0.80, 0.90, 0.95, 0.99]
+
+
+def _is_empty_value(v: Any) -> bool:
+    if v is None:
+        return True
+    if isinstance(v, str):
+        return v.strip() == ""
+    if isinstance(v, (list, dict)):
+        return len(v) == 0
+    return False
 
 
 def load_predictions(path: Path) -> list[Prediction]:
@@ -122,12 +134,37 @@ def load_predictions(path: Path) -> list[Prediction]:
             conf = det.get("confidence")
             if not isinstance(field, str) or not isinstance(conf, (int, float)):
                 continue
+            pred_empty = ("predicted" not in det) or _is_empty_value(det.get("predicted"))
+            exp_empty = _is_empty_value(det.get("expected"))
             out.append(Prediction(
                 field=field,
                 category=classify_field(field),
                 confidence=float(conf),
                 matched=det.get("matched") is True,
+                predicted_is_empty=pred_empty,
+                expected_is_empty=exp_empty,
             ))
+    return out
+
+
+def filter_predictions_for_category(
+    preds: list[Prediction],
+    category: str,
+    exclude_missing: bool,
+) -> list[Prediction]:
+    """If `exclude_missing` is set, drop predictions that are a `missing`
+    error (predicted empty, expected populated). Both matched and other
+    error types stay. The semantic is "treat missing-class cells as out of
+    scope for confidence-gated HITL" — they need a different safety layer.
+    """
+    if not exclude_missing:
+        return preds
+    out = []
+    for p in preds:
+        is_missing = (not p.matched) and p.predicted_is_empty and not p.expected_is_empty
+        if is_missing:
+            continue
+        out.append(p)
     return out
 
 
@@ -302,17 +339,33 @@ def plot_hitl_curves(
             color=CATEGORY_COLOURS.get(cat, "#333"),
             linewidth=2,
         )
-        # Operating-point dots
-        for r in by_category[cat]:
+        # Operating-point dots + T-value annotations. Stagger label
+        # placement (alternate above-left / below-right per category index)
+        # so labels don't overlap when two categories' dots cluster near
+        # the same point.
+        for j, r in enumerate(by_category[cat]):
             if r["threshold"] is None:
                 continue
+            x = r["reviews_per_100_docs"]
+            y = r["recall_actual"] * 100
             ax.scatter(
-                [r["reviews_per_100_docs"]],
-                [r["recall_actual"] * 100],
+                [x], [y],
                 color=CATEGORY_COLOURS.get(cat, "#333"),
                 edgecolor="black",
                 s=55,
                 zorder=5,
+            )
+            # Alternate the label offset so adjacent dots' labels don't
+            # collide. Categories with the same operating-point density
+            # get different offset directions per ix.
+            offset_y = 8 if (j % 2 == 0) else -12
+            ax.annotate(
+                f"T={r['threshold']:.2f}",
+                xy=(x, y),
+                xytext=(4, offset_y),
+                textcoords="offset points",
+                fontsize=7,
+                color=CATEGORY_COLOURS.get(cat, "#333"),
             )
 
     # Annotate the target-recall ladder along the right edge.
@@ -360,6 +413,18 @@ def main(argv: list[str]) -> int:
     )
     ap.add_argument("--docs-count", type=int, default=99)
     ap.add_argument("--engine-label", default="Neural (V2)")
+    ap.add_argument(
+        "--exclude-missing-in-categories",
+        default="",
+        help=(
+            "comma-separated category list where `missing`-class errors "
+            "(predicted empty, expected populated) are dropped from the HITL "
+            "analysis entirely. Use this for categories where high-confidence "
+            "missings are handled by a different safety layer (numeric-zero "
+            "recovery, sanity rules, ICM cross-validation) and should not "
+            "inflate the confidence-gated review workload."
+        ),
+    )
     args = ap.parse_args(argv)
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -371,6 +436,11 @@ def main(argv: list[str]) -> int:
     if not allowlist:
         sys.stderr.write("error: no valid categories in --categories\n")
         return 2
+
+    exclude_missing = {
+        c.strip() for c in args.exclude_missing_in_categories.split(",")
+        if c.strip()
+    }
 
     preds = load_predictions(Path(args.input))
     print(f"loaded {len(preds)} predictions", file=sys.stderr)
@@ -386,6 +456,15 @@ def main(argv: list[str]) -> int:
         cat_preds = by_cat_preds.get(cat, [])
         if not cat_preds:
             continue
+        n_before = len(cat_preds)
+        cat_preds = filter_predictions_for_category(cat_preds, cat, cat in exclude_missing)
+        n_after = len(cat_preds)
+        if cat in exclude_missing:
+            n_dropped = n_before - n_after
+            print(
+                f"  {cat}: dropped {n_dropped} missing-class predictions (--exclude-missing-in-categories)",
+                file=sys.stderr,
+            )
         by_category_sweep[cat] = sweep_for_category(cat_preds, TARGET_RECALLS, args.docs_count)
         full_curves[cat] = sweep_full_curve(cat_preds, args.docs_count)
 
