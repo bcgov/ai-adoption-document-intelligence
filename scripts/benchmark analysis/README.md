@@ -11,7 +11,8 @@ Local helpers for inspecting a downloaded benchmark run.
 - `normalize-benchmark.py` — post-process a benchmark JSON to flip format-only mismatches (sin/phone digit-only, date calendar-parse, income currency / numeric-equality, text-like whitespace+case+punct, name/freeform fuzzy) to `matched: true`. Produces a parallel JSON the same shape, plus an audit CSV listing every flipped error.
 - `normalize-benchmark-share.sh` — wrapper that runs the normaliser against share data without staging the JSON to local disk (input stream through a named pipe; outputs land in `/dev/shm` tmpfs, then copy to the share).
 - `recover-numeric-zeros.py` + `recover-numeric-zeros-share.sh` — flip missing-zero income errors where the OCR cache shows a selection mark in the cell. Merges its recovery rows into the normaliser's `changes.csv` by default (preserves prior normaliser rows; `--no-merge` opts out).
-- `report-errors.py` + `report-errors-share.sh` — two audit CSVs from one or more benchmark JSONs: `wrong-by-category.csv` (condensed counts of unique `(category, field, predicted, expected)` mismatch tuples, sorted by category then count, for spotting normalisation opportunities) and `missing-comparison.csv` (per `(sampleId, field)` cell with a missing error in any non-baseline engine, flagged as `new in <eng>` / `regressed from wrong` / `still missing` relative to the baseline). UNC inputs / outputs handled by the wrapper, same streaming pattern as the normaliser.
+- `report-errors.py` + `report-errors-share.sh` — two audit CSVs from one or more benchmark JSONs: `wrong-by-category.csv` (per-occurrence detail of every non-matched cell in the target engine — sampleId, category, field, kind, predicted, expected, confidence — sorted by category → field → sampleId; row count equals the engine's "Total errors" in the .md report) and `missing-comparison.csv` (per `(sampleId, field)` cell with a missing error in any non-baseline engine, flagged as `new in <eng>` / `regressed from wrong` / `still missing` relative to the baseline). UNC inputs / outputs handled by the wrapper, same streaming pattern as the normaliser.
+- `hitl-planner.py` + `hitl-planner-share.sh` — target-recall HITL capacity planner for a single engine. Sweeps a 6-level recall ladder (50 / 70 / 80 / 90 / 95 / 99%) across an allowlist of categories (default: `income_amounts`, `sin`, `phone`), picks per-category thresholds independently, and reports combined reviews per 100 docs. Writes `hitl-per-category.csv`, `hitl-combined.csv`, and `hitl-curves.png` (one log-scale chart with per-category recall lines and operating-point dots). Models confidence-gating on ALL predictions (no skip-blank optimisation) — null predictions still carry confidence scores, so missing errors are catchable by the gate.
 - `inspect-keys.py` — diagnostic that prints just the schema of a benchmark JSON (no values) so you can verify the shape before adding new analyses.
 - `md-to-pdf.js` — renders any markdown file to PDF via headless Edge / Chrome (used to ship the analysis or related reports as a PDF).
 
@@ -302,9 +303,21 @@ bash "scripts/benchmark analysis/report-errors-share.sh" \
     --out-dir "\\\\widget\\share\\reports"
 ```
 
-### `wrong-by-category.csv` — scan for normalisation opportunities
+### `wrong-by-category.csv` — per-occurrence error detail for the target engine
 
-One row per unique `(category, field, predicted, expected)` tuple where the prediction is in the `wrong` class (both sides non-empty, no exact match), aggregated across all engines passed in. Columns: `category, field, predicted, expected, total, count_<engine> ...`. Sorted by category in `CATEGORY_ORDER`, then by `total` descending so the most-common patterns surface at the top of each category section. Use this to find systematic format quirks worth promoting into `normalize-benchmark.py`'s ruleset (e.g. trailing-period differences, currency-symbol variants, capitalisation, partial transcription).
+One row per non-matched `(sampleId, field)` cell in the target engine (the LAST engine in argv — by convention `report-errors-share.sh` and `regenerate-reports-share.sh` pass the baseline first and the target neural last). Columns:
+
+| column | meaning |
+|---|---|
+| `sampleId` | identifies the file/document where the error occurred |
+| `category` | field category bucket (sin, date, name, income_amounts, …) — same buckets as compare-engines.py |
+| `field` | exact field name (e.g., `applicant_employment_insurance`) |
+| `kind` | `wrong` (both sides populated, mismatch), `missing` (predicted empty), or `extra` (expected empty) — matches the analyze.js classification |
+| `predicted` | engine's predicted value (raw, not normalised) |
+| `expected` | ground-truth value |
+| `confidence` | engine's confidence score for this cell (blank if not reported) |
+
+Sorted by category → field → sampleId so same-field errors cluster together. **Row count equals the engine's "Total errors" in the `.md` report** — every non-matched cell appears exactly once. Use this as the source-of-truth audit log for investigating individual errors (open in Excel, filter by `kind=wrong` or by `field`, sort by `confidence` to find low-confidence mistakes).
 
 ### `missing-comparison.csv` — flag new missings vs. a baseline
 
