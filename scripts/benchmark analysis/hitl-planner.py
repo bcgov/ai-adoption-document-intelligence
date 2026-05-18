@@ -173,6 +173,17 @@ def filter_predictions_for_category(
 # ---------------------------------------------------------------------------
 
 
+def _reviewable(p: Prediction) -> bool:
+    """A prediction is reviewable if there is actually something to verify:
+    either the model produced a value, or the form ground truth had one. If
+    both sides are empty (correct blank), there's nothing for the operator
+    to look at — these inflate the workload count if included. Excludes
+    cells like spouse_sin on single-applicant forms where the form is
+    blank, the model returned blank, and there is no content on the page
+    to verify against."""
+    return not (p.predicted_is_empty and p.expected_is_empty)
+
+
 def sweep_for_category(
     preds: list[Prediction],
     targets: list[float],
@@ -180,9 +191,17 @@ def sweep_for_category(
 ) -> list[dict]:
     """For each target recall, find the smallest discrete threshold T (in
     0.01 steps) that flags ≥ target * total_errors errors, and report the
-    HITL load + actual recall at that T."""
+    HITL load + actual recall at that T.
+
+    Workload metric (`reviews_per_100_docs`) counts only **reviewable**
+    flagged predictions — those where the form actually has content to
+    verify (either the model produced a value, or GT has one). Correctly-
+    blank predictions don't count even when flagged below T, because the
+    operator has nothing to compare against.
+    """
     errors = [p for p in preds if not p.matched]
     total_errors = len(errors)
+    filled_predictions = sum(1 for p in preds if _reviewable(p))
     rows: list[dict] = []
     for target in targets:
         if total_errors == 0:
@@ -192,10 +211,13 @@ def sweep_for_category(
                 "errors_caught": 0,
                 "errors_total": 0,
                 "predictions_flagged": 0,
+                "predictions_reviewable_flagged": 0,
                 "predictions_total": len(preds),
+                "predictions_reviewable_total": filled_predictions,
                 "reviews_per_100_docs": 0.0,
                 "recall_actual": 0.0,
                 "residual_errors": 0,
+                "residual_errors_per_100_docs": 0.0,
             })
             continue
         target_count = int(np.ceil(total_errors * target))
@@ -205,17 +227,22 @@ def sweep_for_category(
         t = (np.ceil((cutoff + 1e-9) / 0.01) * 0.01).item()
         t = round(min(t, 1.00), 2)
         flagged = [p for p in preds if p.confidence < t]
+        flagged_reviewable = [p for p in flagged if _reviewable(p)]
         errors_caught = sum(1 for p in flagged if not p.matched)
+        residual = total_errors - errors_caught
         rows.append({
             "target_recall": target,
             "threshold": t,
             "errors_caught": errors_caught,
             "errors_total": total_errors,
             "predictions_flagged": len(flagged),
+            "predictions_reviewable_flagged": len(flagged_reviewable),
             "predictions_total": len(preds),
-            "reviews_per_100_docs": len(flagged) * 100 / docs_count if docs_count else 0.0,
+            "predictions_reviewable_total": filled_predictions,
+            "reviews_per_100_docs": len(flagged_reviewable) * 100 / docs_count if docs_count else 0.0,
             "recall_actual": errors_caught / total_errors,
-            "residual_errors": total_errors - errors_caught,
+            "residual_errors": residual,
+            "residual_errors_per_100_docs": residual * 100 / docs_count if docs_count else 0.0,
         })
     return rows
 
@@ -225,7 +252,9 @@ def sweep_full_curve(
     docs_count: int,
     step: float = 0.01,
 ) -> list[dict]:
-    """Continuous-threshold curve for plotting (X = reviews/100, Y = recall)."""
+    """Continuous-threshold curve for plotting (X = reviews/100, Y = recall).
+    Same `_reviewable` filter as `sweep_for_category` — workload skips
+    correct-blank cells."""
     errors_total = sum(1 for p in preds if not p.matched)
     if errors_total == 0:
         return []
@@ -233,10 +262,11 @@ def sweep_full_curve(
     rows = []
     for t in thresholds:
         flagged = [p for p in preds if p.confidence < t]
+        flagged_reviewable = [p for p in flagged if _reviewable(p)]
         errors_caught = sum(1 for p in flagged if not p.matched)
         rows.append({
             "threshold": t,
-            "reviews_per_100_docs": len(flagged) * 100 / docs_count if docs_count else 0.0,
+            "reviews_per_100_docs": len(flagged_reviewable) * 100 / docs_count if docs_count else 0.0,
             "recall": errors_caught / errors_total,
         })
     return rows
@@ -255,8 +285,10 @@ def write_per_category_csv(
     header = [
         "category", "target_recall", "threshold",
         "errors_caught", "errors_total",
-        "predictions_flagged", "predictions_total",
-        "reviews_per_100_docs", "recall_actual", "residual_errors",
+        "predictions_flagged", "predictions_reviewable_flagged",
+        "predictions_total", "predictions_reviewable_total",
+        "reviews_per_100_docs", "recall_actual",
+        "residual_errors", "residual_errors_per_100_docs",
     ]
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -273,26 +305,40 @@ def write_per_category_csv(
                     r["errors_caught"],
                     r["errors_total"],
                     r["predictions_flagged"],
+                    r["predictions_reviewable_flagged"],
                     r["predictions_total"],
+                    r["predictions_reviewable_total"],
                     f"{r['reviews_per_100_docs']:.1f}",
                     f"{r['recall_actual']:.4f}",
                     r["residual_errors"],
+                    f"{r['residual_errors_per_100_docs']:.1f}",
                 ])
 
 
 def write_combined_csv(
     by_category: dict[str, list[dict]],
     targets: list[float],
+    docs_count: int,
     out_path: Path,
 ) -> None:
-    """One row per target_recall; columns enumerate per-category T + load,
-    plus the combined load (sum of per-category loads) and combined
-    residual errors (sum of per-category residuals)."""
+    """One row per target_recall; columns enumerate per-category T + load
+    + residual/100, plus the combined load (sum of per-category loads) and
+    combined residual errors (sum of per-category residuals)."""
     cats_present = [c for c in CATEGORY_ORDER if c in by_category]
     header = ["target_recall"]
     for c in cats_present:
-        header += [f"T_{c}", f"{c}_reviews_per_100", f"{c}_residual_errors"]
-    header += ["combined_reviews_per_100", "combined_residual_errors", "combined_errors_total"]
+        header += [
+            f"T_{c}",
+            f"{c}_reviews_per_100",
+            f"{c}_residual_errors",
+            f"{c}_residual_per_100_docs",
+        ]
+    header += [
+        "combined_reviews_per_100",
+        "combined_residual_errors",
+        "combined_residual_per_100_docs",
+        "combined_errors_total",
+    ]
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(header)
@@ -304,11 +350,24 @@ def write_combined_csv(
             for c in cats_present:
                 r = by_category[c][idx]
                 t_str = "" if r["threshold"] is None else f"{r['threshold']:.2f}"
-                row += [t_str, f"{r['reviews_per_100_docs']:.1f}", r["residual_errors"]]
+                row += [
+                    t_str,
+                    f"{r['reviews_per_100_docs']:.1f}",
+                    r["residual_errors"],
+                    f"{r['residual_errors_per_100_docs']:.1f}",
+                ]
                 combined_load += r["reviews_per_100_docs"]
                 combined_residual += r["residual_errors"]
                 combined_total += r["errors_total"]
-            row += [f"{combined_load:.1f}", combined_residual, combined_total]
+            combined_residual_per_100 = (
+                combined_residual * 100 / docs_count if docs_count else 0.0
+            )
+            row += [
+                f"{combined_load:.1f}",
+                combined_residual,
+                f"{combined_residual_per_100:.1f}",
+                combined_total,
+            ]
             w.writerow(row)
 
 
@@ -469,7 +528,7 @@ def main(argv: list[str]) -> int:
         full_curves[cat] = sweep_full_curve(cat_preds, args.docs_count)
 
     write_per_category_csv(by_category_sweep, args.out_dir / "hitl-per-category.csv")
-    write_combined_csv(by_category_sweep, TARGET_RECALLS, args.out_dir / "hitl-combined.csv")
+    write_combined_csv(by_category_sweep, TARGET_RECALLS, args.docs_count, args.out_dir / "hitl-combined.csv")
     plot_hitl_curves(
         by_category_sweep, full_curves, TARGET_RECALLS,
         args.out_dir / "hitl-curves.png", args.engine_label,
