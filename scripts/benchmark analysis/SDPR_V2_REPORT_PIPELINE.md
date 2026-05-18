@@ -76,6 +76,7 @@ bash "scripts/benchmark analysis/hitl-planner-share.sh" \
     --out-dir "\\widget\SDPRDocuments\...\hitl" \
     --categories income_amounts,sin \
     --exclude-missing-in-categories income_amounts \
+    --skip-trivial-predictions-in-categories income_amounts \
     --engine-label "Neural (V2 current)"
 ```
 
@@ -87,12 +88,13 @@ Outputs to the share's `hitl/` directory:
 
 The chart also lands in the repo at `hitl/hitl-curves.png`.
 
-#### Two SDPR-specific policy switches built into the HITL invocation
+#### SDPR-specific policy switches built into the HITL invocation
 
 - `--categories income_amounts,sin` — HITL workload analysis is **scoped to high-impact fields only**. Income drives benefit calculations; SIN gates the ICM lookup. Other categories (`signature`, `name`, `case_id`, `phone`, `freeform_text`, `checkboxes`, `date`) are validated through non-confidence layers documented in V2 §10.5.5 (ICM cross-validation, group consistency, presence checks, downstream LLM cleanup). Including them in the HITL planner would mix categories with fundamentally different safety mechanisms.
 - `--exclude-missing-in-categories income_amounts` — Income `missing`-class errors (predicted blank, expected populated) are dropped from the HITL math. These cells are predicted blank with high confidence and are unreachable by confidence-gating; they require the per-cell numeric-zero recovery (step 2 of the canonical pipeline) and follow-on layers. Including them in HITL would inflate the workload with cells the gate provably cannot catch. In the current run, 82 such cells are excluded — the remaining 68 income errors form the in-scope pool.
+- `--skip-trivial-predictions-in-categories income_amounts` — For income, predictions whose value is empty or a **single character** (the same shapes the normaliser maps to `0` — single digits 0–9, single letters / symbols that occur as OCR misreads, or no value at all) are excluded from the workload count. Operationally these all mean "no income from this category" on the form — the reviewer confirms this in roughly the time it takes to glance at the cell, not a meaningful verification. The rule is prediction-only (no GT knowledge required), so it applies identically in benchmark and in production. Errors are still counted in recall calculations; only the workload metric is filtered.
 
-The workload metric (`reviews_per_100_docs`) counts only **reviewable** flagged cells — cells where the form has something to verify (either model returned a value or GT has one). Correct-blank cells (both predicted and expected empty) don't count even when flagged below T, because the operator has nothing on the page to compare against. This matters for SIN specifically: of 198 total sin predictions (2 fields × 99 docs), only ~97 are reviewable — the rest are blank-blank pairs (mostly `spouse_sin` on single-applicant forms).
+The workload metric (`reviews_per_100_docs`) counts **flagged predictions that require real verification work** — cells where the form may carry a non-trivial value to compare against. For sin (no `--skip-trivial-predictions` flag), the filter is the simpler "exclude both-empty cells" version, which still removes correct-blank pairs (e.g. `spouse_sin` on a single-applicant form). For income, the additional single-character-prediction filter is what makes the workload numbers in §10.5.1 land in the 28–140 reviews / 100 docs range rather than the thousands.
 
 ## Normalisation ruleset (V2 scoring policy)
 
@@ -134,6 +136,7 @@ bash "scripts/benchmark analysis/hitl-planner-share.sh" \
     --out-dir "$SHARE\hitl" \
     --categories income_amounts,sin \
     --exclude-missing-in-categories income_amounts \
+    --skip-trivial-predictions-in-categories income_amounts \
     --engine-label "Neural (V2 current)"
 ```
 
