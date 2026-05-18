@@ -5,6 +5,12 @@ equivalent mismatches to "matched". Produces a parallel JSON of the same
 shape (so analyze.js / compare-engines.py consume it transparently) plus an
 audit CSV listing every flipped error.
 
+NOTE: This script is ONE STEP of the benchmark analysis pipeline. For a full
+re-regeneration against share data (normalize → recover-zeros → analyze →
+report-errors), use `regenerate-reports-share.sh`. Invoking this script
+alone produces only partial results — downstream audit reports won't
+reflect numeric-zero recovery or cross-engine deltas.
+
 Active rules — keep in sync with the README "Equivalence rules" table:
 
   sin / phone (`sin`, `spouse_sin`, `phone`, `spouse_phone`)
@@ -29,6 +35,32 @@ Active rules — keep in sync with the README "Equivalence rules" table:
       text-normalized       : whitespace runs collapsed, case-insensitive,
                               trailing punctuation stripped, hyphen-spacing
                               normalised.
+      name-fuzzy            : (name fields only) Two-path fuzzy match:
+                              flips if EITHER (a) rapidfuzz Indel ratio
+                              >= 80 (handles paragraph-style drift —
+                              rarely relevant for names) OR (b) Levenshtein
+                              distance <= 2 (handles 1-2 OCR char errors
+                              uniformly regardless of name length, so a
+                              5-char name with 1 OCR sub flips just like
+                              a 30-char one). Length floor: 3 chars
+                              (prevents 1-2 char degenerate matches).
+                              Identity is independently confirmed by ICM
+                              SIN-lookup downstream, so close-enough is
+                              acceptable.
+      freeform-fuzzy        : (explain_changes only) Two-path fuzzy
+                              match: flips if EITHER (a) rapidfuzz Indel
+                              ratio >= 80 (handles paragraph-level OCR
+                              scatter / minor paraphrasing in long
+                              strings) OR (b) Levenshtein distance <= 4
+                              (handles up to 4 OCR char errors uniformly
+                              regardless of paragraph length). Length
+                              floor: 3 chars. LLM post-processing fixes
+                              residual drift. NOTE: with min_len=3 and
+                              max_edits=4 the distance path will accept
+                              mostly-unrelated 3-4 char strings (e.g.
+                              `Yes` vs `Bad`, distance 3); accepted as
+                              a deliberate trade-off in favour of LLM
+                              cleanup catching the noise downstream.
 
   case_id
       case-id-normalized    : whitespace + case-insensitive.
@@ -41,10 +73,15 @@ Active rules — keep in sync with the README "Equivalence rules" table:
                               every non-empty line parses to the same number
                               and equals expected (`"0\\n0"` ≡ `0`); rejects
                               `"E\\n0"` and `"69\\n606"`.
-      income-single-char-zero : a single-character predicted value (any
-                              character) where expected parses to 0. Captures
-                              OCR mis-reads like `E`, `Q`, `o`, `-` for an
-                              empty income cell that should have read `0`.
+      income-single-char-zero : a single-character predicted value that is
+                              NOT a digit (a letter or symbol) where expected
+                              parses to 0. Captures OCR mis-reads like `E`,
+                              `Q`, `o`, `-` for an empty income cell that
+                              should have read `0`.
+      income-single-digit-to-zero : a single-digit predicted value (`0`-`9`)
+                              where expected parses to 0. Captures OCR mis-
+                              reads where a faint `0` glyph was recognised
+                              as the wrong digit (`1`, `8`, etc.).
 
   checkboxes (`checkbox_*`)
       checkbox-tag          : `selected` ≡ `:selected:` and `unselected` ≡
@@ -75,6 +112,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from rapidfuzz import fuzz
+from rapidfuzz.distance import Levenshtein
+
 # ---------------------------------------------------------------------------
 # Constants — ported from form-field-normalization.ts and
 # promote-gt-format-variants.ts
@@ -98,7 +138,42 @@ MONTH_NAME_TO_NUM = {
 PROMOTABLE_IDENTIFIER_FIELDS = {"sin", "spouse_sin", "phone", "spouse_phone"}
 DATE_FIELDS = {"date", "spouse_date"}
 TEXT_LIKE_FIELDS = {"name", "spouse_name", "signature", "spouse_signature", "explain_changes"}
+NAME_FIELDS = {"name", "spouse_name"}
+FREEFORM_FIELDS = {"explain_changes"}
 NON_NUMERIC_PERSON_SUFFIXES = {"name", "phone", "sin", "date", "signature", "email"}
+
+# Fuzzy-match thresholds for the rapidfuzz-based rules. A pair flips if
+# EITHER the ratio condition OR the absolute-edit-distance condition holds.
+# Two complementary paths cover the two distinct OCR failure modes:
+#
+#   - THRESHOLD (rapidfuzz.fuzz.ratio, 0-100): catches paragraph-level
+#     drift on long strings where character-level edits don't suffice.
+#     Designed for the "many small differences in a long string" case
+#     (paraphrasing, scattered OCR noise across a sentence). On short
+#     strings the ratio is dominated by single-char differences so the
+#     ratio path tends to reject what are obviously the same value.
+#
+#   - MAX_EDITS (Levenshtein distance, absolute): catches OCR character-
+#     level errors uniformly regardless of string length — a single
+#     substitution is equally forgivable in a 5-char name or a 30-char
+#     paragraph. This is the length-INDEPENDENT path; without it, short
+#     strings with a single OCR typo are unfairly rejected because the
+#     ratio metric is length-sensitive.
+#
+#   - MIN_LEN: required for both paths. Prevents degenerate matches on
+#     1-2 char pairs (where the distance path would near-always succeed).
+#
+# Caveat: max_edits combined with very small min_len lets the distance
+# path flip mostly-unrelated short strings. E.g. with min_len=3 and
+# max_edits=4, two completely different 3-char strings (max distance 3)
+# still flip. Tune the trade-off per field — names tolerate this less
+# than freeform.
+NAME_FUZZY_THRESHOLD = 80
+NAME_FUZZY_MAX_EDITS = 2
+NAME_FUZZY_MIN_LEN = 3
+FREEFORM_FUZZY_THRESHOLD = 80
+FREEFORM_FUZZY_MAX_EDITS = 4
+FREEFORM_FUZZY_MIN_LEN = 3
 
 # Sentinel values used by the local GT pipeline — never an engine prediction,
 # always retained as a real mismatch when present.
@@ -320,6 +395,30 @@ def is_text_equivalence_variant(predicted: str, expected: str) -> bool:
     return text_norm(predicted) == text_norm(expected)
 
 
+def is_name_fuzzy_variant(predicted: str, expected: str) -> bool:
+    np = text_norm(predicted)
+    ne = text_norm(expected)
+    if np == ne:
+        return False  # caller already covered via text-normalized
+    if min(len(np), len(ne)) < NAME_FUZZY_MIN_LEN:
+        return False
+    if fuzz.ratio(np, ne) >= NAME_FUZZY_THRESHOLD:
+        return True
+    return Levenshtein.distance(np, ne) <= NAME_FUZZY_MAX_EDITS
+
+
+def is_freeform_fuzzy_variant(predicted: str, expected: str) -> bool:
+    np = text_norm(predicted)
+    ne = text_norm(expected)
+    if np == ne:
+        return False
+    if min(len(np), len(ne)) < FREEFORM_FUZZY_MIN_LEN:
+        return False
+    if fuzz.ratio(np, ne) >= FREEFORM_FUZZY_THRESHOLD:
+        return True
+    return Levenshtein.distance(np, ne) <= FREEFORM_FUZZY_MAX_EDITS
+
+
 # ---------------------------------------------------------------------------
 # Additional rules (SDPR-specific, not in the local promote-gt script)
 # ---------------------------------------------------------------------------
@@ -382,18 +481,58 @@ def is_checkbox_tag_variant(predicted: Any, expected: Any) -> bool:
 
 
 def is_income_single_char_zero(predicted: Any, expected: Any) -> bool:
-    """Income cell where the prediction is a single non-whitespace character
+    """Income cell where the prediction is a single NON-DIGIT character
     and the expected value parses to numeric 0. Captures OCR mis-reads
-    where a faint `0` glyph was returned as a stray letter (`E`, `Q`, `o`,
-    `-`, etc.) — the SDPR convention is that those should be treated as 0.
+    where a faint `0` glyph was returned as a stray letter or symbol
+    (`E`, `Q`, `o`, `-`, etc.) — the SDPR convention is that those should
+    be treated as 0.
 
-    Predicted MUST be exactly one non-whitespace character. Multi-character
-    or numeric predictions go through the existing numeric-equality rule.
+    Single-digit predictions (`1`-`9`) are handled by the separate rule
+    `income-single-digit-to-zero` so the audit log can distinguish
+    letter/symbol mis-reads from wrong-digit recognition.
+
+    Numeric predictions (int/float) are by definition digits, so they
+    cannot match this letter/symbol rule.
     """
+    if isinstance(predicted, (int, float)) and not isinstance(predicted, bool):
+        return False
     if not isinstance(predicted, str):
         return False
     stripped = predicted.strip()
     if len(stripped) != 1:
+        return False
+    if stripped.isdigit():
+        return False
+    e = parse_loose_numeric(expected)
+    return e is not None and e == 0.0
+
+
+def is_income_single_digit_to_zero(predicted: Any, expected: Any) -> bool:
+    """Income cell where the prediction is a single digit `0`-`9` and the
+    expected value parses to numeric 0. Captures OCR cases where a faint
+    `0` glyph was recognised as a different digit (`1`, `8`, etc.).
+
+    Accepts both string predictions (`"5"`) and numeric predictions
+    (`5`, `5.0`) because benchmark JSON can serialize either type for
+    income fields depending on the engine. Booleans are excluded since
+    `bool` is a subtype of `int` in Python.
+
+    Kept separate from `income-single-char-zero` so the audit log surfaces
+    digit-OCR failures vs letter/symbol-OCR failures distinctly.
+    """
+    if isinstance(predicted, bool):
+        return False
+    if isinstance(predicted, int):
+        if predicted < 0 or predicted > 9:
+            return False
+    elif isinstance(predicted, float):
+        if predicted != int(predicted) or predicted < 0 or predicted > 9:
+            return False
+    elif isinstance(predicted, str):
+        stripped = predicted.strip()
+        if len(stripped) != 1 or not stripped.isdigit():
+            return False
+    else:
         return False
     e = parse_loose_numeric(expected)
     return e is not None and e == 0.0
@@ -449,9 +588,13 @@ def classify_format_variant(
         if isinstance(predicted, str) and isinstance(expected, str):
             if is_text_equivalence_variant(predicted, expected):
                 return (True, "text-normalized")
+            if field in NAME_FIELDS and is_name_fuzzy_variant(predicted, expected):
+                return (True, "name-fuzzy")
+            if field in FREEFORM_FIELDS and is_freeform_fuzzy_variant(predicted, expected):
+                return (True, "freeform-fuzzy")
         return (False, None)
 
-    # Income-like — currency chrome → numeric equality → single-char-zero
+    # Income-like — currency chrome → numeric equality → single-char/digit-zero
     if is_income_like_field(field):
         if is_currency_format_variant(str(predicted), str(expected)):
             return (True, "currency-chrome")
@@ -459,6 +602,8 @@ def classify_format_variant(
             return (True, "numeric-equality")
         if is_income_single_char_zero(predicted, expected):
             return (True, "income-single-char-zero")
+        if is_income_single_digit_to_zero(predicted, expected):
+            return (True, "income-single-digit-to-zero")
         return (False, None)
 
     # case_id — whitespace + case (alphanumeric IDs)
