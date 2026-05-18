@@ -1,5 +1,5 @@
-import { Button, Code, Group, Modal, Stack, Text } from "@mantine/core";
 import { useState } from "react";
+import { Button, Code, Group, Modal, Stack, Text } from "../../../ui";
 import type { LookupDef } from "../types";
 
 interface Props {

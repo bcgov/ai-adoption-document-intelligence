@@ -1,8 +1,8 @@
-import { Alert, Select, Stack, Text } from "@mantine/core";
 import { useGroup } from "../../auth/GroupContext";
 import { useClassifier } from "../../data/hooks/useClassifier";
 import { ClassifierStatus } from "../../shared/types/classifier";
 import type { ActivityNode } from "../../types/graph-workflow";
+import { Alert, Select, Stack, Text } from "../../ui";
 
 export interface AzureClassifySubmitFormProps {
   node: ActivityNode;

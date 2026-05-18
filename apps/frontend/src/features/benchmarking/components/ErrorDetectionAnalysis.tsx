@@ -1,5 +1,5 @@
-import { Card, Center, Loader, Stack, Table, Text, Title } from "@mantine/core";
 import { useMemo, useState } from "react";
+import { Card, Center, Loader, Stack, Table, Text, Title } from "../../../ui";
 import type { ErrorDetectionField } from "../api/errorDetectionAnalysis";
 import { useErrorDetectionAnalysis } from "../api/errorDetectionAnalysis";
 

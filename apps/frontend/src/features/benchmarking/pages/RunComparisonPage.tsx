@@ -1,3 +1,5 @@
+import { IconDownload } from "@tabler/icons-react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -10,9 +12,7 @@ import {
   Table,
   Text,
   Title,
-} from "@mantine/core";
-import { IconDownload } from "@tabler/icons-react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+} from "../../../ui";
 import { useMultipleRuns } from "../hooks/useRuns";
 import { getStatusColor } from "../utils";
 

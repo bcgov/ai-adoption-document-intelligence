@@ -1,3 +1,5 @@
+import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { type JSX, useMemo, useState } from "react";
 import {
   ActionIcon,
   Button,
@@ -9,9 +11,7 @@ import {
   Text,
   TextInput,
   UnstyledButton,
-} from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { type JSX, useMemo, useState } from "react";
+} from "../../../ui";
 import type { ConfusionProfile } from "../hooks/useConfusionProfiles";
 
 interface ConfusionMatrixEditorProps {

@@ -1,28 +1,4 @@
 import {
-  Accordion,
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Code,
-  Drawer,
-  Group,
-  Loader,
-  Modal,
-  ScrollArea,
-  Select,
-  Stack,
-  Switch,
-  Table,
-  Text,
-  TextInput,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconArrowLeft,
   IconCheck,
@@ -37,6 +13,30 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTemplateModels } from "@/features/annotation/template-models/hooks/useTemplateModels";
 import { TEMPORAL_UI_URL } from "@/shared/constants";
+import {
+  Accordion,
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Card,
+  Center,
+  Code,
+  Drawer,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  ScrollArea,
+  Select,
+  Stack,
+  Switch,
+  Table,
+  Text,
+  TextInput,
+  Title,
+  Tooltip,
+} from "../../../ui";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
 import { ErrorDetectionAnalysis } from "../components/ErrorDetectionAnalysis";

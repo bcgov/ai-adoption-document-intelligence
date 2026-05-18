@@ -1,10 +1,10 @@
-import { Button, Group, Table, TextInput, UnstyledButton } from "@mantine/core";
 import {
   IconChevronDown,
   IconChevronUp,
   IconSelector,
 } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
+import { Button, Group, Table, TextInput, UnstyledButton } from "../../ui";
 
 /** Minimal group shape required by the GroupsTable component. */
 export interface GroupTableEntry {

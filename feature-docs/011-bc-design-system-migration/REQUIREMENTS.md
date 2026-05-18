@@ -4,7 +4,7 @@
 
 This feature introduces an incremental migration from the current Mantine-first frontend implementation to a B.C. Design System-aligned frontend while keeping the application stable and usable. It also establishes a workflow for keeping the Figma design file and the codebase aligned.
 
-The first implementation release is a focused reference slice: B.C. Design System foundations, a local UI adapter layer, and the Processing Queue screen as the first synced Figma-to-code implementation.
+The first implementation release was a focused reference slice: B.C. Design System foundations, a local UI adapter layer, and the Processing Queue screen as the first synced Figma-to-code implementation. Follow-on work has expanded use of the adapter across additional pages and features while keeping Mantine as a deliberate fallback behind `apps/frontend/src/ui/`.
 
 The feature must not attempt a full frontend rewrite and must not remove Mantine globally in the first release.
 
@@ -20,7 +20,7 @@ The feature must not attempt a full frontend rewrite and must not remove Mantine
 ## Non-Goals
 
 - Do not remove Mantine from the entire frontend in this feature.
-- Do not rewrite specialist workspaces such as annotation, workflow graph editing, OCR document viewing, or benchmarking dashboards unless required by the Processing Queue reference implementation.
+- Do not rewrite specialist workspaces end-to-end in a single release; migrate them incrementally. Complex areas (annotation, workflow graph editing, OCR document viewing, benchmarking) may keep Mantine fallbacks re-exported from `apps/frontend/src/ui/` until BC DS coverage and risk acceptance allow deeper replacement.
 - Do not introduce Tailwind CSS.
 - Do not fork or copy B.C. Design System source components into this repository.
 - Do not create unused placeholder wrappers for future use.
@@ -51,7 +51,7 @@ The frontend currently uses React, Mantine, TanStack React Query, and Tabler ico
 - Date inputs, dropzones, form helpers, and notification APIs.
 - Complex app-specific surfaces such as OCR review, workflow editing, benchmarking, tables, and annotation workspaces.
 
-Because Mantine has deep coverage and the B.C. Design System component library is still growing, the migration must use a compatibility layer and category-based replacement strategy.
+Because Mantine has deep coverage and the B.C. Design System component library is still growing, the migration uses a compatibility layer and category-based replacement strategy. Most product screens now import shared primitives, layout, Mantine fallbacks, and the Mantine notifications API through `apps/frontend/src/ui/` rather than directly from `@mantine/*` packages (global Mantine CSS remains loaded from `main.tsx`).
 
 ---
 
@@ -113,9 +113,9 @@ Requirements:
 
 A local UI adapter layer must be introduced under `apps/frontend/src/ui/`.
 
-Migrated product code must import shared UI through this layer rather than directly importing from Mantine or the B.C. Design System packages.
+Migrated product code must import shared UI through this layer rather than directly importing from Mantine or the B.C. Design System packages, except where explicitly documented (for example, global `@mantine/core` / `@mantine/notifications` stylesheet imports in bootstrap).
 
-The direct-import rule applies strictly to files touched by this feature's reference implementation. Existing untouched files may continue to import Mantine directly until they are migrated.
+The direct-import rule applies to all files that have been brought onto the adapter. New or untouched files should adopt `apps/frontend/src/ui/` when touched rather than introducing new direct Mantine imports.
 
 The adapter layer must:
 
@@ -124,7 +124,7 @@ The adapter layer must:
 - Style Mantine fallback components with B.C. Design System tokens where practical.
 - Preserve existing product behaviour for workflow-critical controls.
 - Expose typed APIs and avoid `any`.
-- Include only wrappers needed by the first release or reference implementation.
+- Include only wrappers and re-exports needed by migrated surfaces (see `docs-md/BC_DESIGN_SYSTEM_MIGRATION.md` for the live compatibility matrix).
 
 ---
 
@@ -171,8 +171,8 @@ The matrix must include at minimum:
 | Mantine `Badge` | B.C. DS tag or local status badge | Use local status badge or styled Mantine fallback | `BC DS styled wrapper` or `Mantine fallback` |
 | Mantine `ActionIcon` | Local icon button | Keep Mantine or local button wrapper for icon actions | `Mantine fallback` or `Application-specific` |
 | Mantine `Dropzone` | No confirmed B.C. DS equivalent | Keep Mantine/dropzone, style shell with B.C. DS tokens | `Mantine fallback` |
-| Mantine `Notifications` | Inline alert or local notification layer | Keep initially, evaluate replacement | `Mantine fallback` |
-| Mantine `AppShell` / `NavLink` | B.C. DS Header/Footer plus local app nav | Defer broad shell rewrite; align touched shell details only if needed for reference screen | Mixed |
+| Mantine `Notifications` | Inline alert or local notification layer | Mantine notifications re-exported from `apps/frontend/src/ui/` (`notifications`, `Notifications`); evaluate BC DS–aligned replacement later | `Mantine fallback` |
+| Mantine `AppShell` / `NavLink` | B.C. DS Header/Footer plus local app nav | BC DS Header/Footer in use; shell layout remains Mantine via `apps/frontend/src/ui/` | `Mantine fallback` |
 | Tabler icons | B.C. DS icons or approved app icon set | Continue using Tabler in first release unless a B.C. DS icon is readily available | `Application-specific` |
 
 ---
@@ -300,7 +300,7 @@ The following decisions are not blockers for the first release but must be track
 - When to extract application-specific Figma components into a separate product component library.
 - Whether to formally replace the custom sidebar with a reusable application navigation component.
 - Whether Code Connect mappings should live in the frontend package, a separate integration package, or another location.
-- When to expand migration beyond Processing Queue to additional pages.
+- When to expand BC DS native usage for high-gap primitives (for example Mantine `Button`, `Text`, `Modal`) now routed through the adapter as fallbacks.
 
 ---
 
@@ -310,8 +310,8 @@ The following decisions are not blockers for the first release but must be track
 - BC Sans is loaded through package-provided font-face declarations.
 - B.C. Design System CSS tokens are available globally.
 - Mantine remains available but is aligned with B.C. Design System foundations where practical.
-- A local UI adapter layer exists under `apps/frontend/src/ui/` and is used by the Processing Queue reference implementation where components have been migrated.
-- Direct Mantine imports are avoided in files touched by the reference implementation when an adapter exists.
+- A local UI adapter layer exists under `apps/frontend/src/ui/` and is used by the Processing Queue reference implementation and by other migrated frontend surfaces (see `docs-md/BC_DESIGN_SYSTEM_MIGRATION.md` for scope).
+- Direct Mantine package imports are avoided in migrated product TypeScript/TSX; shared UI, including imperative toasts, is imported from the adapter unless noted otherwise in migration docs.
 - Mantine fallbacks used by the reference implementation are documented.
 - The Processing Queue screen remains functionally equivalent while moving toward the Figma reference.
 - Designer and developer review confirms the Processing Queue reference implementation is acceptably aligned with Figma.

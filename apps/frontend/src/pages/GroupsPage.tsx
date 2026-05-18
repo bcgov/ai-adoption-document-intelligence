@@ -1,19 +1,3 @@
-import {
-  Alert,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { notifications } from "@mantine/notifications";
 import { IconAlertCircle, IconUsersGroup } from "@tabler/icons-react";
 import type { JSX } from "react";
 import { useState } from "react";
@@ -33,6 +17,22 @@ import {
   useMyRequests,
   useRequestMembership,
 } from "../data/hooks/useGroups";
+import {
+  Alert,
+  Button,
+  Center,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+  useForm,
+} from "../ui";
 
 interface CreateGroupModalProps {
   opened: boolean;

@@ -1,7 +1,7 @@
-import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroupInfo } from "../data/hooks/useGroups";
+import { MantineProvider } from "../ui";
 import { RequestMembershipPage } from "./RequestMembershipPage";
 
 // ---------------------------------------------------------------------------

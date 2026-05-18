@@ -1,3 +1,7 @@
+import React from "react";
+import { useDocuments } from "../data/hooks/useDocuments";
+import type { Document } from "../shared/types";
+import { formatDate, formatFileSize } from "../shared/utils";
 import {
   Alert,
   Badge,
@@ -9,11 +13,7 @@ import {
   Stack,
   Text,
   Title,
-} from "@mantine/core";
-import React from "react";
-import { useDocuments } from "../data/hooks/useDocuments";
-import type { Document } from "../shared/types";
-import { formatDate, formatFileSize } from "../shared/utils";
+} from "../ui";
 
 export const DocumentsList: React.FC = () => {
   const { data: documents, isLoading, error } = useDocuments();

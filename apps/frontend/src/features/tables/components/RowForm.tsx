@@ -1,5 +1,6 @@
 import {
   Button,
+  DateInput,
   Group,
   Modal,
   NumberInput,
@@ -8,10 +9,9 @@ import {
   Switch,
   Text,
   TextInput,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
+  useForm,
+} from "../../../ui";
 import "@mantine/dates/styles.css";
-import { useForm } from "@mantine/form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "mantine-form-zod-resolver";
 import { useEffect } from "react";

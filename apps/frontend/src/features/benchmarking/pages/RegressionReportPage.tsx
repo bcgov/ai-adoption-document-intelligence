@@ -1,4 +1,13 @@
 import {
+  IconAlertCircle,
+  IconCheck,
+  IconDownload,
+  IconShare,
+  IconX,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
   Alert,
   Badge,
   Button,
@@ -15,16 +24,7 @@ import {
   Text,
   TextInput,
   Title,
-} from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconCheck,
-  IconDownload,
-  IconShare,
-  IconX,
-} from "@tabler/icons-react";
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+} from "../../../ui";
 import { TrendChart } from "../components/TrendChart";
 import { useHistoricalRuns, useRun } from "../hooks/useRuns";
 

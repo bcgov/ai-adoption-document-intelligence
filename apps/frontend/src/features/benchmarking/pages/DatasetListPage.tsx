@@ -1,3 +1,6 @@
+import { IconDatabase, IconFileCheck, IconPlus } from "@tabler/icons-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Card,
@@ -8,10 +11,7 @@ import {
   Table,
   Text,
   Title,
-} from "@mantine/core";
-import { IconDatabase, IconFileCheck, IconPlus } from "@tabler/icons-react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+} from "../../../ui";
 import { CreateDatasetDialog } from "../components/CreateDatasetDialog";
 import { CreateDatasetFromHitlDialog } from "../components/CreateDatasetFromHitlDialog";
 import { useDatasets } from "../hooks/useDatasets";

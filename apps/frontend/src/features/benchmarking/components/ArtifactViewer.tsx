@@ -1,3 +1,6 @@
+import { IconAlertCircle, IconDownload } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   Alert,
   Button,
@@ -12,10 +15,7 @@ import {
   Stack,
   Text,
   Textarea,
-} from "@mantine/core";
-import { IconAlertCircle, IconDownload } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-import { apiService } from "@/data/services/api.service";
+} from "../../../ui";
 
 interface ArtifactViewerProps {
   artifact: {

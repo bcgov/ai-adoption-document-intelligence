@@ -1,3 +1,6 @@
+import { IconFolderOpen, IconPlus } from "@tabler/icons-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Card,
@@ -8,10 +11,7 @@ import {
   Table,
   Text,
   Title,
-} from "@mantine/core";
-import { IconFolderOpen, IconPlus } from "@tabler/icons-react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+} from "../../../ui";
 import { CreateProjectDialog } from "../components/CreateProjectDialog";
 import { useProjects } from "../hooks/useProjects";
 

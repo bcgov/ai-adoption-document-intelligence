@@ -1,3 +1,5 @@
+import { IconAlertCircle } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -6,9 +8,7 @@ import {
   Stack,
   Text,
   TextInput,
-} from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+} from "../../../ui";
 
 interface MetricThreshold {
   metricName: string;

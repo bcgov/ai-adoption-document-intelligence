@@ -1,15 +1,4 @@
 import {
-  Alert,
-  Box,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconCircleCheck,
   IconLogout,
@@ -24,6 +13,17 @@ import {
   useMyRequests,
   useRequestMembership,
 } from "../data/hooks/useGroups";
+import {
+  Alert,
+  Box,
+  Button,
+  Center,
+  Group,
+  Loader,
+  Stack,
+  Text,
+  Title,
+} from "../ui";
 import { SetupPage } from "./SetupPage";
 
 /**

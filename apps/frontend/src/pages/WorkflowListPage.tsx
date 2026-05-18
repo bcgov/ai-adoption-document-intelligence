@@ -1,3 +1,8 @@
+import { IconEdit, IconFlask, IconPlus, IconTrash } from "@tabler/icons-react";
+import { type ReactNode, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { SlugChip } from "../components/workflow/SlugChip";
+import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
 import {
   ActionIcon,
   Badge,
@@ -5,19 +10,14 @@ import {
   Card,
   Group,
   Modal,
+  notifications,
   Stack,
   Switch,
   Table,
   Text,
   Title,
   Tooltip,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { IconEdit, IconFlask, IconPlus, IconTrash } from "@tabler/icons-react";
-import { type ReactNode, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { SlugChip } from "../components/workflow/SlugChip";
-import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
+} from "../ui";
 
 export function WorkflowListPage() {
   const navigate = useNavigate();

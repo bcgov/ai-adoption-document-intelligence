@@ -1,5 +1,3 @@
-import { MantineProvider } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import {
   fireEvent,
   render,
@@ -9,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroupRequest } from "../../data/hooks/useGroups";
+import { MantineProvider, notifications } from "../../ui";
 import { GroupRequestsTab } from "./GroupRequestsTab";
 
 // ---------------------------------------------------------------------------

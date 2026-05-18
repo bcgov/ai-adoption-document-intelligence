@@ -21,11 +21,21 @@ Product code (pages, features)
         └──► Application-specific composites (local markup + tokens)
 ```
 
-- **Product code** imports shared UI exclusively from `apps/frontend/src/ui/` on migrated surfaces. Untouched surfaces may continue importing Mantine directly until they are migrated.
+- **Product code** imports shared UI from `apps/frontend/src/ui/` on migrated surfaces. Global stylesheet imports for Mantine remain in `main.tsx`; see **Continuous integration** below for how frontend checks are run in CI.
 - **The adapter layer** decides which underlying library to use for each component. This isolates product code from library-level API changes.
 - **B.C. Design System components** are preferred when they provide a suitable replacement without losing workflow-critical behaviour.
 - **Mantine fallbacks** remain when no BC DS equivalent exists, the API gap is too wide for a transparent swap, or the migration would risk workflow-critical behaviour.
 - **Application-specific composites** are product components with no design-system equivalent, built using BC DS tokens and Mantine layout primitives.
+
+## Continuous integration (frontend)
+
+GitHub Actions workflow [`.github/workflows/frontend-qa.yml`](../.github/workflows/frontend-qa.yml) runs, in `apps/frontend`:
+
+1. `npm run lint` — Biome
+2. `npm run type-check` — TypeScript
+3. `npm run test` — Vitest (jsdom environment)
+
+CI uses **Node 24** (see workflow). For local Vitest runs on older Node 20.x patch levels, `jsdom` is pinned to **26.x** in `apps/frontend/package.json` so the jsdom stack does not pull `html-encoding-sniffer@6` / `@exodus/bytes` combinations that fail worker startup with `ERR_REQUIRE_ESM`.
 
 ## Current Implementation Status
 
@@ -38,11 +48,19 @@ Initial migration slice implemented:
 - Updated Processing Queue screen files to consume local adapters instead of direct Mantine imports in touched files.
 - Migrated app shell header to B.C. Design System `Header` with keyboard skip-link support.
 - Added B.C. Design System `Footer` with acknowledgement and copyright content.
+- **Vertical slice (upload):** `UploadPage`, `DocumentUploadPanel`, and `Login` import shared UI from `apps/frontend/src/ui/` (Mantine fallbacks for dropzone, selects, cards, etc.).
+- **Vertical slice (auth/setup pages):** `SetupPage` and `RequestMembershipPage` import layout and feedback primitives from `apps/frontend/src/ui/` instead of `@mantine/core`.
+- **Vertical slice (tables):** All files under `apps/frontend/src/features/tables/` import shared UI from `apps/frontend/src/ui/` (pages, components, lookup templates). `RowForm` still imports `@mantine/dates/styles.css` for date picker styling.
+- **Vertical slice (classification, groups, settings):** Pages and components under `components/classification/`, `components/group/`, and `SettingsPage` / `ClassifierPage` / `GroupsPage` / `GroupDetailPage` import from `apps/frontend/src/ui/`, including the `notifications` toast API re-exported from the adapter.
+- **Vertical slice (workflows):** `WorkflowPage`, `WorkflowEditPage`, `WorkflowEditorPage`, `WorkflowListPage`, and all files under `components/workflow/` import from `apps/frontend/src/ui/` (including `useDebouncedValue` for the graph editor).
+- **Vertical slice (benchmarking):** All pages and components under `apps/frontend/src/features/benchmarking/` import from `apps/frontend/src/ui/`, including `notifications` where toasts are used.
+- **Vertical slice (annotation / HITL / template models):** Pages and components under `apps/frontend/src/features/annotation/` (including `hitl/`, `template-models/`, and shared `core/`) import layout and Mantine fallbacks from `apps/frontend/src/ui/`, including `notifications` where toasts are used.
+- **App shell, bootstrap, and document surfaces:** `RootLayout`, `App`, `main.tsx` (`MantineProvider` and `Notifications` from the adapter), `appTheme.ts` (`createTheme` via the adapter), and document-related components (`DocumentViewer`, `DocumentViewerModal`, `DocumentDetailDrawer`, `DocumentValidation`, `DocumentsList`) plus `HelloWorld` import shared primitives from `apps/frontend/src/ui/`. `main.tsx` still imports `@mantine/core/styles.css` and `@mantine/notifications/styles.css`.
 
 Not yet implemented in this slice:
 
 - Code Connect mappings.
-- Broad replacement across untouched screens.
+- Replacing Mantine `notifications` imperative API or notification styles with a BC DS–aligned approach.
 
 ## Guiding Rules
 
@@ -111,14 +129,53 @@ When adding or migrating a component, follow this decision order:
 | `SimpleGrid` | No | `Mantine fallback` | Layout primitive; no BC DS equivalent. |
 | `Loader` | Partial (`ProgressCircle`) | `Mantine fallback` | BC DS ProgressCircle is determinate; Mantine Loader is indeterminate spinner. |
 | `Table` | No | `Mantine fallback` | Also used directly by `DataTable` wrapper. |
+| `Alert` | Yes (`InlineAlert` / `AlertBanner`) | `Mantine fallback` | Different API and semantics; deferred. |
+| `Box` | No | `Mantine fallback` | Layout primitive; no BC DS equivalent. |
+| `Card` | No | `Mantine fallback` | Card container; no BC DS equivalent. |
+| `Paper` | No | `Mantine fallback` | Surface container; used by `PanelCard` / `StatCard`. |
+| `Divider` | Yes (`Separator`) | `Mantine fallback` | Deferred. |
+| `Progress` | Yes (`ProgressBar`) | `Mantine fallback` | Upload queue uses determinate progress; deferred. |
+| `ScrollArea` | No | `Mantine fallback` | Scroll container; no BC DS equivalent. |
+| `Select` (Mantine) | Yes (`Select`) | `Mantine fallback` | Model/workflow pickers use Mantine API; `StatusSelect` uses BC DS. |
+| `Dropzone` | No | `Mantine fallback` | No BC DS equivalent; re-exported from `@mantine/dropzone`. |
+| `Avatar` | No | `Mantine fallback` | No BC DS equivalent. |
+| `rem` | No | `Mantine fallback` | Mantine spacing utility. |
+| `Container` | No | `Mantine fallback` | Page width constraint. |
+| `TextInput` / `Textarea` | Yes (`TextField` / `TextArea`) | `Mantine fallback` | Tables forms use Mantine API; deferred. |
+| `Tabs` | No | `Mantine fallback` | Tabbed detail views. |
+| `Pagination` | No | `Mantine fallback` | Table paging. |
+| `NumberInput` | Yes (`NumberField`) | `Mantine fallback` | Row form numeric columns; deferred. |
+| `Switch` | Yes (`Switch`) | `Mantine fallback` | Deferred for form consistency. |
+| `JsonInput` / `TagsInput` | No | `Mantine fallback` | Specialized Mantine inputs. |
+| `Code` | No | `Mantine fallback` | Monospace snippet display. |
+| `DateInput` | Yes (`DatePicker`) | `Mantine fallback` | Re-exported from `@mantine/dates`. |
+| `useForm` | N/A | `Mantine fallback` | Re-exported from `@mantine/form`. |
+| `useDebouncedValue` | N/A | `Mantine fallback` | Re-exported from `@mantine/hooks`. |
+| `useDisclosure` | N/A | `Mantine fallback` | Re-exported from `@mantine/hooks`. |
+| `useSessionStorage` | N/A | `Mantine fallback` | Re-exported from `@mantine/hooks`. |
+| `useElementSize` | N/A | `Mantine fallback` | Re-exported from `@mantine/hooks`. |
+| `Drawer` | No | `Mantine fallback` | Side panels (e.g. benchmarking). |
+| `Breadcrumbs` | No | `Mantine fallback` | Navigation trails. |
+| `Checkbox` | Yes (`Checkbox`) | `Mantine fallback` | Deferred. |
+| `MultiSelect` | No | `Mantine fallback` | Multiple selection. |
+| `Radio` | Yes (`Radio`) | `Mantine fallback` | Deferred for form consistency. |
+| `Kbd` | No | `Mantine fallback` | Shortcut hints in annotation/HITL UI; no BC DS equivalent. |
+| `Popover` | No | `Mantine fallback` | Overlay panels. |
+| `AppShell` | No | `Mantine fallback` | Application layout shell (root nav). |
+| `NavLink` | No | `Mantine fallback` | Sidebar navigation links. |
+| `Image` | No | `Mantine fallback` | Mantine `Image` for document previews. |
+| `Skeleton` | No | `Mantine fallback` | Loading placeholders. |
+| `createTheme` | N/A | `Mantine fallback` | Mantine theme factory; used by `appTheme.ts` through the adapter. |
+| `Notifications` | N/A | `Mantine fallback` | Notification stack provider from `@mantine/notifications`; re-exported for bootstrap next to `MantineProvider`. |
+| `notifications` | N/A | `Mantine fallback` | Imperative toast API from `@mantine/notifications`; re-exported from the adapter so product code does not import the package directly. Vitest may still `vi.mock("@mantine/notifications", …)` to stub the underlying module. |
 
 ### Global chrome (outside adapter layer)
 
 | Current usage | Target component | Interim approach | Classification |
 |---------------|------------------|------------------|----------------|
-| Mantine `AppShell` / `NavLink` | B.C. DS Header/Footer plus local app nav | Header and Footer replaced; app sidebar remains Mantine | Mixed |
+| `AppShell` / `NavLink` (in `RootLayout`) | B.C. DS Header/Footer plus local app nav | Imported via `apps/frontend/src/ui/`; shell layout remains Mantine | `Mantine fallback` |
 | Mantine `Dropzone` | No confirmed B.C. DS equivalent | Keep Mantine/dropzone, style surrounding shell | `Mantine fallback` |
-| Mantine `Notifications` | Inline alert or local notification layer | Keep initially, evaluate replacement | `Mantine fallback` |
+| Mantine `Notifications` | Inline alert or local notification layer | Provider + imperative API imported via `apps/frontend/src/ui/`; global styles from `@mantine/notifications/styles.css` in `main.tsx` | `Mantine fallback` |
 | Tabler icons | B.C. DS icons or approved app icon set | Continue using Tabler until icon policy is decided | `Application-specific` |
 
 ## Figma Alignment

@@ -1,9 +1,8 @@
-import { Paper, Text } from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnnotationCanvas } from "../../features/annotation/core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../features/annotation/core/canvas/hooks/usePdfPageImage";
 import type { ExtractedFields } from "../../shared/types";
+import { Paper, Text, useElementSize } from "../../ui";
 
 interface DocumentViewerProps {
   imageUrl: string;

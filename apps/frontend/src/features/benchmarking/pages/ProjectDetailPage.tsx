@@ -1,4 +1,14 @@
 import {
+  IconAlertTriangle,
+  IconArrowLeft,
+  IconGitCompare,
+  IconPlus,
+  IconTrash,
+  IconTrophy,
+} from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
   Alert,
   Badge,
   Button,
@@ -12,17 +22,7 @@ import {
   Table,
   Text,
   Title,
-} from "@mantine/core";
-import {
-  IconAlertTriangle,
-  IconArrowLeft,
-  IconGitCompare,
-  IconPlus,
-  IconTrash,
-  IconTrophy,
-} from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+} from "../../../ui";
 import {
   CreateDefinitionDialog,
   type CreateDefinitionFormData,

@@ -1,3 +1,8 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useGroup } from "@/auth/GroupContext";
+import { apiService } from "@/data/services/api.service";
 import {
   Button,
   Container,
@@ -9,12 +14,7 @@ import {
   Textarea,
   TextInput,
   Title,
-} from "@mantine/core";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useGroup } from "@/auth/GroupContext";
-import { apiService } from "@/data/services/api.service";
+} from "../../../ui";
 import { ColumnsTab } from "../components/ColumnsTab";
 import { LookupSnippetPanel } from "../components/LookupSnippetPanel";
 import { LookupsTab } from "../components/LookupsTab";

@@ -1,3 +1,7 @@
+import { IconInfoCircle } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
+import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierModel } from "@/shared/types/classifier";
 import {
   Button,
   Group,
@@ -6,11 +10,7 @@ import {
   Stack,
   Text,
   Tooltip,
-} from "@mantine/core";
-import { IconInfoCircle } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
-import { useClassifier } from "@/data/hooks/useClassifier";
-import { ClassifierModel } from "@/shared/types/classifier";
+} from "../../ui";
 import ClassificationFileCards from "./ClassificationFileCards";
 import {
   DeleteClassifierModal,

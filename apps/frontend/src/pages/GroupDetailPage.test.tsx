@@ -1,4 +1,3 @@
-import { MantineProvider } from "@mantine/core";
 import {
   act,
   fireEvent,
@@ -14,6 +13,7 @@ import {
   type GroupRequest,
   type UserGroup,
 } from "../data/hooks/useGroups";
+import { MantineProvider } from "../ui";
 import { GroupDetailPage } from "./GroupDetailPage";
 
 const { mockNotificationsShow } = vi.hoisted(() => ({

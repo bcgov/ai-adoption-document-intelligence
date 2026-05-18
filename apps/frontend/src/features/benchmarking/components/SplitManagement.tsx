@@ -5,6 +5,8 @@
  * See US-033: Split Management UI
  */
 
+import { IconLock, IconLockOpen, IconPlus } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Button,
@@ -20,9 +22,7 @@ import {
   Text,
   TextInput,
   Title,
-} from "@mantine/core";
-import { IconLock, IconLockOpen, IconPlus } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+} from "../../../ui";
 import type { ManifestSample } from "../hooks/useDatasetVersions";
 import { useAllSamples } from "../hooks/useDatasetVersions";
 import {

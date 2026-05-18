@@ -1,16 +1,4 @@
 import {
-  Button,
-  Group,
-  Loader,
-  Paper,
-  ScrollArea,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import {
   IconArrowLeft,
   IconDeviceFloppy,
   IconRefresh,
@@ -19,6 +7,18 @@ import {
 import { FC, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
+import {
+  Button,
+  Group,
+  Loader,
+  notifications,
+  Paper,
+  ScrollArea,
+  Stack,
+  Text,
+  Title,
+  useElementSize,
+} from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";

@@ -1,20 +1,4 @@
 import {
-  Badge,
-  Button,
-  Card,
-  Center,
-  Grid,
-  Group,
-  Loader,
-  Paper,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCheck,
   IconClock,
@@ -26,6 +10,22 @@ import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
 import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
+import {
+  Badge,
+  Button,
+  Card,
+  Center,
+  Grid,
+  Group,
+  Loader,
+  notifications,
+  Paper,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  Title,
+} from "../../../../ui";
 import type { QueueDocument } from "../hooks/useReviewQueue";
 import { useReviewQueue } from "../hooks/useReviewQueue";
 

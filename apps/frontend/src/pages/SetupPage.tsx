@@ -1,15 +1,4 @@
 import {
-  Alert,
-  Box,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconCircleCheck,
   IconLogout,
@@ -21,6 +10,17 @@ import {
   useBootstrapStatus,
   usePerformBootstrap,
 } from "../data/hooks/useBootstrap";
+import {
+  Alert,
+  Box,
+  Button,
+  Center,
+  Group,
+  Loader,
+  Stack,
+  Text,
+  Title,
+} from "../ui";
 
 /**
  * Page shown to the deployer on first launch when no system admin exists.

@@ -1,15 +1,3 @@
-import {
-  Alert,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Modal,
-  Select,
-  Table,
-  Text,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import {
@@ -19,6 +7,18 @@ import {
   useRemoveGroupMember,
   useUpdateGroupMemberRole,
 } from "../../data/hooks/useGroups";
+import {
+  Alert,
+  Button,
+  Center,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  Select,
+  Table,
+  Text,
+} from "../../ui";
 
 interface MembersTabProps {
   groupId: string;

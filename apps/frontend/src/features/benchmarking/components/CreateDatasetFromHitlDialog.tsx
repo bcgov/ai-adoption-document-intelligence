@@ -1,3 +1,5 @@
+import { IconAlertCircle, IconSearch } from "@tabler/icons-react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   Badge,
@@ -12,9 +14,7 @@ import {
   Text,
   Textarea,
   TextInput,
-} from "@mantine/core";
-import { IconAlertCircle, IconSearch } from "@tabler/icons-react";
-import { useCallback, useState } from "react";
+} from "../../../ui";
 import { useCreateDatasetFromHitl } from "../hooks/useCreateDatasetFromHitl";
 import { useEligibleDocuments } from "../hooks/useEligibleDocuments";
 

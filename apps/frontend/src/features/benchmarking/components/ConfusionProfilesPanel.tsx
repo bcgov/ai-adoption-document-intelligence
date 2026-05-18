@@ -1,3 +1,6 @@
+import { IconEye, IconTrash } from "@tabler/icons-react";
+import { type JSX, useState } from "react";
+import { useTemplateModels } from "@/features/annotation/template-models/hooks/useTemplateModels";
 import {
   ActionIcon,
   Button,
@@ -5,15 +8,12 @@ import {
   Loader,
   Modal,
   MultiSelect,
+  notifications,
   Stack,
   Table,
   Text,
   TextInput,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { IconEye, IconTrash } from "@tabler/icons-react";
-import { type JSX, useState } from "react";
-import { useTemplateModels } from "@/features/annotation/template-models/hooks/useTemplateModels";
+} from "../../../ui";
 import {
   type ConfusionProfile,
   useConfusionProfiles,

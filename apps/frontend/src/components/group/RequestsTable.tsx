@@ -1,4 +1,15 @@
 import {
+  IconAlertCircle,
+  IconChevronDown,
+  IconChevronUp,
+  IconSelector,
+} from "@tabler/icons-react";
+import { type JSX, type ReactNode, useState } from "react";
+import type {
+  GroupRequest,
+  MyMembershipRequest,
+} from "../../data/hooks/useGroups";
+import {
   Alert,
   Badge,
   Button,
@@ -11,18 +22,7 @@ import {
   Text,
   TextInput,
   UnstyledButton,
-} from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconChevronDown,
-  IconChevronUp,
-  IconSelector,
-} from "@tabler/icons-react";
-import { type JSX, type ReactNode, useState } from "react";
-import type {
-  GroupRequest,
-  MyMembershipRequest,
-} from "../../data/hooks/useGroups";
+} from "../../ui";
 
 /** Maps a request status string to a Mantine badge colour. */
 function statusColor(status: string): string {

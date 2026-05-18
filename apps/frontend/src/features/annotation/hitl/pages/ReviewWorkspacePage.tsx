@@ -1,3 +1,7 @@
+import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import {
   Accordion,
   Button,
@@ -5,6 +9,7 @@ import {
   Group,
   Loader,
   Modal,
+  notifications,
   Paper,
   ScrollArea,
   Stack,
@@ -12,13 +17,8 @@ import {
   Textarea,
   TextInput,
   Title,
-} from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { colorForFieldKeyWithBorder } from "@/shared/utils";
+  useElementSize,
+} from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";

@@ -1,23 +1,4 @@
 import {
-  ActionIcon,
-  Avatar,
-  Badge,
-  Button,
-  Divider,
-  Group,
-  Paper,
-  Progress,
-  rem,
-  ScrollArea,
-  Select,
-  Stack,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { Dropzone, FileRejection } from "@mantine/dropzone";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCircleCheck,
   IconFileDescription,
@@ -34,6 +15,26 @@ import { useWorkflows } from "../../data/hooks/useWorkflows";
 import { apiService } from "../../data/services/api.service";
 import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "../../shared/constants";
 import type { Document, UploadDocumentPayload } from "../../shared/types";
+import {
+  ActionIcon,
+  Avatar,
+  Badge,
+  Button,
+  Divider,
+  Dropzone,
+  type FileRejection,
+  Group,
+  notifications,
+  Paper,
+  Progress,
+  rem,
+  ScrollArea,
+  Select,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from "../../ui";
 
 interface UploadQueueItem {
   id: string;

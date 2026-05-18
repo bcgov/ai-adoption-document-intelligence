@@ -1,3 +1,4 @@
+import { IconAlertCircle, IconCheck, IconX } from "@tabler/icons-react";
 import {
   Badge,
   Card,
@@ -7,8 +8,7 @@ import {
   Table,
   Text,
   Title,
-} from "@mantine/core";
-import { IconAlertCircle, IconCheck, IconX } from "@tabler/icons-react";
+} from "../../../ui";
 import type { ValidationResponse } from "../hooks/useDatasetValidation";
 
 interface ValidationReportProps {

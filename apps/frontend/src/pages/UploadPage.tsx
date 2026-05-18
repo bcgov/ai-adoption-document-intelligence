@@ -1,5 +1,5 @@
-import { Badge, Group, Stack, Text, Title } from "@mantine/core";
 import { DocumentUploadPanel } from "../components/upload/DocumentUploadPanel";
+import { Badge, Group, Stack, Text, Title } from "../ui";
 
 export function UploadPage() {
   return (

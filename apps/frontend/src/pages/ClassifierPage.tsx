@@ -1,3 +1,11 @@
+import { useState } from "react";
+import { useGroup } from "@/auth/GroupContext";
+import ClassificationFiles from "@/components/classification/ClassificationFiles";
+import ClassifierAccess from "@/components/classification/ClassifierAccess";
+import ClassifierDetails from "@/components/classification/ClassifierDetails";
+import { CreateClassifierModal } from "@/components/classification/ClassifierModals";
+import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierStatus } from "@/shared/types/classifier";
 import {
   Button,
   Group,
@@ -7,15 +15,7 @@ import {
   Text,
   Title,
   Tooltip,
-} from "@mantine/core";
-import { useState } from "react";
-import { useGroup } from "@/auth/GroupContext";
-import ClassificationFiles from "@/components/classification/ClassificationFiles";
-import ClassifierAccess from "@/components/classification/ClassifierAccess";
-import ClassifierDetails from "@/components/classification/ClassifierDetails";
-import { CreateClassifierModal } from "@/components/classification/ClassifierModals";
-import { useClassifier } from "@/data/hooks/useClassifier";
-import { ClassifierStatus } from "@/shared/types/classifier";
+} from "../ui";
 
 const ClassifierPage = () => {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);

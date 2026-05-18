@@ -1,4 +1,14 @@
 import {
+  IconAlertCircle,
+  IconArrowLeft,
+  IconCheck,
+  IconChevronRight,
+  IconFilter,
+  IconX,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
   ActionIcon,
   Alert,
   Badge,
@@ -20,17 +30,7 @@ import {
   Tabs,
   Text,
   Title,
-} from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconArrowLeft,
-  IconCheck,
-  IconChevronRight,
-  IconFilter,
-  IconX,
-} from "@tabler/icons-react";
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+} from "../../../ui";
 import { useProject } from "../hooks/useProjects";
 import { usePerSampleResults, useRun } from "../hooks/useRuns";
 import {

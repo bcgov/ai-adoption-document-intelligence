@@ -1,17 +1,3 @@
-import {
-  Alert,
-  Button,
-  Group,
-  Menu,
-  Modal,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
@@ -28,6 +14,20 @@ import {
   useUpdateGroup,
 } from "../data/hooks/useGroups";
 import { ConfusionProfilesPanel } from "../features/benchmarking/components/ConfusionProfilesPanel";
+import {
+  Alert,
+  Button,
+  Group,
+  Menu,
+  Modal,
+  notifications,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+} from "../ui";
 
 /**
  * Page shown at `/groups/:groupId`. Displays group details and the Members tab

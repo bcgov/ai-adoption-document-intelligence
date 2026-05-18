@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   Button,
   Group,
@@ -7,9 +8,8 @@ import {
   Switch,
   TagsInput,
   TextInput,
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { useEffect } from "react";
+  useForm,
+} from "../../../ui";
 import type { ColumnDef, ColumnType } from "../types";
 
 interface Props {

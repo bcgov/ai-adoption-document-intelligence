@@ -1,5 +1,5 @@
-import { Button, Group, Pagination, Stack, Table, Text } from "@mantine/core";
 import { useState } from "react";
+import { Button, Group, Pagination, Stack, Table, Text } from "../../../ui";
 import { useTableRows } from "../hooks/useTableRows";
 import type { ColumnDef, TableRow } from "../types";
 

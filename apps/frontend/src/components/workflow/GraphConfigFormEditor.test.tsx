@@ -1,10 +1,10 @@
-import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ActivityNode,
   GraphWorkflowConfig,
 } from "../../types/graph-workflow";
+import { MantineProvider } from "../../ui";
 import { GraphConfigFormEditor } from "./GraphConfigFormEditor";
 
 // ---------------------------------------------------------------------------

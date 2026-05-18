@@ -1,4 +1,3 @@
-import { MantineProvider } from "@mantine/core";
 import {
   fireEvent,
   render,
@@ -13,6 +12,7 @@ import type {
   MyMembershipRequest,
   UserGroup,
 } from "../data/hooks/useGroups";
+import { MantineProvider } from "../ui";
 import { GroupsPage } from "./GroupsPage";
 
 // ---------------------------------------------------------------------------

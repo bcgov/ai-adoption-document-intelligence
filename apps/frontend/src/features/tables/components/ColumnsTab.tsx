@@ -1,7 +1,7 @@
-import { Button, Group, Modal, Stack, Table, Text } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
+import { Button, Group, Modal, Stack, Table, Text } from "../../../ui";
 import type { ColumnDef } from "../types";
 import { ColumnForm } from "./ColumnForm";
 

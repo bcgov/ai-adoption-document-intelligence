@@ -1,19 +1,5 @@
 import { Footer, Header } from "@bcgov/design-system-react-components";
 import {
-  ActionIcon,
-  AppShell,
-  Avatar,
-  Badge,
-  Button,
-  Group,
-  NavLink,
-  ScrollArea,
-  Stack,
-  Text,
-  Tooltip,
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import {
   IconChartBar,
   IconChevronLeft,
   IconChevronRight,
@@ -34,6 +20,20 @@ import { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { GroupSelector } from "../components/group/GroupSelector";
+import {
+  ActionIcon,
+  AppShell,
+  Avatar,
+  Badge,
+  Button,
+  Group,
+  NavLink,
+  ScrollArea,
+  Stack,
+  Text,
+  Tooltip,
+  useDisclosure,
+} from "../ui";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;

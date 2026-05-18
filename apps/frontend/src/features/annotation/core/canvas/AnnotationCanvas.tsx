@@ -1,4 +1,3 @@
-import { Box } from "@mantine/core";
 import Konva from "konva";
 import { KonvaEventObject } from "konva/lib/Node";
 import {
@@ -11,6 +10,7 @@ import {
   useState,
 } from "react";
 import { Image as KonvaImage, Layer, Stage } from "react-konva";
+import { Box } from "../../../../ui";
 import { BoundingBox, CanvasTool } from "../types";
 import { BoundingBoxLayer } from "./BoundingBoxLayer";
 import { DrawingLayer } from "./DrawingLayer";

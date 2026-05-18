@@ -1,5 +1,3 @@
-import { MantineProvider } from "@mantine/core";
-import { Notifications } from "@mantine/notifications";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -7,6 +5,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { GroupProvider } from "./auth/GroupContext";
 import { queryClient } from "./data/queryClient";
 import { appTheme } from "./theme/appTheme";
+import { MantineProvider, Notifications } from "./ui";
 import "@bcgov/bc-sans/css/BC_Sans.css";
 import "@bcgov/design-tokens/css/variables.css";
 import "@mantine/core/styles.css";

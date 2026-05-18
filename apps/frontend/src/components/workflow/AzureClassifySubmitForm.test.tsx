@@ -1,8 +1,8 @@
-import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityNode } from "../../types/graph-workflow";
+import { MantineProvider } from "../../ui";
 import { AzureClassifySubmitForm } from "./AzureClassifySubmitForm";
 
 // ---------------------------------------------------------------------------

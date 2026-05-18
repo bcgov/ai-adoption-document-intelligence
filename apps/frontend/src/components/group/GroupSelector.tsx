@@ -1,9 +1,8 @@
-import type { ComboboxItem } from "@mantine/core";
-import { Anchor, Select, Tooltip } from "@mantine/core";
 import type { JSX } from "react";
 import { useAuth } from "@/auth/AuthContext";
 import { useAllGroups } from "@/data/hooks/useGroups";
 import { useGroup } from "../../auth/GroupContext";
+import { Anchor, type ComboboxItem, Select, Tooltip } from "../../ui";
 
 /**
  * A searchable dropdown that lets the authenticated user switch their active group.

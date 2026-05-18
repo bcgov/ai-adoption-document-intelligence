@@ -1,7 +1,7 @@
-import { Stack, Text, Title } from "@mantine/core";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
 import { useAuth } from "./auth/useAuth";
+import { Stack, Text, Title } from "./ui";
 import "./App.css";
 import { Login } from "./components";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";

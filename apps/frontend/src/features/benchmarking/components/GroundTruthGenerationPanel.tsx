@@ -1,4 +1,12 @@
 import {
+  IconAlertCircle,
+  IconEye,
+  IconInfoCircle,
+  IconPlayerPlay,
+} from "@tabler/icons-react";
+import { FC, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
   Alert,
   Badge,
   Button,
@@ -13,15 +21,7 @@ import {
   Text,
   Textarea,
   Tooltip,
-} from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconEye,
-  IconInfoCircle,
-  IconPlayerPlay,
-} from "@tabler/icons-react";
-import { FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+} from "../../../ui";
 import {
   type GroundTruthJobStatus,
   useGroundTruthGeneration,

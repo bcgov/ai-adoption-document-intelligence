@@ -1,4 +1,12 @@
 import {
+  IconAlertCircle,
+  IconCheck,
+  IconInfoCircle,
+  IconPlayerStop,
+  IconX,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import {
   ActionIcon,
   Alert,
   Badge,
@@ -7,6 +15,7 @@ import {
   Group,
   Loader,
   NumberInput,
+  notifications,
   Paper,
   SegmentedControl,
   Stack,
@@ -15,16 +24,7 @@ import {
   Textarea,
   Title,
   Tooltip,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
-  IconAlertCircle,
-  IconCheck,
-  IconInfoCircle,
-  IconPlayerStop,
-  IconX,
-} from "@tabler/icons-react";
-import { useState } from "react";
+} from "../../../../ui";
 import { useTraining } from "../hooks/useTraining";
 import { useTrainingInfo } from "../hooks/useTrainingInfo";
 import { BuildMode, TrainingStatus } from "../types/training.types";

@@ -1,3 +1,7 @@
+import { IconFolder, IconPlus } from "@tabler/icons-react";
+import { FC, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useGroup } from "@/auth/GroupContext";
 import {
   Button,
   Card,
@@ -13,11 +17,7 @@ import {
   TextInput,
   Title,
   Tooltip,
-} from "@mantine/core";
-import { IconFolder, IconPlus } from "@tabler/icons-react";
-import { FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useGroup } from "@/auth/GroupContext";
+} from "../../../../ui";
 import { ModelCard } from "../components/ModelCard";
 import { useTemplateModels } from "../hooks/useTemplateModels";
 

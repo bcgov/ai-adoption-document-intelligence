@@ -1,4 +1,12 @@
 import {
+  IconAlertCircle,
+  IconChecklist,
+  IconFileDownload,
+} from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
+import { Document, DocumentField, ExtractedFields } from "../../shared/types";
+import {
   Alert,
   Badge,
   Button,
@@ -7,15 +15,7 @@ import {
   Table,
   Tabs,
   Text,
-} from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconChecklist,
-  IconFileDownload,
-} from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
-import { Document, DocumentField, ExtractedFields } from "../../shared/types";
+} from "../../ui";
 import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
 

@@ -1,3 +1,4 @@
+import { IconTrash } from "@tabler/icons-react";
 import {
   ActionIcon,
   Button,
@@ -5,8 +6,7 @@ import {
   Select,
   Stack,
   TextInput,
-} from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+} from "../../../ui";
 import type { ColumnDef } from "../types";
 import type { LookupTemplate } from "./types";
 

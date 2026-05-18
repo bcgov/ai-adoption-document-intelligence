@@ -1,4 +1,12 @@
 import {
+  IconAlertCircle,
+  IconCheck,
+  IconClock,
+  IconEye,
+} from "@tabler/icons-react";
+import { FC, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
   Anchor,
   Badge,
   Breadcrumbs,
@@ -13,15 +21,7 @@ import {
   Tabs,
   Text,
   Title,
-} from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconCheck,
-  IconClock,
-  IconEye,
-} from "@tabler/icons-react";
-import { FC, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+} from "../../../ui";
 import {
   type DatasetReviewQueueDocument,
   useDatasetReviewQueue,

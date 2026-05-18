@@ -1,5 +1,5 @@
-import { Kbd, Modal, Stack, Table, Text } from "@mantine/core";
 import { FC } from "react";
+import { Kbd, Modal, Stack, Table, Text } from "../../../../ui";
 import type { ShortcutDefinition } from "../../core/keyboard/useKeyboardShortcuts";
 
 interface ShortcutsOverlayProps {

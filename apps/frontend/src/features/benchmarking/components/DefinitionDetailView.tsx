@@ -1,21 +1,4 @@
 import {
-  Accordion,
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Code,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Switch,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconBug,
   IconEdit,
   IconHistory,
@@ -28,6 +11,23 @@ import {
   useRevertWorkflowHead,
   useWorkflowVersions,
 } from "@/data/hooks/useWorkflows";
+import {
+  Accordion,
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Code,
+  Group,
+  Loader,
+  notifications,
+  Select,
+  Stack,
+  Switch,
+  Table,
+  Text,
+  Title,
+} from "../../../ui";
 import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
 import {
   type CreateRunDto,

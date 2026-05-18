@@ -1,4 +1,3 @@
-import { ActionIcon, Divider, Group, NumberInput, Text } from "@mantine/core";
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -8,6 +7,7 @@ import {
   IconZoomReset,
 } from "@tabler/icons-react";
 import { FC } from "react";
+import { ActionIcon, Divider, Group, NumberInput, Text } from "../../../../ui";
 
 interface ViewerToolbarProps {
   currentPage: number;

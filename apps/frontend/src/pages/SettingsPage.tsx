@@ -1,18 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Code,
-  CopyButton,
-  Group,
-  Modal,
-  Paper,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCheck,
   IconCopy,
@@ -28,6 +14,20 @@ import {
   useGenerateApiKey,
   useRegenerateApiKey,
 } from "../data/hooks/useApiKey";
+import {
+  Alert,
+  Badge,
+  Button,
+  Code,
+  CopyButton,
+  Group,
+  Modal,
+  notifications,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "../ui";
 
 export function SettingsPage() {
   const { activeGroup } = useGroup();

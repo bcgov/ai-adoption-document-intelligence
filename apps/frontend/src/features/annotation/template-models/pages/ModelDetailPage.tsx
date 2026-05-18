@@ -1,29 +1,4 @@
 import {
-  ActionIcon,
-  Avatar,
-  Badge,
-  Button,
-  Center,
-  Code,
-  CopyButton,
-  Divider,
-  Group,
-  Loader,
-  Modal,
-  Paper,
-  Progress,
-  rem,
-  ScrollArea,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { Dropzone, FileRejection } from "@mantine/dropzone";
-import { notifications } from "@mantine/notifications";
-import {
   IconArrowLeft,
   IconCheck,
   IconCopy,
@@ -44,6 +19,32 @@ import {
   useUploadQueue,
 } from "@/data/hooks/useUploadQueue";
 import { apiService } from "@/data/services/api.service";
+import {
+  ActionIcon,
+  Avatar,
+  Badge,
+  Button,
+  Center,
+  Code,
+  CopyButton,
+  Divider,
+  Dropzone,
+  type FileRejection,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  Paper,
+  Progress,
+  rem,
+  ScrollArea,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  Title,
+  Tooltip,
+} from "../../../../ui";
 import { type FieldDefinition, FieldType } from "../../core/types/field";
 import { ExportPanel } from "../components/ExportPanel";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";

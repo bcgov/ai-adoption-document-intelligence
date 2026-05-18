@@ -1,4 +1,3 @@
-import { ActionIcon, Button, Group, Tooltip } from "@mantine/core";
 import {
   IconAlertTriangle,
   IconArrowsSort,
@@ -8,6 +7,7 @@ import {
   IconPlayerSkipForward,
 } from "@tabler/icons-react";
 import { FC } from "react";
+import { ActionIcon, Button, Group, Tooltip } from "../../../../ui";
 
 type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";

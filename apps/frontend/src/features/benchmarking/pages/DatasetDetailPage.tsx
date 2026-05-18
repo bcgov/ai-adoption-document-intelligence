@@ -1,22 +1,4 @@
 import {
-  Badge,
-  Button,
-  Card,
-  Center,
-  Group,
-  Loader,
-  Menu,
-  Modal,
-  Pagination,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import {
   IconArrowLeft,
   IconCheck,
   IconDotsVertical,
@@ -33,6 +15,24 @@ import {
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
+import {
+  Badge,
+  Button,
+  Card,
+  Center,
+  Group,
+  Loader,
+  Menu,
+  Modal,
+  Pagination,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  TextInput,
+  Title,
+  useDisclosure,
+} from "../../../ui";
 import { CreateDatasetFromHitlDialog } from "../components/CreateDatasetFromHitlDialog";
 import { FileUploadDialog } from "../components/FileUploadDialog";
 import { GroundTruthGenerationPanel } from "../components/GroundTruthGenerationPanel";

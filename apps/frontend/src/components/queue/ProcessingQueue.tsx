@@ -1,4 +1,3 @@
-import { notifications } from "@mantine/notifications";
 import { IconEye, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useDeleteDocument } from "../../data/hooks/useDeleteDocument";
@@ -12,6 +11,7 @@ import {
   IconActionButton,
   Loader,
   Modal,
+  notifications,
   PanelCard,
   SearchField,
   SimpleGrid,
@@ -164,10 +164,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
         </SimpleGrid>
 
         <Group gap="md" align="flex-end">
-          <SearchField
-            value={search}
-            onChange={(value) => setSearch(value)}
-          />
+          <SearchField value={search} onChange={(value) => setSearch(value)} />
           <StatusSelect
             data={statusOptions}
             value={statusFilter}

@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useGroup } from "@/auth/GroupContext";
 import {
   Button,
   Container,
@@ -7,10 +10,7 @@ import {
   Text,
   TextInput,
   Title,
-} from "@mantine/core";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useGroup } from "@/auth/GroupContext";
+} from "../../../ui";
 import { CreateTableModal } from "../components/CreateTableModal";
 import { useTables } from "../hooks/useTables";
 

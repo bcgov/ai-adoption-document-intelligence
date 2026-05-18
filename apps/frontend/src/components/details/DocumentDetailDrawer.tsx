@@ -1,3 +1,11 @@
+import { IconAlertCircle, IconEye, IconForms } from "@tabler/icons-react";
+import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
+import type {
+  Document,
+  DocumentField,
+  ExtractedFields,
+} from "../../shared/types";
+import { formatDate, formatFileSize } from "../../shared/utils";
 import {
   Alert,
   Badge,
@@ -11,15 +19,7 @@ import {
   Table,
   Tabs,
   Text,
-} from "@mantine/core";
-import { IconAlertCircle, IconEye, IconForms } from "@tabler/icons-react";
-import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
-import type {
-  Document,
-  DocumentField,
-  ExtractedFields,
-} from "../../shared/types";
-import { formatDate, formatFileSize } from "../../shared/utils";
+} from "../../ui";
 
 interface DocumentDetailDrawerProps {
   document: Document | null;

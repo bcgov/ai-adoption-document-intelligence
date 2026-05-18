@@ -1,21 +1,6 @@
 import { json } from "@codemirror/lang-json";
 import { Diagnostic, linter, lintGutter } from "@codemirror/lint";
 import { EditorView } from "@codemirror/view";
-import {
-  Badge,
-  Button,
-  Collapse,
-  Flex,
-  Group,
-  Paper,
-  SegmentedControl,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -28,6 +13,21 @@ import {
   useWorkflow,
 } from "../data/hooks/useWorkflows";
 import { GraphWorkflowConfig } from "../types/workflow";
+import {
+  Badge,
+  Button,
+  Collapse,
+  Flex,
+  Group,
+  notifications,
+  Paper,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  useDebouncedValue,
+} from "../ui";
 
 interface GraphValidationError {
   path: string;

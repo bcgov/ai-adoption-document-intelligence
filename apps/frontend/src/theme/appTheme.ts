@@ -1,4 +1,4 @@
-import { createTheme } from "@mantine/core";
+import { createTheme } from "../ui";
 
 const blueScale: [
   string,
