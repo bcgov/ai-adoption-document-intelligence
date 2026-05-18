@@ -799,7 +799,13 @@ def plot_per_field_heatmap(engines: list[Engine], out_dir: Path) -> None:
     ax.set_yticks(range(len(ordered_fields)))
     ax.set_yticklabels(ordered_fields, fontsize=7)
     ax.set_xticks(range(len(engines)))
-    ax.set_xticklabels([e.label for e in engines], fontsize=10, rotation=0)
+    # Rotate labels slightly when there are multiple engines so longer
+    # labels ("Neural V2 strict" / "Neural V2 current") don't visually
+    # collide with each other on a narrow heatmap.
+    if len(engines) >= 3:
+        ax.set_xticklabels([e.label for e in engines], fontsize=9, rotation=20, ha="right")
+    else:
+        ax.set_xticklabels([e.label for e in engines], fontsize=10, rotation=0)
 
     # Category boundary lines + side annotations on the right edge. Use a
     # bottom-mounted horizontal colorbar so the right side stays clear for
