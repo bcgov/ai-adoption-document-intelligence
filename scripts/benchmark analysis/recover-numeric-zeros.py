@@ -3,6 +3,12 @@
 Recover numeric zeros in a benchmark JSON that the custom Azure DI model
 missed because the prebuilt-layout step parsed a `0` as a selection mark.
 
+NOTE: This script is ONE STEP of the benchmark analysis pipeline. For a full
+re-regeneration against share data (normalize → recover-zeros → analyze →
+report-errors), use `regenerate-reports-share.sh`. Invoking this script
+alone produces only partial results — downstream audit reports won't
+reflect format-variant normalization or cross-engine deltas.
+
 Three table-finder strategies are tried in order per configured table:
 
   1. Title anchor (the original strategy):
