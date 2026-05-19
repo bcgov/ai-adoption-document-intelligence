@@ -74,7 +74,10 @@ COPY --from=builder /packages/monitoring /packages/monitoring
 
 # Package files and production deps
 COPY apps/temporal/package.json ./
-RUN npm install --omit=dev && \
+# --ignore-scripts is safe here because all native binaries (prisma, esbuild, etc.)
+# were already built in the builder stage and are copied over. No postinstall
+# scripts need to run again in production.
+RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Built output and generated Prisma client from builder

@@ -6,8 +6,10 @@ set -e
 
 BACKEND_SERVICE_URL="${BACKEND_SERVICE_URL:-http://localhost:3002}"
 
-# Extract the first nameserver from resolv.conf (works for both Docker and Podman)
-RESOLVER=$(grep -m1 '^nameserver' /etc/resolv.conf | awk '{print $2}')
+# Extract the first nameserver from resolv.conf (works for both Docker and Podman).
+# Fall back to Docker's embedded DNS (127.0.0.11) if resolv.conf is absent or empty.
+RESOLVER=$(grep -m1 '^nameserver' /etc/resolv.conf 2>/dev/null | awk '{print $2}')
+RESOLVER="${RESOLVER:-127.0.0.11}"
 
 # Replace placeholders in the nginx config
 sed -i \

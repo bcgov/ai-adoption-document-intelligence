@@ -86,6 +86,8 @@ export default defineConfig({
     port: 3000,
     host: true,
     proxy: {
+      // All backend routes (including /api/auth/*) live under the /api prefix,
+      // so a single rule suffices — no path rewrite needed.
       "/api": {
         target: "http://localhost:3002",
         changeOrigin: true,

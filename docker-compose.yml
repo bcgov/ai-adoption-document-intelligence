@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ai_doc_intelligence
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -61,7 +61,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:-temporal}
       POSTGRES_DB: temporal
     ports:
       - "5433:5432"
@@ -75,7 +75,7 @@ services:
     profiles: [temporal]
 
   temporal:
-    image: temporalio/auto-setup:latest
+    image: temporalio/auto-setup:1.29.6
     container_name: temporal
     restart: unless-stopped
     ports:
@@ -84,7 +84,7 @@ services:
       DB: postgres12
       DB_PORT: 5432
       POSTGRES_USER: temporal
-      POSTGRES_PWD: temporal
+      POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD:-temporal}
       POSTGRES_SEEDS: temporal-postgresql
       SKIP_DEFAULT_NAMESPACE_CREATION: "false"
       BIND_ON_IP: 0.0.0.0
