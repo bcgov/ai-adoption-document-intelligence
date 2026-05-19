@@ -39,7 +39,9 @@ async function run() {
 
   const shutdown = () => {
     metricsServer.close(() => {
-      workerLogger.info("Metrics server closed", { event: "metrics_server_closed" });
+      workerLogger.info("Metrics server closed", {
+        event: "metrics_server_closed",
+      });
     });
   };
   process.once("SIGTERM", shutdown);
