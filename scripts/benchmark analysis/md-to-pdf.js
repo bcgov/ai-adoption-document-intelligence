@@ -150,7 +150,18 @@ const STYLE = `
   table { border-collapse: collapse; width: 100%; font-size: 10pt; }
   th, td { border: 1px solid #ccc; padding: 5px 8px; text-align: left; vertical-align: top; }
   th { background: #f5f7fa; }
-  img { max-width: 100%; height: auto; display: block; margin: 0.6em auto; }
+  /*
+   * Page content area at @page Letter with 18mm/16mm margins ≈ 184mm × 243mm.
+   * max-height keeps tall plots from exceeding a single page even when given one
+   * to themselves; combined with break-inside: avoid that means a plot is either
+   * fully on this page or pushed to the next, never split.
+   */
+  img { max-width: 100%; max-height: 230mm; width: auto; height: auto; object-fit: contain; display: block; margin: 0.6em auto; break-inside: avoid; page-break-inside: avoid; }
+  /* marked wraps images in <p>; keep that block together too so the image isn't split from its surrounding margins. */
+  p:has(> img) { break-inside: avoid; page-break-inside: avoid; }
+  /* Tables shouldn't split mid-row either; keep small tables together where possible. */
+  table { break-inside: auto; }
+  tr, td, th { break-inside: avoid; page-break-inside: avoid; }
   a { color: #1a5fb4; text-decoration: none; }
   a:hover { text-decoration: underline; }
 `;
