@@ -1,6 +1,20 @@
 import type { Config } from "./config";
 import { logger } from "./logger";
 
+/**
+ * Escapes special HTML characters to prevent injection into the email body.
+ * @param value - Raw string from an external source.
+ * @returns HTML-safe string.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 /** Alertmanager v4 alert object. */
 export interface AlertmanagerAlert {
   status: "firing" | "resolved";
@@ -111,19 +125,19 @@ export function buildEmail(
   payload: AlertmanagerPayload,
   config: Config,
 ): ChesEmailPayload {
-  const alertName = payload.commonLabels["alertname"] ?? "Unknown Alert";
-  const severity = payload.commonLabels["severity"] ?? "unknown";
-  const job = payload.commonLabels["job"] ?? "unknown";
+  const alertName = escapeHtml(payload.commonLabels["alertname"] ?? "Unknown Alert");
+  const severity = escapeHtml(payload.commonLabels["severity"] ?? "unknown");
+  const job = escapeHtml(payload.commonLabels["job"] ?? "unknown");
   const subject = `[Alert: ${severity.toUpperCase()}] ${alertName} (${job})`;
 
   const firingAlerts = payload.alerts.filter((a) => a.status === "firing");
   const alertRows = firingAlerts
     .map((alert) => {
-      const name = alert.labels["alertname"] ?? alertName;
-      const sev = alert.labels["severity"] ?? severity;
-      const summary = alert.annotations["summary"] ?? "";
-      const description = alert.annotations["description"] ?? "";
-      const startedAt = new Date(alert.startsAt).toUTCString();
+      const name = escapeHtml(alert.labels["alertname"] ?? alertName);
+      const sev = escapeHtml(alert.labels["severity"] ?? severity);
+      const summary = escapeHtml(alert.annotations["summary"] ?? "");
+      const description = escapeHtml(alert.annotations["description"] ?? "");
+      const startedAt = escapeHtml(new Date(alert.startsAt).toUTCString());
       return `
         <tr>
           <td style="padding:8px;border:1px solid #ddd">${name}</td>
@@ -138,12 +152,12 @@ export function buildEmail(
   const body = `
     <h2 style="color:#c0392b">Prometheus Alert Notification</h2>
     <table style="border-collapse:collapse;margin-bottom:16px">
-      <tr><td style="padding:4px 12px 4px 0"><strong>Status</strong></td><td>${payload.status.toUpperCase()}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0"><strong>Status</strong></td><td>${escapeHtml(payload.status.toUpperCase())}</td></tr>
       <tr><td style="padding:4px 12px 4px 0"><strong>Alert</strong></td><td>${alertName}</td></tr>
       <tr><td style="padding:4px 12px 4px 0"><strong>Severity</strong></td><td>${severity}</td></tr>
       <tr><td style="padding:4px 12px 4px 0"><strong>Job</strong></td><td>${job}</td></tr>
-      <tr><td style="padding:4px 12px 4px 0"><strong>Summary</strong></td><td>${payload.commonAnnotations["summary"] ?? ""}</td></tr>
-      <tr><td style="padding:4px 12px 4px 0"><strong>Description</strong></td><td>${payload.commonAnnotations["description"] ?? ""}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0"><strong>Summary</strong></td><td>${escapeHtml(payload.commonAnnotations["summary"] ?? "")}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0"><strong>Description</strong></td><td>${escapeHtml(payload.commonAnnotations["description"] ?? "")}</td></tr>
     </table>
     <h3>Firing alerts (${firingAlerts.length})</h3>
     <table style="border-collapse:collapse;width:100%">
@@ -159,7 +173,7 @@ export function buildEmail(
       <tbody>${alertRows}</tbody>
     </table>
     <p style="margin-top:16px">
-      <a href="${payload.externalURL}">View in Alertmanager</a>
+      <a href="${escapeHtml(payload.externalURL)}">View in Alertmanager</a>
     </p>
   `;
 
