@@ -23,6 +23,9 @@ RUN cd /packages/graph-insertion-slots && npm install && npm run build
 COPY packages/blob-storage-paths /packages/blob-storage-paths
 RUN cd /packages/blob-storage-paths && npm install --ignore-scripts && npm run build
 
+COPY packages/graph-workflow /packages/graph-workflow
+RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
+
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install --ignore-scripts
 
@@ -67,6 +70,7 @@ RUN mkdir -p /.npm && \
 COPY --from=builder /packages/logging /packages/logging
 COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
 COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
+COPY --from=builder /packages/graph-workflow /packages/graph-workflow
 
 # Package files and production deps
 COPY apps/temporal/package.json ./

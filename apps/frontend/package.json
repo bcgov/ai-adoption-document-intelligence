@@ -17,6 +17,7 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@ai-di/graph-workflow": "file:../../packages/graph-workflow",
 		"@codemirror/lang-json": "6.0.2",
 		"@codemirror/lint": "6.9.3",
 		"@mantine/core": "8.3.9",

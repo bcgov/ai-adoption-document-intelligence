@@ -115,7 +115,7 @@ jobs:
             context: "."
             dockerfile: apps/backend-services/Dockerfile
           - service: frontend
-            context: apps/frontend
+            context: "."
             dockerfile: apps/frontend/Dockerfile
           - service: temporal
             context: "."
