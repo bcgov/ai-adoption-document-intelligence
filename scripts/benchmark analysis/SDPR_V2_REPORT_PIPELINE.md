@@ -149,6 +149,17 @@ After these run, the share has:
 
 The plots and the HITL chart also exist in the repo at `plots/` and `hitl/` (copied from the share) so the V2 markdown can reference them with simple relative paths.
 
+### Manual annotations for the failure-mode breakdown (§10.6)
+
+The V2 report's §10.6 ("Residual-error failure-mode breakdown") is built from a manual sample-by-sample review of the regression and drift rows in `reports/wrong-by-category.csv`. The reviewer adds a `Note` column attributing each cell to one of the failure-mode categories enumerated in §10.6.1 (ground-truth wrong, low resolution, stamp interference, retraining gap, missing-zero recovery gap, OCR misread, etc.). The annotated file lives at:
+
+- `reports/wrong-by-category-annotated.csv` — full file including PII (sample IDs + GT / predicted values), share-only.
+- `reports/wrong-by-category-annotated-no-pii.csv` — PII-stripped variant, safe to share more broadly. Used as the input for §10.6 counts.
+
+The PII-stripped variant is the source of truth for the §10.6 categorisation counts and the §10.6.2 document-concentration finding (a handful of sample IDs accounting for 30–40% of the regression+drift errors). Whenever the wrong-by-category.csv refreshes (after a normaliser or recovery rule change), the annotations need to be re-applied — the per-row attribution is unique to each instance of an error and doesn't carry over automatically.
+
+§10.6.3 also calls out approximately 10 cells where the engine returned the correct value but ground truth was wrong; these need GT correction before V3 benchmarking so the engine comparison is honest.
+
 ## Reviewing changes
 
 Each step is safe to re-run. The normaliser is idempotent (rules detect already-matched cells and skip them). The recovery step de-duplicates prior `recovered:*` rows from the merge source. The analyzer and per-error reports are pure reads of the JSON.
@@ -159,6 +170,7 @@ When a normaliser or recovery rule changes:
 2. Re-run `compare-engines-share.sh` so the 3-engine plots reflect the new normalised numbers.
 3. Re-run `hitl-planner-share.sh` so the HITL chart and tables reflect the new error distribution.
 4. Update the affected sections of `SDPR_OCR_Performance_Report_V2.md` — at minimum §10.2 (aggregate metrics), §10.3 (error-class breakdown), §10.4 (per-category accuracy), and §10.5 (HITL tables) all carry numbers that flow from the pipeline.
+5. Re-apply the manual annotations on `reports/wrong-by-category.csv` (see above) — the Note column doesn't carry over automatically when rows shift. §10.6 counts and the GT-cleanup callout in §10.6.3 depend on the annotated variant.
 
 A `regenerate-reports-share.sh` log line at the end of each run records how many rule-flips the normaliser made, separated by rule name. Comparing that line across runs is the quickest way to see what a change did.
 
