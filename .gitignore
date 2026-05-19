@@ -43,3 +43,12 @@ infra/.terraform.lock.hcl
 data/datasets/*/private/**
 !data/datasets/*/private/.gitkeep
 !data/datasets/.gitkeep
+
+# SDPR-report working files — drafts, regenerated plots, and HITL curves used
+# during analysis. Lived on a network share; kept locally only as a scratch
+# space. Don't commit them — they contain analysis outputs derived from
+# private benchmark data.
+/SDPR_OCR_Performance_Report*.md
+/SDPR_OCR_Performance_Report*.pdf
+/plots/
+/hitl/
