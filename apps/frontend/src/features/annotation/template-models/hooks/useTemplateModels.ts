@@ -29,6 +29,15 @@ interface BoundingBox {
   [key: string]: unknown;
 }
 
+interface ActiveTrainedModelSlice {
+  id: string;
+  model_id: string;
+  version: number;
+  is_active: boolean;
+  deleted_at: string | null;
+  created_at: string;
+}
+
 interface TemplateModel {
   id: string;
   name: string;
@@ -41,6 +50,7 @@ interface TemplateModel {
   updated_at: string;
   field_schema: FieldSchema[];
   _count?: { documents: number };
+  active_trained_model?: ActiveTrainedModelSlice | null;
 }
 
 interface TemplateModelDocument {

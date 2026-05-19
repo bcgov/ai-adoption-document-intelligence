@@ -1,7 +1,7 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import axios from "axios";
 import { createActivityLogger } from "../logger";
-import type { OCRResponse, OCRResult } from "../types";
+import type { OCRResponse, OCRResult, OcrOutputFormat } from "../types";
 
 /**
  * Normalize endpoint URL by removing trailing slash
@@ -20,10 +20,18 @@ export async function extractOCRResults(params: {
   fileName: string;
   fileType: string;
   modelId: string;
+  outputFormat?: OcrOutputFormat;
   ocrResponse?: OCRResponse;
 }): Promise<{ ocrResult: OCRResult }> {
   const activityName = "extractOCRResults";
-  const { apimRequestId, fileName, fileType, modelId, ocrResponse } = params;
+  const {
+    apimRequestId,
+    fileName,
+    fileType,
+    modelId,
+    outputFormat,
+    ocrResponse,
+  } = params;
   const log = createActivityLogger(activityName, { apimRequestId });
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
@@ -71,6 +79,11 @@ export async function extractOCRResults(params: {
       documents: [],
     };
 
+    // Azure's `analyzeResult.content` holds plain text by default, or markdown
+    // when the analyze call was made with outputContentFormat="markdown".
+    const isMarkdown = outputFormat === "markdown";
+    const azureContent = analyzeResult.content || "";
+
     const result: OCRResult = {
       success: ocrResponseObj.status === "succeeded",
       status: ocrResponseObj.status || "unknown",
@@ -78,7 +91,9 @@ export async function extractOCRResults(params: {
       fileName: fileName || "document",
       fileType: fileType || "pdf",
       modelId: analyzeResult.modelId || modelId || "prebuilt-layout",
-      extractedText: analyzeResult.content || "",
+      extractedText: isMarkdown ? "" : azureContent,
+      markdown: isMarkdown ? azureContent : undefined,
+      contentFormat: isMarkdown ? "markdown" : "text",
       pages: analyzeResult.pages || [],
       tables: analyzeResult.tables || [],
       paragraphs: analyzeResult.paragraphs || [],

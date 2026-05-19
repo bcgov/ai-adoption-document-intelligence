@@ -47,6 +47,7 @@ import { apiService } from "@/data/services/api.service";
 import { type FieldDefinition, FieldType } from "../../core/types/field";
 import { ExportPanel } from "../components/ExportPanel";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
+import { TrainedVersionsPanel } from "../components/TrainedVersionsPanel";
 import { TrainingPanel } from "../components/TrainingPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import {
@@ -131,6 +132,13 @@ export const ModelDetailPage: FC = () => {
   }
   const { templateModel, isLoading: isModelLoading } =
     useTemplateModel(routeModelId);
+  // The id worth copying is the Azure model name resolved at runtime — i.e.
+  // the active version (e.g. km-invoice-v3). v1 keeps the bare template id
+  // for backwards compatibility, so falling back to model_id is safe when
+  // no version is active yet.
+  const activeTrainedModel = templateModel?.active_trained_model;
+  const copyableModelId =
+    activeTrainedModel?.model_id ?? templateModel?.model_id ?? "";
   const queryClient = useQueryClient();
   const {
     documents,
@@ -480,12 +488,23 @@ export const ModelDetailPage: FC = () => {
           </Button>
           <Stack gap={2}>
             <Title order={2}>{templateModel?.name || "Template Model"}</Title>
-            {templateModel?.model_id && (
+            {copyableModelId && (
               <Group gap="xs">
-                <Code>{templateModel.model_id}</Code>
-                <CopyButton value={templateModel.model_id}>
+                <Code>{copyableModelId}</Code>
+                {activeTrainedModel && (
+                  <Code c="dimmed">v{activeTrainedModel.version}</Code>
+                )}
+                <CopyButton value={copyableModelId}>
                   {({ copied, copy }) => (
-                    <Tooltip label={copied ? "Copied!" : "Copy model ID"}>
+                    <Tooltip
+                      label={
+                        copied
+                          ? "Copied!"
+                          : activeTrainedModel
+                            ? `Copy active model ID (v${activeTrainedModel.version})`
+                            : "Copy model ID"
+                      }
+                    >
                       <ActionIcon
                         color={copied ? "green" : "gray"}
                         variant="subtle"
@@ -523,6 +542,7 @@ export const ModelDetailPage: FC = () => {
           <Tabs.Tab value="schema">Field Schema</Tabs.Tab>
           <Tabs.Tab value="export">Export</Tabs.Tab>
           <Tabs.Tab value="training">Training</Tabs.Tab>
+          <Tabs.Tab value="versions">Versions</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="documents" pt="md">
@@ -758,6 +778,10 @@ export const ModelDetailPage: FC = () => {
             templateModelId={routeModelId}
             templateModelModelId={templateModel?.model_id}
           />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="versions" pt="md">
+          <TrainedVersionsPanel templateModelId={routeModelId} />
         </Tabs.Panel>
       </Tabs>
 

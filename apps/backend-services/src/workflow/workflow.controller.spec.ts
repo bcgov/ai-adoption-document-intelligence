@@ -30,6 +30,7 @@ const mockGraphConfig: GraphWorkflowConfig = {
 const mockWorkflowInfo: WorkflowInfo = {
   id: "wf-1",
   workflowVersionId: "wv-wf-1",
+  slug: "test-workflow",
   name: "Test Workflow",
   description: "Description",
   actorId: "user-1",

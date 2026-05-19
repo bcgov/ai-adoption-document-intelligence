@@ -123,6 +123,40 @@ describe("submitToAzureOCR activity", () => {
     );
   });
 
+  it("submits document with prebuilt-read without keyValuePairs feature (unsupported by Azure)", async () => {
+    const mockResponse = {
+      status: 202,
+      headers: {
+        "apim-request-id": "test-request-id-read",
+      },
+      body: {},
+    };
+    mockPost.mockResolvedValue(mockResponse);
+
+    const fileData: PreparedFileData = {
+      fileName: "scan.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: "atestgroup/ocr/scan.pdf",
+      modelId: "prebuilt-read",
+    };
+
+    const result = await submitToAzureOCR({ fileData });
+
+    expect(result.statusCode).toBe(202);
+    expect(mockPath).toHaveBeenCalledWith(
+      "/documentModels/{modelId}:analyze",
+      "prebuilt-read",
+    );
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryParameters: expect.objectContaining({
+          features: undefined,
+        }),
+      }),
+    );
+  });
+
   it("submits document with custom model without features parameter", async () => {
     const mockResponse = {
       status: 202,
