@@ -5,7 +5,23 @@ import type {
   TrainedModel,
   TrainingJob,
 } from "@generated/client";
-import { TrainingStatus } from "@generated/client";
+import { BuildMode, LabelingStatus, TrainingStatus } from "@generated/client";
+
+export interface TrainedModelSnapshotDocument {
+  labelingDocumentId: string;
+  originalFilename: string;
+  labels: Array<{
+    fieldKey: string;
+    labelName: string;
+    value: string | null;
+    pageNumber: number;
+    boundingBox: unknown;
+  }>;
+}
+
+export interface TrainedModelSnapshot {
+  documents: TrainedModelSnapshotDocument[];
+}
 
 export type TrainingJobWithTemplateModel = TrainingJob & {
   template_model: TemplateModel;
@@ -18,6 +34,10 @@ export interface TrainingJobCreateData {
   template_model_id: string;
   status: TrainingStatus;
   container_name: string;
+  target_model_id?: string | null;
+  target_version?: number | null;
+  build_mode?: BuildMode;
+  max_training_hours?: number | null;
 }
 
 export interface TrainingJobUpdateData {
@@ -33,9 +53,15 @@ export interface TrainedModelCreateData {
   template_model_id: string;
   training_job_id: string;
   model_id: string;
+  version: number;
+  is_active?: boolean;
   description?: string | null;
   doc_types: Prisma.InputJsonValue | typeof Prisma.DbNull;
   field_count: number;
+  dataset_snapshot: Prisma.InputJsonValue | typeof Prisma.DbNull;
+  build_mode?: BuildMode;
+  max_training_hours?: number | null;
+  actual_training_hours?: number | null;
 }
 
 /**
@@ -93,6 +119,32 @@ export class TrainingDbService {
     const client = tx ?? this.prisma;
     return client.trainingJob.findMany({
       where: { template_model_id: templateModelId },
+      orderBy: { started_at: "desc" },
+    });
+  }
+
+  /**
+   * Returns the most recent in-flight training job for a template (any status
+   * that has not yet reached a terminal SUCCEEDED/FAILED), or null. Used by
+   * startTraining to refuse concurrent retrains on the same template.
+   */
+  async findInFlightJobForTemplate(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainingJob | null> {
+    const client = tx ?? this.prisma;
+    return client.trainingJob.findFirst({
+      where: {
+        template_model_id: templateModelId,
+        status: {
+          in: [
+            TrainingStatus.PENDING,
+            TrainingStatus.UPLOADING,
+            TrainingStatus.UPLOADED,
+            TrainingStatus.TRAINING,
+          ],
+        },
+      },
       orderBy: { started_at: "desc" },
     });
   }
@@ -161,46 +213,229 @@ export class TrainingDbService {
   }
 
   /**
-   * Finds all trained models for a template model, ordered by creation date descending.
+   * Finds all trained models for a template model. By default tombstoned
+   * (deleted) versions are excluded.
    * @param templateModelId The ID of the template model.
+   * @param opts.includeDeleted If true, also return tombstoned versions.
    * @param tx Optional transaction client.
-   * @returns An array of TrainedModel records.
+   * @returns An array of TrainedModel records ordered by version descending.
    */
   async findAllTrainedModels(
     templateModelId: string,
+    opts: { includeDeleted?: boolean } = {},
     tx?: Prisma.TransactionClient,
   ): Promise<TrainedModel[]> {
     const client = tx ?? this.prisma;
     return client.trainedModel.findMany({
-      where: { template_model_id: templateModelId },
-      orderBy: { created_at: "desc" },
+      where: {
+        template_model_id: templateModelId,
+        ...(opts.includeDeleted ? {} : { deleted_at: null }),
+      },
+      orderBy: { version: "desc" },
     });
   }
 
   /**
-   * Deletes a trained model by its Azure model ID.
-   * @param modelId The Azure model ID.
-   * @param tx Optional transaction client.
-   * @returns The deleted TrainedModel record.
+   * Finds a single trained model scoped to its parent template. Used by the
+   * per-version mutators (activate / delete / snapshot) so they cannot
+   * accidentally act on a row belonging to a different template.
    */
-  async deleteTrainedModel(
-    modelId: string,
+  async findTrainedModelForTemplate(
+    templateModelId: string,
+    trainedModelId: string,
+    opts: { includeDeleted?: boolean } = {},
     tx?: Prisma.TransactionClient,
-  ): Promise<TrainedModel> {
+  ): Promise<TrainedModel | null> {
     const client = tx ?? this.prisma;
-    return client.trainedModel.delete({ where: { model_id: modelId } });
+    return client.trainedModel.findFirst({
+      where: {
+        id: trainedModelId,
+        template_model_id: templateModelId,
+        ...(opts.includeDeleted ? {} : { deleted_at: null }),
+      },
+    });
   }
 
   /**
-   * Returns all distinct trained model IDs across all template models.
-   * @param tx Optional transaction client.
-   * @returns An array of distinct model ID strings.
+   * Finds the currently active (non-deleted) trained model for a template.
+   */
+  async findActiveTrainedModel(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainedModel | null> {
+    const client = tx ?? this.prisma;
+    return client.trainedModel.findFirst({
+      where: {
+        template_model_id: templateModelId,
+        is_active: true,
+        deleted_at: null,
+      },
+    });
+  }
+
+  /**
+   * Returns the next version number to assign for a template model. Uses
+   * `max(version) + 1` across all rows (including tombstoned) so version
+   * numbers are monotonic across a template's full history.
+   */
+  async getNextVersionNumber(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    const result = await client.trainedModel.aggregate({
+      where: { template_model_id: templateModelId },
+      _max: { version: true },
+    });
+    return (result._max.version ?? 0) + 1;
+  }
+
+  /**
+   * Atomically marks a single version active for its template and clears
+   * `is_active` on every other row for the same template. Throws if the
+   * target row is tombstoned or doesn't exist.
+   */
+  async setActiveTrainedModel(
+    trainedModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainedModel> {
+    const run = async (
+      client: Prisma.TransactionClient | PrismaClient,
+    ): Promise<TrainedModel> => {
+      const target = await client.trainedModel.findUnique({
+        where: { id: trainedModelId },
+      });
+      if (!target) {
+        throw new Error(`TrainedModel ${trainedModelId} not found`);
+      }
+      if (target.deleted_at !== null) {
+        throw new Error(
+          `TrainedModel ${trainedModelId} is deleted and cannot be activated`,
+        );
+      }
+      await client.trainedModel.updateMany({
+        where: {
+          template_model_id: target.template_model_id,
+          NOT: { id: trainedModelId },
+        },
+        data: { is_active: false },
+      });
+      return client.trainedModel.update({
+        where: { id: trainedModelId },
+        data: { is_active: true },
+      });
+    };
+
+    if (tx) {
+      return run(tx);
+    }
+    return this.prisma.$transaction((txClient) => run(txClient));
+  }
+
+  /**
+   * Clears `is_active` on every trained model belonging to a template. Used
+   * by the poller before creating a new active version, and by setActive
+   * before promoting a different version. Returns the count demoted.
+   */
+  async demoteActiveTrainedModels(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    const result = await client.trainedModel.updateMany({
+      where: { template_model_id: templateModelId, is_active: true },
+      data: { is_active: false },
+    });
+    return result.count;
+  }
+
+  /**
+   * Demotes the currently-active version for a template and inserts the new
+   * one as active in a single transaction. Without this, a crash between the
+   * two writes would leave the template with zero active versions and the
+   * OCR picker / `findActiveTrainedModel` would silently return nothing.
+   */
+  async replaceActiveTrainedModel(
+    templateModelId: string,
+    data: TrainedModelCreateData,
+  ): Promise<TrainedModel> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.demoteActiveTrainedModels(templateModelId, tx);
+      return this.createTrainedModel(data, tx);
+    });
+  }
+
+  /**
+   * Tombstones a trained model: clears `is_active`, sets `deleted_at`. The
+   * row is kept so audit views ("vN — deleted on …") still resolve, but the
+   * Azure artifact is expected to be removed by the caller.
+   */
+  async tombstoneTrainedModel(
+    trainedModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainedModel> {
+    const client = tx ?? this.prisma;
+    return client.trainedModel.update({
+      where: { id: trainedModelId },
+      data: { is_active: false, deleted_at: new Date() },
+    });
+  }
+
+  /**
+   * Builds a snapshot of every labeled document + its labels for a template,
+   * suitable for storing on a TrainedModel so future audits can show exactly
+   * what the version was trained on.
+   */
+  async buildTrainedModelSnapshot(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TrainedModelSnapshot> {
+    const client = tx ?? this.prisma;
+    const labeledDocuments = await client.labeledDocument.findMany({
+      where: {
+        template_model_id: templateModelId,
+        status: LabelingStatus.labeled,
+      },
+      include: {
+        labeling_document: {
+          select: { id: true, original_filename: true },
+        },
+        labels: {
+          select: {
+            field_key: true,
+            label_name: true,
+            value: true,
+            page_number: true,
+            bounding_box: true,
+          },
+        },
+      },
+    });
+    return {
+      documents: labeledDocuments.map((doc) => ({
+        labelingDocumentId: doc.labeling_document.id,
+        originalFilename: doc.labeling_document.original_filename,
+        labels: doc.labels.map((l) => ({
+          fieldKey: l.field_key,
+          labelName: l.label_name,
+          value: l.value,
+          pageNumber: l.page_number,
+          boundingBox: l.bounding_box,
+        })),
+      })),
+    };
+  }
+
+  /**
+   * Returns all distinct, non-tombstoned trained model IDs across all
+   * template models. Used to populate the OCR model picker.
    */
   async findAllTrainedModelIds(
     tx?: Prisma.TransactionClient,
   ): Promise<string[]> {
     const client = tx ?? this.prisma;
     const results = await client.trainedModel.findMany({
+      where: { deleted_at: null },
       select: { model_id: true },
       distinct: ["model_id"],
     });

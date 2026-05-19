@@ -133,9 +133,37 @@ export async function upsertOcrResult(params: {
       ? new Date()
       : processedDate;
 
+    // Structured OCR output: { format, text, markdown?, pages }. Populated for
+    // prebuilt read/layout/document models, where there are no fields to
+    // extract but the caller still wants the underlying content.
+    const pagesPayload = (ocrResult.pages ?? []).map((p) => ({
+      pageNumber: p.pageNumber,
+      content:
+        Array.isArray(p.lines) && p.lines.length > 0
+          ? p.lines.map((l) => l.content).join("\n")
+          : "",
+      lines: p.lines ?? [],
+    }));
+    const text =
+      ocrResult.extractedText && ocrResult.extractedText.length > 0
+        ? ocrResult.extractedText
+        : pagesPayload.map((p) => p.content).join("\n\n");
+    const format = ocrResult.contentFormat ?? "text";
+    const hasAnyContent =
+      text.length > 0 || pagesPayload.length > 0 || !!ocrResult.markdown;
+    const contentBlob = hasAnyContent
+      ? {
+          format,
+          text,
+          ...(ocrResult.markdown ? { markdown: ocrResult.markdown } : {}),
+          pages: pagesPayload,
+        }
+      : null;
+
     const updateObject: Record<string, unknown> = {
       processed_at: validProcessedDate,
       keyValuePairs: asJson(extractedFields),
+      content: contentBlob == null ? Prisma.JsonNull : asJson(contentBlob),
     };
     if (enrichmentSummary !== undefined) {
       updateObject.enrichment_summary =

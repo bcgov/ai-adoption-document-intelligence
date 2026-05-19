@@ -133,10 +133,14 @@ export async function submitToAzureOCR(params: {
 
     const fileBuffer = await readBlobData(fileData.blobKey);
 
-    // Build analyze options - only include features for prebuilt models
-    const isPrebuiltModel =
-      modelId.startsWith("prebuilt-") || modelId === "prebuilt-read";
-    const features = isPrebuiltModel ? ["keyValuePairs"] : undefined;
+    // keyValuePairs add-on is only supported by prebuilt-layout / prebuilt-document
+    // (and custom models built on those). prebuilt-read is read-only OCR and rejects it.
+    const supportsKeyValuePairs =
+      modelId.startsWith("prebuilt-") && modelId !== "prebuilt-read";
+    const features = supportsKeyValuePairs ? ["keyValuePairs"] : undefined;
+
+    const outputContentFormat =
+      fileData.outputFormat === "markdown" ? "markdown" : undefined;
 
     // Submit document for analysis using base64 encoding (APIM compatible)
     // locale forces the OCR engine to use a specific language model, preventing
@@ -148,6 +152,7 @@ export async function submitToAzureOCR(params: {
         queryParameters: {
           features: features as string[] | undefined,
           locale,
+          outputContentFormat,
         },
         body: {
           base64Source: fileBuffer.toString("base64"),

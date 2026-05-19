@@ -39,6 +39,7 @@ const headVersion = {
 const lineageRow = {
   id: "lin-1",
   name: "Test",
+  slug: "test",
   description: "Desc",
   actor_id: "actor-1",
   group_id: "group-1",
@@ -273,20 +274,32 @@ describe("WorkflowService", () => {
         },
       });
 
-      const txLineageFindUnique = jest.fn().mockResolvedValue({
-        id: candidateLineageId,
-        name: "Base Lineage (candidate v7)",
-        description: "AI-generated candidate from workflow version wv-source-1",
-        actor_id: "actor-1",
-        group_id: "group-1",
-        created_at: new Date(),
-        updated_at: new Date(),
-        headVersion: {
-          id: candidateVersionId,
-          version_number: 1,
-          config: candidateConfig,
-        },
-      });
+      const txLineageFindUnique = jest
+        .fn()
+        .mockImplementation(
+          async (args: { where: { id?: string; group_id_slug?: unknown } }) => {
+            // resolveUniqueSlug probes `(group_id, slug)` — always available.
+            if (args.where.group_id_slug) {
+              return null;
+            }
+            return {
+              id: candidateLineageId,
+              name: "Base Lineage (candidate v7)",
+              slug: "base-lineage-candidate-v7",
+              description:
+                "AI-generated candidate from workflow version wv-source-1",
+              actor_id: "actor-1",
+              group_id: "group-1",
+              created_at: new Date(),
+              updated_at: new Date(),
+              headVersion: {
+                id: candidateVersionId,
+                version_number: 1,
+                config: candidateConfig,
+              },
+            };
+          },
+        );
 
       mockPrismaService.prisma.$transaction.mockImplementation(
         async (fn: (tx: any) => Promise<unknown>) =>

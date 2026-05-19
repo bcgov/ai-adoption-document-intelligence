@@ -181,6 +181,12 @@ export interface OCRResult {
   fileType: string;
   modelId: string;
   extractedText: string;
+  /**
+   * Markdown rendering of the document, populated only when the OCR request
+   * was made with outputContentFormat="markdown".
+   */
+  markdown?: string;
+  contentFormat?: OcrOutputFormat;
   pages: Page[];
   tables: Table[];
   paragraphs: Paragraph[];
@@ -192,12 +198,16 @@ export interface OCRResult {
 }
 
 // Activity Results
+export type OcrOutputFormat = "text" | "markdown";
+
 export interface PreparedFileData {
   fileName: string;
   fileType: "pdf" | "image";
   contentType: string;
   blobKey: string;
   modelId: string; // Azure Document Intelligence model ID
+  /** Azure outputContentFormat: "text" (default) or "markdown". */
+  outputFormat?: OcrOutputFormat;
 }
 
 export interface SubmissionResult {

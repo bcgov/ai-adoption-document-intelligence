@@ -35,6 +35,21 @@ describe("QueueService", () => {
   };
 
   describe("processOcrForDocument", () => {
+    it("forwards ctxOverrides on the message to OcrService.requestOcr", async () => {
+      (ocrService.requestOcr as jest.Mock).mockResolvedValue({
+        status: DocumentStatus.ongoing_ocr,
+        workflowId: "workflow-overrides",
+      });
+      const messageWithOverrides: QueueMessage = {
+        ...message,
+        ctxOverrides: { outputFormat: "markdown" },
+      };
+      await service.processOcrForDocument(messageWithOverrides);
+      expect(ocrService.requestOcr).toHaveBeenCalledWith("doc1", {
+        outputFormat: "markdown",
+      });
+    });
+
     it("should start OCR workflow successfully", async () => {
       (ocrService.requestOcr as jest.Mock).mockResolvedValue({
         status: DocumentStatus.ongoing_ocr,
@@ -43,7 +58,7 @@ describe("QueueService", () => {
       await expect(
         service.processOcrForDocument(message),
       ).resolves.toBeUndefined();
-      expect(ocrService.requestOcr).toHaveBeenCalledWith("doc1");
+      expect(ocrService.requestOcr).toHaveBeenCalledWith("doc1", undefined);
     });
 
     it("should throw error if workflow fails to start", async () => {
@@ -54,7 +69,7 @@ describe("QueueService", () => {
       await expect(service.processOcrForDocument(message)).rejects.toThrow(
         "OCR workflow failed to start: OCR workflow failed to start",
       );
-      expect(ocrService.requestOcr).toHaveBeenCalledWith("doc1");
+      expect(ocrService.requestOcr).toHaveBeenCalledWith("doc1", undefined);
     });
 
     it("should throw error if requestOcr throws", async () => {
@@ -64,7 +79,7 @@ describe("QueueService", () => {
       await expect(service.processOcrForDocument(message)).rejects.toThrow(
         "Network error",
       );
-      expect(ocrService.requestOcr).toHaveBeenCalledWith("doc1");
+      expect(ocrService.requestOcr).toHaveBeenCalledWith("doc1", undefined);
     });
   });
 });

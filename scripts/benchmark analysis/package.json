@@ -1,0 +1,8 @@
+{
+  "name": "benchmark-analysis-scripts",
+  "private": true,
+  "description": "Local helpers for inspecting downloaded benchmark runs.",
+  "dependencies": {
+    "marked": "^14.1.0"
+  }
+}

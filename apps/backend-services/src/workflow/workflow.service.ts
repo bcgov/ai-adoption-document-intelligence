@@ -25,6 +25,8 @@ export interface WorkflowInfo {
   id: string;
   /** WorkflowVersion.id for this config snapshot */
   workflowVersionId: string;
+  /** URL/CLI-friendly handle, stable across name changes. */
+  slug: string;
   name: string;
   description: string | null;
   actorId: string;
@@ -101,6 +103,7 @@ export class WorkflowService {
     lineage: {
       id: string;
       name: string;
+      slug: string;
       description: string | null;
       actor_id: string;
       group_id: string;
@@ -117,6 +120,7 @@ export class WorkflowService {
     return {
       id: lineage.id,
       workflowVersionId: version.id,
+      slug: lineage.slug,
       name: lineage.name,
       description: lineage.description,
       actorId: lineage.actor_id,
@@ -127,6 +131,147 @@ export class WorkflowService {
       createdAt: lineage.created_at,
       updatedAt: lineage.updated_at,
     };
+  }
+
+  /** Kebab-case, ASCII-safe slug derived from a workflow name. */
+  private slugifyName(name: string): string {
+    const base = name
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return base.length > 0 ? base : "workflow";
+  }
+
+  /**
+   * Returns a slug derived from {@link name} that doesn't collide with any
+   * existing lineage in the same group. Tries the bare slug first, then
+   * `-2`, `-3`, ... suffixes until a free one is found.
+   */
+  private async resolveUniqueSlug(
+    groupId: string,
+    name: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<string> {
+    const base = this.slugifyName(name);
+    let candidate = base;
+    let counter = 2;
+    while (
+      await tx.workflowLineage.findUnique({
+        where: { group_id_slug: { group_id: groupId, slug: candidate } },
+        select: { id: true },
+      })
+    ) {
+      candidate = `${base}-${counter}`;
+      counter++;
+    }
+    return candidate;
+  }
+
+  /**
+   * Resolve a workflow request (by slug+optional version, or by lineage/version id)
+   * to a `WorkflowVersion.id` ready to be stored on `documents.workflow_config_id`.
+   * Returns null if no resolution found; throws on ambiguous or invalid input.
+   */
+  async resolveWorkflowVersionId(input: {
+    groupId: string;
+    workflowSlug?: string | null;
+    workflowVersion?: number | null;
+    workflowConfigId?: string | null;
+  }): Promise<string | null> {
+    const { groupId, workflowSlug, workflowVersion, workflowConfigId } = input;
+
+    if (workflowSlug && workflowConfigId) {
+      throw new BadRequestException(
+        "Specify either workflow_slug or workflow_config_id, not both",
+      );
+    }
+
+    if (workflowSlug) {
+      const lineage = await this.prisma.workflowLineage.findUnique({
+        where: { group_id_slug: { group_id: groupId, slug: workflowSlug } },
+        include: this.lineageWithHead,
+      });
+      if (!lineage) {
+        throw new NotFoundException(
+          `Workflow not found: slug "${workflowSlug}" in group ${groupId}`,
+        );
+      }
+      if (workflowVersion != null) {
+        const pinned = await this.prisma.workflowVersion.findUnique({
+          where: {
+            lineage_id_version_number: {
+              lineage_id: lineage.id,
+              version_number: workflowVersion,
+            },
+          },
+          select: { id: true },
+        });
+        if (!pinned) {
+          throw new NotFoundException(
+            `Workflow version not found: "${workflowSlug}" v${workflowVersion}`,
+          );
+        }
+        return pinned.id;
+      }
+      if (!lineage.head_version_id) {
+        throw new NotFoundException(
+          `Workflow "${workflowSlug}" has no head version`,
+        );
+      }
+      return lineage.head_version_id;
+    }
+
+    if (workflowConfigId) {
+      // Could be a WorkflowVersion.id or a WorkflowLineage.id. Try version first.
+      const version = await this.prisma.workflowVersion.findUnique({
+        where: { id: workflowConfigId },
+        select: { id: true },
+      });
+      if (version) {
+        return version.id;
+      }
+      const lineage = await this.prisma.workflowLineage.findUnique({
+        where: { id: workflowConfigId },
+        select: { head_version_id: true },
+      });
+      if (lineage?.head_version_id) {
+        return lineage.head_version_id;
+      }
+      throw new NotFoundException(
+        `Workflow not found for id: ${workflowConfigId}`,
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * Look up the workflow's declared default `modelId` from its graph config
+   * (`ctx.modelId.defaultValue`). Returns null when no version matches or no
+   * default is present.
+   */
+  async getModelIdDefault(workflowVersionId: string): Promise<string | null> {
+    const row = await this.prisma.workflowVersion.findUnique({
+      where: { id: workflowVersionId },
+      select: { config: true },
+    });
+    if (!row) {
+      return null;
+    }
+    const config = this.asGraphConfig(row.config);
+    const ctxEntry = (config.ctx as Record<string, unknown> | undefined)
+      ?.modelId;
+    if (
+      ctxEntry &&
+      typeof ctxEntry === "object" &&
+      "defaultValue" in (ctxEntry as Record<string, unknown>)
+    ) {
+      const v = (ctxEntry as Record<string, unknown>).defaultValue;
+      return typeof v === "string" && v.length > 0 ? v : null;
+    }
+    return null;
   }
 
   /**
@@ -260,9 +405,11 @@ export class WorkflowService {
     }
 
     const full = await this.prisma.$transaction(async (tx) => {
+      const slug = await this.resolveUniqueSlug(dto.groupId, dto.name, tx);
       const lineageRow = await tx.workflowLineage.create({
         data: {
           name: dto.name,
+          slug,
           description: dto.description ?? null,
           actor_id: actorId,
           group_id: dto.groupId,
@@ -501,9 +648,16 @@ export class WorkflowService {
     }
 
     const full = await this.prisma.$transaction(async (tx) => {
+      const candidateName = `${source.lineage.name} (candidate v${candidateNameSuffix})`;
+      const slug = await this.resolveUniqueSlug(
+        source.lineage.group_id,
+        candidateName,
+        tx,
+      );
       const lineageRow = await tx.workflowLineage.create({
         data: {
-          name: `${source.lineage.name} (candidate v${candidateNameSuffix})`,
+          name: candidateName,
+          slug,
           description: `AI-generated candidate from workflow version ${sourceWorkflowVersionId}`,
           actor_id: actorId,
           group_id: source.lineage.group_id,

@@ -79,6 +79,7 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     GroundTruthGenerationService,
     BenchmarkProjectService,
     BenchmarkDefinitionService,
+    BenchmarkDefinitionDbService,
     BenchmarkRunService,
     BenchmarkTemporalService,
     EvaluatorRegistryService,

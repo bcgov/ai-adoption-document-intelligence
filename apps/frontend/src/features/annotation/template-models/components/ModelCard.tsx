@@ -18,6 +18,15 @@ interface FieldSchema {
   [key: string]: unknown;
 }
 
+interface ActiveTrainedModelSlice {
+  id: string;
+  model_id: string;
+  version: number;
+  is_active: boolean;
+  deleted_at: string | null;
+  created_at: string;
+}
+
 interface ModelCardProps {
   model: {
     id: string;
@@ -28,6 +37,7 @@ interface ModelCardProps {
     updated_at: string;
     field_schema?: FieldSchema[];
     _count?: { documents: number };
+    active_trained_model?: ActiveTrainedModelSlice | null;
   };
   onClick?: () => void;
 }
@@ -43,6 +53,14 @@ const getStatusBadgeColor = (status: string): string => {
 };
 
 export const ModelCard: FC<ModelCardProps> = ({ model, onClick }) => {
+  // Prefer the active trained version's model id (e.g. km-invoice-v3) so the
+  // copy button hands the user the actual Azure model name. Falls back to
+  // the bare template model_id when nothing has been trained yet.
+  const active = model.active_trained_model;
+  const displayedModelId = active?.model_id ?? model.model_id;
+  const copyTooltip = active
+    ? `Copy active model ID (v${active.version})`
+    : "Copy model ID";
   return (
     <Card
       withBorder
@@ -61,10 +79,11 @@ export const ModelCard: FC<ModelCardProps> = ({ model, onClick }) => {
         </Group>
 
         <Group gap="xs">
-          <Code>{model.model_id}</Code>
-          <CopyButton value={model.model_id}>
+          <Code>{displayedModelId}</Code>
+          {active && <Code c="dimmed">v{active.version}</Code>}
+          <CopyButton value={displayedModelId}>
             {({ copied, copy }) => (
-              <Tooltip label={copied ? "Copied!" : "Copy model ID"}>
+              <Tooltip label={copied ? "Copied!" : copyTooltip}>
                 <ActionIcon
                   color={copied ? "green" : "gray"}
                   variant="subtle"
