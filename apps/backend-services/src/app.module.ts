@@ -1,3 +1,4 @@
+import { ALERT_THRESHOLDS } from "@ai-di/monitoring";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
@@ -17,6 +18,10 @@ import { GroupModule } from "./group/group.module";
 import { HitlModule } from "./hitl/hitl.module";
 import { LoggingModule } from "./logging/logging.module";
 import { MetricsModule } from "./metrics/metrics.module";
+import {
+  ALERT_PREFILL_TYPES,
+  type AlertPrefillEntry,
+} from "./metrics/metrics.service";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
 import { TablesModule } from "./tables/tables.module";
@@ -74,6 +79,12 @@ import { WorkflowModule } from "./workflow/workflow.module";
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: ALERT_PREFILL_TYPES,
+      useValue: Object.entries(ALERT_THRESHOLDS).map<AlertPrefillEntry>(
+        ([alertType, config]) => ({ alertType, severity: config.severity }),
+      ),
     },
   ],
 })

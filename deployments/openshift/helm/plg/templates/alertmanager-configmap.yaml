@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plg.alertmanager.fullname" . }}-config
+  labels:
+    {{- include "plg.alertmanager.labels" . | nindent 4 }}
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: {{ .Values.alertmanager.resolveTimeout }}
+
+    route:
+      receiver: "drop"
+      group_by:
+        {{- range .Values.alertmanager.route.groupBy }}
+        - {{ . | quote }}
+        {{- end }}
+      group_wait: {{ .Values.alertmanager.route.groupWait }}
+      group_interval: {{ .Values.alertmanager.route.groupInterval }}
+      repeat_interval: {{ .Values.alertmanager.route.repeatInterval }}
+      {{- if .Values.alertmanager.notificationsEnabled }}
+      routes:
+        # BackendServicesAlertActive and TemporalWorkerAlertActive are sticky
+        # gauges — repeat at most once per day.
+        - receiver: {{ printf "%s-notifications" .Values.alertmanager.notificationChannel | quote }}
+          matchers:
+            - 'alertname =~ "BackendServicesAlertActive|TemporalWorkerAlertActive"'
+          {{- if eq .Values.alertmanager.minNotificationSeverity "critical" }}
+            - 'severity = "critical"'
+          {{- else }}
+            - 'severity =~ "warning|critical"'
+          {{- end }}
+          repeat_interval: 24h
+        - receiver: {{ printf "%s-notifications" .Values.alertmanager.notificationChannel | quote }}
+          matchers:
+          {{- if eq .Values.alertmanager.minNotificationSeverity "critical" }}
+            - 'severity = "critical"'
+          {{- else }}
+            - 'severity =~ "warning|critical"'
+          {{- end }}
+        - receiver: "drop"
+      {{- end }}
+
+    # Suppress generic catch-all alerts when a specific named alert is already
+    # firing for the same alertType.
+    inhibit_rules:
+      - source_matchers:
+          - 'type != ""'
+        target_matchers:
+          - 'alertname =~ "AnyBackendServicesError|AnyTemporalWorkerError|BackendServicesAlertActive|TemporalWorkerAlertActive"'
+        equal: ['type']
+
+    receivers:
+      - name: "drop"
+      {{- if eq .Values.alertmanager.notificationChannel "teams" }}
+      - name: "teams-notifications"
+        webhook_configs:
+          - url: {{ .Values.alertmanager.teams.webhookUrl | quote }}
+            send_resolved: true
+      {{- end }}
+      {{- if eq .Values.alertmanager.notificationChannel "ches" }}
+      - name: "ches-notifications"
+        webhook_configs:
+          - url: {{ .Values.alertmanager.ches.adapterUrl | quote }}
+            send_resolved: true
+            http_config:
+              authorization:
+                type: Bearer
+                credentials_file: /etc/alertmanager-secrets/token
+      {{- end }}

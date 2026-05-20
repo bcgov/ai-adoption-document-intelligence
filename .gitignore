@@ -1,5 +1,6 @@
 node_modules
 .DS_Store
+.env
 dist
 
 # SpecStory
@@ -23,6 +24,8 @@ apps/backend-services/backend.log
 .oc-deploy/
 backups/
 deployments/openshift/config/*.env
+deployments/local/prometheus/rules/app-alerts.yml
+deployments/openshift/helm/plg/files/app-alerts.yml
 
 # Terraform
 infra/terraform.tfvars

@@ -31,3 +31,14 @@ grafana:
     limits:
       memory: "512Mi"
       cpu: "500m"
+
+alertmanager:
+  pvcSize: 2Gi
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "128Mi"
+      cpu: "250m"

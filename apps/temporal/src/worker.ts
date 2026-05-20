@@ -8,9 +8,11 @@
 // before any module below reads env at import time.
 import "./env-loader";
 
+import * as http from "node:http";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { getActivityRegistry } from "./activity-registry";
 import { workerLogger } from "./logger";
+import { getRegistry } from "./metrics";
 import { installTemporalRuntimeLogger } from "./temporal-runtime-logger";
 
 // Workflows are automatically discovered via workflowsPath in Worker.create()
@@ -20,6 +22,20 @@ async function run() {
 
   // Route Temporal SDK logs through shared logger (pretty in dev, NDJSON in prod).
   installTemporalRuntimeLogger();
+
+  // Expose Prometheus metrics on a dedicated HTTP server so Prometheus can scrape them.
+  const metricsPort = parseInt(process.env.METRICS_PORT ?? "9091", 10);
+  const metricsServer = http.createServer(async (_req, res) => {
+    const metrics = await getRegistry().metrics();
+    res.setHeader("Content-Type", getRegistry().contentType);
+    res.end(metrics);
+  });
+  metricsServer.listen(metricsPort, () => {
+    workerLogger.info("Metrics server listening", {
+      event: "metrics_server_ready",
+      port: metricsPort,
+    });
+  });
 
   const address = process.env.TEMPORAL_ADDRESS || "localhost:7233";
   const namespace = process.env.TEMPORAL_NAMESPACE || "default";
