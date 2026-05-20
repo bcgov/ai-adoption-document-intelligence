@@ -17,23 +17,34 @@ const Wrapper = ({ children }: { children: ReactNode }) => (
   <MantineProvider>{children}</MantineProvider>
 );
 
-let throwOnNextRender = false;
-
-const ThrowingChild = () => {
-  if (throwOnNextRender) throw new Error("Test render error");
-  return <div>Safe content</div>;
+/**
+ * Creates an isolated ThrowingChild component with its own closure-scoped
+ * `shouldThrow` flag. Each test gets a fresh instance so there is no
+ * shared mutable state between tests, making order-independent execution safe.
+ */
+const createThrowingChild = () => {
+  let shouldThrow = false;
+  const ThrowingChild = () => {
+    if (shouldThrow) throw new Error("Test render error");
+    return <div>Safe content</div>;
+  };
+  return {
+    ThrowingChild,
+    setThrow: (value: boolean) => {
+      shouldThrow = value;
+    },
+  };
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  throwOnNextRender = false;
   // Suppress React's console.error output for intentional error boundary tests
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 
 describe("ErrorBoundary", () => {
   it("renders children when no error is thrown", () => {
-    throwOnNextRender = false;
+    const { ThrowingChild } = createThrowingChild();
 
     render(
       <Wrapper>
@@ -47,7 +58,8 @@ describe("ErrorBoundary", () => {
   });
 
   it("shows the fallback UI when a child throws", () => {
-    throwOnNextRender = true;
+    const { ThrowingChild, setThrow } = createThrowingChild();
+    setThrow(true);
 
     render(
       <Wrapper>
@@ -64,7 +76,8 @@ describe("ErrorBoundary", () => {
   });
 
   it("reports the error to the backend on catch", () => {
-    throwOnNextRender = true;
+    const { ThrowingChild, setThrow } = createThrowingChild();
+    setThrow(true);
 
     render(
       <Wrapper>
@@ -81,7 +94,8 @@ describe("ErrorBoundary", () => {
   });
 
   it("resets and shows children again when Try again is clicked and error is resolved", () => {
-    throwOnNextRender = true;
+    const { ThrowingChild, setThrow } = createThrowingChild();
+    setThrow(true);
 
     render(
       <Wrapper>
@@ -91,14 +105,15 @@ describe("ErrorBoundary", () => {
       </Wrapper>,
     );
 
-    throwOnNextRender = false;
+    setThrow(false);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(screen.getByText("Safe content")).toBeInTheDocument();
   });
 
   it("shows Go to home page button on the final retry attempt", () => {
-    throwOnNextRender = true;
+    const { ThrowingChild, setThrow } = createThrowingChild();
+    setThrow(true);
 
     render(
       <Wrapper>
@@ -125,7 +140,8 @@ describe("ErrorBoundary", () => {
       writable: true,
     });
 
-    throwOnNextRender = true;
+    const { ThrowingChild, setThrow } = createThrowingChild();
+    setThrow(true);
 
     render(
       <Wrapper>
