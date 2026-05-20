@@ -14,9 +14,14 @@ interface ErrorBoundaryState {
 const MAX_RETRIES = 3;
 
 /**
- * React error boundary that catches unhandled errors in the component tree,
- * reports them to the backend logging endpoint, displays a user-friendly
- * message, and redirects to the home page after exceeding the retry limit.
+ * React error boundary that catches unhandled errors thrown by providers above
+ * the router (AuthProvider, GroupProvider, QueryClientProvider) and by App
+ * itself. It does NOT catch errors inside route components — those are handled
+ * by RouterErrorPage via React Router's errorElement mechanism.
+ *
+ * Reports caught errors to the backend logging endpoint and displays a
+ * user-friendly fallback UI. Redirects to the home page after exceeding the
+ * retry limit.
  */
 export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
@@ -32,7 +37,7 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    void apiService.post("api/client-errors", {
+    void apiService.post("client-errors", {
       message: error.message,
       componentStack: info.componentStack ?? undefined,
       errorStack: error.stack ?? undefined,

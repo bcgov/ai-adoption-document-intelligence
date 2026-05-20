@@ -3,7 +3,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
 import { useAuth } from "./auth/useAuth";
 import "./App.css";
-import { Login } from "./components";
+import { Login, RouterErrorPage } from "./components";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
 import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
 import { LabelingWorkspacePage } from "./features/annotation/template-models/pages/LabelingWorkspacePage";
@@ -49,6 +49,7 @@ const router = createBrowserRouter([
         <RootLayout />
       </NoGroupGuard>
     ),
+    errorElement: <RouterErrorPage />,
     children: [
       { index: true, element: <UploadPage /> },
       { path: "queue", element: <QueuePage /> },
