@@ -1,5 +1,6 @@
 import { Button, Center, Stack, Text, Title } from "@mantine/core";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { apiService } from "../data/services/api.service";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -14,8 +15,8 @@ const MAX_RETRIES = 3;
 
 /**
  * React error boundary that catches unhandled errors in the component tree,
- * displays a user-friendly message, and silently logs the error to the console.
- * After exceeding the retry limit, redirects the user to the home page.
+ * reports them to the backend logging endpoint, displays a user-friendly
+ * message, and redirects to the home page after exceeding the retry limit.
  */
 export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
@@ -31,7 +32,13 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("An unexpected error occurred:", error, info.componentStack);
+    void apiService.post("api/client-errors", {
+      message: error.message,
+      componentStack: info.componentStack ?? undefined,
+      errorStack: error.stack ?? undefined,
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+    });
   }
 
   handleReset = (): void => {
