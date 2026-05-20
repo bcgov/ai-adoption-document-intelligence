@@ -1,4 +1,5 @@
 import { Button, Center, Stack, Text, Title } from "@mantine/core";
+import { useEffect } from "react";
 import { useNavigate, useRouteError } from "react-router-dom";
 import { apiService } from "../data/services/api.service";
 
@@ -21,12 +22,14 @@ export const RouterErrorPage = () => {
   const errorStack =
     error instanceof Error ? (error.stack ?? undefined) : undefined;
 
-  void apiService.post("client-errors", {
-    message,
-    errorStack,
-    url: window.location.href,
-    userAgent: navigator.userAgent,
-  });
+  useEffect(() => {
+    void apiService.post("client-errors", {
+      message,
+      errorStack,
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+    });
+  }, [message, errorStack]);
 
   return (
     <Center style={{ height: "100vh" }}>
