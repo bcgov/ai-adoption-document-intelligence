@@ -9,6 +9,7 @@ import { queryClient } from "./data/queryClient";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import App from "./App";
+import { ErrorBoundary } from "./components";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -16,8 +17,10 @@ createRoot(document.getElementById("root")!).render(
       <GroupProvider>
         <QueryClientProvider client={queryClient}>
           <MantineProvider defaultColorScheme="dark">
-            <Notifications position="top-right" />
-            <App />
+            <ErrorBoundary>
+              <Notifications position="top-right" />
+              <App />
+            </ErrorBoundary>
           </MantineProvider>
         </QueryClientProvider>
       </GroupProvider>
