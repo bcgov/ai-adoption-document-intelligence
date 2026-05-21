@@ -9,18 +9,18 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { useGroup } from "@/auth/GroupContext";
-import { apiService } from "@/data/services/api.service";
 import { ColumnsTab } from "../components/ColumnsTab";
 import { LookupSnippetPanel } from "../components/LookupSnippetPanel";
 import { LookupsTab } from "../components/LookupsTab";
 import { RowForm } from "../components/RowForm";
 import { RowsTab } from "../components/RowsTab";
+import { useDeleteTable } from "../hooks/useDeleteTable";
 import { useTable } from "../hooks/useTable";
+import { useUpdateTable } from "../hooks/useUpdateTable";
 import type { LookupDef, TableRow } from "../types";
 
 export function TableDetailPage() {
@@ -28,48 +28,22 @@ export function TableDetailPage() {
   const { isSystemAdmin } = useAuth();
   const { activeGroup } = useGroup();
   const groupId = activeGroup?.id ?? null;
-  const navigate = useNavigate();
-  const qc = useQueryClient();
   const table = useTable(groupId, tableId ?? null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [tableDeleteConfirm, setTableDeleteConfirm] = useState("");
   const [editingRow, setEditingRow] = useState<TableRow | undefined>(undefined);
   const [rowFormOpen, setRowFormOpen] = useState(false);
   const [snippetLookup, setSnippetLookup] = useState<LookupDef | null>(null);
 
   const isAdmin = isSystemAdmin || activeGroup?.role === "ADMIN";
 
-  const updateMeta = useMutation({
-    mutationFn: async (patch: {
-      label?: string;
-      description?: string | null;
-    }) => {
-      const response = await apiService.patch(
-        `/tables/${tableId}?group_id=${groupId}`,
-        patch,
-      );
-      if (!response.success)
-        throw new Error(response.message ?? "Failed to update table");
-      return response.data;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
-      qc.invalidateQueries({ queryKey: ["tables", groupId] });
-    },
-  });
+  const updateMeta = useUpdateTable(groupId, tableId);
+  const deleteTable = useDeleteTable(groupId, tableId);
 
-  const deleteTable = useMutation({
-    mutationFn: async () => {
-      const response = await apiService.delete(
-        `/tables/${tableId}?group_id=${groupId}`,
-      );
-      if (!response.success)
-        throw new Error(response.message ?? "Failed to delete table");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tables", groupId] });
-      navigate("/tables");
-    },
-  });
+  const closeDeleteModal = () => {
+    setConfirmDelete(false);
+    setTableDeleteConfirm("");
+  };
 
   if (table.isLoading)
     return (
@@ -185,27 +159,31 @@ export function TableDetailPage() {
             </Stack>
             <Modal
               opened={confirmDelete}
-              onClose={() => setConfirmDelete(false)}
+              onClose={closeDeleteModal}
               title="Delete table?"
             >
               <Stack>
                 <Text>
                   This deletes the table and all its rows. Cannot be undone.
                 </Text>
+                <TextInput
+                  label='Type "delete" to confirm'
+                  placeholder="delete"
+                  value={tableDeleteConfirm}
+                  onChange={(e) => setTableDeleteConfirm(e.currentTarget.value)}
+                />
                 {deleteTable.isError && (
                   <Text c="red" size="sm">
                     {(deleteTable.error as Error).message}
                   </Text>
                 )}
                 <Group justify="flex-end">
-                  <Button
-                    variant="default"
-                    onClick={() => setConfirmDelete(false)}
-                  >
+                  <Button variant="default" onClick={closeDeleteModal}>
                     Cancel
                   </Button>
                   <Button
                     color="red"
+                    disabled={tableDeleteConfirm !== "delete"}
                     loading={deleteTable.isPending}
                     onClick={() => deleteTable.mutate()}
                   >

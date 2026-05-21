@@ -1,4 +1,15 @@
-import { Button, Group, Modal, Stack, Table, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Button,
+  Group,
+  Modal,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
+import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
@@ -17,6 +28,12 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
   const [editing, setEditing] = useState<ColumnDef | "new" | null>(null);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
+  const [typeConfirm, setTypeConfirm] = useState("");
+
+  const closeDeleteModal = () => {
+    setConfirmDeleteKey(null);
+    setTypeConfirm("");
+  };
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
@@ -78,7 +95,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
               <Table.Th>Label</Table.Th>
               <Table.Th>Type</Table.Th>
               <Table.Th>Required</Table.Th>
-              {isAdmin && <Table.Th />}
+              {isAdmin && <Table.Th ta="right" />}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -94,23 +111,29 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
                 <Table.Td>{c.required ? "✓" : ""}</Table.Td>
                 {isAdmin && (
                   <Table.Td>
-                    <Group gap="xs">
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        onClick={() => setEditing(c)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="xs"
-                        color="red"
-                        variant="subtle"
-                        loading={remove.isPending && remove.variables === c.key}
-                        onClick={() => setConfirmDeleteKey(c.key)}
-                      >
-                        Delete
-                      </Button>
+                    <Group gap="xs" justify="flex-end" wrap="nowrap">
+                      <Tooltip label="Edit" withArrow>
+                        <ActionIcon
+                          variant="subtle"
+                          onClick={() => setEditing(c)}
+                          aria-label={`Edit column ${c.label}`}
+                        >
+                          <IconPencil size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Delete" withArrow>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          loading={
+                            remove.isPending && remove.variables === c.key
+                          }
+                          onClick={() => setConfirmDeleteKey(c.key)}
+                          aria-label={`Delete column ${c.label}`}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Tooltip>
                     </Group>
                   </Table.Td>
                 )}
@@ -146,7 +169,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
       </Modal>
       <Modal
         opened={!!confirmDeleteKey}
-        onClose={() => setConfirmDeleteKey(null)}
+        onClose={closeDeleteModal}
         title="Delete column?"
       >
         <Stack>
@@ -158,17 +181,24 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
             ? This removes this column&apos;s data from every row in the table
             and cannot be undone.
           </Text>
+          <TextInput
+            label='Type "delete" to confirm'
+            placeholder="delete"
+            value={typeConfirm}
+            onChange={(e) => setTypeConfirm(e.currentTarget.value)}
+          />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setConfirmDeleteKey(null)}>
+            <Button variant="default" onClick={closeDeleteModal}>
               Cancel
             </Button>
             <Button
               color="red"
+              disabled={typeConfirm !== "delete"}
               loading={remove.isPending}
               onClick={() => {
                 if (confirmDeleteKey) {
                   remove.mutate(confirmDeleteKey, {
-                    onSettled: () => setConfirmDeleteKey(null),
+                    onSettled: closeDeleteModal,
                   });
                 }
               }}

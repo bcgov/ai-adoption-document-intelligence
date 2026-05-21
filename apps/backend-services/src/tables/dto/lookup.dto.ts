@@ -7,6 +7,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Matches,
   ValidateNested,
 } from "class-validator";
 
@@ -47,6 +48,10 @@ export class LookupDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-zA-Z_][a-zA-Z0-9_]*$/, {
+    message:
+      "name must start with a letter or underscore and contain only letters, digits, and underscores",
+  })
   name!: string;
 
   @ApiProperty({ type: LookupParamDto, isArray: true })

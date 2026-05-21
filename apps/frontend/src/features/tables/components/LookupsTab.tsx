@@ -1,4 +1,15 @@
-import { Button, Group, Stack, Table, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Group,
+  Modal,
+  Stack,
+  Table,
+  Text,
+  Tooltip,
+} from "@mantine/core";
+import { IconInfoCircle, IconPencil, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
@@ -24,6 +35,9 @@ export function LookupsTab({
 }: Props) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<LookupDef | "new" | null>(null);
+  const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(
+    null,
+  );
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
@@ -56,11 +70,21 @@ export function LookupsTab({
       if (!response.success)
         throw new Error(response.message ?? "Failed to delete lookup");
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setConfirmDeleteName(null);
+    },
   });
 
   return (
     <Stack>
+      <Alert color="blue" variant="light" icon={<IconInfoCircle size={16} />}>
+        Lookups are named queries that workflow activity nodes run against this
+        table at runtime. Each lookup defines filter conditions, parameters
+        accepted from the workflow context, and a pick strategy (first, last,
+        one, or all matching rows). Use the <strong>Use in workflow</strong>{" "}
+        button to copy a ready-made node snippet.
+      </Alert>
       {isAdmin && (
         <Group justify="flex-end">
           <Button
@@ -88,7 +112,7 @@ export function LookupsTab({
               <Table.Th>Template</Table.Th>
               <Table.Th>Pick</Table.Th>
               <Table.Th>Params</Table.Th>
-              <Table.Th />
+              <Table.Th ta="right" />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -105,7 +129,7 @@ export function LookupsTab({
                   {l.params.map((p) => p.name).join(", ") || "—"}
                 </Table.Td>
                 <Table.Td>
-                  <Group gap="xs">
+                  <Group gap="xs" justify="flex-end" wrap="nowrap">
                     <Button
                       size="xs"
                       variant="subtle"
@@ -115,24 +139,25 @@ export function LookupsTab({
                     </Button>
                     {isAdmin && (
                       <>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setEditing(l)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          color="red"
-                          variant="subtle"
-                          loading={
-                            remove.isPending && remove.variables === l.name
-                          }
-                          onClick={() => remove.mutate(l.name)}
-                        >
-                          Delete
-                        </Button>
+                        <Tooltip label="Edit" withArrow>
+                          <ActionIcon
+                            variant="subtle"
+                            onClick={() => setEditing(l)}
+                            aria-label={`Edit lookup ${l.name}`}
+                          >
+                            <IconPencil size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Delete" withArrow>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => setConfirmDeleteName(l.name)}
+                            aria-label={`Delete lookup ${l.name}`}
+                          >
+                            <IconTrash size={16} />
+                          </ActionIcon>
+                        </Tooltip>
                       </>
                     )}
                   </Group>
@@ -153,6 +178,43 @@ export function LookupsTab({
           }
         />
       )}
+      <Modal
+        opened={!!confirmDeleteName}
+        onClose={() => setConfirmDeleteName(null)}
+        title="Delete lookup?"
+      >
+        <Stack>
+          <Text>
+            Delete lookup{" "}
+            <Text span ff="monospace">
+              {confirmDeleteName}
+            </Text>
+            ? This cannot be undone.
+          </Text>
+          {remove.isError && (
+            <Text c="red" size="sm">
+              {(remove.error as Error).message}
+            </Text>
+          )}
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => setConfirmDeleteName(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={remove.isPending}
+              onClick={() => {
+                if (confirmDeleteName) remove.mutate(confirmDeleteName);
+              }}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
