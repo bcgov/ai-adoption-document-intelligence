@@ -469,7 +469,7 @@ export class AzureController {
       } catch (e) {
         this.logger.error(
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
-          { error: String(e), alertType: "classifier_training_failed" },
+          { error: String(e), alertType: "classifier_training_submit_failed" },
         );
         await this.classifierService.updateClassifierModel(
           name,

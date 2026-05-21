@@ -219,7 +219,9 @@ describe("ClassifierPollerService", () => {
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(mockLogger.log).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ alertType: "classifier_training_failed" }),
+        expect.objectContaining({
+          alertType: "classifier_training_poll_failed",
+        }),
       );
     });
 
@@ -230,7 +232,9 @@ describe("ClassifierPollerService", () => {
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ alertType: "classifier_training_failed" }),
+        expect.objectContaining({
+          alertType: "classifier_training_poll_failed",
+        }),
       );
     });
   });

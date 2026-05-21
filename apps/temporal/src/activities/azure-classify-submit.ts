@@ -170,6 +170,7 @@ export async function azureClassifySubmit(
       constructedClassifierName,
       error: getErrorMessage(error),
       stack: getErrorStack(error),
+      alertType: "azure_classify_submit_failed",
     });
     throw error;
   }

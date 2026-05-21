@@ -69,13 +69,22 @@ export const DEFAULT_ALERT_THRESHOLD: Omit<
  * generator with the `--include-unregistered` flag.
  */
 export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
-  classifier_training_failed: {
+  classifier_training_submit_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "backend-services",
+    summary: "Classifier training submission failed",
+    description: "A classifier training request failed to submit to Azure Document Intelligence within the last 5 minutes.",
+  },
+
+  classifier_training_poll_failed: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
     job: "backend-services",
     summary: "Classifier training has failed",
-    description: "A classifier training job has failed within the last 5 minutes.",
+    description: "A classifier training job polled from Azure Document Intelligence has failed within the last 5 minutes.",
   },
 
   enrich_results_failed: {
@@ -112,6 +121,15 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     job: "temporal-worker",
     summary: "Azure OCR polling failed",
     description: "At least one OCR result poll from the Azure Document Intelligence API failed within the last 5 minutes.",
+  },
+
+  azure_classify_submit_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "Azure classifier submission failed",
+    description: "At least one document failed to be submitted to the Azure Document Intelligence classifier at runtime within the last 5 minutes.",
   },
 
   azure_classify_poll_failed: {
