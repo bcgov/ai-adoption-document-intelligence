@@ -17,6 +17,7 @@ import { API_BASE_URL } from "../shared/constants";
 export interface Group {
   id: string;
   name: string;
+  role?: string;
 }
 
 /**

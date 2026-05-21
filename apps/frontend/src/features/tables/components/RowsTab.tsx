@@ -1,5 +1,15 @@
-import { Button, Group, Pagination, Stack, Table, Text } from "@mantine/core";
+import {
+  Button,
+  Group,
+  Modal,
+  Pagination,
+  Stack,
+  Table,
+  Text,
+} from "@mantine/core";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { apiService } from "@/data/services/api.service";
 import { useTableRows } from "../hooks/useTableRows";
 import type { ColumnDef, TableRow } from "../types";
 
@@ -26,10 +36,26 @@ export function RowsTab({
   onCreate,
   onEdit,
 }: Props) {
+  const qc = useQueryClient();
   const [page, setPage] = useState(1);
+  const [rowToDelete, setRowToDelete] = useState<TableRow | null>(null);
   const rows = useTableRows(groupId, tableId, {
     offset: (page - 1) * PAGE_SIZE,
     limit: PAGE_SIZE,
+  });
+
+  const deleteRow = useMutation({
+    mutationFn: async (rowId: string) => {
+      const response = await apiService.delete(
+        `/tables/${tableId}/rows/${rowId}?group_id=${groupId}`,
+      );
+      if (!response.success)
+        throw new Error(response.message ?? "Failed to delete row");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["table-rows", groupId, tableId] });
+      setRowToDelete(null);
+    },
   });
 
   if (columns.length === 0) {
@@ -81,13 +107,23 @@ export function RowsTab({
                     </Table.Td>
                   ))}
                   <Table.Td>
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      onClick={() => onEdit(row)}
-                    >
-                      Edit
-                    </Button>
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => onEdit(row)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="xs"
+                        color="red"
+                        variant="subtle"
+                        onClick={() => setRowToDelete(row)}
+                      >
+                        Delete
+                      </Button>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -100,6 +136,34 @@ export function RowsTab({
           )}
         </>
       )}
+      <Modal
+        opened={!!rowToDelete}
+        onClose={() => setRowToDelete(null)}
+        title="Delete row?"
+      >
+        <Stack>
+          <Text>This will permanently delete the row. Cannot be undone.</Text>
+          {deleteRow.isError && (
+            <Text c="red" size="sm">
+              {(deleteRow.error as Error).message}
+            </Text>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setRowToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={deleteRow.isPending}
+              onClick={() => {
+                if (rowToDelete) deleteRow.mutate(rowToDelete.id);
+              }}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

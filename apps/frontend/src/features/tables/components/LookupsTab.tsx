@@ -11,6 +11,7 @@ interface Props {
   columns: ColumnDef[];
   lookups: LookupDef[];
   onShowSnippet: (lookup: LookupDef) => void;
+  isAdmin: boolean;
 }
 
 export function LookupsTab({
@@ -19,6 +20,7 @@ export function LookupsTab({
   columns,
   lookups,
   onShowSnippet,
+  isAdmin,
 }: Props) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<LookupDef | "new" | null>(null);
@@ -59,14 +61,16 @@ export function LookupsTab({
 
   return (
     <Stack>
-      <Group justify="flex-end">
-        <Button
-          onClick={() => setEditing("new")}
-          disabled={columns.length === 0}
-        >
-          Add Lookup
-        </Button>
-      </Group>
+      {isAdmin && (
+        <Group justify="flex-end">
+          <Button
+            onClick={() => setEditing("new")}
+            disabled={columns.length === 0}
+          >
+            Add Lookup
+          </Button>
+        </Group>
+      )}
       {columns.length === 0 ? (
         <Text c="dimmed" fs="italic">
           Define columns first (use the Columns tab) — lookups reference column
@@ -109,22 +113,28 @@ export function LookupsTab({
                     >
                       Use in workflow
                     </Button>
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      onClick={() => setEditing(l)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="xs"
-                      color="red"
-                      variant="subtle"
-                      loading={remove.isPending && remove.variables === l.name}
-                      onClick={() => remove.mutate(l.name)}
-                    >
-                      Delete
-                    </Button>
+                    {isAdmin && (
+                      <>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setEditing(l)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="xs"
+                          color="red"
+                          variant="subtle"
+                          loading={
+                            remove.isPending && remove.variables === l.name
+                          }
+                          onClick={() => remove.mutate(l.name)}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -132,7 +142,7 @@ export function LookupsTab({
           </Table.Tbody>
         </Table>
       )}
-      {editing && (
+      {isAdmin && editing && (
         <LookupForm
           opened={!!editing}
           onClose={() => setEditing(null)}

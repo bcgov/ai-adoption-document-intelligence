@@ -148,6 +148,7 @@ export function RowForm({
                   <DateInput
                     key={c.key}
                     label={c.label}
+                    description="Click the calendar icon to pick a date"
                     required={c.required}
                     valueFormat="YYYY-MM-DD"
                     {...props}

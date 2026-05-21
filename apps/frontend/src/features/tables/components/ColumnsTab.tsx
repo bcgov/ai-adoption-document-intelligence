@@ -9,12 +9,14 @@ interface Props {
   groupId: string;
   tableId: string;
   columns: ColumnDef[];
+  isAdmin: boolean;
 }
 
-export function ColumnsTab({ groupId, tableId, columns }: Props) {
+export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<ColumnDef | "new" | null>(null);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
@@ -55,11 +57,15 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
     onSuccess: invalidate,
   });
 
+  const pendingDeleteColumn = columns.find((c) => c.key === confirmDeleteKey);
+
   return (
     <Stack>
-      <Group justify="flex-end">
-        <Button onClick={() => setEditing("new")}>Add Column</Button>
-      </Group>
+      {isAdmin && (
+        <Group justify="flex-end">
+          <Button onClick={() => setEditing("new")}>Add Column</Button>
+        </Group>
+      )}
       {columns.length === 0 ? (
         <Text c="dimmed" fs="italic">
           No columns defined yet. Click Add Column to create the first one.
@@ -72,7 +78,7 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
               <Table.Th>Label</Table.Th>
               <Table.Th>Type</Table.Th>
               <Table.Th>Required</Table.Th>
-              <Table.Th />
+              {isAdmin && <Table.Th />}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -86,32 +92,34 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
                 <Table.Td>{c.label}</Table.Td>
                 <Table.Td>{c.type}</Table.Td>
                 <Table.Td>{c.required ? "✓" : ""}</Table.Td>
-                <Table.Td>
-                  <Group gap="xs">
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      onClick={() => setEditing(c)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="xs"
-                      color="red"
-                      variant="subtle"
-                      loading={remove.isPending && remove.variables === c.key}
-                      onClick={() => remove.mutate(c.key)}
-                    >
-                      Delete
-                    </Button>
-                  </Group>
-                </Table.Td>
+                {isAdmin && (
+                  <Table.Td>
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => setEditing(c)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="xs"
+                        color="red"
+                        variant="subtle"
+                        loading={remove.isPending && remove.variables === c.key}
+                        onClick={() => setConfirmDeleteKey(c.key)}
+                      >
+                        Delete
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                )}
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       )}
-      {editing && (
+      {isAdmin && editing && (
         <ColumnForm
           opened={!!editing}
           onClose={() => setEditing(null)}
@@ -133,6 +141,40 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
           <Text>{conflictMsg}</Text>
           <Group justify="flex-end">
             <Button onClick={() => setConflictMsg(null)}>OK</Button>
+          </Group>
+        </Stack>
+      </Modal>
+      <Modal
+        opened={!!confirmDeleteKey}
+        onClose={() => setConfirmDeleteKey(null)}
+        title="Delete column?"
+      >
+        <Stack>
+          <Text>
+            Delete column{" "}
+            <Text span ff="monospace">
+              {pendingDeleteColumn?.label ?? confirmDeleteKey}
+            </Text>
+            ? This removes this column&apos;s data from every row in the table
+            and cannot be undone.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmDeleteKey(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={remove.isPending}
+              onClick={() => {
+                if (confirmDeleteKey) {
+                  remove.mutate(confirmDeleteKey, {
+                    onSettled: () => setConfirmDeleteKey(null),
+                  });
+                }
+              }}
+            >
+              Delete
+            </Button>
           </Group>
         </Stack>
       </Modal>
