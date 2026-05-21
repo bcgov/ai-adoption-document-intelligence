@@ -57,6 +57,8 @@ spec:
               /
               kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"}
             ) > 0.85
+            and
+            kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"} > 0
           for: 5m
           labels:
             severity: warning
@@ -74,6 +76,8 @@ spec:
               /
               kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"}
             ) > 0.95
+            and
+            kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"} > 0
           for: 2m
           labels:
             severity: critical
