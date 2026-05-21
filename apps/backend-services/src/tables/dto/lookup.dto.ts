@@ -17,6 +17,7 @@ const PARAM_TYPES = [
   "boolean",
   "date",
   "datetime",
+  "year-month",
   "enum",
 ] as const;
 
@@ -30,7 +31,14 @@ export class LookupParamDto {
 
   @ApiProperty({ enum: PARAM_TYPES })
   @IsIn(PARAM_TYPES)
-  type!: "string" | "number" | "boolean" | "date" | "datetime" | "enum";
+  type!:
+    | "string"
+    | "number"
+    | "boolean"
+    | "date"
+    | "datetime"
+    | "year-month"
+    | "enum";
 }
 
 export class OrderClauseDto {

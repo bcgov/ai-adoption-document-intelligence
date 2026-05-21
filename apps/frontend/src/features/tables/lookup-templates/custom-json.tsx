@@ -29,6 +29,7 @@ const TYPE_OPTIONS: { value: ColumnType; label: string }[] = [
   { value: "boolean", label: "Boolean" },
   { value: "date", label: "Date" },
   { value: "datetime", label: "Datetime" },
+  { value: "year-month", label: "Year-Month" },
   { value: "enum", label: "Enum" },
 ];
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ColumnDef } from "./types";
 
-const KEY_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 export function validateColumnDefs(cols: ColumnDef[]): void {
   const seen = new Set<string>();
@@ -46,6 +46,9 @@ function zodForColumn(col: ColumnDef): z.ZodTypeAny {
       break;
     case "datetime":
       base = z.string().datetime({ offset: true });
+      break;
+    case "year-month":
+      base = z.string().regex(/^\d{4}-\d{2}$/, "must be YYYY-MM");
       break;
     case "enum":
       base = z.enum(col.enumValues as [string, ...string[]]);

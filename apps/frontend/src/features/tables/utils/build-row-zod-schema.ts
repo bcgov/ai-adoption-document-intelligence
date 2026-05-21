@@ -21,7 +21,12 @@ export function buildRowZodSchema(
         base = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD");
         break;
       case "datetime":
-        base = z.string().datetime({ offset: true });
+        base = z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, "Invalid datetime");
+        break;
+      case "year-month":
+        base = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD");
         break;
       case "enum": {
         const values = c.enumValues ?? [];
@@ -36,7 +41,11 @@ export function buildRowZodSchema(
         throw new Error(`unknown column type: ${_exhaustive}`);
       }
     }
-    shape[c.key] = c.required ? base : base.optional();
+    shape[c.key] = c.required
+      ? base
+      : c.type === "date" || c.type === "datetime" || c.type === "year-month"
+        ? (base as z.ZodString).nullable().optional()
+        : base.optional();
   }
   return z.object(shape).strip();
 }

@@ -6,6 +6,7 @@ export type ColumnType =
   | "boolean"
   | "date"
   | "datetime"
+  | "year-month"
   | "enum";
 
 export interface ColumnDef {

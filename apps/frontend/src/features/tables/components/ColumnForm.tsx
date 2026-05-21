@@ -25,6 +25,7 @@ const TYPE_OPTIONS: { value: ColumnType; label: string }[] = [
   { value: "boolean", label: "Boolean" },
   { value: "date", label: "Date" },
   { value: "datetime", label: "Date & Time" },
+  { value: "year-month", label: "Year-Month" },
   { value: "enum", label: "Enum" },
 ];
 
@@ -40,9 +41,9 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
     initialValues: initial ?? DEFAULT_VALUES,
     validate: {
       key: (v) =>
-        /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(v)
+        /^[a-z][a-z0-9_]*$/.test(v)
           ? null
-          : "Letters, digits, underscore. Must start with letter/underscore.",
+          : "Lowercase letters, digits, underscore. Must start with a letter.",
       label: (v) => (v.trim() ? null : "Required"),
       enumValues: (v, values) =>
         values.type === "enum" && (!v || v.length === 0)
@@ -87,7 +88,7 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
             label="Key"
             required
             disabled={!!initial}
-            description="Stable identifier — cannot change after creation"
+            description="Stable identifier, lowercase (e.g. total_amount) — cannot be changed after creation"
             {...form.getInputProps("key")}
           />
           <TextInput label="Label" required {...form.getInputProps("label")} />
