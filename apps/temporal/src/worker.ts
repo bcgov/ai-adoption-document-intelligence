@@ -114,6 +114,7 @@ run().catch((err) => {
     event: "fatal_error",
     error: err instanceof Error ? err.message : "Unknown error",
     stack: err instanceof Error ? err.stack : undefined,
+    alertType: "worker_fatal_error",
   });
   process.exit(1);
 });

@@ -96,7 +96,10 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       this.logger.debug(`Wrote blob: ${key} (${data.length} bytes)`);
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to write blob: ${key}`, { stack: err.stack });
+      this.logger.error(`Failed to write blob: ${key}`, {
+        stack: err.stack,
+        alertType: "blob_storage_failed",
+      });
       throw new Error(`Failed to write blob "${key}": ${err.message}`);
     }
   }
@@ -134,7 +137,10 @@ export class MinioBlobStorageService implements BlobStorageInterface {
           `Blob not found: "${key}" does not exist in bucket "${this.bucket}"`,
         );
       }
-      this.logger.error(`Failed to read blob: ${key}`, { stack: err.stack });
+      this.logger.error(`Failed to read blob: ${key}`, {
+        stack: err.stack,
+        alertType: "blob_storage_failed",
+      });
       throw new Error(`Failed to read blob "${key}": ${err.message}`);
     }
   }
@@ -163,6 +169,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       }
       this.logger.error(`Failed to check blob existence: ${key}`, {
         stack: err.stack,
+        alertType: "blob_storage_failed",
       });
       throw new Error(
         `Failed to check blob existence "${key}": ${err.message}`,
@@ -185,7 +192,10 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       this.logger.debug(`Deleted blob: ${key}`);
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to delete blob: ${key}`, { stack: err.stack });
+      this.logger.error(`Failed to delete blob: ${key}`, {
+        stack: err.stack,
+        alertType: "blob_storage_failed",
+      });
       throw new Error(`Failed to delete blob "${key}": ${err.message}`);
     }
   }
@@ -228,6 +238,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       const err = error as Error;
       this.logger.error(`Failed to list blobs with prefix "${prefix}"`, {
         stack: err.stack,
+        alertType: "blob_storage_failed",
       });
       throw new Error(
         `Failed to list blobs with prefix "${prefix}": ${err.message}`,

@@ -191,6 +191,7 @@ export async function materializeDataset(
       error: errorMessage,
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "benchmark_materialize_failed",
     });
     throw error;
   }

@@ -167,6 +167,7 @@ export async function pollOCRResults(params: {
       event: "error",
       error: getErrorMessage(error),
       stack: getErrorStack(error),
+      alertType: "azure_ocr_poll_failed",
     });
     throw error;
   }

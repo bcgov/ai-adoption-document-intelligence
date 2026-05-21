@@ -187,6 +187,7 @@ export async function azureClassifyPoll(
       event: "error",
       error: getErrorMessage(error),
       stack: getErrorStack(error),
+      alertType: "azure_classify_poll_failed",
     });
     throw error;
   }

@@ -223,6 +223,7 @@ export async function submitToAzureOCR(params: {
       event: "error",
       error: getErrorMessage(error),
       stack: getErrorStack(error),
+      alertType: "azure_ocr_submit_failed",
     });
     throw error;
   }

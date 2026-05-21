@@ -86,4 +86,94 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     summary: "OCR enrichment activity failed",
     description: "At least one enrichment activity failed within the last 5 minutes.",
   },
+
+  worker_fatal_error: {
+    mode: "any-error",
+    severity: "critical",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "Temporal worker process crashed",
+    description: "The Temporal worker process has encountered a fatal error and exited. Document processing is halted.",
+  },
+
+  azure_ocr_submit_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "Azure OCR submission failed",
+    description: "At least one document failed to be submitted to the Azure Document Intelligence OCR API within the last 5 minutes.",
+  },
+
+  azure_ocr_poll_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "Azure OCR polling failed",
+    description: "At least one OCR result poll from the Azure Document Intelligence API failed within the last 5 minutes.",
+  },
+
+  azure_classify_poll_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "Azure classifier poll failed",
+    description: "At least one Azure Document Intelligence classifier poll failed within the last 5 minutes.",
+  },
+
+  mistral_ocr_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "Mistral OCR activity failed",
+    description: "At least one Mistral OCR processing activity failed within the last 5 minutes.",
+  },
+
+  document_status_update_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "Document status update failed",
+    description: "A document status update activity failed within the last 5 minutes, leaving a document in an incorrect state.",
+  },
+
+  upsert_ocr_result_failed: {
+    mode: "any-error",
+    severity: "critical",
+    window: "5m",
+    job: "temporal-worker",
+    summary: "OCR result persistence failed",
+    description: "An OCR result could not be persisted to the database within the last 5 minutes. Processed document data may be lost.",
+  },
+
+  benchmark_materialize_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "15m",
+    job: "temporal-worker",
+    summary: "Benchmark dataset materialization failed",
+    description: "A benchmark dataset failed to materialize from object storage within the last 15 minutes.",
+  },
+
+  blob_storage_failed: {
+    mode: "any-error",
+    severity: "critical",
+    window: "5m",
+    job: "backend-services",
+    summary: "Blob storage operation failed",
+    description: "A blob storage read or write operation failed within the last 5 minutes. Document storage or retrieval may be unavailable.",
+  },
+
+  document_upload_failed: {
+    mode: "any-error",
+    severity: "warning",
+    window: "5m",
+    job: "backend-services",
+    summary: "Document upload failed",
+    description: "An unexpected error occurred during a document upload within the last 5 minutes.",
+  },
 };

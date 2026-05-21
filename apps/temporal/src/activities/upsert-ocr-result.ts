@@ -220,6 +220,7 @@ export async function upsertOcrResult(params: {
       error: getErrorMessage(error),
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "upsert_ocr_result_failed",
     });
     throw error;
   }

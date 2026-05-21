@@ -91,6 +91,7 @@ export async function updateDocumentStatus(params: {
       error: getErrorMessage(error),
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "document_status_update_failed",
     });
     throw error;
   }

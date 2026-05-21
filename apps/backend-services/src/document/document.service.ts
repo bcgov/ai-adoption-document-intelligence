@@ -218,7 +218,9 @@ export class DocumentService {
         document: this.toUploadedDocument(savedDocument),
       };
     } catch (error) {
-      this.logger.error(`Error uploading document: ${getErrorMessage(error)}`);
+      this.logger.error(`Error uploading document: ${getErrorMessage(error)}`, {
+        alertType: "document_upload_failed",
+      });
       this.logger.error(`Stack: ${getErrorStack(error)}`);
       throw error;
     }
