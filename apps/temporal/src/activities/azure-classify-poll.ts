@@ -148,6 +148,7 @@ export async function azureClassifyPoll(
     log.info("azureClassifyPoll succeeded", {
       event: "succeeded",
       documentCount: documents.length,
+      alertType: "azure_classify_poll",
     });
 
     // Derive the page range(s) for each detected document and group by label.
@@ -187,7 +188,7 @@ export async function azureClassifyPoll(
       event: "error",
       error: getErrorMessage(error),
       stack: getErrorStack(error),
-      alertType: "azure_classify_poll_failed",
+      alertType: "azure_classify_poll",
     });
     throw error;
   }

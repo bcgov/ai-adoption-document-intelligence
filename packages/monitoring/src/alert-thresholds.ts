@@ -64,12 +64,13 @@ export const DEFAULT_ALERT_THRESHOLD: Omit<
  *
  * Each key is an `alertType` string used in application log context.
  * The Prometheus rule generator produces one alert rule per entry.
+ * Do not include a _failed or other tag on rule names. The names should remain neutral.
  *
  * Types not listed here use `DEFAULT_ALERT_THRESHOLD` when running the
  * generator with the `--include-unregistered` flag.
  */
 export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
-  classifier_training_submit_failed: {
+  classifier_training_submit: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -78,7 +79,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "A classifier training request failed to submit to Azure Document Intelligence within the last 5 minutes.",
   },
 
-  classifier_training_poll_failed: {
+  classifier_training_poll: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -87,7 +88,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "A classifier training job polled from Azure Document Intelligence has failed within the last 5 minutes.",
   },
 
-  enrich_results_failed: {
+  enrich_results: {
     mode: "any-error",
     severity: "critical",
     window: "5m",
@@ -96,7 +97,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "At least one enrichment activity failed within the last 5 minutes.",
   },
 
-  worker_fatal_error: {
+  worker_fatal: {
     mode: "any-error",
     severity: "critical",
     window: "5m",
@@ -105,7 +106,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "The Temporal worker process has encountered a fatal error and exited. Document processing is halted.",
   },
 
-  azure_ocr_submit_failed: {
+  azure_ocr_submit: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -114,7 +115,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "At least one document failed to be submitted to the Azure Document Intelligence OCR API within the last 5 minutes.",
   },
 
-  azure_ocr_poll_failed: {
+  azure_ocr_poll: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -123,7 +124,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "At least one OCR result poll from the Azure Document Intelligence API failed within the last 5 minutes.",
   },
 
-  azure_classify_submit_failed: {
+  azure_classify_submit: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -132,7 +133,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "At least one document failed to be submitted to the Azure Document Intelligence classifier at runtime within the last 5 minutes.",
   },
 
-  azure_classify_poll_failed: {
+  azure_classify_poll: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -141,7 +142,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "At least one Azure Document Intelligence classifier poll failed within the last 5 minutes.",
   },
 
-  mistral_ocr_failed: {
+  mistral_ocr: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -150,7 +151,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "At least one Mistral OCR processing activity failed within the last 5 minutes.",
   },
 
-  document_status_update_failed: {
+  document_status_update: {
     mode: "any-error",
     severity: "warning",
     window: "5m",
@@ -159,7 +160,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "A document status update activity failed within the last 5 minutes, leaving a document in an incorrect state.",
   },
 
-  upsert_ocr_result_failed: {
+  upsert_ocr_result: {
     mode: "any-error",
     severity: "critical",
     window: "5m",
@@ -168,7 +169,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "An OCR result could not be persisted to the database within the last 5 minutes. Processed document data may be lost.",
   },
 
-  benchmark_materialize_failed: {
+  benchmark_materialize: {
     mode: "any-error",
     severity: "warning",
     window: "15m",
@@ -177,7 +178,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "A benchmark dataset failed to materialize from object storage within the last 15 minutes.",
   },
 
-  blob_storage_failed: {
+  blob_storage: {
     mode: "any-error",
     severity: "critical",
     window: "5m",
@@ -186,7 +187,7 @@ export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
     description: "A blob storage read or write operation failed within the last 5 minutes. Document storage or retrieval may be unavailable.",
   },
 
-  document_upload_failed: {
+  document_upload: {
     mode: "any-error",
     severity: "warning",
     window: "5m",

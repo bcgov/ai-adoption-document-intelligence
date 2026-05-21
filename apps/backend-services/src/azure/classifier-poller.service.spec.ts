@@ -220,7 +220,7 @@ describe("ClassifierPollerService", () => {
       expect(mockLogger.log).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          alertType: "classifier_training_poll_failed",
+          alertType: "classifier_training_poll",
         }),
       );
     });
@@ -233,7 +233,7 @@ describe("ClassifierPollerService", () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          alertType: "classifier_training_poll_failed",
+          alertType: "classifier_training_poll",
         }),
       );
     });

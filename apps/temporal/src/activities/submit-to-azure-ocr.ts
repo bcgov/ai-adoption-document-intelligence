@@ -210,6 +210,7 @@ export async function submitToAzureOCR(params: {
       event: "complete",
       statusCode,
       apimRequestId,
+      alertType: "azure_ocr_submit",
     });
 
     // Return serializable result
@@ -223,7 +224,7 @@ export async function submitToAzureOCR(params: {
       event: "error",
       error: getErrorMessage(error),
       stack: getErrorStack(error),
-      alertType: "azure_ocr_submit_failed",
+      alertType: "azure_ocr_submit",
     });
     throw error;
   }

@@ -93,12 +93,14 @@ export class MinioBlobStorageService implements BlobStorageInterface {
         }),
       );
 
-      this.logger.debug(`Wrote blob: ${key} (${data.length} bytes)`);
+      this.logger.debug(`Wrote blob: ${key} (${data.length} bytes)`, {
+        alertType: "blob_storage",
+      });
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(`Failed to write blob: ${key}`, {
         stack: err.stack,
-        alertType: "blob_storage_failed",
+        alertType: "blob_storage",
       });
       throw new Error(`Failed to write blob "${key}": ${err.message}`);
     }
@@ -125,7 +127,9 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       }
       const data = Buffer.concat(chunks);
 
-      this.logger.debug(`Read blob: ${key} (${data.length} bytes)`);
+      this.logger.debug(`Read blob: ${key} (${data.length} bytes)`, {
+        alertType: "blob_storage",
+      });
       return data;
     } catch (error: unknown) {
       const err = error as Error & {
@@ -139,7 +143,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       }
       this.logger.error(`Failed to read blob: ${key}`, {
         stack: err.stack,
-        alertType: "blob_storage_failed",
+        alertType: "blob_storage",
       });
       throw new Error(`Failed to read blob "${key}": ${err.message}`);
     }
@@ -169,7 +173,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       }
       this.logger.error(`Failed to check blob existence: ${key}`, {
         stack: err.stack,
-        alertType: "blob_storage_failed",
+        alertType: "blob_storage",
       });
       throw new Error(
         `Failed to check blob existence "${key}": ${err.message}`,
@@ -189,12 +193,12 @@ export class MinioBlobStorageService implements BlobStorageInterface {
           Key: key,
         }),
       );
-      this.logger.debug(`Deleted blob: ${key}`);
+      this.logger.debug(`Deleted blob: ${key}`, { alertType: "blob_storage" });
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(`Failed to delete blob: ${key}`, {
         stack: err.stack,
-        alertType: "blob_storage_failed",
+        alertType: "blob_storage",
       });
       throw new Error(`Failed to delete blob "${key}": ${err.message}`);
     }
@@ -232,13 +236,15 @@ export class MinioBlobStorageService implements BlobStorageInterface {
           : undefined;
       } while (continuationToken);
 
-      this.logger.debug(`Listed ${keys.length} blobs with prefix "${prefix}"`);
+      this.logger.debug(`Listed ${keys.length} blobs with prefix "${prefix}"`, {
+        alertType: "blob_storage",
+      });
       return keys;
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(`Failed to list blobs with prefix "${prefix}"`, {
         stack: err.stack,
-        alertType: "blob_storage_failed",
+        alertType: "blob_storage",
       });
       throw new Error(
         `Failed to list blobs with prefix "${prefix}": ${err.message}`,

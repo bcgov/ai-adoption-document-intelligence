@@ -155,6 +155,7 @@ export async function azureClassifySubmit(
       event: "complete",
       resultId,
       constructedClassifierName,
+      alertType: "azure_classify_submit",
     });
 
     return {
@@ -170,7 +171,7 @@ export async function azureClassifySubmit(
       constructedClassifierName,
       error: getErrorMessage(error),
       stack: getErrorStack(error),
-      alertType: "azure_classify_submit_failed",
+      alertType: "azure_classify_submit",
     });
     throw error;
   }

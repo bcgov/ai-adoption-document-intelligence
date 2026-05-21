@@ -314,6 +314,7 @@ export async function mistralOcrProcess(
       requestId,
       pageCount: ocrResult.pages.length,
       durationMs: Date.now() - startTime,
+      alertType: "mistral_ocr",
     });
 
     return { ocrResult };
@@ -325,7 +326,7 @@ export async function mistralOcrProcess(
         event: "error",
         httpStatus: status !== undefined ? String(status) : undefined,
         body: typeof body === "object" ? body : String(body),
-        alertType: "mistral_ocr_failed",
+        alertType: "mistral_ocr",
       });
       throw new Error(
         `Mistral OCR request failed${status ? ` (${status})` : ""}: ${error.message}`,
@@ -334,7 +335,7 @@ export async function mistralOcrProcess(
     log.error("Mistral OCR process error", {
       event: "error",
       error: error instanceof Error ? error.message : "Unknown error",
-      alertType: "mistral_ocr_failed",
+      alertType: "mistral_ocr",
     });
     throw error;
   }
