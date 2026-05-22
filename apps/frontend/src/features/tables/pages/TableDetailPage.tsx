@@ -40,6 +40,17 @@ export function TableDetailPage() {
   const updateMeta = useUpdateTable(groupId, tableId);
   const deleteTable = useDeleteTable(groupId, tableId);
 
+  // Controlled state for the settings form
+  const [settingsLabel, setSettingsLabel] = useState<string | null>(null);
+  const [settingsDescription, setSettingsDescription] = useState<string | null>(
+    null,
+  );
+
+  // Use live table data as the source of truth; local state only while editing
+  const currentLabel = settingsLabel ?? table.data?.label ?? "";
+  const currentDescription =
+    settingsDescription ?? table.data?.description ?? "";
+
   const closeDeleteModal = () => {
     setConfirmDelete(false);
     setTableDeleteConfirm("");
@@ -127,24 +138,13 @@ export function TableDetailPage() {
             <Stack maw={500}>
               <TextInput
                 label="Label"
-                defaultValue={table.data.label}
-                onBlur={(e) => {
-                  const next = e.currentTarget.value.trim();
-                  if (next && next !== table.data?.label) {
-                    updateMeta.mutate({ label: next });
-                  }
-                }}
+                value={currentLabel}
+                onChange={(e) => setSettingsLabel(e.currentTarget.value)}
               />
               <Textarea
                 label="Description"
-                defaultValue={table.data.description ?? ""}
-                onBlur={(e) => {
-                  const raw = e.currentTarget.value;
-                  const next = raw.trim() || null;
-                  if (next !== (table.data?.description ?? null)) {
-                    updateMeta.mutate({ description: next });
-                  }
-                }}
+                value={currentDescription}
+                onChange={(e) => setSettingsDescription(e.currentTarget.value)}
               />
               {updateMeta.isError && (
                 <Text c="red" size="sm">
@@ -152,6 +152,25 @@ export function TableDetailPage() {
                 </Text>
               )}
               <Group>
+                <Button
+                  loading={updateMeta.isPending}
+                  onClick={() => {
+                    const label = currentLabel.trim();
+                    const description = currentDescription.trim() || null;
+                    if (!label) return;
+                    updateMeta.mutate(
+                      { label, description },
+                      {
+                        onSuccess: () => {
+                          setSettingsLabel(null);
+                          setSettingsDescription(null);
+                        },
+                      },
+                    );
+                  }}
+                >
+                  Save Settings
+                </Button>
                 <Button color="red" onClick={() => setConfirmDelete(true)}>
                   Delete Table
                 </Button>
