@@ -92,7 +92,7 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, initial?.key]);
 
-  const showSeedInput = !!initial && form.values.required === true;
+  const showSeedInput = form.values.required === true && !form.values.unique;
 
   const seedInput = (() => {
     if (!showSeedInput) return null;

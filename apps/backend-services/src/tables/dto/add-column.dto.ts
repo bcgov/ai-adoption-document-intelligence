@@ -14,9 +14,11 @@ import { ColumnDto } from "./column.dto";
  */
 export class AddColumnDto extends ColumnDto {
   @ApiPropertyOptional({
+    type: Object,
     description:
-      "Value written to all existing rows for this column at the time it is added. " +
-      "Only applied during this column-add operation — not used when new rows are inserted.",
+      "Any JSON-compatible value written to all existing rows that are missing a value for this column. " +
+      "Type-validated against the column schema in the service layer (not at the HTTP boundary). " +
+      "Only applied during this operation — not used when new rows are inserted.",
   })
   @IsOptional()
   seed_value?: unknown;

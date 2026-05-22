@@ -76,6 +76,7 @@ describe("TablesService", () => {
       hasRowWithColumnValue: jest.fn(),
       columnHasDuplicateValues: jest.fn(),
       hasRows: jest.fn(),
+      backfillAndUpdateColumn: jest.fn(),
     } as unknown as jest.Mocked<TablesDbService>;
     audit = { recordEvent: jest.fn() };
     const moduleRef = await Test.createTestingModule({
@@ -209,6 +210,24 @@ describe("TablesService", () => {
     expect(db.addColumn).not.toHaveBeenCalled();
   });
 
+  // Test 2e2: addColumn rejects required-only column (no seed) when table already has rows
+  it("addColumn rejects a required column without seed_value when the table already has rows", async () => {
+    const col = {
+      key: "notes",
+      label: "Notes",
+      type: "string" as const,
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+    db.hasRows.mockResolvedValueOnce(true);
+
+    await expect(svc.addColumn("user1", "g", "t", col)).rejects.toThrow(
+      /required column without a seed_value.*already has rows/i,
+    );
+
+    expect(db.addColumn).not.toHaveBeenCalled();
+  });
+
   // Test 2f: addColumn allows unique-only column on a table with existing rows
   it("addColumn allows a nullable unique column when the table already has rows", async () => {
     const col = {
@@ -297,8 +316,11 @@ describe("TablesService", () => {
       { key: "code", label: "Code", type: "string" },
     ];
     db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
-    db.backfillColumn.mockResolvedValueOnce(undefined as never);
-    db.columnHasDuplicateValues.mockResolvedValueOnce(true);
+    db.backfillAndUpdateColumn.mockRejectedValueOnce(
+      new ConflictException(
+        'Column "Code" cannot be saved — rows contain duplicate values.',
+      ),
+    );
 
     const next: ColumnDef = {
       key: "code",
@@ -311,7 +333,15 @@ describe("TablesService", () => {
       svc.updateColumn("user1", "g", "t", "code", next, "SAME"),
     ).rejects.toThrow(/cannot be saved.*duplicate/i);
 
-    expect(db.backfillColumn).toHaveBeenCalledWith("g", "t", "code", "SAME");
+    expect(db.backfillAndUpdateColumn).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      next,
+      "SAME",
+      true,
+      "Code",
+    );
     expect(db.updateColumn).not.toHaveBeenCalled();
   });
 
@@ -321,8 +351,11 @@ describe("TablesService", () => {
       { key: "code", label: "Code", type: "string", unique: true },
     ];
     db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
-    db.backfillColumn.mockResolvedValueOnce(undefined as never);
-    db.columnHasDuplicateValues.mockResolvedValueOnce(true);
+    db.backfillAndUpdateColumn.mockRejectedValueOnce(
+      new ConflictException(
+        'Column "Code" cannot be saved — rows contain duplicate values.',
+      ),
+    );
 
     const next: ColumnDef = {
       key: "code",
@@ -336,19 +369,26 @@ describe("TablesService", () => {
       svc.updateColumn("user1", "g", "t", "code", next, "SAME"),
     ).rejects.toThrow(/cannot be saved.*duplicate/i);
 
-    expect(db.backfillColumn).toHaveBeenCalledWith("g", "t", "code", "SAME");
+    expect(db.backfillAndUpdateColumn).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      next,
+      "SAME",
+      true,
+      "Code",
+    );
     expect(db.updateColumn).not.toHaveBeenCalled();
   });
 
-  // Test 3c4: updateColumn calls backfillColumn when seed_value is provided
-  it("updateColumn calls backfillColumn when seed_value is provided", async () => {
+  // Test 3c4: updateColumn uses backfillAndUpdateColumn when seed_value is provided
+  it("updateColumn uses backfillAndUpdateColumn when seed_value is provided", async () => {
     const before: ColumnDef[] = [
       { key: "notes", label: "Notes", type: "string" },
     ];
     db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
     const updated = makeTable({ columns: before });
-    db.updateColumn.mockResolvedValueOnce(updated as never);
-    db.backfillColumn.mockResolvedValueOnce(undefined as never);
+    db.backfillAndUpdateColumn.mockResolvedValueOnce(updated as never);
 
     const next: ColumnDef = {
       key: "notes",
@@ -359,8 +399,17 @@ describe("TablesService", () => {
 
     await svc.updateColumn("user1", "g", "t", "notes", next, "N/A");
 
-    expect(db.updateColumn).toHaveBeenCalledWith("g", "t", "notes", next);
-    expect(db.backfillColumn).toHaveBeenCalledWith("g", "t", "notes", "N/A");
+    expect(db.backfillAndUpdateColumn).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "notes",
+      next,
+      "N/A",
+      false,
+      "Notes",
+    );
+    expect(db.updateColumn).not.toHaveBeenCalled();
+    expect(db.backfillColumn).not.toHaveBeenCalled();
   });
 
   // Test 3d: createRow succeeds when hasRowWithColumnValue returns false for a unique column
