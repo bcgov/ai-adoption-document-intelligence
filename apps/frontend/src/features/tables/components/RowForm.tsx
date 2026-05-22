@@ -163,7 +163,7 @@ export function RowForm({
                     key={c.key}
                     label={c.label}
                     required={c.required}
-                    valueFormat="YYYY-MM-DD HH:MM"
+                    valueFormat="YYYY-MM-DD HH:mm"
                     leftSection={<IconCalendar size={16} />}
                     leftSectionPointerEvents="none"
                     {...props}

@@ -26,7 +26,13 @@ export function buildRowZodSchema(
           .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, "Invalid datetime");
         break;
       case "year-month":
-        base = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD");
+        // MonthPickerInput stores values as "YYYY-MM-DD" internally; the
+        // mutation strips them to "YYYY-MM" before sending to the API.
+        // This regex validates the picker's pre-serialisation format, not
+        // the final wire format.
+        base = z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid year and month");
         break;
       case "enum": {
         const values = c.enumValues ?? [];
