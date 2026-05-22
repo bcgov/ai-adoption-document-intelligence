@@ -244,70 +244,85 @@ export function RowsTab({
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {rows.data.rows.map((row) => (
-                  <Table.Tr
-                    key={row.id}
-                    style={{
-                      ...(selectedIds.has(row.id)
-                        ? { backgroundColor: "var(--mantine-color-blue-0)" }
-                        : undefined),
-                    }}
-                  >
-                    <Table.Td
-                      style={{
-                        position: "sticky",
-                        left: 0,
-                        background: selectedIds.has(row.id)
-                          ? "var(--mantine-color-blue-0)"
-                          : "var(--mantine-color-body)",
-                        zIndex: 1,
-                      }}
-                    >
-                      <Checkbox
-                        checked={selectedIds.has(row.id)}
-                        onChange={() => toggleRow(row.id)}
-                        aria-label="Select row"
-                      />
-                    </Table.Td>
-                    {visibleColumns.map((c) => (
-                      <Table.Td key={c.key}>
-                        {renderCell(row.data[c.key], c.type)}
+                {rows.data.rows.map((row, idx) => {
+                  const isSelected = selectedIds.has(row.id);
+                  // Match Mantine's striped="odd" pattern (1-indexed odd = 0-indexed even)
+                  const stripeBg =
+                    idx % 2 === 0
+                      ? "var(--table-striped-color)"
+                      : "var(--mantine-color-body)";
+                  const stickyBg = isSelected
+                    ? "var(--mantine-color-blue-1)"
+                    : stripeBg;
+                  const selBg = isSelected
+                    ? "var(--mantine-color-blue-1)"
+                    : undefined;
+                  const selColor = isSelected
+                    ? "var(--mantine-color-dark-9)"
+                    : undefined;
+                  return (
+                    <Table.Tr key={row.id}>
+                      <Table.Td
+                        style={{
+                          position: "sticky",
+                          left: 0,
+                          background: stickyBg,
+                          color: selColor,
+                          zIndex: 1,
+                        }}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={() => toggleRow(row.id)}
+                          aria-label="Select row"
+                        />
                       </Table.Td>
-                    ))}
-                    <Table.Td
-                      style={{
-                        position: "sticky",
-                        right: 0,
-                        background: selectedIds.has(row.id)
-                          ? "var(--mantine-color-blue-0)"
-                          : "var(--mantine-color-body)",
-                        zIndex: 1,
-                      }}
-                    >
-                      <Group gap="xs" justify="flex-end" wrap="nowrap">
-                        <Tooltip label="Edit" withArrow>
-                          <ActionIcon
-                            variant="subtle"
-                            onClick={() => onEdit(row)}
-                            aria-label="Edit row"
-                          >
-                            <IconPencil size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label="Delete" withArrow>
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            onClick={() => setRowToDelete(row)}
-                            aria-label="Delete row"
-                          >
-                            <IconTrash size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
+                      {visibleColumns.map((c) => (
+                        <Table.Td
+                          key={c.key}
+                          style={
+                            selBg
+                              ? { backgroundColor: selBg, color: selColor }
+                              : undefined
+                          }
+                        >
+                          {renderCell(row.data[c.key], c.type)}
+                        </Table.Td>
+                      ))}
+                      <Table.Td
+                        style={{
+                          position: "sticky",
+                          right: 0,
+                          background: stickyBg,
+                          color: selColor,
+                          zIndex: 1,
+                        }}
+                      >
+                        <Group gap="xs" justify="flex-end" wrap="nowrap">
+                          <Tooltip label="Edit" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              onClick={() => onEdit(row)}
+                              aria-label="Edit row"
+                            >
+                              <IconPencil size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Delete" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => setRowToDelete(row)}
+                              aria-label="Delete row"
+                            >
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
               </Table.Tbody>
             </Table>
           </div>
