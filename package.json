@@ -46,6 +46,22 @@
 		"node": ">=24.0.0",
 		"npm": ">=10.0.0"
 	},
+	"optionalDependencies": {
+		"@biomejs/cli-darwin-arm64": "2.4.8",
+		"@biomejs/cli-linux-x64": "2.4.8",
+		"@biomejs/cli-linux-x64-musl": "2.4.8",
+		"@esbuild/darwin-arm64": "0.25.12",
+		"@esbuild/linux-x64": "0.25.12",
+		"@img/sharp-darwin-arm64": "0.34.5",
+		"@img/sharp-linux-x64": "0.34.5",
+		"@img/sharp-linuxmusl-x64": "0.34.5",
+		"@rollup/rollup-darwin-arm64": "4.60.2",
+		"@rollup/rollup-linux-x64-gnu": "4.60.2",
+		"@rollup/rollup-linux-x64-musl": "4.60.2",
+		"@swc/core-darwin-arm64": "1.15.3",
+		"@swc/core-linux-x64-gnu": "1.15.3",
+		"@swc/core-linux-x64-musl": "1.15.3"
+	},
 	"overrides": {
 		"@hono/node-server": "1.19.13",
 		"@nestjs/throttler": {
