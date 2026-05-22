@@ -238,6 +238,52 @@ describe("TablesService", () => {
     expect(db.updateColumn).not.toHaveBeenCalled();
   });
 
+  // Test 3d: createRow succeeds when hasRowWithColumnValue returns false for a unique column
+  it("createRow calls hasRowWithColumnValue and proceeds when value is not a duplicate", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(false);
+    const row = makeRow({ id: "row-uuid", data: { code: "ABC" } });
+    db.createRow.mockResolvedValueOnce(row as never);
+
+    await svc.createRow("user1", "g", "t", { code: "ABC" });
+
+    expect(db.hasRowWithColumnValue).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      "ABC",
+    );
+    expect(db.createRow).toHaveBeenCalledWith("g", "t", { code: "ABC" });
+  });
+
+  // Test 3e: updateRow calls hasRowWithColumnValue with the row's own id as excludeId
+  it("updateRow calls hasRowWithColumnValue with excludeId and proceeds when value is unique", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(false);
+    const updatedRow = makeRow({ id: "row1", data: { code: "ABC" } });
+    db.updateRow.mockResolvedValueOnce(updatedRow as never);
+
+    await svc.updateRow("user1", "g", "t", "row1", {
+      data: { code: "ABC" },
+      expected_updated_at: new Date("2025-01-15T09:00:00Z"),
+    });
+
+    expect(db.hasRowWithColumnValue).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      "ABC",
+      "row1",
+    );
+    expect(db.updateRow).toHaveBeenCalled();
+  });
+
   // Test 4: removeColumn blocks when lookup references the column
   it("removeColumn throws ConflictException when a lookup references the column", async () => {
     const cols: ColumnDef[] = [{ key: "name", label: "Name", type: "string" }];

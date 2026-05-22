@@ -255,6 +255,9 @@ export class TablesDbService {
    * optionally excluding a specific row (used when updating a row to allow
    * the row to keep its own existing value).
    *
+   * Filtering is pushed to Postgres via a JSONB containment query so no
+   * rows are loaded into application memory.
+   *
    * @param group_id - The group that owns the table.
    * @param table_id - The stable table identifier.
    * @param key - Column key to check.
@@ -268,37 +271,49 @@ export class TablesDbService {
     value: unknown,
     excludeId?: string,
   ): Promise<boolean> {
-    const rows = await this.prisma.referenceTableRow.findMany({
-      where: { group_id, table_id },
-      select: { id: true, data: true },
+    const where: Prisma.ReferenceTableRowWhereInput = {
+      group_id,
+      table_id,
+      // Prisma compiles { path, equals } to a JSONB @> containment query,
+      // pushing the filter to Postgres rather than loading all rows.
+      data: { path: [key], equals: value as Prisma.InputJsonValue },
+    };
+    if (excludeId) {
+      where.NOT = { id: excludeId };
+    }
+    const hit = await this.prisma.referenceTableRow.findFirst({
+      where,
+      select: { id: true },
     });
-    return rows.some(
-      (r) =>
-        r.id !== excludeId &&
-        (r.data as Record<string, unknown>)[key] === value,
-    );
+    return hit !== null;
   }
 
   /**
    * Returns true if any two rows in the table share the same non-null value
    * for the given column key.
+   *
+   * Uses a GROUP BY / HAVING query so Postgres handles the deduplication check
+   * rather than loading all rows into application memory.
+   *
+   * `key` is validated by KEY_PATTERN (`/^[a-z][a-z0-9_]*$/`) at the API
+   * boundary; each `${...}` placeholder in the tagged template is a
+   * parameterised binding, so this query is not vulnerable to SQL injection.
    */
   async columnHasDuplicateValues(
     group_id: string,
     table_id: string,
     key: string,
   ): Promise<boolean> {
-    const rows = await this.prisma.referenceTableRow.findMany({
-      where: { group_id, table_id },
-      select: { data: true },
-    });
-    const seen = new Set<unknown>();
-    for (const r of rows) {
-      const val = (r.data as Record<string, unknown>)[key];
-      if (val === undefined || val === null) continue;
-      if (seen.has(val)) return true;
-      seen.add(val);
-    }
-    return false;
+    const rows = await this.prisma.$queryRaw<Array<{ found: bigint }>>`
+      SELECT 1 AS found
+      FROM reference_table_row
+      WHERE group_id = ${group_id}
+        AND table_id = ${table_id}
+        AND data->>${key} IS NOT NULL
+      GROUP BY data->>${key}
+      HAVING COUNT(*) > 1
+      LIMIT 1
+    `;
+    return rows.length > 0;
   }
 }

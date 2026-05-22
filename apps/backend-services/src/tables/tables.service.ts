@@ -21,6 +21,40 @@ export class TablesService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Per-table async mutex — serialises the uniqueness-check + insert/update
+   * sequence for a given table so that concurrent requests cannot both pass
+   * the check before either commits the write (TOCTOU prevention).
+   *
+   * NOTE: This lock is in-memory and per-process. It has no effect across
+   * multiple service instances. A database-level unique constraint would be
+   * required for cross-instance enforcement.
+   */
+  private readonly tableLocks = new Map<string, Promise<void>>();
+
+  private async withTableLock<T>(
+    group_id: string,
+    table_id: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const key = `${group_id}:${table_id}`;
+    const prev = this.tableLocks.get(key) ?? Promise.resolve();
+    let resolve!: () => void;
+    const next = new Promise<void>((res) => {
+      resolve = res;
+    });
+    this.tableLocks.set(key, next);
+    try {
+      await prev;
+      return await fn();
+    } finally {
+      resolve();
+      if (this.tableLocks.get(key) === next) {
+        this.tableLocks.delete(key);
+      }
+    }
+  }
+
   async createTable(args: CreateTableArgs) {
     const { actor_id, group_id, table_id, label, description } = args;
     const result = await this.db.createTable({
@@ -141,6 +175,8 @@ export class TablesService {
       resource_id: result.id,
       actor_id,
       group_id,
+      // seed_value is reference-table data (not sensitive PII). It is
+      // included so the audit trail captures the initial backfill value.
       payload: { column: col, seed_value },
     });
     return result;
@@ -326,25 +362,30 @@ export class TablesService {
     // Let ZodError propagate — Nest's global filter handles it, or caller wraps it
     const parsed = schema.parse(data) as Record<string, unknown>;
 
-    const uniqueCols = cols.filter((c) => c.unique);
-    for (const col of uniqueCols) {
-      const val = parsed[col.key];
-      if (val !== undefined && val !== null) {
-        const clash = await this.db.hasRowWithColumnValue(
-          group_id,
-          table_id,
-          col.key,
-          val,
-        );
-        if (clash) {
-          throw new ConflictException(
-            `Column "${col.label}" requires unique values — "${val}" is already in use`,
+    // Serialise the check-then-insert within a per-table lock to prevent
+    // concurrent requests from both passing the uniqueness check before
+    // either write is committed.
+    const row = await this.withTableLock(group_id, table_id, async () => {
+      const uniqueCols = cols.filter((c) => c.unique);
+      for (const col of uniqueCols) {
+        const val = parsed[col.key];
+        if (val !== undefined && val !== null) {
+          const clash = await this.db.hasRowWithColumnValue(
+            group_id,
+            table_id,
+            col.key,
+            val,
           );
+          if (clash) {
+            throw new ConflictException(
+              `Column "${col.label}" requires unique values — "${val}" is already in use`,
+            );
+          }
         }
       }
-    }
+      return this.db.createRow(group_id, table_id, parsed);
+    });
 
-    const row = await this.db.createRow(group_id, table_id, parsed);
     await this.audit.recordEvent({
       event_type: "tables.row.created",
       resource_type: "table_row",
@@ -382,36 +423,41 @@ export class TablesService {
     const schema = buildRowZodSchema(cols);
     const parsed = schema.parse(input.data) as Record<string, unknown>;
 
-    const uniqueCols = cols.filter((c) => c.unique);
-    for (const col of uniqueCols) {
-      const val = parsed[col.key];
-      if (val !== undefined && val !== null) {
-        const clash = await this.db.hasRowWithColumnValue(
-          group_id,
-          table_id,
-          col.key,
-          val,
-          id,
-        );
-        if (clash) {
-          throw new ConflictException(
-            `Column "${col.label}" requires unique values — "${val}" is already in use`,
-          );
-        }
-      }
-    }
-
+    // Fetch the current row state for audit purposes before the lock is acquired.
     const before = await this.db.findRow(group_id, table_id, id);
 
-    let row: Awaited<ReturnType<typeof this.db.updateRow>>;
-    try {
-      row = await this.db.updateRow(group_id, table_id, id, {
-        data: parsed,
-        expected_updated_at: input.expected_updated_at,
-      });
-    } catch (e) {
-      throw new ConflictException((e as Error).message);
-    }
+    // Serialise the check-then-update within a per-table lock to prevent
+    // concurrent requests from both passing the uniqueness check before
+    // either write is committed.
+    const row = await this.withTableLock(group_id, table_id, async () => {
+      const uniqueCols = cols.filter((c) => c.unique);
+      for (const col of uniqueCols) {
+        const val = parsed[col.key];
+        if (val !== undefined && val !== null) {
+          const clash = await this.db.hasRowWithColumnValue(
+            group_id,
+            table_id,
+            col.key,
+            val,
+            id,
+          );
+          if (clash) {
+            throw new ConflictException(
+              `Column "${col.label}" requires unique values — "${val}" is already in use`,
+            );
+          }
+        }
+      }
+
+      try {
+        return await this.db.updateRow(group_id, table_id, id, {
+          data: parsed,
+          expected_updated_at: input.expected_updated_at,
+        });
+      } catch (e) {
+        throw new ConflictException((e as Error).message);
+      }
+    });
 
     await this.audit.recordEvent({
       event_type: "tables.row.updated",
