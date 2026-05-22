@@ -13,6 +13,7 @@
 
 import { z } from "zod/v4";
 import { azureOcrSubmitCatalogEntry } from "./activities/azure-ocr-submit";
+import { documentSplitCatalogEntry } from "./activities/document-split";
 import { filePrepareCatalogEntry } from "./activities/file-prepare";
 import { ocrCheckConfidenceCatalogEntry } from "./activities/ocr-check-confidence";
 import type { ActivityCatalogEntry } from "./types";
@@ -26,6 +27,7 @@ export const ACTIVITY_CATALOG: Record<string, ActivityCatalogEntry> = {
   [filePrepareCatalogEntry.activityType]: filePrepareCatalogEntry,
   [azureOcrSubmitCatalogEntry.activityType]: azureOcrSubmitCatalogEntry,
   [ocrCheckConfidenceCatalogEntry.activityType]: ocrCheckConfidenceCatalogEntry,
+  [documentSplitCatalogEntry.activityType]: documentSplitCatalogEntry,
 };
 
 /**

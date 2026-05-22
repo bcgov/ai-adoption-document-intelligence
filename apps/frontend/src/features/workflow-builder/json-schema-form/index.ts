@@ -1,3 +1,7 @@
 export { JsonSchemaForm } from "./JsonSchemaForm";
-export type { JsonSchemaObject, JsonSchemaProperty } from "./types";
-export { isObjectSchema } from "./types";
+export type {
+  DiscriminatedUnion,
+  JsonSchemaObject,
+  JsonSchemaProperty,
+} from "./types";
+export { detectDiscriminatedUnion, isObjectSchema } from "./types";
