@@ -86,13 +86,20 @@ export function RowsTab({
 
   const deleteRows = useMutation({
     mutationFn: async (ids: string[]) => {
-      const results = await Promise.all(
-        ids.map((id) =>
-          apiService.delete(
-            `/tables/${tableId}/rows/${id}?group_id=${groupId}`,
+      // Process in chunks of 10 to avoid saturating the connection pool.
+      const CHUNK_SIZE = 10;
+      const results: { success: boolean; message?: string }[] = [];
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const chunkResults = await Promise.all(
+          chunk.map((id) =>
+            apiService.delete(
+              `/tables/${tableId}/rows/${id}?group_id=${groupId}`,
+            ),
           ),
-        ),
-      );
+        );
+        results.push(...chunkResults);
+      }
       const failed = results.filter((r) => !r.success);
       if (failed.length > 0) {
         throw new Error(
@@ -174,7 +181,10 @@ export function RowsTab({
               color="red"
               variant="light"
               size="sm"
-              onClick={() => setConfirmBulkDelete(true)}
+              onClick={() => {
+                deleteRows.reset();
+                setConfirmBulkDelete(true);
+              }}
             >
               Delete {totalSelected} selected
             </Button>
@@ -312,7 +322,10 @@ export function RowsTab({
                             <ActionIcon
                               variant="subtle"
                               color="red"
-                              onClick={() => setRowToDelete(row)}
+                              onClick={() => {
+                                deleteRows.reset();
+                                setRowToDelete(row);
+                              }}
                               aria-label="Delete row"
                             >
                               <IconTrash size={16} />

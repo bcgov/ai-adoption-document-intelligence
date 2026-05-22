@@ -35,6 +35,11 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
     setTypeConfirm("");
   };
 
+  const openDeleteModal = (key: string) => {
+    remove.reset();
+    setConfirmDeleteKey(key);
+  };
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
     qc.invalidateQueries({ queryKey: ["table-rows", groupId, tableId] });
@@ -133,7 +138,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
                           loading={
                             remove.isPending && remove.variables === c.key
                           }
-                          onClick={() => setConfirmDeleteKey(c.key)}
+                          onClick={() => openDeleteModal(c.key)}
                           aria-label={`Delete column ${c.label}`}
                         >
                           <IconTrash size={16} />
@@ -193,6 +198,11 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
             value={typeConfirm}
             onChange={(e) => setTypeConfirm(e.currentTarget.value)}
           />
+          {remove.isError && (
+            <Text c="red" size="sm">
+              {(remove.error as Error).message}
+            </Text>
+          )}
           <Group justify="flex-end">
             <Button variant="default" onClick={closeDeleteModal}>
               Cancel
@@ -204,7 +214,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
               onClick={() => {
                 if (confirmDeleteKey) {
                   remove.mutate(confirmDeleteKey, {
-                    onSettled: closeDeleteModal,
+                    onSuccess: closeDeleteModal,
                   });
                 }
               }}
