@@ -11,12 +11,12 @@ import {
   Alert,
   Button,
   Center,
+  DataTable,
   Group,
   Loader,
   Modal,
   notifications,
   Select,
-  Table,
   Text,
 } from "../../ui";
 
@@ -107,23 +107,23 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
 
   return (
     <>
-      <Table highlightOnHover data-testid="members-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Email</Table.Th>
-            <Table.Th>Joined</Table.Th>
-            <Table.Th>Role</Table.Th>
-            {isAdmin && <Table.Th>Actions</Table.Th>}
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+      <DataTable highlightOnHover data-testid="members-table">
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th>Email</DataTable.Th>
+            <DataTable.Th>Joined</DataTable.Th>
+            <DataTable.Th>Role</DataTable.Th>
+            {isAdmin && <DataTable.Th>Actions</DataTable.Th>}
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {members.map((member) => (
-            <Table.Tr key={member.userId}>
-              <Table.Td>{member.email}</Table.Td>
-              <Table.Td>
+            <DataTable.Tr key={member.userId}>
+              <DataTable.Td>{member.email}</DataTable.Td>
+              <DataTable.Td>
                 {new Date(member.joinedAt).toLocaleDateString()}
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 {isAdmin ? (
                   <Select
                     size="xs"
@@ -140,9 +140,9 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
                       ?.label ?? member.role}
                   </Text>
                 )}
-              </Table.Td>
+              </DataTable.Td>
               {isAdmin && (
-                <Table.Td>
+                <DataTable.Td>
                   <Button
                     size="xs"
                     variant="light"
@@ -152,12 +152,12 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
                   >
                     Remove
                   </Button>
-                </Table.Td>
+                </DataTable.Td>
               )}
-            </Table.Tr>
+            </DataTable.Tr>
           ))}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
 
       <Modal
         opened={confirmMember !== null}

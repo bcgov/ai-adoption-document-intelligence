@@ -2,7 +2,6 @@ import {
   IconAlertCircle,
   IconCircleCheck,
   IconLogout,
-  IconUsers,
 } from "@tabler/icons-react";
 import type { JSX } from "react";
 import { useAuth } from "../auth/AuthContext";
@@ -18,11 +17,11 @@ import {
   Box,
   Button,
   Center,
-  Group,
   Loader,
+  PageHeader,
+  PanelCard,
   Stack,
   Text,
-  Title,
 } from "../ui";
 import { SetupPage } from "./SetupPage";
 
@@ -87,81 +86,80 @@ export function RequestMembershipPage(): JSX.Element {
 
       <Center mih="100vh" pt="xl">
         <Stack gap="lg" w="100%" maw={700} px="md">
-          <Group gap="md">
-            <IconUsers size={40} stroke={1.2} />
-            <Stack gap={0}>
-              <Title order={2}>Request group membership</Title>
-              <Text c="dimmed" size="sm">
-                Select a group to request access — an administrator will review
-                your request before granting membership.
-              </Text>
+          <PageHeader
+            title="Request group membership"
+            description="Select a group to request access — an administrator will review your request before granting membership."
+            showDateBadge={false}
+          />
+
+          <PanelCard>
+            <Stack gap="md">
+              {/* Feedback alerts */}
+              {requestMutation.isSuccess && (
+                <Alert
+                  icon={<IconCircleCheck size={16} />}
+                  color="green"
+                  data-testid="request-success"
+                >
+                  Your membership request has been submitted and is pending
+                  admin approval.
+                </Alert>
+              )}
+
+              {requestMutation.isError && (
+                <Alert
+                  icon={<IconAlertCircle size={16} />}
+                  color="red"
+                  data-testid="request-error"
+                >
+                  {requestMutation.error
+                    ? requestMutation.error.message
+                    : "Failed to submit membership request. Please try again."}
+                </Alert>
+              )}
+
+              {/* Groups table */}
+              {groupsLoading && <Loader data-testid="groups-loader" />}
+
+              {groupsError && (
+                <Alert
+                  icon={<IconAlertCircle size={16} />}
+                  color="red"
+                  data-testid="groups-error"
+                >
+                  Failed to load groups. Please refresh the page and try again.
+                </Alert>
+              )}
+
+              {!groupsLoading && !groupsError && groups?.length === 0 && (
+                <Text
+                  c="dimmed"
+                  ta="center"
+                  size="sm"
+                  data-testid="no-groups-message"
+                >
+                  No groups are available. Contact an administrator.
+                </Text>
+              )}
+
+              {!groupsLoading && !groupsError && !!groups?.length && (
+                <GroupsTable
+                  groups={groups}
+                  memberGroupIds={new Set()}
+                  pendingRequestGroupIds={pendingRequestGroupIds}
+                  onJoin={handleRequest}
+                  onLeave={() => {
+                    // Users on this page have no memberships; Leave is never rendered
+                  }}
+                  joinLoadingGroupId={
+                    requestMutation.isPending
+                      ? (requestMutation.variables?.groupId ?? null)
+                      : null
+                  }
+                />
+              )}
             </Stack>
-          </Group>
-
-          {/* Feedback alerts */}
-          {requestMutation.isSuccess && (
-            <Alert
-              icon={<IconCircleCheck size={16} />}
-              color="green"
-              data-testid="request-success"
-            >
-              Your membership request has been submitted and is pending admin
-              approval.
-            </Alert>
-          )}
-
-          {requestMutation.isError && (
-            <Alert
-              icon={<IconAlertCircle size={16} />}
-              color="red"
-              data-testid="request-error"
-            >
-              {requestMutation.error
-                ? requestMutation.error.message
-                : "Failed to submit membership request. Please try again."}
-            </Alert>
-          )}
-
-          {/* Groups table */}
-          {groupsLoading && <Loader data-testid="groups-loader" />}
-
-          {groupsError && (
-            <Alert
-              icon={<IconAlertCircle size={16} />}
-              color="red"
-              data-testid="groups-error"
-            >
-              Failed to load groups. Please refresh the page and try again.
-            </Alert>
-          )}
-
-          {!groupsLoading && !groupsError && groups?.length === 0 && (
-            <Text
-              c="dimmed"
-              ta="center"
-              size="sm"
-              data-testid="no-groups-message"
-            >
-              No groups are available. Contact an administrator.
-            </Text>
-          )}
-
-          {!groupsLoading && !groupsError && !!groups?.length && (
-            <GroupsTable
-              groups={groups}
-              memberGroupIds={new Set()}
-              pendingRequestGroupIds={pendingRequestGroupIds}
-              onJoin={handleRequest}
-              onLeave={() => {
-                // Users on this page have no memberships; Leave is never rendered
-              }}
-              joinLoadingGroupId={
-                requestMutation.isPending
-                  ? (requestMutation.variables?.groupId ?? null)
-                  : null
-              }
-            />
-          )}
+          </PanelCard>
         </Stack>
       </Center>
     </>

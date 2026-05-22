@@ -4,13 +4,13 @@ import { apiService } from "@/data/services/api.service";
 import {
   Alert,
   Button,
-  Card,
   Center,
   Code,
   Drawer,
   Group,
   JsonInput,
   Loader,
+  PanelCard,
   ScrollArea,
   Stack,
   Text,
@@ -229,7 +229,7 @@ export function ArtifactViewer({
     >
       <Stack gap="md" h="calc(100vh - 80px)">
         {/* Artifact Metadata */}
-        <Card withBorder data-testid="artifact-metadata-card">
+        <PanelCard data-testid="artifact-metadata-card">
           <Stack gap="xs">
             <Group>
               <Text size="sm" fw={500}>
@@ -268,7 +268,7 @@ export function ArtifactViewer({
               </Group>
             )}
           </Stack>
-        </Card>
+        </PanelCard>
 
         {/* Actions */}
         <Group>
@@ -283,8 +283,7 @@ export function ArtifactViewer({
         </Group>
 
         {/* Content Viewer */}
-        <Card
-          withBorder
+        <PanelCard
           style={{ flex: 1, overflow: "hidden" }}
           data-testid="artifact-content-card"
         >
@@ -359,7 +358,7 @@ export function ArtifactViewer({
               download the file to view it.
             </Alert>
           )}
-        </Card>
+        </PanelCard>
       </Stack>
     </Drawer>
   );

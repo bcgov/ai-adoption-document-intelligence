@@ -12,6 +12,7 @@ import {
   Badge,
   Button,
   Code,
+  DataTable,
   Group,
   Loader,
   NumberInput,
@@ -19,7 +20,6 @@ import {
   Paper,
   SegmentedControl,
   Stack,
-  Table,
   Text,
   Textarea,
   Title,
@@ -331,21 +331,21 @@ export function TrainingPanel({
             No training jobs yet. Start your first training above.
           </Text>
         ) : (
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Mode</Table.Th>
-                <Table.Th>Started</Table.Th>
-                <Table.Th>Duration</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+          <DataTable striped highlightOnHover>
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Status</DataTable.Th>
+                <DataTable.Th>Mode</DataTable.Th>
+                <DataTable.Th>Started</DataTable.Th>
+                <DataTable.Th>Duration</DataTable.Th>
+                <DataTable.Th>Actions</DataTable.Th>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {jobs.map((job) => (
-                <Table.Tr key={job.id}>
-                  <Table.Td>{getStatusBadge(job.status)}</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr key={job.id}>
+                  <DataTable.Td>{getStatusBadge(job.status)}</DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">
                       {job.buildMode}
                       {job.buildMode === BuildMode.neural &&
@@ -353,16 +353,16 @@ export function TrainingPanel({
                         ? ` · ${job.maxTrainingHours}h budget`
                         : ""}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">{formatDate(job.startedAt)}</Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">
                       {getDuration(job.startedAt, job.completedAt)}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     {job.status === TrainingStatus.TRAINING ||
                     job.status === TrainingStatus.UPLOADING ||
                     job.status === TrainingStatus.UPLOADED ? (
@@ -383,11 +383,11 @@ export function TrainingPanel({
                         </ActionIcon>
                       </Tooltip>
                     ) : null}
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               ))}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
         )}
       </Paper>
     </Stack>

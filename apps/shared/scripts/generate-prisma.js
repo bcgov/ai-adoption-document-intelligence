@@ -84,12 +84,21 @@ try {
   console.log('Generating Prisma client from shared schema...');
   
   // Generate Prisma client to temporary location
+  // Ensure `npx prisma` uses the same Node as this script (avoids Cursor/system Node
+  // mismatch where Prisma 7 fails with ERR_REQUIRE_ESM on zeptomatch).
+  const nodeBinDir = path.dirname(process.execPath);
+  const pathWithNode =
+    process.env.PATH?.includes(nodeBinDir) === true
+      ? process.env.PATH
+      : `${nodeBinDir}${path.delimiter}${process.env.PATH ?? ''}`;
+
   execFileSync(
     'npx',
     ['prisma', 'generate', `--schema=${tempSchemaPath}`],
     {
       stdio: 'inherit',
       cwd: sharedDir,
+      env: { ...process.env, PATH: pathWithNode },
     },
   );
   

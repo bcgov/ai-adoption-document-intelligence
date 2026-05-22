@@ -14,11 +14,11 @@ import {
   Badge,
   Button,
   Center,
+  DataTable,
   Group,
   Loader,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
   UnstyledButton,
@@ -347,11 +347,11 @@ export function RequestsTable<T extends { id: string }>({
           <Text c="dimmed">{emptyMessage}</Text>
         </Center>
       ) : (
-        <Table highlightOnHover data-testid="requests-table">
-          <Table.Thead>
-            <Table.Tr>
+        <DataTable highlightOnHover data-testid="requests-table">
+          <DataTable.Thead>
+            <DataTable.Tr>
               {columns.map((col) => (
-                <Table.Th key={col.key}>
+                <DataTable.Th key={col.key}>
                   {col.sortValue !== undefined ? (
                     <UnstyledButton
                       onClick={() => toggleSort(col.key)}
@@ -368,20 +368,20 @@ export function RequestsTable<T extends { id: string }>({
                   ) : (
                     col.header
                   )}
-                </Table.Th>
+                </DataTable.Th>
               ))}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
+            </DataTable.Tr>
+          </DataTable.Thead>
+          <DataTable.Tbody>
             {sorted.map((row) => (
-              <Table.Tr key={row.id}>
+              <DataTable.Tr key={row.id}>
                 {columns.map((col) => (
-                  <Table.Td key={col.key}>{col.render(row)}</Table.Td>
+                  <DataTable.Td key={col.key}>{col.render(row)}</DataTable.Td>
                 ))}
-              </Table.Tr>
+              </DataTable.Tr>
             ))}
-          </Table.Tbody>
-        </Table>
+          </DataTable.Tbody>
+        </DataTable>
       )}
     </Stack>
   );

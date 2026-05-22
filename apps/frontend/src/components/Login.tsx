@@ -1,18 +1,12 @@
 import { useAuth } from "../auth/useAuth";
-import { Badge, Button, Card, Group, Stack, Text, Title } from "../ui";
+import { Badge, Button, Group, PanelCard, Stack, Text, Title } from "../ui";
 
 export const Login = () => {
   const { isAuthenticated, user, login, logout } = useAuth();
 
   if (isAuthenticated && user) {
     return (
-      <Card
-        shadow="sm"
-        padding="xl"
-        radius="md"
-        withBorder
-        style={{ maxWidth: 500, margin: "0 auto" }}
-      >
+      <PanelCard p="xl" style={{ maxWidth: 500, margin: "0 auto" }}>
         <Stack gap="lg" align="center">
           <Group gap="xs">
             <Title order={1}>Welcome,</Title>
@@ -35,27 +29,21 @@ export const Login = () => {
           </Stack>
 
           <Button
-            variant="filled"
-            color="red"
-            size="lg"
+            variant="primary"
+            danger
+            size="large"
             onClick={() => logout()}
             style={{ minWidth: 120 }}
           >
             Logout
           </Button>
         </Stack>
-      </Card>
+      </PanelCard>
     );
   }
 
   return (
-    <Card
-      shadow="sm"
-      padding="xl"
-      radius="md"
-      withBorder
-      style={{ maxWidth: 500, margin: "0 auto" }}
-    >
+    <PanelCard p="xl" style={{ maxWidth: 500, margin: "0 auto" }}>
       <Stack gap="lg" align="center">
         <Title order={1} ta="center">
           Please log in to continue
@@ -64,15 +52,14 @@ export const Login = () => {
           Use your IDIR credentials to access the AI OCR application
         </Text>
         <Button
-          variant="filled"
-          color="blue"
-          size="lg"
+          variant="primary"
+          size="large"
           onClick={() => login()}
           style={{ minWidth: 150 }}
         >
           Login with IDIR
         </Button>
       </Stack>
-    </Card>
+    </PanelCard>
   );
 };

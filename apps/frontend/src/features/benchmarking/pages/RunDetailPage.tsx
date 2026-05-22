@@ -22,6 +22,7 @@ import {
   Card,
   Center,
   Code,
+  DataTable,
   Drawer,
   Group,
   Loader,
@@ -31,7 +32,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Text,
   TextInput,
   Title,
@@ -215,22 +215,26 @@ function FieldErrorDetails({
         {affectedSamples.length} sample{affectedSamples.length !== 1 ? "s" : ""}{" "}
         with errors on this field
       </Text>
-      <Table striped highlightOnHover data-testid="field-error-detail-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Sample ID</Table.Th>
-            <Table.Th>Type</Table.Th>
-            <Table.Th>Expected</Table.Th>
-            <Table.Th>Predicted</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+      <DataTable
+        striped
+        highlightOnHover
+        data-testid="field-error-detail-table"
+      >
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th>Sample ID</DataTable.Th>
+            <DataTable.Th>Type</DataTable.Th>
+            <DataTable.Th>Expected</DataTable.Th>
+            <DataTable.Th>Predicted</DataTable.Th>
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {affectedSamples.map((s) => (
-            <Table.Tr key={s.sampleId}>
-              <Table.Td>
+            <DataTable.Tr key={s.sampleId}>
+              <DataTable.Td>
                 <Code>{s.sampleId}</Code>
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Badge
                   size="sm"
                   color={
@@ -243,8 +247,8 @@ function FieldErrorDetails({
                 >
                   {s.errorType}
                 </Badge>
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Code>
                   {s.expected !== undefined ? (
                     typeof s.expected === "string" ? (
@@ -256,8 +260,8 @@ function FieldErrorDetails({
                     "-"
                   )}
                 </Code>
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Code>
                   {s.predicted !== undefined ? (
                     typeof s.predicted === "string" ? (
@@ -269,11 +273,11 @@ function FieldErrorDetails({
                     "-"
                   )}
                 </Code>
-              </Table.Td>
-            </Table.Tr>
+              </DataTable.Td>
+            </DataTable.Tr>
           ))}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
     </>
   );
 }
@@ -874,39 +878,39 @@ export function RunDetailPage() {
           <Title order={3} data-testid="run-info-heading">
             Run Information
           </Title>
-          <Table data-testid="run-info-table">
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td fw={500}>Status</Table.Td>
-                <Table.Td>
+          <DataTable data-testid="run-info-table">
+            <DataTable.Tbody>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Status</DataTable.Td>
+                <DataTable.Td>
                   <Badge color={getStatusColor(run.status)}>{run.status}</Badge>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Started At</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Started At</DataTable.Td>
+                <DataTable.Td>
                   {run.startedAt
                     ? new Date(run.startedAt).toLocaleString()
                     : "-"}
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Completed At</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Completed At</DataTable.Td>
+                <DataTable.Td>
                   {run.completedAt
                     ? new Date(run.completedAt).toLocaleString()
                     : "-"}
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Duration</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Duration</DataTable.Td>
+                <DataTable.Td>
                   {formatDurationFromDates(run.startedAt, run.completedAt)}
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Temporal Workflow</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Temporal Workflow</DataTable.Td>
+                <DataTable.Td>
                   <Anchor
                     href={temporalUrl}
                     target="_blank"
@@ -918,45 +922,45 @@ export function RunDetailPage() {
                       style={{ verticalAlign: "middle" }}
                     />
                   </Anchor>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Worker Git SHA</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Worker Git SHA</DataTable.Td>
+                <DataTable.Td>
                   <Code>{run.workerGitSha}</Code>
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
               {run.workerImageDigest && (
-                <Table.Tr>
-                  <Table.Td fw={500}>Worker Image Digest</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Worker Image Digest</DataTable.Td>
+                  <DataTable.Td>
                     <Code>{run.workerImageDigest}</Code>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               )}
-              <Table.Tr>
-                <Table.Td fw={500}>Is Baseline</Table.Td>
-                <Table.Td>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Is Baseline</DataTable.Td>
+                <DataTable.Td>
                   {run.isBaseline ? (
                     <Badge color="green">Yes</Badge>
                   ) : (
                     <Badge color="gray">No</Badge>
                   )}
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
               {run.isBaseline && (
-                <Table.Tr>
-                  <Table.Td fw={500}>Retention Policy</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Retention Policy</DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm" c="dimmed">
                       Protected from retention - baseline runs are exempt from
                       cleanup
                     </Text>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               )}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
       </Card>
 
@@ -977,33 +981,35 @@ export function RunDetailPage() {
                   Comparing against baseline run:{" "}
                   <Code>{run.baselineComparison.baselineRunId}</Code>
                 </Text>
-                <Table
+                <DataTable
                   striped
                   highlightOnHover
                   data-testid="baseline-comparison-table"
                 >
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Metric</Table.Th>
-                      <Table.Th>Current</Table.Th>
-                      <Table.Th>Baseline</Table.Th>
-                      <Table.Th>Delta</Table.Th>
-                      <Table.Th>Delta %</Table.Th>
-                      <Table.Th>Status</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
+                  <DataTable.Thead>
+                    <DataTable.Tr>
+                      <DataTable.Th>Metric</DataTable.Th>
+                      <DataTable.Th>Current</DataTable.Th>
+                      <DataTable.Th>Baseline</DataTable.Th>
+                      <DataTable.Th>Delta</DataTable.Th>
+                      <DataTable.Th>Delta %</DataTable.Th>
+                      <DataTable.Th>Status</DataTable.Th>
+                    </DataTable.Tr>
+                  </DataTable.Thead>
+                  <DataTable.Tbody>
                     {run.baselineComparison.metricComparisons.map(
                       (comparison) => (
-                        <Table.Tr key={comparison.metricName}>
-                          <Table.Td fw={500}>{comparison.metricName}</Table.Td>
-                          <Table.Td>
+                        <DataTable.Tr key={comparison.metricName}>
+                          <DataTable.Td fw={500}>
+                            {comparison.metricName}
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code>{comparison.currentValue.toFixed(4)}</Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code
                               c={
                                 comparison.delta > 0
@@ -1016,8 +1022,8 @@ export function RunDetailPage() {
                               {comparison.delta > 0 ? "+" : ""}
                               {comparison.delta.toFixed(4)}
                             </Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code
                               c={
                                 comparison.deltaPercent > 0
@@ -1030,17 +1036,17 @@ export function RunDetailPage() {
                               {comparison.deltaPercent > 0 ? "+" : ""}
                               {comparison.deltaPercent.toFixed(2)}%
                             </Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Badge color={comparison.passed ? "green" : "red"}>
                               {comparison.passed ? "PASS" : "FAIL"}
                             </Badge>
-                          </Table.Td>
-                        </Table.Tr>
+                          </DataTable.Td>
+                        </DataTable.Tr>
                       ),
                     )}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               </Stack>
             </Accordion.Panel>
           </Accordion.Item>
@@ -1059,32 +1065,32 @@ export function RunDetailPage() {
               </Title>
             </Accordion.Control>
             <Accordion.Panel>
-              <Table
+              <DataTable
                 striped
                 highlightOnHover
                 data-testid="aggregated-metrics-table"
               >
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Metric Name</Table.Th>
-                    <Table.Th>Value</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Metric Name</DataTable.Th>
+                    <DataTable.Th>Value</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {Object.entries(run.metrics).map(([key, value]) => (
-                    <Table.Tr key={key}>
-                      <Table.Td>{key}</Table.Td>
-                      <Table.Td>
+                    <DataTable.Tr key={key}>
+                      <DataTable.Td>{key}</DataTable.Td>
+                      <DataTable.Td>
                         <Code>
                           {typeof value === "number"
                             ? value.toFixed(4)
                             : JSON.stringify(value)}
                         </Code>
-                      </Table.Td>
-                    </Table.Tr>
+                      </DataTable.Td>
+                    </DataTable.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             </Accordion.Panel>
           </Accordion.Item>
         </Accordion>
@@ -1099,16 +1105,16 @@ export function RunDetailPage() {
             {run.params && Object.keys(run.params).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Parameters</Text>
-                <Table striped data-testid="params-table">
-                  <Table.Tbody>
+                <DataTable striped data-testid="params-table">
+                  <DataTable.Tbody>
                     {Object.entries(run.params).map(([key, value]) => (
-                      <Table.Tr key={key}>
-                        <Table.Td fw={500}>
+                      <DataTable.Tr key={key}>
+                        <DataTable.Td fw={500}>
                           {key === "ocrCacheBaselineRunId"
                             ? "OCR Cache Source Run"
                             : key}
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           {key === "ocrCacheBaselineRunId" ? (
                             <Anchor
                               component="button"
@@ -1123,11 +1129,11 @@ export function RunDetailPage() {
                           ) : (
                             <Code>{JSON.stringify(value)}</Code>
                           )}
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               </Stack>
             )}
             {(() => {
@@ -1154,18 +1160,18 @@ export function RunDetailPage() {
             {run.tags && Object.keys(run.tags).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Tags</Text>
-                <Table striped data-testid="tags-table">
-                  <Table.Tbody>
+                <DataTable striped data-testid="tags-table">
+                  <DataTable.Tbody>
                     {Object.entries(run.tags).map(([key, value]) => (
-                      <Table.Tr key={key}>
-                        <Table.Td fw={500}>{key}</Table.Td>
-                        <Table.Td>
+                      <DataTable.Tr key={key}>
+                        <DataTable.Td fw={500}>{key}</DataTable.Td>
+                        <DataTable.Td>
                           <Code>{JSON.stringify(value)}</Code>
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               </Stack>
             )}
           </Stack>
@@ -1199,41 +1205,43 @@ export function RunDetailPage() {
                 data-testid="artifact-type-filter"
               />
             </Group>
-            <Table striped highlightOnHover data-testid="artifacts-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Type</Table.Th>
-                  <Table.Th>Sample ID</Table.Th>
-                  <Table.Th>Node ID</Table.Th>
-                  <Table.Th>Size</Table.Th>
-                  <Table.Th>MIME Type</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <DataTable striped highlightOnHover data-testid="artifacts-table">
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Type</DataTable.Th>
+                  <DataTable.Th>Sample ID</DataTable.Th>
+                  <DataTable.Th>Node ID</DataTable.Th>
+                  <DataTable.Th>Size</DataTable.Th>
+                  <DataTable.Th>MIME Type</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {artifacts.map((artifact) => (
-                  <Table.Tr
+                  <DataTable.Tr
                     key={artifact.id}
                     style={{ cursor: "pointer" }}
                     onClick={() => setSelectedArtifact(artifact)}
                     data-testid={`artifact-row-${artifact.id}`}
                   >
-                    <Table.Td>
+                    <DataTable.Td>
                       <Badge>{artifact.type}</Badge>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{artifact.sampleId || "-"}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{artifact.nodeId || "-"}</Code>
-                    </Table.Td>
-                    <Table.Td>{formatBytes(artifact.sizeBytes)}</Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
+                      {formatBytes(artifact.sizeBytes)}
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{artifact.mimeType}</Code>
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </Stack>
         </Card>
       )}
@@ -1249,41 +1257,41 @@ export function RunDetailPage() {
               drillDown.fieldErrorBreakdown.length > 0 && (
                 <Stack gap="xs">
                   <Text fw={500}>Per-Field Error Breakdown</Text>
-                  <Table
+                  <DataTable
                     striped
                     highlightOnHover
                     data-testid="field-error-breakdown-table"
                   >
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Field Name</Table.Th>
-                        <Table.Th>Error Count</Table.Th>
-                        <Table.Th>Error Rate</Table.Th>
-                        <Table.Th />
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
+                    <DataTable.Thead>
+                      <DataTable.Tr>
+                        <DataTable.Th>Field Name</DataTable.Th>
+                        <DataTable.Th>Error Count</DataTable.Th>
+                        <DataTable.Th>Error Rate</DataTable.Th>
+                        <DataTable.Th />
+                      </DataTable.Tr>
+                    </DataTable.Thead>
+                    <DataTable.Tbody>
                       {drillDown.fieldErrorBreakdown.map((field) => (
-                        <Table.Tr
+                        <DataTable.Tr
                           key={field.fieldName}
                           style={{ cursor: "pointer" }}
                           onClick={() => setDrawerField(field.fieldName)}
                           data-testid={`field-error-row-${field.fieldName}`}
                         >
-                          <Table.Td>
+                          <DataTable.Td>
                             <Code>{field.fieldName}</Code>
-                          </Table.Td>
-                          <Table.Td>{field.errorCount}</Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>{field.errorCount}</DataTable.Td>
+                          <DataTable.Td>
                             <Code>{(field.errorRate * 100).toFixed(2)}%</Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <IconChevronRight size={16} color="gray" />
-                          </Table.Td>
-                        </Table.Tr>
+                          </DataTable.Td>
+                        </DataTable.Tr>
                       ))}
-                    </Table.Tbody>
-                  </Table>
+                    </DataTable.Tbody>
+                  </DataTable>
                 </Stack>
               )}
           </Stack>

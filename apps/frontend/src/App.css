@@ -1,0 +1,53 @@
+/* BC header — full-width bar with logo/title left and utilities right (gov.bc.ca pattern) */
+.app-shell-bcds-header {
+  width: 100%;
+}
+
+.app-shell-bcds-header .bcds-header {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.app-shell-bcds-header .bcds-header--container {
+  max-width: none;
+  width: 100%;
+}
+
+.app-shell-bcds-header .bcds-header--title {
+  flex-grow: 0;
+}
+
+.app-shell-bcds-header .app-shell-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Compact name + email in BC header utilities */
+.app-header-user {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.15;
+}
+
+.app-header-user .bcds-react-aria-Text {
+  display: block;
+  line-height: 1.15;
+}
+
+.app-header-user .bcds-react-aria-Text + .bcds-react-aria-Text {
+  margin-top: 0.25rem;
+}
+
+/* BC footer at end of main scroll area (gov.bc.ca pattern — not fixed to viewport) */
+.app-shell-bcds-footer {
+  margin-top: var(--layout-margin-medium);
+  margin-inline: calc(-1 * var(--app-shell-padding));
+  width: calc(100% + 2 * var(--app-shell-padding));
+  margin-bottom: calc(-1 * var(--app-shell-padding));
+}
+
+.app-shell-bcds-footer .bcds-footer {
+  width: 100%;
+}

@@ -3,14 +3,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Button,
-  Card,
   Center,
-  Group,
+  DataTable,
   Loader,
+  PageHeader,
+  PanelCard,
   Stack,
-  Table,
   Text,
-  Title,
 } from "../../../ui";
 import { CreateProjectDialog } from "../components/CreateProjectDialog";
 import { useProjects } from "../hooks/useProjects";
@@ -37,58 +36,63 @@ export function ProjectListPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" data-testid="projects-header">
-        <Stack gap={2}>
-          <Title order={2}>Benchmark Projects</Title>
-          <Text c="dimmed" size="sm">
-            Organize benchmarks by project
-          </Text>
-        </Stack>
-        <Button
-          leftSection={<IconPlus size={18} />}
-          onClick={() => setCreateDialogOpened(true)}
-          data-testid="create-project-btn"
-        >
-          Create Project
-        </Button>
-      </Group>
+      <PageHeader
+        title="Benchmark Projects"
+        description="Organize benchmarks by project"
+        actions={
+          <Button
+            leftSection={<IconPlus size={18} />}
+            onClick={() => setCreateDialogOpened(true)}
+            data-testid="create-project-btn"
+          >
+            Create Project
+          </Button>
+        }
+      />
 
       {projects.length === 0 ? (
-        <Card withBorder p="xl" data-testid="projects-empty-state">
-          <Center>
-            <Stack align="center" gap="md">
-              <IconFolderOpen size={48} stroke={1.5} color="gray" />
-              <Stack gap={4} align="center">
-                <Text fw={600}>No projects yet</Text>
-                <Text size="sm" c="dimmed">
-                  Create your first benchmark project to get started
-                </Text>
+        <PanelCard data-testid="projects-empty-state">
+          <Stack p="md">
+            <Center>
+              <Stack align="center" gap="md">
+                <IconFolderOpen size={48} stroke={1.5} color="gray" />
+                <Stack gap={4} align="center">
+                  <Text fw={600}>No projects yet</Text>
+                  <Text size="sm" c="dimmed">
+                    Create your first benchmark project to get started
+                  </Text>
+                </Stack>
+                <Button
+                  leftSection={<IconPlus size={18} />}
+                  onClick={() => setCreateDialogOpened(true)}
+                  data-testid="create-project-empty-btn"
+                >
+                  Create Project
+                </Button>
               </Stack>
-              <Button
-                leftSection={<IconPlus size={18} />}
-                onClick={() => setCreateDialogOpened(true)}
-                data-testid="create-project-empty-btn"
-              >
-                Create Project
-              </Button>
-            </Stack>
-          </Center>
-        </Card>
+            </Center>
+          </Stack>
+        </PanelCard>
       ) : (
-        <Card withBorder p={0}>
-          <Table striped highlightOnHover data-testid="projects-table">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Description</Table.Th>
-                <Table.Th>Definitions</Table.Th>
-                <Table.Th>Runs</Table.Th>
-                <Table.Th>Created Date</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+        <PanelCard>
+          <DataTable
+            striped
+            highlightOnHover
+            data-testid="projects-table"
+            caption={`${projects.length} project${projects.length === 1 ? "" : "s"}`}
+          >
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Name</DataTable.Th>
+                <DataTable.Th>Description</DataTable.Th>
+                <DataTable.Th>Definitions</DataTable.Th>
+                <DataTable.Th>Runs</DataTable.Th>
+                <DataTable.Th>Created Date</DataTable.Th>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {projects.map((project) => (
-                <Table.Tr
+                <DataTable.Tr
                   key={project.id}
                   onClick={() =>
                     navigate(`/benchmarking/projects/${project.id}`)
@@ -96,30 +100,30 @@ export function ProjectListPage() {
                   style={{ cursor: "pointer" }}
                   data-testid={`project-row-${project.id}`}
                 >
-                  <Table.Td>
+                  <DataTable.Td>
                     <Text fw={600}>{project.name}</Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm" c="dimmed" lineClamp={1}>
                       {project.description || "—"}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">{project.definitionCount || 0}</Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">{project.runCount || 0}</Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">
                       {new Date(project.createdAt).toLocaleDateString()}
                     </Text>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
+            </DataTable.Tbody>
+          </DataTable>
+        </PanelCard>
       )}
 
       <CreateProjectDialog

@@ -3,11 +3,11 @@ import { type JSX, useMemo, useState } from "react";
 import {
   ActionIcon,
   Button,
+  DataTable,
   Group,
   Modal,
   Popover,
   Stack,
-  Table,
   Text,
   TextInput,
   UnstyledButton,
@@ -174,34 +174,34 @@ export function ConfusionMatrixEditor({
       size="xl"
     >
       <Stack gap="md">
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>
+        <DataTable striped highlightOnHover>
+          <DataTable.Thead>
+            <DataTable.Tr>
+              <DataTable.Th>
                 <UnstyledButton onClick={() => handleSort("trueChar")}>
                   True char{sortIndicator("trueChar")}
                 </UnstyledButton>
-              </Table.Th>
-              <Table.Th>
+              </DataTable.Th>
+              <DataTable.Th>
                 <UnstyledButton onClick={() => handleSort("recognizedChar")}>
                   OCR read as{sortIndicator("recognizedChar")}
                 </UnstyledButton>
-              </Table.Th>
-              <Table.Th>
+              </DataTable.Th>
+              <DataTable.Th>
                 <UnstyledButton onClick={() => handleSort("count")}>
                   Count{sortIndicator("count")}
                 </UnstyledButton>
-              </Table.Th>
-              <Table.Th>
+              </DataTable.Th>
+              <DataTable.Th>
                 <UnstyledButton onClick={() => handleSort("fields")}>
                   Fields{sortIndicator("fields")}
                 </UnstyledButton>
-              </Table.Th>
-              <Table.Th>Examples</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
+              </DataTable.Th>
+              <DataTable.Th>Examples</DataTable.Th>
+              <DataTable.Th>Actions</DataTable.Th>
+            </DataTable.Tr>
+          </DataTable.Thead>
+          <DataTable.Tbody>
             {sortedRows.map((row) => {
               const fields = getFieldCount(
                 profile,
@@ -216,25 +216,25 @@ export function ConfusionMatrixEditor({
               const isNoise = row.count === 1 || fields === 1;
 
               return (
-                <Table.Tr
+                <DataTable.Tr
                   key={`${row.trueChar}-${row.recognizedChar}`}
                   style={isNoise ? { opacity: 0.5 } : undefined}
                 >
-                  <Table.Td>
+                  <DataTable.Td>
                     <Text ff="monospace">{displayChar(row.trueChar)}</Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text ff="monospace">
                       {displayChar(row.recognizedChar)}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>{row.count}</Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>{row.count}</DataTable.Td>
+                  <DataTable.Td>
                     {fields > 0
                       ? `${fields} field${fields !== 1 ? "s" : ""}`
                       : "-"}
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     {examples.length > 0 ? (
                       <Popover width={320} position="bottom" withArrow>
                         <Popover.Target>
@@ -264,8 +264,8 @@ export function ConfusionMatrixEditor({
                         -
                       </Text>
                     )}
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <ActionIcon
                       color="red"
                       variant="subtle"
@@ -276,21 +276,21 @@ export function ConfusionMatrixEditor({
                     >
                       <IconTrash size={16} />
                     </ActionIcon>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               );
             })}
             {sortedRows.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={6}>
+              <DataTable.Tr>
+                <DataTable.Td colSpan={6}>
                   <Text c="dimmed" ta="center" py="md">
                     No entries in the confusion matrix.
                   </Text>
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
             )}
-          </Table.Tbody>
-        </Table>
+          </DataTable.Tbody>
+        </DataTable>
 
         <Group gap="sm" align="flex-end">
           <TextInput

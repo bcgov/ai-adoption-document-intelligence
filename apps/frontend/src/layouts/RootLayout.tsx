@@ -132,7 +132,7 @@ export function RootLayout() {
       transitionDuration={200}
       transitionTimingFunction="ease"
     >
-      <AppShell.Header p={0}>
+      <AppShell.Header p={0} className="app-shell-bcds-header">
         <Header
           title="Document intelligence"
           skipLinks={[
@@ -141,30 +141,32 @@ export function RootLayout() {
             </a>,
           ]}
         >
-          <Group gap="sm">
-            <Badge variant="light" color="blue">
-              Live OCR
-            </Badge>
-            <GroupSelector />
-            <Stack gap={0}>
-              <Text size="sm" fw={600}>
-                {user?.profile?.name ?? "Authenticated user"}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {user?.profile?.email ?? "Logged in"}
-              </Text>
-            </Stack>
-            <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
-            <Button
-              variant="light"
-              color="red"
-              leftSection={<IconLogout size={16} />}
-              onClick={() => logout()}
-              data-testid="logout-btn"
-            >
-              Logout
-            </Button>
-          </Group>
+          <div className="app-shell-header-actions">
+            <Group gap="sm">
+              <Badge variant="light" color="blue">
+                Live OCR
+              </Badge>
+              <GroupSelector />
+              <div className="app-header-user">
+                <Text size="sm" fw={600} span>
+                  {user?.profile?.name ?? "Authenticated user"}
+                </Text>
+                <Text size="xs" c="dimmed" span>
+                  {user?.profile?.email ?? "Logged in"}
+                </Text>
+              </div>
+              <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
+              <Button
+                variant="light"
+                color="red"
+                leftSection={<IconLogout size={16} />}
+                onClick={() => logout()}
+                data-testid="logout-btn"
+              >
+                Logout
+              </Button>
+            </Group>
+          </div>
         </Header>
       </AppShell.Header>
 
@@ -335,7 +337,9 @@ export function RootLayout() {
         <Stack gap="lg" style={{ minHeight: "100dvh" }}>
           <Outlet />
         </Stack>
-        <Footer hideLogoAndLinks />
+        <div className="app-shell-bcds-footer">
+          <Footer hideLogoAndLinks />
+        </div>
       </AppShell.Main>
     </AppShell>
   );

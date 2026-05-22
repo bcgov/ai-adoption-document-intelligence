@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
-import { Button, Group, Stack, Table, Text } from "../../../ui";
+import { Button, DataTable, Group, Stack, Text } from "../../../ui";
 import type { ColumnDef, LookupDef } from "../types";
 import { LookupForm } from "./LookupForm";
 
@@ -77,30 +77,30 @@ export function LookupsTab({
           No lookups defined yet. Click Add Lookup to create one.
         </Text>
       ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Template</Table.Th>
-              <Table.Th>Pick</Table.Th>
-              <Table.Th>Params</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
+        <DataTable striped highlightOnHover>
+          <DataTable.Thead>
+            <DataTable.Tr>
+              <DataTable.Th>Name</DataTable.Th>
+              <DataTable.Th>Template</DataTable.Th>
+              <DataTable.Th>Pick</DataTable.Th>
+              <DataTable.Th>Params</DataTable.Th>
+              <DataTable.Th />
+            </DataTable.Tr>
+          </DataTable.Thead>
+          <DataTable.Tbody>
             {lookups.map((l) => (
-              <Table.Tr key={l.name}>
-                <Table.Td>
+              <DataTable.Tr key={l.name}>
+                <DataTable.Td>
                   <Text ff="monospace" size="sm">
                     {l.name}
                   </Text>
-                </Table.Td>
-                <Table.Td>{l.templateId ?? "custom-json"}</Table.Td>
-                <Table.Td>{l.pick}</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>{l.templateId ?? "custom-json"}</DataTable.Td>
+                <DataTable.Td>{l.pick}</DataTable.Td>
+                <DataTable.Td>
                   {l.params.map((p) => p.name).join(", ") || "—"}
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <Group gap="xs">
                     <Button
                       size="xs"
@@ -126,11 +126,11 @@ export function LookupsTab({
                       Delete
                     </Button>
                   </Group>
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
             ))}
-          </Table.Tbody>
-        </Table>
+          </DataTable.Tbody>
+        </DataTable>
       )}
       {editing && (
         <LookupForm

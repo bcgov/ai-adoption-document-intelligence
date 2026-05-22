@@ -20,6 +20,8 @@ import {
   Flex,
   Group,
   notifications,
+  PageHeader,
+  PanelCard,
   Paper,
   SegmentedControl,
   Stack,
@@ -497,32 +499,35 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
     );
   }
 
+  const editorActions = (
+    <Group gap="xs" wrap="nowrap">
+      <Button variant="subtle" onClick={() => navigate("/workflows")}>
+        Back
+      </Button>
+      <Button variant="light" onClick={handleValidate}>
+        Validate
+      </Button>
+      <Button variant="light" onClick={handleFormat}>
+        Format JSON
+      </Button>
+      <Button variant="light" onClick={handleReset}>
+        Reset
+      </Button>
+      <Button onClick={handleSave} disabled={!canSave}>
+        {mode === "create" ? "Create" : "Save"}
+      </Button>
+    </Group>
+  );
+
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="center">
-        <Title order={3}>
-          {mode === "create" ? "Create workflow" : "Edit workflow"}
-        </Title>
-        <Group>
-          <Button variant="subtle" onClick={() => navigate("/workflows")}>
-            Back
-          </Button>
-          <Button variant="light" onClick={handleValidate}>
-            Validate
-          </Button>
-          <Button variant="light" onClick={handleFormat}>
-            Format JSON
-          </Button>
-          <Button variant="light" onClick={handleReset}>
-            Reset
-          </Button>
-          <Button onClick={handleSave} disabled={!canSave}>
-            {mode === "create" ? "Create" : "Save"}
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={mode === "create" ? "Create workflow" : "Edit workflow"}
+        description="Configure workflow metadata and graph definition."
+        actions={editorActions}
+      />
 
-      <Paper withBorder p="md">
+      <PanelCard>
         <Group justify="space-between" align="center">
           <Stack gap={4} style={{ flex: 1 }}>
             <TextInput
@@ -547,7 +552,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
             </Badge>
           ) : null}
         </Group>
-      </Paper>
+      </PanelCard>
 
       <Flex align="flex-start" gap="xl" wrap="nowrap" style={{ minWidth: 0 }}>
         <Stack style={{ flex: "1 1 50%", minWidth: 0 }} gap="md">

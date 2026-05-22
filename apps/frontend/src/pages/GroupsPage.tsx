@@ -25,12 +25,13 @@ import {
   Loader,
   Modal,
   notifications,
+  PageHeader,
+  PanelCard,
   Stack,
   Tabs,
   Text,
   Textarea,
   TextInput,
-  Title,
   useForm,
 } from "../ui";
 
@@ -490,47 +491,47 @@ export function GroupsPage(): JSX.Element {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Title order={2}>Groups</Title>
-          <Text c="dimmed" size="sm">
-            Manage groups and memberships.
-          </Text>
-        </Stack>
-        {isSystemAdmin && (
-          <Button
-            onClick={() => setCreateGroupOpen(true)}
-            data-testid="create-group-btn"
-          >
-            Create Group
-          </Button>
-        )}
-      </Group>
+      <PageHeader
+        title="Groups"
+        description="Manage groups and memberships."
+        actions={
+          isSystemAdmin ? (
+            <Button
+              onClick={() => setCreateGroupOpen(true)}
+              data-testid="create-group-btn"
+            >
+              Create Group
+            </Button>
+          ) : undefined
+        }
+      />
 
       <CreateGroupModal
         opened={createGroupOpen}
         onClose={() => setCreateGroupOpen(false)}
       />
 
-      <Tabs defaultValue="my-groups">
-        <Tabs.List>
-          <Tabs.Tab value="my-groups">My Groups</Tabs.Tab>
-          <Tabs.Tab value="my-requests">My Requests</Tabs.Tab>
-          <Tabs.Tab value="all-groups">All Groups</Tabs.Tab>
-        </Tabs.List>
+      <PanelCard>
+        <Tabs defaultValue="my-groups">
+          <Tabs.List>
+            <Tabs.Tab value="my-groups">My Groups</Tabs.Tab>
+            <Tabs.Tab value="my-requests">My Requests</Tabs.Tab>
+            <Tabs.Tab value="all-groups">All Groups</Tabs.Tab>
+          </Tabs.List>
 
-        <Tabs.Panel value="my-groups" pt="md">
-          <MyGroupsTab />
-        </Tabs.Panel>
+          <Tabs.Panel value="my-groups" pt="md">
+            <MyGroupsTab />
+          </Tabs.Panel>
 
-        <Tabs.Panel value="my-requests" pt="md">
-          <MyRequestsTab />
-        </Tabs.Panel>
+          <Tabs.Panel value="my-requests" pt="md">
+            <MyRequestsTab />
+          </Tabs.Panel>
 
-        <Tabs.Panel value="all-groups" pt="md">
-          <AllGroupsTab />
-        </Tabs.Panel>
-      </Tabs>
+          <Tabs.Panel value="all-groups" pt="md">
+            <AllGroupsTab />
+          </Tabs.Panel>
+        </Tabs>
+      </PanelCard>
     </Stack>
   );
 }

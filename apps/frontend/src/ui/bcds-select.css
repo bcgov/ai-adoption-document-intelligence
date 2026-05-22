@@ -1,0 +1,49 @@
+/**
+ * BC DS Select — trigger and listbox sized to content by default.
+ */
+
+/* Dropdown at least as wide as the trigger, expanding for longer option labels */
+.bcds-react-aria-Select--Popover {
+  width: max-content;
+  min-width: var(--trigger-width);
+  max-width: min(100vw - 2rem, 32rem);
+}
+
+/* Fit-content trigger (toolbar / inline filters) */
+.bcds-form-field--fit {
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.bcds-form-field--fit .bcds-react-aria-Select {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.bcds-form-field--fit .bcds-react-aria-Select--Button {
+  width: auto;
+  max-width: 100%;
+}
+
+/* Explicit full-width (form columns) */
+.bcds-form-field--full-width {
+  align-self: stretch;
+  width: 100%;
+}
+
+.bcds-form-field--full-width .bcds-react-aria-Select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.bcds-form-field--full-width .bcds-react-aria-Select--Button {
+  width: 100%;
+}
+
+/* Fixed width via Mantine `w` prop on wrapper */
+.bcds-form-field:not(.bcds-form-field--fit):not(.bcds-form-field--full-width)
+  .bcds-react-aria-Select {
+  width: 100%;
+  max-width: 100%;
+}

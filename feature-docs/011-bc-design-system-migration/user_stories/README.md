@@ -33,7 +33,7 @@ After implementing a user story, check it off in the phase sections below.
 
 | File | Title | Done |
 |------|-------|------|
-| `US-004-processing-queue-reference-sync.md` | Sync Processing Queue screen with Figma reference | [ ] |
+| `US-004-processing-queue-reference-sync.md` | Sync Processing Queue screen with Figma reference | [x] |
 
 ---
 
@@ -51,6 +51,6 @@ After implementing a user story, check it off in the phase sections below.
 - [x] **US-001** — B.C. Design System foundations
 - [x] **US-002** — UI adapter layer and compatibility matrix
 - [x] **US-003** — App shell header/footer migration
-- [ ] **US-004** — Processing Queue reference sync
+- [x] **US-004** — Processing Queue reference sync
 - [x] **US-005** — Figma classification and Code Connect governance
 - [x] **US-006** — Final migration documentation and rollout guidance

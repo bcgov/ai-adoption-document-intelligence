@@ -4,18 +4,18 @@ import { useNavigate } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import {
   Button,
-  Card,
   Center,
   Code,
   Grid,
   Group,
   Loader,
   Modal,
+  PageHeader,
+  PanelCard,
   Stack,
   Text,
   Textarea,
   TextInput,
-  Title,
   Tooltip,
 } from "../../../../ui";
 import { ModelCard } from "../components/ModelCard";
@@ -69,31 +69,29 @@ export const ModelListPage: FC = () => {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Stack gap={2}>
-          <Title order={2}>Template Models</Title>
-          <Text c="dimmed" size="sm">
-            Create and manage template models for custom model training
-          </Text>
-        </Stack>
-        <Tooltip
-          label="A group must be selected to create a template model"
-          disabled={!!activeGroup}
-        >
-          <span>
-            <Button
-              leftSection={<IconPlus size={18} />}
-              disabled={!activeGroup}
-              onClick={() => setCreateModalOpened(true)}
-            >
-              New Template Model
-            </Button>
-          </span>
-        </Tooltip>
-      </Group>
+      <PageHeader
+        title="Template Models"
+        description="Create and manage template models for custom model training"
+        actions={
+          <Tooltip
+            label="A group must be selected to create a template model"
+            disabled={!!activeGroup}
+          >
+            <span>
+              <Button
+                leftSection={<IconPlus size={18} />}
+                disabled={!activeGroup}
+                onClick={() => setCreateModalOpened(true)}
+              >
+                New Template Model
+              </Button>
+            </span>
+          </Tooltip>
+        }
+      />
 
       {templateModels.length === 0 ? (
-        <Card withBorder p="xl">
+        <PanelCard p="xl">
           <Center>
             <Stack align="center" gap="md">
               <IconFolder size={48} stroke={1.5} color="gray" />
@@ -119,7 +117,7 @@ export const ModelListPage: FC = () => {
               </Tooltip>
             </Stack>
           </Center>
-        </Card>
+        </PanelCard>
       ) : (
         <Grid>
           {templateModels.map((model) => (

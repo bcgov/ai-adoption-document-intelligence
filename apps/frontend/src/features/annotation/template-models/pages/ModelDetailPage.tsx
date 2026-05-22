@@ -27,6 +27,7 @@ import {
   Center,
   Code,
   CopyButton,
+  DataTable,
   Divider,
   Dropzone,
   type FileRejection,
@@ -39,7 +40,6 @@ import {
   rem,
   ScrollArea,
   Stack,
-  Table,
   Tabs,
   Text,
   Title,
@@ -567,26 +567,26 @@ export const ModelDetailPage: FC = () => {
                 </Text>
               </Paper>
             ) : (
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Document</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Labels</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped highlightOnHover>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Document</DataTable.Th>
+                    <DataTable.Th>Status</DataTable.Th>
+                    <DataTable.Th>Labels</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {documents.map((doc) => {
                     const isReady =
                       doc.labeling_document.status === "completed_ocr";
 
                     return (
-                      <Table.Tr key={doc.id}>
-                        <Table.Td>
+                      <DataTable.Tr key={doc.id}>
+                        <DataTable.Td>
                           {doc.labeling_document.original_filename}
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Badge
                             size="sm"
                             variant="light"
@@ -609,9 +609,9 @@ export const ModelDetailPage: FC = () => {
                                     ? "Failed"
                                     : doc.labeling_document.status}
                           </Badge>
-                        </Table.Td>
-                        <Table.Td>{doc.labels?.length || 0}</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>{doc.labels?.length || 0}</DataTable.Td>
+                        <DataTable.Td>
                           <Group gap="xs">
                             <Button
                               size="xs"
@@ -643,12 +643,12 @@ export const ModelDetailPage: FC = () => {
                               Remove
                             </Button>
                           </Group>
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     );
                   })}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             )}
           </Stack>
         </Tabs.Panel>
@@ -705,24 +705,24 @@ export const ModelDetailPage: FC = () => {
                 </Text>
               </Paper>
             ) : (
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Key</Table.Th>
-                    <Table.Th>Type</Table.Th>
-                    <Table.Th>Format</Table.Th>
-                    <Table.Th>Format Spec</Table.Th>
-                    <Table.Th>Order</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped highlightOnHover>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Key</DataTable.Th>
+                    <DataTable.Th>Type</DataTable.Th>
+                    <DataTable.Th>Format</DataTable.Th>
+                    <DataTable.Th>Format Spec</DataTable.Th>
+                    <DataTable.Th>Order</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {schema.map((field) => (
-                    <Table.Tr key={field.id}>
-                      <Table.Td>{field.fieldKey}</Table.Td>
-                      <Table.Td>{field.fieldType}</Table.Td>
-                      <Table.Td>{field.fieldFormat || "—"}</Table.Td>
-                      <Table.Td>
+                    <DataTable.Tr key={field.id}>
+                      <DataTable.Td>{field.fieldKey}</DataTable.Td>
+                      <DataTable.Td>{field.fieldType}</DataTable.Td>
+                      <DataTable.Td>{field.fieldFormat || "—"}</DataTable.Td>
+                      <DataTable.Td>
                         {(() => {
                           if (!field.formatSpec) return "—";
                           try {
@@ -732,9 +732,9 @@ export const ModelDetailPage: FC = () => {
                             return field.formatSpec;
                           }
                         })()}
-                      </Table.Td>
-                      <Table.Td>{field.displayOrder}</Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>{field.displayOrder}</DataTable.Td>
+                      <DataTable.Td>
                         <Group gap="xs">
                           <Button
                             size="xs"
@@ -755,11 +755,11 @@ export const ModelDetailPage: FC = () => {
                             Delete
                           </Button>
                         </Group>
-                      </Table.Td>
-                    </Table.Tr>
+                      </DataTable.Td>
+                    </DataTable.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             )}
           </Stack>
         </Tabs.Panel>

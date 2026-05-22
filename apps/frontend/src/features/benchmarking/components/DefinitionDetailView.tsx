@@ -18,13 +18,13 @@ import {
   Button,
   Card,
   Code,
+  DataTable,
   Group,
   Loader,
   notifications,
   Select,
   Stack,
   Switch,
-  Table,
   Text,
   Title,
 } from "../../../ui";
@@ -327,45 +327,45 @@ export function DefinitionDetailView({
             </Group>
           </Group>
 
-          <Table data-testid="definition-info-table">
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td fw={500}>Dataset Version</Table.Td>
-                <Table.Td>
+          <DataTable data-testid="definition-info-table">
+            <DataTable.Tbody>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Dataset Version</DataTable.Td>
+                <DataTable.Td>
                   {definition.datasetVersion.datasetName}{" "}
                   {definition.datasetVersion.version}
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
               {definition.split && (
-                <Table.Tr>
-                  <Table.Td fw={500}>Split</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Split</DataTable.Td>
+                  <DataTable.Td>
                     {definition.split.name} ({definition.split.type})
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               )}
-              <Table.Tr>
-                <Table.Td fw={500}>Workflow</Table.Td>
-                <Table.Td>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Workflow</DataTable.Td>
+                <DataTable.Td>
                   {definition.workflow.name} v{definition.workflow.version}
                   <Text size="xs" c="dimmed" mt={4}>
                     Lineage <Code>{definition.workflow.id}</Code> · Pinned
                     version <Code>{definition.workflow.workflowVersionId}</Code>
                   </Text>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Workflow Config Hash</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Workflow Config Hash</DataTable.Td>
+                <DataTable.Td>
                   <Code>{definition.workflowConfigHash.substring(0, 12)}</Code>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Evaluator Type</Table.Td>
-                <Table.Td>{definition.evaluatorType}</Table.Td>
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Evaluator Type</DataTable.Td>
+                <DataTable.Td>{definition.evaluatorType}</DataTable.Td>
+              </DataTable.Tr>
+            </DataTable.Tbody>
+          </DataTable>
 
           {!definition.immutable && (
             <Stack gap="sm" mt="md">
@@ -726,89 +726,89 @@ export function DefinitionDetailView({
               </Text>
             </Stack>
 
-            <Table data-testid="baseline-info-table">
-              <Table.Tbody>
-                <Table.Tr>
-                  <Table.Td fw={500}>Run ID</Table.Td>
-                  <Table.Td>
+            <DataTable data-testid="baseline-info-table">
+              <DataTable.Tbody>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Run ID</DataTable.Td>
+                  <DataTable.Td>
                     <Code data-testid="baseline-run-id">
                       {definition.baselineRun.id.substring(0, 12)}...
                     </Code>
-                  </Table.Td>
-                </Table.Tr>
-                <Table.Tr>
-                  <Table.Td fw={500}>Status</Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                </DataTable.Tr>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Status</DataTable.Td>
+                  <DataTable.Td>
                     <Badge
                       color={getStatusBadgeColor(definition.baselineRun.status)}
                       data-testid="baseline-status-badge"
                     >
                       {definition.baselineRun.status}
                     </Badge>
-                  </Table.Td>
-                </Table.Tr>
-                <Table.Tr>
-                  <Table.Td fw={500}>Completed At</Table.Td>
-                  <Table.Td data-testid="baseline-completed-at">
+                  </DataTable.Td>
+                </DataTable.Tr>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Completed At</DataTable.Td>
+                  <DataTable.Td data-testid="baseline-completed-at">
                     {definition.baselineRun.completedAt
                       ? new Date(
                           definition.baselineRun.completedAt,
                         ).toLocaleString()
                       : "—"}
-                  </Table.Td>
-                </Table.Tr>
-              </Table.Tbody>
-            </Table>
+                  </DataTable.Td>
+                </DataTable.Tr>
+              </DataTable.Tbody>
+            </DataTable>
 
             <Stack gap="xs">
               <Title order={5} data-testid="baseline-metrics-heading">
                 Key Metrics
               </Title>
-              <Table striped data-testid="baseline-metrics-table">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Metric</Table.Th>
-                    <Table.Th>Value</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped data-testid="baseline-metrics-table">
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Metric</DataTable.Th>
+                    <DataTable.Th>Value</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {Object.entries(definition.baselineRun.metrics).map(
                     ([key, value]) => {
                       // Skip non-numeric metrics (like perSampleResults, fieldErrorBreakdown, etc.)
                       if (typeof value !== "number") return null;
 
                       return (
-                        <Table.Tr key={key}>
-                          <Table.Td>{key}</Table.Td>
-                          <Table.Td>
+                        <DataTable.Tr key={key}>
+                          <DataTable.Td>{key}</DataTable.Td>
+                          <DataTable.Td>
                             <Code>{value.toFixed(4)}</Code>
-                          </Table.Td>
-                        </Table.Tr>
+                          </DataTable.Td>
+                        </DataTable.Tr>
                       );
                     },
                   )}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             </Stack>
 
             <Stack gap="xs">
               <Title order={5} data-testid="baseline-thresholds-heading">
                 Regression Thresholds
               </Title>
-              <Table striped data-testid="baseline-thresholds-table">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Metric</Table.Th>
-                    <Table.Th>Type</Table.Th>
-                    <Table.Th>Threshold</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped data-testid="baseline-thresholds-table">
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Metric</DataTable.Th>
+                    <DataTable.Th>Type</DataTable.Th>
+                    <DataTable.Th>Threshold</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {definition.baselineRun.baselineThresholds.map(
                     (threshold) => (
-                      <Table.Tr key={threshold.metricName}>
-                        <Table.Td>{threshold.metricName}</Table.Td>
-                        <Table.Td>
+                      <DataTable.Tr key={threshold.metricName}>
+                        <DataTable.Td>{threshold.metricName}</DataTable.Td>
+                        <DataTable.Td>
                           <Badge
                             variant="light"
                             data-testid={`threshold-type-${threshold.metricName}`}
@@ -817,8 +817,8 @@ export function DefinitionDetailView({
                               ? "Relative (%)"
                               : "Absolute"}
                           </Badge>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Code
                             data-testid={`threshold-value-${threshold.metricName}`}
                           >
@@ -826,12 +826,12 @@ export function DefinitionDetailView({
                               ? `${(threshold.value * 100).toFixed(0)}%`
                               : threshold.value.toFixed(4)}
                           </Code>
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ),
                   )}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             </Stack>
 
             <Stack gap="xs">
@@ -848,26 +848,26 @@ export function DefinitionDetailView({
                   No baseline changes recorded yet.
                 </Text>
               ) : (
-                <Table striped data-testid="baseline-history-table">
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Promoted At</Table.Th>
-                      <Table.Th>Run ID</Table.Th>
-                      <Table.Th>User</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
+                <DataTable striped data-testid="baseline-history-table">
+                  <DataTable.Thead>
+                    <DataTable.Tr>
+                      <DataTable.Th>Promoted At</DataTable.Th>
+                      <DataTable.Th>Run ID</DataTable.Th>
+                      <DataTable.Th>User</DataTable.Th>
+                    </DataTable.Tr>
+                  </DataTable.Thead>
+                  <DataTable.Tbody>
                     {baselineHistory.map((entry, index) => (
-                      <Table.Tr
+                      <DataTable.Tr
                         key={index}
                         data-testid={`baseline-history-row-${index}`}
                       >
-                        <Table.Td
+                        <DataTable.Td
                           data-testid={`baseline-history-date-${index}`}
                         >
                           {new Date(entry.promotedAt).toLocaleString()}
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Button
                             variant="subtle"
                             size="compact-sm"
@@ -880,16 +880,16 @@ export function DefinitionDetailView({
                           >
                             <Code>{entry.runId.substring(0, 12)}...</Code>
                           </Button>
-                        </Table.Td>
-                        <Table.Td
+                        </DataTable.Td>
+                        <DataTable.Td
                           data-testid={`baseline-history-user-${index}`}
                         >
                           {entry.actorId}
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               )}
             </Stack>
           </Stack>
@@ -938,46 +938,46 @@ export function DefinitionDetailView({
             <Title order={4} data-testid="run-history-heading">
               Run History
             </Title>
-            <Table striped highlightOnHover data-testid="run-history-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Run ID</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Started</Table.Th>
-                  <Table.Th>Completed</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <DataTable striped highlightOnHover data-testid="run-history-table">
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Run ID</DataTable.Th>
+                  <DataTable.Th>Status</DataTable.Th>
+                  <DataTable.Th>Started</DataTable.Th>
+                  <DataTable.Th>Completed</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {definition.runHistory.map((run) => (
-                  <Table.Tr
+                  <DataTable.Tr
                     key={run.id}
                     data-testid={`run-history-row-${run.id}`}
                   >
-                    <Table.Td>
+                    <DataTable.Td>
                       <Code>{run.id.substring(0, 8)}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Badge
                         color={getStatusBadgeColor(run.status)}
                         data-testid={`run-status-badge-${run.id}`}
                       >
                         {run.status}
                       </Badge>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {run.startedAt
                         ? new Date(run.startedAt).toLocaleString()
                         : "—"}
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {run.completedAt
                         ? new Date(run.completedAt).toLocaleString()
                         : "—"}
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </Stack>
         </Card>
       )}

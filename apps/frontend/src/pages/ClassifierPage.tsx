@@ -9,7 +9,8 @@ import { ClassifierStatus } from "@/shared/types/classifier";
 import {
   Button,
   Group,
-  Paper,
+  PageHeader,
+  PanelCard,
   Select,
   Stack,
   Text,
@@ -27,7 +28,7 @@ const ClassifierPage = () => {
   const ModelSelect = () => {
     return (
       <>
-        <Paper shadow="sm" radius="md" p="lg" withBorder>
+        <PanelCard>
           <Stack gap="md" mt="md">
             <Group justify="space-between">
               <Title order={3}>Select a model</Title>
@@ -65,7 +66,7 @@ const ClassifierPage = () => {
               }}
             />
           </Stack>
-        </Paper>
+        </PanelCard>
         {!selectedModel && (
           <Text c="dimmed" size="sm">
             No model selected. Please select a model or create a new model.
@@ -87,14 +88,10 @@ const ClassifierPage = () => {
 
   return (
     <Stack gap={"lg"} mb="lg">
-      <Group justify="space-between">
-        <Stack gap={2}>
-          <Title order={2}>Classify</Title>
-          <Text c="dimmed" size="sm">
-            Build document classifiers and classify documents
-          </Text>
-        </Stack>
-      </Group>
+      <PageHeader
+        title="Classify"
+        description="Build document classifiers and classify documents"
+      />
       <ModelSelect />
       {selectedModel && selectedModelDetails && (
         <>

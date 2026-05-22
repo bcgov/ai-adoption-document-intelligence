@@ -4,13 +4,13 @@ import { useTemplateModels } from "@/features/annotation/template-models/hooks/u
 import {
   ActionIcon,
   Button,
+  DataTable,
   Group,
   Loader,
   Modal,
   MultiSelect,
   notifications,
   Stack,
-  Table,
   Text,
   TextInput,
 } from "../../../ui";
@@ -172,24 +172,24 @@ export function ConfusionProfilesPanel({
           No confusion profiles yet. Derive one from HITL correction data.
         </Text>
       ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Confusions</Table.Th>
-              <Table.Th>Created</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
+        <DataTable striped highlightOnHover>
+          <DataTable.Thead>
+            <DataTable.Tr>
+              <DataTable.Th>Name</DataTable.Th>
+              <DataTable.Th>Confusions</DataTable.Th>
+              <DataTable.Th>Created</DataTable.Th>
+              <DataTable.Th>Actions</DataTable.Th>
+            </DataTable.Tr>
+          </DataTable.Thead>
+          <DataTable.Tbody>
             {profiles.map((p) => (
-              <Table.Tr key={p.id}>
-                <Table.Td>{p.name}</Table.Td>
-                <Table.Td>{sumMatrix(p.matrix)}</Table.Td>
-                <Table.Td>
+              <DataTable.Tr key={p.id}>
+                <DataTable.Td>{p.name}</DataTable.Td>
+                <DataTable.Td>{sumMatrix(p.matrix)}</DataTable.Td>
+                <DataTable.Td>
                   {new Date(p.createdAt).toLocaleDateString()}
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <Group gap="xs">
                     <ActionIcon
                       variant="subtle"
@@ -208,11 +208,11 @@ export function ConfusionProfilesPanel({
                       <IconTrash size={16} />
                     </ActionIcon>
                   </Group>
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
             ))}
-          </Table.Tbody>
-        </Table>
+          </DataTable.Tbody>
+        </DataTable>
       )}
 
       <Modal

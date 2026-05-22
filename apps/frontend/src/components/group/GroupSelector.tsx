@@ -52,17 +52,18 @@ export function GroupSelector(): JSX.Element {
 
   return (
     <Tooltip label="Active Group" position="bottom" withArrow>
-      <Select
-        data={data}
-        value={activeGroup?.id ?? null}
-        onChange={handleChange}
-        searchable
-        placeholder="Select a group"
-        size="sm"
-        w={180}
-        aria-label="Active group"
-        data-testid="group-selector"
-      />
+      <span style={{ display: "inline-flex" }}>
+        <Select
+          data={data}
+          value={activeGroup?.id ?? null}
+          onChange={handleChange}
+          searchable
+          placeholder="Select a group"
+          size="sm"
+          aria-label="Active group"
+          data-testid="group-selector"
+        />
+      </span>
     </Tooltip>
   );
 }

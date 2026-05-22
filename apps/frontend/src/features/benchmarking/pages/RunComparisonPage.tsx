@@ -6,10 +6,10 @@ import {
   Card,
   Center,
   Code,
+  DataTable,
   Group,
   Loader,
   Stack,
-  Table,
   Text,
   Title,
 } from "../../../ui";
@@ -219,12 +219,12 @@ export function RunComparisonPage() {
       <Card data-testid="run-info-card">
         <Stack gap="md">
           <Title order={3}>Run Information</Title>
-          <Table data-testid="run-info-table" striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Property</Table.Th>
+          <DataTable data-testid="run-info-table" striped highlightOnHover>
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Property</DataTable.Th>
                 {comparisonData.runs.map((run) => (
-                  <Table.Th key={run.id}>
+                  <DataTable.Th key={run.id}>
                     <Group gap="xs">
                       <Text
                         component="a"
@@ -248,39 +248,39 @@ export function RunComparisonPage() {
                         </Badge>
                       )}
                     </Group>
-                  </Table.Th>
+                  </DataTable.Th>
                 ))}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td fw={500}>Status</Table.Td>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Status</DataTable.Td>
                 {comparisonData.runs.map((run) => (
-                  <Table.Td key={run.id}>
+                  <DataTable.Td key={run.id}>
                     <Badge color={getStatusColor(run.status)}>
                       {run.status}
                     </Badge>
-                  </Table.Td>
+                  </DataTable.Td>
                 ))}
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Definition</Table.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Definition</DataTable.Td>
                 {comparisonData.runs.map((run) => (
-                  <Table.Td key={run.id}>{run.definitionName}</Table.Td>
+                  <DataTable.Td key={run.id}>{run.definitionName}</DataTable.Td>
                 ))}
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Started At</Table.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Started At</DataTable.Td>
                 {comparisonData.runs.map((run) => (
-                  <Table.Td key={run.id}>
+                  <DataTable.Td key={run.id}>
                     {run.startedAt
                       ? new Date(run.startedAt).toLocaleString()
                       : "-"}
-                  </Table.Td>
+                  </DataTable.Td>
                 ))}
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
+              </DataTable.Tr>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
       </Card>
 
@@ -288,16 +288,16 @@ export function RunComparisonPage() {
         <Card data-testid="metrics-comparison-card">
           <Stack gap="md">
             <Title order={3}>Metrics Comparison</Title>
-            <Table
+            <DataTable
               data-testid="metrics-comparison-table"
               striped
               highlightOnHover
             >
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Metric Name</Table.Th>
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Metric Name</DataTable.Th>
                   {comparisonData.runs.map((run, idx) => (
-                    <Table.Th key={run.id}>
+                    <DataTable.Th key={run.id}>
                       <Group gap="xs">
                         <Text
                           component="a"
@@ -321,17 +321,17 @@ export function RunComparisonPage() {
                           </Badge>
                         )}
                       </Group>
-                    </Table.Th>
+                    </DataTable.Th>
                   ))}
                   {comparisonData.runs.length >= 2 && (
                     <>
-                      <Table.Th>Delta</Table.Th>
-                      <Table.Th>Delta %</Table.Th>
+                      <DataTable.Th>Delta</DataTable.Th>
+                      <DataTable.Th>Delta %</DataTable.Th>
                     </>
                   )}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {comparisonData.metricNames.map((metricName) => {
                   const baselineValue =
                     comparisonData.runs[0].metrics[metricName];
@@ -352,12 +352,12 @@ export function RunComparisonPage() {
                       : null;
 
                   return (
-                    <Table.Tr key={metricName}>
-                      <Table.Td fw={500}>{metricName}</Table.Td>
+                    <DataTable.Tr key={metricName}>
+                      <DataTable.Td fw={500}>{metricName}</DataTable.Td>
                       {comparisonData.runs.map((run) => {
                         const value = run.metrics[metricName];
                         return (
-                          <Table.Td key={run.id}>
+                          <DataTable.Td key={run.id}>
                             <Code>
                               {value === undefined || value === null
                                 ? "-"
@@ -365,12 +365,12 @@ export function RunComparisonPage() {
                                   ? value.toFixed(4)
                                   : JSON.stringify(value)}
                             </Code>
-                          </Table.Td>
+                          </DataTable.Td>
                         );
                       })}
                       {comparisonData.runs.length >= 2 && (
                         <>
-                          <Table.Td>
+                          <DataTable.Td>
                             {delta !== null ? (
                               <Code c={getChangeColor(delta)}>
                                 {delta > 0 ? "+" : ""}
@@ -379,8 +379,8 @@ export function RunComparisonPage() {
                             ) : (
                               "-"
                             )}
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             {deltaPercent !== null ? (
                               <Code c={getChangeColor(deltaPercent)}>
                                 {deltaPercent > 0 ? "+" : ""}
@@ -389,14 +389,14 @@ export function RunComparisonPage() {
                             ) : (
                               "-"
                             )}
-                          </Table.Td>
+                          </DataTable.Td>
                         </>
                       )}
-                    </Table.Tr>
+                    </DataTable.Tr>
                   );
                 })}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </Stack>
         </Card>
       )}
@@ -405,18 +405,18 @@ export function RunComparisonPage() {
         <Card data-testid="parameters-comparison-card">
           <Stack gap="md">
             <Title order={3}>Parameters Comparison</Title>
-            <Table data-testid="parameters-comparison-table" striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Parameter</Table.Th>
+            <DataTable data-testid="parameters-comparison-table" striped>
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Parameter</DataTable.Th>
                   {comparisonData.runs.map((run) => (
-                    <Table.Th key={run.id}>
+                    <DataTable.Th key={run.id}>
                       Run {run.id.slice(0, 8)}...
-                    </Table.Th>
+                    </DataTable.Th>
                   ))}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {comparisonData.paramNames.map((paramName) => {
                   const values = comparisonData.runs.map(
                     (r) => r.params[paramName],
@@ -425,28 +425,28 @@ export function RunComparisonPage() {
                     new Set(values.map((v) => JSON.stringify(v))).size > 1;
 
                   return (
-                    <Table.Tr key={paramName}>
-                      <Table.Td fw={500}>
+                    <DataTable.Tr key={paramName}>
+                      <DataTable.Td fw={500}>
                         {paramName}
                         {hasChanges && (
                           <Badge size="xs" ml={8} color="orange">
                             Changed
                           </Badge>
                         )}
-                      </Table.Td>
+                      </DataTable.Td>
                       {comparisonData.runs.map((run) => {
                         const value = run.params[paramName];
                         return (
-                          <Table.Td key={run.id}>
+                          <DataTable.Td key={run.id}>
                             <Code>{JSON.stringify(value)}</Code>
-                          </Table.Td>
+                          </DataTable.Td>
                         );
                       })}
-                    </Table.Tr>
+                    </DataTable.Tr>
                   );
                 })}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </Stack>
         </Card>
       )}
@@ -455,18 +455,18 @@ export function RunComparisonPage() {
         <Card data-testid="tags-comparison-card">
           <Stack gap="md">
             <Title order={3}>Tags Comparison</Title>
-            <Table data-testid="tags-comparison-table" striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Tag</Table.Th>
+            <DataTable data-testid="tags-comparison-table" striped>
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Tag</DataTable.Th>
                   {comparisonData.runs.map((run) => (
-                    <Table.Th key={run.id}>
+                    <DataTable.Th key={run.id}>
                       Run {run.id.slice(0, 8)}...
-                    </Table.Th>
+                    </DataTable.Th>
                   ))}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {comparisonData.tagNames.map((tagName) => {
                   const values = comparisonData.runs.map(
                     (r) => r.tags[tagName],
@@ -475,28 +475,28 @@ export function RunComparisonPage() {
                     new Set(values.map((v) => JSON.stringify(v))).size > 1;
 
                   return (
-                    <Table.Tr key={tagName}>
-                      <Table.Td fw={500}>
+                    <DataTable.Tr key={tagName}>
+                      <DataTable.Td fw={500}>
                         {tagName}
                         {hasChanges && (
                           <Badge size="xs" ml={8} color="orange">
                             Changed
                           </Badge>
                         )}
-                      </Table.Td>
+                      </DataTable.Td>
                       {comparisonData.runs.map((run) => {
                         const value = run.tags[tagName];
                         return (
-                          <Table.Td key={run.id}>
+                          <DataTable.Td key={run.id}>
                             <Code>{JSON.stringify(value)}</Code>
-                          </Table.Td>
+                          </DataTable.Td>
                         );
                       })}
-                    </Table.Tr>
+                    </DataTable.Tr>
                   );
                 })}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </Stack>
         </Card>
       )}

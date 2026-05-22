@@ -4,7 +4,13 @@ import {
   IconSelector,
 } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
-import { Button, Group, Table, TextInput, UnstyledButton } from "../../ui";
+import {
+  Button,
+  DataTable,
+  Group,
+  SearchField,
+  UnstyledButton,
+} from "../../ui";
 
 /** Minimal group shape required by the GroupsTable component. */
 export interface GroupTableEntry {
@@ -118,16 +124,20 @@ export function GroupsTable({
 
   return (
     <Group gap="md" style={{ flexDirection: "column", alignItems: "stretch" }}>
-      <TextInput
-        placeholder="Search by name or description…"
-        value={search}
-        onChange={(e) => setSearch(e.currentTarget.value)}
-        data-testid="groups-search"
-      />
-      <Table highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>
+      <div data-testid="groups-search">
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name or description…"
+        />
+      </div>
+      <DataTable
+        highlightOnHover
+        caption={`${sorted.length} group${sorted.length === 1 ? "" : "s"}`}
+      >
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th>
               <UnstyledButton
                 onClick={() => toggleSort("name")}
                 style={{ display: "flex", alignItems: "center", gap: 4 }}
@@ -140,8 +150,8 @@ export function GroupsTable({
                   sortDir={sortDir}
                 />
               </UnstyledButton>
-            </Table.Th>
-            <Table.Th>
+            </DataTable.Th>
+            <DataTable.Th>
               <UnstyledButton
                 onClick={() => toggleSort("description")}
                 style={{ display: "flex", alignItems: "center", gap: 4 }}
@@ -154,20 +164,20 @@ export function GroupsTable({
                   sortDir={sortDir}
                 />
               </UnstyledButton>
-            </Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+            </DataTable.Th>
+            <DataTable.Th>Actions</DataTable.Th>
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {sorted.map((group) => (
-            <Table.Tr
+            <DataTable.Tr
               key={group.id}
               style={onRowClick ? { cursor: "pointer" } : undefined}
               onClick={onRowClick ? () => onRowClick(group.id) : undefined}
             >
-              <Table.Td>{group.name}</Table.Td>
-              <Table.Td>{group.description ?? ""}</Table.Td>
-              <Table.Td>
+              <DataTable.Td>{group.name}</DataTable.Td>
+              <DataTable.Td>{group.description ?? ""}</DataTable.Td>
+              <DataTable.Td>
                 {memberGroupIds.has(group.id) ? (
                   <Button
                     size="xs"
@@ -198,11 +208,11 @@ export function GroupsTable({
                       : "Join"}
                   </Button>
                 )}
-              </Table.Td>
-            </Table.Tr>
+              </DataTable.Td>
+            </DataTable.Tr>
           ))}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
     </Group>
   );
 }

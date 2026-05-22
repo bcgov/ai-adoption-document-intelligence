@@ -10,9 +10,9 @@ import {
   Alert,
   Badge,
   Button,
+  DataTable,
   Loader,
   Modal,
-  Table,
   Tabs,
   Text,
 } from "../../ui";
@@ -51,32 +51,32 @@ function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
   }
 
   return (
-    <Table striped highlightOnHover withTableBorder>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Field</Table.Th>
-          <Table.Th>Value</Table.Th>
-          <Table.Th>Type</Table.Th>
-          <Table.Th>Confidence</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
+    <DataTable striped highlightOnHover withTableBorder>
+      <DataTable.Thead>
+        <DataTable.Tr>
+          <DataTable.Th>Field</DataTable.Th>
+          <DataTable.Th>Value</DataTable.Th>
+          <DataTable.Th>Type</DataTable.Th>
+          <DataTable.Th>Confidence</DataTable.Th>
+        </DataTable.Tr>
+      </DataTable.Thead>
+      <DataTable.Tbody>
         {entries.map(([name, field]) => (
-          <Table.Tr key={name}>
-            <Table.Td>
+          <DataTable.Tr key={name}>
+            <DataTable.Td>
               <Text size="sm" fw={500}>
                 {name}
               </Text>
-            </Table.Td>
-            <Table.Td>
+            </DataTable.Td>
+            <DataTable.Td>
               <Text size="sm">{getFieldDisplayValue(field)}</Text>
-            </Table.Td>
-            <Table.Td>
+            </DataTable.Td>
+            <DataTable.Td>
               <Badge size="xs" variant="light">
                 {field.type}
               </Badge>
-            </Table.Td>
-            <Table.Td>
+            </DataTable.Td>
+            <DataTable.Td>
               <Text
                 size="sm"
                 c={
@@ -89,11 +89,11 @@ function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
               >
                 {(field.confidence * 100).toFixed(1)}%
               </Text>
-            </Table.Td>
-          </Table.Tr>
+            </DataTable.Td>
+          </DataTable.Tr>
         ))}
-      </Table.Tbody>
-    </Table>
+      </DataTable.Tbody>
+    </DataTable>
   );
 }
 

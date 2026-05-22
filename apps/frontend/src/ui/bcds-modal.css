@@ -1,0 +1,38 @@
+.bcds-modal-dialog {
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.bcds-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-margin-medium);
+}
+
+.bcds-modal--xs {
+  width: min(20rem, 100%);
+}
+
+.bcds-modal--sm {
+  width: min(24rem, 100%);
+}
+
+.bcds-modal--md {
+  width: min(32rem, 100%);
+}
+
+.bcds-modal--lg {
+  width: min(48rem, 100%);
+}
+
+.bcds-modal--xl {
+  width: min(64rem, 100%);
+}
+
+.bcds-modal--full {
+  width: min(96vw, 100%);
+}
+
+.bcds-modal--fluid {
+  width: min(90vw, 100%);
+}

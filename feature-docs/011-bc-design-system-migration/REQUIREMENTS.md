@@ -10,8 +10,9 @@ The feature must not attempt a full frontend rewrite and must not remove Mantine
 
 ## Goals
 
-- Use B.C. Design System tokens, BC Sans, and React components as the preferred source of truth for standard UI.
-- Keep Mantine as a deliberate, styled fallback where the B.C. Design System does not yet provide a suitable replacement.
+- **Visually align** the UI with the B.C. Design System: tokens, BC Sans, and BC DS React components (and their packaged styles) are the source of truth for how standard controls look.
+- **Functionally preserve** existing product behaviour during migration: adapters under `apps/frontend/src/ui/` keep Mantine-style props where already in use (e.g. `Button` `leftSection`, `loading`, `onClick`) while rendering BC DS components underneath — feature code should not require large prop rewrites for behaviour.
+- Keep Mantine as a deliberate fallback only where BC DS has no suitable replacement or migration is deferred; fallbacks should still use BC DS tokens where practical so they blend visually.
 - Create a local UI adapter layer so product code can migrate gradually without broad future churn.
 - Align the Processing Queue screen with the provided Figma design as the first reference implementation.
 - Document how Figma components, code components, and fallback classifications map to each other.

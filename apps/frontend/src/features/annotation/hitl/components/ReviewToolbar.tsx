@@ -7,7 +7,7 @@ import {
   IconPlayerSkipForward,
 } from "@tabler/icons-react";
 import { FC } from "react";
-import { ActionIcon, Button, Group, Tooltip } from "../../../../ui";
+import { Button, Group, IconActionButton } from "../../../../ui";
 
 type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";
@@ -60,38 +60,34 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
 
       <Group>
         {onViewModeToggle && (
-          <Tooltip
-            label={
+          <IconActionButton
+            tooltip={
               viewMode === "document"
                 ? "Switch to snippet view (Ctrl+Shift+V)"
                 : "Switch to document view (Ctrl+Shift+V)"
             }
-          >
-            <ActionIcon variant="subtle" onClick={onViewModeToggle} size="lg">
-              {viewMode === "document" ? (
+            variant="subtle"
+            onClick={onViewModeToggle}
+            icon={
+              viewMode === "document" ? (
                 <IconLayoutGrid size={18} />
               ) : (
                 <IconPhoto size={18} />
-              )}
-            </ActionIcon>
-          </Tooltip>
+              )
+            }
+          />
         )}
         {onSortModeToggle && (
-          <Tooltip
-            label={
+          <IconActionButton
+            tooltip={
               sortMode === "confidence"
                 ? "Sorting by confidence (Ctrl+Shift+O)"
                 : "Sort by confidence (Ctrl+Shift+O)"
             }
-          >
-            <ActionIcon
-              variant={sortMode === "confidence" ? "filled" : "subtle"}
-              onClick={onSortModeToggle}
-              size="lg"
-            >
-              <IconArrowsSort size={18} />
-            </ActionIcon>
-          </Tooltip>
+            variant={sortMode === "confidence" ? "filled" : "subtle"}
+            onClick={onSortModeToggle}
+            icon={<IconArrowsSort size={18} />}
+          />
         )}
       </Group>
 

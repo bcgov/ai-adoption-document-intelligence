@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Group, Pagination, Stack, Table, Text } from "../../../ui";
+import { Button, DataTable, Group, Pagination, Stack, Text } from "../../../ui";
 import { useTableRows } from "../hooks/useTableRows";
 import type { ColumnDef, TableRow } from "../types";
 
@@ -63,24 +63,24 @@ export function RowsTab({
         </Text>
       ) : (
         <>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
+          <DataTable striped highlightOnHover>
+            <DataTable.Thead>
+              <DataTable.Tr>
                 {columns.map((c) => (
-                  <Table.Th key={c.key}>{c.label}</Table.Th>
+                  <DataTable.Th key={c.key}>{c.label}</DataTable.Th>
                 ))}
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+                <DataTable.Th />
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {rows.data.rows.map((row) => (
-                <Table.Tr key={row.id}>
+                <DataTable.Tr key={row.id}>
                   {columns.map((c) => (
-                    <Table.Td key={c.key}>
+                    <DataTable.Td key={c.key}>
                       {renderCell(row.data[c.key], c.type)}
-                    </Table.Td>
+                    </DataTable.Td>
                   ))}
-                  <Table.Td>
+                  <DataTable.Td>
                     <Button
                       size="xs"
                       variant="subtle"
@@ -88,11 +88,11 @@ export function RowsTab({
                     >
                       Edit
                     </Button>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               ))}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
           {totalPages > 1 && (
             <Group justify="center">
               <Pagination total={totalPages} value={page} onChange={setPage} />

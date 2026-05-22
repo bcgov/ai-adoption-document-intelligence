@@ -4,20 +4,22 @@ import { useNavigate } from "react-router-dom";
 import { SlugChip } from "../components/workflow/SlugChip";
 import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
 import {
-  ActionIcon,
   Badge,
   Button,
-  Card,
+  DataTable,
   Group,
+  IconActionButton,
   Modal,
   notifications,
+  PageHeader,
+  PanelCard,
   Stack,
   Switch,
-  Table,
   Text,
-  Title,
-  Tooltip,
 } from "../ui";
+
+const WORKFLOWS_DESCRIPTION =
+  "Create and manage custom OCR processing workflows";
 
 export function WorkflowListPage() {
   const navigate = useNavigate();
@@ -68,18 +70,36 @@ export function WorkflowListPage() {
     setWorkflowToDelete(null);
   };
 
+  const listActions = (
+    <Group gap="md" align="center" wrap="wrap">
+      {workflows && workflows.length > 0 ? (
+        <Switch
+          checked={showBenchmarkCandidates}
+          onChange={(e) => setShowBenchmarkCandidates(e.currentTarget.checked)}
+          label="Show benchmark candidates"
+        />
+      ) : null}
+      <Button
+        leftSection={<IconPlus size={16} />}
+        onClick={() => navigate("/workflows/create")}
+      >
+        Create Workflow
+      </Button>
+    </Group>
+  );
+
   let main: ReactNode;
   if (isLoading) {
     main = (
       <Stack gap="lg">
-        <Title order={2}>Workflows</Title>
+        <PageHeader title="Workflows" description={WORKFLOWS_DESCRIPTION} />
         <Text c="dimmed">Loading workflows...</Text>
       </Stack>
     );
   } else if (error) {
     main = (
       <Stack gap="lg">
-        <Title order={2}>Workflows</Title>
+        <PageHeader title="Workflows" description={WORKFLOWS_DESCRIPTION} />
         <Text c="red">
           {error instanceof Error ? error.message : "Failed to load workflows"}
         </Text>
@@ -88,22 +108,13 @@ export function WorkflowListPage() {
   } else if (!workflows || workflows.length === 0) {
     main = (
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Stack gap={2}>
-            <Title order={2}>Workflows</Title>
-            <Text c="dimmed" size="sm">
-              Create and manage custom OCR processing workflows
-            </Text>
-          </Stack>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={() => navigate("/workflows/create")}
-          >
-            Create Workflow
-          </Button>
-        </Group>
+        <PageHeader
+          title="Workflows"
+          description={WORKFLOWS_DESCRIPTION}
+          actions={listActions}
+        />
 
-        <Card shadow="sm" radius="md" p="xl" withBorder>
+        <PanelCard p="xl">
           <Stack align="center" gap="md">
             <IconFlask
               size={48}
@@ -127,119 +138,101 @@ export function WorkflowListPage() {
               Create Your First Workflow
             </Button>
           </Stack>
-        </Card>
+        </PanelCard>
       </Stack>
     );
   } else {
     main = (
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Stack gap={2}>
-            <Title order={2}>Workflows</Title>
-            <Text c="dimmed" size="sm">
-              Create and manage custom OCR processing workflows
-            </Text>
-          </Stack>
-          <Group gap="md" align="center">
-            <Switch
-              checked={showBenchmarkCandidates}
-              onChange={(e) =>
-                setShowBenchmarkCandidates(e.currentTarget.checked)
-              }
-              label="Show benchmark candidates"
-            />
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => navigate("/workflows/create")}
-            >
-              Create Workflow
-            </Button>
-          </Group>
-        </Group>
+        <PageHeader
+          title="Workflows"
+          description={WORKFLOWS_DESCRIPTION}
+          actions={listActions}
+        />
 
-        <Card shadow="sm" radius="md" p="md" withBorder>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Slug</Table.Th>
-                <Table.Th>Description</Table.Th>
-                <Table.Th>Version</Table.Th>
-                <Table.Th>Schema</Table.Th>
-                <Table.Th>Created</Table.Th>
-                <Table.Th>Updated</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+        <PanelCard>
+          <DataTable
+            striped
+            highlightOnHover
+            caption={`${workflows.length} workflow${workflows.length === 1 ? "" : "s"}`}
+          >
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Name</DataTable.Th>
+                <DataTable.Th>Slug</DataTable.Th>
+                <DataTable.Th>Description</DataTable.Th>
+                <DataTable.Th>Version</DataTable.Th>
+                <DataTable.Th>Schema</DataTable.Th>
+                <DataTable.Th>Created</DataTable.Th>
+                <DataTable.Th>Updated</DataTable.Th>
+                <DataTable.Th />
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {workflows.map((workflow) => (
-                <Table.Tr key={workflow.id}>
-                  <Table.Td>
+                <DataTable.Tr key={workflow.id}>
+                  <DataTable.Td>
                     <Text fw={500}>{workflow.name}</Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <SlugChip slug={workflow.slug} />
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text c="dimmed" size="sm" lineClamp={1}>
                       {workflow.description || "—"}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Badge variant="light" color="blue">
                       v{workflow.version}
                     </Badge>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Badge variant="light" color="gray">
                       {workflow.config.schemaVersion}
                     </Badge>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm" c="dimmed">
                       {new Date(workflow.createdAt).toLocaleDateString()}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm" c="dimmed">
                       {new Date(workflow.updatedAt).toLocaleDateString()}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Tooltip label="Edit workflow">
-                        <ActionIcon
-                          variant="light"
-                          color="blue"
-                          onClick={() =>
-                            navigate(`/workflows/${workflow.id}/edit`)
-                          }
-                        >
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip label="Delete workflow">
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          onClick={() =>
-                            handleDeleteClick(workflow.id, workflow.name)
-                          }
-                          loading={
-                            deleteWorkflowMutation.isPending &&
-                            workflowToDelete?.id === workflow.id
-                          }
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Tooltip>
+                  </DataTable.Td>
+                  <DataTable.Td>
+                    <Group gap="xs" wrap="nowrap">
+                      <IconActionButton
+                        tooltip="Edit workflow"
+                        variant="light"
+                        color="blue"
+                        onClick={() =>
+                          navigate(`/workflows/${workflow.id}/edit`)
+                        }
+                        icon={<IconEdit size={18} />}
+                      />
+                      <IconActionButton
+                        tooltip="Delete workflow"
+                        variant="light"
+                        color="red"
+                        onClick={() =>
+                          handleDeleteClick(workflow.id, workflow.name)
+                        }
+                        loading={
+                          deleteWorkflowMutation.isPending &&
+                          workflowToDelete?.id === workflow.id
+                        }
+                        icon={<IconTrash size={18} />}
+                      />
                     </Group>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
+            </DataTable.Tbody>
+          </DataTable>
+        </PanelCard>
       </Stack>
     );
   }

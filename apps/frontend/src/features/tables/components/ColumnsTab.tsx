@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
-import { Button, Group, Modal, Stack, Table, Text } from "../../../ui";
+import { Button, DataTable, Group, Modal, Stack, Text } from "../../../ui";
 import type { ColumnDef } from "../types";
 import { ColumnForm } from "./ColumnForm";
 
@@ -65,28 +65,28 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
           No columns defined yet. Click Add Column to create the first one.
         </Text>
       ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Key</Table.Th>
-              <Table.Th>Label</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Required</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
+        <DataTable striped highlightOnHover>
+          <DataTable.Thead>
+            <DataTable.Tr>
+              <DataTable.Th>Key</DataTable.Th>
+              <DataTable.Th>Label</DataTable.Th>
+              <DataTable.Th>Type</DataTable.Th>
+              <DataTable.Th>Required</DataTable.Th>
+              <DataTable.Th />
+            </DataTable.Tr>
+          </DataTable.Thead>
+          <DataTable.Tbody>
             {columns.map((c) => (
-              <Table.Tr key={c.key}>
-                <Table.Td>
+              <DataTable.Tr key={c.key}>
+                <DataTable.Td>
                   <Text ff="monospace" size="sm">
                     {c.key}
                   </Text>
-                </Table.Td>
-                <Table.Td>{c.label}</Table.Td>
-                <Table.Td>{c.type}</Table.Td>
-                <Table.Td>{c.required ? "✓" : ""}</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>{c.label}</DataTable.Td>
+                <DataTable.Td>{c.type}</DataTable.Td>
+                <DataTable.Td>{c.required ? "✓" : ""}</DataTable.Td>
+                <DataTable.Td>
                   <Group gap="xs">
                     <Button
                       size="xs"
@@ -105,11 +105,11 @@ export function ColumnsTab({ groupId, tableId, columns }: Props) {
                       Delete
                     </Button>
                   </Group>
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
             ))}
-          </Table.Tbody>
-        </Table>
+          </DataTable.Tbody>
+        </DataTable>
       )}
       {editing && (
         <ColumnForm

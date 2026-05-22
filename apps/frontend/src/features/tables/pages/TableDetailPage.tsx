@@ -5,15 +5,15 @@ import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 import {
   Button,
-  Container,
   Group,
   Modal,
+  PageHeader,
+  PanelCard,
   Stack,
   Tabs,
   Text,
   Textarea,
   TextInput,
-  Title,
 } from "../../../ui";
 import { ColumnsTab } from "../components/ColumnsTab";
 import { LookupSnippetPanel } from "../components/LookupSnippetPanel";
@@ -70,146 +70,144 @@ export function TableDetailPage() {
 
   if (table.isLoading)
     return (
-      <Container py="md">
+      <Stack gap="lg">
+        <PageHeader title="Table" description="Loading table details…" />
         <Text c="dimmed">Loading…</Text>
-      </Container>
+      </Stack>
     );
   if (table.isError)
     return (
-      <Container py="md">
+      <Stack gap="lg">
+        <PageHeader title="Table" description="Table detail" />
         <Text c="red">
           Failed to load table: {(table.error as Error).message}
         </Text>
-      </Container>
+      </Stack>
     );
   if (!table.data)
     return (
-      <Container py="md">
+      <Stack gap="lg">
+        <PageHeader title="Table" description="Table detail" />
         <Text c="dimmed">Table not found.</Text>
-      </Container>
+      </Stack>
     );
 
   return (
-    <Container size="xl" py="md">
-      <Group justify="space-between" mb="md">
-        <Stack gap={0}>
-          <Title order={2}>{table.data.label}</Title>
-          <Text c="dimmed" size="sm" ff="monospace">
-            {table.data.table_id}
-          </Text>
-        </Stack>
-      </Group>
-      <Tabs defaultValue="rows">
-        <Tabs.List>
-          <Tabs.Tab value="rows">Rows</Tabs.Tab>
-          <Tabs.Tab value="columns">Columns</Tabs.Tab>
-          <Tabs.Tab value="lookups">Lookups</Tabs.Tab>
-          <Tabs.Tab value="settings">Settings</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="rows" pt="md">
-          {groupId && tableId && (
-            <RowsTab
-              groupId={groupId}
-              tableId={tableId}
-              columns={table.data.columns}
-              onCreate={() => {
-                setEditingRow(undefined);
-                setRowFormOpen(true);
-              }}
-              onEdit={(row) => {
-                setEditingRow(row);
-                setRowFormOpen(true);
-              }}
-            />
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="columns" pt="md">
-          {groupId && tableId && (
-            <ColumnsTab
-              groupId={groupId}
-              tableId={tableId}
-              columns={table.data.columns}
-            />
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="lookups" pt="md">
-          {groupId && tableId && (
-            <LookupsTab
-              groupId={groupId}
-              tableId={tableId}
-              columns={table.data.columns}
-              lookups={table.data.lookups}
-              onShowSnippet={setSnippetLookup}
-            />
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="settings" pt="md">
-          <Stack maw={500}>
-            <TextInput
-              label="Label"
-              defaultValue={table.data.label}
-              onBlur={(e) => {
-                const next = e.currentTarget.value.trim();
-                if (next && next !== table.data?.label) {
-                  updateMeta.mutate({ label: next });
-                }
-              }}
-            />
-            <Textarea
-              label="Description"
-              defaultValue={table.data.description ?? ""}
-              onBlur={(e) => {
-                const raw = e.currentTarget.value;
-                const next = raw.trim() || null;
-                if (next !== (table.data?.description ?? null)) {
-                  updateMeta.mutate({ description: next });
-                }
-              }}
-            />
-            {updateMeta.isError && (
-              <Text c="red" size="sm">
-                {(updateMeta.error as Error).message}
-              </Text>
+    <Stack gap="lg">
+      <PageHeader title={table.data.label} description={table.data.table_id} />
+      <PanelCard>
+        <Tabs defaultValue="rows">
+          <Tabs.List>
+            <Tabs.Tab value="rows">Rows</Tabs.Tab>
+            <Tabs.Tab value="columns">Columns</Tabs.Tab>
+            <Tabs.Tab value="lookups">Lookups</Tabs.Tab>
+            <Tabs.Tab value="settings">Settings</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="rows" pt="md">
+            {groupId && tableId && (
+              <RowsTab
+                groupId={groupId}
+                tableId={tableId}
+                columns={table.data.columns}
+                onCreate={() => {
+                  setEditingRow(undefined);
+                  setRowFormOpen(true);
+                }}
+                onEdit={(row) => {
+                  setEditingRow(row);
+                  setRowFormOpen(true);
+                }}
+              />
             )}
-            <Group>
-              <Button color="red" onClick={() => setConfirmDelete(true)}>
-                Delete Table
-              </Button>
-            </Group>
-          </Stack>
-          <Modal
-            opened={confirmDelete}
-            onClose={() => setConfirmDelete(false)}
-            title="Delete table?"
-          >
-            <Stack>
-              <Text>
-                This deletes the table and all its rows. Cannot be undone.
-              </Text>
-              {deleteTable.isError && (
+          </Tabs.Panel>
+          <Tabs.Panel value="columns" pt="md">
+            {groupId && tableId && (
+              <ColumnsTab
+                groupId={groupId}
+                tableId={tableId}
+                columns={table.data.columns}
+              />
+            )}
+          </Tabs.Panel>
+          <Tabs.Panel value="lookups" pt="md">
+            {groupId && tableId && (
+              <LookupsTab
+                groupId={groupId}
+                tableId={tableId}
+                columns={table.data.columns}
+                lookups={table.data.lookups}
+                onShowSnippet={setSnippetLookup}
+              />
+            )}
+          </Tabs.Panel>
+          <Tabs.Panel value="settings" pt="md">
+            <Stack maw={500}>
+              <TextInput
+                label="Label"
+                defaultValue={table.data.label}
+                onBlur={(e) => {
+                  const next = e.currentTarget.value.trim();
+                  if (next && next !== table.data?.label) {
+                    updateMeta.mutate({ label: next });
+                  }
+                }}
+              />
+              <Textarea
+                label="Description"
+                defaultValue={table.data.description ?? ""}
+                onBlur={(e) => {
+                  const raw = e.currentTarget.value;
+                  const next = raw.trim() || null;
+                  if (next !== (table.data?.description ?? null)) {
+                    updateMeta.mutate({ description: next });
+                  }
+                }}
+              />
+              {updateMeta.isError && (
                 <Text c="red" size="sm">
-                  {(deleteTable.error as Error).message}
+                  {(updateMeta.error as Error).message}
                 </Text>
               )}
-              <Group justify="flex-end">
-                <Button
-                  variant="default"
-                  onClick={() => setConfirmDelete(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  color="red"
-                  loading={deleteTable.isPending}
-                  onClick={() => deleteTable.mutate()}
-                >
-                  Delete
+              <Group>
+                <Button color="red" onClick={() => setConfirmDelete(true)}>
+                  Delete Table
                 </Button>
               </Group>
             </Stack>
-          </Modal>
-        </Tabs.Panel>
-      </Tabs>
+            <Modal
+              opened={confirmDelete}
+              onClose={() => setConfirmDelete(false)}
+              title="Delete table?"
+            >
+              <Stack>
+                <Text>
+                  This deletes the table and all its rows. Cannot be undone.
+                </Text>
+                {deleteTable.isError && (
+                  <Text c="red" size="sm">
+                    {(deleteTable.error as Error).message}
+                  </Text>
+                )}
+                <Group justify="flex-end">
+                  <Button
+                    variant="default"
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    color="red"
+                    loading={deleteTable.isPending}
+                    onClick={() => deleteTable.mutate()}
+                  >
+                    Delete
+                  </Button>
+                </Group>
+              </Stack>
+            </Modal>
+          </Tabs.Panel>
+        </Tabs>
+      </PanelCard>
       {groupId && tableId && (
         <RowForm
           opened={rowFormOpen}
@@ -228,6 +226,6 @@ export function TableDetailPage() {
           lookup={snippetLookup}
         />
       )}
-    </Container>
+    </Stack>
   );
 }

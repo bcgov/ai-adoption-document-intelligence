@@ -1,3 +1,7 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { zodResolver } from "mantine-form-zod-resolver";
+import { useEffect } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   Button,
   DateInput,
@@ -11,11 +15,6 @@ import {
   TextInput,
   useForm,
 } from "../../../ui";
-import "@mantine/dates/styles.css";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "mantine-form-zod-resolver";
-import { useEffect } from "react";
-import { apiService } from "@/data/services/api.service";
 import type { ColumnDef, TableRow } from "../types";
 import { buildRowZodSchema } from "../utils/build-row-zod-schema";
 
