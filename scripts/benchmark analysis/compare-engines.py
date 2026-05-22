@@ -671,7 +671,14 @@ def plot_error_class_breakdown(engines: list[Engine], out_dir: Path) -> None:
         ax.text(x[i], bottoms[i] + max(bottoms) * 0.01, f"total {e.total_errors}",
                 ha="center", va="bottom", fontsize=9, weight="bold")
     ax.set_xticks(x)
-    ax.set_xticklabels([e.label for e in engines])
+    # Rotate engine labels when any exceeds ~16 chars (e.g. expanded model
+    # names like "Neural Custom Model (V2 current)") so adjacent bar labels
+    # don't visually collide. Same rotation as the per-field heatmap uses.
+    max_label_len = max((len(e.label) for e in engines), default=0)
+    if max_label_len > 16:
+        ax.set_xticklabels([e.label for e in engines], rotation=15, ha="right", fontsize=9)
+    else:
+        ax.set_xticklabels([e.label for e in engines])
     ax.set_ylabel("Errors")
     ax.set_title("Error-class breakdown (missing / extra / wrong)")
     ax.legend(loc="upper right")
