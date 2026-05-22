@@ -36,6 +36,8 @@ const TYPE_OPTIONS: { value: ColumnType; label: string }[] = [
 export const customJson: LookupTemplate = {
   id: "custom-json",
   label: "Custom (advanced)",
+  description:
+    "Write a raw filter expression. Use this when none of the other match types fit your needs.",
   toLookupDef(name, v) {
     const filterText = (v.filterJson as string) ?? "{}";
     let filter: Record<string, unknown>;

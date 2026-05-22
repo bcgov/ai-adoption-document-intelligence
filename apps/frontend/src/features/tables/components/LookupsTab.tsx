@@ -13,6 +13,7 @@ import { IconInfoCircle, IconPencil, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
+import { LOOKUP_TEMPLATES } from "../lookup-templates";
 import type { ColumnDef, LookupDef } from "../types";
 import { LookupForm } from "./LookupForm";
 
@@ -79,11 +80,18 @@ export function LookupsTab({
   return (
     <Stack>
       <Alert color="blue" variant="light" icon={<IconInfoCircle size={16} />}>
-        Lookups are named queries that workflow activity nodes run against this
-        table at runtime. Each lookup defines filter conditions, parameters
-        accepted from the workflow context, and a pick strategy (first, last,
-        one, or all matching rows). Use the <strong>Use in workflow</strong>{" "}
-        button to copy a ready-made node snippet.
+        A lookup is a saved search you define once and reuse from any workflow.
+        When a workflow runs, it calls the lookup by name and passes values for
+        its inputs — the lookup scans the table, applies its filter, and returns
+        the matching row(s). <br />
+        <strong>
+          Example: a <code>findRate</code> lookup on a rates table accepts an{" "}
+          <code>as_of_date</code> input and returns the rate row in effect on
+          that date.
+        </strong>{" "}
+        <br />
+        Use the <strong>Use in workflow</strong> button on any lookup to copy a
+        ready-made workflow node snippet.
       </Alert>
       {isAdmin && (
         <Group justify="flex-end">
@@ -109,9 +117,9 @@ export function LookupsTab({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Name</Table.Th>
-              <Table.Th>Template</Table.Th>
-              <Table.Th>Pick</Table.Th>
-              <Table.Th>Params</Table.Th>
+              <Table.Th>Match type</Table.Th>
+              <Table.Th>Returns</Table.Th>
+              <Table.Th>Inputs</Table.Th>
               <Table.Th ta="right" />
             </Table.Tr>
           </Table.Thead>
@@ -123,8 +131,20 @@ export function LookupsTab({
                     {l.name}
                   </Text>
                 </Table.Td>
-                <Table.Td>{l.templateId ?? "custom-json"}</Table.Td>
-                <Table.Td>{l.pick}</Table.Td>
+                <Table.Td>
+                  {LOOKUP_TEMPLATES.find(
+                    (t) => t.id === (l.templateId ?? "custom-json"),
+                  )?.label ?? "Custom (advanced)"}
+                </Table.Td>
+                <Table.Td>
+                  {l.pick === "one"
+                    ? "Exactly one"
+                    : l.pick === "first"
+                      ? "First match"
+                      : l.pick === "last"
+                        ? "Last match"
+                        : "All matches"}
+                </Table.Td>
                 <Table.Td>
                   {l.params.map((p) => p.name).join(", ") || "—"}
                 </Table.Td>

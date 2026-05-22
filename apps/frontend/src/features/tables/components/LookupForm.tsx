@@ -87,7 +87,7 @@ export function LookupForm({
       <Stack>
         <TextInput
           label="Lookup name"
-          description="Stable identifier used to invoke this lookup in workflows (e.g. byDate, find_by_id)"
+          description="A short identifier used to call this lookup from a workflow node (e.g. findByDate, lookupRate) — cannot be changed after creation"
           required
           disabled={!!initial}
           value={name}
@@ -98,8 +98,8 @@ export function LookupForm({
           }}
         />
         <Select
-          label="Template"
-          description="Pre-built shapes; use Custom for anything else"
+          label="Match type"
+          description="Describes how the lookup filters table rows to find a match"
           required
           data={LOOKUP_TEMPLATES.map((t) => ({ value: t.id, label: t.label }))}
           value={templateId}
@@ -109,6 +109,11 @@ export function LookupForm({
           }}
           allowDeselect={false}
         />
+        {template.description && (
+          <Text size="sm" c="dimmed">
+            {template.description}
+          </Text>
+        )}
         {template.renderFields({
           columns,
           values,
