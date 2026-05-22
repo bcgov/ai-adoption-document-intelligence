@@ -149,7 +149,7 @@ When adding or migrating a component, follow this decision order:
 | `Radio` | B.C. DS `Radio` / `RadioGroup` | `BC DS native` | `Radio.tsx`. |
 | `NumberInput` | B.C. DS `NumberField` | `BC DS native` | `NumberInput.tsx`. |
 | `DateInput` | B.C. DS `DatePicker` | `BC DS native` | `DateInput.tsx`; Mantine `Date` value via `@internationalized/date`. |
-| `Modal` | B.C. DS `Modal` + `Dialog` | `BC DS native` | `Modal.tsx`; controlled `opened`/`onClose`; size CSS classes in `bcds-modal.css`. |
+| `Modal` | B.C. DS `Modal` + `Dialog` | `BC DS native` | `Modal.tsx`; controlled `opened`/`onClose`; header/body padding and width on modal shell (`bcds-modal.css`, mirrors `AlertDialog` layout). |
 | `DataTable` | Mantine `Table` | `Mantine fallback` | [`DataTable.tsx`](apps/frontend/src/ui/DataTable.tsx): bordered wrapper, caption, `bcds-mantine-table` tokens |
 | `PanelCard` | Mantine `Paper` | `Application-specific` | `bcds-panel-card` token class |
 | `StatCard` | Mantine `Paper` + `Text` | `Application-specific` | `bcds-stat-card` token class |
@@ -162,7 +162,7 @@ When adding or migrating a component, follow this decision order:
 | `Text` | Yes (`Text`) | `BC DS native` | **Visual:** BC DS `Text` with token typography. **Functional (adapter):** Mantine props preserved — `size` (xs/sm/md/lg), `c` (dimmed→secondary, red→danger, blue/green/yellow/orange via tokens), `fw`, `ta`, `td`, `tt`, `fs`, `ff`, `lineClamp`, `span`/`component`, spacing shorthands (`mt`, `mb`, `ml`, `mr`, `py`, `px`), `inline`, `style`, `className`. Do not pass `className={undefined}`. |
 | `Title` | Yes (`Heading`) | `BC DS native` | **Visual:** BC DS `Heading` (h1–h6 via `order`). **Functional (adapter):** same typography shorthands as `Text`; `order` maps to `level`. |
 | `Badge` | Yes (`Tag`) | `BC DS native` | Adapter: `Badge.tsx`. |
-| `Modal` | Yes (`Modal`) | `BC DS native` | Adapter: `Modal.tsx` (controlled wrapper). |
+| `Modal` | Yes (`Modal`) | `BC DS native` | Adapter: `Modal.tsx` (controlled wrapper; title uses `Heading` level 5). |
 | `Tooltip` | Yes (`Tooltip`) | `BC DS native` | Adapter: `Tooltip.tsx`. |
 | `Group` | No | `Mantine fallback` | Layout primitive; no BC DS equivalent. |
 | `Stack` | No | `Mantine fallback` | Layout primitive; no BC DS equivalent. |

@@ -1,38 +1,85 @@
-.bcds-modal-dialog {
+/**
+ * App modal layout on top of BC DS Modal + Dialog.
+ * BC DS Dialog has no content padding; AlertDialog does — these rules mirror that pattern.
+ */
+
+.bcds-react-aria-Modal.bcds-app-modal {
   max-height: 90vh;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.bcds-react-aria-Modal.bcds-modal--xs {
+  width: min(20rem, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+.bcds-react-aria-Modal.bcds-modal--sm {
+  width: min(24rem, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+.bcds-react-aria-Modal.bcds-modal--md {
+  width: min(32rem, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+.bcds-react-aria-Modal.bcds-modal--lg {
+  width: min(48rem, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+.bcds-react-aria-Modal.bcds-modal--xl {
+  width: min(64rem, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+.bcds-react-aria-Modal.bcds-modal--full {
+  width: min(96vw, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+.bcds-react-aria-Modal.bcds-modal--fluid {
+  width: min(90vw, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+.bcds-modal-dialog.bcds-react-aria-Dialog {
+  width: 100%;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.bcds-modal-dialog .bcds-react-aria-Dialog--Container {
+  display: flex;
+  flex-direction: column;
+}
+
+.bcds-modal-header {
+  flex-shrink: 0;
+  padding: var(--layout-padding-medium) var(--layout-padding-large);
+  padding-right: calc(
+    var(--layout-padding-large) + var(--icons-size-medium) +
+      var(--layout-padding-small) * 2
+  );
+  border-bottom: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+}
+
+.bcds-modal-header .bcds-react-aria-Heading,
+.bcds-modal-title {
+  margin: 0;
+  flex: 1;
+  font: var(--typography-bold-h5);
+  color: var(--typography-color-primary);
 }
 
 .bcds-modal-body {
   display: flex;
   flex-direction: column;
   gap: var(--layout-margin-medium);
+  padding: var(--layout-padding-medium) var(--layout-padding-large);
 }
 
-.bcds-modal--xs {
-  width: min(20rem, 100%);
-}
-
-.bcds-modal--sm {
-  width: min(24rem, 100%);
-}
-
-.bcds-modal--md {
-  width: min(32rem, 100%);
-}
-
-.bcds-modal--lg {
-  width: min(48rem, 100%);
-}
-
-.bcds-modal--xl {
-  width: min(64rem, 100%);
-}
-
-.bcds-modal--full {
-  width: min(96vw, 100%);
-}
-
-.bcds-modal--fluid {
-  width: min(90vw, 100%);
+/* Reserve space for the absolutely positioned close control when there is no title row */
+.bcds-modal-dialog:not(:has(.bcds-modal-header)) .bcds-modal-body {
+  padding-top: calc(
+    var(--layout-padding-medium) + var(--icons-size-medium) +
+      var(--layout-padding-small)
+  );
 }

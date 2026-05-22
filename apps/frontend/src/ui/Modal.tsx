@@ -48,6 +48,28 @@ function modalWidthClass(size: AppModalProps["size"]): string {
   }
 }
 
+function buildModalShellStyle(
+  size: AppModalProps["size"],
+  contentStyle?: CSSProperties,
+): CSSProperties {
+  const widthStyle: CSSProperties =
+    typeof size === "number"
+      ? { width: size }
+      : typeof size === "string" &&
+          (size.includes("vw") || size.includes("%") || size.includes("px"))
+        ? { width: size, maxWidth: "100%" }
+        : {};
+
+  return {
+    ...widthStyle,
+    ...(contentStyle ?? {}),
+  };
+}
+
+function hasModalTitle(title: ReactNode | undefined): boolean {
+  return title != null && title !== false && title !== "";
+}
+
 /**
  * BC DS `Modal` + `Dialog` with Mantine controlled `opened` / `onClose` API.
  */
@@ -67,34 +89,28 @@ export function Modal({
     return null;
   }
 
-  const widthStyle: CSSProperties =
-    typeof size === "number"
-      ? { width: size }
-      : typeof size === "string" &&
-          (size.includes("vw") || size.includes("%") || size.includes("px"))
-        ? { width: size, maxWidth: "100%" }
-        : {};
-
   const overlayStyle: CSSProperties = {
     ...(zIndex != null ? { zIndex } : {}),
     ...(styles?.overlay ?? {}),
   };
 
-  const contentStyle: CSSProperties = {
-    ...widthStyle,
-    ...(styles?.content ?? {}),
-  };
-
+  const modalShellStyle = buildModalShellStyle(size, styles?.content);
   const bodyStyle: CSSProperties = styles?.body ?? {};
+
+  const showTitle = hasModalTitle(title);
 
   const titleNode =
     typeof title === "string" ? (
-      <Title order={2} style={{ marginBottom: "var(--layout-margin-medium)" }}>
+      <Title order={5} className="bcds-modal-title">
         {title}
       </Title>
     ) : (
       title
     );
+
+  const modalClassName = ["bcds-react-aria-Modal", "bcds-app-modal", modalWidthClass(size)]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <BcdsModal
@@ -103,16 +119,16 @@ export function Modal({
         if (!isOpen) onClose();
       }}
       isDismissable={closeOnClickOutside}
-      style={overlayStyle}
+      className={modalClassName}
+      style={{ ...overlayStyle, ...modalShellStyle }}
       data-testid={dataTestId}
     >
       <BcdsDialog
         isCloseable={withCloseButton}
-        className={`bcds-modal-dialog ${modalWidthClass(size)}`}
-        style={contentStyle}
+        className="bcds-react-aria-Dialog bcds-modal-dialog"
       >
+        {showTitle ? <div className="bcds-modal-header">{titleNode}</div> : null}
         <div className="bcds-modal-body" style={bodyStyle}>
-          {titleNode}
           {children}
         </div>
       </BcdsDialog>
