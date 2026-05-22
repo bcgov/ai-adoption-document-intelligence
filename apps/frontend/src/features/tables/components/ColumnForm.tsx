@@ -92,7 +92,7 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, initial?.key]);
 
-  const showSeedInput = !initial && form.values.required === true;
+  const showSeedInput = !!initial && form.values.required === true;
 
   const seedInput = (() => {
     if (!showSeedInput) return null;
@@ -216,10 +216,9 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
               : {}),
           };
 
-          // Build the seed value with API-compatible formatting (only for new required columns)
+          // Build the seed value with API-compatible formatting (for required columns only)
           let seedValue: unknown;
           if (
-            !initial &&
             v.required === true &&
             v.seed_value !== null &&
             v.seed_value !== undefined &&
@@ -298,6 +297,12 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
             label="Unique"
             description="Each row must have a distinct value for this column"
             {...form.getInputProps("unique", { type: "checkbox" })}
+            onChange={(e) => {
+              form.setFieldValue("unique", e.currentTarget.checked);
+              if (e.currentTarget.checked) {
+                form.setFieldValue("seed_value", null);
+              }
+            }}
           />
           {showSeedInput && (
             <>
@@ -305,12 +310,10 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
                 icon={<IconInfoCircle size={16} />}
                 color="blue"
                 variant="light"
-                title="Seed value for existing rows"
+                title="Seed value for rows without this column"
               >
-                This value will be written to all existing rows when the column
-                is added. It only applies during this add operation — rows
-                inserted after this column is created must provide their own
-                value.
+                This value will be written to all existing rows that are missing
+                a value for this column.
               </Alert>
               {seedInput}
             </>

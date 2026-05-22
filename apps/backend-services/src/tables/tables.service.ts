@@ -154,11 +154,32 @@ export class TablesService {
     }
 
     if (seed_value !== undefined) {
+      if (col.unique) {
+        throw new BadRequestException(
+          "Cannot provide a seed value for a unique column — each row must have a distinct value",
+        );
+      }
+
       const schema = buildRowZodSchema([{ ...col, required: true }]);
       const parsed = schema.safeParse({ [col.key]: seed_value });
       if (!parsed.success) {
         throw new BadRequestException(
           `seed_value is invalid for column type "${col.type}": ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        );
+      }
+    }
+
+    // A required+unique column cannot be added to a table that already has
+    // rows — every existing row would get null, violating the not-null
+    // constraint. (Nullable unique columns are fine: like PostgreSQL, we allow
+    // multiple NULLs since NULL != NULL.)
+    if (col.required && col.unique) {
+      const occupied = await this.db.hasRows(group_id, table_id);
+      if (occupied) {
+        throw new BadRequestException(
+          "Cannot add a required + unique column to a table that already has rows — " +
+            "existing rows would all get null, violating the required constraint. " +
+            "Add the column without these flags first, fill in distinct values for all rows, then enable required and unique.",
         );
       }
     }
@@ -182,12 +203,30 @@ export class TablesService {
     return result;
   }
 
+  /**
+   * Updates an existing column definition.
+   *
+   * If `seed_value` is provided, every existing row that has no value for this
+   * column key will be updated so that it is set to the seed value. Useful
+   * when enabling `required` on a column that already has rows.
+   *
+   * `required` and `unique` cannot both be true in the same save — achieve both
+   * by first saving as required, filling in distinct values, then enabling unique.
+   *
+   * @param actor_id - The user performing the operation.
+   * @param group_id - The group that owns the table.
+   * @param table_id - The stable table identifier.
+   * @param key - Column key to update.
+   * @param next - New column definition.
+   * @param seed_value - Optional value to write into rows that have no value for this column.
+   */
   async updateColumn(
     actor_id: string,
     group_id: string,
     table_id: string,
     key: string,
     next: ColumnDef,
+    seed_value?: unknown,
   ) {
     const t = await this.db.findTable(group_id, table_id);
     if (!t) throw new BadRequestException("table not found");
@@ -197,8 +236,23 @@ export class TablesService {
     const before = existingCols.find((c) => c.key === key);
     const proposed = existingCols.map((c) => (c.key === key ? next : c));
 
-    // If unique is being enabled for this column, verify no existing duplicates
-    if (next.unique && !before?.unique) {
+    // Validate seed_value type before touching any data
+    if (seed_value !== undefined) {
+      const schema = buildRowZodSchema([{ ...next, required: true }]);
+      const parsed = schema.safeParse({ [key]: seed_value });
+      if (!parsed.success) {
+        throw new BadRequestException(
+          `seed_value is invalid for column type "${next.type}": ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        );
+      }
+      // Apply seed first so the uniqueness check below sees the final data state
+      await this.db.backfillColumn(group_id, table_id, key, seed_value);
+    }
+
+    // Check for duplicates when unique is required AND either:
+    //   a) unique is being newly enabled (existing data may have pre-existing duplicates), or
+    //   b) a seed was just applied (seeding multiple null rows with the same value creates duplicates)
+    if (next.unique && (!before?.unique || seed_value !== undefined)) {
       const hasDuplicates = await this.db.columnHasDuplicateValues(
         group_id,
         table_id,
@@ -206,7 +260,7 @@ export class TablesService {
       );
       if (hasDuplicates) {
         throw new ConflictException(
-          `Column "${next.label}" cannot be made unique — existing rows already contain duplicate values`,
+          `Column "${next.label}" cannot be saved — rows contain duplicate values. Fill in distinct values for all rows before saving.`,
         );
       }
     }
@@ -221,13 +275,15 @@ export class TablesService {
     }
 
     const result = await this.db.updateColumn(group_id, table_id, key, next);
+
     await this.audit.recordEvent({
       event_type: "tables.column.updated",
       resource_type: "table",
       resource_id: result.id,
       actor_id,
       group_id,
-      payload: { column_key: key, before, after: next },
+      // seed_value is reference-table data (not sensitive PII).
+      payload: { column_key: key, before, after: next, seed_value },
     });
     return result;
   }

@@ -105,12 +105,22 @@ export class TablesDbService {
   }
 
   async removeColumn(group_id: string, table_id: string, key: string) {
-    return this.mutateJsonArray<ColumnDef>(
+    const result = await this.mutateJsonArray<ColumnDef>(
       group_id,
       table_id,
       "columns",
       (cols) => cols.filter((c) => c.key !== key),
     );
+
+    // Strip the deleted column's data from every row so the key does not
+    // reappear if a new column with the same key is added later.
+    await this.prisma.$executeRaw`
+      UPDATE reference_table_rows
+      SET data = data - ${key}, updated_at = NOW()
+      WHERE group_id = ${group_id} AND table_id = ${table_id}
+    `;
+
+    return result;
   }
 
   async addLookup(group_id: string, table_id: string, lookup: LookupDef) {
@@ -212,6 +222,14 @@ export class TablesDbService {
     });
   }
 
+  /** Returns `true` if the table has at least one row. */
+  async hasRows(group_id: string, table_id: string): Promise<boolean> {
+    const count = await this.prisma.referenceTableRow.count({
+      where: { group_id, table_id },
+    });
+    return count > 0;
+  }
+
   /**
    * Writes `value` into the `key` field of every existing row in the table.
    * Rows that already have the key are overwritten; rows without it have it
@@ -233,10 +251,17 @@ export class TablesDbService {
       select: { id: true, data: true },
     });
 
-    if (rows.length === 0) return;
+    // Only update rows that are missing a value for this column — do not
+    // overwrite rows that already have a value (including null explicitly set).
+    const rowsToUpdate = rows.filter((row) => {
+      const data = (row.data as Record<string, unknown>) ?? {};
+      return data[key] === undefined || data[key] === null;
+    });
+
+    if (rowsToUpdate.length === 0) return;
 
     await this.prisma.$transaction(
-      rows.map((row) =>
+      rowsToUpdate.map((row) =>
         this.prisma.referenceTableRow.update({
           where: { id: row.id },
           data: {
@@ -306,7 +331,7 @@ export class TablesDbService {
   ): Promise<boolean> {
     const rows = await this.prisma.$queryRaw<Array<{ found: bigint }>>`
       SELECT 1 AS found
-      FROM reference_table_row
+      FROM reference_table_rows
       WHERE group_id = ${group_id}
         AND table_id = ${table_id}
         AND data->>${key} IS NOT NULL

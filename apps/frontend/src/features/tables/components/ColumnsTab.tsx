@@ -47,9 +47,11 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
 
   const save = async (col: ColumnDef, key?: string, seedValue?: unknown) => {
     if (key) {
+      const body = { ...(col as unknown as Record<string, unknown>) };
+      if (seedValue !== undefined) body.seed_value = seedValue;
       const response = await apiService.patch(
         `/tables/${tableId}/columns/${key}?group_id=${groupId}`,
-        col,
+        body,
       );
       if (!response.success)
         throw new Error(response.message ?? "Failed to update column");
