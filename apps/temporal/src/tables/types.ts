@@ -14,6 +14,7 @@ export interface ColumnDef {
   label: string;
   type: ColumnType;
   required?: boolean;
+  unique?: boolean;
   enumValues?: string[];
 }
 

@@ -78,11 +78,12 @@ export function RowForm({
     validate: zodResolver(buildRowZodSchema(columns)),
   });
 
-  // Reset form when opened with different existing row
+  // Reset form (and any stale mutation error) when opened with different existing row
   useEffect(() => {
     if (opened) {
       form.setValues(defaultsFor(columns, existing));
       form.resetDirty();
+      mutation.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, existing?.id]);

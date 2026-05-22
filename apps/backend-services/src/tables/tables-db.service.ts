@@ -249,4 +249,56 @@ export class TablesDbService {
       ),
     );
   }
+
+  /**
+   * Returns `true` if any row in the table has `value` stored under `key`,
+   * optionally excluding a specific row (used when updating a row to allow
+   * the row to keep its own existing value).
+   *
+   * @param group_id - The group that owns the table.
+   * @param table_id - The stable table identifier.
+   * @param key - Column key to check.
+   * @param value - Value to look for.
+   * @param excludeId - Row id to exclude from the check (for updates).
+   */
+  async hasRowWithColumnValue(
+    group_id: string,
+    table_id: string,
+    key: string,
+    value: unknown,
+    excludeId?: string,
+  ): Promise<boolean> {
+    const rows = await this.prisma.referenceTableRow.findMany({
+      where: { group_id, table_id },
+      select: { id: true, data: true },
+    });
+    return rows.some(
+      (r) =>
+        r.id !== excludeId &&
+        (r.data as Record<string, unknown>)[key] === value,
+    );
+  }
+
+  /**
+   * Returns true if any two rows in the table share the same non-null value
+   * for the given column key.
+   */
+  async columnHasDuplicateValues(
+    group_id: string,
+    table_id: string,
+    key: string,
+  ): Promise<boolean> {
+    const rows = await this.prisma.referenceTableRow.findMany({
+      where: { group_id, table_id },
+      select: { data: true },
+    });
+    const seen = new Set<unknown>();
+    for (const r of rows) {
+      const val = (r.data as Record<string, unknown>)[key];
+      if (val === undefined || val === null) continue;
+      if (seen.has(val)) return true;
+      seen.add(val);
+    }
+    return false;
+  }
 }

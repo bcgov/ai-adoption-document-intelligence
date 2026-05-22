@@ -50,6 +50,11 @@ export class ColumnDto {
   @IsBoolean()
   required?: boolean;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  unique?: boolean;
+
   @ApiPropertyOptional({ type: String, isArray: true })
   @IsOptional()
   @IsArray()

@@ -73,6 +73,8 @@ describe("TablesService", () => {
       listRows: jest.fn(),
       updateRow: jest.fn(),
       deleteRow: jest.fn(),
+      hasRowWithColumnValue: jest.fn(),
+      columnHasDuplicateValues: jest.fn(),
     } as unknown as jest.Mocked<TablesDbService>;
     audit = { recordEvent: jest.fn() };
     const moduleRef = await Test.createTestingModule({
@@ -179,6 +181,61 @@ describe("TablesService", () => {
     db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
 
     await expect(svc.createRow("user1", "g", "t", {})).rejects.toThrow();
+  });
+
+  // Test 3a: createRow rejects duplicate value for a unique column
+  it("createRow throws ConflictException when a unique column already has the value", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(true);
+
+    await expect(
+      svc.createRow("user1", "g", "t", { code: "ABC" }),
+    ).rejects.toThrow(/unique values/i);
+
+    expect(db.createRow).not.toHaveBeenCalled();
+  });
+
+  // Test 3b: updateRow rejects duplicate value for a unique column in another row
+  it("updateRow throws ConflictException when another row already holds the unique value", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(true);
+
+    await expect(
+      svc.updateRow("user1", "g", "t", "row1", {
+        data: { code: "ABC" },
+        expected_updated_at: new Date(),
+      }),
+    ).rejects.toThrow(/unique values/i);
+
+    expect(db.updateRow).not.toHaveBeenCalled();
+  });
+
+  // Test 3c: updateColumn rejects enabling unique when existing rows have duplicates
+  it("updateColumn throws ConflictException when enabling unique on a column with duplicate values", async () => {
+    const before: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string" },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
+    db.columnHasDuplicateValues.mockResolvedValueOnce(true);
+
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      unique: true,
+    };
+
+    await expect(
+      svc.updateColumn("user1", "g", "t", "code", next),
+    ).rejects.toThrow(/cannot be made unique/i);
+
+    expect(db.updateColumn).not.toHaveBeenCalled();
   });
 
   // Test 4: removeColumn blocks when lookup references the column

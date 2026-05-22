@@ -161,6 +161,20 @@ export class TablesService {
     const before = existingCols.find((c) => c.key === key);
     const proposed = existingCols.map((c) => (c.key === key ? next : c));
 
+    // If unique is being enabled for this column, verify no existing duplicates
+    if (next.unique && !before?.unique) {
+      const hasDuplicates = await this.db.columnHasDuplicateValues(
+        group_id,
+        table_id,
+        key,
+      );
+      if (hasDuplicates) {
+        throw new ConflictException(
+          `Column "${next.label}" cannot be made unique — existing rows already contain duplicate values`,
+        );
+      }
+    }
+
     try {
       validateColumnDefs(proposed);
       validateLookupDefs(existingLookups, proposed);
@@ -312,6 +326,24 @@ export class TablesService {
     // Let ZodError propagate — Nest's global filter handles it, or caller wraps it
     const parsed = schema.parse(data) as Record<string, unknown>;
 
+    const uniqueCols = cols.filter((c) => c.unique);
+    for (const col of uniqueCols) {
+      const val = parsed[col.key];
+      if (val !== undefined && val !== null) {
+        const clash = await this.db.hasRowWithColumnValue(
+          group_id,
+          table_id,
+          col.key,
+          val,
+        );
+        if (clash) {
+          throw new ConflictException(
+            `Column "${col.label}" requires unique values — "${val}" is already in use`,
+          );
+        }
+      }
+    }
+
     const row = await this.db.createRow(group_id, table_id, parsed);
     await this.audit.recordEvent({
       event_type: "tables.row.created",
@@ -349,6 +381,25 @@ export class TablesService {
     const cols = t.columns as unknown as ColumnDef[];
     const schema = buildRowZodSchema(cols);
     const parsed = schema.parse(input.data) as Record<string, unknown>;
+
+    const uniqueCols = cols.filter((c) => c.unique);
+    for (const col of uniqueCols) {
+      const val = parsed[col.key];
+      if (val !== undefined && val !== null) {
+        const clash = await this.db.hasRowWithColumnValue(
+          group_id,
+          table_id,
+          col.key,
+          val,
+          id,
+        );
+        if (clash) {
+          throw new ConflictException(
+            `Column "${col.label}" requires unique values — "${val}" is already in use`,
+          );
+        }
+      }
+    }
 
     const before = await this.db.findRow(group_id, table_id, id);
 

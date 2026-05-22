@@ -98,6 +98,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
               <Table.Th>Label</Table.Th>
               <Table.Th>Type</Table.Th>
               <Table.Th>Required</Table.Th>
+              <Table.Th>Unique</Table.Th>
               {isAdmin && <Table.Th ta="right" />}
             </Table.Tr>
           </Table.Thead>
@@ -112,6 +113,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
                 <Table.Td>{c.label}</Table.Td>
                 <Table.Td>{c.type}</Table.Td>
                 <Table.Td>{c.required ? "✓" : ""}</Table.Td>
+                <Table.Td>{c.unique ? "✓" : ""}</Table.Td>
                 {isAdmin && (
                   <Table.Td>
                     <Group gap="xs" justify="flex-end" wrap="nowrap">

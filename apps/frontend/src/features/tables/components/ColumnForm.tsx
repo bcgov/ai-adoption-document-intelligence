@@ -8,12 +8,13 @@ import {
   Stack,
   Switch,
   TagsInput,
+  Text,
   TextInput,
 } from "@mantine/core";
 import { DateInput, DateTimePicker, MonthPickerInput } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { IconCalendar, IconInfoCircle } from "@tabler/icons-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ColumnDef, ColumnType } from "../types";
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 }
 
 type ColumnFormValues = ColumnDef & {
+  unique: boolean;
   seed_value: string | number | boolean | null;
 };
 
@@ -42,13 +44,21 @@ const DEFAULT_VALUES: ColumnFormValues = {
   label: "",
   type: "string",
   required: false,
+  unique: false,
   seed_value: null,
 };
 
 export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
   const form = useForm<ColumnFormValues>({
     initialValues: initial
-      ? { ...initial, required: initial.required ?? false, seed_value: null }
+      ? {
+          ...initial,
+          required: initial.required ?? false,
+          unique: initial.unique ?? false,
+          seed_value: null,
+        }
       : DEFAULT_VALUES,
     validate: {
       key: (v) =>
@@ -71,11 +81,13 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
           ? {
               ...initial,
               required: initial.required ?? false,
+              unique: initial.unique ?? false,
               seed_value: null,
             }
           : DEFAULT_VALUES,
       );
       form.resetDirty();
+      setSaveError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, initial?.key]);
@@ -198,6 +210,7 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
             label: v.label,
             type: v.type,
             required: v.required,
+            unique: v.unique || undefined,
             ...(v.type === "enum" && v.enumValues
               ? { enumValues: v.enumValues }
               : {}),
@@ -232,8 +245,16 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
             }
           }
 
-          await onSubmit(cleaned, seedValue);
-          onClose();
+          setSaveError(null);
+          setIsPending(true);
+          try {
+            await onSubmit(cleaned, seedValue);
+            onClose();
+          } catch (err) {
+            setSaveError(err instanceof Error ? err.message : String(err));
+          } finally {
+            setIsPending(false);
+          }
         })}
       >
         <Stack>
@@ -273,6 +294,11 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
               }
             }}
           />
+          <Switch
+            label="Unique"
+            description="Each row must have a distinct value for this column"
+            {...form.getInputProps("unique", { type: "checkbox" })}
+          />
           {showSeedInput && (
             <>
               <Alert
@@ -289,11 +315,18 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
               {seedInput}
             </>
           )}
+          {saveError && (
+            <Text c="red" size="sm">
+              {saveError}
+            </Text>
+          )}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" loading={isPending}>
+              Save
+            </Button>
           </Group>
         </Stack>
       </form>
