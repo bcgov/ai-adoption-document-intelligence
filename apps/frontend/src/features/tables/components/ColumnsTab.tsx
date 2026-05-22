@@ -37,6 +37,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
+    qc.invalidateQueries({ queryKey: ["table-rows", groupId, tableId] });
   };
 
   const save = async (col: ColumnDef, key?: string, seedValue?: unknown) => {
