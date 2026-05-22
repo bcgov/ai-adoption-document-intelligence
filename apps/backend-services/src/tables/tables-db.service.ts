@@ -211,4 +211,42 @@ export class TablesDbService {
       where: { id, group_id, table_id },
     });
   }
+
+  /**
+   * Writes `value` into the `key` field of every existing row in the table.
+   * Rows that already have the key are overwritten; rows without it have it
+   * added. Used to backfill existing rows when a required column is added.
+   *
+   * @param group_id - The group that owns the table.
+   * @param table_id - The stable table identifier.
+   * @param key - Column key to backfill.
+   * @param value - Value to write for every row.
+   */
+  async backfillColumn(
+    group_id: string,
+    table_id: string,
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    const rows = await this.prisma.referenceTableRow.findMany({
+      where: { group_id, table_id },
+      select: { id: true, data: true },
+    });
+
+    if (rows.length === 0) return;
+
+    await this.prisma.$transaction(
+      rows.map((row) =>
+        this.prisma.referenceTableRow.update({
+          where: { id: row.id },
+          data: {
+            data: {
+              ...((row.data as Record<string, unknown>) ?? {}),
+              [key]: value,
+            } as Prisma.InputJsonValue,
+          },
+        }),
+      ),
+    );
+  }
 }

@@ -39,7 +39,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
     qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
   };
 
-  const save = async (col: ColumnDef, key?: string) => {
+  const save = async (col: ColumnDef, key?: string, seedValue?: unknown) => {
     if (key) {
       const response = await apiService.patch(
         `/tables/${tableId}/columns/${key}?group_id=${groupId}`,
@@ -48,9 +48,11 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
       if (!response.success)
         throw new Error(response.message ?? "Failed to update column");
     } else {
+      const body = { ...(col as unknown as Record<string, unknown>) };
+      if (seedValue !== undefined) body.seed_value = seedValue;
       const response = await apiService.post(
         `/tables/${tableId}/columns?group_id=${groupId}`,
-        col,
+        body,
       );
       if (!response.success)
         throw new Error(response.message ?? "Failed to add column");
@@ -147,10 +149,11 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
           opened={!!editing}
           onClose={() => setEditing(null)}
           initial={editing === "new" ? undefined : editing}
-          onSubmit={async (col) =>
+          onSubmit={async (col, seedValue) =>
             save(
               col,
               editing === "new" ? undefined : (editing as ColumnDef).key,
+              seedValue,
             )
           }
         />

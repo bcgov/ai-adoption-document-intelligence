@@ -11,7 +11,7 @@ import {
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import * as identityHelpers from "@/auth/identity.helpers";
-import { ColumnDto } from "./dto/column.dto";
+import { AddColumnDto } from "./dto/add-column.dto";
 import { LookupDto } from "./dto/lookup.dto";
 import { RowDto, RowListDto } from "./dto/row.dto";
 import {
@@ -286,7 +286,7 @@ describe("TablesController", () => {
   // -------------------------------------------------------------------------
   describe("POST /api/tables/:tableId/columns (addColumn)", () => {
     it("calls admin check and service.addColumn; returns mapped TableDetailDto", async () => {
-      const colBody: ColumnDto = {
+      const colBody: AddColumnDto = {
         key: "status",
         label: "Status",
         type: "string",
@@ -314,10 +314,33 @@ describe("TablesController", () => {
         "u1",
         "group-1",
         "my_table",
-        colBody,
+        { key: "status", label: "Status", type: "string" },
+        undefined,
       );
       expect(result.columns).toHaveLength(1);
       expect(result.table_id).toBe("my_table");
+    });
+
+    it("passes seed_value to service.addColumn when provided", async () => {
+      const colBody: AddColumnDto = {
+        key: "status",
+        label: "Status",
+        type: "string",
+        required: true,
+        seed_value: "active",
+      };
+      const updatedTable = { ...baseTable, columns: [colBody], lookups: [] };
+      mockTablesService.addColumn.mockResolvedValue(updatedTable);
+
+      await controller.addColumn(mockReq, "my_table", "group-1", colBody);
+
+      expect(service.addColumn).toHaveBeenCalledWith(
+        "u1",
+        "group-1",
+        "my_table",
+        { key: "status", label: "Status", type: "string", required: true },
+        "active",
+      );
     });
 
     // 10. addColumn — forbidden short-circuit
@@ -328,7 +351,11 @@ describe("TablesController", () => {
         throw new ForbiddenException();
       });
 
-      const colBody: ColumnDto = { key: "col", label: "Col", type: "string" };
+      const colBody: AddColumnDto = {
+        key: "col",
+        label: "Col",
+        type: "string",
+      };
 
       await expect(
         controller.addColumn(mockReq, "my_table", "group-1", colBody),

@@ -80,11 +80,28 @@ export class TablesService {
     });
   }
 
+  /**
+   * Adds a new column to an existing table.
+   *
+   * If `seed_value` is provided, every existing row in the table is updated so
+   * that the new column key is set to that value. The seed value is validated
+   * against the column schema before the backfill is performed.
+   *
+   * **The seed value only affects rows that existed at the time of this call.**
+   * Rows inserted after the column is added must supply their own value.
+   *
+   * @param actor_id - The user performing the operation.
+   * @param group_id - The group that owns the table.
+   * @param table_id - The stable table identifier.
+   * @param col - The column definition to add.
+   * @param seed_value - Optional value to write into all existing rows for the new column.
+   */
   async addColumn(
     actor_id: string,
     group_id: string,
     table_id: string,
     col: ColumnDef,
+    seed_value?: unknown,
   ) {
     const t = await this.db.findTable(group_id, table_id);
     if (!t) throw new BadRequestException("table not found");
@@ -102,14 +119,29 @@ export class TablesService {
       );
     }
 
+    if (seed_value !== undefined) {
+      const schema = buildRowZodSchema([{ ...col, required: true }]);
+      const parsed = schema.safeParse({ [col.key]: seed_value });
+      if (!parsed.success) {
+        throw new BadRequestException(
+          `seed_value is invalid for column type "${col.type}": ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        );
+      }
+    }
+
     const result = await this.db.addColumn(group_id, table_id, col);
+
+    if (seed_value !== undefined) {
+      await this.db.backfillColumn(group_id, table_id, col.key, seed_value);
+    }
+
     await this.audit.recordEvent({
       event_type: "tables.column.added",
       resource_type: "table",
       resource_id: result.id,
       actor_id,
       group_id,
-      payload: { column: col },
+      payload: { column: col, seed_value },
     });
     return result;
   }

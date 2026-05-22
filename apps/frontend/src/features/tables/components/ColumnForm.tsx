@@ -1,14 +1,18 @@
 import {
+  Alert,
   Button,
   Group,
   Modal,
+  NumberInput,
   Select,
   Stack,
   Switch,
   TagsInput,
   TextInput,
 } from "@mantine/core";
+import { DateInput, DateTimePicker, MonthPickerInput } from "@mantine/dates";
 import { useForm } from "@mantine/form";
+import { IconCalendar, IconInfoCircle } from "@tabler/icons-react";
 import { useEffect } from "react";
 import type { ColumnDef, ColumnType } from "../types";
 
@@ -16,8 +20,12 @@ interface Props {
   opened: boolean;
   onClose: () => void;
   initial?: ColumnDef;
-  onSubmit: (col: ColumnDef) => Promise<void>;
+  onSubmit: (col: ColumnDef, seedValue?: unknown) => Promise<void>;
 }
+
+type ColumnFormValues = ColumnDef & {
+  seed_value: string | number | boolean | null;
+};
 
 const TYPE_OPTIONS: { value: ColumnType; label: string }[] = [
   { value: "string", label: "String" },
@@ -29,16 +37,19 @@ const TYPE_OPTIONS: { value: ColumnType; label: string }[] = [
   { value: "enum", label: "Enum" },
 ];
 
-const DEFAULT_VALUES: ColumnDef = {
+const DEFAULT_VALUES: ColumnFormValues = {
   key: "",
   label: "",
   type: "string",
   required: false,
+  seed_value: null,
 };
 
 export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
-  const form = useForm<ColumnDef>({
-    initialValues: initial ?? DEFAULT_VALUES,
+  const form = useForm<ColumnFormValues>({
+    initialValues: initial
+      ? { ...initial, required: initial.required ?? false, seed_value: null }
+      : DEFAULT_VALUES,
     validate: {
       key: (v) =>
         /^[a-z][a-z0-9_]*$/.test(v)
@@ -55,11 +66,123 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
   // Reset when reopening with different `initial`
   useEffect(() => {
     if (opened) {
-      form.setValues(initial ?? DEFAULT_VALUES);
+      form.setValues(
+        initial
+          ? {
+              ...initial,
+              required: initial.required ?? false,
+              seed_value: null,
+            }
+          : DEFAULT_VALUES,
+      );
       form.resetDirty();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, initial?.key]);
+
+  const showSeedInput = !initial && form.values.required === true;
+
+  const seedInput = (() => {
+    if (!showSeedInput) return null;
+    const type = form.values.type;
+    switch (type) {
+      case "boolean":
+        return (
+          <Switch
+            label="Seed value"
+            checked={form.values.seed_value === true}
+            onChange={(e) =>
+              form.setFieldValue("seed_value", e.currentTarget.checked)
+            }
+          />
+        );
+      case "number":
+        return (
+          <NumberInput
+            label="Seed value"
+            value={
+              typeof form.values.seed_value === "number"
+                ? form.values.seed_value
+                : ""
+            }
+            onChange={(v) =>
+              form.setFieldValue("seed_value", v === "" ? null : (v as number))
+            }
+          />
+        );
+      case "date":
+        return (
+          <DateInput
+            label="Seed value"
+            valueFormat="YYYY-MM-DD"
+            leftSection={<IconCalendar size={16} />}
+            leftSectionPointerEvents="none"
+            value={
+              typeof form.values.seed_value === "string"
+                ? form.values.seed_value
+                : null
+            }
+            onChange={(v) => form.setFieldValue("seed_value", v)}
+          />
+        );
+      case "datetime":
+        return (
+          <DateTimePicker
+            label="Seed value"
+            leftSection={<IconCalendar size={16} />}
+            leftSectionPointerEvents="none"
+            value={
+              typeof form.values.seed_value === "string"
+                ? form.values.seed_value
+                : null
+            }
+            onChange={(v) => form.setFieldValue("seed_value", v)}
+          />
+        );
+      case "year-month":
+        return (
+          <MonthPickerInput
+            label="Seed value"
+            leftSection={<IconCalendar size={16} />}
+            leftSectionPointerEvents="none"
+            value={
+              typeof form.values.seed_value === "string"
+                ? form.values.seed_value
+                : null
+            }
+            onChange={(v) => form.setFieldValue("seed_value", v)}
+          />
+        );
+      case "enum":
+        return (
+          <Select
+            label="Seed value"
+            data={form.values.enumValues ?? []}
+            clearable
+            value={
+              typeof form.values.seed_value === "string"
+                ? form.values.seed_value
+                : null
+            }
+            onChange={(v) => form.setFieldValue("seed_value", v)}
+          />
+        );
+      default:
+        return (
+          <TextInput
+            label="Seed value"
+            value={
+              typeof form.values.seed_value === "string"
+                ? form.values.seed_value
+                : ""
+            }
+            onChange={(e) =>
+              form.setFieldValue("seed_value", e.currentTarget.value)
+            }
+          />
+        );
+    }
+  })();
 
   return (
     <Modal
@@ -79,7 +202,37 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
               ? { enumValues: v.enumValues }
               : {}),
           };
-          await onSubmit(cleaned);
+
+          // Build the seed value with API-compatible formatting (only for new required columns)
+          let seedValue: unknown;
+          if (
+            !initial &&
+            v.required === true &&
+            v.seed_value !== null &&
+            v.seed_value !== undefined &&
+            v.seed_value !== ""
+          ) {
+            if (
+              v.type === "year-month" &&
+              typeof v.seed_value === "string" &&
+              v.seed_value.length >= 7
+            ) {
+              // MonthPickerInput stores "YYYY-MM-DD"; API expects "YYYY-MM"
+              seedValue = v.seed_value.substring(0, 7);
+            } else if (
+              v.type === "datetime" &&
+              typeof v.seed_value === "string"
+            ) {
+              // DateTimePicker stores "YYYY-MM-DD HH:mm:ss"; API expects ISO UTC
+              seedValue = new Date(
+                v.seed_value.replace(" ", "T"),
+              ).toISOString();
+            } else {
+              seedValue = v.seed_value;
+            }
+          }
+
+          await onSubmit(cleaned, seedValue);
           onClose();
         })}
       >
@@ -97,6 +250,10 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
             required
             data={TYPE_OPTIONS}
             {...form.getInputProps("type")}
+            onChange={(v) => {
+              form.setFieldValue("type", v as ColumnType);
+              form.setFieldValue("seed_value", null);
+            }}
             allowDeselect={false}
           />
           {form.values.type === "enum" && (
@@ -109,7 +266,29 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
           <Switch
             label="Required"
             {...form.getInputProps("required", { type: "checkbox" })}
+            onChange={(e) => {
+              form.setFieldValue("required", e.currentTarget.checked);
+              if (!e.currentTarget.checked) {
+                form.setFieldValue("seed_value", null);
+              }
+            }}
           />
+          {showSeedInput && (
+            <>
+              <Alert
+                icon={<IconInfoCircle size={16} />}
+                color="blue"
+                variant="light"
+                title="Seed value for existing rows"
+              >
+                This value will be written to all existing rows when the column
+                is added. It only applies during this add operation — rows
+                inserted after this column is created must provide their own
+                value.
+              </Alert>
+              {seedInput}
+            </>
+          )}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               Cancel
