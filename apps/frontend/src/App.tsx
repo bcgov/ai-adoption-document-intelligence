@@ -22,6 +22,7 @@ import {
 } from "./features/benchmarking/pages";
 import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
+import { WorkflowEditorV2Page } from "./features/workflow-builder/WorkflowEditorV2Page";
 import { RootLayout } from "./layouts/RootLayout";
 import ClassifierPage from "./pages/ClassifierPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
@@ -65,6 +66,15 @@ const router = createBrowserRouter([
       {
         path: "workflows/:workflowId/edit",
         element: <WorkflowEditorPage mode="edit" />,
+      },
+      // V2 visual workflow editor (coexists with the JSON editor)
+      {
+        path: "workflows/create-v2",
+        element: <WorkflowEditorV2Page mode="create" />,
+      },
+      {
+        path: "workflows/:workflowId/edit-v2",
+        element: <WorkflowEditorV2Page mode="edit" />,
       },
       // Dev-only tracer for the schema-driven form renderer
       {
