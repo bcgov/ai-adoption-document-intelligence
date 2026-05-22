@@ -6,3 +6,16 @@ export {
   getCtxRootKey,
   getRefCtxRootKey,
 } from "./validator/context-utils";
+
+// Activity & node catalog (parameter schemas + UI metadata)
+export {
+  ACTIVITY_CATALOG,
+  getActivityCatalogEntry,
+  getActivityParametersJsonSchema,
+  listActivityTypes,
+} from "./catalog";
+export type {
+  ActivityCatalogEntry,
+  CatalogCategory,
+  PortDescriptor,
+} from "./catalog";
