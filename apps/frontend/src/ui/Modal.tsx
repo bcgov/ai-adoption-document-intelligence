@@ -108,7 +108,11 @@ export function Modal({
       title
     );
 
-  const modalClassName = ["bcds-react-aria-Modal", "bcds-app-modal", modalWidthClass(size)]
+  const modalClassName = [
+    "bcds-react-aria-Modal",
+    "bcds-app-modal",
+    modalWidthClass(size),
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -127,7 +131,9 @@ export function Modal({
         isCloseable={withCloseButton}
         className="bcds-react-aria-Dialog bcds-modal-dialog"
       >
-        {showTitle ? <div className="bcds-modal-header">{titleNode}</div> : null}
+        {showTitle ? (
+          <div className="bcds-modal-header">{titleNode}</div>
+        ) : null}
         <div className="bcds-modal-body" style={bodyStyle}>
           {children}
         </div>

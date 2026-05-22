@@ -50,8 +50,7 @@ export function Badge({
   "data-testid": dataTestId,
 }: AppBadgeProps) {
   const textValue =
-    extractTextValue(children).trim() ||
-    (leftSection != null ? "Badge" : "");
+    extractTextValue(children).trim() || (leftSection != null ? "Badge" : "");
   const mergedClassName = className
     ? `${BADGE_CLASS} ${className}`
     : BADGE_CLASS;

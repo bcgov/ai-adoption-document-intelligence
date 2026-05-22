@@ -43,7 +43,7 @@
 
 /* Fixed width via Mantine `w` prop on wrapper */
 .bcds-form-field:not(.bcds-form-field--fit):not(.bcds-form-field--full-width)
-  .bcds-react-aria-Select {
+.bcds-react-aria-Select {
   width: 100%;
   max-width: 100%;
 }

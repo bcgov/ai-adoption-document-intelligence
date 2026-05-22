@@ -54,8 +54,10 @@
   flex-shrink: 0;
   padding: var(--layout-padding-medium) var(--layout-padding-large);
   padding-right: calc(
-    var(--layout-padding-large) + var(--icons-size-medium) +
-      var(--layout-padding-small) * 2
+    var(--layout-padding-large) +
+    var(--icons-size-medium) +
+    var(--layout-padding-small) *
+    2
   );
   border-bottom: var(--layout-border-width-small) solid
     var(--surface-color-border-default);
@@ -79,7 +81,8 @@
 /* Reserve space for the absolutely positioned close control when there is no title row */
 .bcds-modal-dialog:not(:has(.bcds-modal-header)) .bcds-modal-body {
   padding-top: calc(
-    var(--layout-padding-medium) + var(--icons-size-medium) +
-      var(--layout-padding-small)
+    var(--layout-padding-medium) +
+    var(--icons-size-medium) +
+    var(--layout-padding-small)
   );
 }
