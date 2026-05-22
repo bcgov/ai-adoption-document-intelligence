@@ -31,6 +31,7 @@ import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
+import { WorkflowFormPreviewPage } from "./pages/WorkflowFormPreviewPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 
 const router = createBrowserRouter([
@@ -64,6 +65,11 @@ const router = createBrowserRouter([
       {
         path: "workflows/:workflowId/edit",
         element: <WorkflowEditorPage mode="edit" />,
+      },
+      // Dev-only tracer for the schema-driven form renderer
+      {
+        path: "workflows/dev-form-preview",
+        element: <WorkflowFormPreviewPage />,
       },
 
       // Tables
