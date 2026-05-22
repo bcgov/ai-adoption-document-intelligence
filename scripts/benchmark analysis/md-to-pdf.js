@@ -43,6 +43,36 @@ try {
   process.exit(1);
 }
 marked.setOptions({ gfm: true, breaks: false });
+// Disable GFM's single-tilde strikethrough. Marked's default treats ~text~ as
+// <del>...</del>, which collides with our use of ~ as the "approximately"
+// sign (~$0.046, ~37%, ~20×) and produces accidental strikethrough whenever
+// two ~'s happen to land on either side of a non-whitespace boundary
+// (e.g. "~$0.003/page (~20×" → "<del>$0.003/page (</del>20×").
+//
+// A `tokenizer.del` override that returned false didn't help — when it
+// declines, marked falls back to the default del tokenizer. Instead we
+// register an inline extension that *consumes* a lone ~ as a literal text
+// token before the strikethrough tokenizer ever gets to see it. The
+// extension intentionally skips ~~...~~, so real GFM strikethrough still
+// works.
+marked.use({
+  extensions: [
+    {
+      name: "literalTilde",
+      level: "inline",
+      start(src) {
+        const i = src.indexOf("~");
+        return i === -1 ? undefined : i;
+      },
+      tokenizer(src) {
+        const match = /^(?<!~)~(?!~)/.exec(src);
+        if (match) {
+          return { type: "text", raw: "~", text: "~" };
+        }
+      },
+    },
+  ],
+});
 
 // ---------------------------------------------------------------------------
 // Argument parsing.

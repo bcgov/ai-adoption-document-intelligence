@@ -459,7 +459,7 @@ For production workloads where literal zeros matter (income reporting, financial
 
 # Appendix A — E06 ensemble combiner
 
-This appendix documents the ensemble combiner that produces the E06 row in the comparison tables above. The full source data and benchmark export live in [`../06-engine-ensemble/`](../06-engine-ensemble/).
+This appendix documents the ensemble combiner that produces the E06 row in the comparison tables above.
 
 ## Production note (read this first)
 
@@ -469,7 +469,7 @@ If the architecture observations in the body of this report led to E08 alone bei
 
 ## Strategies explored
 
-Six deployable strategies plus one oracle baseline ([`../06-engine-ensemble/scripts/build-ensemble.py`](../06-engine-ensemble/scripts/build-ensemble.py)):
+Six deployable strategies plus one oracle baseline:
 
 | code | how it picks |
 |---|---|
@@ -504,8 +504,6 @@ Six deployable strategies plus one oracle baseline ([`../06-engine-ensemble/scri
 S1 and S2 tie at F1.mean 0.984; the null-fallback in S2 doesn't fire often enough to matter on this dataset. S1 is the simpler of the two and is the strategy used to produce the E06 numbers in the headline tables.
 
 **Per-category specialist routing wins outright.** With eight engines and clear category leaders, the weighted-majority strategies (S3/S4/S5/S6) trail S1 by 1.1–1.4 pp F1.mean: their votes drag the result toward the average of the engine pool rather than the specialist's answer. The per-category leaders are clearly differentiated — E01 dominates sin, E07 dominates signature, E08 dominates income, E03 dominates checkboxes — so trusting the specialist unconditionally outperforms diluting its vote with non-specialists.
-
-Full strategy CSV: [`../06-engine-ensemble/data/strategy-comparison.csv`](../06-engine-ensemble/data/strategy-comparison.csv).
 
 ## Per-category accuracy — E06 vs the leader of each category
 
@@ -556,7 +554,7 @@ E06 closes roughly **half** of the F1.mean gap between the best single engine (0
 
 ## E06 residual errors
 
-The per-sample mismatch table for E06 is at [`../06-engine-ensemble/iteration/errors-for-gt-cleanup.md`](../06-engine-ensemble/iteration/errors-for-gt-cleanup.md) — **63 mismatches across 23 samples** (17 samples have zero mismatches under strict eval). This is the lowest mismatch count of any engine on this dataset:
+E06 has **63 mismatches across 23 samples** (17 samples have zero mismatches under strict eval). This is the lowest mismatch count of any engine on this dataset:
 
 | engine | mismatches | samples with ≥1 mismatch |
 |---|---|---|
@@ -575,14 +573,14 @@ E06's structural strength shows up not just in fewer total mismatches but also i
 The residual error categories on E06 break down into:
 - **Single-character handwriting** (X-marks, isolated `0`s). When the category specialist misreads the character, S1 has no fallback because it doesn't consult the other engines.
 - **Numeric blank-vs-zero ambiguity** on a small handful of income-amount fields where the form has a stray pen mark visible. E08 (the income specialist) extracts `0`; the GT is `""`.
-- **One-of-array GT not yet covering an engine's format variant.** Caught by `promote-gt-format-variants.ts` and absorbed in subsequent GT cleanup passes.
+- **One-of-array GT not yet covering an engine's format variant.** Caught by the GT format-variant promotion step and absorbed in subsequent GT cleanup passes.
 - **Genuine OCR misreads** — `5` vs `8`, `1` vs `7` confusions on dense handwriting. The irreducible per-engine errors the category specialist makes that no router can fix without consulting another engine.
 
 ---
 
 # Appendix B — Extraction prompts (verbatim)
 
-The prompts below are the *global instruction text* sent to each generative engine, captured verbatim from `experiments/results/<engine>/iteration/prompt.md` as of this report. They are paired with a 74-field JSON schema (per-field descriptions in `iteration/field-descriptions.json` for each engine — not included here for length; available alongside each engine's iteration kit) which carries the structural typing for output values.
+The prompts below are the *global instruction text* sent to each generative engine, captured verbatim as of this report. They are paired with a 74-field JSON schema carrying the per-field type declarations and descriptions (not included here for length).
 
 E00 has no prompt (it's a supervised trained template — extraction behaviour is encoded in the labelled training set, not in instructions).
 
@@ -613,8 +611,6 @@ Conventions:
 Be conservative: if a number is illegible, return null (treat as blank). Do NOT guess values that aren't visibly written on the form.
 ```
 
-Live source: [experiments/results/05-vlm-ocr-hybrid/iteration/prompt.md](../05-vlm-ocr-hybrid/iteration/prompt.md) (mirrored byte-for-byte under each of `04-vlm-direct/`, `07-vlm-ocr-hybrid-gpt-4o/`, and `08-vlm-ocr-hybrid-gpt-5.2/`).
-
 ## E03 — Azure Content Understanding prompt
 
 CU receives this prompt as part of the analyzer configuration's `description` field. CU's managed "Contextualization" layer wraps it server-side with additional schema metadata, in-context examples, and grounding instructions before sending the final prompt to gpt-5.2 — we do not see and cannot edit that wrapping. The text below is the *only* prompt-side lever we control on E03.
@@ -639,7 +635,7 @@ Conventions:
 Be conservative: if a number is illegible, return null (treat as blank). Do NOT guess values that aren't visibly written on the form.
 ```
 
-Live source: [experiments/results/03-content-understanding/iteration/prompt.md](../03-content-understanding/iteration/prompt.md). The CU prompt is a near-twin of the shared VLM/hybrid prompt — only minor wording differs (no thousands-separator clause, no parenthesis/dot guidance on phone formatting, no `→ 03 / SEP → 09` example on date abbreviation). Worth noting: both prompts are short (~18 lines, ~2.5 KB). The accuracy gap between E03 and E08 is therefore *not* a prompt-quality story — both engines get roughly the same instructions; the gap traces to whether the image reaches the LLM and how the OCR layer is tuned (see the [E08 notes](#e08--gpt-52-vlm--azure-di-layout-hybrid)).
+The CU prompt is a near-twin of the shared VLM/hybrid prompt — only minor wording differs (no thousands-separator clause, no parenthesis/dot guidance on phone formatting, no `→ 03 / SEP → 09` example on date abbreviation). Worth noting: both prompts are short (~18 lines, ~2.5 KB). The accuracy gap between E03 and E08 is therefore *not* a prompt-quality story — both engines get roughly the same instructions; the gap traces to whether the image reaches the LLM and how the OCR layer is tuned (see the [E08 notes](#e08--gpt-52-vlm--azure-di-layout-hybrid)).
 
 ## E02 — Mistral on Azure AI Foundry prompt
 
@@ -821,5 +817,5 @@ truly empty. If you can read SOMETHING inside the box (even partially),
 return what you see.
 ```
 
-Live source: [experiments/results/02-mistral-doc-ai-azure/iteration/prompt.md](../02-mistral-doc-ai-azure/iteration/prompt.md). Note the prompt opens with *"Read the form image carefully"* even though Mistral's annotation pass does not actually receive the image — that wording is aspirational, preserved from earlier prompt iterations. In practice the annotation model sees only the OCR text output of Mistral's first stage, which is why the prompt has to encode the form layout (income-row order, checkbox grid) explicitly.
+Note the prompt opens with *"Read the form image carefully"* even though Mistral's annotation pass does not actually receive the image — that wording is aspirational, preserved from earlier prompt iterations. In practice the annotation model sees only the OCR text output of Mistral's first stage, which is why the prompt has to encode the form layout (income-row order, checkbox grid) explicitly.
 
