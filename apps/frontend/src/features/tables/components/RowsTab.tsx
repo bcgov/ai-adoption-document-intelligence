@@ -5,12 +5,13 @@ import {
   Group,
   Modal,
   Pagination,
+  Popover,
   Stack,
   Table,
   Text,
   Tooltip,
 } from "@mantine/core";
-import { IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconColumns, IconPencil, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { apiService } from "@/data/services/api.service";
@@ -45,6 +46,34 @@ export function RowsTab({
   const [rowToDelete, setRowToDelete] = useState<TableRow | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
+  const storageKey = `rows-hidden-cols:${groupId}:${tableId}`;
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      return stored
+        ? new Set(JSON.parse(stored) as string[])
+        : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const toggleCol = (key: string) => {
+    setHiddenCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify([...next]));
+      } catch {
+        // localStorage unavailable
+      }
+      return next;
+    });
+  };
+
+  const visibleColumns = columns.filter((c) => !hiddenCols.has(c.key));
   const rows = useTableRows(groupId, tableId, {
     offset: (page - 1) * PAGE_SIZE,
     limit: PAGE_SIZE,
@@ -150,6 +179,27 @@ export function RowsTab({
               Delete {totalSelected} selected
             </Button>
           )}
+          <Popover position="bottom-end" withinPortal>
+            <Popover.Target>
+              <Tooltip label="Show / hide columns" withArrow>
+                <ActionIcon variant="default" aria-label="Column visibility">
+                  <IconColumns size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Popover.Target>
+            <Popover.Dropdown>
+              <Stack gap="xs">
+                {columns.map((c) => (
+                  <Checkbox
+                    key={c.key}
+                    label={c.label}
+                    checked={!hiddenCols.has(c.key)}
+                    onChange={() => toggleCol(c.key)}
+                  />
+                ))}
+              </Stack>
+            </Popover.Dropdown>
+          </Popover>
           <Button onClick={onCreate}>Create Row</Button>
         </Group>
       </Group>
@@ -159,72 +209,108 @@ export function RowsTab({
         </Text>
       ) : (
         <>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th w={40}>
-                  <Checkbox
-                    checked={allPageSelected}
-                    indeterminate={somePageSelected}
-                    onChange={toggleAll}
-                    aria-label="Select all rows on this page"
-                  />
-                </Table.Th>
-                {columns.map((c) => (
-                  <Table.Th key={c.key}>{c.label}</Table.Th>
-                ))}
-                <Table.Th ta="right" />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.data.rows.map((row) => (
-                <Table.Tr
-                  key={row.id}
-                  style={
-                    selectedIds.has(row.id)
-                      ? { backgroundColor: "var(--mantine-color-blue-0)" }
-                      : undefined
-                  }
-                >
-                  <Table.Td>
+          <div style={{ overflowX: "auto" }}>
+            <Table striped highlightOnHover style={{ tableLayout: "auto" }}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th
+                    w={40}
+                    style={{
+                      position: "sticky",
+                      left: 0,
+                      background: "var(--mantine-color-body)",
+                      zIndex: 1,
+                    }}
+                  >
                     <Checkbox
-                      checked={selectedIds.has(row.id)}
-                      onChange={() => toggleRow(row.id)}
-                      aria-label="Select row"
+                      checked={allPageSelected}
+                      indeterminate={somePageSelected}
+                      onChange={toggleAll}
+                      aria-label="Select all rows on this page"
                     />
-                  </Table.Td>
-                  {columns.map((c) => (
-                    <Table.Td key={c.key}>
-                      {renderCell(row.data[c.key], c.type)}
-                    </Table.Td>
+                  </Table.Th>
+                  {visibleColumns.map((c) => (
+                    <Table.Th key={c.key}>{c.label}</Table.Th>
                   ))}
-                  <Table.Td>
-                    <Group gap="xs" justify="flex-end" wrap="nowrap">
-                      <Tooltip label="Edit" withArrow>
-                        <ActionIcon
-                          variant="subtle"
-                          onClick={() => onEdit(row)}
-                          aria-label="Edit row"
-                        >
-                          <IconPencil size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip label="Delete" withArrow>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          onClick={() => setRowToDelete(row)}
-                          aria-label="Delete row"
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
-                  </Table.Td>
+                  <Table.Th
+                    ta="right"
+                    style={{
+                      position: "sticky",
+                      right: 0,
+                      background: "var(--mantine-color-body)",
+                      zIndex: 1,
+                    }}
+                  />
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.data.rows.map((row) => (
+                  <Table.Tr
+                    key={row.id}
+                    style={{
+                      ...(selectedIds.has(row.id)
+                        ? { backgroundColor: "var(--mantine-color-blue-0)" }
+                        : undefined),
+                    }}
+                  >
+                    <Table.Td
+                      style={{
+                        position: "sticky",
+                        left: 0,
+                        background: selectedIds.has(row.id)
+                          ? "var(--mantine-color-blue-0)"
+                          : "var(--mantine-color-body)",
+                        zIndex: 1,
+                      }}
+                    >
+                      <Checkbox
+                        checked={selectedIds.has(row.id)}
+                        onChange={() => toggleRow(row.id)}
+                        aria-label="Select row"
+                      />
+                    </Table.Td>
+                    {visibleColumns.map((c) => (
+                      <Table.Td key={c.key}>
+                        {renderCell(row.data[c.key], c.type)}
+                      </Table.Td>
+                    ))}
+                    <Table.Td
+                      style={{
+                        position: "sticky",
+                        right: 0,
+                        background: selectedIds.has(row.id)
+                          ? "var(--mantine-color-blue-0)"
+                          : "var(--mantine-color-body)",
+                        zIndex: 1,
+                      }}
+                    >
+                      <Group gap="xs" justify="flex-end" wrap="nowrap">
+                        <Tooltip label="Edit" withArrow>
+                          <ActionIcon
+                            variant="subtle"
+                            onClick={() => onEdit(row)}
+                            aria-label="Edit row"
+                          >
+                            <IconPencil size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Delete" withArrow>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => setRowToDelete(row)}
+                            aria-label="Delete row"
+                          >
+                            <IconTrash size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
           {totalPages > 1 && (
             <Group justify="center">
               <Pagination total={totalPages} value={page} onChange={setPage} />
