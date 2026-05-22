@@ -4,7 +4,11 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
-import { buildRowZodSchema, validateColumnDefs } from "./column-validation";
+import {
+  buildRowZodSchema,
+  validateColumnDefs,
+  zodForColumn,
+} from "./column-validation";
 import { findLookupsReferencingColumn } from "./dependency-check";
 import { validateLookupDefs } from "./lookup-validation";
 import { type CreateTableInput, TablesDbService } from "./tables-db.service";
@@ -160,8 +164,9 @@ export class TablesService {
         );
       }
 
-      const schema = buildRowZodSchema([{ ...col, required: true }]);
-      const parsed = schema.safeParse({ [col.key]: seed_value });
+      const parsed = zodForColumn({ ...col, required: true }).safeParse(
+        seed_value,
+      );
       if (!parsed.success) {
         throw new BadRequestException(
           `seed_value is invalid for column type "${col.type}": ${parsed.error.issues.map((i) => i.message).join(", ")}`,
@@ -247,8 +252,9 @@ export class TablesService {
 
     // Run all pure validation before touching any data.
     if (seed_value !== undefined) {
-      const schema = buildRowZodSchema([{ ...next, required: true }]);
-      const parsed = schema.safeParse({ [key]: seed_value });
+      const parsed = zodForColumn({ ...next, required: true }).safeParse(
+        seed_value,
+      );
       if (!parsed.success) {
         throw new BadRequestException(
           `seed_value is invalid for column type "${next.type}": ${parsed.error.issues.map((i) => i.message).join(", ")}`,

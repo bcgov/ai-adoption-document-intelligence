@@ -29,7 +29,7 @@ export function validateColumnDefs(cols: ColumnDef[]): void {
   }
 }
 
-function zodForColumn(col: ColumnDef): z.ZodTypeAny {
+export function zodForColumn(col: ColumnDef): z.ZodTypeAny {
   let base: z.ZodTypeAny;
   switch (col.type) {
     case "string":
