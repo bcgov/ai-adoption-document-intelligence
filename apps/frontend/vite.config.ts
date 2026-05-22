@@ -65,6 +65,15 @@ export default defineConfig({
       },
     },
   ],
+  // The shared `@ai-di/graph-workflow` package ships as CommonJS (built for
+  // the NestJS backend + Temporal worker, both CJS). Vite's dep pre-bundler
+  // normally skips workspace deps, but we need it to bundle this one so
+  // esbuild produces ESM-with-named-exports for the browser. Without this,
+  // `import { ACTIVITY_CATALOG } from "@ai-di/graph-workflow"` fails with
+  // "does not provide an export named ..." in the browser ESM loader.
+  optimizeDeps: {
+    include: ["@ai-di/graph-workflow"],
+  },
   // Resolve needed to address plugin-react v5 fast refresh issue.
   resolve: {
     dedupe: ["react", "react-dom"],
