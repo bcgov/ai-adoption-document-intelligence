@@ -56,7 +56,7 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-005** (MapNodeSettings) — consumes US-001
 - [x] **US-006** (JoinNodeSettings) — consumes US-001
 - [x] **US-007** (ChildWorkflowNodeSettings) — no primitive deps
-- [ ] **US-008** (PollUntilNodeSettings) — consumes US-003
+- [x] **US-008** (PollUntilNodeSettings) — consumes US-003
 - [ ] **US-009** (HumanGateNodeSettings) — consumes US-002
 - [ ] **US-011** (Palette "Flow Control" section) — independent of Phase 2 forms; required for end-to-end add
 - [ ] **US-012** (Canvas per-type shapes) — independent of Phase 2 forms; required for visual differentiation
