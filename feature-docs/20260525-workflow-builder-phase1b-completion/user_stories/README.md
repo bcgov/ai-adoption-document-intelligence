@@ -112,8 +112,8 @@ visible UX features.
 - [x] **US-040** (audit + close)
 
 ### Phase 4 — auto-layout
-- [ ] **US-049** (helper + button)
-- [ ] **US-050** (auto-apply on template load)
+- [x] **US-049** (helper + button)
+- [x] **US-050** (auto-apply on template load)
 
 ### Phase 5 — canvas interactions
 - [ ] **US-045** (hover-to-extend chains)

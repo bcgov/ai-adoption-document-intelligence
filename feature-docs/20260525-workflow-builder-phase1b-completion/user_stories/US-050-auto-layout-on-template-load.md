@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Detect "no positions" on initial load
+- [x] **Scenario 1**: Detect "no positions" on initial load
     - **Given** a template payload arriving in `WorkflowEditorV2Page` via React Router state
     - **When** the initial config is hydrated
     - **Then** if none of the nodes have `metadata.position`, `layoutGraph` (US-049) is run once and the result becomes the editor's initial config
 
-- [ ] **Scenario 2**: Templates with positions are NOT re-laid-out
+- [x] **Scenario 2**: Templates with positions are NOT re-laid-out
     - **Given** a template whose nodes already carry `metadata.position`
     - **When** loaded
     - **Then** the editor uses the existing positions; no auto-layout runs
 
-- [ ] **Scenario 3**: Partial positions: mixed-state templates
+- [x] **Scenario 3**: Partial positions: mixed-state templates
     - **Given** a template where some nodes have positions and others don't
     - **When** loaded
     - **Then** policy: only auto-layout if NO nodes have positions (mixed-state preserves the partial positions; user can hit "Auto-arrange" manually to fix). Document this in the story; alternative auto-only-the-missing requires layout-with-fixed-points which is out of scope.
 
-- [ ] **Scenario 4**: Save preserves auto-laid-out positions
+- [x] **Scenario 4**: Save preserves auto-laid-out positions
     - **Given** an auto-laid-out template
     - **When** the user saves without dragging anything
     - **Then** the save payload includes the computed positions

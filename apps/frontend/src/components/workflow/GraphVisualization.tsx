@@ -31,8 +31,8 @@ import {
   Position,
   ReactFlow,
 } from "@xyflow/react";
-import dagre from "dagre-esm";
 import { memo, useEffect, useMemo, useRef } from "react";
+import { layoutXyflowNodes } from "../../features/workflow-builder/canvas/auto-layout";
 import type {
   ActivityNode,
   ChildWorkflowNode,
@@ -755,35 +755,14 @@ function layoutGraph(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  const graph = new dagre.graphlib.Graph();
-  graph.setDefaultEdgeLabel(() => ({}));
-  graph.setGraph({ rankdir: "TB", ranksep: 80, nodesep: 50 });
-
-  nodes.forEach((node) => {
-    graph.setNode(node.id, {
-      width: node.width ?? 180,
-      height: node.height ?? 80,
-    });
+  // Thin adapter around the shared helper (US-049 Scenario 2). Keeps
+  // this file's local shape `{ nodes, edges }` so the existing callers
+  // don't need to change.
+  return layoutXyflowNodes(nodes, edges, {
+    rankdir: "TB",
+    nodesep: 50,
+    ranksep: 80,
   });
-
-  edges.forEach((edge) => {
-    graph.setEdge(edge.source, edge.target);
-  });
-
-  dagre.layout(graph);
-
-  const layoutedNodes = nodes.map((node) => {
-    const position = graph.node(node.id);
-    return {
-      ...node,
-      position: {
-        x: position.x - (node.width ?? 0) / 2,
-        y: position.y - (node.height ?? 0) / 2,
-      },
-    };
-  });
-
-  return { nodes: layoutedNodes, edges };
 }
 
 function buildDetailedViewWithMapContainers(

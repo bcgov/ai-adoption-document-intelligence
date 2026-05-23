@@ -41,9 +41,11 @@ import {
   IconDeviceFloppy,
   IconExclamationCircle,
   IconHelp,
+  IconLayoutDistributeHorizontal,
   IconSettings,
 } from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactFlowInstance } from "@xyflow/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   type CreateWorkflowDto,
@@ -56,6 +58,10 @@ import type {
   GraphNode,
   GraphWorkflowConfig,
 } from "../../types/workflow";
+import {
+  layoutGraph,
+  layoutGraphIfMissingPositions,
+} from "./canvas/auto-layout";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { ActivityPalette } from "./palette/ActivityPalette";
 import {
@@ -113,8 +119,15 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [description, setDescription] = useState(
     incomingTemplate?.description ?? "",
   );
-  const [config, setConfig] = useState<GraphWorkflowConfig>(
-    incomingTemplate ? incomingTemplate.config : EMPTY_CONFIG,
+  // US-050: when an incoming template has zero `metadata.position` values
+  // across its nodes, run auto-layout once during initial hydration so
+  // the editor doesn't open with everything stacked at the default
+  // `x = 80 + i*220` position. Templates with full or partial positions
+  // are passed through unchanged (Scenarios 2 + 3).
+  const [config, setConfig] = useState<GraphWorkflowConfig>(() =>
+    incomingTemplate
+      ? layoutGraphIfMissingPositions(incomingTemplate.config)
+      : EMPTY_CONFIG,
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -123,6 +136,24 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     string | null
   >(null);
   const validation = useGraphValidation(config);
+
+  // Live xyflow instance from the inner canvas — populated by
+  // `onReactFlowReady`. Used by the "Auto-arrange" top-bar button to
+  // re-fit the viewport after the layout helper stamps new positions.
+  const reactFlowRef = useRef<ReactFlowInstance | null>(null);
+  const handleReactFlowReady = useCallback((instance: ReactFlowInstance) => {
+    reactFlowRef.current = instance;
+  }, []);
+
+  const handleAutoArrange = useCallback(() => {
+    setConfig((prev) => layoutGraph(prev));
+    // Defer the fit so the canvas's structural projection effect has run.
+    // 0ms is enough — xyflow updates its internal node store
+    // synchronously inside its sibling effect on the same tick.
+    setTimeout(() => {
+      reactFlowRef.current?.fitView({ padding: 0.25, duration: 300 });
+    }, 0);
+  }, []);
 
   const openValidationDrawerForNode = useCallback((nodeId: string) => {
     setValidationFocusNodeId(nodeId);
@@ -384,6 +415,16 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           />
           <Button
             variant="light"
+            leftSection={<IconLayoutDistributeHorizontal size={14} />}
+            onClick={handleAutoArrange}
+            size="xs"
+            data-testid="auto-arrange-button"
+            disabled={nodeCount === 0}
+          >
+            Auto-arrange
+          </Button>
+          <Button
+            variant="light"
             leftSection={<IconSettings size={14} />}
             onClick={() => setSettingsOpen(true)}
             size="xs"
@@ -474,6 +515,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             onSelectNode={setSelectedNodeId}
             errorsByNode={validation.errorsByNode}
             onNodeBadgeClick={openValidationDrawerForNode}
+            onReactFlowReady={handleReactFlowReady}
           />
         </Box>
         <NodeSettingsPanel

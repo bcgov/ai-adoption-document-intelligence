@@ -23,7 +23,7 @@ The builder canvas is where you assemble your workflow visually. It should feel 
 - **Configure nodes** by clicking them to open a settings panel
 - **Pan and zoom** the canvas to navigate large workflows
 - **Select and delete** nodes or connections
-- **Auto-layout** to tidy up the canvas arrangement
+- **Auto-arrange** (top-bar button) tidies the canvas with a dagre layered layout. The button is disabled until at least one node is on the canvas. Templates that ship without any `metadata.position` get the same layout applied automatically on load; templates that already carry positions (full or partial) are left alone — hit **Auto-arrange** manually to re-tidy them.
 
 ### Validation
 

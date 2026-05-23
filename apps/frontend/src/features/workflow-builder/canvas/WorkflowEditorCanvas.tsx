@@ -37,6 +37,7 @@ import {
   type OnSelectionChangeParams,
   Position,
   ReactFlow,
+  type ReactFlowInstance,
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
@@ -72,6 +73,13 @@ interface WorkflowEditorCanvasProps {
    * opens the validation drawer scrolled to the matching entry.
    */
   onNodeBadgeClick?: (nodeId: string) => void;
+  /**
+   * Optional callback fired once the inner `<ReactFlow>` has mounted —
+   * the host receives the live `ReactFlowInstance` so it can request a
+   * viewport re-fit (e.g. after the user clicks "Auto-arrange" in the
+   * top bar — US-049 Scenario 3).
+   */
+  onReactFlowReady?: (instance: ReactFlowInstance) => void;
 }
 
 interface CommonNodeData extends Record<string, unknown> {
@@ -715,6 +723,7 @@ function WorkflowEditorCanvasInner({
   onSelectNode,
   errorsByNode,
   onNodeBadgeClick,
+  onReactFlowReady,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -997,6 +1006,13 @@ function WorkflowEditorCanvasInner({
         onNodesDelete={handleNodesDelete}
         onEdgesDelete={handleEdgesDelete}
         onConnect={handleConnect}
+        onInit={(instance) =>
+          // Cast away the typed-generic narrowing on the inner instance —
+          // the host only needs the generic `ReactFlowInstance` surface
+          // (`fitView`, `getNodes`, etc.) for the auto-arrange flow
+          // (US-049 Scenario 3).
+          onReactFlowReady?.(instance as unknown as ReactFlowInstance)
+        }
         nodesDraggable
         nodesConnectable
         elementsSelectable
