@@ -11,11 +11,13 @@
  * Coexists with the old JSON-driven editor at `/workflows/:id/edit`.
  *
  * Out of scope for Milestone 2:
- *   - control-flow nodes (switch/map/join/childWorkflow/pollUntil/humanGate)
- *   - per-node validation surfacing (red badges)
- *   - workflow-settings drawer (ctx editor)
  *   - node groups
  *   - drag-from-palette (we have click-to-add)
+ *
+ * Control-flow nodes (switch/map/join/childWorkflow/pollUntil/humanGate)
+ * land via a separate "Flow Control" section in the palette that emits a
+ * skeleton built by `buildControlFlowSkeleton`; position is calculated
+ * with the same stagger as activity adds.
  */
 
 import {
@@ -49,9 +51,17 @@ import {
   useUpdateWorkflow,
   useWorkflow,
 } from "../../data/hooks/useWorkflows";
-import type { ActivityNode, GraphWorkflowConfig } from "../../types/workflow";
+import type {
+  ActivityNode,
+  GraphNode,
+  GraphWorkflowConfig,
+} from "../../types/workflow";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { ActivityPalette } from "./palette/ActivityPalette";
+import {
+  buildControlFlowSkeleton,
+  type ControlFlowNodeType,
+} from "./palette/control-flow-skeletons";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
 import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
 import type { WorkflowTemplate } from "./templates";
@@ -174,6 +184,34 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         ...prev,
         nodes: nextNodes,
         ctx: nextCtx,
+        entryNodeId: nextEntryNodeId,
+      };
+    });
+  }, []);
+
+  const addControlFlowNode = useCallback((type: ControlFlowNodeType) => {
+    setConfig((prev) => {
+      const id = makeNodeId(prev, type);
+      const offsetIndex = Object.keys(prev.nodes).length;
+      const skeleton = buildControlFlowSkeleton(type, id);
+      // Mutate the freshly-built skeleton's metadata in place — this is
+      // safe because the skeleton was just constructed and is not yet
+      // referenced anywhere else. Avoids losing discriminated-union
+      // narrowing that a spread of `GraphNode` would.
+      const newNode: GraphNode = skeleton;
+      newNode.metadata = {
+        ...(newNode.metadata ?? {}),
+        position: {
+          x: 80 + offsetIndex * 240,
+          y: 100 + (offsetIndex % 3) * 140,
+        },
+      };
+      const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
+      const nextNodes = { ...prev.nodes, [id]: newNode };
+      pendingSelectRef.current = id;
+      return {
+        ...prev,
+        nodes: nextNodes,
         entryNodeId: nextEntryNodeId,
       };
     });
@@ -378,7 +416,10 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           minHeight: 0,
         }}
       >
-        <ActivityPalette onAddActivity={addActivity} />
+        <ActivityPalette
+          onAddActivity={addActivity}
+          onAddControlFlowNode={addControlFlowNode}
+        />
         <Box style={{ flex: 1, minWidth: 0, position: "relative" }}>
           {nodeCount === 0 && (
             <Box
