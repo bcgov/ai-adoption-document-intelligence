@@ -24,6 +24,7 @@
 
 import "@xyflow/react/dist/style.css";
 
+import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import {
   Background,
   type Connection,
@@ -58,9 +59,14 @@ import {
   type ControlFlowVisualHints,
   getControlFlowVisualHints,
 } from "../control-flow-visual-hints";
-import type { ControlFlowNodeType } from "../palette/control-flow-skeletons";
+import {
+  buildControlFlowSkeleton,
+  type ControlFlowNodeType,
+} from "../palette/control-flow-skeletons";
+import { HoverExtendPopover } from "./HoverExtendPopover";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
+import { nextNodePosition } from "./place-extended-node";
 import { swapActivityType } from "./swap-node-type";
 import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
 
@@ -91,6 +97,16 @@ interface CommonNodeData extends Record<string, unknown> {
   errorCount: number;
   warningCount: number;
   onBadgeClick?: (nodeId: string) => void;
+  /**
+   * Hover-to-extend bridge (US-045) — the canvas wires these so the
+   * source `out` handle can drive the 200ms-debounced popover. Each
+   * renderer just forwards them to `NodeHandles`.
+   */
+  onSourceHandleEnter?: (
+    nodeId: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onSourceHandleLeave?: (nodeId: string) => void;
 }
 
 interface ActivityNodeData extends CommonNodeData {
@@ -252,6 +268,8 @@ const ValidationBadge = memo(function ValidationBadge({
 });
 
 interface NodeHandlesProps {
+  /** Id of the node owning these handles — used by the hover bridge. */
+  nodeId: string;
   accent: string;
   /**
    * When supplied with `onError === "fallback"`, the renderer mounts a
@@ -261,15 +279,41 @@ interface NodeHandlesProps {
    * cases + defaultEdge, not via an error handle.
    */
   errorPolicy?: ErrorPolicy;
+  /**
+   * Hover-to-extend (US-045) — when present, the source `out` handle
+   * fires `onSourceHandleEnter` on mouseenter (with the handle's
+   * bounding-rect right-center as the anchor) and
+   * `onSourceHandleLeave` on mouseleave. The canvas debounces these to
+   * open/close the picker popover.
+   */
+  onSourceHandleEnter?: (
+    nodeId: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onSourceHandleLeave?: (nodeId: string) => void;
 }
 
 const ERROR_HANDLE_BACKGROUND = "#e03131";
 
 const NodeHandles = memo(function NodeHandles({
+  nodeId,
   accent,
   errorPolicy,
+  onSourceHandleEnter,
+  onSourceHandleLeave,
 }: NodeHandlesProps) {
   const showErrorHandle = errorPolicy?.onError === "fallback";
+  const handleEnter = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!onSourceHandleEnter) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    onSourceHandleEnter(nodeId, {
+      x: rect.right,
+      y: rect.top + rect.height / 2,
+    });
+  };
+  const handleLeave = () => {
+    onSourceHandleLeave?.(nodeId);
+  };
   return (
     <>
       <Handle
@@ -282,6 +326,8 @@ const NodeHandles = memo(function NodeHandles({
         type="source"
         position={Position.Right}
         style={{ background: accent }}
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
       />
       {showErrorHandle && (
         <Handle
@@ -369,7 +415,13 @@ const ActivityNodeRenderer = memo(
           )}
         </div>
         <div style={{ fontWeight: 600 }}>{data.label}</div>
-        <NodeHandles accent={accent} errorPolicy={data.errorPolicy} />
+        <NodeHandles
+          nodeId={id}
+          accent={accent}
+          errorPolicy={data.errorPolicy}
+          onSourceHandleEnter={data.onSourceHandleEnter}
+          onSourceHandleLeave={data.onSourceHandleLeave}
+        />
       </div>
     );
   },
@@ -498,7 +550,13 @@ const ControlFlowRectangleRenderer = memo(
         />
         {renderControlFlowHeader({ id, data, selected, hints })}
         <div style={{ fontWeight: 600 }}>{data.label}</div>
-        <NodeHandles accent={accent} errorPolicy={data.errorPolicy} />
+        <NodeHandles
+          nodeId={id}
+          accent={accent}
+          errorPolicy={data.errorPolicy}
+          onSourceHandleEnter={data.onSourceHandleEnter}
+          onSourceHandleLeave={data.onSourceHandleLeave}
+        />
       </div>
     );
   },
@@ -594,7 +652,12 @@ const SwitchNodeRenderer = memo(
           warningCount={warningCount}
           onBadgeClick={data.onBadgeClick}
         />
-        <NodeHandles accent={accent} />
+        <NodeHandles
+          nodeId={id}
+          accent={accent}
+          onSourceHandleEnter={data.onSourceHandleEnter}
+          onSourceHandleLeave={data.onSourceHandleLeave}
+        />
       </div>
     );
   },
@@ -619,10 +682,18 @@ function isControlFlowType(t: GraphNode["type"]): t is ControlFlowNodeType {
   return (CONTROL_FLOW_TYPES as readonly string[]).includes(t);
 }
 
+interface ProjectionCallbacks {
+  onBadgeClick: ((nodeId: string) => void) | undefined;
+  onSourceHandleEnter:
+    | ((nodeId: string, anchor: { x: number; y: number }) => void)
+    | undefined;
+  onSourceHandleLeave: ((nodeId: string) => void) | undefined;
+}
+
 function projectFlowNodes(
   config: GraphWorkflowConfig,
   selectedNodeId: string | null,
-  onBadgeClick: ((nodeId: string) => void) | undefined,
+  callbacks: ProjectionCallbacks,
 ): FlowNode[] {
   const all = Object.values(config.nodes);
   return all.map((node, idx) => {
@@ -640,8 +711,10 @@ function projectFlowNodes(
           isEntry,
           errorCount: 0,
           warningCount: 0,
-          onBadgeClick,
+          onBadgeClick: callbacks.onBadgeClick,
           errorPolicy: node.errorPolicy,
+          onSourceHandleEnter: callbacks.onSourceHandleEnter,
+          onSourceHandleLeave: callbacks.onSourceHandleLeave,
         },
       };
       return flowNode;
@@ -658,8 +731,10 @@ function projectFlowNodes(
           isEntry,
           errorCount: 0,
           warningCount: 0,
-          onBadgeClick,
+          onBadgeClick: callbacks.onBadgeClick,
           errorPolicy: node.errorPolicy,
+          onSourceHandleEnter: callbacks.onSourceHandleEnter,
+          onSourceHandleLeave: callbacks.onSourceHandleLeave,
         },
       };
       return flowNode;
@@ -783,12 +858,115 @@ function WorkflowEditorCanvasInner({
     [config],
   );
 
+  // -------------------------------------------------------------------------
+  // Hover-to-extend (US-045)
+  //   The source `out` handle drives a 200ms-debounced popover that lets
+  //   the user pick the next node + edge in one click. Open / close are
+  //   both debounced (open on 200ms hover, close on 200ms grace after
+  //   mouseleave) so the picker doesn't flicker as the cursor crosses
+  //   the gap from the handle to the popover.
+  // -------------------------------------------------------------------------
+  const [hoverExtend, setHoverExtend] = useState<{
+    nodeId: string;
+    anchor: { x: number; y: number };
+  } | null>(null);
+  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cancel any pending timers on unmount so a stray callback doesn't fire
+  // after the canvas has gone away.
+  useEffect(() => {
+    return () => {
+      if (openTimerRef.current) clearTimeout(openTimerRef.current);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
+  const handleSourceHandleEnter = useCallback(
+    (nodeId: string, anchor: { x: number; y: number }) => {
+      // If a close was scheduled (e.g. the user just re-entered the same
+      // handle), cancel it — the user is still in the hover region.
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      // Already pending open for the same node — do nothing.
+      if (openTimerRef.current) {
+        clearTimeout(openTimerRef.current);
+      }
+      openTimerRef.current = setTimeout(() => {
+        openTimerRef.current = null;
+        setHoverExtend({ nodeId, anchor });
+      }, 200);
+    },
+    [],
+  );
+
+  const handleSourceHandleLeave = useCallback(() => {
+    // Cancel any pending open — the user moved off the handle before the
+    // 200ms threshold elapsed.
+    if (openTimerRef.current) {
+      clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+    // Grace period before closing — gives the user time to slide onto
+    // the popover.
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setHoverExtend(null);
+    }, 200);
+  }, []);
+
+  const handlePopoverEnter = useCallback(() => {
+    // The cursor crossed the gap onto the popover — cancel the close
+    // timer so the popover stays open.
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const handlePopoverLeave = useCallback(() => {
+    // Re-arm the close grace timer when the cursor leaves the popover.
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setHoverExtend(null);
+    }, 200);
+  }, []);
+
+  const closeHoverExtend = useCallback(() => {
+    if (openTimerRef.current) {
+      clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setHoverExtend(null);
+  }, []);
+
+  const projectionCallbacks = useMemo<ProjectionCallbacks>(
+    () => ({
+      onBadgeClick: onNodeBadgeClick,
+      onSourceHandleEnter: handleSourceHandleEnter,
+      onSourceHandleLeave: handleSourceHandleLeave,
+    }),
+    [onNodeBadgeClick, handleSourceHandleEnter, handleSourceHandleLeave],
+  );
+
   const lastFingerprintRef = useRef<string | null>(null);
   useEffect(() => {
     if (lastFingerprintRef.current === dataFingerprint) return;
     lastFingerprintRef.current = dataFingerprint;
     setInternalNodes(
-      projectFlowNodes(config, selectedNodeId, onNodeBadgeClick),
+      projectFlowNodes(config, selectedNodeId, projectionCallbacks),
     );
     // Note: `selectedNodeId` participates in the projection on
     // structural changes (e.g., when a freshly added node should start
@@ -800,7 +978,7 @@ function WorkflowEditorCanvasInner({
     dataFingerprint,
     config,
     selectedNodeId,
-    onNodeBadgeClick,
+    projectionCallbacks,
     setInternalNodes,
   ]);
 
@@ -1100,6 +1278,99 @@ function WorkflowEditorCanvasInner({
     [config, onConfigChange],
   );
 
+  /**
+   * Resolves the edge type the hover-extender should stamp on the new
+   * connection — mirrors the (`switch` → `conditional`, otherwise
+   * `normal`) part of `handleConnect`. The new edge is always drawn from
+   * the source's `out` handle, so the `error` override doesn't apply
+   * here.
+   */
+  const inferExtendEdgeType = useCallback(
+    (sourceNodeId: string): GraphEdge["type"] => {
+      const sourceNode = config.nodes[sourceNodeId];
+      return sourceNode?.type === "switch" ? "conditional" : "normal";
+    },
+    [config.nodes],
+  );
+
+  /**
+   * Adds the new graph node + connecting edge to the outer config in a
+   * single `onConfigChange`. Used by both the activity-picker and the
+   * control-flow-picker branches of the hover popover.
+   */
+  const extendFromSource = useCallback(
+    (sourceNodeId: string, newNode: GraphNode) => {
+      const sourceGraphNode = config.nodes[sourceNodeId];
+      if (!sourceGraphNode) return;
+      const sourcePos = (
+        sourceGraphNode.metadata as { position?: { x: number; y: number } }
+      )?.position ?? { x: 0, y: 0 };
+      const position = nextNodePosition(sourcePos);
+      const newNodeWithPosition: GraphNode = {
+        ...newNode,
+        metadata: {
+          ...(newNode.metadata ?? {}),
+          position,
+        },
+      };
+      const edgeId = `edge-${Date.now().toString(36)}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
+      const newEdge: GraphEdge = {
+        id: edgeId,
+        source: sourceNodeId,
+        target: newNode.id,
+        type: inferExtendEdgeType(sourceNodeId),
+      };
+      onConfigChange({
+        ...config,
+        nodes: { ...config.nodes, [newNode.id]: newNodeWithPosition },
+        edges: [...config.edges, newEdge],
+      });
+      onSelectNode(newNode.id);
+    },
+    [config, onConfigChange, onSelectNode, inferExtendEdgeType],
+  );
+
+  const handleHoverPickActivity = useCallback(
+    (activityType: string) => {
+      if (!hoverExtend) return;
+      const sourceNodeId = hoverExtend.nodeId;
+      closeHoverExtend();
+      const newId = `activity_${Date.now().toString(36)}`;
+      const entry = getActivityCatalogEntry(activityType);
+      const inputs = entry
+        ? entry.inputs.map((p) => ({ port: p.name, ctxKey: p.name }))
+        : [];
+      const outputs = entry
+        ? entry.outputs.map((p) => ({ port: p.name, ctxKey: p.name }))
+        : [];
+      const newNode: ActivityNode = {
+        id: newId,
+        type: "activity",
+        label: entry?.displayName ?? activityType,
+        activityType,
+        inputs,
+        outputs,
+        parameters: {},
+      };
+      extendFromSource(sourceNodeId, newNode);
+    },
+    [hoverExtend, closeHoverExtend, extendFromSource],
+  );
+
+  const handleHoverPickControlFlow = useCallback(
+    (controlFlowType: ControlFlowNodeType) => {
+      if (!hoverExtend) return;
+      const sourceNodeId = hoverExtend.nodeId;
+      closeHoverExtend();
+      const newId = `${controlFlowType}_${Date.now().toString(36)}`;
+      const newNode = buildControlFlowSkeleton(controlFlowType, newId);
+      extendFromSource(sourceNodeId, newNode);
+    },
+    [hoverExtend, closeHoverExtend, extendFromSource],
+  );
+
   return (
     <div style={{ height: "100%", width: "100%" }}>
       <ReactFlow
@@ -1149,6 +1420,17 @@ function WorkflowEditorCanvasInner({
           currentActivityType={swapCurrentActivityType}
           onClose={closeSwapModal}
           onPick={handleSwapPick}
+        />
+      )}
+      {hoverExtend && (
+        <HoverExtendPopover
+          opened
+          anchorPosition={hoverExtend.anchor}
+          onClose={closeHoverExtend}
+          onPickActivity={handleHoverPickActivity}
+          onPickControlFlow={handleHoverPickControlFlow}
+          onMouseEnter={handlePopoverEnter}
+          onMouseLeave={handlePopoverLeave}
         />
       )}
     </div>

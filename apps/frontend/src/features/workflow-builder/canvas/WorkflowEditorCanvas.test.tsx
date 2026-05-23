@@ -121,14 +121,20 @@ vi.mock("@xyflow/react", () => {
       type,
       position,
       id,
+      onMouseEnter,
+      onMouseLeave,
     }: {
       type: string;
       position: string;
       id?: string;
+      onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+      onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
     }) => (
       <div
         data-testid={`handle-${type}-${position}`}
         data-handleid={id ?? null}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
       />
     ),
     MarkerType: { ArrowClosed: "arrowclosed" },
@@ -1566,5 +1572,222 @@ describe("WorkflowEditorCanvas — US-047: change activity type via context menu
     expect(
       screen.queryByTestId("node-type-swap-modal"),
     ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-045: Hovering an outgoing handle pops a node picker; click adds + connects
+//   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-045-hover-to-extend.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-045: hover-to-extend popover", () => {
+  /**
+   * Locates the source-right handle for the given node and fires
+   * `mouseenter` on it. Used to drive the 200ms-debounced popover
+   * open path.
+   */
+  function hoverSourceHandle(nodeId: string) {
+    const nodeEl = screen.getByTestId(`canvas-node-${nodeId}`);
+    const handle = nodeEl.querySelector<HTMLElement>(
+      '[data-testid="handle-source-right"]',
+    );
+    if (!handle) throw new Error(`source handle missing on ${nodeId}`);
+    fireEvent.mouseEnter(handle);
+  }
+
+  function leaveSourceHandle(nodeId: string) {
+    const nodeEl = screen.getByTestId(`canvas-node-${nodeId}`);
+    const handle = nodeEl.querySelector<HTMLElement>(
+      '[data-testid="handle-source-right"]',
+    );
+    if (!handle) throw new Error(`source handle missing on ${nodeId}`);
+    fireEvent.mouseLeave(handle);
+  }
+
+  it("Scenario 1: hovering the source handle for ≥200ms opens the popover", async () => {
+    vi.useFakeTimers();
+    try {
+      renderCanvas(makeAllNodeTypesConfig());
+      hoverSourceHandle("activity_1");
+      // Before the 200ms debounce elapses the popover must not be shown.
+      expect(
+        screen.queryByTestId("hover-extend-popover"),
+      ).not.toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      // Flush microtasks under fake timers so Mantine's state-driven
+      // mount fires synchronously.
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Scenario 2: leaving the handle closes the popover after a 200ms grace", async () => {
+    vi.useFakeTimers();
+    try {
+      renderCanvas(makeAllNodeTypesConfig());
+      hoverSourceHandle("activity_1");
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      leaveSourceHandle("activity_1");
+      // Still open during the 200ms grace period.
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      // Closes after the grace expires.
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(
+        screen.queryByTestId("hover-extend-popover"),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Scenario 3: clicking an activity row adds the node + connects it to the source", async () => {
+    vi.useFakeTimers();
+    try {
+      // Single-activity-only fixture so we can predict the source id, and
+      // — importantly — the new activity row's data-testid (which is
+      // built from the activityType).
+      const seed: ActivityNode = {
+        id: "seed",
+        type: "activity",
+        label: "Seed",
+        activityType: "data.transform",
+        parameters: {},
+        metadata: { position: { x: 100, y: 50 } },
+      };
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: { name: "T", version: "1.0.0" },
+        ctx: {},
+        nodes: { [seed.id]: seed },
+        edges: [],
+        entryNodeId: seed.id,
+      };
+      const { onConfigChange } = renderCanvas(config);
+      hoverSourceHandle("seed");
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      // Pick `file.prepare` — distinct from `data.transform` so the new
+      // node is identifiable in the emitted config.
+      const row = screen.getByTestId("hover-extend-activity-file.prepare");
+      // Switch back to real timers so React's click + commit work.
+      vi.useRealTimers();
+      fireEvent.click(row);
+      await waitFor(() => {
+        expect(onConfigChange).toHaveBeenCalled();
+      });
+      const lastCall =
+        onConfigChange.mock.calls[onConfigChange.mock.calls.length - 1];
+      const next = lastCall[0] as GraphWorkflowConfig;
+      // Exactly one new node was added.
+      const newIds = Object.keys(next.nodes).filter((id) => id !== "seed");
+      expect(newIds).toHaveLength(1);
+      const newId = newIds[0];
+      const newNode = next.nodes[newId];
+      if (!newNode || newNode.type !== "activity") {
+        throw new Error("expected new node to be an activity node");
+      }
+      expect(newNode.activityType).toBe("file.prepare");
+      // Position lands to the right of the source (+280px) at same y.
+      const newPos = (
+        newNode.metadata as { position?: { x: number; y: number } }
+      )?.position;
+      expect(newPos).toEqual({ x: 380, y: 50 });
+      // A single edge connects seed.out → newNode (type "normal" because
+      // the source is an activity, not a switch).
+      expect(next.edges).toHaveLength(1);
+      expect(next.edges[0]).toMatchObject({
+        source: "seed",
+        target: newId,
+        type: "normal",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Scenario 4: picking a node auto-selects it and fits it into view", async () => {
+    vi.useFakeTimers();
+    try {
+      const seed: ActivityNode = {
+        id: "seed",
+        type: "activity",
+        label: "Seed",
+        activityType: "data.transform",
+        parameters: {},
+        metadata: { position: { x: 100, y: 50 } },
+      };
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: { name: "T", version: "1.0.0" },
+        ctx: {},
+        nodes: { [seed.id]: seed },
+        edges: [],
+        entryNodeId: seed.id,
+      };
+      const { onConfigChange, onSelectNode, rerenderWithConfig } =
+        renderCanvas(config);
+      hoverSourceHandle("seed");
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      const row = screen.getByTestId("hover-extend-activity-file.prepare");
+      vi.useRealTimers();
+      fireEvent.click(row);
+      await waitFor(() => {
+        expect(onConfigChange).toHaveBeenCalled();
+      });
+      const next = onConfigChange.mock.calls[
+        onConfigChange.mock.calls.length - 1
+      ][0] as GraphWorkflowConfig;
+      const newId = Object.keys(next.nodes).filter((id) => id !== "seed")[0];
+      // Canvas raises onSelectNode with the new id so the right-rail
+      // switches to it.
+      await waitFor(() => {
+        expect(onSelectNode).toHaveBeenCalledWith(newId);
+      });
+      // The host typically pushes the updated config straight back —
+      // mirror that and confirm the canvas's US-014 auto-fit kicks in
+      // for the new node.
+      mockFitView.mockClear();
+      rerenderWithConfig(next, newId);
+      await flushAnimationFrame();
+      expect(mockFitView).toHaveBeenCalledWith(
+        expect.objectContaining({ nodes: [{ id: newId }] }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

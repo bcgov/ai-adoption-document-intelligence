@@ -116,7 +116,7 @@ visible UX features.
 - [x] **US-050** (auto-apply on template load)
 
 ### Phase 5 — canvas interactions
-- [ ] **US-045** (hover-to-extend chains)
+- [x] **US-045** (hover-to-extend chains)
 - [x] **US-046** (canvas context menu)
 - [x] **US-047** (node-type swap, depends on US-046)
 
