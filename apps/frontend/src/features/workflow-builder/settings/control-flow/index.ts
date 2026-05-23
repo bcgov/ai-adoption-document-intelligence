@@ -7,6 +7,10 @@
  */
 
 export {
+  JoinNodeSettings,
+  type JoinNodeSettingsProps,
+} from "./JoinNodeSettings";
+export {
   MapNodeSettings,
   type MapNodeSettingsProps,
 } from "./MapNodeSettings";

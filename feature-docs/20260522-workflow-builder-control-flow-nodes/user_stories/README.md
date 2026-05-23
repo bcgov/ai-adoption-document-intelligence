@@ -54,7 +54,7 @@ After implementing the user story check it off at the bottom of this file.
 ### Phase 2 — Per-type forms, canvas, palette (parallelizable after Phase 1)
 - [x] **US-004** (SwitchNodeSettings) — consumes US-002, US-003
 - [x] **US-005** (MapNodeSettings) — consumes US-001
-- [ ] **US-006** (JoinNodeSettings) — consumes US-001
+- [x] **US-006** (JoinNodeSettings) — consumes US-001
 - [ ] **US-007** (ChildWorkflowNodeSettings) — no primitive deps
 - [ ] **US-008** (PollUntilNodeSettings) — consumes US-003
 - [ ] **US-009** (HumanGateNodeSettings) — consumes US-002
