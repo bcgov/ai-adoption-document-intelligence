@@ -14,6 +14,7 @@ import {
 } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
+  Autocomplete,
   Badge,
   Box,
   Button,
@@ -118,6 +119,11 @@ function ActivityNodeSettings({
     const parsed = entry.parametersSchema.safeParse(node.parameters ?? {});
     return parsed;
   }, [entry, node.parameters]);
+
+  const inputCtxOptions = useMemo(
+    () => buildInputCtxOptions(config, node.id),
+    [config, node.id],
+  );
 
   const updateNode = (next: ActivityNode) => {
     onConfigChange({
@@ -231,6 +237,7 @@ function ActivityNodeSettings({
             ports={entry?.inputs ?? []}
             bindings={node.inputs ?? []}
             onChange={setInputBindings}
+            options={inputCtxOptions}
           />
 
           <Divider />
@@ -254,6 +261,14 @@ interface PortBindingsEditorProps {
   ports: { name: string; label: string; required?: boolean }[];
   bindings: PortBinding[];
   onChange: (next: PortBinding[]) => void;
+  /**
+   * If supplied, the editor renders an Autocomplete sourced from these
+   * grouped suggestions instead of a free-text TextInput. Used for input
+   * bindings where suggestions come from workflow ctx + other nodes'
+   * outputs; output bindings leave this undefined so the user can declare
+   * a fresh ctx key.
+   */
+  options?: { group: string; items: string[] }[];
 }
 
 function PortBindingsEditor({
@@ -262,6 +277,7 @@ function PortBindingsEditor({
   ports,
   bindings,
   onChange,
+  options,
 }: PortBindingsEditorProps) {
   if (ports.length === 0) {
     return (
@@ -275,6 +291,14 @@ function PortBindingsEditor({
       </Box>
     );
   }
+  const setBinding = (portName: string, ctxKey: string) => {
+    const without = bindings.filter((b) => b.port !== portName);
+    if (ctxKey === "") {
+      onChange(without);
+    } else {
+      onChange([...without, { port: portName, ctxKey }]);
+    }
+  };
   return (
     <Box>
       <Text size="xs" fw={600}>
@@ -288,28 +312,68 @@ function PortBindingsEditor({
       <Stack gap={4} mt={4}>
         {ports.map((port) => {
           const existing = bindings.find((b) => b.port === port.name);
+          const fieldLabel = port.required ? `${port.label} *` : port.label;
+          if (options) {
+            return (
+              <Autocomplete
+                key={port.name}
+                label={fieldLabel}
+                placeholder="ctx key (e.g. preparedData)"
+                value={existing?.ctxKey ?? ""}
+                data={options}
+                size="xs"
+                onChange={(v) => setBinding(port.name, v)}
+              />
+            );
+          }
           return (
             <TextInput
               key={port.name}
-              label={port.required ? `${port.label} *` : port.label}
+              label={fieldLabel}
               placeholder="ctx key (e.g. preparedData)"
               value={existing?.ctxKey ?? ""}
               size="xs"
-              onChange={(e) => {
-                const ctxKey = e.currentTarget.value;
-                const without = bindings.filter((b) => b.port !== port.name);
-                if (ctxKey === "") {
-                  onChange(without);
-                } else {
-                  onChange([...without, { port: port.name, ctxKey }]);
-                }
-              }}
+              onChange={(e) => setBinding(port.name, e.currentTarget.value)}
             />
           );
         })}
       </Stack>
     </Box>
   );
+}
+
+/**
+ * Build grouped Autocomplete suggestions for input port bindings.
+ * Group 1: workflow-level ctx declarations.
+ * Group 2: ctxKeys other nodes write to via their output bindings,
+ * minus anything already listed in group 1.
+ */
+function buildInputCtxOptions(
+  config: GraphWorkflowConfig,
+  currentNodeId: string,
+): { group: string; items: string[] }[] {
+  const ctxDeclared = Object.keys(config.ctx).sort();
+  const declaredSet = new Set(ctxDeclared);
+  const otherOutputs = new Set<string>();
+  for (const [id, n] of Object.entries(config.nodes)) {
+    if (id === currentNodeId) continue;
+    for (const binding of n.outputs ?? []) {
+      if (binding.ctxKey && !declaredSet.has(binding.ctxKey)) {
+        otherOutputs.add(binding.ctxKey);
+      }
+    }
+  }
+  const groups: { group: string; items: string[] }[] = [];
+  if (ctxDeclared.length > 0) {
+    groups.push({ group: "Workflow context", items: ctxDeclared });
+  }
+  if (otherOutputs.size > 0) {
+    groups.push({
+      group: "Other nodes' outputs",
+      items: [...otherOutputs].sort(),
+    });
+  }
+  return groups;
 }
 
 function PanelShell({ children }: { children: React.ReactNode }) {
