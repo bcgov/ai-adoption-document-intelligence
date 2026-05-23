@@ -2,8 +2,25 @@ import { z } from "zod/v4";
 import type { ActivityCatalogEntry } from "../types";
 
 const FIELD_TYPES = ["text", "number", "currency"] as const;
-const MATCH_OPERATORS = ["exact", "approximately"] as const;
+// Must mirror `ValidationRule.operator` in
+// apps/temporal/src/activities/document-validate-fields.ts — the runtime
+// activity treats anything other than `"approximately"` as exact equality
+// via the `"equals"` literal. Keeping the catalog vocabulary identical so
+// editor-authored rules round-trip into a shape the activity consumes
+// without translation.
+const MATCH_OPERATORS = ["equals", "approximately"] as const;
 const MATCH_TYPES = ["any", "all"] as const;
+
+const arithmeticExpressionSchema = z.object({
+  operation: z.enum(["sum", "difference", "product"]).meta({
+    title: "Operation",
+  }),
+  fields: z
+    .array(z.string().min(1))
+    .min(1)
+    .meta({ title: "Operand field paths" }),
+  equals: z.string().min(1).meta({ title: "Expected field path" }),
+});
 
 const toleranceSchema = z.object({
   amount: z.number().optional().meta({ title: "Tolerance amount" }),
@@ -31,14 +48,11 @@ const fieldMatchRuleSchema = z.object({
 const arithmeticRuleSchema = z.object({
   type: z.literal("arithmetic"),
   name: z.string().min(1).meta({ title: "Rule name" }),
-  operation: z.enum(["sum", "difference", "product"]).meta({
-    title: "Operation",
+  expression: arithmeticExpressionSchema.meta({
+    title: "Expression",
+    description:
+      "Operation + operand fields + expected-equals field; e.g. `gross - deductions = net`.",
   }),
-  fields: z
-    .array(z.string().min(1))
-    .min(1)
-    .meta({ title: "Operand field paths" }),
-  equals: z.string().min(1).meta({ title: "Expected field path" }),
   operator: z.enum(MATCH_OPERATORS).meta({ title: "Operator" }),
   tolerance: toleranceSchema.optional(),
   fieldType: z.enum(FIELD_TYPES).meta({ title: "Field type" }),
