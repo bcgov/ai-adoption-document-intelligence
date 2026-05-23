@@ -8,6 +8,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +20,25 @@ import type {
   PortBinding,
 } from "../../../../types/workflow";
 import { ChildWorkflowNodeSettings } from "./ChildWorkflowNodeSettings";
+
+vi.mock("../../../../auth/GroupContext", () => ({
+  useGroup: () => ({ activeGroup: { id: "group-1", name: "Group 1" } }),
+}));
+
+vi.mock("../../../../data/services/api.service", () => ({
+  apiService: {
+    get: vi.fn(async (url: string) => {
+      // List endpoint variants: return an empty workflows array.
+      if (url.startsWith("/workflows?") || url === "/workflows") {
+        return { success: true, data: { workflows: [] } };
+      }
+      // Single-workflow GETs (`/workflows/:id`) — return a failure so
+      // useWorkflow surfaces "Library not found" rather than emitting a
+      // react-query "data is undefined" warning.
+      return { success: false, message: "no test data for this id" };
+    }),
+  },
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,7 +77,14 @@ function childWorkflowNode(
 }
 
 function renderSettings(ui: React.ReactNode) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>{ui}</MantineProvider>
+    </QueryClientProvider>,
+  );
 }
 
 /**
@@ -135,32 +162,56 @@ describe("ChildWorkflowNodeSettings — Scenario 1: ref-type SegmentedControl to
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 2: Library mode renders a TextInput for workflowId
+// Scenario 2 (US-063): Library mode renders the picker button instead of a
+// free-text TextInput. The previous TextInput affordance was removed when
+// the library picker was wired up.
 // ---------------------------------------------------------------------------
 
-describe("ChildWorkflowNodeSettings — Scenario 2: library mode renders a TextInput for workflowId", () => {
-  it("typing a workflow id fires onConfigChange with workflowRef.workflowId set to the typed value", () => {
+describe("ChildWorkflowNodeSettings — Scenario 2 (US-063): library mode shows the picker button", () => {
+  it("renders a 'Pick library workflow' button in place of the free-text workflowId TextInput", () => {
     const initial = childWorkflowNode("c1", "Child", {
       workflowRef: { type: "library", workflowId: "" },
     });
     const config = makeConfig([initial]);
 
-    const { spy } = mountWithSpy(config, "c1");
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
 
-    const input = screen.getByTestId(
-      "child-workflow-node-settings-workflow-id",
-    ) as HTMLInputElement;
-    expect(input.tagName).toBe("INPUT");
-    fireEvent.change(input, { target: { value: "invoice-approval" } });
-    fireEvent.blur(input);
+    expect(
+      screen.getByTestId("child-workflow-node-settings-library-body"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("child-workflow-node-settings-workflow-id"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("child-workflow-node-settings-pick-library"),
+    ).toBeInTheDocument();
+  });
 
-    expect(spy).toHaveBeenCalled();
-    const latest = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
-    const updated = latest.nodes.c1 as ChildWorkflowNode;
-    if (updated.workflowRef.type !== "library") {
-      throw new Error("Expected workflowRef.type === 'library'");
-    }
-    expect(updated.workflowRef.workflowId).toBe("invoice-approval");
+  it("clicking the picker button opens the LibraryPickerModal", () => {
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "library", workflowId: "" },
+    });
+    const config = makeConfig([initial]);
+
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByTestId("child-workflow-node-settings-pick-library"),
+    );
+
+    expect(screen.getByTestId("library-picker-modal")).toBeInTheDocument();
   });
 });
 

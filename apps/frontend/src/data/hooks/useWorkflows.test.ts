@@ -166,8 +166,9 @@ describe("useWorkflows", () => {
         expect(
           cache.some(
             (q) =>
-              JSON.stringify(q.queryKey) ===
-              JSON.stringify(["workflows", activeGroup.id]),
+              Array.isArray(q.queryKey) &&
+              q.queryKey[0] === "workflows" &&
+              q.queryKey[1] === activeGroup.id,
           ),
         ).toBe(true);
       });

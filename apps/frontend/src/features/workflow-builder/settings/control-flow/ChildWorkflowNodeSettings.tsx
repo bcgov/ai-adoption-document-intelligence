@@ -23,6 +23,7 @@
 
 import {
   ActionIcon,
+  Badge,
   Box,
   Button,
   Code,
@@ -34,13 +35,18 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconBook2, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useState } from "react";
+import { useWorkflow } from "../../../../data/hooks/useWorkflows";
 import type {
   ChildWorkflowNode,
+  GraphMetadata,
   GraphWorkflowConfig,
+  LibraryPortDescriptor,
   PortBinding,
 } from "../../../../types/workflow";
 import { VariablePicker } from "../../graph-widgets";
+import { LibraryPickerModal } from "../../library/LibraryPickerModal";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -174,17 +180,10 @@ export function ChildWorkflowNodeSettings({
       </Box>
 
       {node.workflowRef.type === "library" ? (
-        <Box data-testid="child-workflow-node-settings-library-body">
-          <TextInput
-            label="Workflow id"
-            description="The id of a stored workflow this node should invoke as a child."
-            placeholder="e.g. invoice-approval"
-            size="xs"
-            value={node.workflowRef.workflowId}
-            onChange={(event) => setWorkflowId(event.currentTarget.value)}
-            data-testid="child-workflow-node-settings-workflow-id"
-          />
-        </Box>
+        <LibraryRefBody
+          workflowId={node.workflowRef.workflowId}
+          onPick={(picked) => setWorkflowId(picked)}
+        />
       ) : (
         <Box data-testid="child-workflow-node-settings-inline-body">
           <Text size="xs" c="dimmed" mb="xs">
@@ -368,6 +367,121 @@ function MappingRow({
           data-testid={`${testIdBase}-ctx-key`}
         />
       </Stack>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Library reference body — opens LibraryPickerModal, shows the picked
+// library's signature read-only (US-063).
+// ---------------------------------------------------------------------------
+
+interface LibraryRefBodyProps {
+  workflowId: string;
+  onPick: (workflowId: string) => void;
+}
+
+function LibraryRefBody({ workflowId, onPick }: LibraryRefBodyProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const { data: pickedLibrary, isLoading: isLoadingLibrary } =
+    useWorkflow(workflowId);
+
+  const metadata = pickedLibrary?.config.metadata as GraphMetadata | undefined;
+  const declaredInputs: LibraryPortDescriptor[] = metadata?.inputs ?? [];
+  const declaredOutputs: LibraryPortDescriptor[] = metadata?.outputs ?? [];
+
+  return (
+    <Box data-testid="child-workflow-node-settings-library-body">
+      <Stack gap="xs">
+        <Group justify="space-between" align="center">
+          <Title order={6} style={{ margin: 0 }}>
+            Library workflow
+          </Title>
+          <Button
+            size="compact-xs"
+            variant="light"
+            leftSection={<IconBook2 size={12} />}
+            onClick={() => setPickerOpen(true)}
+            data-testid="child-workflow-node-settings-pick-library"
+          >
+            {workflowId ? "Change library" : "Pick library workflow"}
+          </Button>
+        </Group>
+        {!workflowId && (
+          <Text size="xs" c="dimmed">
+            Click "Pick library workflow" to select an existing library by
+            signature.
+          </Text>
+        )}
+        {workflowId && (
+          <Box
+            data-testid="child-workflow-node-settings-library-summary"
+            style={{
+              border: "1px solid var(--mantine-color-default-border, #2c2e33)",
+              borderRadius: 4,
+              padding: 8,
+            }}
+          >
+            {isLoadingLibrary ? (
+              <Text size="xs" c="dimmed">
+                Loading library signature…
+              </Text>
+            ) : pickedLibrary ? (
+              <Stack gap={4}>
+                <Group gap={6} wrap="nowrap">
+                  <Text size="xs" fw={600}>
+                    {pickedLibrary.name}
+                  </Text>
+                  <Badge size="xs" variant="light" color="blue">
+                    {declaredInputs.length} input
+                    {declaredInputs.length === 1 ? "" : "s"}
+                  </Badge>
+                  <Badge size="xs" variant="light" color="grape">
+                    {declaredOutputs.length} output
+                    {declaredOutputs.length === 1 ? "" : "s"}
+                  </Badge>
+                </Group>
+                <Text size="10px" c="dimmed" ff="monospace">
+                  {pickedLibrary.slug} · {workflowId}
+                </Text>
+                {declaredInputs.length > 0 && (
+                  <Text size="10px" c="dimmed">
+                    <strong>Inputs:</strong>{" "}
+                    {declaredInputs
+                      .map((i) => `${i.label} (${i.type})`)
+                      .join(", ")}
+                  </Text>
+                )}
+                {declaredOutputs.length > 0 && (
+                  <Text size="10px" c="dimmed">
+                    <strong>Outputs:</strong>{" "}
+                    {declaredOutputs
+                      .map((o) => `${o.label} (${o.type})`)
+                      .join(", ")}
+                  </Text>
+                )}
+              </Stack>
+            ) : (
+              <Stack gap={4}>
+                <Text size="xs" c="orange">
+                  Library not found (id may be stale).
+                </Text>
+                <Text size="10px" c="dimmed" ff="monospace">
+                  {workflowId}
+                </Text>
+              </Stack>
+            )}
+          </Box>
+        )}
+      </Stack>
+      <LibraryPickerModal
+        opened={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(picked) => {
+          onPick(picked.id);
+          setPickerOpen(false);
+        }}
+      />
     </Box>
   );
 }

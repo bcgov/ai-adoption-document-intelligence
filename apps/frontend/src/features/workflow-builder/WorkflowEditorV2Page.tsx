@@ -38,6 +38,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
+  IconBookmark,
   IconCircleCheck,
   IconDeviceFloppy,
   IconExclamationCircle,
@@ -66,6 +67,10 @@ import {
 } from "./canvas/auto-layout";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { createGroupFromSelection } from "./group/create-group";
+import {
+  SaveAsLibraryModal,
+  type SaveAsLibrarySubmission,
+} from "./library/SaveAsLibraryModal";
 import { ActivityPalette } from "./palette/ActivityPalette";
 import {
   buildControlFlowSkeleton,
@@ -176,6 +181,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
+  const [saveAsLibraryOpen, setSaveAsLibraryOpen] = useState(false);
   const [validationFocusNodeId, setValidationFocusNodeId] = useState<
     string | null
   >(null);
@@ -409,6 +415,46 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     workflowId,
   ]);
 
+  const handleSaveAsLibrary = useCallback(
+    async (submission: SaveAsLibrarySubmission): Promise<void> => {
+      const cleanedName = submission.name.trim() || "Untitled library";
+      const cleanedDescription = submission.description.trim();
+      const dto: CreateWorkflowDto = {
+        name: cleanedName,
+        description: cleanedDescription || undefined,
+        kind: "library",
+        config: {
+          ...config,
+          metadata: {
+            ...config.metadata,
+            name: cleanedName,
+            description: cleanedDescription || undefined,
+            kind: "library",
+            inputs: submission.inputs,
+            outputs: submission.outputs,
+          },
+        },
+      };
+      try {
+        await createWorkflow.mutateAsync(dto);
+        notifications.show({
+          color: "green",
+          title: "Saved as library",
+          message: `Library "${cleanedName}" created. Open it from the library picker on any childWorkflow node.`,
+        });
+        setSaveAsLibraryOpen(false);
+      } catch (err) {
+        notifications.show({
+          color: "red",
+          title: "Save as library failed",
+          message: err instanceof Error ? err.message : "Unknown error.",
+        });
+        throw err;
+      }
+    },
+    [config, createWorkflow],
+  );
+
   const isSaving = createWorkflow.isPending || updateWorkflow.isPending;
   const nodeCount = useMemo(
     () => Object.keys(config.nodes).length,
@@ -527,8 +573,24 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             onClick={handleSave}
             loading={isSaving}
             size="xs"
+            data-testid="save-button"
           >
             Save
+          </Button>
+          <Button
+            variant="light"
+            leftSection={<IconBookmark size={14} />}
+            onClick={() => setSaveAsLibraryOpen(true)}
+            size="xs"
+            data-testid="save-as-library-button"
+            disabled={nodeCount === 0}
+            title={
+              nodeCount === 0
+                ? "Add at least one node before saving as a library"
+                : "Save the current workflow as a reusable library"
+            }
+          >
+            Save as library
           </Button>
           <Button
             variant="subtle"
@@ -557,6 +619,15 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         config={config}
         onSelectNode={setSelectedNodeId}
         focusedNodeId={validationFocusNodeId}
+      />
+
+      <SaveAsLibraryModal
+        opened={saveAsLibraryOpen}
+        onClose={() => setSaveAsLibraryOpen(false)}
+        initialName={name}
+        initialDescription={description}
+        isSaving={createWorkflow.isPending}
+        onSubmit={handleSaveAsLibrary}
       />
 
       <Box

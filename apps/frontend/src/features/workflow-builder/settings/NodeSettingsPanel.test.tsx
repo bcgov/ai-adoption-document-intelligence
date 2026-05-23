@@ -8,9 +8,26 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../../../auth/GroupContext", () => ({
+  useGroup: () => ({ activeGroup: { id: "group-1", name: "Group 1" } }),
+}));
+
+vi.mock("../../../data/services/api.service", () => ({
+  apiService: {
+    get: vi.fn(async (url: string) => {
+      if (url.startsWith("/workflows?") || url === "/workflows") {
+        return { success: true, data: { workflows: [] } };
+      }
+      return { success: false, message: "no test data for this id" };
+    }),
+  },
+}));
+
 import type {
   ActivityNode,
   ChildWorkflowNode,
@@ -128,7 +145,14 @@ function makeConfig(
 }
 
 function renderPanel(ui: React.ReactNode) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>{ui}</MantineProvider>
+    </QueryClientProvider>,
+  );
 }
 
 /**

@@ -22,6 +22,13 @@ export interface CreateWorkflowDto {
   name: string;
   description?: string;
   config: GraphWorkflowConfig;
+  /**
+   * Workflow kind: "workflow" (or absent) creates a regular primary
+   * workflow; "library" creates a library workflow whose top-level
+   * `metadata.inputs[]` / `metadata.outputs[]` define its signature
+   * for use as a `childWorkflow` target.
+   */
+  kind?: "workflow" | "library";
 }
 
 interface WorkflowsResponse {
@@ -34,26 +41,30 @@ interface WorkflowResponse {
 
 export function useWorkflows(options?: {
   includeBenchmarkCandidates?: boolean;
+  /** Filter by workflow kind. Omit to return non-library workflows. */
+  kind?: "workflow" | "library";
 }) {
   const { activeGroup } = useGroup();
   const includeBenchmarkCandidates = Boolean(
     options?.includeBenchmarkCandidates,
   );
+  const kind = options?.kind;
 
   return useQuery({
-    queryKey: includeBenchmarkCandidates
-      ? ["workflows", activeGroup?.id, true]
-      : ["workflows", activeGroup?.id],
+    queryKey: ["workflows", activeGroup?.id, includeBenchmarkCandidates, kind],
     queryFn: async (): Promise<WorkflowInfo[]> => {
-      let url = activeGroup?.id
-        ? `/workflows?groupId=${activeGroup.id}`
-        : "/workflows";
-
-      if (includeBenchmarkCandidates) {
-        url += activeGroup?.id
-          ? "&includeBenchmarkCandidates=true"
-          : "?includeBenchmarkCandidates=true";
+      const params: string[] = [];
+      if (activeGroup?.id) {
+        params.push(`groupId=${activeGroup.id}`);
       }
+      if (includeBenchmarkCandidates) {
+        params.push("includeBenchmarkCandidates=true");
+      }
+      if (kind) {
+        params.push(`kind=${kind}`);
+      }
+      const url =
+        params.length > 0 ? `/workflows?${params.join("&")}` : "/workflows";
       const response = await apiService.get<WorkflowsResponse>(url);
       if (!response.success) {
         throw new Error(response.message || "Failed to fetch workflows");
