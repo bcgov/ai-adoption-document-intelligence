@@ -7,6 +7,10 @@
  */
 
 export {
+  ChildWorkflowNodeSettings,
+  type ChildWorkflowNodeSettingsProps,
+} from "./ChildWorkflowNodeSettings";
+export {
   JoinNodeSettings,
   type JoinNodeSettingsProps,
 } from "./JoinNodeSettings";
