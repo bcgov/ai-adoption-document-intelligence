@@ -52,7 +52,7 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-003** (ConditionExpressionEditor primitive) — required by US-004, US-008
 
 ### Phase 2 — Per-type forms, canvas, palette (parallelizable after Phase 1)
-- [ ] **US-004** (SwitchNodeSettings) — consumes US-002, US-003
+- [x] **US-004** (SwitchNodeSettings) — consumes US-002, US-003
 - [ ] **US-005** (MapNodeSettings) — consumes US-001
 - [ ] **US-006** (JoinNodeSettings) — consumes US-001
 - [ ] **US-007** (ChildWorkflowNodeSettings) — no primitive deps
