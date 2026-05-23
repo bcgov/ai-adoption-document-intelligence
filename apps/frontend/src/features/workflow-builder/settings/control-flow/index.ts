@@ -7,6 +7,10 @@
  */
 
 export {
+  MapNodeSettings,
+  type MapNodeSettingsProps,
+} from "./MapNodeSettings";
+export {
   SwitchNodeSettings,
   type SwitchNodeSettingsProps,
 } from "./SwitchNodeSettings";
