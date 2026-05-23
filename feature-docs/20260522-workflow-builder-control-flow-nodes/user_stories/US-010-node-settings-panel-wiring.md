@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Non-activity node selection mounts the matching per-type form
+- [x] **Scenario 1**: Non-activity node selection mounts the matching per-type form
     - **Given** a graph with one node of each control-flow type
     - **When** the user clicks each one in turn
     - **Then** the right rail mounts `SwitchNodeSettings`, `MapNodeSettings`, `JoinNodeSettings`, `ChildWorkflowNodeSettings`, `PollUntilNodeSettings`, or `HumanGateNodeSettings` respectively — and the legacy stub is gone
 
-- [ ] **Scenario 2**: Common header is preserved across all node types
+- [x] **Scenario 2**: Common header is preserved across all node types
     - **Given** a non-activity node is selected
     - **When** the settings panel renders
     - **Then** the label input, type badge, and delete button still appear above the per-type body, identical to the activity-node panel
 
-- [ ] **Scenario 3**: Common footer (input/output port bindings) is preserved
+- [x] **Scenario 3**: Common footer (input/output port bindings) is preserved
     - **Given** a non-activity node with `inputs` and `outputs` is selected
     - **When** the settings panel renders
     - **Then** the input-port and output-port binding sections appear below the per-type body, identical to the activity-node panel
 
-- [ ] **Scenario 4**: Saving / dirty-state matches the activity-node experience
+- [x] **Scenario 4**: Saving / dirty-state matches the activity-node experience
     - **Given** the user makes edits in a per-type form
     - **When** the change fires
     - **Then** the surrounding editor's dirty-state and save flow behave exactly as they do for activity-node edits (`onConfigChange` bubbles up and the Save button reflects pending changes)

@@ -62,7 +62,7 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-012** (Canvas per-type shapes) — independent of Phase 2 forms; required for visual differentiation
 
 ### Phase 3 — Wiring
-- [ ] **US-010** (NodeSettingsPanel wiring) — depends on all of US-004 through US-009
+- [x] **US-010** (NodeSettingsPanel wiring) — depends on all of US-004 through US-009
 
 ### Phase 4 — Verification
 - [ ] **US-013** (Validation surfacing verification) — depends on US-010, US-011, US-012

@@ -1,11 +1,20 @@
 /**
  * Right-rail node-settings panel.
  *
- * Schema-driven for activity nodes — pulls the activity's catalog entry
- * and renders the static-parameter form via JsonSchemaForm. Also
- * surfaces the node's label, input port bindings, and output port
- * bindings. The settings panel is the only place a workflow author edits
- * a single node's per-instance config.
+ * Two layers:
+ *   1. A shared chrome (label / type badge / delete affordance at the top,
+ *      port-binding editors at the bottom) that all node types share.
+ *   2. A type-specific body in the middle:
+ *        - "activity"      → schema-driven `JsonSchemaForm`
+ *        - "switch"        → `SwitchNodeSettings`
+ *        - "map"           → `MapNodeSettings`
+ *        - "join"          → `JoinNodeSettings`
+ *        - "childWorkflow" → `ChildWorkflowNodeSettings`
+ *        - "pollUntil"     → `PollUntilNodeSettings`
+ *        - "humanGate"     → `HumanGateNodeSettings`
+ *
+ * TypeScript discriminated-union narrowing on `node.type` lets each
+ * per-type form receive the correctly-typed node prop.
  */
 
 import {
@@ -30,12 +39,21 @@ import { IconStar, IconTrash } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type {
   ActivityNode,
+  GraphNode,
   GraphWorkflowConfig,
   PortBinding,
 } from "../../../types/workflow";
 import { getActivityVisualHints } from "../catalog-utils";
 import { VariablePicker } from "../graph-widgets";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
+import {
+  ChildWorkflowNodeSettings,
+  HumanGateNodeSettings,
+  JoinNodeSettings,
+  MapNodeSettings,
+  PollUntilNodeSettings,
+  SwitchNodeSettings,
+} from "./control-flow";
 
 interface NodeSettingsPanelProps {
   config: GraphWorkflowConfig;
@@ -65,22 +83,8 @@ export function NodeSettingsPanel({
     );
   }
 
-  if (node.type !== "activity") {
-    return (
-      <PanelShell>
-        <Stack p="md">
-          <Title order={5}>{node.label}</Title>
-          <Text size="xs" c="dimmed">
-            Settings for {node.type} nodes are not yet supported in V2. Switch
-            to the JSON editor to configure this node.
-          </Text>
-        </Stack>
-      </PanelShell>
-    );
-  }
-
   return (
-    <ActivityNodeSettings
+    <NodeSettings
       node={node}
       config={config}
       onConfigChange={onConfigChange}
@@ -89,22 +93,374 @@ export function NodeSettingsPanel({
   );
 }
 
-interface ActivityNodeSettingsProps {
-  node: ActivityNode;
+// ---------------------------------------------------------------------------
+// Top-level per-node panel — composes shared header + type-specific body +
+// shared port-bindings footer.
+// ---------------------------------------------------------------------------
+
+interface NodeSettingsProps {
+  node: GraphNode;
   config: GraphWorkflowConfig;
   onConfigChange: (next: GraphWorkflowConfig) => void;
   onDeleteSelected: () => void;
 }
 
-function ActivityNodeSettings({
+function NodeSettings({
   node,
   config,
   onConfigChange,
   onDeleteSelected,
-}: ActivityNodeSettingsProps) {
-  const entry = ACTIVITY_CATALOG[node.activityType];
-  const hints = getActivityVisualHints(node.activityType);
+}: NodeSettingsProps) {
+  const updateNode = (next: GraphNode) => {
+    onConfigChange({
+      ...config,
+      nodes: { ...config.nodes, [node.id]: next },
+    });
+  };
+
+  const setLabel = (label: string) => {
+    // Discriminated-union-safe label update: rebuild the node literally so
+    // the union's narrow members are preserved on the type level.
+    switch (node.type) {
+      case "activity":
+        updateNode({ ...node, label });
+        return;
+      case "switch":
+        updateNode({ ...node, label });
+        return;
+      case "map":
+        updateNode({ ...node, label });
+        return;
+      case "join":
+        updateNode({ ...node, label });
+        return;
+      case "childWorkflow":
+        updateNode({ ...node, label });
+        return;
+      case "pollUntil":
+        updateNode({ ...node, label });
+        return;
+      case "humanGate":
+        updateNode({ ...node, label });
+        return;
+    }
+  };
+
+  const setInputBindings = (next: PortBinding[]) => {
+    switch (node.type) {
+      case "activity":
+        updateNode({ ...node, inputs: next });
+        return;
+      case "switch":
+        updateNode({ ...node, inputs: next });
+        return;
+      case "map":
+        updateNode({ ...node, inputs: next });
+        return;
+      case "join":
+        updateNode({ ...node, inputs: next });
+        return;
+      case "childWorkflow":
+        updateNode({ ...node, inputs: next });
+        return;
+      case "pollUntil":
+        updateNode({ ...node, inputs: next });
+        return;
+      case "humanGate":
+        updateNode({ ...node, inputs: next });
+        return;
+    }
+  };
+
+  const setOutputBindings = (next: PortBinding[]) => {
+    switch (node.type) {
+      case "activity":
+        updateNode({ ...node, outputs: next });
+        return;
+      case "switch":
+        updateNode({ ...node, outputs: next });
+        return;
+      case "map":
+        updateNode({ ...node, outputs: next });
+        return;
+      case "join":
+        updateNode({ ...node, outputs: next });
+        return;
+      case "childWorkflow":
+        updateNode({ ...node, outputs: next });
+        return;
+      case "pollUntil":
+        updateNode({ ...node, outputs: next });
+        return;
+      case "humanGate":
+        updateNode({ ...node, outputs: next });
+        return;
+    }
+  };
+
+  return (
+    <PanelShell>
+      <ScrollArea style={{ flex: 1, height: "100%" }} type="auto">
+        <Stack gap="md" p="md">
+          <NodeHeader
+            node={node}
+            config={config}
+            onConfigChange={onConfigChange}
+            onDeleteSelected={onDeleteSelected}
+          />
+
+          <Divider />
+
+          <TextInput
+            label="Node label"
+            description="Shown on the canvas and in error messages."
+            value={node.label}
+            onChange={(e) => setLabel(e.currentTarget.value)}
+            size="xs"
+            data-testid="node-settings-label"
+          />
+
+          <Divider />
+
+          <NodeBody
+            node={node}
+            config={config}
+            onConfigChange={onConfigChange}
+          />
+
+          <Divider />
+
+          <PortBindingsFooter
+            node={node}
+            config={config}
+            onInputsChange={setInputBindings}
+            onOutputsChange={setOutputBindings}
+          />
+        </Stack>
+      </ScrollArea>
+    </PanelShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared header: icon / display name / type badge / entry-point + delete
+// affordances.
+// ---------------------------------------------------------------------------
+
+interface NodeHeaderProps {
+  node: GraphNode;
+  config: GraphWorkflowConfig;
+  onConfigChange: (next: GraphWorkflowConfig) => void;
+  onDeleteSelected: () => void;
+}
+
+function NodeHeader({
+  node,
+  config,
+  onConfigChange,
+  onDeleteSelected,
+}: NodeHeaderProps) {
   const isEntry = config.entryNodeId === node.id;
+
+  const setEntryNode = () => {
+    onConfigChange({ ...config, entryNodeId: node.id });
+  };
+
+  // Activity nodes show the catalog's display name + icon; control-flow
+  // nodes don't have a catalog entry, so fall back to the node's label and
+  // a neutral icon.
+  const display = useMemo(() => {
+    if (node.type === "activity") {
+      const entry = ACTIVITY_CATALOG[node.activityType];
+      const hints = getActivityVisualHints(node.activityType);
+      return {
+        title: entry?.displayName ?? node.activityType,
+        icon: hints.icon,
+        subtitle: node.activityType,
+        description: hints.description,
+      };
+    }
+    return {
+      title: node.label || node.type,
+      icon: CONTROL_FLOW_ICONS[node.type],
+      subtitle: node.type,
+      description: CONTROL_FLOW_DESCRIPTIONS[node.type],
+    };
+  }, [node]);
+
+  return (
+    <Stack gap={4}>
+      <Group gap="xs" wrap="nowrap">
+        <Text size="lg" style={{ lineHeight: 1 }}>
+          {display.icon}
+        </Text>
+        <Title order={5} style={{ margin: 0 }}>
+          {display.title}
+        </Title>
+        <Badge
+          size="xs"
+          color="gray"
+          variant="light"
+          data-testid="node-settings-type-badge"
+        >
+          {node.type}
+        </Badge>
+        {isEntry && (
+          <Badge size="xs" color="blue" variant="filled">
+            ENTRY
+          </Badge>
+        )}
+      </Group>
+      <Text size="xs" c="dimmed" ff="monospace">
+        {display.subtitle}
+      </Text>
+      {display.description && (
+        <Text size="xs" c="dimmed">
+          {display.description}
+        </Text>
+      )}
+      <Group gap="xs" mt={4}>
+        {!isEntry && (
+          <Tooltip label="Make this node the entry point" withArrow>
+            <Button
+              size="compact-xs"
+              variant="light"
+              leftSection={<IconStar size={12} />}
+              onClick={setEntryNode}
+            >
+              Set as entry
+            </Button>
+          </Tooltip>
+        )}
+        <Tooltip label="Delete this node" withArrow>
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="red"
+            onClick={onDeleteSelected}
+            aria-label="Delete node"
+            data-testid="node-settings-delete"
+          >
+            <IconTrash size={14} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    </Stack>
+  );
+}
+
+const CONTROL_FLOW_ICONS: Record<
+  Exclude<GraphNode["type"], "activity">,
+  string
+> = {
+  switch: "◆",
+  map: "⇉",
+  join: "⇇",
+  childWorkflow: "⊞",
+  pollUntil: "⟳",
+  humanGate: "🛂",
+};
+
+const CONTROL_FLOW_DESCRIPTIONS: Record<
+  Exclude<GraphNode["type"], "activity">,
+  string
+> = {
+  switch: "Branches the workflow on the first matching case.",
+  map: "Fans out the workflow over each item in a collection.",
+  join: "Collects iterations from a matching Map node.",
+  childWorkflow: "Invokes a stored or inline child workflow.",
+  pollUntil: "Repeats an activity until a termination condition is met.",
+  humanGate: "Pauses the workflow waiting for a human signal.",
+};
+
+// ---------------------------------------------------------------------------
+// Type-specific body — discriminated union narrows `node.type` so each
+// per-type form receives the correctly narrowed `node` prop.
+// ---------------------------------------------------------------------------
+
+interface NodeBodyProps {
+  node: GraphNode;
+  config: GraphWorkflowConfig;
+  onConfigChange: (next: GraphWorkflowConfig) => void;
+}
+
+function NodeBody({ node, config, onConfigChange }: NodeBodyProps) {
+  switch (node.type) {
+    case "activity":
+      return (
+        <ActivityNodeBody
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+    case "switch":
+      return (
+        <SwitchNodeSettings
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+    case "map":
+      return (
+        <MapNodeSettings
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+    case "join":
+      return (
+        <JoinNodeSettings
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+    case "childWorkflow":
+      return (
+        <ChildWorkflowNodeSettings
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+    case "pollUntil":
+      return (
+        <PollUntilNodeSettings
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+    case "humanGate":
+      return (
+        <HumanGateNodeSettings
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Activity body (was previously inlined in ActivityNodeSettings).
+// ---------------------------------------------------------------------------
+
+interface ActivityNodeBodyProps {
+  node: ActivityNode;
+  config: GraphWorkflowConfig;
+  onConfigChange: (next: GraphWorkflowConfig) => void;
+}
+
+function ActivityNodeBody({
+  node,
+  config,
+  onConfigChange,
+}: ActivityNodeBodyProps) {
+  const entry = ACTIVITY_CATALOG[node.activityType];
 
   const paramsSchema = useMemo(
     () =>
@@ -120,144 +476,131 @@ function ActivityNodeSettings({
     return parsed;
   }, [entry, node.parameters]);
 
-  const updateNode = (next: ActivityNode) => {
+  const setParameters = (parameters: Record<string, unknown>) =>
     onConfigChange({
       ...config,
-      nodes: { ...config.nodes, [node.id]: next },
+      nodes: { ...config.nodes, [node.id]: { ...node, parameters } },
     });
-  };
-
-  const setLabel = (label: string) => updateNode({ ...node, label });
-
-  const setParameters = (parameters: Record<string, unknown>) =>
-    updateNode({ ...node, parameters });
-
-  const setEntryNode = () => {
-    onConfigChange({ ...config, entryNodeId: node.id });
-  };
-
-  const setInputBindings = (next: PortBinding[]) =>
-    updateNode({ ...node, inputs: next });
-
-  const setOutputBindings = (next: PortBinding[]) =>
-    updateNode({ ...node, outputs: next });
 
   return (
-    <PanelShell>
-      <ScrollArea style={{ flex: 1, height: "100%" }} type="auto">
-        <Stack gap="md" p="md">
-          <Stack gap={4}>
-            <Group gap="xs" wrap="nowrap">
-              <Text size="lg" style={{ lineHeight: 1 }}>
-                {hints.icon}
-              </Text>
-              <Title order={5} style={{ margin: 0 }}>
-                {entry?.displayName ?? node.activityType}
-              </Title>
-              {isEntry && (
-                <Badge size="xs" color="blue" variant="filled">
-                  ENTRY
-                </Badge>
-              )}
-            </Group>
-            <Text size="xs" c="dimmed" ff="monospace">
-              {node.activityType}
-            </Text>
-            {hints.description && (
-              <Text size="xs" c="dimmed">
-                {hints.description}
-              </Text>
-            )}
-            <Group gap="xs" mt={4}>
-              {!isEntry && (
-                <Tooltip label="Make this node the entry point" withArrow>
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    leftSection={<IconStar size={12} />}
-                    onClick={setEntryNode}
-                  >
-                    Set as entry
-                  </Button>
-                </Tooltip>
-              )}
-              <Tooltip label="Delete this node" withArrow>
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="red"
-                  onClick={onDeleteSelected}
-                  aria-label="Delete node"
-                >
-                  <IconTrash size={14} />
-                </ActionIcon>
-              </Tooltip>
-            </Group>
-          </Stack>
-
-          <Divider />
-
-          <TextInput
-            label="Node label"
-            description="Shown on the canvas and in error messages."
-            value={node.label}
-            onChange={(e) => setLabel(e.currentTarget.value)}
-            size="xs"
-          />
-
-          <Divider />
-
-          <Box>
-            <Text size="xs" fw={600} mb={4}>
-              Parameters
-            </Text>
-            <JsonSchemaForm
-              schema={paramsSchema}
-              value={node.parameters ?? {}}
-              onChange={setParameters}
-            />
-            {validation && !validation.success && (
-              <Text size="10px" c="red" mt={6}>
-                {validation.error.issues.length} validation issue
-                {validation.error.issues.length === 1 ? "" : "s"}
-              </Text>
-            )}
-          </Box>
-
-          <Divider />
-
-          <PortBindingsEditor
-            label="Input bindings"
-            description="Each input reads from a ctx key."
-            ports={entry?.inputs ?? []}
-            bindings={node.inputs ?? []}
-            onChange={setInputBindings}
-            config={config}
-            currentNodeId={node.id}
-            useVariablePicker
-          />
-
-          <Divider />
-
-          <PortBindingsEditor
-            label="Output bindings"
-            description="Each output writes to a ctx key."
-            ports={entry?.outputs ?? []}
-            bindings={node.outputs ?? []}
-            onChange={setOutputBindings}
-            config={config}
-            currentNodeId={node.id}
-          />
-        </Stack>
-      </ScrollArea>
-    </PanelShell>
+    <Box>
+      <Text size="xs" fw={600} mb={4}>
+        Parameters
+      </Text>
+      <JsonSchemaForm
+        schema={paramsSchema}
+        value={node.parameters ?? {}}
+        onChange={setParameters}
+      />
+      {validation && !validation.success && (
+        <Text size="10px" c="red" mt={6}>
+          {validation.error.issues.length} validation issue
+          {validation.error.issues.length === 1 ? "" : "s"}
+        </Text>
+      )}
+    </Box>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Shared footer: input + output port bindings.
+//
+// For activity nodes the port list comes from the catalog entry (so the
+// editor renders a row per declared port even when the binding is empty).
+// For control-flow nodes there's no catalog entry; we render rows per
+// existing binding so the same UI shape is preserved without inventing
+// ports that don't exist on the type.
+// ---------------------------------------------------------------------------
+
+interface PortBindingsFooterProps {
+  node: GraphNode;
+  config: GraphWorkflowConfig;
+  onInputsChange: (next: PortBinding[]) => void;
+  onOutputsChange: (next: PortBinding[]) => void;
+}
+
+function PortBindingsFooter({
+  node,
+  config,
+  onInputsChange,
+  onOutputsChange,
+}: PortBindingsFooterProps) {
+  const inputs = node.inputs ?? [];
+  const outputs = node.outputs ?? [];
+
+  const inputPorts = useMemo(
+    () => portsForFooter(node, inputs, "inputs"),
+    [node, inputs],
+  );
+  const outputPorts = useMemo(
+    () => portsForFooter(node, outputs, "outputs"),
+    [node, outputs],
+  );
+
+  return (
+    <>
+      <PortBindingsEditor
+        label="Input bindings"
+        description="Each input reads from a ctx key."
+        ports={inputPorts}
+        bindings={inputs}
+        onChange={onInputsChange}
+        config={config}
+        currentNodeId={node.id}
+        useVariablePicker
+        testId="node-settings-input-bindings"
+      />
+
+      <Divider />
+
+      <PortBindingsEditor
+        label="Output bindings"
+        description="Each output writes to a ctx key."
+        ports={outputPorts}
+        bindings={outputs}
+        onChange={onOutputsChange}
+        config={config}
+        currentNodeId={node.id}
+        testId="node-settings-output-bindings"
+      />
+    </>
+  );
+}
+
+interface PortSpec {
+  name: string;
+  label: string;
+  required?: boolean;
+}
+
+function portsForFooter(
+  node: GraphNode,
+  currentBindings: PortBinding[],
+  kind: "inputs" | "outputs",
+): PortSpec[] {
+  if (node.type === "activity") {
+    const entry = ACTIVITY_CATALOG[node.activityType];
+    const portsFromCatalog = (entry ? entry[kind] : []) ?? [];
+    return portsFromCatalog.map((p) => ({
+      name: p.name,
+      label: p.label,
+      required: p.required,
+    }));
+  }
+  // Control-flow nodes don't have a catalog-defined port list; render one
+  // row per currently bound port so existing bindings remain visible /
+  // editable.
+  return currentBindings.map((b) => ({ name: b.port, label: b.port }));
+}
+
+// ---------------------------------------------------------------------------
+// Port bindings editor (shared between input + output footer sections).
+// ---------------------------------------------------------------------------
 
 interface PortBindingsEditorProps {
   label: string;
   description?: string;
-  ports: { name: string; label: string; required?: boolean }[];
+  ports: PortSpec[];
   bindings: PortBinding[];
   onChange: (next: PortBinding[]) => void;
   config: GraphWorkflowConfig;
@@ -269,6 +612,7 @@ interface PortBindingsEditorProps {
    * so the user can declare a fresh ctx key.
    */
   useVariablePicker?: boolean;
+  testId: string;
 }
 
 function PortBindingsEditor({
@@ -280,10 +624,11 @@ function PortBindingsEditor({
   config,
   currentNodeId,
   useVariablePicker,
+  testId,
 }: PortBindingsEditorProps) {
   if (ports.length === 0) {
     return (
-      <Box>
+      <Box data-testid={testId}>
         <Text size="xs" fw={600}>
           {label}
         </Text>
@@ -302,7 +647,7 @@ function PortBindingsEditor({
     }
   };
   return (
-    <Box>
+    <Box data-testid={testId}>
       <Text size="xs" fw={600}>
         {label}
       </Text>
