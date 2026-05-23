@@ -126,11 +126,16 @@ describe("WorkflowService", () => {
       });
     });
 
-    it("includes benchmark candidates when flag is set", async () => {
+    it("includes benchmark candidates when flag is set (still excludes library)", async () => {
       mockLineage.findMany.mockResolvedValue([lineageRow]);
-      await service.getUserWorkflows("actor-1", true);
+      await service.getUserWorkflows("actor-1", {
+        includeBenchmarkCandidates: true,
+      });
       expect(mockLineage.findMany).toHaveBeenCalledWith({
-        where: { actor_id: "actor-1" },
+        where: {
+          actor_id: "actor-1",
+          workflow_kind: { not: "library" },
+        },
         include: { headVersion: true },
         orderBy: { created_at: "desc" },
       });
@@ -151,14 +156,132 @@ describe("WorkflowService", () => {
       });
     });
 
-    it("includes benchmark candidates when flag is set", async () => {
+    it("includes benchmark candidates when flag is set (still excludes library)", async () => {
       mockLineage.findMany.mockResolvedValue([lineageRow]);
-      await service.getGroupWorkflows(["group-1"], true);
+      await service.getGroupWorkflows(["group-1"], {
+        includeBenchmarkCandidates: true,
+      });
       expect(mockLineage.findMany).toHaveBeenCalledWith({
-        where: { group_id: { in: ["group-1"] } },
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: { not: "library" },
+        },
         include: { headVersion: true },
         orderBy: { created_at: "desc" },
       });
+    });
+
+    it("kind=library filters strictly to library workflows", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], { kind: "library" });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: "library",
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind=workflow filters strictly to primary workflows", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], { kind: "workflow" });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: "primary",
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind takes precedence over includeBenchmarkCandidates", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], {
+        kind: "library",
+        includeBenchmarkCandidates: true,
+      });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: "library",
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+  });
+
+  describe("getAllWorkflowLineages", () => {
+    it("excludes library workflows in the default unfiltered listing", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getAllWorkflowLineages();
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: { workflow_kind: "primary" },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind=library returns only library lineages", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getAllWorkflowLineages({ kind: "library" });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: { workflow_kind: "library" },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+  });
+
+  describe("createWorkflow with kind: library", () => {
+    it("persists workflow_kind = library on the lineage row", async () => {
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { id?: string; group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) {
+            return null;
+          }
+          return { ...lineageRow, headVersion };
+        },
+      );
+
+      await service.createWorkflow("actor-1", {
+        name: "My Library",
+        groupId: "group-1",
+        config: makeGraphConfig(),
+        kind: "library",
+      });
+
+      expect(mockLineage.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          workflow_kind: "library",
+          actor_id: "actor-1",
+          group_id: "group-1",
+          name: "My Library",
+        }),
+      });
+    });
+
+    it("defaults to primary kind when kind is omitted", async () => {
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { id?: string; group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) {
+            return null;
+          }
+          return { ...lineageRow, headVersion };
+        },
+      );
+
+      await service.createWorkflow("actor-1", {
+        name: "Regular",
+        groupId: "group-1",
+        config: makeGraphConfig(),
+      });
+
+      const createCall = mockLineage.create.mock.calls[0][0];
+      expect(createCall.data.workflow_kind).toBeUndefined();
     });
   });
 

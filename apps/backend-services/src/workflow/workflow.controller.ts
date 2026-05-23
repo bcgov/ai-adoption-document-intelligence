@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -40,9 +41,29 @@ import {
 } from "./dto/workflow-info.dto";
 import {
   WorkflowInfo,
+  WorkflowKindFilter,
   WorkflowService,
   WorkflowVersionSummary,
 } from "./workflow.service";
+
+const ALLOWED_WORKFLOW_KIND_FILTERS: readonly WorkflowKindFilter[] = [
+  "workflow",
+  "library",
+];
+
+function parseWorkflowKindFilter(
+  raw: string | undefined,
+): WorkflowKindFilter | undefined {
+  if (raw === undefined || raw === "") {
+    return undefined;
+  }
+  if ((ALLOWED_WORKFLOW_KIND_FILTERS as readonly string[]).includes(raw)) {
+    return raw as WorkflowKindFilter;
+  }
+  throw new BadRequestException(
+    `Invalid 'kind' value. Allowed: ${ALLOWED_WORKFLOW_KIND_FILTERS.join(", ")}`,
+  );
+}
 
 @ApiTags("Workflow")
 @Controller("api/workflows")
@@ -63,10 +84,20 @@ export class WorkflowController {
     description:
       "When true, include benchmark candidate workflow lineages in the list",
   })
+  @ApiQuery({
+    name: "kind",
+    required: false,
+    enum: ["workflow", "library"],
+    description:
+      "Filter by workflow kind. When set, overrides the default filter (which excludes library workflows). Values: 'workflow' (primary lineages only) or 'library' (library workflows only).",
+  })
   @ApiOkResponse({
     description:
       "Returns the list of workflows belonging to the authenticated user's groups",
     type: WorkflowListResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid 'kind' query parameter value",
   })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getWorkflows(
@@ -74,14 +105,18 @@ export class WorkflowController {
     @Query("includeBenchmarkCandidates") includeBenchmarkCandidates:
       | string
       | undefined,
+    @Query("kind") kind: string | undefined,
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
-    const includeCandidates = includeBenchmarkCandidates === "true";
+    const options = {
+      includeBenchmarkCandidates: includeBenchmarkCandidates === "true",
+      kind: parseWorkflowKindFilter(kind),
+    };
     if (groupId) {
       identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
       const workflows = await this.workflowService.getGroupWorkflows(
         [groupId],
-        includeCandidates,
+        options,
       );
       return { workflows };
     }
@@ -90,7 +125,7 @@ export class WorkflowController {
 
     if (groupIds === undefined) {
       const workflows =
-        await this.workflowService.getAllWorkflowLineages(includeCandidates);
+        await this.workflowService.getAllWorkflowLineages(options);
       return { workflows };
     }
 
@@ -100,7 +135,7 @@ export class WorkflowController {
 
     const workflows = await this.workflowService.getGroupWorkflows(
       groupIds,
-      includeCandidates,
+      options,
     );
     return { workflows };
   }

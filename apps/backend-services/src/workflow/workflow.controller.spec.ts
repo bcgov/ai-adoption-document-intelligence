@@ -84,7 +84,12 @@ describe("WorkflowController", () => {
   describe("getWorkflows", () => {
     it("returns empty array when no identity is set", async () => {
       const req = { resolvedIdentity: undefined } as unknown as Request;
-      const result = await controller.getWorkflows(undefined, undefined, req);
+      const result = await controller.getWorkflows(
+        undefined,
+        undefined,
+        undefined,
+        req,
+      );
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
@@ -94,7 +99,12 @@ describe("WorkflowController", () => {
         resolvedIdentity: identityWithGroups({}),
       } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([]);
-      const result = await controller.getWorkflows(undefined, undefined, req);
+      const result = await controller.getWorkflows(
+        undefined,
+        undefined,
+        undefined,
+        req,
+      );
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalledWith(
         undefined,
@@ -108,11 +118,16 @@ describe("WorkflowController", () => {
         }),
       } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(undefined, undefined, req);
+      const result = await controller.getWorkflows(
+        undefined,
+        undefined,
+        undefined,
+        req,
+      );
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
         ["group-1"],
-        false,
+        { includeBenchmarkCandidates: false, kind: undefined },
       );
     });
 
@@ -127,11 +142,17 @@ describe("WorkflowController", () => {
       workflowService.getAllWorkflowLineages.mockResolvedValue([
         mockWorkflowInfo,
       ]);
-      const result = await controller.getWorkflows(undefined, undefined, req);
-      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getAllWorkflowLineages).toHaveBeenCalledWith(
-        false,
+      const result = await controller.getWorkflows(
+        undefined,
+        undefined,
+        undefined,
+        req,
       );
+      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
+      expect(workflowService.getAllWorkflowLineages).toHaveBeenCalledWith({
+        includeBenchmarkCandidates: false,
+        kind: undefined,
+      });
     });
 
     it("includes benchmark candidates when flag is true", async () => {
@@ -141,11 +162,16 @@ describe("WorkflowController", () => {
         }),
       } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(undefined, "true", req);
+      const result = await controller.getWorkflows(
+        undefined,
+        "true",
+        undefined,
+        req,
+      );
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
         ["group-1"],
-        true,
+        { includeBenchmarkCandidates: true, kind: undefined },
       );
     });
 
@@ -156,12 +182,57 @@ describe("WorkflowController", () => {
         }),
       } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows("group-1", undefined, req);
+      const result = await controller.getWorkflows(
+        "group-1",
+        undefined,
+        undefined,
+        req,
+      );
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
         ["group-1"],
-        false,
+        { includeBenchmarkCandidates: false, kind: undefined },
       );
+    });
+
+    it("forwards kind=library to the service", async () => {
+      const req = {
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
+      await controller.getWorkflows(undefined, undefined, "library", req);
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
+        ["group-1"],
+        { includeBenchmarkCandidates: false, kind: "library" },
+      );
+    });
+
+    it("forwards kind=workflow to the service", async () => {
+      const req = {
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
+      await controller.getWorkflows(undefined, undefined, "workflow", req);
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
+        ["group-1"],
+        { includeBenchmarkCandidates: false, kind: "workflow" },
+      );
+    });
+
+    it("rejects invalid kind values with BadRequestException", async () => {
+      const req = {
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      await expect(
+        controller.getWorkflows(undefined, undefined, "garbage", req),
+      ).rejects.toThrow(/Invalid 'kind' value/);
+      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
 
     it("throws ForbiddenException when groupId is provided but identity cannot access it", async () => {
@@ -171,7 +242,7 @@ describe("WorkflowController", () => {
         }),
       } as Request;
       await expect(
-        controller.getWorkflows("group-1", undefined, req),
+        controller.getWorkflows("group-1", undefined, undefined, req),
       ).rejects.toThrow(ForbiddenException);
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });

@@ -45,11 +45,61 @@ export interface WorkflowVersionSummary {
   createdAt: Date;
 }
 
+/**
+ * Public-facing workflow kinds for list-API filtering. Maps to the
+ * Prisma `WorkflowKind` enum: `"workflow"` ↔ `primary`,
+ * `"library"` ↔ `library`. Internal `benchmark_candidate` is reached
+ * via the orthogonal `includeBenchmarkCandidates` flag.
+ */
+export type WorkflowKindFilter = "workflow" | "library";
+
 export interface CreateWorkflowDto {
   name: string;
   description?: string;
   config: GraphWorkflowConfig;
   groupId: string;
+  /**
+   * Workflow kind. `"workflow"` (or absent) creates a regular
+   * `primary` lineage; `"library"` creates a reusable building-block
+   * whose declared `metadata.inputs[]` / `metadata.outputs[]` define
+   * its signature.
+   */
+  kind?: WorkflowKindFilter;
+}
+
+/** Options for the three workflow-listing service methods. */
+export interface ListWorkflowsOptions {
+  /** Include `workflow_kind: benchmark_candidate` rows; default false. */
+  includeBenchmarkCandidates?: boolean;
+  /**
+   * When set, filter strictly to this kind (overrides
+   * `includeBenchmarkCandidates`). When unset, the default behavior
+   * applies: `primary` only, optionally with benchmark candidates,
+   * and library rows are always excluded.
+   */
+  kind?: WorkflowKindFilter;
+}
+
+/**
+ * Build the Prisma `workflow_kind` `where` clause for the listing
+ * methods. Pulled out so the three list methods stay in lock-step.
+ */
+function buildWorkflowKindWhere(
+  options?: ListWorkflowsOptions,
+):
+  | { workflow_kind: "primary" | "library" }
+  | { workflow_kind: { not: "library" } }
+  | {} {
+  if (options?.kind === "library") {
+    return { workflow_kind: "library" };
+  }
+  if (options?.kind === "workflow") {
+    return { workflow_kind: "primary" };
+  }
+  if (options?.includeBenchmarkCandidates) {
+    return { workflow_kind: { not: "library" } };
+  }
+  return { workflow_kind: "primary" };
 }
 
 @Injectable()
@@ -309,12 +359,12 @@ export class WorkflowService {
 
   async getUserWorkflows(
     actorId: string,
-    includeBenchmarkCandidates = false,
+    options?: ListWorkflowsOptions,
   ): Promise<WorkflowInfo[]> {
     const lineages = await this.prisma.workflowLineage.findMany({
       where: {
         actor_id: actorId,
-        ...(includeBenchmarkCandidates ? {} : { workflow_kind: "primary" }),
+        ...buildWorkflowKindWhere(options),
       },
       include: this.lineageWithHead,
       orderBy: { created_at: "desc" },
@@ -332,12 +382,12 @@ export class WorkflowService {
 
   async getGroupWorkflows(
     groupIds: string[],
-    includeBenchmarkCandidates = false,
+    options?: ListWorkflowsOptions,
   ): Promise<WorkflowInfo[]> {
     const lineages = await this.prisma.workflowLineage.findMany({
       where: {
         group_id: { in: groupIds },
-        ...(includeBenchmarkCandidates ? {} : { workflow_kind: "primary" }),
+        ...buildWorkflowKindWhere(options),
       },
       include: this.lineageWithHead,
       orderBy: { created_at: "desc" },
@@ -357,10 +407,10 @@ export class WorkflowService {
    * All workflow lineages (system admin listing).
    */
   async getAllWorkflowLineages(
-    includeBenchmarkCandidates = false,
+    options?: ListWorkflowsOptions,
   ): Promise<WorkflowInfo[]> {
     const lineages = await this.prisma.workflowLineage.findMany({
-      where: includeBenchmarkCandidates ? {} : { workflow_kind: "primary" },
+      where: buildWorkflowKindWhere(options),
       include: this.lineageWithHead,
       orderBy: { created_at: "desc" },
     });
@@ -413,6 +463,7 @@ export class WorkflowService {
           description: dto.description ?? null,
           actor_id: actorId,
           group_id: dto.groupId,
+          ...(dto.kind === "library" ? { workflow_kind: "library" } : {}),
         },
       });
       const versionRow = await tx.workflowVersion.create({
