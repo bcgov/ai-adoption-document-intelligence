@@ -1,6 +1,6 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-26 (Phase 1B closed; **Phase 2 Track 1 — library workflow management — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit (Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params). Phase 2 Track 1 added 4 commits (docs + Milestone A schema/types + Milestone B backend filter + Milestones C+D frontend modals). **48 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close, post-Playwright verification.
+**Last updated:** 2026-05-26 (Phase 1B closed; **Phase 2 Track 1 — library workflow management — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit (Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params). Phase 2 Track 1 added 4 commits (docs + Milestone A schema/types + Milestone B backend filter + Milestones C+D frontend modals). **49 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close, post-Playwright verification (includes the SESSION_HANDOFF refresh commit `b4c7e257`).
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
 
@@ -53,12 +53,12 @@ Critical preferences (honour these):
 ## Branch + git state
 
 - **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (Dylan's shared-package consolidation; **not yet merged to develop**).
-- **48 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close (2026-05-26).
+- **49 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close (2026-05-26), including the SESSION_HANDOFF refresh commit `b4c7e257`.
 - **Pre-existing commit `b86741c7`** "deps: pin cross-platform native binaries in root optionalDependencies" — unrelated to the workflow builder; should land as its own PR against develop. Cherry-pick onto a dedicated branch before opening the workflow-builder PR. Don't bundle it.
 
 **Phase 2 Track 1 commits landed in this session (2026-05-26, most recent first):**
 
-- `<latest>` SESSION_HANDOFF refresh post-Track-1 closeout (this commit)
+- `b4c7e257` docs(workflow-builder): refresh SESSION_HANDOFF post-Phase-2-Track-1 closeout
 - `6641288a` feat(workflow-builder): SaveAsLibraryModal + LibraryPickerModal in V2 editor (Milestones C + D — US-059 → US-063)
 - `a7c1ad65` feat(workflow-builder): backend kind=library filter + Save-as-Library kind field (Milestone B — US-057 + US-058)
 - `5cfa11c6` feat(graph-workflow): library workflow kind + GraphMetadata fields (Milestone A — US-054 + US-055 + US-056)
