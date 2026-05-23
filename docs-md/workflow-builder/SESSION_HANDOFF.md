@@ -1,6 +1,6 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-25 (Phase 1B closed — 11 commits landed Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params).
+**Last updated:** 2026-05-26 (Phase 1B closed; **Phase 2 Track 1 — library workflow management — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit (Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params). Phase 2 Track 1 added 4 commits (docs + Milestone A schema/types + Milestone B backend filter + Milestones C+D frontend modals). **48 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close, post-Playwright verification.
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
 
@@ -8,9 +8,17 @@
 
 ## TL;DR for the next AI
 
-Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 is the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
+Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 Track 1 is complete (2026-05-26). Phase 2 Tracks 2 + 3 are the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
 
-**What shipped in Phase 1B (this session + the 2026-05-23 catalog adoption):**
+**What shipped in Phase 2 Track 1 (this session, 2026-05-26):**
+
+- **Schema + shared types (Milestone A — US-054 → US-056):** `library` added to the `WorkflowKind` Prisma enum (alongside `primary` / `benchmark_candidate`) with a new migration `20260523215517_add_library_workflow_kind`. `GraphMetadata` in `packages/graph-workflow/src/types.ts` extended with optional `kind`, `inputs[]`, `outputs[]` + a new `LibraryPortDescriptor` interface (`{ label, path, type }`, types match CtxDeclaration's set). Two new validator tests confirm acceptance of both flavors; 217 → 219 tests passing.
+- **Backend filter (Milestone B — US-057 + US-058):** `GET /api/workflows` accepts `?kind=workflow|library`. Service methods now take a typed `ListWorkflowsOptions` object; new `buildWorkflowKindWhere()` helper centralises the Prisma `workflow_kind` filter. Default unfiltered listing now excludes library workflows (filters `{ not: "library" }` when `includeBenchmarkCandidates=true`). `CreateWorkflowDto.kind?` lets the frontend POST `kind: "library"` to stamp the lineage. Full Swagger `@ApiQuery`/`@ApiBadRequestResponse` decorators. 2123 → 2141 backend tests passing.
+- **Save-as-Library affordance (Milestone C — US-059 → US-061):** New `apps/frontend/src/features/workflow-builder/library/SaveAsLibraryModal.tsx` + `LibraryPortListEditor.tsx`. New "Save as library" top-bar button in `WorkflowEditorV2Page` next to Save. Submitting POSTs a new workflow with `kind: "library"` + `metadata.kind = "library"` + the declared `inputs[]` / `outputs[]`. Always creates a new record (D2); the in-flight workflow is not mutated. Success toast + editor stays put.
+- **Library picker (Milestone D — US-062 + US-063):** New `LibraryPickerModal.tsx` (counterpart to `TemplatesPickerModal`). Fetches via `useWorkflows({ kind: "library" })`. `ChildWorkflowNodeSettings`'s library branch loses the free-text `workflowId` TextInput and grows a "Pick library workflow" button + read-only signature summary (name + slug + inputs/outputs) fetched via `useWorkflow(workflowId)`. 713 → 723 frontend tests passing.
+- **End-to-end verification (Milestone E — US-064):** Playwright walkthrough against the running dev server (with `app-browser-auth` mock auth + seed-default API key after `npm run db:seed`). Confirmed: Save-as-library POSTs the correct DTO (`kind=library`, `metadata.kind=library`, `inputs/outputs` arrays); `?kind=library` returns the new library, default `/workflows` excludes it; childWorkflow picker opens, lists the library, stamps `workflowRef.workflowId` on selection; library summary renders after picking AND after save → reload. Screenshots: `/tmp/wb-phase2-track1-verify/01-09-*.png`. Zero page errors.
+
+**What shipped in Phase 1B (prior session + the 2026-05-23 catalog adoption):**
 
 - **Backend catalog adoption** — `validateGraphConfig` now consumes `createCatalogParameterValidator()` from `@ai-di/graph-workflow`. Both backend + temporal validators inherit. `activity-parameter-schema-registry.ts` deleted in both apps. Catalog drift class closed.
 - **Switch case-routed edges** — `WorkflowEdge` xyflow component with per-type stroke + label pill (case[i] / default / on error). `handleConnect` infers conditional/error/normal from source type + handle id. Fallback-policy nodes grow a second source handle. `SwitchNodeSettings` per-case picker filters to conditional edges.
@@ -45,10 +53,18 @@ Critical preferences (honour these):
 ## Branch + git state
 
 - **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (Dylan's shared-package consolidation; **not yet merged to develop**).
-- **43 commits ahead of `origin/AI-1192`** as of 2026-05-25.
+- **48 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close (2026-05-26).
 - **Pre-existing commit `b86741c7`** "deps: pin cross-platform native binaries in root optionalDependencies" — unrelated to the workflow builder; should land as its own PR against develop. Cherry-pick onto a dedicated branch before opening the workflow-builder PR. Don't bundle it.
 
-**Workflow-builder commits landed in this session (2026-05-25, most recent first):**
+**Phase 2 Track 1 commits landed in this session (2026-05-26, most recent first):**
+
+- `<latest>` SESSION_HANDOFF refresh post-Track-1 closeout (this commit)
+- `6641288a` feat(workflow-builder): SaveAsLibraryModal + LibraryPickerModal in V2 editor (Milestones C + D — US-059 → US-063)
+- `a7c1ad65` feat(workflow-builder): backend kind=library filter + Save-as-Library kind field (Milestone B — US-057 + US-058)
+- `5cfa11c6` feat(graph-workflow): library workflow kind + GraphMetadata fields (Milestone A — US-054 + US-055 + US-056)
+- `d18c6931` docs(workflow-builder): requirements + user stories for Phase 2 Track 1 (library workflows)
+
+**Phase 1B commits landed in the prior session (2026-05-25, most recent first):**
 
 - `4259cd2c` group editing in V2 (US-041 + US-042 + US-043 + US-044) — Milestone H
 - `797252e9` hover-to-extend chains (US-045) — Milestone I
@@ -172,15 +188,30 @@ Dev server lands on `http://localhost:3000/`.
 
 ## What to do next
 
-**Phase 1B is closed.** The next phase is **Phase 2 — Library workflows + workflow-as-API + versioning**. See [IMPLEMENTATION_PLAN.md §5 Phase 2](IMPLEMENTATION_PLAN.md#phase-2--library-workflows--workflow-as-api--versioning) for the full menu. Three independent tracks:
+**Phase 1B + Phase 2 Track 1 are closed.** The next pickup is **Phase 2 Tracks 2 + 3** — workflow-as-API + versioning UI. See [IMPLEMENTATION_PLAN.md §5 Phase 2](IMPLEMENTATION_PLAN.md#phase-2--library-workflows--workflow-as-api--versioning) for the full menu. Two remaining independent tracks:
 
-### Phase 2 short menu
+### Phase 2 remaining tracks
 
-1. **Library workflow management** — saved workflows get `kind: "workflow" | "library"`. Library workflows declare their top-level `inputs[]` / `outputs[]` (which become the port descriptors of `childWorkflow` nodes that reference them in Phase 3). "Save as library" action; library-browser modal counterpart to the templates picker; backend `GET /api/workflows?kind=library`; replace the free-text `workflowId` field in `ChildWorkflowNodeSettings` with the new picker.
-2. **Workflow-as-API surfacing** — every workflow gets a "Run this workflow" panel showing the run-trigger URL, the input schema (derived from the entry node's input port bindings + ctx declarations marked as inputs), a sample `curl`, and auth notes. Plus a paste-JSON-and-run dev affordance for sample testing.
+2. **Workflow-as-API surfacing** — every workflow gets a "Run this workflow" panel showing the run-trigger URL, the input schema (derived from the entry node's input port bindings + ctx declarations marked as inputs), a sample `curl`, and auth notes. Plus a paste-JSON-and-run dev affordance for sample testing. Also surface a "Libraries" tab/page that lists library workflows (today they're only reachable via the library-picker modal — Track 2 is where they get top-level navigation).
 3. **Versioning UI** — the backend already versions workflows via the `WorkflowVersion` schema. Add a version history panel to the editor's top bar. "Revert to version" + "Compare to version" actions. Library workflows pinned by-version in `childWorkflow.workflowRef`: `{ type: "library", workflowId, version?: number }`.
 
-**Recommended first chunk:** Track 1 (library workflows). Tightly scoped, has clear acceptance criteria, and unblocks both Phase 3's typed I/O on `childWorkflow` ports and Phase 7's AI agent (which reads the library).
+**Recommended next chunk:** Track 2 (workflow-as-API) before Track 3 (versioning). The run-trigger panel is the most-asked-for UX in the design brief; versioning is more plumbing-heavy and benefits from having the API panel in place first (e.g., "Run this version" buttons).
+
+**Library follow-ups deferred from Track 1:**
+
+- Track 2 should add a "Libraries" navigation entry / list page. Today, library workflows are only reachable via the picker modal on `childWorkflow` nodes — there's no way to browse or edit them from the workflow list page.
+- Track 3's by-version pin on `childWorkflow.workflowRef` is a natural extension of Track 1's `workflowId` stamping — current behavior is implicit "always head version". A version field gets added when the version history UI lands.
+- The validator doesn't yet verify that a library's `metadata.inputs[].path` references real ctx keys (or that `outputs[].path` is a valid output binding source). That depth-check is filed for Phase 3 typed I/O.
+
+### Phase 2 Track 1 — done. Don't re-implement.
+
+- Schema discriminator: `WorkflowKind.library` enum + migration (US-054).
+- Shared types: `GraphMetadata.kind|inputs|outputs` + `LibraryPortDescriptor` (US-055).
+- Validator accepts the new metadata fields (US-056).
+- Backend `?kind=library` filter + default exclusion + `kind` field on `CreateWorkflowDto` (US-057 + US-058).
+- Frontend "Save as library" top-bar action + `SaveAsLibraryModal` + `LibraryPortListEditor` (US-059 + US-060 + US-061).
+- `LibraryPickerModal` + `ChildWorkflowNodeSettings` picker replacement + signature summary (US-062 + US-063).
+- End-to-end Playwright walkthrough (US-064).
 
 ### Pre-Phase-2 housekeeping (in any order)
 
@@ -243,6 +274,10 @@ ai-adoption-document-intelligence/
 │       │   ├── group/
 │       │   │   ├── create-group.ts
 │       │   │   └── group-icons.ts
+│       │   ├── library/        ← NEW in Phase 2 Track 1
+│       │   │   ├── SaveAsLibraryModal.tsx
+│       │   │   ├── LibraryPortListEditor.tsx
+│       │   │   └── LibraryPickerModal.tsx
 │       │   ├── palette/
 │       │   │   ├── ActivityPalette.tsx
 │       │   │   ├── control-flow-palette-entries.ts
@@ -294,13 +329,20 @@ ai-adoption-document-intelligence/
 
 ## Feature-docs trail
 
-Phase 1B work spread across two feature-doc folders:
+Phase 1B work spread across three feature-doc folders:
 
 - `feature-docs/20260523-workflow-builder-backend-catalog-adoption/` — US-015 → US-020 (Phase 1B item 1)
 - `feature-docs/20260524-workflow-builder-switch-edges-and-validation-editor/` — US-021 → US-030 (Milestones A + B)
 - `feature-docs/20260525-workflow-builder-phase1b-completion/` — US-031 → US-053 (Milestones C through M); umbrella REQUIREMENTS doc
 
-Phase 2 should start a new feature-doc dir, e.g. `feature-docs/20260526-workflow-builder-phase2-library-workflows/`.
+Phase 2 Track 1 lives at:
+
+- `feature-docs/20260526-workflow-builder-phase2-library-workflows/` — US-054 → US-064 (Milestones A → E). REQUIREMENTS.md documents the five locked decisions D1-D5 (schema discriminator extends `WorkflowKind`; "Save as library" creates a new record; default endpoint excludes library; `LibraryPortDescriptor` shape; declarations live on `GraphMetadata`).
+
+Phase 2 Tracks 2 + 3 should start new feature-doc dirs, e.g.:
+
+- `feature-docs/20260527-workflow-builder-phase2-workflow-as-api/`
+- `feature-docs/20260528-workflow-builder-phase2-versioning-ui/`
 
 ---
 

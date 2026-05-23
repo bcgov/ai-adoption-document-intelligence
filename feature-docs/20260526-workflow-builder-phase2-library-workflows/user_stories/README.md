@@ -67,7 +67,7 @@ the frontend picker depends on the backend filter. Order:
 - [x] **US-063** (`ChildWorkflowNodeSettings` wires the picker)
 
 ### Phase 5 — verification
-- [ ] **US-064** (end-to-end Playwright walkthrough — pending dev-server restart + API key)
+- [x] **US-064** (end-to-end Playwright walkthrough — passed; screenshots in `/tmp/wb-phase2-track1-verify/`)
 
 > Phase 1 must land + Vite restart before Phase 3 starts (because the
 > frontend imports the new `LibraryPortDescriptor` type and the new
