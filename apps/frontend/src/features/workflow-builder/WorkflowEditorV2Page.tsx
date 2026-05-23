@@ -33,7 +33,7 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconDeviceFloppy, IconHelp } from "@tabler/icons-react";
+import { IconDeviceFloppy, IconHelp, IconSettings } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -46,6 +46,7 @@ import type { ActivityNode, GraphWorkflowConfig } from "../../types/workflow";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { ActivityPalette } from "./palette/ActivityPalette";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
+import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
 
 const EMPTY_CONFIG: GraphWorkflowConfig = {
   schemaVersion: "1.0",
@@ -78,6 +79,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [description, setDescription] = useState("");
   const [config, setConfig] = useState<GraphWorkflowConfig>(EMPTY_CONFIG);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Hydrate state when the workflow loads in edit mode.
   useEffect(() => {
@@ -280,6 +282,14 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             style={{ minWidth: 200 }}
           />
           <Button
+            variant="light"
+            leftSection={<IconSettings size={14} />}
+            onClick={() => setSettingsOpen(true)}
+            size="xs"
+          >
+            Settings
+          </Button>
+          <Button
             leftSection={<IconDeviceFloppy size={14} />}
             onClick={handleSave}
             loading={isSaving}
@@ -299,6 +309,13 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           </Button>
         </Group>
       </Group>
+
+      <WorkflowSettingsDrawer
+        opened={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        config={config}
+        onConfigChange={setConfig}
+      />
 
       <Box
         style={{
