@@ -42,7 +42,7 @@ import {
   IconSettings,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   type CreateWorkflowDto,
   useCreateWorkflow,
@@ -54,8 +54,15 @@ import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { ActivityPalette } from "./palette/ActivityPalette";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
 import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
+import type { WorkflowTemplate } from "./templates";
 import { useGraphValidation } from "./validation/useGraphValidation";
 import { ValidationDrawer } from "./validation/ValidationDrawer";
+
+/** Router-state payload accepted by /workflows/create-v2 when launched
+ *  from the templates picker. */
+interface CreateV2LocationState {
+  template?: WorkflowTemplate;
+}
 
 const EMPTY_CONFIG: GraphWorkflowConfig = {
   schemaVersion: "1.0",
@@ -76,6 +83,7 @@ interface WorkflowEditorV2PageProps {
 export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const navigate = useNavigate();
   const { workflowId } = useParams<{ workflowId: string }>();
+  const location = useLocation();
   const isEditMode = mode === "edit";
 
   const { data: existingWorkflow, isLoading } = useWorkflow(
@@ -84,13 +92,34 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const createWorkflow = useCreateWorkflow();
   const updateWorkflow = useUpdateWorkflow();
 
-  const [name, setName] = useState("New workflow");
-  const [description, setDescription] = useState("");
-  const [config, setConfig] = useState<GraphWorkflowConfig>(EMPTY_CONFIG);
+  // Template payload from the picker — consumed once on initial mount
+  // for create mode, then cleared from history so a back/forward
+  // doesn't accidentally re-hydrate.
+  const incomingTemplate = !isEditMode
+    ? (location.state as CreateV2LocationState | null)?.template
+    : undefined;
+
+  const [name, setName] = useState(incomingTemplate?.name ?? "New workflow");
+  const [description, setDescription] = useState(
+    incomingTemplate?.description ?? "",
+  );
+  const [config, setConfig] = useState<GraphWorkflowConfig>(
+    incomingTemplate ? incomingTemplate.config : EMPTY_CONFIG,
+  );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
   const validation = useGraphValidation(config);
+
+  // Clear the template from history.state so future back/forward
+  // navigations land on a blank editor (not the templated one).
+  useEffect(() => {
+    if (incomingTemplate) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // Only fires once on mount; deps intentionally empty.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Hydrate state when the workflow loads in edit mode.
   useEffect(() => {

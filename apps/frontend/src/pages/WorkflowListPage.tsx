@@ -13,11 +13,19 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconEdit, IconFlask, IconPlus, IconTrash } from "@tabler/icons-react";
+import {
+  IconEdit,
+  IconFlask,
+  IconPlus,
+  IconTemplate,
+  IconTrash,
+} from "@tabler/icons-react";
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SlugChip } from "../components/workflow/SlugChip";
 import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
+import type { WorkflowTemplate } from "../features/workflow-builder/templates";
+import { TemplatesPickerModal } from "../features/workflow-builder/templates/TemplatesPickerModal";
 
 export function WorkflowListPage() {
   const navigate = useNavigate();
@@ -35,6 +43,12 @@ export function WorkflowListPage() {
     id: string;
     name: string;
   } | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+
+  const handleTemplateSelect = (template: WorkflowTemplate) => {
+    setTemplatesOpen(false);
+    navigate("/workflows/create-v2", { state: { template } });
+  };
 
   const handleDeleteClick = (workflowId: string, workflowName: string) => {
     setWorkflowToDelete({ id: workflowId, name: workflowName });
@@ -95,12 +109,21 @@ export function WorkflowListPage() {
               Create and manage custom OCR processing workflows
             </Text>
           </Stack>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={() => navigate("/workflows/create")}
-          >
-            Create Workflow
-          </Button>
+          <Group gap="xs">
+            <Button
+              variant="light"
+              leftSection={<IconTemplate size={16} />}
+              onClick={() => setTemplatesOpen(true)}
+            >
+              New from template
+            </Button>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => navigate("/workflows/create")}
+            >
+              Create Workflow
+            </Button>
+          </Group>
         </Group>
 
         <Card shadow="sm" radius="md" p="xl" withBorder>
@@ -119,13 +142,21 @@ export function WorkflowListPage() {
                 parameters
               </Text>
             </Stack>
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => navigate("/workflows/create")}
-              mt="md"
-            >
-              Create Your First Workflow
-            </Button>
+            <Group gap="xs" mt="md">
+              <Button
+                variant="light"
+                leftSection={<IconTemplate size={16} />}
+                onClick={() => setTemplatesOpen(true)}
+              >
+                Start from a template
+              </Button>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                onClick={() => navigate("/workflows/create")}
+              >
+                Create Your First Workflow
+              </Button>
+            </Group>
           </Stack>
         </Card>
       </Stack>
@@ -148,6 +179,13 @@ export function WorkflowListPage() {
               }
               label="Show benchmark candidates"
             />
+            <Button
+              variant="light"
+              leftSection={<IconTemplate size={16} />}
+              onClick={() => setTemplatesOpen(true)}
+            >
+              New from template
+            </Button>
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => navigate("/workflows/create")}
@@ -247,6 +285,11 @@ export function WorkflowListPage() {
   return (
     <>
       {main}
+      <TemplatesPickerModal
+        opened={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        onSelect={handleTemplateSelect}
+      />
       <Modal
         opened={deleteModalOpen}
         onClose={handleDeleteCancel}
