@@ -11,6 +11,10 @@ export {
   type ChildWorkflowNodeSettingsProps,
 } from "./ChildWorkflowNodeSettings";
 export {
+  HumanGateNodeSettings,
+  type HumanGateNodeSettingsProps,
+} from "./HumanGateNodeSettings";
+export {
   JoinNodeSettings,
   type JoinNodeSettingsProps,
 } from "./JoinNodeSettings";
