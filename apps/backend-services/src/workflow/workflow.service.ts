@@ -442,6 +442,47 @@ export class WorkflowService {
     return this.mapLineageAndVersion(lineage, lineage.headVersion);
   }
 
+  /**
+   * Resolve a lineage + a specific or head version for the run-spec /
+   * runs endpoints. Splits the 404 (lineage not found) vs 409 (lineage
+   * exists but has no published version) cases so the API can return
+   * useful status codes.
+   */
+  async resolveLineageAndVersion(
+    lineageId: string,
+    workflowVersionId?: string,
+  ): Promise<WorkflowInfo> {
+    const lineage = await this.prisma.workflowLineage.findUnique({
+      where: { id: lineageId },
+      include: this.lineageWithHead,
+    });
+    if (!lineage) {
+      throw new NotFoundException(`Workflow not found: ${lineageId}`);
+    }
+
+    if (workflowVersionId) {
+      const version = await this.prisma.workflowVersion.findUnique({
+        where: { id: workflowVersionId },
+      });
+      if (!version) {
+        throw new NotFoundException(
+          `Workflow version not found: ${workflowVersionId}`,
+        );
+      }
+      if (version.lineage_id !== lineageId) {
+        throw new BadRequestException(
+          `workflowVersionId does not belong to this workflow`,
+        );
+      }
+      return this.mapLineageAndVersion(lineage, version);
+    }
+
+    if (!lineage.headVersion) {
+      throw new ConflictException(`Workflow has no published version yet`);
+    }
+    return this.mapLineageAndVersion(lineage, lineage.headVersion);
+  }
+
   async createWorkflow(
     actorId: string,
     dto: CreateWorkflowDto,

@@ -2,6 +2,9 @@ import { GroupRole } from "@generated/client";
 import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowController } from "./workflow.controller";
 import {
@@ -55,12 +58,14 @@ function identityWithGroups(
 describe("WorkflowController", () => {
   let controller: WorkflowController;
   let workflowService: jest.Mocked<WorkflowService>;
+  let temporalClient: jest.Mocked<TemporalClientService>;
 
   beforeEach(async () => {
     workflowService = {
       getGroupWorkflows: jest.fn(),
       getAllWorkflowLineages: jest.fn(),
       getWorkflow: jest.fn(),
+      resolveLineageAndVersion: jest.fn(),
       listVersions: jest.fn(),
       createWorkflow: jest.fn(),
       updateWorkflow: jest.fn(),
@@ -68,12 +73,24 @@ describe("WorkflowController", () => {
       revertHeadToVersion: jest.fn(),
     } as unknown as jest.Mocked<WorkflowService>;
 
+    temporalClient = {
+      startGraphWorkflow: jest.fn(),
+    } as unknown as jest.Mocked<TemporalClientService>;
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WorkflowController],
       providers: [
         {
           provide: WorkflowService,
           useValue: workflowService,
+        },
+        {
+          provide: TemporalClientService,
+          useValue: temporalClient,
+        },
+        {
+          provide: AppLoggerService,
+          useValue: mockAppLogger,
         },
       ],
     }).compile();
@@ -276,6 +293,242 @@ describe("WorkflowController", () => {
       await expect(controller.getWorkflow("wf-1", req)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+  });
+
+  describe("getRunSpec", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    it("returns a run-spec with trigger URL + schema derived from ctx isInput", async () => {
+      const wfWithInput: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          ctx: {
+            customerId: {
+              type: "string",
+              isInput: true,
+              description: "Customer to process",
+            },
+            internalCounter: { type: "number" },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wfWithInput);
+
+      const result = await controller.getRunSpec("wf-1", mockReq());
+
+      expect(result.triggerUrl).toBe(
+        "http://localhost:3002/api/workflows/wf-1/runs",
+      );
+      expect(Object.keys(result.inputSchema.properties)).toEqual([
+        "customerId",
+      ]);
+      expect(result.inputSchema.required).toEqual(["customerId"]);
+      expect(result.authNotes).toMatch(/x-api-key/);
+      expect(result.sampleCurl).toContain("wf-1/runs");
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+      );
+    });
+
+    it("derives the schema from metadata.inputs[] for a library workflow", async () => {
+      const libWf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          metadata: {
+            kind: "library",
+            inputs: [{ label: "Foo", path: "foo", type: "string" }],
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(libWf);
+
+      const result = await controller.getRunSpec("wf-1", mockReq());
+
+      expect(result.inputSchema.properties.foo).toEqual({
+        type: "string",
+        title: "Foo",
+      });
+      expect(result.inputSchema.required).toEqual(["foo"]);
+    });
+
+    it("propagates NotFoundException from the service", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockRejectedValue(
+        new NotFoundException("Workflow not found: missing"),
+      );
+
+      await expect(controller.getRunSpec("missing", mockReq())).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("propagates ConflictException when the workflow has no published version", async () => {
+      const { ConflictException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockRejectedValue(
+        new ConflictException("Workflow has no published version yet"),
+      );
+
+      await expect(
+        controller.getRunSpec("draft-only", mockReq()),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("throws ForbiddenException when caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(controller.getRunSpec("wf-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
+  describe("startRun", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    const wfWithCustomerInput: WorkflowInfo = {
+      ...mockWorkflowInfo,
+      config: {
+        ...mockGraphConfig,
+        ctx: {
+          customerId: { type: "string", isInput: true },
+        },
+      },
+    };
+
+    it("starts a Temporal run and returns the execution id", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-xyz");
+
+      const result = await controller.startRun(
+        "wf-1",
+        { initialCtx: { customerId: "cust-001" } },
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        workflowId: "graph-adhoc-xyz",
+        workflowVersionId: "wv-wf-1",
+        status: "started",
+      });
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        "wv-wf-1",
+        { customerId: "cust-001" },
+        "group-1",
+      );
+    });
+
+    it("returns 400 when initialCtx is missing a required field", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+
+      await expect(
+        controller.startRun("wf-1", { initialCtx: {} }, mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when an initialCtx field has the wrong type", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+
+      await expect(
+        controller.startRun(
+          "wf-1",
+          { initialCtx: { customerId: 123 } },
+          mockReq(),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    it("accepts a body with no initialCtx for a workflow with no required inputs", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo, // no ctx isInput entries
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-empty");
+
+      const result = await controller.startRun("wf-1", {}, mockReq());
+
+      expect(result.workflowId).toBe("graph-adhoc-empty");
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        "wv-wf-1",
+        {},
+        "group-1",
+      );
+    });
+
+    it("passes through an explicit workflowVersionId", async () => {
+      const olderVersion: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        workflowVersionId: "wv-older",
+        version: 3,
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(olderVersion);
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-ver");
+
+      const result = await controller.startRun(
+        "wf-1",
+        { workflowVersionId: "wv-older" },
+        mockReq(),
+      );
+
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        "wv-older",
+      );
+      expect(result.workflowVersionId).toBe("wv-older");
+    });
+
+    it("throws ForbiddenException when caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(controller.startRun("wf-1", {}, req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
     });
   });
 

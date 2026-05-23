@@ -8,7 +8,7 @@ or feed it directly to a UI that renders the panel.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Endpoint exists at `GET /api/workflows/:id/run-spec`
+- [x] **Scenario 1**: Endpoint exists at `GET /api/workflows/:id/run-spec`
     - **Given** a valid `WorkflowLineage.id` and `x-api-key`
     - **When** `GET /api/workflows/:id/run-spec` is called
     - **Then** a 200 response is returned with `{ triggerUrl, inputSchema, authNotes, sampleCurl }`
@@ -16,29 +16,29 @@ or feed it directly to a UI that renders the panel.
     - **And** `authNotes` is a short string (1-2 sentences) explaining the `x-api-key` header
     - **And** `sampleCurl` is a ready-to-run curl invocation including the `x-api-key` header placeholder + a stub JSON body matching the input schema
 
-- [ ] **Scenario 2**: Unknown workflow id → 404
+- [x] **Scenario 2**: Unknown workflow id → 404
     - **Given** a `WorkflowLineage.id` that does not exist
     - **When** `GET /api/workflows/:id/run-spec` is called
     - **Then** a 404 is returned with a clear `message`
 
-- [ ] **Scenario 3**: Workflow with no published version → 409 (or 200 with empty schema; pick one)
+- [x] **Scenario 3**: Workflow with no published version → 409 (or 200 with empty schema; pick one)
     - **Given** a `WorkflowLineage` that has no `WorkflowVersion` rows yet (`head_version_id` null)
     - **When** the endpoint is called
     - **Then** the response is 409 with a message like `"Workflow has no published version yet"`
     - **And** no Temporal interaction occurs
 
-- [ ] **Scenario 4**: Auth required
+- [x] **Scenario 4**: Auth required
     - **Given** no `x-api-key` header (and no IDIR session)
     - **When** the endpoint is called
     - **Then** a 401 is returned
 
-- [ ] **Scenario 5**: Full Swagger DTOs
+- [x] **Scenario 5**: Full Swagger DTOs
     - **Given** the controller method
     - **When** Swagger UI loads `http://localhost:3002/api/docs`
     - **Then** the endpoint shows specific decorators (`@ApiOkResponse`, `@ApiNotFoundResponse`, `@ApiConflictResponse`, `@ApiUnauthorizedResponse`) with dedicated response DTOs
     - **And** every DTO field has an `@ApiProperty` decorator with `description` + `example`
 
-- [ ] **Scenario 6**: Vitest + supertest coverage
+- [x] **Scenario 6**: Vitest + supertest coverage
     - **Given** the controller test file
     - **When** `npm test` runs in `apps/backend-services`
     - **Then** the happy path, the 404, the 409, and the 401 are all covered

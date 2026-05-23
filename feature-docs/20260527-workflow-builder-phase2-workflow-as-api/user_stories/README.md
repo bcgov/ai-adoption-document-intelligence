@@ -51,10 +51,10 @@ endpoints → frontend drawer + filter → verification.
 - [x] **US-065** (CtxDeclaration `isInput?` flag in `@ai-di/graph-workflow`)
 
 ### Phase 2 — backend
-- [ ] **US-066** (TemporalClientService accepts optional documentId)
-- [ ] **US-067** (GET `/api/workflows/:id/run-spec` endpoint shell + DTOs)
-- [ ] **US-068** (input-schema derivation logic; pure-function unit tests)
-- [ ] **US-069** (POST `/api/workflows/:id/runs` endpoint + DTOs + integration)
+- [x] **US-066** (TemporalClientService accepts optional documentId)
+- [x] **US-067** (GET `/api/workflows/:id/run-spec` endpoint shell + DTOs)
+- [x] **US-068** (input-schema derivation logic; pure-function unit tests)
+- [x] **US-069** (POST `/api/workflows/:id/runs` endpoint + DTOs + integration)
 
 ### Phase 3 — frontend
 - [ ] **US-070** (`WorkflowSettingsDrawer` `isInput` checkbox)

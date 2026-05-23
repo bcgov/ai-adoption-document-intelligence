@@ -186,10 +186,15 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Start a graph workflow execution
+   * Start a graph workflow execution.
+   *
+   * When `documentId` is omitted (ad-hoc run from the Run drawer or
+   * direct API trigger), the doc-specific search attributes / memo
+   * keys are skipped and the Temporal execution id is generated with
+   * a synthetic `graph-adhoc-<uuid>` prefix.
    */
   async startGraphWorkflow(
-    documentId: string,
+    documentId: string | undefined,
     workflowConfigId: string,
     initialCtx: Record<string, unknown>,
     groupId: string | null,
@@ -197,7 +202,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   ): Promise<string> {
     this.ensureClientInitialized();
 
-    const workflowExecutionId = `graph-${documentId}`;
+    const workflowExecutionId = documentId
+      ? `graph-${documentId}`
+      : `graph-adhoc-${crypto.randomUUID()}`;
 
     try {
       this.logger.log(
@@ -219,6 +226,25 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       const workflowType = WORKFLOW_TYPES.GRAPH_WORKFLOW;
       const requestId = getRequestContext()?.requestId;
 
+      const searchAttributes: Record<string, string[]> = documentId
+        ? {
+            DocumentId: [documentId],
+            FileName: [String(initialCtx.fileName ?? "")],
+            FileType: [String(initialCtx.fileType ?? "")],
+            Status: ["ongoing_ocr"],
+          }
+        : {
+            Status: ["ongoing_adhoc"],
+          };
+
+      const memo: Record<string, unknown> = {
+        workflowConfigId,
+        workflowVersion: workflowConfig.version,
+        configHash,
+        runnerVersion,
+        ...(documentId && { documentId }),
+      };
+
       const handle = await this.client!.workflow.start(workflowType, {
         args: [
           {
@@ -233,23 +259,14 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         taskQueue: this.taskQueue,
         workflowId: workflowExecutionId,
         workflowExecutionTimeout: "30 minutes",
-        searchAttributes: {
-          DocumentId: [documentId],
-          FileName: [String(initialCtx.fileName ?? "")],
-          FileType: [String(initialCtx.fileType ?? "")],
-          Status: ["ongoing_ocr"],
-        },
-        memo: {
-          documentId,
-          workflowConfigId,
-          workflowVersion: workflowConfig.version,
-          configHash,
-          runnerVersion,
-        },
+        searchAttributes,
+        memo,
       });
 
       this.logger.log(
-        `Graph workflow started: ${handle.workflowId} for document ${documentId} (config ${workflowConfigId}, version ${workflowConfig.version})`,
+        documentId
+          ? `Graph workflow started: ${handle.workflowId} for document ${documentId} (config ${workflowConfigId}, version ${workflowConfig.version})`
+          : `Graph workflow started: ${handle.workflowId} ad-hoc (config ${workflowConfigId}, version ${workflowConfig.version})`,
       );
       return handle.workflowId;
     } catch (error) {

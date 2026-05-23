@@ -272,6 +272,44 @@ describe("TemporalClientService", () => {
           workflowId: "graph-doc-123",
         }),
       );
+      // Doc-seeded search attributes are present
+      const callArg = mockClient.workflow.start.mock.calls[0][1];
+      expect(callArg.searchAttributes).toEqual({
+        DocumentId: ["doc-123"],
+        FileName: ["test.pdf"],
+        FileType: ["pdf"],
+        Status: ["ongoing_ocr"],
+      });
+      expect(callArg.memo.documentId).toBe("doc-123");
+    });
+
+    it("should start an ad-hoc graph workflow without a documentId", async () => {
+      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+
+      const result = await service.startGraphWorkflow(
+        undefined,
+        "workflow-123",
+        { customerId: "cust-001" },
+        null,
+      );
+
+      expect(result).toBe("workflow-123");
+
+      const callArg = mockClient.workflow.start.mock.calls[0][1];
+      // Ad-hoc workflow id prefix
+      expect(callArg.workflowId).toMatch(/^graph-adhoc-/);
+      // Only the caller's initialCtx is passed through; no doc seed keys
+      expect(callArg.args[0].initialCtx).toEqual({ customerId: "cust-001" });
+      expect(callArg.args[0].initialCtx).not.toHaveProperty("documentId");
+      expect(callArg.args[0].initialCtx).not.toHaveProperty("blobKey");
+      // Search attributes are minimal
+      expect(callArg.searchAttributes).toEqual({ Status: ["ongoing_adhoc"] });
+      // Memo omits the documentId key entirely
+      expect(callArg.memo).not.toHaveProperty("documentId");
+      expect(callArg.memo).toMatchObject({
+        workflowConfigId: "workflow-123",
+        runnerVersion: "1.0.0",
+      });
     });
 
     it("should throw error if client not initialized", async () => {

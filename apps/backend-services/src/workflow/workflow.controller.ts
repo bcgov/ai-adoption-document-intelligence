@@ -3,9 +3,11 @@ import {
   Body,
   Controller,
   Delete,
+  forwardRef,
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   Post,
   Put,
@@ -15,6 +17,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -24,6 +27,7 @@ import {
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
@@ -32,13 +36,20 @@ import {
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
 import { GroupRole } from "@/generated";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
+import { buildRunSpec, buildTriggerUrl } from "./build-run-spec";
+import { deriveInputSchema } from "./derive-input-schema";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
+import { RunSpecResponseDto } from "./dto/run-spec.dto";
+import { StartRunRequestDto, StartRunResponseDto } from "./dto/start-run.dto";
 import {
   RevertHeadDto,
   WorkflowListResponseDto,
   WorkflowResponseDto,
   WorkflowVersionListResponseDto,
 } from "./dto/workflow-info.dto";
+import { validateRunInput } from "./validate-run-input";
 import {
   WorkflowInfo,
   WorkflowKindFilter,
@@ -68,7 +79,12 @@ function parseWorkflowKindFilter(
 @ApiTags("Workflow")
 @Controller("api/workflows")
 export class WorkflowController {
-  constructor(private readonly workflowService: WorkflowService) {}
+  constructor(
+    private readonly workflowService: WorkflowService,
+    @Inject(forwardRef(() => TemporalClientService))
+    private readonly temporalClient: TemporalClientService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   @Get()
   @Identity({ allowApiKey: true })
@@ -159,6 +175,98 @@ export class WorkflowController {
     identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
     const versions = await this.workflowService.listVersions(id);
     return { versions };
+  }
+
+  @Get(":id/run-spec")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Get the run-trigger contract for a workflow (URL, input schema, sample curl, auth notes)",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiOkResponse({
+    description:
+      "Run-trigger spec for the workflow's head version. Library workflows derive their input schema from `metadata.inputs[]`; regular workflows derive it from ctx entries flagged `isInput: true`.",
+    type: RunSpecResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiConflictResponse({ description: "Workflow has no published version yet" })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getRunSpec(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<RunSpecResponseDto> {
+    const wf = await this.workflowService.resolveLineageAndVersion(id);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    const triggerUrl = buildTriggerUrl(req, id);
+    return buildRunSpec(wf.config, triggerUrl);
+  }
+
+  @Post(":id/runs")
+  @HttpCode(HttpStatus.CREATED)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Trigger a workflow run (Temporal execution)",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiBody({
+    type: StartRunRequestDto,
+    description:
+      "`initialCtx` is validated against the workflow's derived input schema (see `GET /api/workflows/:id/run-spec`). `workflowVersionId` is optional and defaults to the head version.",
+  })
+  @ApiCreatedResponse({
+    description:
+      "Run started successfully. Returns the Temporal workflow execution id.",
+    type: StartRunResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Body fails input-schema validation, or `workflowVersionId` does not belong to this lineage.",
+  })
+  @ApiNotFoundResponse({ description: "Workflow or version not found" })
+  @ApiConflictResponse({
+    description: "Workflow has no published version yet",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async startRun(
+    @Param("id") id: string,
+    @Body() body: StartRunRequestDto,
+    @Req() req: Request,
+  ): Promise<StartRunResponseDto> {
+    const wf = await this.workflowService.resolveLineageAndVersion(
+      id,
+      body.workflowVersionId,
+    );
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    const initialCtx = body.initialCtx ?? {};
+    const inputSchema = deriveInputSchema(wf.config);
+    const errors = validateRunInput(inputSchema, initialCtx);
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: "Invalid initialCtx for this workflow's input schema",
+        errors,
+      });
+    }
+
+    const workflowId = await this.temporalClient.startGraphWorkflow(
+      undefined,
+      wf.workflowVersionId,
+      initialCtx,
+      wf.groupId,
+    );
+
+    this.logger.log(
+      `Workflow run started: ${workflowId} (lineage ${id}, version ${wf.workflowVersionId}, ctx keys: [${Object.keys(initialCtx).join(", ")}])`,
+    );
+
+    return {
+      workflowId,
+      workflowVersionId: wf.workflowVersionId,
+      status: "started",
+    };
   }
 
   @Post(":id/revert-head")
