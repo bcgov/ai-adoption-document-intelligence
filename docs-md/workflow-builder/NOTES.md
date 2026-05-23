@@ -2,7 +2,27 @@
 
 **Status:** Living document. Append as new context arrives; don't synthesise away the original framing.
 **Companion:** [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) is the actionable phased plan; this file is the context / vision / research scratchpad behind it.
-**Last updated:** 2026-05-22.
+**Last updated:** 2026-05-23.
+
+## Where each vision thread lives in the plan
+
+A 2026-05-23 gap analysis surfaced that the original IMPLEMENTATION_PLAN.md treated several vision threads as "Phase 8+ polish" when they were actually load-bearing for the AI-builder phase. The plan was re-sequenced; this table is the authoritative cross-reference from each §1 thread to the phase that delivers it. **Update both this table and the plan when a thread moves.**
+
+| Vision thread (§ below) | Delivered by | Status |
+|---|---|---|
+| §1.1 Typed connections (`Document` / `Segment` hierarchy) | **Phase 3** — see [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) | Designed; not yet started |
+| §1.2 Adjustable types (literal vs reference) | Phase 1A — `VariablePicker` | Shipped |
+| §1.3 Workflow-as-API | **Phase 2** (moved from "Phase 8+") | Filed |
+| §1.4 Try-in-place without separate deploy | **Phase 4** (renamed from old Phase 3) | Designed in plan |
+| §1.5 Per-node previews (ComfyUI inspiration) | **Phase 4** — plus cached re-execution, the half of ComfyUI the previous plan revision missed | Designed in plan |
+| §1.6 Dynamic nodes (Windmill) | **Phase 6** | Filed |
+| §1.7 AI-built workflows + feedback loop | **Phase 7** — depends on Phase 2 (libraries), Phase 3 (typed I/O), Phase 6 (dynamic nodes) | Filed; dependency graph explicit |
+| §1.8 Segmentation node pack | **Phase 5** — produces `Segment[]` artifacts typed by Phase 3 | Researched; filed |
+| §1.9 Taxonomy curiosity | §3 below; informed phase ordering | Research-only |
+| §2 Designer feedback | Mostly Phase 1A (✓); hover-extend, node-type swap, label review **moved to Phase 1B** | Phase 1B filed |
+| §4 Segmentation research | Phase 3 (Segment type) + Phase 5 (the nodes) | Filed |
+| §5 Frontend reality (existing components) | Phase 1A used as foundation | Shipped |
+| §7 Things to circle back | Mostly Phase 1B closeout items | Most still open |
 
 ---
 
@@ -14,7 +34,7 @@ Captured as the original verbal stream of consciousness, lightly organised. Trea
 
 > *"The workflow system should be driven by nodes that connect through standard types. So for example, clearly you have document, and you could have a document source — for example SharePoint or API input. Document could be single page or multi page. You can put a multi-page document through a splitter, so it generates single page documents. You could potentially then segment documents — that produces essentially document fragments. Nodes themselves are the units that do work. Nodes can be permissive in the sense that we establish clear class structures — so for example multipage document and single page document are both documents."*
 
-Implication: we eventually want a typed-artifact hierarchy on connections — `Document` as a base, `MultiPageDocument | SinglePageDocument` below it, `Segment` as a fragment, etc. The current engine doesn't honour this (data is blackboard, untyped), so this is a UI-layer assertion: colored/labelled handles + reject type-mismatched draws. **Deferred to [TYPED_IO_BRAINSTORM.md](TYPED_IO_BRAINSTORM.md)** so it doesn't block Phase 1.
+Implication: we eventually want a typed-artifact hierarchy on connections — `Document` as a base, `MultiPageDocument | SinglePageDocument` below it, `Segment` as a fragment, etc. The current engine doesn't honour this (data is blackboard, untyped), so this is a UI-layer assertion: colored/labelled handles + reject type-mismatched draws. **The concrete design is now committed in [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md); delivered in Phase 3 of the post-1A plan.**
 
 ### 1.2 Some types are adjustable (literal vs reference)
 
@@ -26,7 +46,7 @@ The catalog's `PortDescriptor` + the frontend variable picker handle this: every
 
 > *"You should be deploying a workflow so you don't talk to the app just through the API. The API allows you to interact with the workflows, so it's a workflow that has an API."*
 
-Largely true today — Temporal exposes the workflow as a runnable entity. What's missing is the editor-side surfacing of *how* to invoke a given workflow externally (the run URL, the input shape, a sample `curl`). Phase 8+.
+Largely true today — Temporal exposes the workflow as a runnable entity. What's missing is the editor-side surfacing of *how* to invoke a given workflow externally (the run URL, the input shape, a sample `curl`). **Phase 2** — moved up from the old "Phase 8+" bucket because Phase 7's AI agent + Phase 4's try-in-place both need it.
 
 ### 1.4 Impossible to try without deploying — try-in-place
 

@@ -1,10 +1,10 @@
 # Visual Workflow Builder — Implementation Plan
 
-**Status:** Active. Phase 1A in progress.
+**Status:** Active. Phase 1A complete; Phase 1B starting.
 **Owner:** Alex.
-**Last updated:** 2026-05-22.
+**Last updated:** 2026-05-23.
 
-This is the rolling source of truth for what we're building, the architectural decisions, the phased work, and what's explicitly deferred. The companion document [NOTES.md](NOTES.md) captures the user-vision walking notes, designer-conversation outcomes, and research findings that informed the plan.
+This is the rolling source of truth for what we're building, the architectural decisions, the phased work, and what's explicitly deferred. The companion document [NOTES.md](NOTES.md) captures the user-vision walking notes, designer-conversation outcomes, and research findings that informed the plan. The typed-I/O design — foundational for Phase 3 onward — lives in [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md).
 
 ---
 
@@ -94,128 +94,257 @@ Not a sibling package. Activity catalog (display name, category, icon hint, colo
 
 ---
 
-## 4. Phased plan
+## 4. Phase dependencies
 
-### Phase 1A — Foundation slice (~2–3 weeks, in progress)
+The phases form a small DAG, not a strict line. The previous version of this doc numbered phases linearly and that hid two load-bearing dependencies — typed I/O sits *before* segmentation (not after), and library workflows + workflow-as-API are foundations for try-in-place + AI agent (not "Phase 8+" polish).
 
-The smallest scope that produces a working visual editor across the entire current activity surface, with the schema infrastructure that future activities slot into for free.
+```
+                Phase 1A (editor foundation — DONE)
+                            │
+                            ▼
+                Phase 1B (editor completion + backend catalog adoption)
+                            │
+                            ▼
+                Phase 2 (library workflows + workflow-as-API + versioning)
+                            │
+                            ▼
+                Phase 3 (typed I/O artifacts)
+                            │
+              ┌─────────────┼─────────────┐
+              ▼             ▼             ▼
+          Phase 4       Phase 5         Phase 6
+       (try-in-place  (segmentation   (dynamic nodes —
+        + caching +    node pack)      Windmill-style)
+        per-node                              │
+        previews)                             │
+              │             │                 │
+              └─────────────┼─────────────────┘
+                            ▼
+                    Phase 7 (AI workflow builder)
+```
 
-- [x] Cut feature branch off `origin/AI-1192`
-- [x] Add `zod` dependency + Zod v4 catalog scaffolding to `packages/graph-workflow`
-- [x] First activity catalog entry: `file.prepare` (the tracer)
-- [ ] Catalog entries for the remaining ~24 currently-registered activity types — each is a `{...}.ts` file under `packages/graph-workflow/src/catalog/activities/`
-- [ ] Backend `graph-schema-validator` consumes the catalog for parameter validation, replacing the imperative `activity-parameter-schema-registry.ts`
-- [ ] Temporal worker validator does the same
-- [ ] Frontend Mantine JSON Schema form renderer (~300 LOC). Reads JSON Schema produced by `z.toJSONSchema(entry.parametersSchema)`. Mantine widgets per primitive type. Reads `x-widget`, `x-options`, `x-default`, `description` hints.
-- [ ] New page `WorkflowEditorV2Page.tsx` at `/workflows/:id/edit-v2` and `/workflows/create-v2`. Three-column: left palette + centre canvas + right settings panel.
-- [ ] Make `GraphVisualization.tsx` interactive in `mode="edit"`: `isConnectable={true}`, `onConnect` with cycle detection (port the designer's DFS), `onNodesDelete`, `onPaneDrop` for palette drag.
-- [ ] Left palette (Mantine) driven by the catalog. Categorised per design brief §11. `/` search shortcut. Drag-to-canvas + click-to-add-with-hover-extend.
-- [ ] Right node-settings panel (Mantine). Schema-driven for activities. Hand-built for the 6 control-flow node types (switch / map / join / childWorkflow / pollUntil / humanGate). Override slots for activities needing API-driven widgets (preserve the `azureClassify.submit` classifier-dropdown pattern).
-- [ ] Variable pickers in node input slots — autocomplete from ctx declarations + upstream node outputs.
-- [ ] Workflow settings drawer from top bar: name, description, version, tags, ctx declarations, entry node.
-- [ ] Validation surfacing — debounced `validateGraphConfig` from `@ai-di/graph-workflow`, red node badges, click-through error drawer.
-- [ ] Save / load round-trip via existing `useCreateWorkflow` / `useUpdateWorkflow` hooks. Test: load `multi-page-report-workflow.json`, rearrange, save, reload, verify identical config hash (modulo `nodeGroups` per existing hash rule).
-- [ ] Templates picker (static bundle of `docs-md/graph-workflows/templates/*.json`) on the workflow-list page → "New from template" dialog.
+**Why this ordering:**
 
-**Out of Phase 1A, lands in Phase 1B:**
+- **Phase 2 before 3.** `childWorkflow` nodes need typed signatures to be useful in Phase 3; library workflows declare those signatures. Doing typed I/O first means typed handles have nothing to point at except activities.
+- **Phase 3 before 5.** Segmentation produces `Segment[]` artifacts. Without a registered `Segment` type, those are opaque blobs in ctx and the user gets no design-time enforcement that "this segment goes into a table-extraction VLM, that one into a signature classifier."
+- **Phase 4 parallelisable with 5 + 6.** Try-in-place needs Phase 3's typed handles to render type-specific previews (a `Segment<Table>` preview ≠ an `OcrFields` preview), but doesn't depend on 5 or 6.
+- **Phase 7 depends on 2, 3, and 6.** The agent reads library workflows (Phase 2), composes by type (Phase 3), and authors novel work via dynamic nodes (Phase 6).
 
-- Group editing (lasso → group → label/color/icon/exposed-params)
-- Visual condition-builder tree for Switch (AND/OR/NOT). 1A ships a flat single-comparison row.
-- Node-type swap (change a node's type in place, preserving overlapping config) — the designer's request
-- Per-activity rich widgets the generic renderer can't express well (validation-rule list editor, classification-rule list editor, keyword-pattern editor, page-range editor, confusion-map editor) — hand-rolled overrides
-
-### Phase 2 — Polish + per-node rich widgets
-
-- Hand-rolled override widgets for the 5–6 activities that need them (per WORKFLOW_NODE_CATALOG cross-cutting widgets table)
-- Switch's visual AND/OR/NOT condition-tree editor
-- Node-type swap action
-- Group editing UI
-- Better empty-state, undo/redo, keyboard shortcuts
-
-### Phase 3 — Live execution + per-node inspection ("ComfyUI for documents")
-
-Direct from user vision: *"It should be impossible to try workflows without deploying them so you just launch it and try it out"* + per-node previews. See [NOTES.md §1](NOTES.md#1-user-vision).
-
-- Deploy-on-open: launching the editor (or hitting "Try") registers the workflow with Temporal as a draft version and exposes a run endpoint
-- An **Input** affordance on the entry node — upload/select a document, trigger a run from inside the canvas
-- **Per-node preview widgets**: configurable per node type
-  - Activity nodes: last-run output (key-value pairs)
-  - Split nodes: paginated thumbnail strip of segments (the "paging" the user described)
-  - OCR nodes: structured fields preview
-  - Switch nodes: highlight the path that was taken
-- Status overlay on nodes (not started / running / succeeded / failed / skipped) via Temporal query handlers
-- Active edge highlight
-
-### Phase 4 — Typed I/O artifacts (separate brainstorm doc)
-
-Deferred. See [TYPED_IO_BRAINSTORM.md](TYPED_IO_BRAINSTORM.md) (placeholder). When opened, decide whether to introduce typed artifact kinds (`Document`, `MultiPageDocument`, `SinglePageDocument`, `Segment`, `OcrResult`, etc.) as a UI-layer assertion (engine stays untyped — colored handles + reject mismatched connections).
-
-### Phase 5 — Document segmentation node pack
-
-Three-tier segmentation as composable typed nodes — see [NOTES.md §4](NOTES.md#4-document-segmentation-research):
-
-- `document.split.subdocument` — sub-document boundary detection (LLM classifier or rules; reference: LandingAI ADE Split, Sensible)
-- `document.split.layout` — region-level layout segmentation (backend picker: Docling DocLayNet / Azure DI Layout / Unstructured `hi_res`)
-- `text.chunk.semantic` — semantic post-OCR chunking (Azure Content Understanding / LlamaIndex `SemanticSplitterNodeParser`)
-- `segment.crop` — extract a region as a new single-page `Document` for downstream specialized OCR / VLM
-
-Output type is `Segment[]` consumable by any downstream typed node (Phase 4 makes this enforceable in the canvas).
-
-### Phase 6 — Dynamic nodes (Windmill-style)
-
-User vision: *"can we have dynamic nodes or basically nodes that you define at runtime like Windmill"*. See [NOTES.md §1](NOTES.md#1-user-vision).
-
-- A `dynamic-script` activity type that proxies to a sandboxed runtime (Deno / Pyodide / Windmill-style worker)
-- User authors TS or Python with a declared signature → signature drives the form via the same JSON Schema renderer used everywhere else
-- Persist the script + signature alongside the workflow; rebuild palette entry from it
-- Hot-reload into the running editor
-
-Bridges nicely with Phase 7.
-
-### Phase 7 — AI workflow builder (Claude Code sub-agent)
-
-User vision: *"instruct an AI agent to build these workflows for you on the fly… work in a feedback loop where it sets up the pipeline and tests it and if something is not working it tweaks the code reruns it until it delivers what the user asked for"*. See [NOTES.md §1](NOTES.md#1-user-vision).
-
-- `.claude/agents/workflow-builder.md` agent spec
-- Chat surface in the editor invokes the agent via Claude Agent SDK with a constrained tool allowlist: `{ read workflow catalog, write workflow JSON, deploy, run on sample, read results }`
-- The agent loops: build → deploy → run on sample doc → diff against expected → revise
-- When the agent writes Windmill-style scripts (Phase 6), they become palette entries automatically
-- Likely consumes the existing `@ai-di/graph-insertion-slots` package (Dylan's earlier work) as the contract for "where in this workflow can the agent splice nodes?"
-
-### Phase 8+ — Beyond
-
-Things the user mentioned that don't fit cleanly in the above:
-
-- "Workflow as an API" — every workflow is deployable and externally callable. Likely already true via the existing Temporal backend; needs editor-side surfacing of the run URL / sample curl.
-- Library workflows vs starter templates — design brief §7.12 distinguishes them. Initial templates picker is static; library workflows would back into a table once user-saved templates are a thing.
-- Versioning UI on top of existing backend versioning.
+The previous "Phase 8+" bucket (workflow-as-API, library workflows, versioning) is dissolved — each item moved into the phase that needs it.
 
 ---
 
-## 5. Out of scope (explicitly deferred)
+## 5. Phased plan
 
-- **Typed I/O artifacts on the canvas.** Deferred to [TYPED_IO_BRAINSTORM.md](TYPED_IO_BRAINSTORM.md). Engine model stays Model A (single in / single out + blackboard).
-- **Replacing the existing JSON editor.** Coexists for the entire Phase 1 / 2.
+### Phase 1A — Editor foundation (DONE, 2026-05-23)
+
+Shipped on `feature/visual-workflow-builder`, 32 commits ahead of `origin/AI-1192`. What landed:
+
+- [x] Cut feature branch off `origin/AI-1192`
+- [x] Zod v4 catalog scaffolding in `packages/graph-workflow`
+- [x] **All 41 currently-registered activity types** have catalog entries (one `{...}.ts` per type under `packages/graph-workflow/src/catalog/activities/`; 158 catalog tests green including the round-trip pin for `document.validateFields`)
+- [x] Frontend Mantine JSON Schema form renderer — handles string / number / integer / boolean / enum / combobox / discriminated unions / arrays of primitives & simple objects; respects `x-widget`, `x-options`, `x-default`, `description`, `x-step`, `x-options-labels`
+- [x] `WorkflowEditorV2Page.tsx` at `/workflows/:id/edit-v2` and `/workflows/create-v2`; three-column layout
+- [x] Interactive xyflow canvas (`WorkflowEditorCanvas.tsx` — a sibling of the existing read-only `GraphVisualization.tsx`, not a fork of it): per-type shapes for activity / switch (diamond) / map / join / childWorkflow / pollUntil / humanGate; selection / drag / connect / delete; positions persist into `metadata.position`
+- [x] Left palette driven by the catalog, categorised, with `/` search; plus a Flow Control section for the 6 control-flow node types (US-011)
+- [x] Right node-settings panel — schema-driven for activities; hand-rolled per-type for the 6 control-flow node types (US-004 → US-010); 3 reusable graph-aware primitives (`NodePicker`, `EdgePicker`, `ConditionExpressionEditor`, US-001 → US-003)
+- [x] Variable pickers in node input slots (`VariablePicker`) autocomplete from ctx + upstream outputs
+- [x] Workflow settings drawer (name / description / version / tags / ctx / entry node)
+- [x] Validation surfacing (debounced, red node badges, click-through drawer, US-013)
+- [x] Save / load round-trip via `useCreateWorkflow` / `useUpdateWorkflow`. Verified end-to-end on `multi-page-report-workflow.json` via Playwright: 16 nodes / 17 edges / 5 nodeGroups / 17 ctx declarations preserve byte-for-byte
+- [x] Templates picker (static bundle of `docs-md/graph-workflows/templates/*.json`) on the workflow-list page
+- [x] Auto-fit-on-add (US-014, 2026-05-23) — palette adds animate the new node into view
+
+**Approach decisions that landed differently than originally planned:**
+
+- The plan said "make `GraphVisualization.tsx` interactive in `mode="edit"`". We instead built `WorkflowEditorCanvas.tsx` from scratch as a sibling — cleaner separation, the read-only renderer stays unchanged for run-history views.
+- The plan said "click-to-add + hover-to-extend". We shipped click-to-add only; hover-extend chains roll into Phase 1B.
+
+**One real bug surfaced and fixed during 1A closeout:** [document.validateFields](../../packages/graph-workflow/src/catalog/activities/document-validate-fields.ts) catalog schema had drifted from the runtime activity contract (flat `{ operation, fields, equals }` instead of nested `{ expression: { ... } }`; `operator: "exact"` instead of `"equals"`). Fixed + pinned with tests against the template's actual rule shapes ([document-validate-fields.test.ts](../../packages/graph-workflow/src/catalog/activities/document-validate-fields.test.ts)).
+
+### Phase 1B — Editor completion + backend catalog adoption
+
+The "out of Phase 1A" items, the dropped 1A items, and the backend safety work that the validateFields drift exposed during 1A closeout.
+
+**Backend catalog adoption (started here, finishes in Phase 2):**
+
+- [ ] Backend `graph-schema-validator` consumes the catalog for parameter validation, replacing the imperative `activity-parameter-schema-registry.ts` (today only `data.transform` is validated server-side; everything else is unvalidated at save time)
+- [ ] Temporal worker validator does the same on execute time
+- [ ] Regression: re-run the `multi-page-report-workflow.json` save round-trip post-adoption; backend save-time validation should now catch the kind of drift fixed in 1A closeout
+
+**Switch case-routed edge UI:**
+
+- [ ] Custom edge component that colours / labels per-case (port the staggered-label pattern from the read-only `GraphVisualization.tsx`)
+- [ ] `handleConnect` upgrade: stamps `type: "conditional"` for new edges drawn from switch source-nodes; surfaces a per-case picker in the edge component or in the switch settings panel for case-assignment
+- [ ] Error-fallback edges (`type: "error"`) get equivalent treatment — colour + label
+
+**Rich widgets for the complex parameter shapes** (per [WORKFLOW_NODE_CATALOG.md](WORKFLOW_NODE_CATALOG.md) cross-cutting-widgets table; catalog flags these with `x-widget: rich-editor-tbd`):
+
+- [ ] `validateFields.rules` editor — list editor with per-rule-type variant forms (`field-match` / `arithmetic` / `array-match`) reflecting the nested `expression` shape; consumed by the `multi-page-report-workflow.json` template
+- [ ] `splitAndClassify.keywordPatterns` editor — array of `{ pattern, segmentType }` rows
+- [ ] Classification-rule list editor (used by `document.classify`)
+- [ ] Page-range editor (used by `document.split` `custom-ranges` variant — partially shipped in 1A, polish here)
+- [ ] Confusion-map editor (used by `ocr.characterConfusion`)
+
+**Switch condition-builder visual tree:**
+
+- [ ] Replace the flat single-comparison row with a tree editor (AND / OR / NOT) per `ConditionExpression` discriminated union; the recursive primitive `ConditionExpressionEditor` already supports nesting in the form (US-003), this milestone is the visual upgrade
+
+**Group editing UI:**
+
+- [ ] Lasso-select on the canvas → "Group selected" action
+- [ ] Group editor: label / color / icon / `exposedParams[]`
+- [ ] Simplified-view toggle on the canvas (collapse each group into a single chip, matching the read-only `GraphVisualization.tsx`'s `viewMode === "simplified"` rendering)
+- [ ] Save round-trip on `multi-page-report-workflow.json` (5 groups) preserves group edits
+
+**Designer feedback items that didn't ship in 1A:**
+
+- [ ] **Hover-to-extend chains** — hovering a node's outgoing handle pops a small palette of compatible next-nodes; click adds + connects in one move (the designer's preferred interaction)
+- [ ] **Node-type swap action** — change a node's type in place, preserving overlapping config (the designer's specific request from a design review)
+- [ ] **User-friendly label review** — audit the Flow Control palette labels (`Switch` / `Map (fan-out)` / `Join (fan-in)`) for engineering jargon; surface user-friendly aliases where appropriate without losing the engineering name
+
+**Auto-layout fallback:**
+
+- [ ] Dagre-driven auto-arrange action available from the top bar AND auto-applied when a template loads without `metadata.position` set. Templates currently stack horizontally on load because `multi-page-report-workflow.json` etc. ship without positions.
+
+**Polish from session experience:**
+
+- [ ] Track down and silence the vestigial `borderColor` / `borderLeftColor` React style warning (audit on 2026-05-23 found no longhand/shorthand mix in our code — likely Mantine-internal, needs the exact dev-console text when it next appears)
+- [ ] Surface the duration-validation regex (`apps/frontend/src/features/workflow-builder/settings/control-flow/duration-validation.ts`) into the shared validator so `pollUntil.interval` / `humanGate.timeout` etc. light up the canvas red badges instead of only the form
+
+### Phase 2 — Library workflows + workflow-as-API + versioning
+
+The "Phase 8+" items dissolved into a real phase, because Phase 7's AI agent and Phase 4's try-in-place both need them.
+
+**Library workflow management:**
+
+- [ ] Workflow type discrimination: each saved workflow is `kind: "workflow" | "library"`. Library workflows declare their top-level `inputs[]` / `outputs[]` as part of their config (these become the port descriptors of `childWorkflow` nodes that reference them in Phase 3 once typed I/O lands).
+- [ ] "Save as library" action in the V2 editor's top bar — wraps the current workflow with a name + declared signature
+- [ ] Library browser modal — counterpart to the existing templates picker; lists every workflow with `kind: "library"`. Replaces the free-text `workflowId` field in `ChildWorkflowNodeSettings` with a dropdown.
+- [ ] Backend endpoint: `GET /api/workflows?kind=library` (extends existing list endpoint)
+
+**Workflow-as-API surfacing:**
+
+- [ ] Each workflow gets a "Run this workflow" panel showing: the run-trigger URL, the input schema (derived from the entry node's input port bindings + ctx declarations marked as inputs), a sample `curl`, and authentication notes
+- [ ] Backend endpoint: `POST /api/workflows/:id/runs` (likely already exists via Temporal client; surface it in the UI)
+- [ ] Sample input testing UI — paste a JSON payload, hit Run, see Temporal run ID
+
+**Versioning UI on top of existing backend versioning:**
+
+- [ ] The backend already versions workflows (see `WorkflowVersion` schema). Add a version history panel to the editor's top bar.
+- [ ] "Revert to version" + "Compare to version" actions
+- [ ] Library workflows pinned by-version in `childWorkflow.workflowRef`: `{ type: "library", workflowId, version?: number }` — `version` omitted = head; setting it pins the child to a specific version for reproducibility
+
+### Phase 3 — Typed I/O artifacts
+
+The foundational layer for Phases 4, 5, 6, and 7. Concrete decisions and the artifact taxonomy are in [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md). Summary:
+
+- **Artifact taxonomy** — single rooted hierarchy: `Artifact` (base) → `Document` (`MultiPageDocument` / `SinglePageDocument`), `Segment` (with parameterised `Segment<Text|Table|Figure|Form|KeyValue|Signature|Header>`), `OcrResult` / `OcrFields` / `OcrTable`, `Classification`, `ValidationResult`, `Reference`
+- **Where it lives** — `packages/graph-workflow/src/types/artifacts.ts` + `artifact-registry.ts` + `subtype-check.ts`, consumed by both backend save-time validation and the frontend canvas / settings panel
+- **PortDescriptor extension** — optional `kind?: ArtifactKind | T[]` field; backwards compatible (no `kind` = `Artifact`, drawable anywhere)
+- **UI rendering** — colour-coded handle dots + hover tooltip + on-selection type pill; mismatched-draw rejected at canvas connect time with a Mantine notification
+- **Three checkpoints** — canvas `onConnect` (UX), settings-panel variable picker (filtered by kind), backend `validateGraphConfig` (save-time error)
+- **Subtyping** — strict nominal: `SinglePageDocument` → `Document` slot ✓; reverse ✗; no auto-wrap between `T` and `T[]`
+- **Provider catalog** — `provider-catalog.ts` companion: `{ id, displayName, category, acceptsKind, returns }`; activities with a generic `provider` parameter source dropdowns filtered by upstream `kind`
+
+Implementation order:
+
+- [ ] Types + registry + `isAssignable` in `packages/graph-workflow`
+- [ ] Extend `PortDescriptor` with `kind?`
+- [ ] Add type-check pass to `validator.ts` (backend save-time error on edge kind mismatch)
+- [ ] Frontend: handle colour + tooltip; reject mismatched draws in `handleConnect`
+- [ ] Frontend: filter variable picker by `kind`
+- [ ] Fan out `kind` declarations across the 41 catalog entries — incrementally, one activity at a time, with the bulk catalog test asserting "every entry that DOES declare `kind` declares it for every port"
+- [ ] Provider catalog skeleton + 1-2 example providers (Phase 3 → Phase 5 hand-off)
+
+### Phase 4 — Try-in-place + caching + per-node previews
+
+The "ComfyUI for documents" experience. Depends on Phase 3 for type-aware previews + Phase 2 for the workflow-as-API surface.
+
+**Deploy-on-open + run-from-canvas:**
+
+- [ ] Opening the V2 editor (or hitting "Try") registers the workflow with Temporal as a draft version and exposes a run endpoint (reuses the Phase 2 API surfacing)
+- [ ] An **Input** affordance on the entry node — upload / select a document, trigger a run from inside the canvas
+- [ ] Status overlay on nodes (not started / running / succeeded / failed / skipped) via Temporal query handlers
+- [ ] Active edge highlight (animates the path the live execution takes)
+
+**Per-node preview widgets** — configurable per node type, typed by Phase 3's `ArtifactKind`:
+
+- [ ] `Document` / `MultiPageDocument` / `SinglePageDocument` preview — paginated thumbnail strip
+- [ ] `Segment[]` preview — region overlay on the parent document with kind-coloured outlines (the "paging" the user described in [NOTES.md §1.5](NOTES.md#15-per-node-previews-comfyui-inspiration))
+- [ ] `OcrResult` / `OcrFields` preview — structured key-value table
+- [ ] `OcrTable` preview — rendered table grid
+- [ ] `Classification` preview — label + confidence + the matched rule
+- [ ] `ValidationResult` preview — per-rule pass / fail with the actual values that drove the decision
+- [ ] Switch preview — highlight the case that matched on the active run
+
+**Cached re-execution** — the half of the ComfyUI inspiration the previous plan revision missed. Without caching, iterating on a 17-node workflow re-runs the full chain every time the user tweaks one parameter; that breaks the "fast feedback" loop.
+
+- [ ] Cache keyed by `(node-config-hash, input-artifact-hash)` — uses Temporal's existing replay mechanism where possible (it provides deterministic replay; not the same as iteration-speed caching but the building blocks are there), backed by a separate dev-mode cache otherwise
+- [ ] Invalidation: changing a node's parameters or upstream wiring invalidates that node + everything downstream
+- [ ] UI hint: per-node cache-status indicator (fresh / cached / invalidated)
+- [ ] Decision item early in the phase: do we extend Temporal's `WorkflowExecutionInfo` to expose per-activity output caching, or build a sidecar K/V store keyed by config hash? Resolve before fanning out the preview widgets.
+
+### Phase 5 — Document segmentation node pack
+
+Composable typed nodes producing `Segment[]` artifacts. Depends on Phase 3 (the `Segment` type registry); see [NOTES.md §4](NOTES.md#4-document-segmentation-research) for the research scaffold. Each node carries `(parentDocId, pageRange, polygon, kind, confidence)`.
+
+- [ ] `document.split.subdocument` — sub-document boundary detection. LLM-based (LandingAI ADE Split / Sensible pattern) or rules-based classifier. Output: `Document[]` with `pageRange` + `kind`.
+- [ ] `document.split.layout` — region-level layout segmentation. Backend picker via the Phase 3 provider catalog: Docling DocLayNet / Azure DI Layout / Unstructured `hi_res`. Output: `Segment[]` with bbox + kind per page.
+- [ ] `text.chunk.semantic` — semantic post-OCR chunking. Azure Content Understanding cross-page Markdown chunker, or LlamaIndex `SemanticSplitterNodeParser`. Output: `Segment<Text>[]`.
+- [ ] `segment.crop` — extract a region as a new `SinglePageDocument` for downstream specialised OCR / VLM.
+
+The `Segment<Kind>` parameterisation from Phase 3 makes downstream typed wiring enforceable: a `Segment<Table>` slot accepts only segments whose `kind` is `"Table"`.
+
+### Phase 6 — Dynamic nodes (Windmill-style)
+
+User vision: *"can we have dynamic nodes, or basically nodes that you define at runtime, like Windmill"* ([NOTES.md §1.6](NOTES.md#16-dynamic-nodes-windmill-inspiration)). Co-dependent with Phase 7.
+
+- [ ] A `dynamic-script` activity type that proxies to a sandboxed runtime (Deno / Pyodide / Windmill-style worker — backend decision item)
+- [ ] User authors TS or Python with a declared signature → signature drives the form via the same JSON Schema renderer used everywhere else
+- [ ] Signature → `kind` mapping: declared parameter / return types map to registered `ArtifactKind`s from Phase 3; unknown types must be explicitly mapped (no silent fallback to `Artifact`)
+- [ ] Persist the script + signature + kind-mapping alongside the workflow; rebuild palette entry from it
+- [ ] Hot-reload into the running editor — published script appears as a palette entry without restart
+
+### Phase 7 — AI workflow builder (Claude Code sub-agent)
+
+User vision: *"instruct an AI agent to build these workflows for you on the fly… work in a feedback loop where it sets up the pipeline and tests it"* ([NOTES.md §1.7](NOTES.md#17-ai-built-workflows--feedback-loop)). Designer confirmed this is the long-term primary creation path ([NOTES.md §2](NOTES.md#2-designer-conversation-outcomes)). Depends on Phase 2 (library workflows), Phase 3 (typed I/O — narrows valid compositions), and Phase 6 (dynamic nodes — agent's lever for novel work).
+
+- [ ] `.claude/agents/workflow-builder.md` agent spec
+- [ ] Chat surface in the editor invokes the agent via Claude Agent SDK with a constrained tool allowlist: `{ read catalog, read library workflows, write workflow JSON, deploy, run on sample, read results, write Windmill script, register dynamic node }`
+- [ ] The agent loops: build → deploy → run on sample doc → diff against expected → revise
+- [ ] Type-narrowed composition: agent consumes Phase 3's `kind` metadata to reject invalid candidates before deployment
+- [ ] Windmill-script authoring as the agent's escape hatch — when no existing activity fits, the agent writes a Phase-6 dynamic node and uses it
+- [ ] Likely consumes the existing `@ai-di/graph-insertion-slots` package (Dylan's earlier work) as the contract for "where in this workflow can the agent splice nodes?"
+
+---
+
+## 6. Out of scope (explicitly deferred)
+
+- **Replacing the existing JSON editor.** Coexists for the entire Phase 1 / 2 lifetime; revisit in Phase 4 once try-in-place is the better workflow.
 - **Migrating existing `apps/frontend/src/features/tables/` zod code to Zod v4.** They keep `from "zod"` (v3). Only new workflow-builder code uses `from "zod/v4"`.
-- **User-managed templates / library workflows.** Phase 1A bundles static templates. User-saved library workflows are a Phase 8+ topic.
+- **Runtime type checks.** The engine stays Model A — `ctx` is opaque `Record<string, unknown>` at runtime. Typed I/O is a save-time + design-time UI assertion only.
+- **Auto-wrap / auto-unwrap between `T` and `T[]`.** Use `map` / `join`. See [TYPED_IO_DESIGN.md §11](TYPED_IO_DESIGN.md).
 - **Mobile / small-screen.** Desktop-first per design brief §14.
 
 ---
 
-## 6. Open questions
+## 7. Open questions
 
 - **AI-1192 merge timing.** Working assumption: we land first or after, either way we merge develop in when needed. No coordination with Dylan required.
-- **Per-renderer metadata vocabulary.** Currently using `x-widget`, `x-options`, `x-default`. May want to formalise this in a doc before fanning out catalog entries. Default plan: codify alongside the renderer in Phase 1A.
-- **Frontend icon library mapping.** Tabler icons are already used everywhere else. Catalog's `iconHint` is a string the frontend resolves to a Tabler icon. Mapping table lives in the frontend.
+- **Cached re-execution backend** (Phase 4). Temporal replay vs sidecar K/V store. Resolve early in Phase 4.
+- **Dynamic-node sandbox** (Phase 6). Deno vs Pyodide vs Windmill-style worker. Resolve at Phase 6 kickoff.
+- **Library workflow signature DSL** (Phase 2). Probably just `ctx` declarations marked with `isInput: true` / `isOutput: true`; needs a brief design pass at Phase 2 kickoff.
 
 ---
 
-## 7. Companion documents
+## 8. Companion documents
 
-- [NOTES.md](NOTES.md) — user vision (the walking notes), designer conversation outcomes, research findings, things to circle back on
-- [TYPED_IO_BRAINSTORM.md](TYPED_IO_BRAINSTORM.md) — placeholder for the deferred typed-artifacts discussion
+- [NOTES.md](NOTES.md) — user vision (the walking notes), designer conversation outcomes, research findings, things to circle back on. Each vision thread is cross-referenced to the phase that delivers it.
+- [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) — concrete artifact taxonomy + decisions (formerly the `TYPED_IO_BRAINSTORM.md` placeholder)
 - [WORKFLOW_DESIGN_BRIEF.md](WORKFLOW_DESIGN_BRIEF.md) — designer-facing design brief
 - [WORKFLOW_NODE_CATALOG.md](WORKFLOW_NODE_CATALOG.md) — every node and its settings-panel fields
-- [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) — why single in / single out
+- [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) — why single in / single out + blackboard (Model A; the engine model that typed I/O layers on top of, doesn't replace)
+- [SESSION_HANDOFF.md](SESSION_HANDOFF.md) — current state, what just landed, what's actively being worked on
 - [../SHARED_PACKAGES.md](../SHARED_PACKAGES.md) — Dylan's convention for shared packages
 - [../graph-workflows/templates/README.md](../graph-workflows/templates/README.md) — template directory

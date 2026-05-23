@@ -8,14 +8,19 @@
 
 ## TL;DR for the next AI
 
-Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. Phase 1A is well underway:
+Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B starts next.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the new DAG.
 
-- **Milestone 1 (form-renderer tracer):** done. `/workflows/dev-form-preview` shows all 41 activities, the schema-driven Mantine form per activity, the emitted JSON Schema, and live Zod validation. Renderer supports primitives + enums + comboboxes + discriminated unions (root `anyOf` with `const`-valued discriminator) + arrays of primitives / simple objects.
-- **Milestone "A" (stress test):** done. `document.split` modelled as a Zod v4 discriminated union (`per-page` / `fixed-range` / `custom-ranges`); renderer swaps in only the active variant's fields. Custom-ranges shows a dynamic row editor (Add/Remove rows of `{start, end}`).
-- **Milestone "B" (catalog fan-out):** done. **All 41 registered activity types** now have catalog entries in `packages/graph-workflow/src/catalog/activities/`. 150 catalog tests pass. Each entry declares display name, category, ports, icon/colour hints, and a Zod parameter schema. Complex parameter shapes (rule lists, validation rules, mapping editors) carry `x-widget: rich-editor-tbd` hints flagging them for Phase 1B hand-rolled overrides.
-- **Milestone 2 — C (editor skeleton):** done. New visual editor at `/workflows/create-v2` and `/workflows/:workflowId/edit-v2`. Three-column layout (palette → canvas → settings panel). Add activities by clicking the palette, drag to position, drag handle-to-handle to draw edges, click to select, edit label + parameters + port bindings in the right panel, save to backend. Coexists with the JSON editor at `/workflows/:id/edit`.
+**What shipped in Phase 1A:**
 
-**The plan, in full, lives in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).** All architectural decisions and the phased plan are there. [NOTES.md](NOTES.md) has supporting context.
+- **All 41 registered activity types** have catalog entries in `packages/graph-workflow/src/catalog/activities/`. 158 catalog tests pass. Each entry declares display name, category, ports, icon/colour hints, and a Zod parameter schema. Complex parameter shapes carry `x-widget: rich-editor-tbd` hints for Phase 1B hand-rolled overrides.
+- **The V2 visual editor** at `/workflows/create-v2` and `/workflows/:workflowId/edit-v2` — three-column layout (palette → canvas → settings). All 7 node types (activity / switch / map / join / childWorkflow / pollUntil / humanGate) addable from the palette, editable in the right rail, validated on the canvas (debounced + red badges + click-through drawer), saveable.
+- **Form renderer** at `/workflows/dev-form-preview` — schema-driven Mantine form per activity, JSON Schema preview, live Zod validation. Supports primitives + enums + comboboxes + discriminated unions + arrays.
+- **Templates picker** (static bundle of `docs-md/graph-workflows/templates/*.json`).
+- **Save / load round-trip** — verified end-to-end on 2026-05-23 against `multi-page-report-workflow.json`: 16 nodes / 17 edges / 5 nodeGroups / 17 ctx declarations preserve byte-for-byte. The Playwright walkthrough surfaced one real bug — catalog drift on `document.validateFields` — which is now fixed and pinned with tests.
+- **Auto-fit on add** (US-014, 2026-05-23).
+- Coexists with the old JSON editor at `/workflows/:id/edit`.
+
+**The plan, in full, lives in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).** All architectural decisions, the new phase-dependency DAG, and the full Phase 1B → Phase 7 plan are there. [NOTES.md](NOTES.md) has supporting context plus a vision-thread → phase mapping. [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) has the concrete artifact taxonomy for Phase 3.
 
 ---
 
@@ -118,25 +123,41 @@ Dev server lands on `http://localhost:3000/`. Vite pre-bundles `@ai-di/graph-wor
 
 ## What to do next
 
-### Out of scope for Milestone 2 — pick from here for Milestone 3
+**Phase 1A is closed.** The post-1A plan was re-sequenced on 2026-05-23 (see [IMPLEMENTATION_PLAN.md §4](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the new dependency DAG). The next phase is **Phase 1B — Editor completion + backend catalog adoption**. The full menu of Phase 1B work lives in [IMPLEMENTATION_PLAN.md §5 Phase 1B](IMPLEMENTATION_PLAN.md#phase-1b--editor-completion--backend-catalog-adoption); the short version:
 
-The editor skeleton is functional but minimal. The next chunks (all already scoped in `IMPLEMENTATION_PLAN.md §4`):
+### Phase 1B short menu
 
-- **Validation surfacing** — debounced `validateGraphConfig` from `@ai-di/graph-workflow`, red node badges on the canvas, a click-through error drawer.
-- **Workflow settings drawer** — expose name / description / version / tags / ctx declarations / entry node in a top-bar drawer (currently name + description are inline; the rest is implicit).
-- **Variable picker** — input port bindings currently take a free-text ctx key. Replace with an autocomplete dropdown sourced from the union of `ctx` declarations + upstream node outputs.
-- **Control-flow nodes** — switch / map / join / childWorkflow / pollUntil / humanGate. Hand-rolled settings forms per the design brief; canvas can render them with the same `activity` node shape for now and graduate to per-type renderers.
-- **Templates picker** — workflow-list page → "New from template" dialog backed by the static bundle of `docs-md/graph-workflows/templates/*.json`.
-- **Load round-trip — pending Alex's manual walkthrough.** V2 edit-mode hydrates from `useWorkflow` on mount (verified by code audit 2026-05-23) and the templates picker hydrates `config` directly on the create-v2 page. The walkthrough on `docs-md/graph-workflows/templates/multi-page-report-workflow.json` (17 nodes, every node type represented) is Alex's to do against the running dev server — Claude can't start it (see `feedback_dev_servers.md`). Test plan and code-audit notes in `feature-docs/20260522-workflow-builder-phase1a-closeout/REQUIREMENTS.md`.
-- **Auto-fit on add — DONE 2026-05-23 (US-014).** `useReactFlow().fitView()` fires on node-count increase (palette adds, multi-add template hydration); drag, selection, edge changes do NOT trigger a re-fit. See [US-014](../../feature-docs/20260522-workflow-builder-phase1a-closeout/user_stories/US-014-canvas-auto-fit-on-node-add.md). Implementation wraps the canvas inner content in `<ReactFlowProvider>`; deferral is a 0ms `setTimeout` so xyflow's internal store has consumed the new node before we ask it to fit.
-- **Drag-from-palette** — palette currently is click-only. The designer agreed click-to-add wins, but drag is the alternative interaction; xyflow's `onPaneDrop` is the hook.
+1. **Backend catalog adoption** — make `graph-schema-validator` (NestJS) + the Temporal worker validator consume the `@ai-di/graph-workflow` catalog instead of `activity-parameter-schema-registry.ts`. The validateFields drift the editor caught on 2026-05-23 would not have been caught at save time today; this closes that gap.
+2. **Switch case-routed edge UI** — custom edge component (colour / label per case), `handleConnect` upgrade that stamps `type: "conditional"` for new edges drawn from switches, per-case picker in the switch settings.
+3. **Rich widgets for the five complex parameter shapes** — `validateFields.rules` (nested `expression` per the just-landed fix), `splitAndClassify.keywordPatterns`, classification rules, page-range editor, confusion-map editor. Activate the `x-widget: rich-editor-tbd` hints in the catalog.
+4. **Visual condition-builder tree** for switch (AND / OR / NOT) — `ConditionExpressionEditor` already supports recursive nesting (US-003); this milestone is the visual upgrade.
+5. **Group editing UI** — lasso → group → label / color / icon / exposed-params, plus simplified-view toggle (port the read-only `GraphVisualization.tsx` rendering).
+6. **Hover-to-extend chains** — the designer's preferred interaction that dropped from 1A; hovering a node's outgoing handle pops a small palette of compatible next-nodes.
+7. **Node-type swap action** — change a node's type in place, preserving overlapping config.
+8. **User-friendly label review** — audit Flow Control palette labels for engineering jargon.
+9. **Auto-layout fallback** — dagre auto-arrange, auto-applied when a template loads without `metadata.position`.
+10. **Polish** — duration-format validation into the shared validator; chase the borderColor warning once Alex pastes the exact dev-console text.
 
-## Phase 1B follow-ups (filed, not yet implemented)
+Pick any of these as the next milestone; they are not strictly ordered within Phase 1B (with the exception that the backend catalog adoption is the safety-first item and should land early).
+
+### Already shipped — don't re-implement
+
+- Validation surfacing (US-013) — debounced `validateGraphConfig`, red node badges, click-through drawer. Confirmed working on `multi-page-report-workflow.json` walkthrough.
+- Workflow settings drawer — exposes name / description / version / tags / ctx / entry node from the top bar.
+- Variable picker (`VariablePicker`) — autocomplete from ctx + upstream node outputs.
+- All six control-flow node forms (switch / map / join / childWorkflow / pollUntil / humanGate) — US-004 → US-009 + US-010 wiring.
+- Templates picker — backed by static bundle of `docs-md/graph-workflows/templates/*.json`.
+- Save / load round-trip — verified byte-for-byte against `multi-page-report-workflow.json` (16 nodes / 17 edges / 5 nodeGroups / 17 ctx declarations).
+- Auto-fit on add (US-014, 2026-05-23) — palette adds animate the new node into view via `useReactFlow().fitView()`.
+
+## Phase 1B follow-ups previously filed here
+
+All four items below were filed in this section on 2026-05-23 and are now part of the canonical Phase 1B menu in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Kept here for searchability + the specific code references the next session will need.
 
 - **Switch case-routed edges — visual differentiation + edge-type setting.** Today `GraphEdge` has `sourcePort`/`targetPort` fields in the type, but the canvas never sets them; `handleConnect` always emits `type: "normal"`. So switch `cases[].edgeId` references work logically, but on the canvas all 4 outgoing edges of `segmentRouter` in `multi-page-report-workflow.json` look identical, and re-drawing a deleted case edge loses its `conditional` tag. Picking this up needs: (1) a custom edge component that colours/labels per-case (look at the read-only `GraphVisualization.tsx`'s `staggered switch-edge labels` for the pattern), (2) UI in `SwitchNodeSettings` to mark an edge as case-routed when picked in an `EdgePicker`, (3) a `handleConnect` upgrade that consults the source node's type and stamps the right edge type. Likely a milestone of its own.
 - **`borderColor` / `borderLeftColor` React style warning.** Audit on 2026-05-23 found no longhand/shorthand mix in `apps/frontend/src/features/workflow-builder/` (all renderers use longhand `borderTopColor`/`borderRightColor`/`borderBottomColor`/`borderLeftColor` consistently). Likely Mantine internal. Needs the exact dev-console text from Alex before it can be chased — speculative grep didn't turn it up.
 - **Rich-widget overrides for `splitAndClassify.keywordPatterns` + `validateFields.rules`.** Already flagged via `x-widget: rich-editor-tbd` in the catalog. The current generic `JsonSchemaForm` renders these as "Unsupported field schema" stubs. The underlying parameter VALUE round-trips fine (the form spreads it through unchanged), but users can't *edit* these fields in V2. Phase 1B hand-rolled overrides per `WORKFLOW_NODE_CATALOG.md` cross-cutting widgets table.
-- **Auto-layout / dagre integration.** Templates lack `metadata.position` so all 17 template nodes of `multi-page-report-workflow.json` stack at the linear stagger `x=80+i*220, y=80`. The user must rearrange manually before saving. Per `IMPLEMENTATION_PLAN.md §4`.
+- **Auto-layout / dagre integration.** Templates lack `metadata.position` so all 17 template nodes of `multi-page-report-workflow.json` stack at the linear stagger `x=80+i*220, y=80`. The user must rearrange manually before saving. Per [IMPLEMENTATION_PLAN.md Phase 1B](IMPLEMENTATION_PLAN.md#phase-1b--editor-completion--backend-catalog-adoption).
 
 ---
 
@@ -191,8 +212,8 @@ ai-adoption-document-intelligence/
     ├── SHARED_PACKAGES.md
     ├── workflow-builder/
     │   ├── IMPLEMENTATION_PLAN.md ← THE PLAN. READ FIRST.
-    │   ├── NOTES.md
-    │   ├── TYPED_IO_BRAINSTORM.md
+    │   ├── NOTES.md               ← user-vision walking notes + research; vision-thread → phase mapping at the top
+    │   ├── TYPED_IO_DESIGN.md     ← concrete artifact taxonomy for Phase 3
     │   ├── SESSION_HANDOFF.md     ← THIS FILE
     │   ├── WORKFLOW_DESIGN_BRIEF.md
     │   ├── WORKFLOW_NODE_CATALOG.md
