@@ -119,7 +119,15 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
+  const [validationFocusNodeId, setValidationFocusNodeId] = useState<
+    string | null
+  >(null);
   const validation = useGraphValidation(config);
+
+  const openValidationDrawerForNode = useCallback((nodeId: string) => {
+    setValidationFocusNodeId(nodeId);
+    setValidationOpen(true);
+  }, []);
 
   // Clear the template from history.state so future back/forward
   // navigations land on a blank editor (not the templated one).
@@ -363,7 +371,10 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             errorCount={validation.errorCount}
             warningCount={validation.warningCount}
             isPending={validation.isPending}
-            onClick={() => setValidationOpen(true)}
+            onClick={() => {
+              setValidationFocusNodeId(null);
+              setValidationOpen(true);
+            }}
           />
           <Button
             variant="light"
@@ -407,6 +418,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         result={validation}
         config={config}
         onSelectNode={setSelectedNodeId}
+        focusedNodeId={validationFocusNodeId}
       />
 
       <Box
@@ -455,6 +467,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             onConfigChange={setConfig}
             onSelectNode={setSelectedNodeId}
             errorsByNode={validation.errorsByNode}
+            onNodeBadgeClick={openValidationDrawerForNode}
           />
         </Box>
         <NodeSettingsPanel

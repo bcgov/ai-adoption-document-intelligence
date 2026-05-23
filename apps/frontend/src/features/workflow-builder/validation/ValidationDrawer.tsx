@@ -25,6 +25,7 @@ import {
   IconCircleCheck,
   IconExclamationCircle,
 } from "@tabler/icons-react";
+import { useEffect, useRef } from "react";
 import type { GraphValidationResult } from "./useGraphValidation";
 
 interface ValidationDrawerProps {
@@ -33,6 +34,12 @@ interface ValidationDrawerProps {
   result: GraphValidationResult;
   config: GraphWorkflowConfig;
   onSelectNode: (nodeId: string) => void;
+  /**
+   * When set, the drawer scrolls the matching node's entry into view on
+   * open. Used by the canvas validation badges — clicking a badge opens
+   * the drawer scrolled to the relevant entry.
+   */
+  focusedNodeId?: string | null;
 }
 
 export function ValidationDrawer({
@@ -41,6 +48,7 @@ export function ValidationDrawer({
   result,
   config,
   onSelectNode,
+  focusedNodeId,
 }: ValidationDrawerProps) {
   const handleSelect = (nodeId: string) => {
     onSelectNode(nodeId);
@@ -50,6 +58,18 @@ export function ValidationDrawer({
   const nodeBuckets = [...result.errorsByNode.entries()].sort((a, b) =>
     a[0].localeCompare(b[0]),
   );
+
+  const entryRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  useEffect(() => {
+    if (!opened || !focusedNodeId) return;
+    // Defer one frame so Mantine has mounted the drawer's portal before
+    // we attempt to scroll the entry into view.
+    const handle = window.setTimeout(() => {
+      const el = entryRefs.current.get(focusedNodeId);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [opened, focusedNodeId]);
 
   return (
     <Drawer
@@ -96,7 +116,13 @@ export function ValidationDrawer({
           const errorCount = errs.filter((e) => e.severity === "error").length;
           const warningCount = errs.length - errorCount;
           return (
-            <Box key={nodeId}>
+            <Box
+              key={nodeId}
+              data-testid={`validation-entry-${nodeId}`}
+              ref={(el: HTMLDivElement | null) => {
+                entryRefs.current.set(nodeId, el);
+              }}
+            >
               <Group justify="space-between" mb={6}>
                 <Text size="xs" fw={600} c="dimmed" tt="uppercase">
                   {label}

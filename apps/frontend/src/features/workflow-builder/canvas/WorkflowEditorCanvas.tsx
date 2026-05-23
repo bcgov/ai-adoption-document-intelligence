@@ -1,19 +1,25 @@
 /**
  * Interactive canvas for the visual workflow editor.
  *
- * Renders activity nodes from a GraphWorkflowConfig using xyflow with
- * selection + drag + connect enabled. Positions are persisted in the
- * node's `metadata.position` so the layout round-trips through save/load.
+ * Renders activity + control-flow nodes from a GraphWorkflowConfig using
+ * xyflow with selection + drag + connect enabled. Positions are persisted
+ * in the node's `metadata.position` so the layout round-trips through
+ * save/load.
  *
  * Performance note: internal node state (positions, selection) is managed
  * by xyflow's `useNodesState` hook so dragging is smooth — outer
  * `GraphWorkflowConfig` is only updated on drag-stop / selection-change /
  * delete, not on every mouse-move during a drag.
  *
- * Kept intentionally narrow — the existing GraphVisualization.tsx remains
- * the canonical *read-only* renderer with simplified-view support for
- * groups + map containers. This editor canvas focuses on the
- * Milestone-2 happy path: place activities, draw edges, select.
+ * Per-type rendering (US-012):
+ *   - activity → rectangle (existing renderer, unchanged shape).
+ *   - switch   → diamond (geometry ported from `GraphVisualization.tsx`).
+ *   - map / join → rectangle with a fan-out / fan-in corner overlay.
+ *   - pollUntil / humanGate / childWorkflow → rectangle with the type's
+ *     Tabler icon in the header.
+ *   - All control-flow renderers share the same Handles (target on left,
+ *     source on right) the activity node uses, and surface the same red
+ *     / amber validation corner badge the activity node renders.
  */
 
 import "@xyflow/react/dist/style.css";
@@ -38,10 +44,16 @@ import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ActivityNode,
   GraphEdge,
+  GraphNode,
   GraphValidationError,
   GraphWorkflowConfig,
 } from "../../../types/workflow";
 import { getActivityVisualHints } from "../catalog-utils";
+import {
+  type ControlFlowVisualHints,
+  getControlFlowVisualHints,
+} from "../control-flow-visual-hints";
+import type { ControlFlowNodeType } from "../palette/control-flow-skeletons";
 
 interface WorkflowEditorCanvasProps {
   config: GraphWorkflowConfig;
@@ -50,25 +62,49 @@ interface WorkflowEditorCanvasProps {
   onSelectNode: (nodeId: string | null) => void;
   /** Validation issues grouped by node id (errors + warnings). */
   errorsByNode?: Map<string, GraphValidationError[]>;
+  /**
+   * Called when the user clicks a node's validation badge. The host
+   * opens the validation drawer scrolled to the matching entry.
+   */
+  onNodeBadgeClick?: (nodeId: string) => void;
 }
 
-interface ActivityNodeData extends Record<string, unknown> {
+interface CommonNodeData extends Record<string, unknown> {
   label: string;
-  activityType: string;
   isEntry: boolean;
   errorCount: number;
   warningCount: number;
+  onBadgeClick?: (nodeId: string) => void;
 }
 
-type FlowNode = Node<ActivityNodeData, "activity">;
+interface ActivityNodeData extends CommonNodeData {
+  activityType: string;
+}
+
+interface ControlFlowNodeData extends CommonNodeData {
+  controlFlowType: ControlFlowNodeType;
+}
+
+type ActivityFlowNode = Node<ActivityNodeData, "activity">;
+type ControlFlowFlowNode = Node<ControlFlowNodeData, ControlFlowNodeType>;
+type FlowNode = ActivityFlowNode | ControlFlowFlowNode;
 
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
 const EDGE_STYLE = { stroke: "#9ca3af", strokeWidth: 2 };
 const EDGE_MARKER = { type: MarkerType.ArrowClosed, color: "#9ca3af" } as const;
 
+const CONTROL_FLOW_TYPES: readonly ControlFlowNodeType[] = [
+  "switch",
+  "map",
+  "join",
+  "childWorkflow",
+  "pollUntil",
+  "humanGate",
+];
+
 function readPosition(
-  node: ActivityNode,
+  node: GraphNode,
   fallbackIndex: number,
 ): { x: number; y: number } {
   const fromMeta = (node.metadata as { position?: { x: number; y: number } })
@@ -86,101 +122,98 @@ function readPosition(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Shared sub-components
+// ---------------------------------------------------------------------------
+
+interface ValidationBadgeProps {
+  nodeId: string;
+  errorCount: number;
+  warningCount: number;
+  onBadgeClick?: (nodeId: string) => void;
+}
+
 /**
- * Renderer for activity nodes. Memoised so React Flow can skip rerenders
- * when only positions change during a drag — without this, dragging a
- * single node thrashes every node's renderer.
+ * Red / amber corner badge surfacing validation issues on a node.
+ * Shared by all node renderers so activity and control-flow nodes look
+ * the same. When `onBadgeClick` is provided, the badge becomes clickable
+ * and the host opens the validation drawer scrolled to the relevant
+ * entry.
  */
-const ActivityNodeRenderer = memo(({ data, selected }: NodeProps<FlowNode>) => {
-  const hints = getActivityVisualHints(data.activityType);
-  const accent = hints.color;
-  const errorCount = data.errorCount ?? 0;
-  const warningCount = data.warningCount ?? 0;
+const ValidationBadge = memo(function ValidationBadge({
+  nodeId,
+  errorCount,
+  warningCount,
+  onBadgeClick,
+}: ValidationBadgeProps) {
+  if (errorCount === 0 && warningCount === 0) return null;
+  const title =
+    errorCount > 0
+      ? `${errorCount} error${errorCount === 1 ? "" : "s"}${warningCount > 0 ? `, ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`
+      : `${warningCount} warning${warningCount === 1 ? "" : "s"}`;
+  const background = errorCount > 0 ? "#e03131" : "#f59f00";
+  const ariaLabel = `${title} — click to open validation drawer`;
+  const commonStyle: React.CSSProperties = {
+    position: "absolute",
+    top: -7,
+    right: -7,
+    background,
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: 700,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0 5px",
+    boxShadow: "0 0 0 2px var(--mantine-color-body, #1a1b1e)",
+    zIndex: 2,
+  };
+  const content = errorCount > 0 ? errorCount : warningCount;
+  if (!onBadgeClick) {
+    return (
+      <div
+        title={title}
+        style={commonStyle}
+        data-testid={`node-badge-${nodeId}`}
+      >
+        {content}
+      </div>
+    );
+  }
   return (
-    <div
+    <button
+      type="button"
+      title={title}
+      aria-label={ariaLabel}
+      data-testid={`node-badge-${nodeId}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onBadgeClick(nodeId);
+      }}
+      // Stop xyflow from initiating a drag when the user mouses down on
+      // the badge.
+      onMouseDown={(e) => e.stopPropagation()}
       style={{
-        background: "var(--mantine-color-body, #fff)",
-        borderTopWidth: 2,
-        borderRightWidth: 2,
-        borderBottomWidth: 2,
-        borderLeftWidth: 6,
-        borderStyle: "solid",
-        borderTopColor: selected ? accent : "transparent",
-        borderRightColor: selected ? accent : "transparent",
-        borderBottomColor: selected ? accent : "transparent",
-        borderLeftColor: accent,
-        borderRadius: 10,
-        padding: "10px 14px",
-        minWidth: 200,
-        boxShadow: selected
-          ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
-          : "0 2px 8px rgba(0,0,0,0.18)",
-        color: "var(--mantine-color-text, #f3f4f6)",
-        fontSize: 13,
-        lineHeight: 1.2,
-        position: "relative",
+        ...commonStyle,
+        border: "none",
+        cursor: "pointer",
       }}
     >
-      {(errorCount > 0 || warningCount > 0) && (
-        <div
-          title={
-            errorCount > 0
-              ? `${errorCount} error${errorCount === 1 ? "" : "s"}${warningCount > 0 ? `, ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`
-              : `${warningCount} warning${warningCount === 1 ? "" : "s"}`
-          }
-          style={{
-            position: "absolute",
-            top: -7,
-            right: -7,
-            background: errorCount > 0 ? "#e03131" : "#f59f00",
-            color: "#fff",
-            fontSize: 10,
-            fontWeight: 700,
-            minWidth: 18,
-            height: 18,
-            borderRadius: 9,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 5px",
-            boxShadow: "0 0 0 2px var(--mantine-color-body, #1a1b1e)",
-            zIndex: 2,
-          }}
-        >
-          {errorCount > 0 ? errorCount : warningCount}
-        </div>
-      )}
-      <div
-        style={{
-          fontSize: 11,
-          color: "var(--mantine-color-dimmed, #9ca3af)",
-          marginBottom: 4,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        <span>{hints.icon}</span>
-        <span style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
-          {hints.displayName}
-        </span>
-        {data.isEntry && (
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: 9,
-              padding: "1px 5px",
-              borderRadius: 3,
-              background: accent,
-              color: "#fff",
-              fontWeight: 600,
-            }}
-          >
-            ENTRY
-          </span>
-        )}
-      </div>
-      <div style={{ fontWeight: 600 }}>{data.label}</div>
+      {content}
+    </button>
+  );
+});
+
+interface NodeHandlesProps {
+  accent: string;
+}
+
+const NodeHandles = memo(function NodeHandles({ accent }: NodeHandlesProps) {
+  return (
+    <>
       <Handle
         type="target"
         position={Position.Left}
@@ -191,38 +224,384 @@ const ActivityNodeRenderer = memo(({ data, selected }: NodeProps<FlowNode>) => {
         position={Position.Right}
         style={{ background: accent }}
       />
-    </div>
+    </>
   );
 });
+
+// ---------------------------------------------------------------------------
+// Activity renderer
+// ---------------------------------------------------------------------------
+
+const ActivityNodeRenderer = memo(
+  ({ id, data, selected }: NodeProps<ActivityFlowNode>) => {
+    const hints = getActivityVisualHints(data.activityType);
+    const accent = hints.color;
+    const errorCount = data.errorCount ?? 0;
+    const warningCount = data.warningCount ?? 0;
+    return (
+      <div
+        data-testid={`canvas-node-${id}`}
+        data-shape="rectangle"
+        style={{
+          background: "var(--mantine-color-body, #fff)",
+          borderTopWidth: 2,
+          borderRightWidth: 2,
+          borderBottomWidth: 2,
+          borderLeftWidth: 6,
+          borderStyle: "solid",
+          borderTopColor: selected ? accent : "transparent",
+          borderRightColor: selected ? accent : "transparent",
+          borderBottomColor: selected ? accent : "transparent",
+          borderLeftColor: accent,
+          borderRadius: 10,
+          padding: "10px 14px",
+          minWidth: 200,
+          boxShadow: selected
+            ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
+            : "0 2px 8px rgba(0,0,0,0.18)",
+          color: "var(--mantine-color-text, #f3f4f6)",
+          fontSize: 13,
+          lineHeight: 1.2,
+          position: "relative",
+        }}
+      >
+        <ValidationBadge
+          nodeId={id}
+          errorCount={errorCount}
+          warningCount={warningCount}
+          onBadgeClick={data.onBadgeClick}
+        />
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--mantine-color-dimmed, #9ca3af)",
+            marginBottom: 4,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>{hints.icon}</span>
+          <span style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
+            {hints.displayName}
+          </span>
+          {data.isEntry && (
+            <span
+              style={{
+                marginLeft: "auto",
+                fontSize: 9,
+                padding: "1px 5px",
+                borderRadius: 3,
+                background: accent,
+                color: "#fff",
+                fontWeight: 600,
+              }}
+            >
+              ENTRY
+            </span>
+          )}
+        </div>
+        <div style={{ fontWeight: 600 }}>{data.label}</div>
+        <NodeHandles accent={accent} />
+      </div>
+    );
+  },
+);
 ActivityNodeRenderer.displayName = "ActivityNodeRenderer";
 
-const NODE_TYPES = { activity: ActivityNodeRenderer };
+// ---------------------------------------------------------------------------
+// Control-flow renderers
+// ---------------------------------------------------------------------------
+
+interface ControlFlowRenderContext {
+  id: string;
+  data: ControlFlowNodeData;
+  selected: boolean;
+  hints: ControlFlowVisualHints;
+}
+
+function renderControlFlowHeader(ctx: ControlFlowRenderContext) {
+  const { hints, data } = ctx;
+  const Icon = hints.Icon;
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        color: "var(--mantine-color-dimmed, #9ca3af)",
+        marginBottom: 4,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      <Icon size={14} />
+      <span style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
+        {hints.displayName}
+      </span>
+      {data.isEntry && (
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 9,
+            padding: "1px 5px",
+            borderRadius: 3,
+            background: hints.color,
+            color: "#fff",
+            fontWeight: 600,
+          }}
+        >
+          ENTRY
+        </span>
+      )}
+    </div>
+  );
+}
+
+function renderFanIndicator(hints: ControlFlowVisualHints) {
+  const FanIcon = hints.fanIndicator;
+  if (!FanIcon) return null;
+  return (
+    <div
+      title={hints.fanIndicatorLabel}
+      data-testid={`fan-indicator-${hints.type}`}
+      style={{
+        position: "absolute",
+        top: -7,
+        left: -7,
+        background: hints.color,
+        color: "#fff",
+        borderRadius: 9,
+        width: 22,
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 0 0 2px var(--mantine-color-body, #1a1b1e)",
+        zIndex: 2,
+      }}
+    >
+      <FanIcon size={12} />
+    </div>
+  );
+}
 
 /**
- * Project a GraphWorkflowConfig into the React Flow node list. Only
- * `data` and `position` come from the outer config; `selected` is set by
- * React Flow itself during interaction.
+ * Rectangle renderer used for map / join / childWorkflow / pollUntil /
+ * humanGate. Matches the activity rectangle's selection + handle
+ * styling for consistency.
  */
+const ControlFlowRectangleRenderer = memo(
+  ({ id, data, selected, type }: NodeProps<ControlFlowFlowNode>) => {
+    const hints = getControlFlowVisualHints(data.controlFlowType);
+    const accent = hints.color;
+    return (
+      <div
+        data-testid={`canvas-node-${id}`}
+        data-shape="rectangle"
+        data-node-type={type}
+        style={{
+          background: "var(--mantine-color-body, #fff)",
+          borderTopWidth: 2,
+          borderRightWidth: 2,
+          borderBottomWidth: 2,
+          borderLeftWidth: 6,
+          borderStyle: "solid",
+          borderTopColor: selected ? accent : "transparent",
+          borderRightColor: selected ? accent : "transparent",
+          borderBottomColor: selected ? accent : "transparent",
+          borderLeftColor: accent,
+          borderRadius: 10,
+          padding: "10px 14px",
+          minWidth: 200,
+          boxShadow: selected
+            ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
+            : "0 2px 8px rgba(0,0,0,0.18)",
+          color: "var(--mantine-color-text, #f3f4f6)",
+          fontSize: 13,
+          lineHeight: 1.2,
+          position: "relative",
+        }}
+      >
+        {renderFanIndicator(hints)}
+        <ValidationBadge
+          nodeId={id}
+          errorCount={data.errorCount ?? 0}
+          warningCount={data.warningCount ?? 0}
+          onBadgeClick={data.onBadgeClick}
+        />
+        {renderControlFlowHeader({ id, data, selected, hints })}
+        <div style={{ fontWeight: 600 }}>{data.label}</div>
+        <NodeHandles accent={accent} />
+      </div>
+    );
+  },
+);
+ControlFlowRectangleRenderer.displayName = "ControlFlowRectangleRenderer";
+
+/**
+ * Diamond renderer for `switch` nodes. Visual layer is a rotated square
+ * (matching `GraphVisualization.tsx`); content + handles stay upright.
+ * Handles are pinned to the unrotated wrapper so they sit at the
+ * diamond's left/right vertices.
+ */
+const SwitchNodeRenderer = memo(
+  ({ id, data, selected }: NodeProps<ControlFlowFlowNode>) => {
+    const hints = getControlFlowVisualHints("switch");
+    const accent = hints.color;
+    const Icon = hints.Icon;
+    const errorCount = data.errorCount ?? 0;
+    const warningCount = data.warningCount ?? 0;
+    return (
+      <div
+        data-testid={`canvas-node-${id}`}
+        data-shape="diamond"
+        data-node-type="switch"
+        style={{
+          width: 140,
+          height: 140,
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 12,
+        }}
+      >
+        {/* Visual layer only — rotated 45deg to form the diamond. */}
+        <div
+          data-testid={`switch-diamond-visual-${id}`}
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: 0,
+            border: selected ? `3px solid ${accent}` : `2px solid ${accent}`,
+            background: "var(--mantine-color-body, #fff)",
+            boxShadow: selected
+              ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
+              : "0 6px 12px rgba(0,0,0,0.18)",
+            transform: "rotate(45deg) scale(0.7071)",
+            transformOrigin: "50% 50%",
+          }}
+        />
+        {/* Content layer (upright). */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            textAlign: "center",
+            fontSize: 12,
+            color: "var(--mantine-color-text, #f3f4f6)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 600,
+            }}
+          >
+            <span style={{ color: accent, display: "inline-flex" }}>
+              <Icon size={16} />
+            </span>
+            <span>{data.label}</span>
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--mantine-color-dimmed, #9ca3af)",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+            }}
+          >
+            {hints.displayName}
+            {data.isEntry ? " · entry" : ""}
+          </div>
+        </div>
+        <ValidationBadge
+          nodeId={id}
+          errorCount={errorCount}
+          warningCount={warningCount}
+          onBadgeClick={data.onBadgeClick}
+        />
+        <NodeHandles accent={accent} />
+      </div>
+    );
+  },
+);
+SwitchNodeRenderer.displayName = "SwitchNodeRenderer";
+
+const NODE_TYPES = {
+  activity: ActivityNodeRenderer,
+  switch: SwitchNodeRenderer,
+  map: ControlFlowRectangleRenderer,
+  join: ControlFlowRectangleRenderer,
+  childWorkflow: ControlFlowRectangleRenderer,
+  pollUntil: ControlFlowRectangleRenderer,
+  humanGate: ControlFlowRectangleRenderer,
+};
+
+// ---------------------------------------------------------------------------
+// Projection helpers
+// ---------------------------------------------------------------------------
+
+function isControlFlowType(t: GraphNode["type"]): t is ControlFlowNodeType {
+  return (CONTROL_FLOW_TYPES as readonly string[]).includes(t);
+}
+
 function projectFlowNodes(
   config: GraphWorkflowConfig,
   selectedNodeId: string | null,
+  onBadgeClick: ((nodeId: string) => void) | undefined,
 ): FlowNode[] {
-  const activityNodes = Object.values(config.nodes).filter(
-    (n): n is ActivityNode => n.type === "activity",
-  );
-  return activityNodes.map((node, idx) => ({
-    id: node.id,
-    type: "activity" as const,
-    position: readPosition(node, idx),
-    selected: node.id === selectedNodeId,
-    data: {
-      label: node.label,
-      activityType: node.activityType,
-      isEntry: node.id === config.entryNodeId,
-      errorCount: 0,
-      warningCount: 0,
-    },
-  }));
+  const all = Object.values(config.nodes);
+  return all.map((node, idx) => {
+    const position = readPosition(node, idx);
+    const isEntry = node.id === config.entryNodeId;
+    if (node.type === "activity") {
+      const flowNode: ActivityFlowNode = {
+        id: node.id,
+        type: "activity",
+        position,
+        selected: node.id === selectedNodeId,
+        data: {
+          label: node.label,
+          activityType: node.activityType,
+          isEntry,
+          errorCount: 0,
+          warningCount: 0,
+          onBadgeClick,
+        },
+      };
+      return flowNode;
+    }
+    if (isControlFlowType(node.type)) {
+      const flowNode: ControlFlowFlowNode = {
+        id: node.id,
+        type: node.type,
+        position,
+        selected: node.id === selectedNodeId,
+        data: {
+          label: node.label,
+          controlFlowType: node.type,
+          isEntry,
+          errorCount: 0,
+          warningCount: 0,
+          onBadgeClick,
+        },
+      };
+      return flowNode;
+    }
+    // The discriminated union is exhausted above; this throw is purely
+    // defensive in case a new node type is added without updating the
+    // canvas.
+    throw new Error(
+      `WorkflowEditorCanvas: unsupported node.type "${(node as { type: string }).type}".`,
+    );
+  });
 }
 
 function projectFlowEdges(config: GraphWorkflowConfig): Edge[] {
@@ -236,12 +615,28 @@ function projectFlowEdges(config: GraphWorkflowConfig): Edge[] {
   }));
 }
 
+function buildStructuralFingerprint(config: GraphWorkflowConfig): string {
+  return JSON.stringify({
+    ids: Object.keys(config.nodes).sort(),
+    entryNodeId: config.entryNodeId,
+    labelsAndTypes: Object.fromEntries(
+      Object.entries(config.nodes).map(([id, n]) => [
+        id,
+        n.type === "activity"
+          ? `${n.label}::${n.activityType}`
+          : `${n.label}::${n.type}`,
+      ]),
+    ),
+  });
+}
+
 export function WorkflowEditorCanvas({
   config,
   selectedNodeId,
   onConfigChange,
   onSelectNode,
   errorsByNode,
+  onNodeBadgeClick,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -257,32 +652,30 @@ export function WorkflowEditorCanvas({
   // round-trip config update that, on its own, would otherwise overwrite
   // the in-flight drag.
   const dataFingerprint = useMemo(
-    () =>
-      JSON.stringify({
-        ids: Object.keys(config.nodes).sort(),
-        entryNodeId: config.entryNodeId,
-        labelsAndTypes: Object.fromEntries(
-          Object.entries(config.nodes).map(([id, n]) => [
-            id,
-            n.type === "activity" ? `${n.label}::${n.activityType}` : n.type,
-          ]),
-        ),
-      }),
-    [config.nodes, config.entryNodeId],
+    () => buildStructuralFingerprint(config),
+    [config],
   );
 
   const lastFingerprintRef = useRef<string | null>(null);
   useEffect(() => {
     if (lastFingerprintRef.current === dataFingerprint) return;
     lastFingerprintRef.current = dataFingerprint;
-    setInternalNodes(projectFlowNodes(config, selectedNodeId));
+    setInternalNodes(
+      projectFlowNodes(config, selectedNodeId, onNodeBadgeClick),
+    );
     // Note: `selectedNodeId` participates in the projection on
     // structural changes (e.g., when a freshly added node should start
     // selected). After mount, xyflow owns the `selected` flag on each
     // node via its onSelectionChange handler — we don't sync external
     // selection updates back into internal nodes, which avoids a
     // setState loop with xyflow's StoreUpdater.
-  }, [dataFingerprint, config, selectedNodeId, setInternalNodes]);
+  }, [
+    dataFingerprint,
+    config,
+    selectedNodeId,
+    onNodeBadgeClick,
+    setInternalNodes,
+  ]);
 
   // Validation badge sync — patches data.errorCount / data.warningCount
   // on existing internal nodes whenever the validation results change.
@@ -291,7 +684,7 @@ export function WorkflowEditorCanvas({
   useEffect(() => {
     if (!errorsByNode) return;
     setInternalNodes((prev) =>
-      prev.map((n) => {
+      prev.map((n): FlowNode => {
         const bucket = errorsByNode.get(n.id) ?? [];
         let errorCount = 0;
         let warningCount = 0;
@@ -305,10 +698,21 @@ export function WorkflowEditorCanvas({
         ) {
           return n;
         }
-        return {
+        // Preserve the discriminated-union narrowing by patching each
+        // branch with its own concrete data shape — TS can't widen a
+        // spread back into FlowNode through the union.
+        if (n.type === "activity") {
+          const updated: ActivityFlowNode = {
+            ...n,
+            data: { ...n.data, errorCount, warningCount },
+          };
+          return updated;
+        }
+        const updated: ControlFlowFlowNode = {
           ...n,
           data: { ...n.data, errorCount, warningCount },
         };
+        return updated;
       }),
     );
   }, [errorsByNode, setInternalNodes]);
@@ -331,33 +735,50 @@ export function WorkflowEditorCanvas({
   const handleNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: Node) => {
       const existing = config.nodes[node.id];
-      if (existing?.type !== "activity") return;
+      if (!existing) return;
       const prevPos = (
         existing.metadata as { position?: { x: number; y: number } }
       )?.position;
       if (prevPos?.x === node.position.x && prevPos?.y === node.position.y) {
         return;
       }
-      const updated: ActivityNode = {
-        ...existing,
+      // Build the position-updated node while preserving the
+      // discriminated-union narrowing. Each branch produces the same
+      // shape with a fresh `metadata.position`.
+      const withPosition = (n: GraphNode): GraphNode => ({
+        ...n,
         metadata: {
-          ...existing.metadata,
+          ...n.metadata,
           position: { x: node.position.x, y: node.position.y },
         },
-      };
+      });
+      let updated: GraphNode;
+      switch (existing.type) {
+        case "activity":
+          updated = withPosition(existing) as ActivityNode;
+          break;
+        case "switch":
+        case "map":
+        case "join":
+        case "childWorkflow":
+        case "pollUntil":
+        case "humanGate":
+          updated = withPosition(existing);
+          break;
+        default: {
+          const exhaustive: never = existing;
+          throw new Error(
+            `handleNodeDragStop: unsupported node type "${String(exhaustive)}"`,
+          );
+        }
+      }
       // Bump the fingerprint ref forward by hand so the structural sync
       // useEffect doesn't immediately re-project the nodes and stamp
       // over the local drag commit.
       const nextNodes = { ...config.nodes, [node.id]: updated };
-      const nextFingerprint = JSON.stringify({
-        ids: Object.keys(nextNodes).sort(),
-        entryNodeId: config.entryNodeId,
-        labelsAndTypes: Object.fromEntries(
-          Object.entries(nextNodes).map(([id, n]) => [
-            id,
-            n.type === "activity" ? `${n.label}::${n.activityType}` : n.type,
-          ]),
-        ),
+      const nextFingerprint = buildStructuralFingerprint({
+        ...config,
+        nodes: nextNodes,
       });
       lastFingerprintRef.current = nextFingerprint;
       onConfigChange({ ...config, nodes: nextNodes });

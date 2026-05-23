@@ -59,7 +59,7 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-008** (PollUntilNodeSettings) — consumes US-003
 - [x] **US-009** (HumanGateNodeSettings) — consumes US-002
 - [x] **US-011** (Palette "Flow Control" section) — independent of Phase 2 forms; required for end-to-end add
-- [ ] **US-012** (Canvas per-type shapes) — independent of Phase 2 forms; required for visual differentiation
+- [x] **US-012** (Canvas per-type shapes) — independent of Phase 2 forms; required for visual differentiation
 
 ### Phase 3 — Wiring
 - [ ] **US-010** (NodeSettingsPanel wiring) — depends on all of US-004 through US-009
