@@ -61,6 +61,11 @@ export type {
   PortDescriptor,
 } from "./types";
 
+export {
+  createCatalogParameterValidator,
+  type ValidateActivityParameters,
+} from "./create-parameter-validator";
+
 const ENTRIES: ActivityCatalogEntry[] = [
   filePrepareCatalogEntry,
   blobReadCatalogEntry,

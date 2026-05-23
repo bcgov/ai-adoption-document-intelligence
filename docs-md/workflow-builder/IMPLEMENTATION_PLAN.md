@@ -1,6 +1,6 @@
 # Visual Workflow Builder — Implementation Plan
 
-**Status:** Active. Phase 1A complete; Phase 1B starting.
+**Status:** Active. Phase 1A complete; Phase 1B in progress — backend catalog adoption item 1 landed 2026-05-23.
 **Owner:** Alex.
 **Last updated:** 2026-05-23.
 
@@ -166,11 +166,15 @@ Shipped on `feature/visual-workflow-builder`, 32 commits ahead of `origin/AI-119
 
 The "out of Phase 1A" items, the dropped 1A items, and the backend safety work that the validateFields drift exposed during 1A closeout.
 
-**Backend catalog adoption (started here, finishes in Phase 2):**
+**Backend catalog adoption (landed 2026-05-23, see [feature-docs/20260523-workflow-builder-backend-catalog-adoption/](../../feature-docs/20260523-workflow-builder-backend-catalog-adoption/)):**
 
-- [ ] Backend `graph-schema-validator` consumes the catalog for parameter validation, replacing the imperative `activity-parameter-schema-registry.ts` (today only `data.transform` is validated server-side; everything else is unvalidated at save time)
-- [ ] Temporal worker validator does the same on execute time
-- [ ] Regression: re-run the `multi-page-report-workflow.json` save round-trip post-adoption; backend save-time validation should now catch the kind of drift fixed in 1A closeout
+- [x] Shared `createCatalogParameterValidator()` in `@ai-di/graph-workflow` walks each activity's Zod schema into `GraphValidationError[]` (US-015)
+- [x] `data.transform` catalog schema tightened to match the runtime contract — `fieldMapping` is `string + JSON-parseable`, `xmlEnvelope` requires exactly one `{{payload}}` placeholder when `outputFormat === "xml"` (US-016)
+- [x] Backend `graph-schema-validator` consumes the catalog adapter; `activity-parameter-schema-registry.ts` deleted (US-017)
+- [x] Temporal worker validator does the same; its `activity-parameter-schema-registry.ts` deleted (US-018)
+- [x] Frontend `useGraphValidation` switched to the shared adapter (US-019)
+- [x] Regression: `graph-schema-validator.spec.ts` `document.validateFields legacy-shape rejection` describe block pins the pre-`e99da4ef` flat-rule + `operator: "exact"` shapes as save-time rejections (US-020)
+- [ ] Follow-up: extend the shared validator to also call `validateActivityParameters` for `pollUntil` nodes — currently the parameters of `pollUntil` activities are not catalog-validated. Small change in `packages/graph-workflow/src/validator/validator.ts:326-335`.
 
 **Switch case-routed edge UI:**
 

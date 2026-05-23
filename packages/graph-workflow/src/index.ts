@@ -10,6 +10,7 @@ export {
 // Activity & node catalog (parameter schemas + UI metadata)
 export {
   ACTIVITY_CATALOG,
+  createCatalogParameterValidator,
   getActivityCatalogEntry,
   getActivityParametersJsonSchema,
   listActivityTypes,
@@ -18,4 +19,5 @@ export type {
   ActivityCatalogEntry,
   CatalogCategory,
   PortDescriptor,
+  ValidateActivityParameters,
 } from "./catalog";

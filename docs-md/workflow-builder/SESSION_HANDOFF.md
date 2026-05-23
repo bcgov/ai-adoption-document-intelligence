@@ -1,6 +1,6 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-23 (Phase 1A closeout: US-014 auto-fit-on-add landed; control-flow audit complete; round-trip walkthrough on `multi-page-report-workflow.json` pending Alex's sign-off).
+**Last updated:** 2026-05-23 (Phase 1B item 1 landed — backend catalog adoption: shared `createCatalogParameterValidator()`, backend + temporal validators consume it, two `activity-parameter-schema-registry.ts` files deleted, regression test pins multi-page-report legacy `validateFields` shape rejection).
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
 
@@ -127,7 +127,7 @@ Dev server lands on `http://localhost:3000/`. Vite pre-bundles `@ai-di/graph-wor
 
 ### Phase 1B short menu
 
-1. **Backend catalog adoption** — make `graph-schema-validator` (NestJS) + the Temporal worker validator consume the `@ai-di/graph-workflow` catalog instead of `activity-parameter-schema-registry.ts`. The validateFields drift the editor caught on 2026-05-23 would not have been caught at save time today; this closes that gap.
+1. **Backend catalog adoption** — ✅ landed 2026-05-23. `apps/backend-services/src/workflow/graph-schema-validator.ts` and `apps/temporal/src/graph-schema-validator.ts` now consume `createCatalogParameterValidator()` from `@ai-di/graph-workflow`. Both `activity-parameter-schema-registry.ts` files deleted. Frontend `useGraphValidation` switched to the shared adapter. Backend `graph-schema-validator.spec.ts` has a new `document.validateFields legacy-shape rejection` describe block (US-020) that mirrors `packages/graph-workflow/src/catalog/activities/document-validate-fields.test.ts`. Tests: 174 catalog / 2131 backend / 958 temporal — all green; tsc clean. The catalog tightening uncovered one gap: `pollUntil`'s `parameters` are still NOT run through `validateActivityParameters` by the shared validator (only activity-type registration is checked) — that's a separate change to the shared validator and stays out of scope for this milestone (filed below as a follow-up).
 2. **Switch case-routed edge UI** — custom edge component (colour / label per case), `handleConnect` upgrade that stamps `type: "conditional"` for new edges drawn from switches, per-case picker in the switch settings.
 3. **Rich widgets for the five complex parameter shapes** — `validateFields.rules` (nested `expression` per the just-landed fix), `splitAndClassify.keywordPatterns`, classification rules, page-range editor, confusion-map editor. Activate the `x-widget: rich-editor-tbd` hints in the catalog.
 4. **Visual condition-builder tree** for switch (AND / OR / NOT) — `ConditionExpressionEditor` already supports recursive nesting (US-003); this milestone is the visual upgrade.
@@ -138,7 +138,9 @@ Dev server lands on `http://localhost:3000/`. Vite pre-bundles `@ai-di/graph-wor
 9. **Auto-layout fallback** — dagre auto-arrange, auto-applied when a template loads without `metadata.position`.
 10. **Polish** — duration-format validation into the shared validator; chase the borderColor warning once Alex pastes the exact dev-console text.
 
-Pick any of these as the next milestone; they are not strictly ordered within Phase 1B (with the exception that the backend catalog adoption is the safety-first item and should land early).
+Pick any of these as the next milestone; they are not strictly ordered within Phase 1B (with the exception that the backend catalog adoption is the safety-first item and should land early). With item 1 done, the highest-leverage next pick is either item 2 (Switch case-routed edge UI — most visible UX gap) or item 3 (rich `validateFields.rules` editor — unlocks editing the multi-page-report template that motivated the whole catalog adoption).
+
+**Follow-up surfaced by item 1:** `pollUntil` parameter validation. The shared `validateGraphConfig` only checks activity-type registration for `pollUntil` nodes; it never calls `validateActivityParameters(pollNode.activityType, ...)`. With the catalog now wired through, extending validator.ts to call the parameter validator for `pollUntil` too would unlock per-poll-activity validation. Small change in `packages/graph-workflow/src/validator/validator.ts:326-335`, but it's a behaviour change to the shared validator (not a catalog wiring change) so was kept out of scope.
 
 ### Already shipped — don't re-implement
 

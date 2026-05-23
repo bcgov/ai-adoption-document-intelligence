@@ -22,6 +22,7 @@ const makeGraphConfig = (): GraphWorkflowConfig => ({
       type: "activity",
       label: "Start",
       activityType: "document.updateStatus",
+      parameters: { status: "ongoing_ocr" },
       inputs: [{ port: "documentId", ctxKey: "documentId" }],
     },
   },

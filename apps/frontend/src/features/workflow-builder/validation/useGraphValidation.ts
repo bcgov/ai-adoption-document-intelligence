@@ -13,11 +13,14 @@
 
 import {
   ACTIVITY_CATALOG,
+  createCatalogParameterValidator,
   type GraphValidationError,
   type GraphWorkflowConfig,
   validateGraphConfig,
 } from "@ai-di/graph-workflow";
 import { useEffect, useMemo, useState } from "react";
+
+const validateActivityParameters = createCatalogParameterValidator();
 
 export interface GraphValidationResult {
   errors: GraphValidationError[];
@@ -45,21 +48,7 @@ export function useGraphValidation(
     const handle = setTimeout(() => {
       const result = validateGraphConfig(config, {
         isRegisteredActivityType: (type) => Boolean(ACTIVITY_CATALOG[type]),
-        validateActivityParameters: (type, nodeId, parameters, errs) => {
-          const entry = ACTIVITY_CATALOG[type];
-          if (!entry) return;
-          const parsed = entry.parametersSchema.safeParse(parameters ?? {});
-          if (parsed.success) return;
-          for (const issue of parsed.error.issues) {
-            const suffix =
-              issue.path.length > 0 ? `.${issue.path.join(".")}` : "";
-            errs.push({
-              path: `nodes.${nodeId}.parameters${suffix}`,
-              message: issue.message,
-              severity: "error",
-            });
-          }
-        },
+        validateActivityParameters,
       });
       setErrors(result.errors);
       setIsPending(false);
