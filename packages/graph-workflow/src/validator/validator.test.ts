@@ -9,11 +9,19 @@
  * path (`nodes.<id>...`) — which is exactly how the frontend
  * `useGraphValidation` hook buckets errors per node for the canvas red
  * badges and the validation drawer.
+ *
+ * Also covers US-052 — `validateActivityParameters` runs on `pollUntil`
+ * nodes (the catalog parameters of the polled activity get the same
+ * Zod validation that activity nodes already get).
  */
+import { readdirSync, readFileSync } from "node:fs";
+import * as path from "node:path";
+
 import type {
   ActivityNode,
   GraphValidationError,
   GraphWorkflowConfig,
+  HumanGateNode,
   JoinNode,
   PollUntilNode,
   SwitchNode,
@@ -179,21 +187,13 @@ describe("US-013 Scenario 2: join.sourceMapNodeId pointing at wrong / missing no
 
 describe("US-013 Scenario 3: pollUntil with invalid `interval`", () => {
   /**
-   * GAP NOTE: the shared validator does NOT currently validate the
-   * Temporal-duration grammar of `pollUntil.interval` (or any other
-   * duration field). The frontend `PollUntilNodeSettings` form does
-   * show an inline error via `apps/frontend/src/features/workflow-
-   * builder/settings/control-flow/duration-validation.ts`, but that
-   * regex isn't shared into `@ai-di/graph-workflow` and therefore is
-   * never surfaced in the validation drawer.
-   *
-   * Per US-013's technical notes ("If a gap is discovered, raise it as
-   * a follow-up; do not patch the validator inside this feature unless
-   * trivial") we do NOT patch the validator here. The test below
-   * documents the current behaviour so a future fix can flip the
-   * expectation in one place.
+   * US-051 closed the gap previously documented here. The validator now
+   * calls the shared `isValidTemporalDuration` helper on
+   * `pollUntil.interval` and surfaces an "Invalid Temporal duration"
+   * error at `nodes.<id>.interval` — matching the frontend's
+   * `PollUntilNodeSettings` inline-error behaviour.
    */
-  it("DOCUMENTS GAP: validator does not currently surface an error for `interval: not-a-duration`", () => {
+  it("surfaces an `interval` error for `interval: not-a-duration`", () => {
     const pollNode: PollUntilNode = {
       id: "poll1",
       type: "pollUntil",
@@ -219,9 +219,404 @@ describe("US-013 Scenario 3: pollUntil with invalid `interval`", () => {
     const intervalErrors = result.errors.filter((e) =>
       e.path.startsWith("nodes.poll1.interval"),
     );
-    // Current behaviour: no interval-specific error. This assertion
-    // pins that behaviour so the gap is visible. When the follow-up
-    // lands, flip to `toHaveLength(1)` and assert the message.
-    expect(intervalErrors).toHaveLength(0);
+    expect(intervalErrors).toEqual([
+      expect.objectContaining({
+        path: "nodes.poll1.interval",
+        message: "Invalid Temporal duration",
+        severity: "error",
+      }),
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-052: `validateActivityParameters` runs on `pollUntil` nodes
+// ---------------------------------------------------------------------------
+
+/**
+ * Stub helper that pushes a catalog-style parameter error whenever the
+ * callback is invoked with an activity type listed in `failingTypes`.
+ * Mirrors how the apps wire `createParameterValidator` into the shared
+ * validator (the apps push errors with paths like
+ * `nodes.<id>.parameters.<field>`).
+ */
+function makeOptions(
+  failingTypes: Record<string, string>,
+  registered: (type: string) => boolean = () => true,
+): ValidateGraphConfigOptions {
+  return {
+    isRegisteredActivityType: registered,
+    validateActivityParameters: (activityType, nodeId, _parameters, errors) => {
+      const field = failingTypes[activityType];
+      if (!field) return;
+      errors.push({
+        path: `nodes.${nodeId}.parameters.${field}`,
+        message: `Invalid parameter "${field}" for activity "${activityType}"`,
+        severity: "error",
+      });
+    },
+  };
+}
+
+describe("US-052 Scenario 1: pollUntil parameters are catalog-validated", () => {
+  it("surfaces an error at `nodes.<id>.parameters.<field>` when the polled activity's parameters violate the catalog schema", () => {
+    const pollNode: PollUntilNode = {
+      id: "pollA",
+      type: "pollUntil",
+      label: "Poll with bad params",
+      activityType: "azureOcr.poll",
+      condition: {
+        operator: "equals",
+        left: { ref: "ctx.status" },
+        right: { literal: "done" },
+      },
+      interval: "10s",
+      parameters: { unknownKey: "oops" },
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "pollA",
+      ctx: { status: { type: "string" } },
+      nodes: { pollA: pollNode },
+      edges: [],
+    };
+
+    const options = makeOptions({ "azureOcr.poll": "unknownKey" });
+    const result = validateGraphConfig(config, options);
+
+    const paramErrors = result.errors.filter((e) =>
+      e.path.startsWith("nodes.pollA.parameters."),
+    );
+    expect(paramErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.pollA.parameters.unknownKey",
+          severity: "error",
+        }),
+      ]),
+    );
+    expect(result.valid).toBe(false);
+  });
+
+  it("invokes `validateActivityParameters` with the polled activity type, node id, and parameters object", () => {
+    const pollNode: PollUntilNode = {
+      id: "pollB",
+      type: "pollUntil",
+      label: "Poll",
+      activityType: "azureOcr.poll",
+      condition: {
+        operator: "equals",
+        left: { ref: "ctx.status" },
+        right: { literal: "done" },
+      },
+      interval: "10s",
+      parameters: { foo: "bar" },
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "pollB",
+      ctx: { status: { type: "string" } },
+      nodes: { pollB: pollNode },
+      edges: [],
+    };
+
+    const calls: Array<{
+      activityType: string;
+      nodeId: string;
+      parameters: Record<string, unknown> | undefined;
+    }> = [];
+    const options: ValidateGraphConfigOptions = {
+      isRegisteredActivityType: () => true,
+      validateActivityParameters: (activityType, nodeId, parameters) => {
+        calls.push({ activityType, nodeId, parameters });
+      },
+    };
+
+    validateGraphConfig(config, options);
+
+    expect(calls).toEqual([
+      {
+        activityType: "azureOcr.poll",
+        nodeId: "pollB",
+        parameters: { foo: "bar" },
+      },
+    ]);
+  });
+});
+
+describe("US-052 Scenario 2: parameter validation skipped when activityType is unregistered", () => {
+  it("surfaces only the registration error and does NOT invoke `validateActivityParameters`", () => {
+    const pollNode: PollUntilNode = {
+      id: "pollC",
+      type: "pollUntil",
+      label: "Poll with unknown activity type",
+      activityType: "totallyMadeUp.activity",
+      condition: {
+        operator: "equals",
+        left: { ref: "ctx.status" },
+        right: { literal: "done" },
+      },
+      interval: "10s",
+      parameters: { whatever: 1 },
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "pollC",
+      ctx: { status: { type: "string" } },
+      nodes: { pollC: pollNode },
+      edges: [],
+    };
+
+    let paramValidationCalls = 0;
+    const options: ValidateGraphConfigOptions = {
+      isRegisteredActivityType: () => false,
+      validateActivityParameters: () => {
+        paramValidationCalls += 1;
+      },
+    };
+
+    const result = validateGraphConfig(config, options);
+
+    expect(paramValidationCalls).toBe(0);
+    const pollCErrors = result.errors.filter((e) =>
+      e.path.startsWith("nodes.pollC"),
+    );
+    expect(pollCErrors).toEqual([
+      expect.objectContaining({
+        path: "nodes.pollC.activityType",
+        severity: "error",
+        message: expect.stringContaining("not registered"),
+      }),
+    ]);
+  });
+});
+
+describe("US-052 Scenario 3: pre-existing pollUntil templates raise zero new errors", () => {
+  const templatesDir = path.resolve(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "..",
+    "docs-md",
+    "graph-workflows",
+    "templates",
+  );
+
+  function loadTemplates(): Array<{ name: string; config: GraphWorkflowConfig }> {
+    const entries = readdirSync(templatesDir);
+    return entries
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => {
+        const raw = readFileSync(path.join(templatesDir, name), "utf8");
+        const parsed = JSON.parse(raw) as GraphWorkflowConfig;
+        return { name, config: parsed };
+      });
+  }
+
+  function hasPollUntilNode(config: GraphWorkflowConfig): boolean {
+    return Object.values(config.nodes).some((n) => n.type === "pollUntil");
+  }
+
+  it.each(
+    loadTemplates()
+      .filter(({ config }) => hasPollUntilNode(config))
+      .map(({ name, config }) => [name, config] as const),
+  )(
+    "template %s: pollUntil nodes raise no `parameters.*` errors under the no-op param validator",
+    (_name, config) => {
+      // ALWAYS_REGISTERED_OPTIONS' `validateActivityParameters` is a
+      // no-op — so the only way a `nodes.<pollId>.parameters.*` error
+      // could appear is if the validator itself were synthesizing one.
+      // The US-052 change is purely a delegation hook; templates must
+      // remain clean.
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+      const pollUntilNodeIds = Object.entries(config.nodes)
+        .filter(([, n]) => n.type === "pollUntil")
+        .map(([id]) => id);
+
+      const newParamErrors = result.errors.filter((e) =>
+        pollUntilNodeIds.some((id) =>
+          e.path.startsWith(`nodes.${id}.parameters.`),
+        ),
+      );
+      expect(newParamErrors).toEqual([]);
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// US-051: shared duration validation across pollUntil + humanGate
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a `pollUntil` node with the supplied duration field overrides.
+ * Defaults are valid Temporal durations so each test only varies the
+ * field under inspection.
+ */
+function makePollNode(overrides: {
+  interval?: string;
+  initialDelay?: string;
+  timeout?: string;
+}): PollUntilNode {
+  return {
+    id: "poll1",
+    type: "pollUntil",
+    label: "Poll",
+    activityType: "noop.activity",
+    condition: {
+      operator: "equals",
+      left: { ref: "ctx.status" },
+      right: { literal: "done" },
+    },
+    interval: overrides.interval ?? "10s",
+    initialDelay: overrides.initialDelay,
+    timeout: overrides.timeout,
+  };
+}
+
+function makePollConfig(node: PollUntilNode): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: node.id,
+    ctx: { status: { type: "string" } },
+    nodes: { [node.id]: node },
+    edges: [],
+  };
+}
+
+describe("US-051 Scenario 3: validator surfaces invalid duration at the field path", () => {
+  it("emits an error at `nodes.<id>.interval` for `interval: \"5\"`", () => {
+    const config = makePollConfig(makePollNode({ interval: "5" }));
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.poll1.interval",
+          message: "Invalid Temporal duration",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+});
+
+describe("US-051 Scenario 4: coverage across the four duration fields", () => {
+  it("flags `pollUntil.interval` when invalid", () => {
+    const config = makePollConfig(makePollNode({ interval: "abc" }));
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.poll1.interval",
+          message: "Invalid Temporal duration",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+
+  it("flags `pollUntil.initialDelay` when invalid", () => {
+    const config = makePollConfig(
+      makePollNode({ initialDelay: "1.5s" }),
+    );
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.poll1.initialDelay",
+          message: "Invalid Temporal duration",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+
+  it("flags `pollUntil.timeout` when invalid", () => {
+    const config = makePollConfig(makePollNode({ timeout: "-30s" }));
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.poll1.timeout",
+          message: "Invalid Temporal duration",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+
+  it("flags `humanGate.timeout` when invalid", () => {
+    const gate: HumanGateNode = {
+      id: "gate1",
+      type: "humanGate",
+      label: "Wait for approval",
+      signal: { name: "approve" },
+      timeout: "30",
+      onTimeout: "fail",
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "gate1",
+      ctx: {},
+      nodes: { gate1: gate },
+      edges: [],
+    };
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.gate1.timeout",
+          message: "Invalid Temporal duration",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+
+  it("does not flag optional duration fields when omitted", () => {
+    // Only `interval` is set (and it's valid); `initialDelay` and
+    // `timeout` are undefined — defensive `undefined` handling in
+    // `isValidTemporalDuration` keeps these fields error-free.
+    const config = makePollConfig(makePollNode({}));
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    const durationErrors = result.errors.filter((e) =>
+      ["nodes.poll1.interval", "nodes.poll1.initialDelay", "nodes.poll1.timeout"].includes(
+        e.path,
+      ),
+    );
+    expect(durationErrors).toEqual([]);
+  });
+
+  it("accepts a valid `humanGate.timeout`", () => {
+    const gate: HumanGateNode = {
+      id: "gate1",
+      type: "humanGate",
+      label: "Wait for approval",
+      signal: { name: "approve" },
+      timeout: "1h30m",
+      onTimeout: "fail",
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "gate1",
+      ctx: {},
+      nodes: { gate1: gate },
+      edges: [],
+    };
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    const timeoutErrors = result.errors.filter(
+      (e) => e.path === "nodes.gate1.timeout",
+    );
+    expect(timeoutErrors).toEqual([]);
   });
 });

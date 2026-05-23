@@ -6,6 +6,7 @@ export {
   getCtxRootKey,
   getRefCtxRootKey,
 } from "./validator/context-utils";
+export { isValidTemporalDuration } from "./validator/duration";
 
 // Activity & node catalog (parameter schemas + UI metadata)
 export {

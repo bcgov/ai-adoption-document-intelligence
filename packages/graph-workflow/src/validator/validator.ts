@@ -19,6 +19,7 @@ import type {
   ConditionExpression,
   GraphValidationError,
   GraphWorkflowConfig,
+  HumanGateNode,
   JoinNode,
   MapNode,
   PollUntilNode,
@@ -26,6 +27,7 @@ import type {
   ValueRef,
 } from "../types";
 import { getCtxRootKey, getRefCtxRootKey } from "./context-utils";
+import { isValidTemporalDuration } from "./duration";
 
 const SUPPORTED_SCHEMA_VERSIONS = ["1.0"];
 
@@ -111,6 +113,7 @@ export function validateGraphConfig(
   validateMapJoinNodes(config, errors);
   validatePortBindings(config, errors);
   validateExpressions(config, errors);
+  validateDurations(config, errors);
   validateDagStructure(config, errors);
   validateReachability(config, errors);
   validateNodeGroups(config, errors);
@@ -331,6 +334,13 @@ function validateActivityTypes(
           message: `Activity type "${pollNode.activityType}" is not registered`,
           severity: "error",
         });
+      } else {
+        options.validateActivityParameters(
+          pollNode.activityType,
+          nodeId,
+          pollNode.parameters,
+          errors,
+        );
       }
     }
   }
@@ -565,6 +575,43 @@ function validateExpression(
     const listExpr = expr as { value: ValueRef; list: ValueRef };
     validateValueRef(listExpr.value, `${path}.value`, declaredCtxKeys, errors);
     validateValueRef(listExpr.list, `${path}.list`, declaredCtxKeys, errors);
+  }
+}
+
+function validateDurations(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.type === "pollUntil") {
+      const pollNode = node as PollUntilNode;
+      checkDuration(pollNode.interval, `nodes.${nodeId}.interval`, errors);
+      checkDuration(
+        pollNode.initialDelay,
+        `nodes.${nodeId}.initialDelay`,
+        errors,
+      );
+      checkDuration(pollNode.timeout, `nodes.${nodeId}.timeout`, errors);
+    } else if (node.type === "humanGate") {
+      const gateNode = node as HumanGateNode;
+      checkDuration(gateNode.timeout, `nodes.${nodeId}.timeout`, errors);
+    }
+  }
+}
+
+function checkDuration(
+  value: string | undefined,
+  path: string,
+  errors: GraphValidationError[],
+): void {
+  // Undefined optionals are skipped — only declared values get checked.
+  if (value === undefined) return;
+  if (!isValidTemporalDuration(value)) {
+    errors.push({
+      path,
+      message: "Invalid Temporal duration",
+      severity: "error",
+    });
   }
 }
 

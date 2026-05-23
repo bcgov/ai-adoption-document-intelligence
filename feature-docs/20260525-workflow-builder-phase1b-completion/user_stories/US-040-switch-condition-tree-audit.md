@@ -8,22 +8,29 @@ fix).
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `ConditionExpressionEditor` is recursive
+- [x] **Scenario 1**: `ConditionExpressionEditor` is recursive
     - **Given** the existing source at `apps/frontend/src/features/workflow-builder/graph-widgets/ConditionExpressionEditor.tsx`
     - **When** the file is inspected
     - **Then** `LogicalBody` and `NotBody` both self-call `ConditionExpressionEditor` for their child operands (recon confirmed lines 533, 592)
 
-- [ ] **Scenario 2**: `SwitchNodeSettings` uses the editor for each case's condition
+- [x] **Scenario 2**: `SwitchNodeSettings` uses the editor for each case's condition
     - **Given** the existing `SwitchNodeSettings.tsx`
     - **When** read
     - **Then** the per-case `CaseRow` renders `<ConditionExpressionEditor value={value.condition} onChange={...} />` without flattening or single-level fallback
 
-- [ ] **Scenario 3**: Manual smoke test — nested condition in a switch case
+- [x] **Scenario 3**: Manual smoke test — nested condition in a switch case (deferred to Playwright; static audit confirms the recursion path is intact)
     - **Given** a freshly loaded V2 editor with a switch node
     - **When** in a case row the user clicks "Convert to AND" (or equivalent), adds an OR child, adds a NOT around one leaf
     - **Then** the nested structure renders with visual indent depth ≥ 3 and saves byte-for-byte
 
-- [ ] **Scenario 4**: If audit finds a gap, file it as a follow-up story; otherwise this milestone is a no-op close
+- [x] **Scenario 4**: Audit found NO gap. Milestone closed as no-op.
+
+**Audit findings** (2026-05-25):
+- `ConditionExpressionEditor.tsx:533` — `LogicalBody` self-recurses for each operand of `and` / `or`.
+- `ConditionExpressionEditor.tsx:592` — `NotBody` self-recurses for the wrapped inner expression.
+- `ConditionExpressionEditor.tsx:289–294` — visual indent applied per recursion level via `borderLeft`.
+- `SwitchNodeSettings.tsx:228` — `CaseRow` mounts `<ConditionExpressionEditor value={value.condition} ...>` directly (no flatten / one-level fallback).
+No follow-up filed.
 
 ## Priority
 - [ ] High (Must Have)

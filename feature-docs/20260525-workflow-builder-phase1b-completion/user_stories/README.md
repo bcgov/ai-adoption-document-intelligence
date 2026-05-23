@@ -93,8 +93,8 @@ visible UX features.
 
 ### Phase 1 — small, isolated wins
 - [ ] **US-048** (Flow Control label review — propose, get sign-off, apply)
-- [ ] **US-052** (pollUntil parameter validation in shared validator)
-- [ ] **US-051** (duration regex lift + validator wire-up)
+- [x] **US-052** (pollUntil parameter validation in shared validator)
+- [x] **US-051** (duration regex lift + validator wire-up)
 - [ ] **US-053** (borderColor warning — pending Alex's console text)
 
 ### Phase 2 — four remaining rich widgets (all use JsonSchemaForm routing)
@@ -109,7 +109,7 @@ visible UX features.
 - [ ] **US-039** (route `classification-rule-editor`)
 
 ### Phase 3 — switch condition tree audit
-- [ ] **US-040** (audit + close)
+- [x] **US-040** (audit + close)
 
 ### Phase 4 — auto-layout
 - [ ] **US-049** (helper + button)

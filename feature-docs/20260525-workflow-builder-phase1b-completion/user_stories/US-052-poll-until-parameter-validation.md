@@ -8,22 +8,22 @@ is also impossible to introduce on pollUntil nodes.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: pollUntil parameters are validated
+- [x] **Scenario 1**: pollUntil parameters are validated
     - **Given** a graph with a pollUntil node whose `activityType` has a catalog entry, and whose `parameters` violate the catalog Zod schema
     - **When** `validateGraphConfig` runs
     - **Then** an error appears at `nodes.<id>.parameters.<field>` with severity error
 
-- [ ] **Scenario 2**: pollUntil parameter validation runs after the existing activity-type-registered check
+- [x] **Scenario 2**: pollUntil parameter validation runs after the existing activity-type-registered check
     - **Given** the existing branch around `validator.ts` lines 326–335
     - **When** updated
     - **Then** if `activityType` is unregistered, the registration error is surfaced as-is and parameter validation is skipped (matches the activity-node behaviour)
 
-- [ ] **Scenario 3**: Pre-existing pollUntil-using templates still pass
+- [x] **Scenario 3**: Pre-existing pollUntil-using templates still pass
     - **Given** any template currently in `docs-md/graph-workflows/templates/` that uses `pollUntil`
     - **When** validated
     - **Then** zero new errors are raised (the change is catalog-driven and the templates are already correct)
 
-- [ ] **Scenario 4**: Backend + temporal validators inherit the change
+- [x] **Scenario 4**: Backend + temporal validators inherit the change
     - **Given** both apps consume `validateGraphConfig`
     - **When** this lands
     - **Then** no app-side change is required

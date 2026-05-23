@@ -174,7 +174,7 @@ The "out of Phase 1A" items, the dropped 1A items, and the backend safety work t
 - [x] Temporal worker validator does the same; its `activity-parameter-schema-registry.ts` deleted (US-018)
 - [x] Frontend `useGraphValidation` switched to the shared adapter (US-019)
 - [x] Regression: `graph-schema-validator.spec.ts` `document.validateFields legacy-shape rejection` describe block pins the pre-`e99da4ef` flat-rule + `operator: "exact"` shapes as save-time rejections (US-020)
-- [ ] Follow-up: extend the shared validator to also call `validateActivityParameters` for `pollUntil` nodes — currently the parameters of `pollUntil` activities are not catalog-validated. Small change in `packages/graph-workflow/src/validator/validator.ts:326-335`.
+- [x] Follow-up: extend the shared validator to also call `validateActivityParameters` for `pollUntil` nodes — landed in US-052; the pollUntil branch in `packages/graph-workflow/src/validator/validator.ts` now mirrors the activity branch (registered-type check → param validation).
 
 **Switch case-routed edge UI:**
 
