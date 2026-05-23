@@ -187,7 +187,7 @@ The "out of Phase 1A" items, the dropped 1A items, and the backend safety work t
 - [ ] `validateFields.rules` editor — list editor with per-rule-type variant forms (`field-match` / `arithmetic` / `array-match`) reflecting the nested `expression` shape; consumed by the `multi-page-report-workflow.json` template
 - [ ] `splitAndClassify.keywordPatterns` editor — array of `{ pattern, segmentType }` rows
 - [ ] Classification-rule list editor (used by `document.classify`)
-- [ ] Page-range editor (used by `document.split` `custom-ranges` variant — partially shipped in 1A, polish here)
+- [x] Page-range editor (used by `document.split` `custom-ranges` variant) — `PageRangeListEditor` (US-031 / US-032), routed via `x-widget: "page-range-list"`
 - [ ] Confusion-map editor (used by `ocr.characterConfusion`)
 
 **Switch condition-builder visual tree:**

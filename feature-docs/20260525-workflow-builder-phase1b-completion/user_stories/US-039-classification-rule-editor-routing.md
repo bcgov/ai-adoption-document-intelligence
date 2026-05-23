@@ -6,17 +6,17 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Routing
+- [x] **Scenario 1**: Routing
     - **Given** an array schema with `x-widget: "classification-rule-editor"`
     - **When** `JsonSchemaForm` renders the field
     - **Then** `ClassificationRuleEditor` mounts (data-testid `classification-rule-editor`)
 
-- [ ] **Scenario 2**: Edits propagate
+- [x] **Scenario 2**: Edits propagate
     - **Given** a `JsonSchemaForm` whose `value.rules` is `[]`
     - **When** the user clicks "Add rule"
     - **Then** the form's `onChange` receives `value: { rules: [<one default rule>] }`
 
-- [ ] **Scenario 3**: No regression for other arrays
+- [x] **Scenario 3**: No regression for other arrays
     - **Given** an array schema without the widget hint
     - **When** rendered
     - **Then** the generic array renderer is used

@@ -6,17 +6,17 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Routing
+- [x] **Scenario 1**: Routing
     - **Given** an array schema with `x-widget: "keyword-pattern-editor"`
     - **When** `JsonSchemaForm` renders the field
     - **Then** `KeywordPatternEditor` mounts
 
-- [ ] **Scenario 2**: Edits propagate
+- [x] **Scenario 2**: Edits propagate
     - **Given** a `JsonSchemaForm` whose `value.keywordPatterns` is `[]`
     - **When** the user adds a row
     - **Then** the form's `onChange` receives `value: { keywordPatterns: [<default>] }`
 
-- [ ] **Scenario 3**: Other array schemas fall back gracefully
+- [x] **Scenario 3**: Other array schemas fall back gracefully
     - **Given** an array schema without the widget hint
     - **When** rendered
     - **Then** the generic array editor is used

@@ -14,7 +14,7 @@
  * hint vocabulary.
  */
 
-import type { ValidationRule } from "@ai-di/graph-workflow";
+import type { ClassificationRule, ValidationRule } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
   Autocomplete,
@@ -30,7 +30,16 @@ import {
   TextInput,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { ValidationRuleEditor } from "../settings/rich-widgets";
+import {
+  ClassificationRuleEditor,
+  type ConfusionMap,
+  ConfusionMapEditor,
+  type KeywordPattern,
+  KeywordPatternEditor,
+  type PageRange,
+  PageRangeListEditor,
+  ValidationRuleEditor,
+} from "../settings/rich-widgets";
 import {
   detectDiscriminatedUnion,
   isObjectSchema,
@@ -287,6 +296,36 @@ function FieldRenderer({
     );
   }
 
+  // ── array + x-widget: classification-rule-editor ──────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "classification-rule-editor"
+  ) {
+    const rules = Array.isArray(value) ? (value as ClassificationRule[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <ClassificationRuleEditor
+          value={rules}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
   // ── array + x-widget: validation-rule-editor ──────────────────────────
   if (
     fieldSchema.type === "array" &&
@@ -311,6 +350,101 @@ function FieldRenderer({
         )}
         <ValidationRuleEditor
           value={rules}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── object + x-widget: confusion-map-editor ───────────────────────────
+  if (
+    fieldSchema.type === "object" &&
+    fieldSchema["x-widget"] === "confusion-map-editor"
+  ) {
+    const map =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as ConfusionMap)
+        : {};
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <ConfusionMapEditor
+          value={map}
+          onChange={(next) =>
+            onChange(Object.keys(next).length === 0 ? undefined : next)
+          }
+        />
+      </Box>
+    );
+  }
+
+  // ── array + x-widget: keyword-pattern-editor ──────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "keyword-pattern-editor"
+  ) {
+    const patterns = Array.isArray(value) ? (value as KeywordPattern[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <KeywordPatternEditor
+          value={patterns}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── array + x-widget: page-range-list ─────────────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "page-range-list"
+  ) {
+    const ranges = Array.isArray(value) ? (value as PageRange[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <PageRangeListEditor
+          value={ranges}
           onChange={(next) => onChange(next.length === 0 ? undefined : next)}
         />
       </Box>

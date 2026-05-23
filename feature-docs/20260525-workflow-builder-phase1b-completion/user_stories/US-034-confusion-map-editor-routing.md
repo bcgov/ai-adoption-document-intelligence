@@ -6,17 +6,17 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Routing
+- [x] **Scenario 1**: Routing
     - **Given** a JSON Schema property `{ type: "object", "x-widget": "confusion-map-editor" }`
     - **When** `JsonSchemaForm` renders the field
     - **Then** `ConfusionMapEditor` mounts
 
-- [ ] **Scenario 2**: Edits propagate
+- [x] **Scenario 2**: Edits propagate
     - **Given** a `JsonSchemaForm` whose `value.customConfusionMap` is `{}`
     - **When** the user adds a `{ from: "1", to: "I" }` row
     - **Then** the form's `onChange` receives `value: { customConfusionMap: { "1": "I" } }`
 
-- [ ] **Scenario 3**: Other object schemas fall back gracefully
+- [x] **Scenario 3**: Other object schemas fall back gracefully
     - **Given** an object schema without the widget hint
     - **When** rendered
     - **Then** the generic object renderer (or "Unsupported field schema" stub for free-form objects) is used — no regression

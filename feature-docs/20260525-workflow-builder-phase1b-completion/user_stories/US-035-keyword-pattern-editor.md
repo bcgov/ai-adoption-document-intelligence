@@ -8,23 +8,23 @@ writing JSON.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Renders one row per pattern
+- [x] **Scenario 1**: Renders one row per pattern
     - **Given** `value: [{ pattern: "(?i)pay\\s*stub", segmentType: "pay-stub" }]`
     - **When** the editor mounts
     - **Then** one row renders with the pattern + segmentType filled in
 
-- [ ] **Scenario 2**: Invalid regex surfaces an inline error per row
+- [x] **Scenario 2**: Invalid regex surfaces an inline error per row
     - **Given** the user types `(unclosed` into a `pattern` input
     - **When** the input loses focus
     - **Then** `new RegExp(pattern)` is attempted in a try/catch
     - **And** if it throws, the row shows an inline error with the JS error message; `onChange` still propagates the (invalid) value
 
-- [ ] **Scenario 3**: `segmentType` is a free-form string
+- [x] **Scenario 3**: `segmentType` is a free-form string
     - **Given** a row with `segmentType: ""`
     - **When** rendered
     - **Then** a plain `TextInput` is shown with `withAsterisk` per the schema (segmentType is required)
 
-- [ ] **Scenario 4**: Add / remove rows
+- [x] **Scenario 4**: Add / remove rows
     - **Given** an editor with one row
     - **When** "Add pattern" is clicked
     - **Then** a new row is appended with `pattern: ""`, `segmentType: ""`

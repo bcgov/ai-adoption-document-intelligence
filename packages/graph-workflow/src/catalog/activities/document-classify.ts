@@ -11,7 +11,10 @@ const PATTERN_SCOPES = [
 ] as const;
 const PATTERN_OPERATORS = ["contains", "startsWith", "matches"] as const;
 
-const classificationPatternSchema = z.object({
+export const CLASSIFICATION_PATTERN_SCOPES = PATTERN_SCOPES;
+export const CLASSIFICATION_PATTERN_OPERATORS = PATTERN_OPERATORS;
+
+export const classificationPatternSchema = z.object({
   scope: z.enum(PATTERN_SCOPES).meta({
     title: "Where to look",
     description: "Region of the OCR result to match against.",
@@ -26,7 +29,13 @@ const classificationPatternSchema = z.object({
   }),
 });
 
-const classificationRuleSchema = z.object({
+/**
+ * Canonical type for one element of `classificationRuleSchema.patterns`.
+ * Source of truth for the frontend `ClassificationRuleEditor` widget.
+ */
+export type ClassificationPattern = z.infer<typeof classificationPatternSchema>;
+
+export const classificationRuleSchema = z.object({
   name: z.string().min(1).meta({ title: "Rule name" }),
   resultType: z.string().min(1).meta({
     title: "Result type",
@@ -40,6 +49,13 @@ const classificationRuleSchema = z.object({
       description: "ALL patterns must match for the rule to fire.",
     }),
 });
+
+/**
+ * Canonical type for one element of
+ * `documentClassifyParametersSchema.rules`. Source of truth for the frontend
+ * `ClassificationRuleEditor` widget.
+ */
+export type ClassificationRule = z.infer<typeof classificationRuleSchema>;
 
 export const documentClassifyParametersSchema = z.object({
   classifierType: z

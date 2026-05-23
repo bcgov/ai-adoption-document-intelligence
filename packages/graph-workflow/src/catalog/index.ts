@@ -72,6 +72,16 @@ export {
   type ValidationRule,
 } from "./activities/document-validate-fields";
 
+export {
+  CLASSIFICATION_PATTERN_OPERATORS,
+  CLASSIFICATION_PATTERN_SCOPES,
+  classificationPatternSchema,
+  classificationRuleSchema,
+  documentClassifyParametersSchema,
+  type ClassificationPattern,
+  type ClassificationRule,
+} from "./activities/document-classify";
+
 const ENTRIES: ActivityCatalogEntry[] = [
   filePrepareCatalogEntry,
   blobReadCatalogEntry,

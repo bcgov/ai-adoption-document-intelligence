@@ -11,7 +11,12 @@ export { isValidTemporalDuration } from "./validator/duration";
 // Activity & node catalog (parameter schemas + UI metadata)
 export {
   ACTIVITY_CATALOG,
+  CLASSIFICATION_PATTERN_OPERATORS,
+  CLASSIFICATION_PATTERN_SCOPES,
+  classificationPatternSchema,
+  classificationRuleSchema,
   createCatalogParameterValidator,
+  documentClassifyParametersSchema,
   documentValidateFieldsParametersSchema,
   getActivityCatalogEntry,
   getActivityParametersJsonSchema,
@@ -21,6 +26,8 @@ export {
 export type {
   ActivityCatalogEntry,
   CatalogCategory,
+  ClassificationPattern,
+  ClassificationRule,
   PortDescriptor,
   ValidateActivityParameters,
   ValidationRule,
