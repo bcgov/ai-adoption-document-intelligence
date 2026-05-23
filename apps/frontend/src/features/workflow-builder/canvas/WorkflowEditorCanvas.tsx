@@ -45,10 +45,12 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ActivityNode,
+  ErrorPolicy,
   GraphEdge,
   GraphNode,
   GraphValidationError,
   GraphWorkflowConfig,
+  SwitchNode,
 } from "../../../types/workflow";
 import { getActivityVisualHints } from "../catalog-utils";
 import {
@@ -56,6 +58,7 @@ import {
   getControlFlowVisualHints,
 } from "../control-flow-visual-hints";
 import type { ControlFlowNodeType } from "../palette/control-flow-skeletons";
+import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
 
 interface WorkflowEditorCanvasProps {
   config: GraphWorkflowConfig;
@@ -81,10 +84,18 @@ interface CommonNodeData extends Record<string, unknown> {
 
 interface ActivityNodeData extends CommonNodeData {
   activityType: string;
+  /**
+   * Populated from `node.errorPolicy` so the renderer can mount a
+   * second `error` source handle when `onError === "fallback"`
+   * without re-looking-up the source node by id (US-024).
+   */
+  errorPolicy?: ErrorPolicy;
 }
 
 interface ControlFlowNodeData extends CommonNodeData {
   controlFlowType: ControlFlowNodeType;
+  /** Same as ActivityNodeData.errorPolicy — see US-024. */
+  errorPolicy?: ErrorPolicy;
 }
 
 type ActivityFlowNode = Node<ActivityNodeData, "activity">;
@@ -93,8 +104,28 @@ type FlowNode = ActivityFlowNode | ControlFlowFlowNode;
 
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
-const EDGE_STYLE = { stroke: "#9ca3af", strokeWidth: 2 };
-const EDGE_MARKER = { type: MarkerType.ArrowClosed, color: "#9ca3af" } as const;
+
+// Stroke colours match `WorkflowEdge`'s palette so the arrowhead marker
+// colours line up with the rendered stroke (US-023 follow-up — flagged in
+// US-025).
+const NORMAL_STROKE_COLOR = "#9ca3af";
+const ERROR_STROKE_COLOR = "var(--mantine-color-red-6, #e03131)";
+const CONDITIONAL_STROKE_COLOR = getControlFlowVisualHints("switch").color;
+
+function getEdgeStrokeColor(edgeType: GraphEdge["type"]): string {
+  switch (edgeType) {
+    case "normal":
+      return NORMAL_STROKE_COLOR;
+    case "conditional":
+      return CONDITIONAL_STROKE_COLOR;
+    case "error":
+      return ERROR_STROKE_COLOR;
+  }
+}
+
+const EDGE_TYPES = {
+  "workflow-edge": WorkflowEdge,
+};
 
 const CONTROL_FLOW_TYPES: readonly ControlFlowNodeType[] = [
   "switch",
@@ -211,9 +242,23 @@ const ValidationBadge = memo(function ValidationBadge({
 
 interface NodeHandlesProps {
   accent: string;
+  /**
+   * When supplied with `onError === "fallback"`, the renderer mounts a
+   * second source handle (`id="error"`) on the bottom of the node so
+   * the user can draw an error edge from it (US-024). Switch renderers
+   * intentionally do not pass this prop — switch nodes route via
+   * cases + defaultEdge, not via an error handle.
+   */
+  errorPolicy?: ErrorPolicy;
 }
 
-const NodeHandles = memo(function NodeHandles({ accent }: NodeHandlesProps) {
+const ERROR_HANDLE_BACKGROUND = "#e03131";
+
+const NodeHandles = memo(function NodeHandles({
+  accent,
+  errorPolicy,
+}: NodeHandlesProps) {
+  const showErrorHandle = errorPolicy?.onError === "fallback";
   return (
     <>
       <Handle
@@ -222,10 +267,19 @@ const NodeHandles = memo(function NodeHandles({ accent }: NodeHandlesProps) {
         style={{ background: accent }}
       />
       <Handle
+        id="out"
         type="source"
         position={Position.Right}
         style={{ background: accent }}
       />
+      {showErrorHandle && (
+        <Handle
+          id="error"
+          type="source"
+          position={Position.Bottom}
+          style={{ background: ERROR_HANDLE_BACKGROUND }}
+        />
+      )}
     </>
   );
 });
@@ -304,7 +358,7 @@ const ActivityNodeRenderer = memo(
           )}
         </div>
         <div style={{ fontWeight: 600 }}>{data.label}</div>
-        <NodeHandles accent={accent} />
+        <NodeHandles accent={accent} errorPolicy={data.errorPolicy} />
       </div>
     );
   },
@@ -433,7 +487,7 @@ const ControlFlowRectangleRenderer = memo(
         />
         {renderControlFlowHeader({ id, data, selected, hints })}
         <div style={{ fontWeight: 600 }}>{data.label}</div>
-        <NodeHandles accent={accent} />
+        <NodeHandles accent={accent} errorPolicy={data.errorPolicy} />
       </div>
     );
   },
@@ -576,6 +630,7 @@ function projectFlowNodes(
           errorCount: 0,
           warningCount: 0,
           onBadgeClick,
+          errorPolicy: node.errorPolicy,
         },
       };
       return flowNode;
@@ -593,6 +648,7 @@ function projectFlowNodes(
           errorCount: 0,
           warningCount: 0,
           onBadgeClick,
+          errorPolicy: node.errorPolicy,
         },
       };
       return flowNode;
@@ -607,14 +663,22 @@ function projectFlowNodes(
 }
 
 function projectFlowEdges(config: GraphWorkflowConfig): Edge[] {
-  return config.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    type: "default",
-    markerEnd: EDGE_MARKER,
-    style: EDGE_STYLE,
-  }));
+  return config.edges.map((edge) => {
+    const sourceNode = config.nodes[edge.source];
+    const sourceSwitch: SwitchNode | undefined =
+      sourceNode?.type === "switch" ? sourceNode : undefined;
+    const data: WorkflowEdgeData = { graphEdge: edge, sourceSwitch };
+    const strokeColor = getEdgeStrokeColor(edge.type);
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      type: "workflow-edge",
+      data,
+      markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
+      style: { stroke: strokeColor, strokeWidth: 2 },
+    };
+  });
 }
 
 function buildStructuralFingerprint(config: GraphWorkflowConfig): string {
@@ -894,11 +958,25 @@ function WorkflowEditorCanvasInner({
       const id = `edge-${Date.now().toString(36)}-${Math.random()
         .toString(36)
         .slice(2, 6)}`;
+      // Edge type resolution (US-025):
+      //   1. Default to `conditional` if the source node is a switch,
+      //      otherwise `normal`.
+      //   2. Override to `error` when the explicit source handle id is
+      //      `"error"` — handle-id wins over the source-type heuristic
+      //      so a stray switch+error connection is still tagged
+      //      `error` (defence in depth; switch nodes don't render an
+      //      error handle today).
+      const sourceNode = config.nodes[connection.source];
+      let edgeType: GraphEdge["type"] =
+        sourceNode?.type === "switch" ? "conditional" : "normal";
+      if (connection.sourceHandle === "error") {
+        edgeType = "error";
+      }
       const newEdge: GraphEdge = {
         id,
         source: connection.source,
         target: connection.target,
-        type: "normal",
+        type: edgeType,
       };
       onConfigChange({ ...config, edges: [...config.edges, newEdge] });
     },
@@ -911,6 +989,7 @@ function WorkflowEditorCanvasInner({
         nodes={internalNodes}
         edges={internalEdges}
         nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
         onNodesChange={onInternalNodesChange}
         onEdgesChange={onInternalEdgesChange}
         onNodeDragStop={handleNodeDragStop}

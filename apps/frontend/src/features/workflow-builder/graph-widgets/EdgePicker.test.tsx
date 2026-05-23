@@ -308,3 +308,168 @@ describe("EdgePicker — Scenario 4: stale-reference warning", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// US-022 Scenario 1: Without `edgeTypes` prop, behavior is unchanged
+// ---------------------------------------------------------------------------
+
+describe("EdgePicker — US-022 Scenario 1: no edgeTypes prop keeps all edges", () => {
+  it("lists normal, conditional, and error edges when edgeTypes is not provided", () => {
+    const config = makeConfig(
+      [
+        activity("n1", "Start"),
+        activity("n2", "Validate"),
+        activity("n3", "Process"),
+        activity("n4", "Recover"),
+      ],
+      [
+        edge("e1", "n1", "n2", "normal"),
+        edge("e2", "n1", "n3", "conditional"),
+        edge("e3", "n1", "n4", "error"),
+      ],
+    );
+
+    renderPicker(
+      <EdgePicker
+        config={config}
+        fromNodeId="n1"
+        value={null}
+        onChange={() => undefined}
+        data-testid="picker"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("picker"));
+
+    expect(screen.getByText("e1")).toBeInTheDocument();
+    expect(screen.getByText("e2")).toBeInTheDocument();
+    expect(screen.getByText("e3")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-022 Scenario 2: With `edgeTypes={["conditional"]}`, only conditional
+// edges appear
+// ---------------------------------------------------------------------------
+
+describe("EdgePicker — US-022 Scenario 2: edgeTypes filter restricts options", () => {
+  it("offers only conditional edges when edgeTypes={['conditional']}", () => {
+    const config = makeConfig(
+      [
+        activity("n1", "Start"),
+        activity("n2", "Validate"),
+        activity("n3", "Process"),
+        activity("n4", "Recover"),
+      ],
+      [
+        edge("e-norm", "n1", "n2", "normal"),
+        edge("e-cond", "n1", "n3", "conditional"),
+        edge("e-err", "n1", "n4", "error"),
+      ],
+    );
+
+    renderPicker(
+      <EdgePicker
+        config={config}
+        fromNodeId="n1"
+        value={null}
+        onChange={() => undefined}
+        edgeTypes={["conditional"]}
+        data-testid="picker"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("picker"));
+
+    expect(screen.getByText("e-cond")).toBeInTheDocument();
+    expect(screen.queryByText("e-norm")).not.toBeInTheDocument();
+    expect(screen.queryByText("e-err")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-022 Scenario 3: Selected value pointing to a non-matching type still
+// surfaces the existing stale-reference warning
+// ---------------------------------------------------------------------------
+
+describe("EdgePicker — US-022 Scenario 3: stale warning when bound edge type no longer matches filter", () => {
+  it("surfaces the stale-reference warning for a bound edge whose type is filtered out, and supports clearing", () => {
+    // edge-x exists with type "normal", but the picker filters to
+    // conditional. The existing stale-warning semantics apply because the
+    // bound id is no longer a valid option for this role.
+    const config = makeConfig(
+      [activity("n1", "Start"), activity("n2", "Validate")],
+      [edge("edge-x", "n1", "n2", "normal")],
+    );
+
+    const onChange = vi.fn<(edgeId: string | null) => void>();
+
+    function Wrapper() {
+      const [value, setValue] = useState<string | null>("edge-x");
+      return (
+        <EdgePicker
+          config={config}
+          fromNodeId="n1"
+          value={value}
+          onChange={(next) => {
+            onChange(next);
+            setValue(next);
+          }}
+          edgeTypes={["conditional"]}
+          data-testid="picker"
+        />
+      );
+    }
+
+    renderPicker(<Wrapper />);
+
+    const warning = screen.getByTestId("edge-picker-stale-warning");
+    expect(warning).toBeInTheDocument();
+    expect(within(warning).getByText(/edge-x/)).toBeInTheDocument();
+
+    // Clearing still works.
+    const clearButton = screen.getByLabelText(/clear edge selection/i);
+    fireEvent.click(clearButton);
+    expect(onChange).toHaveBeenNthCalledWith(1, null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-022 Scenario 4: Empty filter list shows no candidates
+// ---------------------------------------------------------------------------
+
+describe("EdgePicker — US-022 Scenario 4: empty edgeTypes filter yields no options", () => {
+  it("renders no options and does not throw when edgeTypes is an empty array", () => {
+    const config = makeConfig(
+      [
+        activity("n1", "Start"),
+        activity("n2", "Validate"),
+        activity("n3", "Process"),
+        activity("n4", "Recover"),
+      ],
+      [
+        edge("e1", "n1", "n2", "normal"),
+        edge("e2", "n1", "n3", "conditional"),
+        edge("e3", "n1", "n4", "error"),
+      ],
+    );
+
+    renderPicker(
+      <EdgePicker
+        config={config}
+        fromNodeId="n1"
+        value={null}
+        onChange={() => undefined}
+        edgeTypes={[]}
+        data-testid="picker"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("picker"));
+
+    // None of the candidate edge-id secondary labels should appear.
+    expect(screen.queryByText("e1")).not.toBeInTheDocument();
+    expect(screen.queryByText("e2")).not.toBeInTheDocument();
+    expect(screen.queryByText("e3")).not.toBeInTheDocument();
+  });
+});

@@ -13,6 +13,7 @@ import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
 import { act, render, screen } from "@testing-library/react";
+import type { Connection, Edge } from "@xyflow/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -27,6 +28,7 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "../../../types/workflow";
+import type { WorkflowEdgeData } from "./WorkflowEdge";
 import { WorkflowEditorCanvas } from "./WorkflowEditorCanvas";
 
 // ---------------------------------------------------------------------------
@@ -44,14 +46,22 @@ interface MockNodeProps {
 // AND test cases can spy on / reset it across runs. `mockReactFlowApi`
 // is also stable — returning a fresh object from `useReactFlow` on every
 // render would invalidate the canvas's fitView effect deps and cancel
-// its in-flight setTimeout.
-const { mockFitView, mockReactFlowApi } = vi.hoisted(() => {
-  const fitView = vi.fn();
-  return {
-    mockFitView: fitView,
-    mockReactFlowApi: { fitView },
-  };
-});
+// its in-flight setTimeout. `latestReactFlowProps` lets tests reach the
+// most recently passed ReactFlow props (including `onConnect`, `edges`,
+// `edgeTypes`) so US-025 scenarios can dispatch a connection without
+// booting xyflow's runtime.
+const { mockFitView, mockReactFlowApi, latestReactFlowProps } = vi.hoisted(
+  () => {
+    const fitView = vi.fn();
+    return {
+      mockFitView: fitView,
+      mockReactFlowApi: { fitView },
+      latestReactFlowProps: {
+        current: null as null | Record<string, unknown>,
+      },
+    };
+  },
+);
 
 vi.mock("@xyflow/react", () => {
   const useNodesState = <T,>(initial: T[]) => {
@@ -69,37 +79,51 @@ vi.mock("@xyflow/react", () => {
     return [state, setState, onChange] as const;
   };
   return {
-    ReactFlow: ({
-      nodes,
-      nodeTypes,
-    }: {
-      nodes: MockNodeProps[];
-      nodeTypes?: Record<string, React.ComponentType<MockNodeProps>>;
-    }) => (
-      <div data-testid="react-flow">
-        {nodes.map((node) => {
-          const Renderer = nodeTypes?.[node.type];
-          return Renderer ? (
-            <div key={node.id} data-testid={`rf-node-${node.id}`}>
-              <Renderer
-                id={node.id}
-                type={node.type}
-                data={node.data}
-                selected={node.selected ?? false}
-              />
-            </div>
-          ) : null;
-        })}
-      </div>
-    ),
+    ReactFlow: (props: Record<string, unknown>) => {
+      // Capture the most recent props so tests can invoke `onConnect`
+      // and assert the projected `edges` / `edgeTypes` shape.
+      latestReactFlowProps.current = props;
+      const nodes: MockNodeProps[] = (props.nodes as MockNodeProps[]) ?? [];
+      const nodeTypes = props.nodeTypes as
+        | Record<string, React.ComponentType<MockNodeProps>>
+        | undefined;
+      return (
+        <div data-testid="react-flow">
+          {nodes.map((node) => {
+            const Renderer = nodeTypes?.[node.type];
+            return Renderer ? (
+              <div key={node.id} data-testid={`rf-node-${node.id}`}>
+                <Renderer
+                  id={node.id}
+                  type={node.type}
+                  data={node.data}
+                  selected={node.selected ?? false}
+                />
+              </div>
+            ) : null;
+          })}
+        </div>
+      );
+    },
     ReactFlowProvider: ({ children }: { children: React.ReactNode }) => (
       <>{children}</>
     ),
     Background: () => null,
     Controls: () => null,
     MiniMap: () => null,
-    Handle: ({ type, position }: { type: string; position: string }) => (
-      <div data-testid={`handle-${type}-${position}`} />
+    Handle: ({
+      type,
+      position,
+      id,
+    }: {
+      type: string;
+      position: string;
+      id?: string;
+    }) => (
+      <div
+        data-testid={`handle-${type}-${position}`}
+        data-handleid={id ?? null}
+      />
     ),
     MarkerType: { ArrowClosed: "arrowclosed" },
     Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
@@ -111,6 +135,7 @@ vi.mock("@xyflow/react", () => {
 
 beforeEach(() => {
   mockFitView.mockClear();
+  latestReactFlowProps.current = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -459,6 +484,179 @@ describe("WorkflowEditorCanvas — Scenario 5: validation badges on control-flow
 });
 
 // ---------------------------------------------------------------------------
+// US-024: Error source handle on nodes whose errorPolicy.onError === "fallback"
+//   feature-docs/20260524-workflow-builder-switch-edges-and-validation-editor/user_stories/US-024-error-source-handle.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-024: error source handle", () => {
+  /**
+   * Helper: collect every Handle the renderer mounts under a given node
+   * id, returning [type, handleId] tuples. The xyflow mock above renders
+   * each Handle as `<div data-testid="handle-<type>-<position>"
+   * data-handleid="<id|null>" />`, so we can read the handleId attribute
+   * directly. `data-handleid` is also xyflow's own runtime attribute
+   * (set by the real Handle component) — the assertion strategy works on
+   * the real DOM too.
+   */
+  function collectHandles(
+    nodeId: string,
+  ): Array<{ type: string; handleId: string | null }> {
+    const nodeEl = screen.getByTestId(`canvas-node-${nodeId}`);
+    const handles = Array.from(
+      nodeEl.querySelectorAll<HTMLElement>("[data-testid^='handle-']"),
+    );
+    return handles.map((el) => {
+      const testid = el.getAttribute("data-testid") ?? "";
+      const type = testid.startsWith("handle-target-") ? "target" : "source";
+      const handleId = el.getAttribute("data-handleid");
+      return {
+        type,
+        handleId: handleId === "null" ? null : handleId,
+      };
+    });
+  }
+
+  function configWithErrorPolicyActivity(
+    onError: "fail" | "fallback" | "skip",
+  ): GraphWorkflowConfig {
+    const activity: ActivityNode = {
+      id: "activity_1",
+      type: "activity",
+      label: "Activity",
+      activityType: "data.transform",
+      parameters: {},
+      errorPolicy: { retryable: false, onError },
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Test", version: "1.0.0" },
+      ctx: {},
+      nodes: { [activity.id]: activity },
+      edges: [],
+      entryNodeId: activity.id,
+    };
+  }
+
+  it("Scenario 1: activity node without fallback policy renders exactly one source handle", () => {
+    // No errorPolicy at all.
+    renderCanvas(makeAllNodeTypesConfig());
+    const handles = collectHandles("activity_1");
+    const sources = handles.filter((h) => h.type === "source");
+    expect(sources).toHaveLength(1);
+    // Without a fallback policy the renderer still names the normal
+    // source handle `out` so xyflow can disambiguate consistently —
+    // there must not be a second source handle with id `error`.
+    expect(sources.some((h) => h.handleId === "error")).toBe(false);
+  });
+
+  it("Scenario 1b: activity node with errorPolicy.onError='fail' renders exactly one source handle", () => {
+    renderCanvas(configWithErrorPolicyActivity("fail"));
+    const handles = collectHandles("activity_1");
+    const sources = handles.filter((h) => h.type === "source");
+    expect(sources).toHaveLength(1);
+    expect(sources.some((h) => h.handleId === "error")).toBe(false);
+  });
+
+  it("Scenario 2: activity node with errorPolicy.onError='fallback' renders two source handles (out + error)", () => {
+    renderCanvas(configWithErrorPolicyActivity("fallback"));
+    const handles = collectHandles("activity_1");
+    const sources = handles.filter((h) => h.type === "source");
+    expect(sources).toHaveLength(2);
+    const sourceIds = sources.map((h) => h.handleId).sort();
+    expect(sourceIds).toEqual(["error", "out"]);
+  });
+
+  it.each([
+    ["map", "map_1"],
+    ["join", "join_1"],
+    ["childWorkflow", "child_1"],
+    ["pollUntil", "poll_1"],
+    ["humanGate", "human_1"],
+  ] as const)("Scenario 3: control-flow rectangle %s with errorPolicy.onError='fallback' renders both out + error source handles", (_type, nodeId) => {
+    const base = makeAllNodeTypesConfig();
+    const target = base.nodes[nodeId];
+    if (!target) {
+      throw new Error(`fixture missing node ${nodeId}`);
+    }
+    const withPolicy: GraphNode = {
+      ...target,
+      errorPolicy: { retryable: false, onError: "fallback" },
+    };
+    const next: GraphWorkflowConfig = {
+      ...base,
+      nodes: { ...base.nodes, [nodeId]: withPolicy },
+    };
+    renderCanvas(next);
+    const handles = collectHandles(nodeId);
+    const sources = handles.filter((h) => h.type === "source");
+    expect(sources).toHaveLength(2);
+    const sourceIds = sources.map((h) => h.handleId).sort();
+    expect(sourceIds).toEqual(["error", "out"]);
+  });
+
+  it("Scenario 4: switch node never gets an error handle even with errorPolicy.onError='fallback'", () => {
+    const base = makeAllNodeTypesConfig();
+    const switchNode = base.nodes.switch_1;
+    if (!switchNode || switchNode.type !== "switch") {
+      throw new Error("fixture missing switch_1");
+    }
+    const withPolicy: SwitchNode = {
+      ...switchNode,
+      errorPolicy: { retryable: false, onError: "fallback" },
+    };
+    const next: GraphWorkflowConfig = {
+      ...base,
+      nodes: { ...base.nodes, switch_1: withPolicy },
+    };
+    renderCanvas(next);
+    const handles = collectHandles("switch_1");
+    const sources = handles.filter((h) => h.type === "source");
+    expect(sources).toHaveLength(1);
+    expect(sources.some((h) => h.handleId === "error")).toBe(false);
+  });
+
+  it("Scenario 5: existing edges with no explicit sourcePort still render (no regression)", () => {
+    // Old-shape edges: stored with just id/source/target/type and no
+    // sourcePort/handle info. The canvas must still project them into
+    // xyflow form — the projected count must equal the config edge
+    // count.
+    const base = makeAllNodeTypesConfig();
+    const oldShapeEdges: GraphWorkflowConfig["edges"] = [
+      {
+        id: "edge_legacy_1",
+        source: "activity_1",
+        target: "switch_1",
+        type: "normal",
+      },
+      {
+        id: "edge_legacy_2",
+        source: "switch_1",
+        target: "map_1",
+        type: "normal",
+      },
+    ];
+    const next: GraphWorkflowConfig = { ...base, edges: oldShapeEdges };
+    renderCanvas(next);
+    // Both legacy edges still render — they're sourced at the (renamed)
+    // `out` handle by default since xyflow falls back to the first
+    // available source handle when no sourceHandle is provided.
+    for (const edge of oldShapeEdges) {
+      const sourceNode = screen.getByTestId(`canvas-node-${edge.source}`);
+      const targetNode = screen.getByTestId(`canvas-node-${edge.target}`);
+      expect(sourceNode).toBeInTheDocument();
+      expect(targetNode).toBeInTheDocument();
+    }
+    // Source handle on activity_1 must carry id="out" so xyflow's
+    // default-handle resolution can still match it.
+    const handles = collectHandles("activity_1");
+    const source = handles.find((h) => h.type === "source");
+    expect(source).toBeDefined();
+    expect(source?.handleId).toBe("out");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // US-014: auto-fit-on-add
 //   feature-docs/20260522-workflow-builder-phase1a-closeout/user_stories/US-014-canvas-auto-fit-on-node-add.md
 // ---------------------------------------------------------------------------
@@ -613,5 +811,383 @@ describe("WorkflowEditorCanvas — US-014: auto-fit-on-add", () => {
       expect.objectContaining({ padding: 0.25, duration: 300 }),
     );
     expect(callArg.nodes).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-025: handleConnect stamps `conditional` / `error` / `normal` per source
+//   feature-docs/20260524-workflow-builder-switch-edges-and-validation-editor/user_stories/US-025-handle-connect-edge-type.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-025: handleConnect edge-type stamping", () => {
+  /** Resolves the `onConnect` callback the canvas hands to ReactFlow. */
+  function getOnConnect(): (connection: Connection) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onConnect !== "function") {
+      throw new Error("ReactFlow mock did not capture onConnect");
+    }
+    return props.onConnect as (connection: Connection) => void;
+  }
+
+  /**
+   * Extracts the edges array from the most recent `onConfigChange` call.
+   * Used to assert the edge `type` the canvas wrote into the outer config.
+   */
+  function lastEmittedEdges(
+    onConfigChange: ReturnType<typeof vi.fn>,
+  ): GraphWorkflowConfig["edges"] {
+    expect(onConfigChange).toHaveBeenCalled();
+    const calls = onConfigChange.mock.calls;
+    const lastArg = calls[calls.length - 1][0] as GraphWorkflowConfig;
+    return lastArg.edges;
+  }
+
+  it("Scenario 1: edge drawn from a switch source defaults to `conditional`", () => {
+    const config = makeAllNodeTypesConfig();
+    const { onConfigChange } = renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "switch_1",
+        target: "activity_1",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    const edges = lastEmittedEdges(onConfigChange);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({
+      source: "switch_1",
+      target: "activity_1",
+      type: "conditional",
+    });
+  });
+
+  it("Scenario 2: edge drawn from any node's error handle defaults to `error`", () => {
+    // Activity carrying errorPolicy.onError = "fallback" — drawing from
+    // its `error` source handle should stamp the edge as `error`.
+    const activity: ActivityNode = {
+      id: "a1",
+      type: "activity",
+      label: "Activity",
+      activityType: "data.transform",
+      parameters: {},
+      errorPolicy: { retryable: false, onError: "fallback" },
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const target: ActivityNode = {
+      id: "n2",
+      type: "activity",
+      label: "Target",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 200, y: 0 } },
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "T", version: "1.0.0" },
+      ctx: {},
+      nodes: { [activity.id]: activity, [target.id]: target },
+      edges: [],
+      entryNodeId: activity.id,
+    };
+    const { onConfigChange } = renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "a1",
+        target: "n2",
+        sourceHandle: "error",
+        targetHandle: null,
+      });
+    });
+    const edges = lastEmittedEdges(onConfigChange);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({
+      source: "a1",
+      target: "n2",
+      type: "error",
+    });
+  });
+
+  it("Scenario 3: edge from a non-switch node's `out` handle defaults to `normal`", () => {
+    const activity: ActivityNode = {
+      id: "a1",
+      type: "activity",
+      label: "Activity",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const target: ActivityNode = {
+      id: "n2",
+      type: "activity",
+      label: "Target",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 200, y: 0 } },
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "T", version: "1.0.0" },
+      ctx: {},
+      nodes: { [activity.id]: activity, [target.id]: target },
+      edges: [],
+      entryNodeId: activity.id,
+    };
+    const { onConfigChange } = renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "a1",
+        target: "n2",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    const edges = lastEmittedEdges(onConfigChange);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({
+      source: "a1",
+      target: "n2",
+      type: "normal",
+    });
+  });
+
+  it("Scenario 4: switch source + error handle still produces `error` (explicit handle wins)", () => {
+    const config = makeAllNodeTypesConfig();
+    const { onConfigChange } = renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "switch_1",
+        target: "activity_1",
+        sourceHandle: "error",
+        targetHandle: null,
+      });
+    });
+    const edges = lastEmittedEdges(onConfigChange);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({
+      source: "switch_1",
+      target: "activity_1",
+      type: "error",
+    });
+  });
+
+  it("Scenario 5: existing duplicate / self-loop guards remain in place", () => {
+    // Pre-existing edge so the duplicate guard has something to match.
+    const baseConfig = makeAllNodeTypesConfig();
+    const config: GraphWorkflowConfig = {
+      ...baseConfig,
+      edges: [
+        {
+          id: "edge_existing",
+          source: "activity_1",
+          target: "switch_1",
+          type: "normal",
+        },
+      ],
+    };
+    const { onConfigChange } = renderCanvas(config);
+    const onConnect = getOnConnect();
+
+    // Self-loop should be ignored.
+    act(() => {
+      onConnect({
+        source: "activity_1",
+        target: "activity_1",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    expect(onConfigChange).not.toHaveBeenCalled();
+
+    // Duplicate (matching source+target on an existing edge) is ignored.
+    act(() => {
+      onConnect({
+        source: "activity_1",
+        target: "switch_1",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    expect(onConfigChange).not.toHaveBeenCalled();
+
+    // Sanity: a genuinely new connection still emits — confirms the
+    // guards aren't over-broadly blocking everything.
+    act(() => {
+      onConnect({
+        source: "activity_1",
+        target: "map_1",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-025 wiring: WorkflowEdge registered as the custom xyflow edge type
+//   The canvas projects every edge with `type: "workflow-edge"` + a
+//   `data` payload carrying the `GraphEdge` (and source `SwitchNode`
+//   when the source is a switch) so the WorkflowEdge renderer can
+//   compute its own stroke + label without re-walking the graph.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-025 wiring: WorkflowEdge edge-type registration", () => {
+  function getCapturedEdges(): Edge[] {
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    return (props.edges as Edge[]) ?? [];
+  }
+
+  function getCapturedEdgeTypes(): Record<string, unknown> {
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    return (props.edgeTypes as Record<string, unknown>) ?? {};
+  }
+
+  it("registers `workflow-edge` in `edgeTypes` and projects every edge with that type", async () => {
+    const base = makeAllNodeTypesConfig();
+    const config: GraphWorkflowConfig = {
+      ...base,
+      edges: [
+        {
+          id: "edge_normal",
+          source: "activity_1",
+          target: "switch_1",
+          type: "normal",
+        },
+        {
+          id: "edge_conditional",
+          source: "switch_1",
+          target: "map_1",
+          type: "conditional",
+        },
+      ],
+    };
+    renderCanvas(config);
+    await flushAnimationFrame();
+
+    const edgeTypes = getCapturedEdgeTypes();
+    expect(edgeTypes).toHaveProperty("workflow-edge");
+    // `WorkflowEdge` is wrapped in `React.memo`, which returns a special
+    // object (not a plain function). Asserting truthy is enough — what we
+    // care about is that the canvas wired the renderer in by name.
+    expect(edgeTypes["workflow-edge"]).toBeDefined();
+    expect(edgeTypes["workflow-edge"]).not.toBeNull();
+
+    const projected = getCapturedEdges();
+    expect(projected).toHaveLength(2);
+    for (const edge of projected) {
+      expect(edge.type).toBe("workflow-edge");
+    }
+  });
+
+  it("attaches `data.graphEdge` and (for switch sources) `data.sourceSwitch` to each projected edge", async () => {
+    const base = makeAllNodeTypesConfig();
+    const switchNode = base.nodes.switch_1 as SwitchNode;
+    const switchWithCases: SwitchNode = {
+      ...switchNode,
+      cases: [
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.x" },
+            right: { literal: 1 },
+          },
+          edgeId: "edge_conditional",
+        },
+      ],
+    };
+    const config: GraphWorkflowConfig = {
+      ...base,
+      nodes: { ...base.nodes, switch_1: switchWithCases },
+      edges: [
+        {
+          id: "edge_normal",
+          source: "activity_1",
+          target: "switch_1",
+          type: "normal",
+        },
+        {
+          id: "edge_conditional",
+          source: "switch_1",
+          target: "map_1",
+          type: "conditional",
+        },
+      ],
+    };
+    renderCanvas(config);
+    await flushAnimationFrame();
+
+    const projected = getCapturedEdges();
+    const normalEdge = projected.find((e) => e.id === "edge_normal");
+    const conditionalEdge = projected.find((e) => e.id === "edge_conditional");
+
+    // Both edges must carry the underlying GraphEdge.
+    expect(normalEdge?.data).toMatchObject({
+      graphEdge: { id: "edge_normal", type: "normal" },
+    });
+    // Activity source ≠ switch → no sourceSwitch attached.
+    expect(
+      (normalEdge?.data as WorkflowEdgeData | undefined)?.sourceSwitch,
+    ).toBe(undefined);
+
+    // Switch source → sourceSwitch is the source SwitchNode so the
+    // WorkflowEdge renderer can resolve `case[i]: <predicate>` labels.
+    expect(conditionalEdge?.data).toMatchObject({
+      graphEdge: { id: "edge_conditional", type: "conditional" },
+      sourceSwitch: { id: "switch_1", type: "switch" },
+    });
+  });
+
+  it("aligns each edge's arrowhead marker colour with its stroke colour", async () => {
+    const base = makeAllNodeTypesConfig();
+    const config: GraphWorkflowConfig = {
+      ...base,
+      edges: [
+        {
+          id: "edge_normal",
+          source: "activity_1",
+          target: "switch_1",
+          type: "normal",
+        },
+        {
+          id: "edge_conditional",
+          source: "switch_1",
+          target: "map_1",
+          type: "conditional",
+        },
+        {
+          id: "edge_error",
+          source: "activity_1",
+          target: "join_1",
+          type: "error",
+        },
+      ],
+    };
+    renderCanvas(config);
+    await flushAnimationFrame();
+
+    const projected = getCapturedEdges();
+    const byId = new Map(projected.map((e) => [e.id, e]));
+
+    const normalEdge = byId.get("edge_normal");
+    const conditionalEdge = byId.get("edge_conditional");
+    const errorEdge = byId.get("edge_error");
+
+    // Normal: grey marker matching the grey stroke.
+    expect(normalEdge?.markerEnd).toMatchObject({ color: "#9ca3af" });
+    expect(normalEdge?.style).toMatchObject({ stroke: "#9ca3af" });
+
+    // Conditional: switch accent for both stroke and marker.
+    const switchAccent = "#facc15";
+    expect(conditionalEdge?.markerEnd).toMatchObject({ color: switchAccent });
+    expect(conditionalEdge?.style).toMatchObject({ stroke: switchAccent });
+
+    // Error: red for both stroke and marker (matches the WorkflowEdge
+    // renderer's ERROR_STROKE colour).
+    const errorColor = "var(--mantine-color-red-6, #e03131)";
+    expect(errorEdge?.markerEnd).toMatchObject({ color: errorColor });
+    expect(errorEdge?.style).toMatchObject({ stroke: errorColor });
   });
 });

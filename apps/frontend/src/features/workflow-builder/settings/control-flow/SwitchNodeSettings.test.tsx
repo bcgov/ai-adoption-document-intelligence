@@ -132,7 +132,10 @@ describe("SwitchNodeSettings — Scenario 1: renders existing cases", () => {
     ]);
     const config = makeConfig(
       [node, activity("n2", "Approve"), activity("n3", "Reject")],
-      [edge("e1", "sw1", "n2"), edge("e2", "sw1", "n3")],
+      [
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+      ],
     );
 
     renderSettings(
@@ -189,7 +192,7 @@ describe("SwitchNodeSettings — Scenario 2: Add Case appends an empty case", ()
     ]);
     const config = makeConfig(
       [initialNode, activity("n2", "Approve")],
-      [edge("e1", "sw1", "n2")],
+      [edge("e1", "sw1", "n2", "conditional")],
     );
 
     const { spy } = mountWithSpy(config, "sw1");
@@ -246,9 +249,9 @@ describe("SwitchNodeSettings — Scenario 3: Remove Case removes the targeted ca
         activity("n4", "C"),
       ],
       [
-        edge("e1", "sw1", "n2"),
-        edge("e2", "sw1", "n3"),
-        edge("e3", "sw1", "n4"),
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+        edge("e3", "sw1", "n4", "conditional"),
       ],
     );
 
@@ -283,7 +286,10 @@ describe("SwitchNodeSettings — Scenario 4: row edits propagate to onConfigChan
     ]);
     const config = makeConfig(
       [initialNode, activity("n2", "Approve"), activity("n3", "Reject")],
-      [edge("e1", "sw1", "n2"), edge("e2", "sw1", "n3")],
+      [
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+      ],
     );
 
     const { spy } = mountWithSpy(config, "sw1");
@@ -319,7 +325,7 @@ describe("SwitchNodeSettings — Scenario 4: row edits propagate to onConfigChan
     ]);
     const config = makeConfig(
       [initialNode, activity("n2", "Approve")],
-      [edge("e1", "sw1", "n2")],
+      [edge("e1", "sw1", "n2", "conditional")],
     );
 
     const { spy } = mountWithSpy(config, "sw1");
@@ -349,6 +355,227 @@ describe("SwitchNodeSettings — Scenario 4: row edits propagate to onConfigChan
 // edges from this node
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// US-026 Scenario 1: per-case EdgePicker filters to conditional edges
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 1: per-case picker conditional-only filter", () => {
+  it("only conditional edges sourced at the switch appear in the per-case picker dropdown", () => {
+    const node = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "e-cond" },
+    ]);
+    const config = makeConfig(
+      [node, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e-cond", "sw1", "n2", "conditional"),
+        edge("e-norm", "sw1", "n3", "normal"),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Open the per-case picker for case 0.
+    const picker = screen.getByTestId("switch-node-settings-case-0-edge");
+    fireEvent.click(picker);
+
+    // Both the per-case picker and the default-edge picker render the same
+    // conditional edge as an option (each picker's combobox has its own
+    // dropdown DOM), so "e-cond" appears twice. "e-norm" must not appear at
+    // all because both pickers filter to conditional.
+    expect(screen.getAllByText("e-cond")).toHaveLength(2);
+    expect(screen.queryByText("e-norm")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-026 Scenario 2: default-edge EdgePicker filters to conditional edges
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 2: default-edge picker conditional-only filter", () => {
+  it("only conditional edges sourced at the switch appear in the default-edge picker dropdown", () => {
+    const node = switchNode("sw1", "Branch", []);
+    const config = makeConfig(
+      [node, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e-cond", "sw1", "n2", "conditional"),
+        edge("e-norm", "sw1", "n3", "normal"),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Open the default-edge picker.
+    const picker = screen.getByTestId("switch-node-settings-default-edge");
+    fireEvent.click(picker);
+
+    expect(screen.getByText("e-cond")).toBeInTheDocument();
+    expect(screen.queryByText("e-norm")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-026 Scenario 3: loading the segmentRouter from multi-page-report
+// populates all four pickers with bound values
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 3: segmentRouter template populates all four pickers", () => {
+  it("each case row's EdgePicker shows the bound edge value and the default picker shows edge-to-unknown", () => {
+    // Mirror the segmentRouter switch + outgoing edges from
+    // docs-md/graph-workflows/templates/multi-page-report-workflow.json.
+    const segmentRouter = switchNode(
+      "segmentRouter",
+      "Route by Document Type",
+      [
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.currentSegment.segmentType" },
+            right: { literal: "monthly-report" },
+          },
+          edgeId: "edge-to-monthly-report",
+        },
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.currentSegment.segmentType" },
+            right: { literal: "pay-stub" },
+          },
+          edgeId: "edge-to-pay-stub",
+        },
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.currentSegment.segmentType" },
+            right: { literal: "bank-record" },
+          },
+          edgeId: "edge-to-bank-record",
+        },
+      ],
+      "edge-to-unknown",
+    );
+    const config = makeConfig(
+      [
+        segmentRouter,
+        activity("monthlyReportOcr", "Monthly Report OCR"),
+        activity("payStubOcr", "Pay Stub OCR"),
+        activity("bankRecordOcr", "Bank Record OCR"),
+        activity("unknownDocOcr", "Unknown Doc OCR"),
+      ],
+      [
+        edge(
+          "edge-to-monthly-report",
+          "segmentRouter",
+          "monthlyReportOcr",
+          "conditional",
+        ),
+        edge("edge-to-pay-stub", "segmentRouter", "payStubOcr", "conditional"),
+        edge(
+          "edge-to-bank-record",
+          "segmentRouter",
+          "bankRecordOcr",
+          "conditional",
+        ),
+        edge(
+          "edge-to-unknown",
+          "segmentRouter",
+          "unknownDocOcr",
+          "conditional",
+        ),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={segmentRouter}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Per-case picker values resolve to the target node's label.
+    const case0Picker = screen.getByTestId(
+      "switch-node-settings-case-0-edge",
+    ) as HTMLInputElement;
+    const case1Picker = screen.getByTestId(
+      "switch-node-settings-case-1-edge",
+    ) as HTMLInputElement;
+    const case2Picker = screen.getByTestId(
+      "switch-node-settings-case-2-edge",
+    ) as HTMLInputElement;
+    const defaultPicker = screen.getByTestId(
+      "switch-node-settings-default-edge",
+    ) as HTMLInputElement;
+
+    expect(case0Picker.value).toBe("Monthly Report OCR");
+    expect(case1Picker.value).toBe("Pay Stub OCR");
+    expect(case2Picker.value).toBe("Bank Record OCR");
+    expect(defaultPicker.value).toBe("Unknown Doc OCR");
+
+    // None of the bound values should surface a stale-reference warning.
+    expect(
+      screen.queryByTestId("edge-picker-stale-warning"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-026 Scenario 4: a switch with one conditional + one normal edge — only
+// the conditional appears in the case row dropdown
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 4: normal edge from switch excluded", () => {
+  it("only the conditional edge appears in the per-case dropdown when one conditional + one normal edge are sourced at the switch", () => {
+    const node = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "" },
+    ]);
+    const config = makeConfig(
+      [node, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e-cond", "sw1", "n2", "conditional"),
+        edge("e-norm", "sw1", "n3", "normal"),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Open the per-case picker for case 0.
+    fireEvent.click(screen.getByTestId("switch-node-settings-case-0-edge"));
+
+    // Only the conditional edge appears as an option in any picker. Each
+    // picker (per-case + default-edge) renders its own combobox dropdown
+    // DOM, so the conditional edge's target label "Approve" + edge id
+    // "e-cond" appear once per picker = twice. The normal edge "Reject" /
+    // "e-norm" must not appear in either dropdown.
+    expect(screen.getAllByText("Approve")).toHaveLength(2);
+    expect(screen.queryByText("Reject")).not.toBeInTheDocument();
+    expect(screen.getAllByText("e-cond")).toHaveLength(2);
+    expect(screen.queryByText("e-norm")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 5: defaultEdge is editable via an EdgePicker scoped to outgoing
+// edges from this node
+// ---------------------------------------------------------------------------
+
 describe("SwitchNodeSettings — Scenario 5: defaultEdge EdgePicker is scoped to outgoing edges", () => {
   it("only edges with source === switchNode.id appear; selecting one updates defaultEdge via onConfigChange", () => {
     const initialNode = switchNode("sw1", "Branch", []);
@@ -362,10 +589,10 @@ describe("SwitchNodeSettings — Scenario 5: defaultEdge EdgePicker is scoped to
         activity("ny", "Other target"),
       ],
       [
-        edge("e1", "sw1", "n2"),
-        edge("e2", "sw1", "n3"),
-        edge("e3", "nx", "n2"),
-        edge("e4", "nx", "ny"),
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+        edge("e3", "nx", "n2", "conditional"),
+        edge("e4", "nx", "ny", "conditional"),
       ],
     );
 

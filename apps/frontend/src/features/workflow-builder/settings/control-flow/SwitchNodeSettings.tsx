@@ -164,6 +164,7 @@ export function SwitchNodeSettings({
           fromNodeId={node.id}
           value={node.defaultEdge ?? null}
           onChange={setDefaultEdge}
+          edgeTypes={["conditional"]}
           placeholder="Pick a default edge…"
           data-testid="switch-node-settings-default-edge"
         />
@@ -244,6 +245,7 @@ function CaseRow({
           onChange={(nextEdgeId) =>
             onChange({ ...value, edgeId: nextEdgeId ?? "" })
           }
+          edgeTypes={["conditional"]}
           label="Edge"
           placeholder="Pick the outgoing edge…"
           data-testid={`${testIdBase}-edge`}

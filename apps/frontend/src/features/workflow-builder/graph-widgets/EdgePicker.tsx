@@ -45,6 +45,12 @@ export interface EdgePickerProps {
   placeholder?: string;
   /** When true, renders an asterisk after the label. */
   required?: boolean;
+  /**
+   * Optional allow-list of edge `type` values. When provided, only edges
+   * whose `type` is included appear as options. An empty array yields no
+   * options. When omitted, all edge types are listed.
+   */
+  edgeTypes?: GraphEdge["type"][];
   /** Test-id for the underlying input (the Mantine root). */
   "data-testid"?: string;
 }
@@ -76,11 +82,14 @@ export function EdgePicker({
   description,
   placeholder = "Select an edge…",
   required,
+  edgeTypes,
   "data-testid": testId,
 }: EdgePickerProps) {
   const options = useMemo<EdgeOption[]>(() => {
+    const allowedTypes = edgeTypes ? new Set(edgeTypes) : null;
     return config.edges
       .filter((edge) => edge.source === fromNodeId)
+      .filter((edge) => (allowedTypes ? allowedTypes.has(edge.type) : true))
       .map((edge) => {
         const targetLabel = resolveTargetLabel(edge, config);
         return {
@@ -90,14 +99,16 @@ export function EdgePicker({
           edgeId: edge.id,
         };
       });
-  }, [config, fromNodeId]);
+  }, [config, fromNodeId, edgeTypes]);
 
   const staleReference = useMemo(() => {
     if (!value) return false;
     const edge = config.edges.find((e) => e.id === value);
     if (!edge) return true;
-    return edge.source !== fromNodeId;
-  }, [value, config.edges, fromNodeId]);
+    if (edge.source !== fromNodeId) return true;
+    if (edgeTypes && !edgeTypes.includes(edge.type)) return true;
+    return false;
+  }, [value, config.edges, fromNodeId, edgeTypes]);
 
   const renderSelectOption = ({
     option,
