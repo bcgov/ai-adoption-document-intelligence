@@ -43,7 +43,7 @@ import {
   IconHelp,
   IconSettings,
 } from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   type CreateWorkflowDto,
@@ -147,15 +147,23 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     setConfig(existingWorkflow.config);
   }, [existingWorkflow, isEditMode]);
 
-  const pendingSelectRef = useRef<string | null>(null);
-  const addActivity = useCallback((activityType: string) => {
-    const entry = ACTIVITY_CATALOG[activityType] as
-      | ActivityCatalogEntry
-      | undefined;
-    if (!entry) return;
-    setConfig((prev) => {
-      const id = makeNodeId(prev, activityType);
-      const offsetIndex = Object.keys(prev.nodes).length;
+  // Both add handlers compute the new id from the current `config`
+  // closure and call `setConfig` + `setSelectedNodeId` in the same
+  // event-handler tick. React 18 automatic batching collapses the two
+  // updates into a single render, so the canvas's structural
+  // projection effect sees both new state pieces at once and projects
+  // the new node with `selected: true` from the start. (Earlier
+  // attempts to sync external `selectedNodeId` into xyflow's internal
+  // node-selected flag from a later effect deadlocked against xyflow's
+  // StoreUpdater.)
+  const addActivity = useCallback(
+    (activityType: string) => {
+      const entry = ACTIVITY_CATALOG[activityType] as
+        | ActivityCatalogEntry
+        | undefined;
+      if (!entry) return;
+      const id = makeNodeId(config, activityType);
+      const offsetIndex = Object.keys(config.nodes).length;
       const inputs = entry.inputs.map((p) => ({
         port: p.name,
         ctxKey: p.name,
@@ -179,28 +187,31 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           },
         },
       };
-      const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
-      const nextNodes = { ...prev.nodes, [id]: newNode };
-      const nextCtx = { ...prev.ctx };
-      for (const binding of [...inputs, ...outputs]) {
-        if (!nextCtx[binding.ctxKey]) {
-          nextCtx[binding.ctxKey] = { type: "string" };
+      setConfig((prev) => {
+        const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
+        const nextNodes = { ...prev.nodes, [id]: newNode };
+        const nextCtx = { ...prev.ctx };
+        for (const binding of [...inputs, ...outputs]) {
+          if (!nextCtx[binding.ctxKey]) {
+            nextCtx[binding.ctxKey] = { type: "string" };
+          }
         }
-      }
-      pendingSelectRef.current = id;
-      return {
-        ...prev,
-        nodes: nextNodes,
-        ctx: nextCtx,
-        entryNodeId: nextEntryNodeId,
-      };
-    });
-  }, []);
+        return {
+          ...prev,
+          nodes: nextNodes,
+          ctx: nextCtx,
+          entryNodeId: nextEntryNodeId,
+        };
+      });
+      setSelectedNodeId(id);
+    },
+    [config],
+  );
 
-  const addControlFlowNode = useCallback((type: ControlFlowNodeType) => {
-    setConfig((prev) => {
-      const id = makeNodeId(prev, type);
-      const offsetIndex = Object.keys(prev.nodes).length;
+  const addControlFlowNode = useCallback(
+    (type: ControlFlowNodeType) => {
+      const id = makeNodeId(config, type);
+      const offsetIndex = Object.keys(config.nodes).length;
       const skeleton = buildControlFlowSkeleton(type, id);
       // Mutate the freshly-built skeleton's metadata in place — this is
       // safe because the skeleton was just constructed and is not yet
@@ -214,24 +225,19 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           y: 100 + (offsetIndex % 3) * 140,
         },
       };
-      const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
-      const nextNodes = { ...prev.nodes, [id]: newNode };
-      pendingSelectRef.current = id;
-      return {
-        ...prev,
-        nodes: nextNodes,
-        entryNodeId: nextEntryNodeId,
-      };
-    });
-  }, []);
-
-  // Drain the pending-select queue once the new config has been committed.
-  useEffect(() => {
-    if (pendingSelectRef.current && config.nodes[pendingSelectRef.current]) {
-      setSelectedNodeId(pendingSelectRef.current);
-      pendingSelectRef.current = null;
-    }
-  }, [config.nodes]);
+      setConfig((prev) => {
+        const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
+        const nextNodes = { ...prev.nodes, [id]: newNode };
+        return {
+          ...prev,
+          nodes: nextNodes,
+          entryNodeId: nextEntryNodeId,
+        };
+      });
+      setSelectedNodeId(id);
+    },
+    [config],
+  );
 
   const deleteSelected = useCallback(() => {
     if (!selectedNodeId) return;
