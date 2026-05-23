@@ -243,12 +243,15 @@ function renderCanvas(
     errorsByNode?: Map<string, GraphValidationError[]>;
     onNodeBadgeClick?: (nodeId: string) => void;
     selectedNodeId?: string | null;
+    simplifiedView?: boolean;
+    onGroupChipClick?: (groupId: string) => void;
   } = {},
 ) {
   const onConfigChange = vi.fn();
   const onSelectNode = vi.fn();
   let currentConfig = config;
   let currentSelected = options.selectedNodeId ?? null;
+  let currentSimplified = options.simplifiedView ?? false;
   const utils = render(
     <MantineProvider>
       <WorkflowEditorCanvas
@@ -258,6 +261,8 @@ function renderCanvas(
         onSelectNode={onSelectNode}
         errorsByNode={options.errorsByNode}
         onNodeBadgeClick={options.onNodeBadgeClick}
+        simplifiedView={currentSimplified}
+        onGroupChipClick={options.onGroupChipClick}
       />
     </MantineProvider>,
   );
@@ -284,11 +289,40 @@ function renderCanvas(
           onSelectNode={onSelectNode}
           errorsByNode={options.errorsByNode}
           onNodeBadgeClick={options.onNodeBadgeClick}
+          simplifiedView={currentSimplified}
+          onGroupChipClick={options.onGroupChipClick}
         />
       </MantineProvider>,
     );
   };
-  return { ...utils, onConfigChange, onSelectNode, rerenderWithConfig };
+  /**
+   * Re-renders with a new `simplifiedView` flag (mirrors the top-bar
+   * Mantine switch in `WorkflowEditorV2Page` flipping state).
+   */
+  const rerenderWithSimplified = (next: boolean) => {
+    currentSimplified = next;
+    utils.rerender(
+      <MantineProvider>
+        <WorkflowEditorCanvas
+          config={currentConfig}
+          selectedNodeId={currentSelected}
+          onConfigChange={onConfigChange}
+          onSelectNode={onSelectNode}
+          errorsByNode={options.errorsByNode}
+          onNodeBadgeClick={options.onNodeBadgeClick}
+          simplifiedView={currentSimplified}
+          onGroupChipClick={options.onGroupChipClick}
+        />
+      </MantineProvider>,
+    );
+  };
+  return {
+    ...utils,
+    onConfigChange,
+    onSelectNode,
+    rerenderWithConfig,
+    rerenderWithSimplified,
+  };
 }
 
 /**
@@ -1789,5 +1823,292 @@ describe("WorkflowEditorCanvas — US-045: hover-to-extend popover", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-041: multi-select bridge for the "Group selected" top-bar action
+//   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-041-group-from-selection.md
+//
+// xyflow's `onSelectionChange` callback fires with the full list of
+// selected nodes whenever the marquee or shift-click selection changes.
+// The canvas exposes that list to the host via the new
+// `onSelectionChangeMany` prop without dropping the single-select
+// callback used by the right-rail.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-041: multi-select callback", () => {
+  /** Resolves the `onSelectionChange` callback the canvas hands to ReactFlow. */
+  function getOnSelectionChange(): (params: {
+    nodes: Array<{ id: string }>;
+    edges: Array<{ id: string }>;
+  }) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onSelectionChange !== "function") {
+      throw new Error("ReactFlow mock did not capture onSelectionChange");
+    }
+    return props.onSelectionChange as (params: {
+      nodes: Array<{ id: string }>;
+      edges: Array<{ id: string }>;
+    }) => void;
+  }
+
+  it("fires onSelectionChangeMany with every selected node id (and still fires onSelectNode for the first)", () => {
+    const onSelectionChangeMany = vi.fn();
+    const config = makeAllNodeTypesConfig();
+    const onConfigChange = vi.fn();
+    const onSelectNode = vi.fn();
+    render(
+      <MantineProvider>
+        <WorkflowEditorCanvas
+          config={config}
+          selectedNodeId={null}
+          onConfigChange={onConfigChange}
+          onSelectNode={onSelectNode}
+          onSelectionChangeMany={onSelectionChangeMany}
+        />
+      </MantineProvider>,
+    );
+    act(() => {
+      getOnSelectionChange()({
+        nodes: [{ id: "activity_1" }, { id: "switch_1" }],
+        edges: [],
+      });
+    });
+    // Both ids surfaced upward via the new callback.
+    expect(onSelectionChangeMany).toHaveBeenCalledTimes(1);
+    expect(onSelectionChangeMany).toHaveBeenCalledWith([
+      "activity_1",
+      "switch_1",
+    ]);
+    // Single-select callback still fires with the first selected id so
+    // the right-rail keeps working unchanged.
+    expect(onSelectNode).toHaveBeenCalledWith("activity_1");
+  });
+
+  it("fires onSelectionChangeMany with an empty array when selection is cleared", () => {
+    const onSelectionChangeMany = vi.fn();
+    const onSelectNode = vi.fn();
+    const config = makeAllNodeTypesConfig();
+    render(
+      <MantineProvider>
+        <WorkflowEditorCanvas
+          config={config}
+          selectedNodeId={"activity_1"}
+          onConfigChange={vi.fn()}
+          onSelectNode={onSelectNode}
+          onSelectionChangeMany={onSelectionChangeMany}
+        />
+      </MantineProvider>,
+    );
+    act(() => {
+      getOnSelectionChange()({ nodes: [], edges: [] });
+    });
+    expect(onSelectionChangeMany).toHaveBeenCalledWith([]);
+    // First id is null when no nodes are selected.
+    expect(onSelectNode).toHaveBeenCalledWith(null);
+  });
+
+  it("omitting onSelectionChangeMany does not throw — backwards-callable canvas", () => {
+    const config = makeAllNodeTypesConfig();
+    render(
+      <MantineProvider>
+        <WorkflowEditorCanvas
+          config={config}
+          selectedNodeId={null}
+          onConfigChange={vi.fn()}
+          onSelectNode={vi.fn()}
+        />
+      </MantineProvider>,
+    );
+    expect(() =>
+      act(() => {
+        getOnSelectionChange()({
+          nodes: [{ id: "activity_1" }, { id: "switch_1" }],
+          edges: [],
+        });
+      }),
+    ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-043: simplified-view toggle collapses groups into chips
+//   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-043-simplified-view-toggle.md
+//
+// The canvas accepts a `simplifiedView` prop. When ON, it projects the
+// config through `projectGroupedConfig` and renders one chip pseudo-node
+// per group + every un-grouped node. Edges remap to chip ids; intra-group
+// edges are hidden. Chip selection routes through `onGroupChipClick`.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-043: simplified-view projection", () => {
+  /**
+   * Fixture: g1 = [n1, n2], g2 = [n3], plus one un-grouped node n4 and
+   * edges crossing into / out of the groups. Mirrors the story's
+   * Scenario 2 example.
+   */
+  function makeGroupedFixture(): GraphWorkflowConfig {
+    const n1: ActivityNode = {
+      id: "n1",
+      type: "activity",
+      label: "n1",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const n2: ActivityNode = {
+      id: "n2",
+      type: "activity",
+      label: "n2",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 100, y: 0 } },
+    };
+    const n3: ActivityNode = {
+      id: "n3",
+      type: "activity",
+      label: "n3",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 200, y: 0 } },
+    };
+    const n4: ActivityNode = {
+      id: "n4",
+      type: "activity",
+      label: "n4",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 400, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "grouped fixture", version: "1.0.0" },
+      ctx: {},
+      nodes: { n1, n2, n3, n4 },
+      edges: [
+        { id: "e_intra", source: "n1", target: "n2", type: "normal" },
+        { id: "e_cross", source: "n2", target: "n3", type: "normal" },
+        { id: "e_out", source: "n3", target: "n4", type: "normal" },
+      ],
+      entryNodeId: "n1",
+      nodeGroups: {
+        g1: { label: "Group 1", icon: "cleanup", nodeIds: ["n1", "n2"] },
+        g2: { label: "Group 2", icon: "process", nodeIds: ["n3"] },
+      },
+    };
+  }
+
+  it("Scenario 2: simplified ON renders 2 chips + 1 normal node (n4)", () => {
+    renderCanvas(makeGroupedFixture(), { simplifiedView: true });
+    // Chips: deterministic ids `group-chip-${groupId}`.
+    expect(screen.getByTestId("canvas-group-chip-g1")).toBeInTheDocument();
+    expect(screen.getByTestId("canvas-group-chip-g2")).toBeInTheDocument();
+    // Underlying grouped nodes are hidden.
+    expect(screen.queryByTestId("canvas-node-n1")).toBeNull();
+    expect(screen.queryByTestId("canvas-node-n2")).toBeNull();
+    expect(screen.queryByTestId("canvas-node-n3")).toBeNull();
+    // The un-grouped node still renders as a normal activity rectangle.
+    expect(screen.getByTestId("canvas-node-n4")).toBeInTheDocument();
+  });
+
+  it("Scenario 2: cross-group edge endpoints attach at the chip ids", () => {
+    renderCanvas(makeGroupedFixture(), { simplifiedView: true });
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    const projected = (props.edges as Edge[]) ?? [];
+    // Three original edges: e_intra is intra-group (dropped); e_cross
+    // crosses g1 → g2 (both endpoints rewritten); e_out leaves g2 (source
+    // rewritten, target stays).
+    const byId = new Map(projected.map((e) => [e.id, e]));
+    expect(byId.get("e_intra")).toBeUndefined();
+    expect(byId.get("e_cross")).toMatchObject({
+      source: "group-chip-g1",
+      target: "group-chip-g2",
+    });
+    expect(byId.get("e_out")).toMatchObject({
+      source: "group-chip-g2",
+      target: "n4",
+    });
+  });
+
+  it("Scenario 3: toggling OFF restores the original view (chips removed, node positions unchanged)", () => {
+    const fixture = makeGroupedFixture();
+    const { rerenderWithSimplified } = renderCanvas(fixture, {
+      simplifiedView: true,
+    });
+    // Chips visible while ON.
+    expect(screen.getByTestId("canvas-group-chip-g1")).toBeInTheDocument();
+    // Toggle the simplified-view flag back to false.
+    rerenderWithSimplified(false);
+    // All original nodes return, no chips remain.
+    expect(screen.queryByTestId("canvas-group-chip-g1")).toBeNull();
+    expect(screen.queryByTestId("canvas-group-chip-g2")).toBeNull();
+    expect(screen.getByTestId("canvas-node-n1")).toBeInTheDocument();
+    expect(screen.getByTestId("canvas-node-n2")).toBeInTheDocument();
+    expect(screen.getByTestId("canvas-node-n3")).toBeInTheDocument();
+    expect(screen.getByTestId("canvas-node-n4")).toBeInTheDocument();
+  });
+
+  it("Scenario 4: chip renders the GROUP_ICONS svg + the label + node-count Badge", () => {
+    renderCanvas(makeGroupedFixture(), { simplifiedView: true });
+    // The chip carries the icon wrapper from the renderer's icon slot, which
+    // hosts the tabler-icon svg sourced from the shared GROUP_ICONS map.
+    const chip = screen.getByTestId("canvas-group-chip-g1");
+    const iconWrapper = chip.querySelector("[data-testid='group-chip-icon']");
+    expect(iconWrapper).not.toBeNull();
+    expect(iconWrapper?.querySelector("svg")).not.toBeNull();
+    // Label + node-count come from the underlying NodeGroup.
+    expect(chip).toHaveTextContent("Group 1");
+    const badge = chip.querySelector("[data-testid='group-chip-node-count']");
+    expect(badge?.textContent).toBe("2 nodes");
+  });
+
+  it("Scenario 5: selecting a chip fires onGroupChipClick with the groupId (not the chip's xyflow id)", () => {
+    const onGroupChipClick = vi.fn();
+    renderCanvas(makeGroupedFixture(), {
+      simplifiedView: true,
+      onGroupChipClick,
+    });
+    // xyflow's `onSelectionChange` carries the xyflow node id; the canvas
+    // is responsible for translating it back to the underlying groupId
+    // before firing onGroupChipClick.
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onSelectionChange !== "function") {
+      throw new Error("ReactFlow mock did not capture onSelectionChange");
+    }
+    const handler = props.onSelectionChange as (params: {
+      nodes: Array<{ id: string }>;
+      edges: Array<{ id: string }>;
+    }) => void;
+    act(() => {
+      handler({ nodes: [{ id: "group-chip-g1" }], edges: [] });
+    });
+    expect(onGroupChipClick).toHaveBeenCalledTimes(1);
+    expect(onGroupChipClick).toHaveBeenCalledWith("g1");
+  });
+
+  it("registers `group-chip` in nodeTypes when simplifiedView is ON", () => {
+    renderCanvas(makeGroupedFixture(), { simplifiedView: true });
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    const nodeTypes = props.nodeTypes as Record<string, unknown>;
+    expect(nodeTypes).toHaveProperty("group-chip");
+    expect(nodeTypes["group-chip"]).toBeDefined();
+  });
+
+  it("ignores `simplifiedView` when the config has no groups (identity projection)", () => {
+    // Same fixture but with nodeGroups stripped — simplifiedView ON should
+    // behave identically to OFF in that case.
+    const fixture = makeGroupedFixture();
+    const { nodeGroups: _unused, ...withoutGroups } = fixture;
+    void _unused;
+    renderCanvas(
+      { ...withoutGroups, nodeGroups: undefined },
+      { simplifiedView: true },
+    );
+    expect(screen.queryByTestId("canvas-group-chip-g1")).toBeNull();
+    expect(screen.getByTestId("canvas-node-n1")).toBeInTheDocument();
+    expect(screen.getByTestId("canvas-node-n4")).toBeInTheDocument();
   });
 });

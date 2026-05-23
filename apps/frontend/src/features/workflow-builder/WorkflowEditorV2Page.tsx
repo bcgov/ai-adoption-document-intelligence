@@ -30,6 +30,7 @@ import {
   Group,
   Loader,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -43,6 +44,7 @@ import {
   IconHelp,
   IconLayoutDistributeHorizontal,
   IconSettings,
+  IconUsersGroup,
 } from "@tabler/icons-react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -63,6 +65,7 @@ import {
   layoutGraphIfMissingPositions,
 } from "./canvas/auto-layout";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
+import { createGroupFromSelection } from "./group/create-group";
 import { ActivityPalette } from "./palette/ActivityPalette";
 import {
   buildControlFlowSkeleton,
@@ -129,7 +132,48 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       ? layoutGraphIfMissingPositions(incomingTemplate.config)
       : EMPTY_CONFIG,
   );
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeIdState] = useState<string | null>(
+    null,
+  );
+  // Tracks every node id currently selected on the canvas (marquee or
+  // shift-click) so the top-bar "Group selected" action (US-041) can be
+  // enabled/disabled correctly. xyflow's `onSelectionChange` fires on
+  // every selection change, including clears — the empty-array case
+  // resets this list and disables the button.
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  // US-042: tracks the currently-active group id so the right-rail can
+  // mount the `GroupNodeSettings` body. Node selection wins — picking a
+  // node clears `activeGroupId`, and creating/selecting a group clears
+  // `selectedNodeId`.
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  // US-043: top-bar "Simplified view" Switch — when ON, the canvas
+  // collapses each `nodeGroups[<id>]` entry into a single chip.
+  const [simplifiedView, setSimplifiedView] = useState(false);
+
+  /**
+   * Wraps `setSimplifiedView` so flipping the toggle OFF also clears any
+   * `activeGroupId` — the right-rail returns to its empty state instead
+   * of stranding the user on a group-settings body when no chips are on
+   * the canvas anymore (US-043).
+   */
+  const handleSimplifiedViewChange = useCallback((next: boolean) => {
+    setSimplifiedView(next);
+    if (!next) {
+      setActiveGroupId(null);
+    }
+  }, []);
+
+  /**
+   * Wraps `setSelectedNodeId` so any non-null node selection also clears
+   * the active group (Node selection wins over the group panel per
+   * US-042).
+   */
+  const setSelectedNodeId = useCallback((id: string | null) => {
+    setSelectedNodeIdState(id);
+    if (id !== null) {
+      setActiveGroupId(null);
+    }
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
   const [validationFocusNodeId, setValidationFocusNodeId] = useState<
@@ -154,6 +198,29 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       reactFlowRef.current?.fitView({ padding: 0.25, duration: 300 });
     }, 0);
   }, []);
+
+  /**
+   * Handler for the "Group selected" top-bar action (US-041). Calls the
+   * pure `createGroupFromSelection` helper and pushes the result through
+   * `setConfig`. Then (US-042) surfaces the new group in the right-rail
+   * by setting `activeGroupId` and clearing the per-node selection so
+   * the panel mounts `GroupNodeSettings`.
+   *
+   * Computes the new config + new group id eagerly off the current
+   * `config` snapshot rather than inside a `setConfig` updater callback
+   * so we can pipe the id into `setActiveGroupId` in the same handler
+   * tick (React batches both updates into one render).
+   */
+  const handleGroupSelected = useCallback(() => {
+    if (selectedNodeIds.length < 2) return;
+    const { config: nextConfig, newGroupId } = createGroupFromSelection(
+      config,
+      selectedNodeIds,
+    );
+    setConfig(nextConfig);
+    setSelectedNodeIdState(null);
+    setActiveGroupId(newGroupId);
+  }, [config, selectedNodeIds]);
 
   const openValidationDrawerForNode = useCallback((nodeId: string) => {
     setValidationFocusNodeId(nodeId);
@@ -423,6 +490,30 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           >
             Auto-arrange
           </Button>
+          <Switch
+            label="Simplified view"
+            size="xs"
+            checked={simplifiedView}
+            onChange={(e) =>
+              handleSimplifiedViewChange(e.currentTarget.checked)
+            }
+            data-testid="simplified-view-toggle"
+          />
+          <Button
+            variant="light"
+            leftSection={<IconUsersGroup size={14} />}
+            onClick={handleGroupSelected}
+            size="xs"
+            data-testid="group-selected-btn"
+            disabled={selectedNodeIds.length < 2}
+            title={
+              selectedNodeIds.length < 2
+                ? "Select 2+ nodes to group them"
+                : "Group selected nodes"
+            }
+          >
+            Group selected
+          </Button>
           <Button
             variant="light"
             leftSection={<IconSettings size={14} />}
@@ -513,14 +604,18 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             selectedNodeId={selectedNodeId}
             onConfigChange={setConfig}
             onSelectNode={setSelectedNodeId}
+            onSelectionChangeMany={setSelectedNodeIds}
             errorsByNode={validation.errorsByNode}
             onNodeBadgeClick={openValidationDrawerForNode}
             onReactFlowReady={handleReactFlowReady}
+            simplifiedView={simplifiedView}
+            onGroupChipClick={setActiveGroupId}
           />
         </Box>
         <NodeSettingsPanel
           config={config}
           selectedNodeId={selectedNodeId}
+          activeGroupId={activeGroupId}
           onConfigChange={setConfig}
           onDeleteSelected={deleteSelected}
         />

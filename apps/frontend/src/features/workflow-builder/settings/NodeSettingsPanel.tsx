@@ -54,10 +54,18 @@ import {
   PollUntilNodeSettings,
   SwitchNodeSettings,
 } from "./control-flow";
+import { GroupNodeSettings } from "./group/GroupNodeSettings";
 
 interface NodeSettingsPanelProps {
   config: GraphWorkflowConfig;
   selectedNodeId: string | null;
+  /**
+   * When set (and no node is selected), the panel renders the
+   * `GroupNodeSettings` body for this group id. Node selection wins
+   * over the group panel — the page sets one of these to null when
+   * the other becomes active.
+   */
+  activeGroupId?: string | null;
   onConfigChange: (next: GraphWorkflowConfig) => void;
   onDeleteSelected: () => void;
 }
@@ -65,10 +73,25 @@ interface NodeSettingsPanelProps {
 export function NodeSettingsPanel({
   config,
   selectedNodeId,
+  activeGroupId,
   onConfigChange,
   onDeleteSelected,
 }: NodeSettingsPanelProps) {
   const node = selectedNodeId ? config.nodes[selectedNodeId] : null;
+
+  if (!node && activeGroupId) {
+    return (
+      <PanelShell>
+        <ScrollArea style={{ flex: 1, height: "100%" }} type="auto">
+          <GroupNodeSettings
+            groupId={activeGroupId}
+            config={config}
+            onConfigChange={onConfigChange}
+          />
+        </ScrollArea>
+      </PanelShell>
+    );
+  }
 
   if (!node) {
     return (

@@ -6,28 +6,28 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Top-bar toggle present
+- [x] **Scenario 1**: Top-bar toggle present
     - **Given** the V2 editor canvas
     - **When** the editor mounts
     - **Then** a "Simplified view" Mantine `Switch` is visible in the top bar
 
-- [ ] **Scenario 2**: Toggling ON collapses groups
+- [x] **Scenario 2**: Toggling ON collapses groups
     - **Given** a graph with two groups (`g1: [n1,n2]`, `g2: [n3]`) and one ungrouped node `n4`
     - **When** the switch is toggled ON
     - **Then** the canvas renders 3 visual nodes: a chip for `g1`, a chip for `g2`, and `n4` as a normal node
     - **And** edges crossing into a group attach at the group chip's handle instead of the original underlying node
 
-- [ ] **Scenario 3**: Toggling OFF restores the original view
+- [x] **Scenario 3**: Toggling OFF restores the original view
     - **Given** simplified view is ON
     - **When** toggled OFF
     - **Then** the canvas renders all original nodes with the group chips removed; node positions are unchanged
 
-- [ ] **Scenario 4**: Group chips reuse the read-only renderer's visual style
+- [x] **Scenario 4**: Group chips reuse the read-only renderer's visual style
     - **Given** the existing `GroupNodeRenderer` pattern at `apps/frontend/src/components/workflow/GraphVisualization.tsx` lines 285–356
     - **When** simplified view chips render
     - **Then** they reuse that visual style (label + icon + node-count badge); the layout helper from the existing reader is reused, not re-implemented
 
-- [ ] **Scenario 5**: Selecting a chip opens the group settings panel
+- [x] **Scenario 5**: Selecting a chip opens the group settings panel
     - **Given** simplified view is ON and a group chip is on the canvas
     - **When** the user clicks the chip
     - **Then** `GroupNodeSettings` (US-042) opens for that group in the right rail

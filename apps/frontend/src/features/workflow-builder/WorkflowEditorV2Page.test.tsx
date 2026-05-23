@@ -60,7 +60,22 @@ vi.mock("./palette/ActivityPalette", () => ({
 }));
 
 vi.mock("./settings/NodeSettingsPanel", () => ({
-  NodeSettingsPanel: () => <div data-testid="node-settings-stub" />,
+  NodeSettingsPanel: (props: Record<string, unknown>) => {
+    const activeGroupId = props.activeGroupId as string | null | undefined;
+    return (
+      <div
+        data-testid="node-settings-stub"
+        data-active-group-id={activeGroupId ?? ""}
+      >
+        {activeGroupId ? (
+          <div
+            data-testid="group-node-settings"
+            data-group-id={activeGroupId}
+          />
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 vi.mock("./settings/WorkflowSettingsDrawer", () => ({
@@ -276,6 +291,95 @@ describe("WorkflowEditorV2Page — US-050: template-load auto-layout", () => {
 });
 
 // ---------------------------------------------------------------------------
+// US-041 — "Group selected" top-bar action
+//   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-041-group-from-selection.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — US-041: Group selected button", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    fitViewMock.mockClear();
+  });
+
+  /**
+   * Drives the canvas-mock's `onSelectionChangeMany` callback so the
+   * top-bar button can react to a multi-select. The canvas stub captures
+   * its props in `capturedCanvasProps`, so we reach in and invoke the
+   * handler the same way the real canvas would after xyflow's
+   * `onSelectionChange` fires.
+   */
+  function dispatchSelection(ids: string[]) {
+    const onMany = capturedCanvasProps.current?.onSelectionChangeMany as
+      | ((nodeIds: string[]) => void)
+      | undefined;
+    if (!onMany)
+      throw new Error("Canvas stub did not capture onSelectionChangeMany");
+    act(() => {
+      onMany(ids);
+    });
+  }
+
+  function makeTwoNodeTemplate(): WorkflowTemplate {
+    return makeTemplate(buildTemplateConfig({ positions: "all" }));
+  }
+
+  it("Scenario 1: button is enabled once 2 nodes are selected", () => {
+    renderPage(makeTwoNodeTemplate());
+    const button = screen.getByTestId("group-selected-btn");
+    // Starts disabled — no selection yet.
+    expect(button).toBeDisabled();
+    dispatchSelection(["a", "b"]);
+    expect(button).not.toBeDisabled();
+  });
+
+  it("Scenario 2: button is disabled when 0 or 1 nodes are selected", () => {
+    renderPage(makeTwoNodeTemplate());
+    const button = screen.getByTestId("group-selected-btn");
+    expect(button).toBeDisabled();
+    // One node selected → still disabled.
+    dispatchSelection(["a"]);
+    expect(button).toBeDisabled();
+    // Tooltip on disabled button surfaces the hint.
+    expect(button).toHaveAttribute("title", "Select 2+ nodes to group them");
+    // Clearing the selection keeps the button disabled.
+    dispatchSelection([]);
+    expect(button).toBeDisabled();
+  });
+
+  it("Scenario 3: clicking adds a nodeGroups[<id>] entry to the next config", () => {
+    renderPage(makeTwoNodeTemplate());
+    dispatchSelection(["a", "b"]);
+    const button = screen.getByTestId("group-selected-btn");
+    expect(button).not.toBeDisabled();
+    // Capture the config the canvas was being fed BEFORE the click so
+    // we can prove the new group was added by the click handler.
+    const before = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    expect(before.nodeGroups ?? {}).toEqual({});
+    act(() => {
+      fireEvent.click(button);
+    });
+    const after = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    expect(after.nodeGroups).toBeDefined();
+    const groupIds = Object.keys(after.nodeGroups ?? {});
+    expect(groupIds).toHaveLength(1);
+    const newGroup = after.nodeGroups?.[groupIds[0]];
+    expect(newGroup).toEqual({
+      label: "Group 1",
+      nodeIds: ["a", "b"],
+      exposedParams: [],
+    });
+    // US-042: after the click, the group-settings panel mounts in the
+    // right rail (the page passes the new id through `activeGroupId`).
+    const stub = screen.getByTestId("node-settings-stub");
+    expect(stub.getAttribute("data-active-group-id")).toBe(groupIds[0]);
+    const panel = screen.getByTestId("group-node-settings");
+    expect(panel).toBeInTheDocument();
+    expect(panel.getAttribute("data-group-id")).toBe(groupIds[0]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // US-049 Scenario 3 — top-bar "Auto-arrange" button
 // ---------------------------------------------------------------------------
 
@@ -319,5 +423,94 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
     renderPage();
     const button = screen.getByTestId("auto-arrange-button");
     expect(button).toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-043 — Simplified-view top-bar Switch
+//   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-043-simplified-view-toggle.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    fitViewMock.mockClear();
+  });
+
+  it("Scenario 1: a 'Simplified view' Switch is present in the top bar", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const toggle = screen.getByTestId("simplified-view-toggle");
+    expect(toggle).toBeInTheDocument();
+  });
+
+  it("passes the toggle state through to the canvas (false → true → false)", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    // Starts OFF — canvas receives `simplifiedView: false`.
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
+    const toggle = screen.getByTestId("simplified-view-toggle");
+    act(() => {
+      fireEvent.click(toggle);
+    });
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(true);
+    // Toggling OFF — back to false.
+    act(() => {
+      fireEvent.click(toggle);
+    });
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
+  });
+
+  it("Scenario 5: a chip click opens GroupNodeSettings for that group via onGroupChipClick", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    // Drive the canvas-mock's `onGroupChipClick` so the page promotes
+    // the clicked group into `activeGroupId`. The right-rail stub
+    // surfaces the value via `data-active-group-id`.
+    const onGroupChipClick = capturedCanvasProps.current?.onGroupChipClick as
+      | ((groupId: string) => void)
+      | undefined;
+    if (!onGroupChipClick) {
+      throw new Error("Canvas stub did not capture onGroupChipClick");
+    }
+    act(() => {
+      onGroupChipClick("g_42");
+    });
+    const stub = screen.getByTestId("node-settings-stub");
+    expect(stub.getAttribute("data-active-group-id")).toBe("g_42");
+    expect(screen.getByTestId("group-node-settings")).toBeInTheDocument();
+  });
+
+  it("clears any activeGroupId when the simplified-view toggle flips OFF", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const toggle = screen.getByTestId("simplified-view-toggle");
+    // Flip ON, then click a chip to set activeGroupId.
+    act(() => {
+      fireEvent.click(toggle);
+    });
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(true);
+    const onGroupChipClick = capturedCanvasProps.current?.onGroupChipClick as
+      | ((groupId: string) => void)
+      | undefined;
+    if (!onGroupChipClick) {
+      throw new Error("Canvas stub did not capture onGroupChipClick");
+    }
+    act(() => {
+      onGroupChipClick("g_42");
+    });
+    expect(
+      screen
+        .getByTestId("node-settings-stub")
+        .getAttribute("data-active-group-id"),
+    ).toBe("g_42");
+    // Flip OFF — the right-rail returns to its empty state (no active
+    // group, no selected node).
+    act(() => {
+      fireEvent.click(toggle);
+    });
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
+    expect(
+      screen
+        .getByTestId("node-settings-stub")
+        .getAttribute("data-active-group-id"),
+    ).toBe("");
   });
 });

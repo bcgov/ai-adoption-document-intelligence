@@ -275,6 +275,30 @@ Each group has:
 
 Groups can also expose parameters — this means when someone uses this workflow as part of a benchmark definition, they can override specific settings (like which OCR model to use, or the confidence threshold) without editing the workflow itself.
 
+### Creating a group from a selection
+
+In the visual editor:
+
+1. Select two or more nodes on the canvas (drag a marquee rectangle, or shift-click to pick them individually).
+2. The "Group selected" button in the top bar becomes enabled (it shows a tooltip "Select 2+ nodes to group them" when fewer than 2 are picked).
+3. Click "Group selected". A new entry appears in `nodeGroups` with an auto-numbered label (e.g., `Group 1`, then `Group 2`, …) and the selected node ids.
+
+Each node can belong to at most one group at a time — if any of the selected nodes were already a member of another group, they are moved into the new group. Old groups that are left with no members are removed automatically.
+
+### Editing a group in the right rail
+
+Right after a group is created, the right-rail panel switches from the per-node settings to the new group's settings panel. The panel exposes:
+
+- **Label** — required text field; surfaced on the group chip in simplified view.
+- **Description** — optional textarea; appears as a sub-line on the chip.
+- **Icon** — searchable dropdown of the built-in glyph keys (e.g. `scan`, `cleanup`, `quality`, `human`, `save`, `prepare`, `process`, `validate`). The dropdown previews each glyph next to the key name.
+- **Color** — Mantine color input with a small swatch of presets. Accepts any hex string.
+- **Members** — read-only list of the group's member node labels. Each row has a remove button; removing the last member of a group drops the group entry entirely (after a confirmation prompt).
+- **Exposed parameters** — list editor (US-044) for surfacing specific node parameters as group-level overrides. Each row carries a `label`, a `node` selector restricted to the group's members (with the node's label as the visible option text), a `param path` (dot-separated path into the workflow config), and a `type` selector (`Text` / `Number` / `Boolean` / `Enum`). Picking `Enum` reveals an `options[]` sub-editor for the allowed values. Removing a member from the group automatically prunes any exposed parameter that referenced that member and surfaces the prune via a toast.
+- **Delete group** — a red button at the bottom that removes the `nodeGroups[<id>]` entry. The underlying nodes are not touched.
+
+Selecting any individual node clears the active group and switches the panel back to the per-node settings. Node selection wins over the group panel.
+
 ---
 
 ## Activity Catalog

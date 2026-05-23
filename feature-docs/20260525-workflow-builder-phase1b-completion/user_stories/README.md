@@ -121,10 +121,10 @@ visible UX features.
 - [x] **US-047** (node-type swap, depends on US-046)
 
 ### Phase 6 — group editing (biggest milestone, save for last)
-- [ ] **US-041** (group-from-selection)
-- [ ] **US-042** (group settings panel, depends on US-041)
-- [ ] **US-043** (simplified-view toggle, depends on US-041)
-- [ ] **US-044** (exposed-params editor, depends on US-042)
+- [x] **US-041** (group-from-selection)
+- [x] **US-042** (group settings panel, depends on US-041)
+- [x] **US-043** (simplified-view toggle, depends on US-041)
+- [x] **US-044** (exposed-params editor, depends on US-042)
 
 > Stories are ordered by independence. Each milestone (C…M) is its own
 > commit. Within a milestone the stories are sequential.

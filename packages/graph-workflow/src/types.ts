@@ -44,6 +44,13 @@ export interface NodeGroup {
 
 export interface ExposedParam {
   label: string;
+  /**
+   * Optional id of the node within the owning group whose parameter this
+   * exposes. The visual builder's group panel (US-044) uses it to scope
+   * the `path` selector to a single member node and to prune entries when
+   * the referenced node is removed from the group.
+   */
+  nodeId?: string;
   path: string;
   type: "string" | "number" | "boolean" | "select" | "duration";
   options?: string[];

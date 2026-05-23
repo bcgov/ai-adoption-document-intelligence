@@ -4,17 +4,11 @@ import { Badge } from "@mantine/core";
 import {
   IconBolt,
   IconCornerDownRight,
-  IconDeviceFloppy,
   IconFolder,
   IconGitMerge,
   IconRefresh,
   IconRepeat,
-  IconScan,
-  IconSettings,
-  IconShieldCheck,
-  IconSparkles,
   IconSwitch3,
-  IconUser,
   IconUserCheck,
 } from "@tabler/icons-react";
 import type { ReactFlowInstance } from "@xyflow/react";
@@ -33,6 +27,7 @@ import {
 } from "@xyflow/react";
 import { memo, useEffect, useMemo, useRef } from "react";
 import { layoutXyflowNodes } from "../../features/workflow-builder/canvas/auto-layout";
+import { GROUP_ICONS } from "../../features/workflow-builder/group/group-icons";
 import type {
   ActivityNode,
   ChildWorkflowNode,
@@ -271,23 +266,13 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
   );
 });
 
-const GROUP_ICONS: Record<string, React.ReactElement> = {
-  scan: <IconScan size={20} />,
-  cleanup: <IconSparkles size={20} />,
-  quality: <IconShieldCheck size={20} />,
-  human: <IconUser size={20} />,
-  save: <IconDeviceFloppy size={20} />,
-  prepare: <IconSettings size={20} />,
-  process: <IconBolt size={20} />,
-  validate: <IconShieldCheck size={20} />,
-};
-
 const GroupNodeRenderer = memo(function GroupNodeRenderer({
   data,
 }: {
   data: GroupNodeData;
 }) {
-  const icon = data.icon ? GROUP_ICONS[data.icon] : null;
+  const IconComponent = data.icon ? GROUP_ICONS[data.icon] : null;
+  const icon = IconComponent ? <IconComponent size={20} /> : null;
 
   return (
     <div

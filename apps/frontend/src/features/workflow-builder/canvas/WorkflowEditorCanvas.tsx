@@ -63,6 +63,12 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "../palette/control-flow-skeletons";
+import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
+import {
+  type GroupChip,
+  groupIdFromChipId,
+  projectGroupedConfig,
+} from "./group-projection";
 import { HoverExtendPopover } from "./HoverExtendPopover";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
@@ -89,6 +95,27 @@ interface WorkflowEditorCanvasProps {
    * top bar — US-049 Scenario 3).
    */
   onReactFlowReady?: (instance: ReactFlowInstance) => void;
+  /**
+   * Fires with the full set of selected node ids whenever xyflow's
+   * selection changes (US-041). Distinct from `onSelectNode`, which
+   * only carries the first selected id — the host can use this to
+   * enable a "Group selected" action when ≥2 nodes are selected.
+   */
+  onSelectionChangeMany?: (nodeIds: string[]) => void;
+  /**
+   * When true (US-043), nodes belonging to a `nodeGroups[<id>]` entry
+   * are hidden behind a single "chip" pseudo-node — the canvas projects
+   * the config through `projectGroupedConfig` and renders chips instead
+   * of the underlying nodes. Toggling back to false restores the
+   * original projection without mutating positions.
+   */
+  simplifiedView?: boolean;
+  /**
+   * Fires when the user selects a group chip on the canvas (US-043).
+   * Carries the underlying group id (NOT the chip's xyflow id) so the
+   * host can mount `GroupNodeSettings` in the right rail.
+   */
+  onGroupChipClick?: (groupId: string) => void;
 }
 
 interface CommonNodeData extends Record<string, unknown> {
@@ -127,7 +154,7 @@ interface ControlFlowNodeData extends CommonNodeData {
 
 type ActivityFlowNode = Node<ActivityNodeData, "activity">;
 type ControlFlowFlowNode = Node<ControlFlowNodeData, ControlFlowNodeType>;
-type FlowNode = ActivityFlowNode | ControlFlowFlowNode;
+type FlowNode = ActivityFlowNode | ControlFlowFlowNode | GroupChipFlowNode;
 
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
@@ -672,6 +699,7 @@ const NODE_TYPES = {
   childWorkflow: ControlFlowRectangleRenderer,
   pollUntil: ControlFlowRectangleRenderer,
   humanGate: ControlFlowRectangleRenderer,
+  "group-chip": GroupChipNode,
 };
 
 // ---------------------------------------------------------------------------
@@ -748,8 +776,11 @@ function projectFlowNodes(
   });
 }
 
-function projectFlowEdges(config: GraphWorkflowConfig): Edge[] {
-  return config.edges.map((edge) => {
+function projectFlowEdges(
+  edges: readonly GraphEdge[],
+  config: GraphWorkflowConfig,
+): Edge[] {
+  return edges.map((edge) => {
     const sourceNode = config.nodes[edge.source];
     const sourceSwitch: SwitchNode | undefined =
       sourceNode?.type === "switch" ? sourceNode : undefined;
@@ -767,7 +798,50 @@ function projectFlowEdges(config: GraphWorkflowConfig): Edge[] {
   });
 }
 
-function buildStructuralFingerprint(config: GraphWorkflowConfig): string {
+/**
+ * Builds xyflow nodes for each chip the simplified-view projection
+ * emitted. The chip carries its own deterministic id (`group-chip-<id>`)
+ * and is non-draggable today — dragging is filed as a follow-up because
+ * we recompute the centroid every projection (no chip-position persistence
+ * on `nodeGroups[<id>].metadata`).
+ */
+function projectChipFlowNodes(
+  chips: readonly GroupChip[],
+  selectedNodeId: string | null,
+): GroupChipFlowNode[] {
+  return chips.map((chip) => ({
+    id: chip.id,
+    type: "group-chip" as const,
+    position: chip.position,
+    selected: chip.id === selectedNodeId,
+    draggable: false,
+    data: {
+      groupId: chip.groupId,
+      label: chip.label,
+      icon: chip.icon,
+      color: chip.color,
+      nodeCount: chip.nodeCount,
+    },
+  }));
+}
+
+function buildStructuralFingerprint(
+  config: GraphWorkflowConfig,
+  simplifiedView: boolean,
+): string {
+  // Include nodeGroups composition + the simplifiedView flag so toggling
+  // the switch (or creating / deleting a group while ON) triggers a
+  // re-projection.
+  const groupsFingerprint = Object.entries(config.nodeGroups ?? {})
+    .map(([id, g]) => [
+      id,
+      g.label,
+      g.icon ?? "",
+      g.color ?? "",
+      [...g.nodeIds].sort().join(","),
+    ])
+    .sort()
+    .map((tuple) => tuple.join("|"));
   return JSON.stringify({
     ids: Object.keys(config.nodes).sort(),
     entryNodeId: config.entryNodeId,
@@ -779,6 +853,8 @@ function buildStructuralFingerprint(config: GraphWorkflowConfig): string {
           : `${n.label}::${n.type}`,
       ]),
     ),
+    simplifiedView,
+    groups: groupsFingerprint,
   });
 }
 
@@ -802,6 +878,9 @@ function WorkflowEditorCanvasInner({
   errorsByNode,
   onNodeBadgeClick,
   onReactFlowReady,
+  onSelectionChangeMany,
+  simplifiedView = false,
+  onGroupChipClick,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -853,9 +932,13 @@ function WorkflowEditorCanvasInner({
   // not when, e.g., the user moves a node and onNodeDragStop triggers a
   // round-trip config update that, on its own, would otherwise overwrite
   // the in-flight drag.
+  //
+  // `simplifiedView` participates in the fingerprint so toggling the
+  // top-bar switch (or adding/removing a group while the switch is ON)
+  // re-projects the canvas through `projectGroupedConfig`.
   const dataFingerprint = useMemo(
-    () => buildStructuralFingerprint(config),
-    [config],
+    () => buildStructuralFingerprint(config, simplifiedView),
+    [config, simplifiedView],
   );
 
   // -------------------------------------------------------------------------
@@ -965,9 +1048,27 @@ function WorkflowEditorCanvasInner({
   useEffect(() => {
     if (lastFingerprintRef.current === dataFingerprint) return;
     lastFingerprintRef.current = dataFingerprint;
-    setInternalNodes(
-      projectFlowNodes(config, selectedNodeId, projectionCallbacks),
-    );
+    if (simplifiedView) {
+      // Simplified projection: collapse each group into a chip; hide
+      // grouped underlying nodes; remap edges. The chip projection adds
+      // an extra pass on top of the standard FlowNode projection.
+      const projected = projectGroupedConfig(config);
+      const visibleConfig: GraphWorkflowConfig = {
+        ...config,
+        nodes: Object.fromEntries(projected.visibleNodes.map((n) => [n.id, n])),
+      };
+      const normalNodes = projectFlowNodes(
+        visibleConfig,
+        selectedNodeId,
+        projectionCallbacks,
+      );
+      const chipNodes = projectChipFlowNodes(projected.chips, selectedNodeId);
+      setInternalNodes([...normalNodes, ...chipNodes]);
+    } else {
+      setInternalNodes(
+        projectFlowNodes(config, selectedNodeId, projectionCallbacks),
+      );
+    }
     // Note: `selectedNodeId` participates in the projection on
     // structural changes (e.g., when a freshly added node should start
     // selected). After mount, xyflow owns the `selected` flag on each
@@ -980,6 +1081,7 @@ function WorkflowEditorCanvasInner({
     selectedNodeId,
     projectionCallbacks,
     setInternalNodes,
+    simplifiedView,
   ]);
 
   // Validation badge sync — patches data.errorCount / data.warningCount
@@ -990,6 +1092,9 @@ function WorkflowEditorCanvasInner({
     if (!errorsByNode) return;
     setInternalNodes((prev) =>
       prev.map((n): FlowNode => {
+        // Chips don't render a validation badge — they're a pure visual
+        // collapse, so they have no per-node counts to sync.
+        if (n.type === "group-chip") return n;
         const bucket = errorsByNode.get(n.id) ?? [];
         let errorCount = 0;
         let warningCount = 0;
@@ -1022,19 +1127,27 @@ function WorkflowEditorCanvasInner({
     );
   }, [errorsByNode, setInternalNodes]);
 
+  // Resolve the edge set the canvas should actually render. Simplified
+  // view substitutes the group-projected edges (intra-group edges dropped,
+  // cross-group endpoints rewritten to chip ids).
+  const visibleEdges = useMemo<GraphEdge[]>(() => {
+    if (!simplifiedView) return config.edges;
+    return projectGroupedConfig(config).visibleEdges;
+  }, [config, simplifiedView]);
+
   const edgesFingerprint = useMemo(
     () =>
       JSON.stringify(
-        config.edges.map((e) => `${e.id}|${e.source}|${e.target}|${e.type}`),
+        visibleEdges.map((e) => `${e.id}|${e.source}|${e.target}|${e.type}`),
       ),
-    [config.edges],
+    [visibleEdges],
   );
   const lastEdgesFingerprintRef = useRef<string | null>(null);
   useEffect(() => {
     if (lastEdgesFingerprintRef.current === edgesFingerprint) return;
     lastEdgesFingerprintRef.current = edgesFingerprint;
-    setInternalEdges(projectFlowEdges(config));
-  }, [edgesFingerprint, config, setInternalEdges]);
+    setInternalEdges(projectFlowEdges(visibleEdges, config));
+  }, [edgesFingerprint, visibleEdges, config, setInternalEdges]);
 
   // Persist final positions to the outer config once the drag finishes.
   const handleNodeDragStop = useCallback(
@@ -1081,23 +1194,54 @@ function WorkflowEditorCanvasInner({
       // useEffect doesn't immediately re-project the nodes and stamp
       // over the local drag commit.
       const nextNodes = { ...config.nodes, [node.id]: updated };
-      const nextFingerprint = buildStructuralFingerprint({
-        ...config,
-        nodes: nextNodes,
-      });
+      const nextFingerprint = buildStructuralFingerprint(
+        {
+          ...config,
+          nodes: nextNodes,
+        },
+        simplifiedView,
+      );
       lastFingerprintRef.current = nextFingerprint;
       onConfigChange({ ...config, nodes: nextNodes });
     },
-    [config, onConfigChange],
+    [config, onConfigChange, simplifiedView],
   );
 
   const handleSelectionChange = useCallback(
     ({ nodes }: OnSelectionChangeParams) => {
-      const next = nodes[0]?.id ?? null;
+      // Group-chip selection (US-043) is routed to its own callback so
+      // the host can mount `GroupNodeSettings` for the underlying group.
+      // Chip ids follow a deterministic `group-chip-<groupId>` shape
+      // (`chipIdForGroup`), so we infer the groupId from the id rather
+      // than reading it from the node's `data` payload — keeps the
+      // routing robust against the mocked xyflow harness used in tests
+      // (which doesn't forward `data` on `onSelectionChange`).
+      const chipMatch = nodes.find((n) => groupIdFromChipId(n.id) !== null);
+      if (chipMatch && onGroupChipClick) {
+        const groupId = groupIdFromChipId(chipMatch.id);
+        if (groupId) onGroupChipClick(groupId);
+      }
+
+      // Fire the multi-select callback (US-041) so the host can enable /
+      // disable a "Group selected" action even if the single-select id
+      // hasn't changed (e.g., adding a second shift-click while the same
+      // first node stays the head of the list). Filter chips out — the
+      // host's multi-select consumers care about underlying graph nodes
+      // only.
+      if (onSelectionChangeMany) {
+        const realNodeIds = nodes
+          .filter((n) => groupIdFromChipId(n.id) === null)
+          .map((n) => n.id);
+        onSelectionChangeMany(realNodeIds);
+      }
+      // `onSelectNode` carries the first selected id — chips don't
+      // participate here either (they have their own callback above).
+      const firstReal = nodes.find((n) => groupIdFromChipId(n.id) === null);
+      const next = firstReal?.id ?? null;
       if (next === selectedNodeId) return;
       onSelectNode(next);
     },
-    [onSelectNode, selectedNodeId],
+    [onSelectNode, selectedNodeId, onSelectionChangeMany, onGroupChipClick],
   );
 
   const handleNodesDelete = useCallback(
