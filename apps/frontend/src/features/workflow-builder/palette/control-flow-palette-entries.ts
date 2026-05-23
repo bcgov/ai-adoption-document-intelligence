@@ -28,42 +28,42 @@ export interface ControlFlowPaletteEntry {
 export const CONTROL_FLOW_PALETTE_ENTRIES: ControlFlowPaletteEntry[] = [
   {
     type: "switch",
-    displayName: "Switch",
+    displayName: "Branch by condition",
     description:
       "Route execution down one of several branches based on conditions over ctx values.",
     iconHint: "switch",
   },
   {
     type: "map",
-    displayName: "Map (fan-out)",
+    displayName: "Run for each item",
     description:
       "Run a sub-graph once per item in a ctx collection, with optional bounded concurrency.",
     iconHint: "map",
   },
   {
     type: "join",
-    displayName: "Join (fan-in)",
+    displayName: "Collect results",
     description:
       "Wait for the iterations of a Map node to complete and collect their results into ctx.",
     iconHint: "join",
   },
   {
     type: "childWorkflow",
-    displayName: "Child Workflow",
+    displayName: "Sub-workflow",
     description:
       "Invoke another workflow from the library (or an inline graph) with mapped inputs and outputs.",
     iconHint: "childWorkflow",
   },
   {
     type: "pollUntil",
-    displayName: "Poll Until",
+    displayName: "Wait until condition",
     description:
       "Repeatedly run an activity until a condition over its result is satisfied.",
     iconHint: "pollUntil",
   },
   {
     type: "humanGate",
-    displayName: "Human Gate",
+    displayName: "Wait for approval",
     description:
       "Pause the workflow until a human signal arrives, with a timeout fallback policy.",
     iconHint: "humanGate",

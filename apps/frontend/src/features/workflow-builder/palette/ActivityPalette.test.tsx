@@ -107,12 +107,12 @@ describe("ActivityPalette — Scenario 2: each entry has icon + display name + d
   it("renders the expected display name for each control-flow entry", () => {
     renderPalette();
     const expectedDisplayNames: Record<ControlFlowNodeType, string> = {
-      switch: "Switch",
-      map: "Map (fan-out)",
-      join: "Join (fan-in)",
-      childWorkflow: "Child Workflow",
-      pollUntil: "Poll Until",
-      humanGate: "Human Gate",
+      switch: "Branch by condition",
+      map: "Run for each item",
+      join: "Collect results",
+      childWorkflow: "Sub-workflow",
+      pollUntil: "Wait until condition",
+      humanGate: "Wait for approval",
     };
     for (const [type, displayName] of Object.entries(expectedDisplayNames) as [
       ControlFlowNodeType,

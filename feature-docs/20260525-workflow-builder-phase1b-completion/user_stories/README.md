@@ -92,7 +92,7 @@ single Vite restart covers them) and ends with the highest-leverage
 visible UX features.
 
 ### Phase 1 — small, isolated wins
-- [ ] **US-048** (Flow Control label review — propose, get sign-off, apply)
+- [x] **US-048** (Flow Control label review — propose, get sign-off, apply)
 - [x] **US-052** (pollUntil parameter validation in shared validator)
 - [x] **US-051** (duration regex lift + validator wire-up)
 - [ ] **US-053** (borderColor warning — pending Alex's console text)

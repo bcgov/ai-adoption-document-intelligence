@@ -7,7 +7,7 @@ familiarity with workflow-engine vocabulary.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Audit table proposed for sign-off
+- [x] **Scenario 1**: Audit table proposed for sign-off (approved 2026-05-25)
     - **Given** the current labels in
       `apps/frontend/src/features/workflow-builder/palette/control-flow-palette-entries.ts`
     - **When** this story starts
@@ -15,7 +15,7 @@ familiarity with workflow-engine vocabulary.
       story's "Proposed labels" section and surfaced for Alex to approve
       before code changes land
 
-- [ ] **Scenario 2**: After sign-off, labels are updated
+- [x] **Scenario 2**: After sign-off, labels are updated
     - **Given** an approved label set
     - **When** the file is edited
     - **Then** each `displayName` is replaced with its approved
@@ -23,7 +23,7 @@ familiarity with workflow-engine vocabulary.
     - **And** the existing tests that match label text are updated in
       lockstep (no behavior change beyond the visible string)
 
-- [ ] **Scenario 3**: Palette + node-renderer labels stay in sync
+- [x] **Scenario 3**: Palette + node-renderer labels stay in sync
     - **Given** the renames
     - **When** a palette label changes (e.g., "Map (fan-out)")
     - **Then** the corresponding canvas-node renderer label (in

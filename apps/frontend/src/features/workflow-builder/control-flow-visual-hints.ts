@@ -49,7 +49,7 @@ export interface ControlFlowVisualHints {
 const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
   switch: {
     type: "switch",
-    displayName: "Switch",
+    displayName: "Branch by condition",
     iconHint: "switch",
     Icon: IconRoute,
     color: "#facc15",
@@ -57,7 +57,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
   },
   map: {
     type: "map",
-    displayName: "Map (fan-out)",
+    displayName: "Run for each item",
     iconHint: "map",
     Icon: IconArrowsSplit,
     color: "#22c55e",
@@ -67,7 +67,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
   },
   join: {
     type: "join",
-    displayName: "Join (fan-in)",
+    displayName: "Collect results",
     iconHint: "join",
     Icon: IconArrowMerge,
     color: "#16a34a",
@@ -77,7 +77,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
   },
   childWorkflow: {
     type: "childWorkflow",
-    displayName: "Child Workflow",
+    displayName: "Sub-workflow",
     iconHint: "childWorkflow",
     Icon: IconExternalLink,
     color: "#a855f7",
@@ -85,7 +85,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
   },
   pollUntil: {
     type: "pollUntil",
-    displayName: "Poll Until",
+    displayName: "Wait until condition",
     iconHint: "pollUntil",
     Icon: IconRefresh,
     color: "#fb923c",
@@ -93,7 +93,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
   },
   humanGate: {
     type: "humanGate",
-    displayName: "Human Gate",
+    displayName: "Wait for approval",
     iconHint: "humanGate",
     Icon: IconHandStop,
     color: "#ef4444",

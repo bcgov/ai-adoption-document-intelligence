@@ -21,7 +21,7 @@ describe("buildControlFlowSkeleton", () => {
     const node = buildControlFlowSkeleton("switch", "switch_1") as SwitchNode;
     expect(node.id).toBe("switch_1");
     expect(node.type).toBe("switch");
-    expect(node.label).toBe("Switch");
+    expect(node.label).toBe("Branch by condition");
     expect(node.cases).toEqual([]);
     expect(node.defaultEdge).toBeUndefined();
   });
@@ -30,7 +30,7 @@ describe("buildControlFlowSkeleton", () => {
     const node = buildControlFlowSkeleton("map", "map_1") as MapNode;
     expect(node.id).toBe("map_1");
     expect(node.type).toBe("map");
-    expect(node.label).toBe("Map (fan-out)");
+    expect(node.label).toBe("Run for each item");
     expect(node.collectionCtxKey).toBe("");
     expect(node.itemCtxKey).toBe("");
     expect(node.indexCtxKey).toBeUndefined();
@@ -42,7 +42,7 @@ describe("buildControlFlowSkeleton", () => {
     const node = buildControlFlowSkeleton("join", "join_1") as JoinNode;
     expect(node.id).toBe("join_1");
     expect(node.type).toBe("join");
-    expect(node.label).toBe("Join (fan-in)");
+    expect(node.label).toBe("Collect results");
     expect(node.sourceMapNodeId).toBe("");
     expect(node.strategy).toBe("all");
     expect(node.resultsCtxKey).toBe("");
@@ -55,7 +55,7 @@ describe("buildControlFlowSkeleton", () => {
     ) as ChildWorkflowNode;
     expect(node.id).toBe("childWorkflow_1");
     expect(node.type).toBe("childWorkflow");
-    expect(node.label).toBe("Child Workflow");
+    expect(node.label).toBe("Sub-workflow");
     expect(node.workflowRef).toEqual({ type: "library", workflowId: "" });
     expect(node.inputMappings).toBeUndefined();
     expect(node.outputMappings).toBeUndefined();
@@ -68,7 +68,7 @@ describe("buildControlFlowSkeleton", () => {
     ) as PollUntilNode;
     expect(node.id).toBe("pollUntil_1");
     expect(node.type).toBe("pollUntil");
-    expect(node.label).toBe("Poll Until");
+    expect(node.label).toBe("Wait until condition");
     expect(node.activityType).toBe("");
     expect(node.interval).toBe("30s");
     // The discriminated `ConditionExpression` is required at the type
@@ -89,7 +89,7 @@ describe("buildControlFlowSkeleton", () => {
     ) as HumanGateNode;
     expect(node.id).toBe("humanGate_1");
     expect(node.type).toBe("humanGate");
-    expect(node.label).toBe("Human Gate");
+    expect(node.label).toBe("Wait for approval");
     expect(node.signal).toEqual({ name: "" });
     expect(node.timeout).toBe("1h");
     expect(node.onTimeout).toBe("fail");
