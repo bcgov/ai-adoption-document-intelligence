@@ -685,3 +685,46 @@ describe("US-056 Scenario 2: validator accepts a config with no metadata.kind se
     expect(result.errors).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// US-065: Validator accepts CtxDeclaration.isInput?: boolean
+// ---------------------------------------------------------------------------
+
+describe("US-065 Scenario 3: validator accepts ctx declarations flagged as caller-supplied inputs", () => {
+  it("returns valid for a config with isInput: true on ctx entries", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Run-as-API" },
+      entryNodeId: "noop",
+      ctx: {
+        customerId: {
+          type: "string",
+          description: "Customer to process",
+          isInput: true,
+        },
+        optionalFlag: {
+          type: "boolean",
+          defaultValue: false,
+          isInput: true,
+        },
+        internalCounter: {
+          type: "number",
+        },
+      },
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+});

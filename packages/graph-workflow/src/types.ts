@@ -65,6 +65,15 @@ export interface CtxDeclaration {
   type: "string" | "number" | "boolean" | "object" | "array";
   description?: string;
   defaultValue?: unknown;
+  /**
+   * Marks this ctx entry as a caller-supplied input. Ctx declarations
+   * flagged `isInput: true` are surfaced in the workflow's derived
+   * run-spec input schema (the JSON Schema returned by
+   * `GET /api/workflows/:id/run-spec` and rendered in the Run drawer).
+   * Library workflows ignore this flag and source their inputs from
+   * `GraphMetadata.inputs[]` instead.
+   */
+  isInput?: boolean;
 }
 
 export interface NodeGroup {
