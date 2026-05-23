@@ -29,15 +29,49 @@ import {
   Title,
 } from "@mantine/core";
 import { useMemo, useState } from "react";
+import { isUserFacingActivity } from "../features/workflow-builder/catalog-utils";
 import type { JsonSchemaProperty } from "../features/workflow-builder/json-schema-form";
 import { JsonSchemaForm } from "../features/workflow-builder/json-schema-form";
 
+/**
+ * Seed a parameters object with defaults derived from the schema's
+ * `x-default` / `default` hints. Picks the first variant for
+ * discriminated unions so the form starts with a valid shape.
+ */
+function seedDefaults(
+  schema: JsonSchemaProperty | undefined,
+): Record<string, unknown> {
+  if (!schema) return {};
+  const target =
+    Array.isArray(schema.anyOf) && schema.anyOf.length > 0
+      ? (schema.anyOf[0] as JsonSchemaProperty)
+      : schema;
+  if (target.type !== "object" || !target.properties) return {};
+  const out: Record<string, unknown> = {};
+  for (const [name, prop] of Object.entries(target.properties)) {
+    if (prop.const !== undefined) {
+      out[name] = prop.const;
+      continue;
+    }
+    const def = prop["x-default"] ?? prop.default;
+    if (def !== undefined) out[name] = def;
+  }
+  return out;
+}
+
 export function WorkflowFormPreviewPage() {
-  const activityTypes = useMemo(() => listActivityTypes().sort(), []);
-  const [selectedType, setSelectedType] = useState<string>(
-    activityTypes[0] ?? "",
+  const activityTypes = useMemo(
+    () => listActivityTypes().filter(isUserFacingActivity).sort(),
+    [],
   );
-  const [paramValues, setParamValues] = useState<Record<string, unknown>>({});
+  const initialType = activityTypes[0] ?? "";
+  const initialSchema = initialType
+    ? (getActivityParametersJsonSchema(initialType) as JsonSchemaProperty)
+    : undefined;
+  const [selectedType, setSelectedType] = useState<string>(initialType);
+  const [paramValues, setParamValues] = useState<Record<string, unknown>>(() =>
+    seedDefaults(initialSchema),
+  );
 
   const entry = ACTIVITY_CATALOG[selectedType];
   const jsonSchema = useMemo(
@@ -54,7 +88,35 @@ export function WorkflowFormPreviewPage() {
     if (result.success) {
       return { ok: true as const, parsed: result.data };
     }
-    return { ok: false as const, issues: result.error.issues };
+    // Distinguish "form is incomplete — required field not yet filled" from
+    // "form has a wrong value the user typed in". The first is a normal
+    // starting state; the second is the actually-broken case.
+    const issues = result.error.issues;
+    const isMissingIssue = (issue: (typeof issues)[number]) => {
+      const input = (issue as { input?: unknown }).input;
+      const received = (issue as { received?: string }).received;
+      if (
+        issue.code === "invalid_type" &&
+        (input === undefined || received === "undefined")
+      ) {
+        return true;
+      }
+      // `z.array(...).min(1)` on an empty/undefined array
+      if (
+        issue.code === "too_small" &&
+        (input === undefined || (Array.isArray(input) && input.length === 0))
+      ) {
+        return true;
+      }
+      // `z.union([...])` where the input was undefined — every branch
+      // failed because nothing was provided.
+      if (issue.code === "invalid_union" && input === undefined) {
+        return true;
+      }
+      return false;
+    };
+    const incomplete = issues.every(isMissingIssue);
+    return { ok: false as const, issues, incomplete };
   }, [entry, paramValues]);
 
   return (
@@ -80,7 +142,10 @@ export function WorkflowFormPreviewPage() {
         onChange={(v) => {
           if (v) {
             setSelectedType(v);
-            setParamValues({});
+            const nextSchema = getActivityParametersJsonSchema(v) as
+              | JsonSchemaProperty
+              | undefined;
+            setParamValues(seedDefaults(nextSchema));
           }
         }}
         maw={520}
@@ -159,6 +224,31 @@ export function WorkflowFormPreviewPage() {
                 <Text size="xs">Parsed value:</Text>
                 <Code block style={{ fontSize: 11 }}>
                   {JSON.stringify(validation.parsed, null, 2)}
+                </Code>
+              </Alert>
+            ) : validation?.incomplete ? (
+              <Alert
+                color="yellow"
+                variant="light"
+                title={`${validation.issues.length} required field${
+                  validation.issues.length === 1 ? "" : "s"
+                } not yet filled`}
+              >
+                <Text size="xs" c="dimmed">
+                  This activity's schema declares required parameters that the
+                  dev preview can't pre-fill (typically the catalog's
+                  rich-editor widgets — rule lists, mapping editors). Fill them
+                  in to see validation turn green.
+                </Text>
+                <Code block style={{ fontSize: 11, marginTop: 6 }}>
+                  {JSON.stringify(
+                    validation.issues.map((i) => ({
+                      path: i.path,
+                      message: i.message,
+                    })),
+                    null,
+                    2,
+                  )}
                 </Code>
               </Alert>
             ) : (

@@ -5,6 +5,11 @@
  * selection + drag + connect enabled. Positions are persisted in the
  * node's `metadata.position` so the layout round-trips through save/load.
  *
+ * Performance note: internal node state (positions, selection) is managed
+ * by xyflow's `useNodesState` hook so dragging is smooth — outer
+ * `GraphWorkflowConfig` is only updated on drag-stop / selection-change /
+ * delete, not on every mouse-move during a drag.
+ *
  * Kept intentionally narrow — the existing GraphVisualization.tsx remains
  * the canonical *read-only* renderer with simplified-view support for
  * groups + map containers. This editor canvas focuses on the
@@ -14,22 +19,22 @@
 import "@xyflow/react/dist/style.css";
 
 import {
-  applyNodeChanges,
   Background,
   type Connection,
   Controls,
   type Edge,
-  type EdgeChange,
   Handle,
   MarkerType,
   MiniMap,
   type Node,
-  type NodeChange,
   type NodeProps,
+  type OnSelectionChangeParams,
   Position,
   ReactFlow,
+  useEdgesState,
+  useNodesState,
 } from "@xyflow/react";
-import { useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ActivityNode,
   GraphEdge,
@@ -47,12 +52,15 @@ interface WorkflowEditorCanvasProps {
 interface ActivityNodeData extends Record<string, unknown> {
   label: string;
   activityType: string;
-  selected: boolean;
   isEntry: boolean;
 }
 
+type FlowNode = Node<ActivityNodeData, "activity">;
+
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
+const EDGE_STYLE = { stroke: "#9ca3af", strokeWidth: 2 };
+const EDGE_MARKER = { type: MarkerType.ArrowClosed, color: "#9ca3af" } as const;
 
 function readPosition(
   node: ActivityNode,
@@ -73,9 +81,13 @@ function readPosition(
   };
 }
 
-function ActivityNodeRenderer({ data }: NodeProps) {
-  const d = data as ActivityNodeData;
-  const hints = getActivityVisualHints(d.activityType);
+/**
+ * Renderer for activity nodes. Memoised so React Flow can skip rerenders
+ * when only positions change during a drag — without this, dragging a
+ * single node thrashes every node's renderer.
+ */
+const ActivityNodeRenderer = memo(({ data, selected }: NodeProps<FlowNode>) => {
+  const hints = getActivityVisualHints(data.activityType);
   const accent = hints.color;
   return (
     <div
@@ -86,14 +98,14 @@ function ActivityNodeRenderer({ data }: NodeProps) {
         borderBottomWidth: 2,
         borderLeftWidth: 6,
         borderStyle: "solid",
-        borderTopColor: d.selected ? accent : "transparent",
-        borderRightColor: d.selected ? accent : "transparent",
-        borderBottomColor: d.selected ? accent : "transparent",
+        borderTopColor: selected ? accent : "transparent",
+        borderRightColor: selected ? accent : "transparent",
+        borderBottomColor: selected ? accent : "transparent",
         borderLeftColor: accent,
         borderRadius: 10,
         padding: "10px 14px",
         minWidth: 200,
-        boxShadow: d.selected
+        boxShadow: selected
           ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
           : "0 2px 8px rgba(0,0,0,0.18)",
         color: "var(--mantine-color-text, #f3f4f6)",
@@ -115,7 +127,7 @@ function ActivityNodeRenderer({ data }: NodeProps) {
         <span style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
           {hints.displayName}
         </span>
-        {d.isEntry && (
+        {data.isEntry && (
           <span
             style={{
               marginLeft: "auto",
@@ -131,7 +143,7 @@ function ActivityNodeRenderer({ data }: NodeProps) {
           </span>
         )}
       </div>
-      <div style={{ fontWeight: 600 }}>{d.label}</div>
+      <div style={{ fontWeight: 600 }}>{data.label}</div>
       <Handle
         type="target"
         position={Position.Left}
@@ -144,11 +156,46 @@ function ActivityNodeRenderer({ data }: NodeProps) {
       />
     </div>
   );
+});
+ActivityNodeRenderer.displayName = "ActivityNodeRenderer";
+
+const NODE_TYPES = { activity: ActivityNodeRenderer };
+
+/**
+ * Project a GraphWorkflowConfig into the React Flow node list. Only
+ * `data` and `position` come from the outer config; `selected` is set by
+ * React Flow itself during interaction.
+ */
+function projectFlowNodes(
+  config: GraphWorkflowConfig,
+  selectedNodeId: string | null,
+): FlowNode[] {
+  const activityNodes = Object.values(config.nodes).filter(
+    (n): n is ActivityNode => n.type === "activity",
+  );
+  return activityNodes.map((node, idx) => ({
+    id: node.id,
+    type: "activity" as const,
+    position: readPosition(node, idx),
+    selected: node.id === selectedNodeId,
+    data: {
+      label: node.label,
+      activityType: node.activityType,
+      isEntry: node.id === config.entryNodeId,
+    },
+  }));
 }
 
-const NODE_TYPES = {
-  activity: ActivityNodeRenderer,
-};
+function projectFlowEdges(config: GraphWorkflowConfig): Edge[] {
+  return config.edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    type: "default",
+    markerEnd: EDGE_MARKER,
+    style: EDGE_STYLE,
+  }));
+}
 
 export function WorkflowEditorCanvas({
   config,
@@ -156,122 +203,137 @@ export function WorkflowEditorCanvas({
   onConfigChange,
   onSelectNode,
 }: WorkflowEditorCanvasProps) {
-  const flowNodes = useMemo<Node<ActivityNodeData>[]>(() => {
-    const activityNodes = Object.values(config.nodes).filter(
-      (n): n is ActivityNode => n.type === "activity",
-    );
-    return activityNodes.map((node, idx) => {
-      const pos = readPosition(node, idx);
-      return {
-        id: node.id,
-        type: "activity",
-        position: pos,
-        data: {
-          label: node.label,
-          activityType: node.activityType,
-          selected: node.id === selectedNodeId,
-          isEntry: node.id === config.entryNodeId,
-        },
-        selected: node.id === selectedNodeId,
-      };
-    });
-  }, [config, selectedNodeId]);
+  // Internal node state managed by xyflow — keeps dragging smooth. The
+  // outer GraphWorkflowConfig is updated only on drag-stop / select /
+  // delete, never per-mousemove.
+  const [internalNodes, setInternalNodes, onInternalNodesChange] =
+    useNodesState<FlowNode>([]);
+  const [internalEdges, setInternalEdges, onInternalEdgesChange] =
+    useEdgesState<Edge>([]);
 
-  const flowEdges = useMemo<Edge[]>(
+  // Track the node set + the data-relevant fields so we only resync the
+  // internal nodes when something actually changed in the outer config —
+  // not when, e.g., the user moves a node and onNodeDragStop triggers a
+  // round-trip config update that, on its own, would otherwise overwrite
+  // the in-flight drag.
+  const dataFingerprint = useMemo(
     () =>
-      config.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: "default",
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#9ca3af" },
-        style: { stroke: "#9ca3af", strokeWidth: 2 },
-      })),
+      JSON.stringify({
+        ids: Object.keys(config.nodes).sort(),
+        entryNodeId: config.entryNodeId,
+        labelsAndTypes: Object.fromEntries(
+          Object.entries(config.nodes).map(([id, n]) => [
+            id,
+            n.type === "activity" ? `${n.label}::${n.activityType}` : n.type,
+          ]),
+        ),
+      }),
+    [config.nodes, config.entryNodeId],
+  );
+
+  const lastFingerprintRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastFingerprintRef.current === dataFingerprint) return;
+    lastFingerprintRef.current = dataFingerprint;
+    setInternalNodes(projectFlowNodes(config, selectedNodeId));
+    // Note: `selectedNodeId` participates in the projection on
+    // structural changes (e.g., when a freshly added node should start
+    // selected). After mount, xyflow owns the `selected` flag on each
+    // node via its onSelectionChange handler — we don't sync external
+    // selection updates back into internal nodes, which avoids a
+    // setState loop with xyflow's StoreUpdater.
+  }, [dataFingerprint, config, selectedNodeId, setInternalNodes]);
+
+  const edgesFingerprint = useMemo(
+    () =>
+      JSON.stringify(
+        config.edges.map((e) => `${e.id}|${e.source}|${e.target}|${e.type}`),
+      ),
     [config.edges],
   );
+  const lastEdgesFingerprintRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastEdgesFingerprintRef.current === edgesFingerprint) return;
+    lastEdgesFingerprintRef.current = edgesFingerprint;
+    setInternalEdges(projectFlowEdges(config));
+  }, [edgesFingerprint, config, setInternalEdges]);
 
-  const handleNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      const updatedNodes = applyNodeChanges(changes, flowNodes);
-      // Persist position changes back to GraphWorkflowConfig
-      let mutated = false;
-      const nextNodes = { ...config.nodes };
-      for (const updated of updatedNodes) {
-        const existing = nextNodes[updated.id];
-        if (existing?.type !== "activity") continue;
-        const existingMeta = existing.metadata as
-          | { position?: { x: number; y: number } }
-          | undefined;
-        const newX = updated.position.x;
-        const newY = updated.position.y;
-        if (
-          existingMeta?.position?.x !== newX ||
-          existingMeta?.position?.y !== newY
-        ) {
-          nextNodes[updated.id] = {
-            ...existing,
-            metadata: {
-              ...existing.metadata,
-              position: { x: newX, y: newY },
-            },
-          };
-          mutated = true;
-        }
+  // Persist final positions to the outer config once the drag finishes.
+  const handleNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      const existing = config.nodes[node.id];
+      if (existing?.type !== "activity") return;
+      const prevPos = (
+        existing.metadata as { position?: { x: number; y: number } }
+      )?.position;
+      if (prevPos?.x === node.position.x && prevPos?.y === node.position.y) {
+        return;
       }
-      if (mutated) {
-        onConfigChange({ ...config, nodes: nextNodes });
-      }
-
-      // Handle selection. xyflow emits a deselect-old then select-new pair
-      // when the user clicks from one node to another; we want the
-      // newly-selected one to win.
-      const selectChanges = changes.filter(
-        (c): c is Extract<NodeChange, { type: "select" }> =>
-          c.type === "select",
-      );
-      if (selectChanges.length > 0) {
-        const selectionChange = selectChanges.find((c) => c.selected);
-        onSelectNode(selectionChange ? selectionChange.id : null);
-      }
-
-      // Handle removal
-      const removeChanges = changes.filter(
-        (c): c is Extract<NodeChange, { type: "remove" }> =>
-          c.type === "remove",
-      );
-      if (removeChanges.length > 0) {
-        const removedIds = new Set(removeChanges.map((c) => c.id));
-        const nodesCopy = { ...config.nodes };
-        for (const id of removedIds) delete nodesCopy[id];
-        const filteredEdges = config.edges.filter(
-          (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
-        );
-        let nextEntryNodeId = config.entryNodeId;
-        if (removedIds.has(config.entryNodeId)) {
-          nextEntryNodeId = Object.keys(nodesCopy)[0] ?? "";
-        }
-        onConfigChange({
-          ...config,
-          nodes: nodesCopy,
-          edges: filteredEdges,
-          entryNodeId: nextEntryNodeId,
-        });
-        if (selectedNodeId && removedIds.has(selectedNodeId)) {
-          onSelectNode(null);
-        }
-      }
+      const updated: ActivityNode = {
+        ...existing,
+        metadata: {
+          ...existing.metadata,
+          position: { x: node.position.x, y: node.position.y },
+        },
+      };
+      // Bump the fingerprint ref forward by hand so the structural sync
+      // useEffect doesn't immediately re-project the nodes and stamp
+      // over the local drag commit.
+      const nextNodes = { ...config.nodes, [node.id]: updated };
+      const nextFingerprint = JSON.stringify({
+        ids: Object.keys(nextNodes).sort(),
+        entryNodeId: config.entryNodeId,
+        labelsAndTypes: Object.fromEntries(
+          Object.entries(nextNodes).map(([id, n]) => [
+            id,
+            n.type === "activity" ? `${n.label}::${n.activityType}` : n.type,
+          ]),
+        ),
+      });
+      lastFingerprintRef.current = nextFingerprint;
+      onConfigChange({ ...config, nodes: nextNodes });
     },
-    [config, flowNodes, onConfigChange, onSelectNode, selectedNodeId],
+    [config, onConfigChange],
   );
 
-  const handleEdgesChange = useCallback(
-    (changes: EdgeChange[]) => {
-      const removed = changes.filter(
-        (c): c is Extract<EdgeChange, { type: "remove" }> =>
-          c.type === "remove",
+  const handleSelectionChange = useCallback(
+    ({ nodes }: OnSelectionChangeParams) => {
+      const next = nodes[0]?.id ?? null;
+      if (next === selectedNodeId) return;
+      onSelectNode(next);
+    },
+    [onSelectNode, selectedNodeId],
+  );
+
+  const handleNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      if (deleted.length === 0) return;
+      const removedIds = new Set(deleted.map((n) => n.id));
+      const nodesCopy = { ...config.nodes };
+      for (const id of removedIds) delete nodesCopy[id];
+      const filteredEdges = config.edges.filter(
+        (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
       );
-      if (removed.length === 0) return;
-      const removedIds = new Set(removed.map((c) => c.id));
+      const nextEntryNodeId = removedIds.has(config.entryNodeId)
+        ? (Object.keys(nodesCopy)[0] ?? "")
+        : config.entryNodeId;
+      onConfigChange({
+        ...config,
+        nodes: nodesCopy,
+        edges: filteredEdges,
+        entryNodeId: nextEntryNodeId,
+      });
+      if (selectedNodeId && removedIds.has(selectedNodeId)) {
+        onSelectNode(null);
+      }
+    },
+    [config, onConfigChange, onSelectNode, selectedNodeId],
+  );
+
+  const handleEdgesDelete = useCallback(
+    (deleted: Edge[]) => {
+      if (deleted.length === 0) return;
+      const removedIds = new Set(deleted.map((e) => e.id));
       onConfigChange({
         ...config,
         edges: config.edges.filter((e) => !removedIds.has(e.id)),
@@ -284,7 +346,6 @@ export function WorkflowEditorCanvas({
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
       if (connection.source === connection.target) return;
-      // Avoid duplicate edges between the same pair
       const duplicate = config.edges.some(
         (e) => e.source === connection.source && e.target === connection.target,
       );
@@ -303,20 +364,19 @@ export function WorkflowEditorCanvas({
     [config, onConfigChange],
   );
 
-  const handlePaneClick = useCallback(() => {
-    onSelectNode(null);
-  }, [onSelectNode]);
-
   return (
     <div style={{ height: "100%", width: "100%" }}>
       <ReactFlow
-        nodes={flowNodes}
-        edges={flowEdges}
+        nodes={internalNodes}
+        edges={internalEdges}
         nodeTypes={NODE_TYPES}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
+        onNodesChange={onInternalNodesChange}
+        onEdgesChange={onInternalEdgesChange}
+        onNodeDragStop={handleNodeDragStop}
+        onSelectionChange={handleSelectionChange}
+        onNodesDelete={handleNodesDelete}
+        onEdgesDelete={handleEdgesDelete}
         onConnect={handleConnect}
-        onPaneClick={handlePaneClick}
         nodesDraggable
         nodesConnectable
         elementsSelectable

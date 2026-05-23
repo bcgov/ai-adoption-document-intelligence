@@ -91,30 +91,33 @@ export function getActivityVisualHints(
 }
 
 /**
+ * Categories that are hidden from the user-facing palette but kept in the
+ * catalog so the backend validator and other consumers still recognise the
+ * activity types. Benchmarking activities are scheduled by the
+ * benchmarking subsystem itself — users don't drop them into workflows.
+ */
+const HIDDEN_CATEGORIES = new Set<string>(["Benchmarking"]);
+
+interface UserFacingCatalogEntry {
+  activityType: string;
+  displayName: string;
+  description: string;
+  iconHint: string;
+  colorHint: string;
+}
+
+/**
  * Catalog entries grouped by category, sorted by displayName within group.
- * Used to render the palette.
+ * Internal-only categories (currently: Benchmarking) are filtered out for
+ * the user-facing palette.
  */
 export function getCatalogByCategory(): Record<
   string,
-  Array<{
-    activityType: string;
-    displayName: string;
-    description: string;
-    iconHint: string;
-    colorHint: string;
-  }>
+  UserFacingCatalogEntry[]
 > {
-  const grouped: Record<
-    string,
-    Array<{
-      activityType: string;
-      displayName: string;
-      description: string;
-      iconHint: string;
-      colorHint: string;
-    }>
-  > = {};
+  const grouped: Record<string, UserFacingCatalogEntry[]> = {};
   for (const entry of Object.values(ACTIVITY_CATALOG)) {
+    if (HIDDEN_CATEGORIES.has(entry.category)) continue;
     if (!grouped[entry.category]) {
       grouped[entry.category] = [];
     }
@@ -130,6 +133,15 @@ export function getCatalogByCategory(): Record<
     list.sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
   return grouped;
+}
+
+/**
+ * Whether this activity type is hidden from the user-facing UI.
+ * Backend validation still recognises hidden types.
+ */
+export function isUserFacingActivity(activityType: string): boolean {
+  const entry = ACTIVITY_CATALOG[activityType];
+  return !!entry && !HIDDEN_CATEGORIES.has(entry.category);
 }
 
 /**
