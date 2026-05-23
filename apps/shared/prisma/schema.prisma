@@ -19,6 +19,7 @@ datasource db {
 enum WorkflowKind {
   primary
   benchmark_candidate
+  library
 }
 
 model Document {

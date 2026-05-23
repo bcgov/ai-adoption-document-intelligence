@@ -620,3 +620,68 @@ describe("US-051 Scenario 4: coverage across the four duration fields", () => {
     expect(timeoutErrors).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// US-056: Validator accepts the new library-workflow metadata fields
+// ---------------------------------------------------------------------------
+
+describe("US-056 Scenario 1: validator accepts metadata.kind = 'library' with declared inputs[] / outputs[]", () => {
+  it("returns valid for a minimal config carrying full library metadata", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Sample library",
+        description: "Round-tripped library signature",
+        kind: "library",
+        inputs: [
+          { label: "Document URL", path: "ctx.documentUrl", type: "string" },
+          { label: "Confidence", path: "ctx.threshold", type: "number" },
+        ],
+        outputs: [
+          { label: "Extracted Fields", path: "ctx.fields", type: "object" },
+        ],
+      },
+      entryNodeId: "noop",
+      ctx: {},
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+});
+
+describe("US-056 Scenario 2: validator accepts a config with no metadata.kind set", () => {
+  it("returns valid for a minimal config whose metadata omits the library fields", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Legacy" },
+      entryNodeId: "noop",
+      ctx: {},
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+});

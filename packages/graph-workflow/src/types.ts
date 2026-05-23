@@ -25,6 +25,40 @@ export interface GraphMetadata {
   description?: string;
   version?: string;
   tags?: string[];
+  /**
+   * Discriminator: `"workflow"` (or absent) marks a standalone, runnable
+   * workflow; `"library"` marks a saved building-block whose top-level
+   * `inputs[]` / `outputs[]` define its public signature for use as a
+   * `childWorkflow` target. Set by the V2 editor's "Save as library"
+   * action; absent on legacy configs (interpreted as `"workflow"`).
+   *
+   * The DB column `WorkflowLineage.workflow_kind` is authoritative for
+   * listing/filtering; this metadata field is the in-flight encoding
+   * carried inside the serialized `GraphWorkflowConfig`.
+   */
+  kind?: "workflow" | "library";
+  /**
+   * Declared library inputs. Only meaningful when `kind === "library"`.
+   * Each entry describes a port the library exposes to its callers.
+   */
+  inputs?: LibraryPortDescriptor[];
+  /**
+   * Declared library outputs. Only meaningful when `kind === "library"`.
+   */
+  outputs?: LibraryPortDescriptor[];
+}
+
+/**
+ * Signature row for a library workflow's declared input or output port.
+ * The visual builder's "Save as library" modal writes these into
+ * `GraphMetadata.inputs[]` / `outputs[]`. They become the typed port
+ * descriptors of `childWorkflow` nodes that reference the library in
+ * Phase 3 (typed I/O on cross-workflow edges).
+ */
+export interface LibraryPortDescriptor {
+  label: string;
+  path: string;
+  type: "string" | "number" | "boolean" | "object" | "array";
 }
 
 export interface CtxDeclaration {
