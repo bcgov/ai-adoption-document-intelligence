@@ -65,7 +65,7 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-010** (NodeSettingsPanel wiring) — depends on all of US-004 through US-009
 
 ### Phase 4 — Verification
-- [ ] **US-013** (Validation surfacing verification) — depends on US-010, US-011, US-012
+- [x] **US-013** (Validation surfacing verification) — depends on US-010, US-011, US-012
 
 > Stories are ordered by dependency chain for automated implementation.
 > Each story should be implementable after all stories in previous phases are complete.

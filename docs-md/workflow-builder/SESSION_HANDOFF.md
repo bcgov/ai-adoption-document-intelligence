@@ -138,8 +138,8 @@ The editor skeleton is functional but minimal. The next chunks (all already scop
 
 - New node positions stagger horizontally at `x=80 + i*240, y=100 + (i%3)*140` — no real layout algorithm yet.
 - Save backend rejects unknown `x-api-key` in headless test runs; the real user's IDIR-cookied browser session handles auth normally.
-- The settings panel renders `n.type !== "activity"` nodes (the control-flow ones) with a stub. Per-type settings forms ship via the `feature-docs/20260522-workflow-builder-control-flow-nodes/` user stories. Control-flow node skeletons can be added from the new "Flow Control" palette section (US-011, `palette/control-flow-skeletons.ts`); the canvas renderer for non-activity types and the per-type settings forms land in adjacent stories.
 - Edges have no `sourcePort` / `targetPort` annotations — every connection drops in as `type: "normal"`. Switch's case-routed edges and error-fallback edges need a custom edge UI (Phase 1A polish or Phase 1B).
+- `pollUntil.interval` (and other Temporal duration fields like `humanGate.timeout`, `pollUntil.initialDelay`, `pollUntil.timeout`) are NOT format-validated by the shared `validateGraphConfig`. The per-type frontend forms show inline duration errors via `apps/frontend/src/features/workflow-builder/settings/control-flow/duration-validation.ts`, but invalid durations are not surfaced in the canvas red badges or the validation drawer. Follow-up: lift the duration regex into `@ai-di/graph-workflow` and validate it in `validator.ts` (filed as part of US-013).
 - Setting a non-existent ctx key in a port binding's text input does NOT auto-declare a new ctx entry. Only the initial node-add auto-declares; subsequent renames are user-driven.
 
 ---
