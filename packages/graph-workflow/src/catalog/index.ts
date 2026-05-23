@@ -66,6 +66,12 @@ export {
   type ValidateActivityParameters,
 } from "./create-parameter-validator";
 
+export {
+  validationRuleSchema,
+  documentValidateFieldsParametersSchema,
+  type ValidationRule,
+} from "./activities/document-validate-fields";
+
 const ENTRIES: ActivityCatalogEntry[] = [
   filePrepareCatalogEntry,
   blobReadCatalogEntry,

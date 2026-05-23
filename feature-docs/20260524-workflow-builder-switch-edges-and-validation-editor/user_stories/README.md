@@ -41,12 +41,12 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-026** (SwitchNodeSettings uses `edgeTypes={["conditional"]}` — depends on US-022)
 
 ### Phase B1 — validateFields rich editor
-- [ ] **US-027** (ValidationRuleEditor list shell)
-- [ ] **US-028** (field-match + array-match variant bodies — depends on US-027)
-- [ ] **US-029** (arithmetic variant body with nested expression — depends on US-027)
+- [x] **US-027** (ValidationRuleEditor list shell)
+- [x] **US-028** (field-match + array-match variant bodies — depends on US-027)
+- [x] **US-029** (arithmetic variant body with nested expression — depends on US-027)
 
 ### Phase B2 — wire into the renderer (commit Milestone B here)
-- [ ] **US-030** (JsonSchemaForm routes `x-widget: "validation-rule-editor"` — depends on US-027/028/029)
+- [x] **US-030** (JsonSchemaForm routes `x-widget: "validation-rule-editor"` — depends on US-027/028/029)
 
 > Stories are ordered by dependency chain for automated implementation.
 > Each story should be implementable after all stories in previous phases are complete.

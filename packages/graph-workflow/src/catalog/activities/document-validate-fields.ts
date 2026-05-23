@@ -73,11 +73,17 @@ const arrayMatchRuleSchema = z.object({
   fieldType: z.enum(FIELD_TYPES).meta({ title: "Field type" }),
 });
 
-const validationRuleSchema = z.discriminatedUnion("type", [
+export const validationRuleSchema = z.discriminatedUnion("type", [
   fieldMatchRuleSchema,
   arithmeticRuleSchema,
   arrayMatchRuleSchema,
 ]);
+
+/**
+ * Canonical type for one element of `documentValidateFieldsParametersSchema.rules`.
+ * Source of truth for the frontend `ValidationRuleEditor` widget.
+ */
+export type ValidationRule = z.infer<typeof validationRuleSchema>;
 
 export const documentValidateFieldsParametersSchema = z.object({
   rules: z

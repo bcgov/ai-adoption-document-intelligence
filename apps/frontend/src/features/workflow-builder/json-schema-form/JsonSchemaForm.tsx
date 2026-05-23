@@ -14,6 +14,7 @@
  * hint vocabulary.
  */
 
+import type { ValidationRule } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
   Autocomplete,
@@ -29,6 +30,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { ValidationRuleEditor } from "../settings/rich-widgets";
 import {
   detectDiscriminatedUnion,
   isObjectSchema,
@@ -282,6 +284,36 @@ function FieldRenderer({
         checked={Boolean(value)}
         onChange={(e) => onChange(e.currentTarget.checked)}
       />
+    );
+  }
+
+  // ── array + x-widget: validation-rule-editor ──────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "validation-rule-editor"
+  ) {
+    const rules = Array.isArray(value) ? (value as ValidationRule[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <ValidationRuleEditor
+          value={rules}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
     );
   }
 
