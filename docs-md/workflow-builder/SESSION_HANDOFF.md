@@ -1,6 +1,6 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-22 (Milestones 1, A, B, C all landed in a single session).
+**Last updated:** 2026-05-23 (Phase 1A closeout: US-014 auto-fit-on-add landed; control-flow audit complete; round-trip walkthrough on `multi-page-report-workflow.json` pending Alex's sign-off).
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
 
@@ -127,18 +127,24 @@ The editor skeleton is functional but minimal. The next chunks (all already scop
 - **Variable picker** — input port bindings currently take a free-text ctx key. Replace with an autocomplete dropdown sourced from the union of `ctx` declarations + upstream node outputs.
 - **Control-flow nodes** — switch / map / join / childWorkflow / pollUntil / humanGate. Hand-rolled settings forms per the design brief; canvas can render them with the same `activity` node shape for now and graduate to per-type renderers.
 - **Templates picker** — workflow-list page → "New from template" dialog backed by the static bundle of `docs-md/graph-workflows/templates/*.json`.
-- **Load round-trip** — V2 edit-mode hydrates from `useWorkflow` on mount; verify a real-world template loads, can be edited, saved, and reloaded with identical config hash (modulo `nodeGroups` per existing hash rule).
-- **Auto-fit on add** — currently the canvas doesn't auto-fit-view after each node add; user has to click the Controls fit button. Wire ReactFlow's `useReactFlow().fitView()` into a layout effect.
+- **Load round-trip — pending Alex's manual walkthrough.** V2 edit-mode hydrates from `useWorkflow` on mount (verified by code audit 2026-05-23) and the templates picker hydrates `config` directly on the create-v2 page. The walkthrough on `docs-md/graph-workflows/templates/multi-page-report-workflow.json` (17 nodes, every node type represented) is Alex's to do against the running dev server — Claude can't start it (see `feedback_dev_servers.md`). Test plan and code-audit notes in `feature-docs/20260522-workflow-builder-phase1a-closeout/REQUIREMENTS.md`.
+- **Auto-fit on add — DONE 2026-05-23 (US-014).** `useReactFlow().fitView()` fires on node-count increase (palette adds, multi-add template hydration); drag, selection, edge changes do NOT trigger a re-fit. See [US-014](../../feature-docs/20260522-workflow-builder-phase1a-closeout/user_stories/US-014-canvas-auto-fit-on-node-add.md). Implementation wraps the canvas inner content in `<ReactFlowProvider>`; deferral is a 0ms `setTimeout` so xyflow's internal store has consumed the new node before we ask it to fit.
 - **Drag-from-palette** — palette currently is click-only. The designer agreed click-to-add wins, but drag is the alternative interaction; xyflow's `onPaneDrop` is the hook.
-- **Remove the React style warning** — there's a vestigial `borderColor`/`borderLeftColor` warning in dev console; suspect Mantine internal, not the editor's renderers (those use only individual border properties now).
+
+## Phase 1B follow-ups (filed, not yet implemented)
+
+- **Switch case-routed edges — visual differentiation + edge-type setting.** Today `GraphEdge` has `sourcePort`/`targetPort` fields in the type, but the canvas never sets them; `handleConnect` always emits `type: "normal"`. So switch `cases[].edgeId` references work logically, but on the canvas all 4 outgoing edges of `segmentRouter` in `multi-page-report-workflow.json` look identical, and re-drawing a deleted case edge loses its `conditional` tag. Picking this up needs: (1) a custom edge component that colours/labels per-case (look at the read-only `GraphVisualization.tsx`'s `staggered switch-edge labels` for the pattern), (2) UI in `SwitchNodeSettings` to mark an edge as case-routed when picked in an `EdgePicker`, (3) a `handleConnect` upgrade that consults the source node's type and stamps the right edge type. Likely a milestone of its own.
+- **`borderColor` / `borderLeftColor` React style warning.** Audit on 2026-05-23 found no longhand/shorthand mix in `apps/frontend/src/features/workflow-builder/` (all renderers use longhand `borderTopColor`/`borderRightColor`/`borderBottomColor`/`borderLeftColor` consistently). Likely Mantine internal. Needs the exact dev-console text from Alex before it can be chased — speculative grep didn't turn it up.
+- **Rich-widget overrides for `splitAndClassify.keywordPatterns` + `validateFields.rules`.** Already flagged via `x-widget: rich-editor-tbd` in the catalog. The current generic `JsonSchemaForm` renders these as "Unsupported field schema" stubs. The underlying parameter VALUE round-trips fine (the form spreads it through unchanged), but users can't *edit* these fields in V2. Phase 1B hand-rolled overrides per `WORKFLOW_NODE_CATALOG.md` cross-cutting widgets table.
+- **Auto-layout / dagre integration.** Templates lack `metadata.position` so all 17 template nodes of `multi-page-report-workflow.json` stack at the linear stagger `x=80+i*220, y=80`. The user must rearrange manually before saving. Per `IMPLEMENTATION_PLAN.md §4`.
 
 ---
 
 ## Known limitations of the M2 skeleton
 
-- New node positions stagger horizontally at `x=80 + i*240, y=100 + (i%3)*140` — no real layout algorithm yet.
+- New node positions stagger horizontally at `x=80 + i*240, y=100 + (i%3)*140` — no real layout algorithm yet. Auto-fit on add (US-014, landed 2026-05-23) keeps the new node visible but does not auto-arrange the whole graph.
 - Save backend rejects unknown `x-api-key` in headless test runs; the real user's IDIR-cookied browser session handles auth normally.
-- Edges have no `sourcePort` / `targetPort` annotations — every connection drops in as `type: "normal"`. Switch's case-routed edges and error-fallback edges need a custom edge UI (Phase 1A polish or Phase 1B).
+- Edges have no `sourcePort` / `targetPort` annotations — every connection drops in as `type: "normal"`. Switch's case-routed edges and error-fallback edges need a custom edge UI. **Filed as Phase 1B follow-up above.**
 - `pollUntil.interval` (and other Temporal duration fields like `humanGate.timeout`, `pollUntil.initialDelay`, `pollUntil.timeout`) are NOT format-validated by the shared `validateGraphConfig`. The per-type frontend forms show inline duration errors via `apps/frontend/src/features/workflow-builder/settings/control-flow/duration-validation.ts`, but invalid durations are not surfaced in the canvas red badges or the validation drawer. Follow-up: lift the duration regex into `@ai-di/graph-workflow` and validate it in `validator.ts` (filed as part of US-013).
 - Setting a non-existent ctx key in a port binding's text input does NOT auto-declare a new ctx entry. Only the initial node-add auto-declares; subsequent renames are user-driven.
 

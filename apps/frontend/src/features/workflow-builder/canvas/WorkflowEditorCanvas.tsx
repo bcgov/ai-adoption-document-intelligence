@@ -37,8 +37,10 @@ import {
   type OnSelectionChangeParams,
   Position,
   ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import type {
@@ -630,7 +632,19 @@ function buildStructuralFingerprint(config: GraphWorkflowConfig): string {
   });
 }
 
-export function WorkflowEditorCanvas({
+export function WorkflowEditorCanvas(props: WorkflowEditorCanvasProps) {
+  // `useReactFlow` is only available inside a `<ReactFlowProvider>`, so
+  // the public component wraps the inner implementation. The provider
+  // also isolates xyflow's internal store from any sibling canvases that
+  // might mount on the page in future.
+  return (
+    <ReactFlowProvider>
+      <WorkflowEditorCanvasInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function WorkflowEditorCanvasInner({
   config,
   selectedNodeId,
   onConfigChange,
@@ -645,6 +659,43 @@ export function WorkflowEditorCanvas({
     useNodesState<FlowNode>([]);
   const [internalEdges, setInternalEdges, onInternalEdgesChange] =
     useEdgesState<Edge>([]);
+  const reactFlow = useReactFlow();
+
+  // Auto-fit the viewport when nodes are added (US-014). Compares the
+  // previous node-id set to the current one; new ids that weren't present
+  // before are treated as additions and the viewport animates to bring
+  // the addition into view. Drag, selection, and edge mutations don't
+  // change the node-id set, so they don't trigger a re-fit.
+  const prevNodeIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const currentIds = new Set(Object.keys(config.nodes));
+    const prevIds = prevNodeIdsRef.current;
+    prevNodeIdsRef.current = currentIds;
+    // First mount — ReactFlow's `fitView` prop handles the initial layout.
+    if (prevIds === null) return;
+    const added: string[] = [];
+    for (const id of currentIds) {
+      if (!prevIds.has(id)) added.push(id);
+    }
+    if (added.length === 0) return;
+    const options =
+      added.length === 1
+        ? {
+            padding: 0.25,
+            duration: 300,
+            nodes: [{ id: added[0] }],
+          }
+        : { padding: 0.25, duration: 300 };
+    // Defer one macrotask so xyflow's structural-projection effect (which
+    // pushes the new node into the internal store) has finished running
+    // before we ask it to fit the new node. A 0ms timeout is enough
+    // because xyflow updates its internal store synchronously inside the
+    // sibling effect on the same tick.
+    const timer = setTimeout(() => {
+      reactFlow.fitView(options);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [config.nodes, reactFlow]);
 
   // Track the node set + the data-relevant fields so we only resync the
   // internal nodes when something actually changed in the outer config —

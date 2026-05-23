@@ -12,9 +12,9 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ActivityNode,
   ChildWorkflowNode,
@@ -39,6 +39,19 @@ interface MockNodeProps {
   data: Record<string, unknown>;
   selected?: boolean;
 }
+
+// `mockFitView` is hoisted so the vi.mock factory below can reference it
+// AND test cases can spy on / reset it across runs. `mockReactFlowApi`
+// is also stable — returning a fresh object from `useReactFlow` on every
+// render would invalidate the canvas's fitView effect deps and cancel
+// its in-flight setTimeout.
+const { mockFitView, mockReactFlowApi } = vi.hoisted(() => {
+  const fitView = vi.fn();
+  return {
+    mockFitView: fitView,
+    mockReactFlowApi: { fitView },
+  };
+});
 
 vi.mock("@xyflow/react", () => {
   const useNodesState = <T,>(initial: T[]) => {
@@ -79,6 +92,9 @@ vi.mock("@xyflow/react", () => {
         })}
       </div>
     ),
+    ReactFlowProvider: ({ children }: { children: React.ReactNode }) => (
+      <>{children}</>
+    ),
     Background: () => null,
     Controls: () => null,
     MiniMap: () => null,
@@ -89,7 +105,12 @@ vi.mock("@xyflow/react", () => {
     Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
     useNodesState,
     useEdgesState,
+    useReactFlow: () => mockReactFlowApi,
   };
+});
+
+beforeEach(() => {
+  mockFitView.mockClear();
 });
 
 // ---------------------------------------------------------------------------
@@ -189,11 +210,13 @@ function renderCanvas(
 ) {
   const onConfigChange = vi.fn();
   const onSelectNode = vi.fn();
+  let currentConfig = config;
+  let currentSelected = options.selectedNodeId ?? null;
   const utils = render(
     <MantineProvider>
       <WorkflowEditorCanvas
-        config={config}
-        selectedNodeId={options.selectedNodeId ?? null}
+        config={currentConfig}
+        selectedNodeId={currentSelected}
         onConfigChange={onConfigChange}
         onSelectNode={onSelectNode}
         errorsByNode={options.errorsByNode}
@@ -201,7 +224,44 @@ function renderCanvas(
       />
     </MantineProvider>,
   );
-  return { ...utils, onConfigChange, onSelectNode };
+  /**
+   * Re-renders the canvas with a new config (and optionally a new
+   * selectedNodeId), mirroring how the page component pushes
+   * `setConfig(next)` after `addActivity` / `addControlFlowNode`. Tests
+   * use this to simulate a palette add.
+   */
+  const rerenderWithConfig = (
+    nextConfig: GraphWorkflowConfig,
+    nextSelected?: string | null,
+  ) => {
+    currentConfig = nextConfig;
+    if (nextSelected !== undefined) {
+      currentSelected = nextSelected;
+    }
+    utils.rerender(
+      <MantineProvider>
+        <WorkflowEditorCanvas
+          config={currentConfig}
+          selectedNodeId={currentSelected}
+          onConfigChange={onConfigChange}
+          onSelectNode={onSelectNode}
+          errorsByNode={options.errorsByNode}
+          onNodeBadgeClick={options.onNodeBadgeClick}
+        />
+      </MantineProvider>,
+    );
+  };
+  return { ...utils, onConfigChange, onSelectNode, rerenderWithConfig };
+}
+
+/**
+ * Drains the 0ms setTimeout my US-014 fitView call uses. Wrapping in
+ * `act` flushes React's pending commits + lets the macrotask fire.
+ */
+async function flushAnimationFrame() {
+  await act(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -395,5 +455,163 @@ describe("WorkflowEditorCanvas — Scenario 5: validation badges on control-flow
     const activityBadge = screen.getByTestId("node-badge-activity_1");
     activityBadge.click();
     expect(onNodeBadgeClick).toHaveBeenCalledWith("activity_1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-014: auto-fit-on-add
+//   feature-docs/20260522-workflow-builder-phase1a-closeout/user_stories/US-014-canvas-auto-fit-on-node-add.md
+// ---------------------------------------------------------------------------
+
+function addExtraActivity(
+  config: GraphWorkflowConfig,
+  id: string,
+): GraphWorkflowConfig {
+  const extra: ActivityNode = {
+    id,
+    type: "activity",
+    label: id,
+    activityType: "data.transform",
+    parameters: {},
+    metadata: { position: { x: 1400, y: 0 } },
+  };
+  return {
+    ...config,
+    nodes: { ...config.nodes, [id]: extra },
+  };
+}
+
+describe("WorkflowEditorCanvas — US-014: auto-fit-on-add", () => {
+  it("fits the new node into view when the node set grows by one (Scenario 1)", async () => {
+    const initial = makeAllNodeTypesConfig();
+    const { rerenderWithConfig } = renderCanvas(initial);
+    // The first useEffect run captures the initial id-set without
+    // calling fitView; flush a frame so any spurious early call would
+    // have shown up before we assert.
+    await flushAnimationFrame();
+    expect(mockFitView).not.toHaveBeenCalled();
+
+    const next = addExtraActivity(initial, "activity_added_1");
+    rerenderWithConfig(next);
+    await flushAnimationFrame();
+
+    expect(mockFitView).toHaveBeenCalledTimes(1);
+    expect(mockFitView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        padding: 0.25,
+        duration: 300,
+        nodes: [{ id: "activity_added_1" }],
+      }),
+    );
+  });
+
+  it("does NOT call fitView when a node's position changes (Scenario 2)", async () => {
+    const initial = makeAllNodeTypesConfig();
+    const { rerenderWithConfig } = renderCanvas(initial);
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+
+    // Move activity_1 to a new position — same node-id set, only the
+    // position metadata changed. The existing onNodeDragStop path
+    // mirrors this kind of mutation.
+    const moved: GraphWorkflowConfig = {
+      ...initial,
+      nodes: {
+        ...initial.nodes,
+        activity_1: {
+          ...(initial.nodes.activity_1 as ActivityNode),
+          metadata: { position: { x: 999, y: 999 } },
+        } satisfies ActivityNode,
+      },
+    };
+    rerenderWithConfig(moved);
+    await flushAnimationFrame();
+
+    expect(mockFitView).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call fitView on initial mount (Scenario 3)", async () => {
+    const initial = makeAllNodeTypesConfig();
+    renderCanvas(initial);
+    await flushAnimationFrame();
+    // ReactFlow's own `fitView` prop handles the initial layout via the
+    // ReactFlow component itself; our hook must not duplicate that on
+    // the very first effect run.
+    expect(mockFitView).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call fitView when only selection changes (Scenario 4 - selection)", async () => {
+    const initial = makeAllNodeTypesConfig();
+    const { rerenderWithConfig } = renderCanvas(initial);
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+
+    // Selecting a different node — same config.nodes, only
+    // selectedNodeId changes.
+    rerenderWithConfig(initial, "switch_1");
+    await flushAnimationFrame();
+
+    expect(mockFitView).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call fitView when only edges change (Scenario 4 - edges)", async () => {
+    const initial = makeAllNodeTypesConfig();
+    const { rerenderWithConfig } = renderCanvas(initial);
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+
+    const withEdge: GraphWorkflowConfig = {
+      ...initial,
+      edges: [
+        ...initial.edges,
+        {
+          id: "edge_added",
+          source: "activity_1",
+          target: "switch_1",
+          type: "normal",
+        },
+      ],
+    };
+    rerenderWithConfig(withEdge);
+    await flushAnimationFrame();
+
+    expect(mockFitView).not.toHaveBeenCalled();
+  });
+
+  it("falls back to whole-graph fit when multiple nodes are added in one update (e.g. template load)", async () => {
+    // Start with a tiny config (1 node), then re-render with the full
+    // 7-node config — mirrors the template-picker hydration path where
+    // many nodes appear in a single state update.
+    const single: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Seed", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        seed: {
+          id: "seed",
+          type: "activity",
+          label: "Seed",
+          activityType: "data.transform",
+          parameters: {},
+          metadata: { position: { x: 0, y: 0 } },
+        } satisfies ActivityNode,
+      },
+      edges: [],
+      entryNodeId: "seed",
+    };
+    const { rerenderWithConfig } = renderCanvas(single);
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+
+    rerenderWithConfig(makeAllNodeTypesConfig());
+    await flushAnimationFrame();
+
+    expect(mockFitView).toHaveBeenCalledTimes(1);
+    // Multi-add path: no `nodes:` filter, so the whole graph is fit.
+    const callArg = mockFitView.mock.calls[0][0];
+    expect(callArg).toEqual(
+      expect.objectContaining({ padding: 0.25, duration: 300 }),
+    );
+    expect(callArg.nodes).toBeUndefined();
   });
 });
