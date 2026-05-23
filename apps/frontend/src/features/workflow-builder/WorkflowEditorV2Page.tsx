@@ -33,7 +33,14 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconDeviceFloppy, IconHelp, IconSettings } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconCircleCheck,
+  IconDeviceFloppy,
+  IconExclamationCircle,
+  IconHelp,
+  IconSettings,
+} from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -47,6 +54,8 @@ import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { ActivityPalette } from "./palette/ActivityPalette";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
 import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
+import { useGraphValidation } from "./validation/useGraphValidation";
+import { ValidationDrawer } from "./validation/ValidationDrawer";
 
 const EMPTY_CONFIG: GraphWorkflowConfig = {
   schemaVersion: "1.0",
@@ -80,6 +89,8 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [config, setConfig] = useState<GraphWorkflowConfig>(EMPTY_CONFIG);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [validationOpen, setValidationOpen] = useState(false);
+  const validation = useGraphValidation(config);
 
   // Hydrate state when the workflow loads in edit mode.
   useEffect(() => {
@@ -281,6 +292,12 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             size="xs"
             style={{ minWidth: 200 }}
           />
+          <ValidationButton
+            errorCount={validation.errorCount}
+            warningCount={validation.warningCount}
+            isPending={validation.isPending}
+            onClick={() => setValidationOpen(true)}
+          />
           <Button
             variant="light"
             leftSection={<IconSettings size={14} />}
@@ -315,6 +332,14 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         onClose={() => setSettingsOpen(false)}
         config={config}
         onConfigChange={setConfig}
+      />
+
+      <ValidationDrawer
+        opened={validationOpen}
+        onClose={() => setValidationOpen(false)}
+        result={validation}
+        config={config}
+        onSelectNode={setSelectedNodeId}
       />
 
       <Box
@@ -359,6 +384,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             selectedNodeId={selectedNodeId}
             onConfigChange={setConfig}
             onSelectNode={setSelectedNodeId}
+            errorsByNode={validation.errorsByNode}
           />
         </Box>
         <NodeSettingsPanel
@@ -369,6 +395,46 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         />
       </Box>
     </Stack>
+  );
+}
+
+interface ValidationButtonProps {
+  errorCount: number;
+  warningCount: number;
+  isPending: boolean;
+  onClick: () => void;
+}
+
+function ValidationButton({
+  errorCount,
+  warningCount,
+  isPending,
+  onClick,
+}: ValidationButtonProps) {
+  const total = errorCount + warningCount;
+  let color: "red" | "yellow" | "green" = "green";
+  let Icon = IconCircleCheck;
+  let label = "Valid";
+  if (errorCount > 0) {
+    color = "red";
+    Icon = IconExclamationCircle;
+    label = `${total} issue${total === 1 ? "" : "s"}`;
+  } else if (warningCount > 0) {
+    color = "yellow";
+    Icon = IconAlertTriangle;
+    label = `${total} warning${warningCount === 1 ? "" : "s"}`;
+  }
+  return (
+    <Button
+      variant="light"
+      color={color}
+      leftSection={<Icon size={14} />}
+      onClick={onClick}
+      size="xs"
+      title={isPending ? "Re-checking…" : label}
+    >
+      {label}
+    </Button>
   );
 }
 

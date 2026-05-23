@@ -38,6 +38,7 @@ import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ActivityNode,
   GraphEdge,
+  GraphValidationError,
   GraphWorkflowConfig,
 } from "../../../types/workflow";
 import { getActivityVisualHints } from "../catalog-utils";
@@ -47,12 +48,16 @@ interface WorkflowEditorCanvasProps {
   selectedNodeId: string | null;
   onConfigChange: (next: GraphWorkflowConfig) => void;
   onSelectNode: (nodeId: string | null) => void;
+  /** Validation issues grouped by node id (errors + warnings). */
+  errorsByNode?: Map<string, GraphValidationError[]>;
 }
 
 interface ActivityNodeData extends Record<string, unknown> {
   label: string;
   activityType: string;
   isEntry: boolean;
+  errorCount: number;
+  warningCount: number;
 }
 
 type FlowNode = Node<ActivityNodeData, "activity">;
@@ -89,6 +94,8 @@ function readPosition(
 const ActivityNodeRenderer = memo(({ data, selected }: NodeProps<FlowNode>) => {
   const hints = getActivityVisualHints(data.activityType);
   const accent = hints.color;
+  const errorCount = data.errorCount ?? 0;
+  const warningCount = data.warningCount ?? 0;
   return (
     <div
       style={{
@@ -111,8 +118,38 @@ const ActivityNodeRenderer = memo(({ data, selected }: NodeProps<FlowNode>) => {
         color: "var(--mantine-color-text, #f3f4f6)",
         fontSize: 13,
         lineHeight: 1.2,
+        position: "relative",
       }}
     >
+      {(errorCount > 0 || warningCount > 0) && (
+        <div
+          title={
+            errorCount > 0
+              ? `${errorCount} error${errorCount === 1 ? "" : "s"}${warningCount > 0 ? `, ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`
+              : `${warningCount} warning${warningCount === 1 ? "" : "s"}`
+          }
+          style={{
+            position: "absolute",
+            top: -7,
+            right: -7,
+            background: errorCount > 0 ? "#e03131" : "#f59f00",
+            color: "#fff",
+            fontSize: 10,
+            fontWeight: 700,
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 5px",
+            boxShadow: "0 0 0 2px var(--mantine-color-body, #1a1b1e)",
+            zIndex: 2,
+          }}
+        >
+          {errorCount > 0 ? errorCount : warningCount}
+        </div>
+      )}
       <div
         style={{
           fontSize: 11,
@@ -182,6 +219,8 @@ function projectFlowNodes(
       label: node.label,
       activityType: node.activityType,
       isEntry: node.id === config.entryNodeId,
+      errorCount: 0,
+      warningCount: 0,
     },
   }));
 }
@@ -202,6 +241,7 @@ export function WorkflowEditorCanvas({
   selectedNodeId,
   onConfigChange,
   onSelectNode,
+  errorsByNode,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -243,6 +283,35 @@ export function WorkflowEditorCanvas({
     // selection updates back into internal nodes, which avoids a
     // setState loop with xyflow's StoreUpdater.
   }, [dataFingerprint, config, selectedNodeId, setInternalNodes]);
+
+  // Validation badge sync — patches data.errorCount / data.warningCount
+  // on existing internal nodes whenever the validation results change.
+  // Kept separate from the structural projection above so that the
+  // 300ms-debounced validator doesn't trigger a full re-projection.
+  useEffect(() => {
+    if (!errorsByNode) return;
+    setInternalNodes((prev) =>
+      prev.map((n) => {
+        const bucket = errorsByNode.get(n.id) ?? [];
+        let errorCount = 0;
+        let warningCount = 0;
+        for (const err of bucket) {
+          if (err.severity === "error") errorCount += 1;
+          else warningCount += 1;
+        }
+        if (
+          n.data.errorCount === errorCount &&
+          n.data.warningCount === warningCount
+        ) {
+          return n;
+        }
+        return {
+          ...n,
+          data: { ...n.data, errorCount, warningCount },
+        };
+      }),
+    );
+  }, [errorsByNode, setInternalNodes]);
 
   const edgesFingerprint = useMemo(
     () =>
