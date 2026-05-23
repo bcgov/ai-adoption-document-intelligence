@@ -1,6 +1,6 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-23 (Phase 1B item 1 landed — backend catalog adoption: shared `createCatalogParameterValidator()`, backend + temporal validators consume it, two `activity-parameter-schema-registry.ts` files deleted, regression test pins multi-page-report legacy `validateFields` shape rejection).
+**Last updated:** 2026-05-25 (Phase 1B closed — 11 commits landed Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params).
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
 
@@ -8,19 +8,22 @@
 
 ## TL;DR for the next AI
 
-Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B starts next.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the new DAG.
+Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 is the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
 
-**What shipped in Phase 1A:**
+**What shipped in Phase 1B (this session + the 2026-05-23 catalog adoption):**
 
-- **All 41 registered activity types** have catalog entries in `packages/graph-workflow/src/catalog/activities/`. 158 catalog tests pass. Each entry declares display name, category, ports, icon/colour hints, and a Zod parameter schema. Complex parameter shapes carry `x-widget: rich-editor-tbd` hints for Phase 1B hand-rolled overrides.
-- **The V2 visual editor** at `/workflows/create-v2` and `/workflows/:workflowId/edit-v2` — three-column layout (palette → canvas → settings). All 7 node types (activity / switch / map / join / childWorkflow / pollUntil / humanGate) addable from the palette, editable in the right rail, validated on the canvas (debounced + red badges + click-through drawer), saveable.
-- **Form renderer** at `/workflows/dev-form-preview` — schema-driven Mantine form per activity, JSON Schema preview, live Zod validation. Supports primitives + enums + comboboxes + discriminated unions + arrays.
-- **Templates picker** (static bundle of `docs-md/graph-workflows/templates/*.json`).
-- **Save / load round-trip** — verified end-to-end on 2026-05-23 against `multi-page-report-workflow.json`: 16 nodes / 17 edges / 5 nodeGroups / 17 ctx declarations preserve byte-for-byte. The Playwright walkthrough surfaced one real bug — catalog drift on `document.validateFields` — which is now fixed and pinned with tests.
-- **Auto-fit on add** (US-014, 2026-05-23).
-- Coexists with the old JSON editor at `/workflows/:id/edit`.
+- **Backend catalog adoption** — `validateGraphConfig` now consumes `createCatalogParameterValidator()` from `@ai-di/graph-workflow`. Both backend + temporal validators inherit. `activity-parameter-schema-registry.ts` deleted in both apps. Catalog drift class closed.
+- **Switch case-routed edges** — `WorkflowEdge` xyflow component with per-type stroke + label pill (case[i] / default / on error). `handleConnect` infers conditional/error/normal from source type + handle id. Fallback-policy nodes grow a second source handle. `SwitchNodeSettings` per-case picker filters to conditional edges.
+- **All five rich widgets** — `ValidationRuleEditor` (discriminated-union: field-match / arithmetic / array-match), `PageRangeListEditor`, `ConfusionMapEditor` (object↔rows), `KeywordPatternEditor` (regex-validated), `ClassificationRuleEditor` (rules with nested pattern rows). `JsonSchemaForm` routes each `x-widget` hint to its editor. The multi-page-report template loads fully editable end-to-end.
+- **Shared duration validation** — `isValidTemporalDuration` lifted into `@ai-di/graph-workflow/validator/duration.ts`; validator surfaces errors on `pollUntil.interval/initialDelay/timeout` and `humanGate.timeout`. Frontend's `duration-validation.ts` re-exports from the package — no duplicated regex.
+- **pollUntil parameter validation** — shared validator now runs `validateActivityParameters` on pollUntil nodes (was only checking activity-type registration). Backend + temporal validators inherit.
+- **dagre auto-layout** — `canvas/auto-layout.ts` lifts the read-only renderer's dagre call into a shared `layoutGraph(config, opts)` helper. Top-bar "Auto-arrange" button. Templates with no `metadata.position` auto-layout on initial load.
+- **Flow Control labels** — palette + canvas-renderer labels renamed for end-users (Switch → "Branch by condition", Map → "Run for each item", etc.). Sign-off confirmed.
+- **Canvas context menu + node-type swap** — right-click any node opens a Mantine Menu. "Change activity type" opens a categorised picker; swap preserves overlapping `parameters` keys, drops keys absent from the new schema, defaults required-but-missing keys. Existing edges untouched. Control-flow types can't be swapped (disabled with tooltip).
+- **Hover-to-extend chains** — 200ms hover on a source handle pops a categorised palette; clicking adds + connects in one move (edge type inferred). 200ms close grace with hover-bridge into the popover.
+- **Group editing in V2** — multi-select → "Group selected" top-bar button → new `nodeGroups[id]`. Right-rail `GroupNodeSettings` with label / description / icon picker / ColorInput / member list / delete. Simplified-view Switch collapses groups to chips via `group-projection.ts` (centroid layout, cross-group edges remapped, intra-group edges hidden). `ExposedParamsEditor` for the group's published parameters with per-row label / nodeId / paramPath / type Select (enum reveals options[]).
 
-**The plan, in full, lives in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).** All architectural decisions, the new phase-dependency DAG, and the full Phase 1B → Phase 7 plan are there. [NOTES.md](NOTES.md) has supporting context plus a vision-thread → phase mapping. [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) has the concrete artifact taxonomy for Phase 3.
+**The plan, in full, lives in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).** All architectural decisions, the new phase-dependency DAG, and the full Phase 2 → Phase 7 plan are there. [NOTES.md](NOTES.md) has supporting context plus a vision-thread → phase mapping. [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) has the concrete artifact taxonomy for Phase 3.
 
 ---
 
@@ -34,22 +37,30 @@ Critical preferences (honour these):
 4. **Locked decisions are locked.** Don't re-raise typed I/O, single-in/single-out, shared package vs sibling, or Zod v4 vs Zod 3. All resolved in [IMPLEMENTATION_PLAN.md §3](IMPLEMENTATION_PLAN.md).
 5. **Don't ping Dylan about AI-1192.** Just work on top of his branch.
 6. **He prefers Chrome DevTools MCP over Playwright** for browser inspection. If chrome-devtools tools are unavailable in your session, Playwright via inline `node --input-type=module -e "..."` is the working fallback — see the [`app-browser-auth`](../../.claude/skills/app-browser-auth/) skill.
+7. **Ask for the API key at session start.** The seed default in `CLAUDE.md` does NOT match Alex's dev DB.
+8. **After any `packages/graph-workflow` change, build the package and ask Alex to restart Vite.** Vite's pre-bundle of the shared package goes stale otherwise.
 
 ---
 
 ## Branch + git state
 
 - **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (Dylan's shared-package consolidation; **not yet merged to develop**).
-- **Pre-existing commit `b86741c7` "deps: pin cross-platform native binaries in root optionalDependencies"** — unrelated to the workflow builder; should land as its own PR against develop. Cherry-pick onto a dedicated branch before opening the workflow-builder PR. Don't bundle it.
-- Workflow-builder commits on this branch (most recent first):
-  - `5e8ad57c` frontend: visual workflow editor V2 skeleton — Milestone 2 / C
-  - `a77033bb` graph-workflow: catalog entries for all registered activity types — 41 entries; bulk tests
-  - `9738ff72` graph-workflow: add document.split with discriminated-union strategy — Milestone A
-  - `5b6bea7a` skill: app-browser-auth for headless inspection of localhost frontend
-  - `78e2a844` frontend(vite): pre-bundle `@ai-di/graph-workflow` so browser ESM accepts named exports
-  - `83ecd5aa` docs: workflow-builder implementation plan, notes, and session handoff
-  - `2c3b6de5` frontend: add JSON Schema form renderer + dev preview page
-  - `2dbe73af` graph-workflow: add activity catalog with Zod v4 parameter schemas
+- **43 commits ahead of `origin/AI-1192`** as of 2026-05-25.
+- **Pre-existing commit `b86741c7`** "deps: pin cross-platform native binaries in root optionalDependencies" — unrelated to the workflow builder; should land as its own PR against develop. Cherry-pick onto a dedicated branch before opening the workflow-builder PR. Don't bundle it.
+
+**Workflow-builder commits landed in this session (2026-05-25, most recent first):**
+
+- `4259cd2c` group editing in V2 (US-041 + US-042 + US-043 + US-044) — Milestone H
+- `797252e9` hover-to-extend chains (US-045) — Milestone I
+- `87254a80` canvas context menu + node-type swap (US-046 + US-047) — Milestone J
+- `86f06da3` user-friendly Flow Control labels (US-048) — Milestone K
+- `94b772df` dagre auto-layout fallback (US-049 + US-050) — Milestone L
+- `9adba766` four remaining rich widgets (US-031..US-039) — Milestones C–F
+- `6f6d52b2` shared duration validation + pollUntil param validation (US-040 + US-051 + US-052) — Milestones G + M
+- `8be0eab6` umbrella feature-doc for rest of Phase 1B (US-031 → US-053)
+- `1c64b12b` validateFields.rules rich editor (US-027 → US-030) — Milestone B
+- `7fd2f917` switch case-routed edges (US-021 → US-026) — Milestone A
+- `624fb47a` backend + temporal validators consume catalog (US-015 → US-020) — Phase 1B item 1
 
 If/when `origin/AI-1192` lands on `develop`, merge develop in to keep current.
 
@@ -59,117 +70,150 @@ If/when `origin/AI-1192` lands on `develop`, merge develop in to keep current.
 
 Dylan's package now contains, on this branch:
 
-- `src/types.ts` — schema types (Dylan's, unchanged)
-- `src/validator/validator.ts` — graph schema validator (Dylan's, unchanged)
-- `src/validator/context-utils.ts` — ctx namespace utils (Dylan's, unchanged)
-- `src/catalog/types.ts` — `ActivityCatalogEntry`, `PortDescriptor`, `CatalogCategory`
-- `src/catalog/index.ts` — `ACTIVITY_CATALOG`, `getActivityCatalogEntry()`, `getActivityParametersJsonSchema()`, `listActivityTypes()`
-- `src/catalog/catalog.test.ts` — bulk invariants across all entries
+- `src/types.ts` — schema types (Dylan's, extended). Added: optional `nodeId?` on `ExposedParam` (US-044). `GraphWorkflowConfig.metadata` is the natural place to add `kind` / `inputs[]` / `outputs[]` for Phase 2 library workflows (not yet added).
+- `src/validator/validator.ts` — graph schema validator. Now consumes catalog adapter; validates pollUntil parameters; validates duration fields.
+- `src/validator/duration.ts` + `duration.test.ts` — shared `isValidTemporalDuration` (US-051).
+- `src/validator/context-utils.ts` — ctx namespace utils (Dylan's, unchanged).
+- `src/catalog/types.ts` — `ActivityCatalogEntry`, `PortDescriptor`, `CatalogCategory`.
+- `src/catalog/index.ts` — `ACTIVITY_CATALOG`, `getActivityCatalogEntry()`, `getActivityParametersJsonSchema()`, `listActivityTypes()`, `createCatalogParameterValidator()`. Re-exports `validationRuleSchema`, `ValidationRule`, `documentValidateFieldsParametersSchema`, `classificationRuleSchema`, `classificationPatternSchema`, `CLASSIFICATION_PATTERN_SCOPES`, `CLASSIFICATION_PATTERN_OPERATORS`, `ClassificationPattern`, `ClassificationRule`.
+- `src/catalog/create-parameter-validator.ts` — the shared catalog-driven validation adapter.
+- `src/catalog/catalog.test.ts` — bulk invariants across all entries.
 - **`src/catalog/activities/*.ts` — one file per registered activity type (41 files).**
 
 Each entry: a Zod v4 schema (`from "zod/v4"`) describing static parameters, with UI hints attached via `.meta({ ... })` that ride through `z.toJSONSchema()` as `x-widget`, `x-options`, `x-default`, `x-step`, `x-options-labels` extension fields.
 
-`package.json` depends on `zod: "3.25.76"` (the v4-bridge release). Build passes (`npm run build` in the package directory). Tests pass (`npx jest src/catalog` — 150 tests across 3 suites as of last run).
+Active `x-widget` hints (all wired to hand-rolled editors as of 2026-05-25):
+
+- `validation-rule-editor` — `document.validateFields.rules` → `ValidationRuleEditor`
+- `page-range-list` — `document.split.custom-ranges.customRanges` → `PageRangeListEditor`
+- `confusion-map-editor` — `ocr.characterConfusion.customConfusionMap` → `ConfusionMapEditor`
+- `keyword-pattern-editor` — `document.splitAndClassify.keywordPatterns` → `KeywordPatternEditor`
+- `classification-rule-editor` — `document.classify.rules` → `ClassificationRuleEditor`
+
+`package.json` depends on `zod: "3.25.76"` (the v4-bridge release). Build passes (`npm run build` in the package). Tests pass (`npm test` in the package — 217 tests across 9 suites as of last run).
 
 ---
 
-## Frontend additions
+## Frontend additions (post-Phase-1A)
 
-- **`apps/frontend/src/features/workflow-builder/json-schema-form/`** — the renderer
+### `apps/frontend/src/features/workflow-builder/`
+
+- **`canvas/`** — interactive editor surface
+  - `WorkflowEditorCanvas.tsx` — xyflow canvas (selection / drag / connect / right-click / hover-to-extend / simplified-view / multi-select for grouping)
+  - `WorkflowEdge.tsx` + `edge-labels.ts` — custom edge component + ConditionExpression → compact label helper
+  - `NodeContextMenu.tsx` — right-click menu (Change activity type / Delete node)
+  - `NodeTypeSwapModal.tsx` + `swap-node-type.ts` — activity picker + pure parameter-migration helper
+  - `HoverExtendPopover.tsx` + `place-extended-node.ts` — hover-triggered next-node picker
+  - `auto-layout.ts` — dagre `layoutGraph(config, opts)` helper (shared with the read-only renderer)
+  - `group-projection.ts` — pure helper for the simplified view (chips + cross-group edge remap)
+  - `GroupChipNode.tsx` — xyflow custom node for group chips
+- **`group/`** — pure helpers + icon registry
+  - `create-group.ts` — `createGroupFromSelection(config, ids)` with auto-numbering + single-membership rule
+  - `group-icons.ts` — shared `GROUP_ICONS` map (also consumed by the read-only renderer)
+- **`palette/`** — left-rail palette
+  - `ActivityPalette.tsx` — categorised activity rows + Flow Control section
+  - `control-flow-palette-entries.ts` — hard-coded entries with end-user labels (Branch by condition / Run for each item / Collect results / Sub-workflow / Wait until condition / Wait for approval)
+  - `control-flow-skeletons.ts` — `buildControlFlowSkeleton(type, id)` for default node shapes
+- **`settings/`** — right-rail panels
+  - `NodeSettingsPanel.tsx` — dispatch shell; routes to per-type body OR group body OR none
+  - `control-flow/*` — per-type settings forms (SwitchNodeSettings, MapNodeSettings, JoinNodeSettings, ChildWorkflowNodeSettings, PollUntilNodeSettings, HumanGateNodeSettings) + `duration-validation.ts` (re-exports from the package)
+  - `group/GroupNodeSettings.tsx` + `ExposedParamsEditor.tsx` — group settings body + exposed-params list editor
+  - `rich-widgets/` — `ValidationRuleEditor`, `PageRangeListEditor`, `ConfusionMapEditor`, `KeywordPatternEditor`, `ClassificationRuleEditor`
+- **`json-schema-form/`** — schema-driven Mantine form renderer
+  - `JsonSchemaForm.tsx` — primitives + enums + comboboxes + discriminated unions + arrays + per-x-widget routes
   - `types.ts` — minimal JSON Schema shape; `detectDiscriminatedUnion()`
-  - `JsonSchemaForm.tsx` — Mantine renderer; handles string, string+enum, string+combobox, number/integer (with min/max/step), boolean, **discriminated unions**, **arrays of primitives and simple objects**
-  - `index.ts` — re-exports
-- **`apps/frontend/src/features/workflow-builder/catalog-utils.ts`** — frontend helpers; resolves `iconHint`/`colorHint` strings; groups catalog by category for the palette.
-- **`apps/frontend/src/features/workflow-builder/palette/ActivityPalette.tsx`** — categorised left-rail palette; search + click-to-add.
-- **`apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx`** — interactive xyflow canvas; selection / drag / connect; positions persist into `node.metadata.position`.
-- **`apps/frontend/src/features/workflow-builder/settings/NodeSettingsPanel.tsx`** — right-rail schema-driven settings panel for activity nodes; label + parameters (via `JsonSchemaForm`) + input/output port bindings.
-- **`apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx`** — the visual editor page; coexists with the JSON editor.
-- **`apps/frontend/src/pages/WorkflowFormPreviewPage.tsx`** — dev-only tracer; unchanged from Milestone 1.
-- **`apps/frontend/src/App.tsx`** — routes added:
-  - `/workflows/dev-form-preview` — renderer tracer
-  - `/workflows/create-v2` — visual editor, create mode
-  - `/workflows/:workflowId/edit-v2` — visual editor, edit mode
-  - old `/workflows/create` and `/workflows/:workflowId/edit` (JSON editor) untouched
+- **`graph-widgets/`** — reusable picker primitives
+  - `NodePicker.tsx`, `EdgePicker.tsx` (with `edgeTypes` filter), `VariablePicker.tsx`, `ConditionExpressionEditor.tsx` (recursive AND/OR/NOT)
+- **`templates/`** — static bundle of `docs-md/graph-workflows/templates/*.json`
+  - `TemplatesPickerModal.tsx`, `index.ts`
+- **`catalog-utils.ts`** — frontend helpers; resolves `iconHint`/`colorHint` strings; groups catalog by category for the palette
+- **`control-flow-visual-hints.ts`** — canvas-side display names + colours + icons for control-flow renderers
+- **`WorkflowEditorV2Page.tsx`** — the V2 editor page; top bar has Save / Settings / Auto-arrange / Group selected / Simplified view toggle / Templates link
 
-Frontend `package.json` has the `@ai-di/graph-workflow` workspace dep (added by Dylan in `63f23c3a`). Vite pre-bundles the package — see commit `78e2a844`.
+### Routes (in `apps/frontend/src/App.tsx`)
 
-Type-check passes (`npx tsc --noEmit` in apps/frontend). Biome formatting clean.
+- `/workflows/dev-form-preview` — schema-driven Mantine form renderer tracer
+- `/workflows/create-v2` — V2 visual editor, create mode
+- `/workflows/:workflowId/edit-v2` — V2 visual editor, edit mode
+- old `/workflows/create` and `/workflows/:workflowId/edit` (JSON editor) untouched and coexist
+
+Frontend `package.json` has the `@ai-di/graph-workflow` workspace dep (added by Dylan in `63f23c3a`). Vite pre-bundles the package — see commit `78e2a844`. Type-check passes (`npx tsc --noEmit` in apps/frontend). Biome formatting clean. 713 frontend tests pass.
 
 ---
 
-## What was verified this session
+## What was verified this session (2026-05-25)
 
-- **Milestone 1** — dev-form-preview at `/workflows/dev-form-preview` shows all 41 activities, picks correctly, validates live.
-- **Milestone A** — document.split: per-page / fixed-range / custom-ranges all switch correctly; custom-ranges array editor adds/edits/removes rows; validation green.
-- **Milestone B** — every activity type opens cleanly in the renderer (sampled: Validate Fields, Classify Document, Character Confusion Fix, Generic Data Transform). Complex widgets render gracefully or show "Unsupported field schema" stubs flagged for Phase 1B.
-- **Milestone 2/C** — full add → drag → edit (label + parameters + bindings) → connect → save flow exercised via Playwright. The save POST body was captured and is well-formed (`/tmp/wb-verify/saved-dto.json`): 2 nodes, 1 edge, correct entryNodeId, ctx auto-declared, parameters serialized including the discriminated-union `strategy` field.
+Three Playwright walkthroughs against the running dev server using the `app-browser-auth` skill + mocked `GET /api/workflows`:
 
-Screenshots from the verification runs live in `/tmp/wb-verify/`.
+**Walkthrough 1 — Milestones A + B verification.** Loaded `multi-page-report-workflow.json` via the templates picker; segmentRouter switch's four outgoing edges showed distinct conditional-coloured strokes + labels (`case[0]: ctx.currentSegment.segmentType == "monthly-report"`, two more case predicates, `default`). validateFields node opened with 4 rules in `ValidationRuleEditor` (2 field-match + 1 arithmetic + 1 array-match). Zero page errors.
+
+**Walkthrough 2 — Milestone L verification.** multi-page-report loaded with dagre auto-layout (linear-rank LR, ~280px spacing). "Auto-arrange" top-bar button present + clickable.
+
+**Walkthrough 3 — Milestones H + I + J verification.** Top-bar buttons all present (Auto-arrange, Group selected, Simplified view). 16 canvas nodes loaded from template. Toggling simplified view collapsed 5 groups to 5 chips. Clicking a chip mounted `GroupNodeSettings` in the right rail, with the `ExposedParamsEditor` inside. The right-click context menu was NOT confirmed via headless Playwright — xyflow's onNodeContextMenu wiring is finicky in headless mode, but the jsdom tests for `NodeContextMenu` pass cleanly. Worth a manual spot-check.
+
+Screenshots from the verification runs live in `/tmp/wb-m-a-verify/`, `/tmp/wb-m-l-verify/`, `/tmp/wb-h-verify/`.
 
 ---
 
 ## How to start the dev server (when needed)
 
+**Don't start the dev server yourself — ask Alex to start / restart it.** Both servers should be running already when you pick up. To probe:
+
 ```bash
-cd /home/alstruk/GitHub/ai-adoption-document-intelligence
-npm install                                # in case anything drifted
-nohup npx vite --config apps/frontend/vite.config.ts apps/frontend \
-  > logs/frontend-dev.log 2>&1 &
+curl -s -o /dev/null -w "frontend(3000):%{http_code} backend(3002):" http://localhost:3000/
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3002/api
 ```
 
-Dev server lands on `http://localhost:3000/`. Vite pre-bundles `@ai-di/graph-workflow`, so after package changes you may need to clear `apps/frontend/node_modules/.vite` and restart vite for the new exports to surface.
+If you need to ask for a restart (e.g., after a `packages/graph-workflow` change), say so explicitly and wait. Vite pre-bundles `@ai-di/graph-workflow`, so after package changes the new exports won't surface until Vite is restarted.
+
+Dev server lands on `http://localhost:3000/`.
 
 ---
 
 ## What to do next
 
-**Phase 1A is closed.** The post-1A plan was re-sequenced on 2026-05-23 (see [IMPLEMENTATION_PLAN.md §4](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the new dependency DAG). The next phase is **Phase 1B — Editor completion + backend catalog adoption**. The full menu of Phase 1B work lives in [IMPLEMENTATION_PLAN.md §5 Phase 1B](IMPLEMENTATION_PLAN.md#phase-1b--editor-completion--backend-catalog-adoption); the short version:
+**Phase 1B is closed.** The next phase is **Phase 2 — Library workflows + workflow-as-API + versioning**. See [IMPLEMENTATION_PLAN.md §5 Phase 2](IMPLEMENTATION_PLAN.md#phase-2--library-workflows--workflow-as-api--versioning) for the full menu. Three independent tracks:
 
-### Phase 1B short menu
+### Phase 2 short menu
 
-1. **Backend catalog adoption** — ✅ landed 2026-05-23. `apps/backend-services/src/workflow/graph-schema-validator.ts` and `apps/temporal/src/graph-schema-validator.ts` now consume `createCatalogParameterValidator()` from `@ai-di/graph-workflow`. Both `activity-parameter-schema-registry.ts` files deleted. Frontend `useGraphValidation` switched to the shared adapter. Backend `graph-schema-validator.spec.ts` has a new `document.validateFields legacy-shape rejection` describe block (US-020) that mirrors `packages/graph-workflow/src/catalog/activities/document-validate-fields.test.ts`. Tests: 174 catalog / 2131 backend / 958 temporal — all green; tsc clean. The catalog tightening uncovered one gap: `pollUntil`'s `parameters` are still NOT run through `validateActivityParameters` by the shared validator (only activity-type registration is checked) — that's a separate change to the shared validator and stays out of scope for this milestone (filed below as a follow-up).
-2. **Switch case-routed edge UI** — custom edge component (colour / label per case), `handleConnect` upgrade that stamps `type: "conditional"` for new edges drawn from switches, per-case picker in the switch settings.
-3. **Rich widgets for the five complex parameter shapes** — `validateFields.rules` (nested `expression` per the just-landed fix), `splitAndClassify.keywordPatterns`, classification rules, page-range editor, confusion-map editor. Activate the `x-widget: rich-editor-tbd` hints in the catalog.
-4. **Visual condition-builder tree** for switch (AND / OR / NOT) — `ConditionExpressionEditor` already supports recursive nesting (US-003); this milestone is the visual upgrade.
-5. **Group editing UI** — lasso → group → label / color / icon / exposed-params, plus simplified-view toggle (port the read-only `GraphVisualization.tsx` rendering).
-6. **Hover-to-extend chains** — the designer's preferred interaction that dropped from 1A; hovering a node's outgoing handle pops a small palette of compatible next-nodes.
-7. **Node-type swap action** — change a node's type in place, preserving overlapping config.
-8. **User-friendly label review** — audit Flow Control palette labels for engineering jargon.
-9. **Auto-layout fallback** — dagre auto-arrange, auto-applied when a template loads without `metadata.position`.
-10. **Polish** — duration-format validation into the shared validator; chase the borderColor warning once Alex pastes the exact dev-console text.
+1. **Library workflow management** — saved workflows get `kind: "workflow" | "library"`. Library workflows declare their top-level `inputs[]` / `outputs[]` (which become the port descriptors of `childWorkflow` nodes that reference them in Phase 3). "Save as library" action; library-browser modal counterpart to the templates picker; backend `GET /api/workflows?kind=library`; replace the free-text `workflowId` field in `ChildWorkflowNodeSettings` with the new picker.
+2. **Workflow-as-API surfacing** — every workflow gets a "Run this workflow" panel showing the run-trigger URL, the input schema (derived from the entry node's input port bindings + ctx declarations marked as inputs), a sample `curl`, and auth notes. Plus a paste-JSON-and-run dev affordance for sample testing.
+3. **Versioning UI** — the backend already versions workflows via the `WorkflowVersion` schema. Add a version history panel to the editor's top bar. "Revert to version" + "Compare to version" actions. Library workflows pinned by-version in `childWorkflow.workflowRef`: `{ type: "library", workflowId, version?: number }`.
 
-Pick any of these as the next milestone; they are not strictly ordered within Phase 1B (with the exception that the backend catalog adoption is the safety-first item and should land early). With item 1 done, the highest-leverage next pick is either item 2 (Switch case-routed edge UI — most visible UX gap) or item 3 (rich `validateFields.rules` editor — unlocks editing the multi-page-report template that motivated the whole catalog adoption).
+**Recommended first chunk:** Track 1 (library workflows). Tightly scoped, has clear acceptance criteria, and unblocks both Phase 3's typed I/O on `childWorkflow` ports and Phase 7's AI agent (which reads the library).
 
-**Follow-up surfaced by item 1:** `pollUntil` parameter validation. The shared `validateGraphConfig` only checks activity-type registration for `pollUntil` nodes; it never calls `validateActivityParameters(pollNode.activityType, ...)`. With the catalog now wired through, extending validator.ts to call the parameter validator for `pollUntil` too would unlock per-poll-activity validation. Small change in `packages/graph-workflow/src/validator/validator.ts:326-335`, but it's a behaviour change to the shared validator (not a catalog wiring change) so was kept out of scope.
+### Pre-Phase-2 housekeeping (in any order)
+
+- **US-053 — `borderColor` console warning** still open. Blocked on Alex pasting the exact dev-console text. If he hasn't by next session, leave it; if he has, chase it. The audit on 2026-05-23 confirmed our workflow-builder code uses longhand consistently, so the warning is likely Mantine-internal.
+- **Pre-existing commit `b86741c7`** still on this branch. Per the original session handoff, cherry-pick to its own branch and open a separate PR against develop before bundling the workflow-builder PR.
+- **`activity-parameter-schema-registry.ts`** — was deleted from both apps in Phase 1B item 1. Don't reintroduce; the catalog adapter is the source of truth.
 
 ### Already shipped — don't re-implement
 
-- Validation surfacing (US-013) — debounced `validateGraphConfig`, red node badges, click-through drawer. Confirmed working on `multi-page-report-workflow.json` walkthrough.
-- Workflow settings drawer — exposes name / description / version / tags / ctx / entry node from the top bar.
-- Variable picker (`VariablePicker`) — autocomplete from ctx + upstream node outputs.
-- All six control-flow node forms (switch / map / join / childWorkflow / pollUntil / humanGate) — US-004 → US-009 + US-010 wiring.
-- Templates picker — backed by static bundle of `docs-md/graph-workflows/templates/*.json`.
-- Save / load round-trip — verified byte-for-byte against `multi-page-report-workflow.json` (16 nodes / 17 edges / 5 nodeGroups / 17 ctx declarations).
-- Auto-fit on add (US-014, 2026-05-23) — palette adds animate the new node into view via `useReactFlow().fitView()`.
-
-## Phase 1B follow-ups previously filed here
-
-All four items below were filed in this section on 2026-05-23 and are now part of the canonical Phase 1B menu in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Kept here for searchability + the specific code references the next session will need.
-
-- **Switch case-routed edges — visual differentiation + edge-type setting.** Today `GraphEdge` has `sourcePort`/`targetPort` fields in the type, but the canvas never sets them; `handleConnect` always emits `type: "normal"`. So switch `cases[].edgeId` references work logically, but on the canvas all 4 outgoing edges of `segmentRouter` in `multi-page-report-workflow.json` look identical, and re-drawing a deleted case edge loses its `conditional` tag. Picking this up needs: (1) a custom edge component that colours/labels per-case (look at the read-only `GraphVisualization.tsx`'s `staggered switch-edge labels` for the pattern), (2) UI in `SwitchNodeSettings` to mark an edge as case-routed when picked in an `EdgePicker`, (3) a `handleConnect` upgrade that consults the source node's type and stamps the right edge type. Likely a milestone of its own.
-- **`borderColor` / `borderLeftColor` React style warning.** Audit on 2026-05-23 found no longhand/shorthand mix in `apps/frontend/src/features/workflow-builder/` (all renderers use longhand `borderTopColor`/`borderRightColor`/`borderBottomColor`/`borderLeftColor` consistently). Likely Mantine internal. Needs the exact dev-console text from Alex before it can be chased — speculative grep didn't turn it up.
-- **Rich-widget overrides for `splitAndClassify.keywordPatterns` + `validateFields.rules`.** Already flagged via `x-widget: rich-editor-tbd` in the catalog. The current generic `JsonSchemaForm` renders these as "Unsupported field schema" stubs. The underlying parameter VALUE round-trips fine (the form spreads it through unchanged), but users can't *edit* these fields in V2. Phase 1B hand-rolled overrides per `WORKFLOW_NODE_CATALOG.md` cross-cutting widgets table.
-- **Auto-layout / dagre integration.** Templates lack `metadata.position` so all 17 template nodes of `multi-page-report-workflow.json` stack at the linear stagger `x=80+i*220, y=80`. The user must rearrange manually before saving. Per [IMPLEMENTATION_PLAN.md Phase 1B](IMPLEMENTATION_PLAN.md#phase-1b--editor-completion--backend-catalog-adoption).
+- Validation surfacing (US-013), workflow settings drawer, variable picker, control-flow forms, templates picker, save/load round-trip, auto-fit on add (all Phase 1A).
+- Backend catalog adoption + shared `createCatalogParameterValidator()` (US-015 → US-020).
+- Switch case-routed edge UI + custom `WorkflowEdge` with per-type stroke/label (US-021 → US-026).
+- All five `x-widget` rich editors (US-027 → US-039).
+- Switch condition-tree recursion (US-040 — already shipped in US-003; audit confirmed).
+- pollUntil parameter validation + shared duration regex (US-051 + US-052).
+- Dagre auto-layout helper + top-bar button + auto-apply on template-load (US-049 + US-050).
+- Flow Control label renames (US-048).
+- Canvas context menu + node-type swap modal + intersecting-parameter preservation (US-046 + US-047).
+- Hover-to-extend popover with 200ms debounce + hover-bridge (US-045).
+- Group editing — selection-to-group + group settings panel + simplified-view toggle + exposed-params editor (US-041 → US-044).
 
 ---
 
-## Known limitations of the M2 skeleton
+## Known limitations / things to circle back on
 
-- New node positions stagger horizontally at `x=80 + i*240, y=100 + (i%3)*140` — no real layout algorithm yet. Auto-fit on add (US-014, landed 2026-05-23) keeps the new node visible but does not auto-arrange the whole graph.
-- Save backend rejects unknown `x-api-key` in headless test runs; the real user's IDIR-cookied browser session handles auth normally.
-- Edges have no `sourcePort` / `targetPort` annotations — every connection drops in as `type: "normal"`. Switch's case-routed edges and error-fallback edges need a custom edge UI. **Filed as Phase 1B follow-up above.**
-- `pollUntil.interval` (and other Temporal duration fields like `humanGate.timeout`, `pollUntil.initialDelay`, `pollUntil.timeout`) are NOT format-validated by the shared `validateGraphConfig`. The per-type frontend forms show inline duration errors via `apps/frontend/src/features/workflow-builder/settings/control-flow/duration-validation.ts`, but invalid durations are not surfaced in the canvas red badges or the validation drawer. Follow-up: lift the duration regex into `@ai-di/graph-workflow` and validate it in `validator.ts` (filed as part of US-013).
-- Setting a non-existent ctx key in a port binding's text input does NOT auto-declare a new ctx entry. Only the initial node-add auto-declares; subsequent renames are user-driven.
+- **`apps/frontend/src/pages/WorkflowPage.tsx` and `WorkflowEditPage.tsx`** exist alongside `WorkflowEditorPage.tsx`. Three workflow pages is one (or two) too many. Worth auditing before adding more.
+- **Decoupled `mantine-form-zod-resolver`** is still imported by `apps/frontend/src/features/tables/components/RowForm.tsx`. New code uses `@mantine/form`'s built-in `schemaResolver` instead.
+- **The V2 editor's settings panel** renders parameters via `JsonSchemaForm` but doesn't yet wire `@mantine/form`'s `schemaResolver` for live form-level validation — current validation is the standalone `safeParse` shown as a count under the form.
+- **Save backend rejects unknown `x-api-key` in headless test runs.** The real user's IDIR-cookied browser session handles auth normally. Tests bypass via the `app-browser-auth` skill.
+- **Setting a non-existent ctx key in a port binding's text input does NOT auto-declare a new ctx entry.** Only the initial node-add auto-declares; subsequent renames are user-driven.
+- **Edge fingerprint doesn't capture switch-case mutations.** `edgesFingerprint` keys on `${id}|${source}|${target}|${type}`. Editing a `SwitchNode.cases[i].condition` won't currently trigger a re-projection (chip labels stay stale until something else changes). Acceptable today; lift the fingerprint if a real bug surfaces.
+- **Chip dragging is intentionally disabled** in simplified view; chip positions are recomputed every projection from the centroid of members. Could be made draggable + persisted by extending `NodeGroup.metadata.position`. Not filed; surface if Alex hits it.
+- **Right-click context menu wasn't confirmed via headless Playwright** in the final verification (the chip click + simplified view + group panel all confirmed). xyflow's `onNodeContextMenu` is finicky in headless mode. jsdom tests pass; manual browser spot-check is the safer route.
 
 ---
 
@@ -182,30 +226,49 @@ ai-adoption-document-intelligence/
 │   ├── temporal/                  ← Temporal worker + activity implementations
 │   └── frontend/                  ← React + Mantine + Vite (the editor lives here)
 │       ├── src/components/workflow/
-│       │   ├── GraphVisualization.tsx        ← existing 47KB read-only renderer
+│       │   ├── GraphVisualization.tsx        ← existing read-only renderer; reuses canvas/auto-layout.ts
 │       │   ├── GraphConfigFormEditor.tsx     ← old JSON-driven form editor
-│       │   ├── AzureClassifySubmitForm.tsx   ← canonical "override the generic renderer" pattern
-│       │   ├── SelectClassifiedPagesForm.tsx
-│       │   └── FlattenClassifiedDocumentsForm.tsx
-│       ├── src/features/workflow-builder/    ← NEW; all new workflow-builder code goes here
-│       │   ├── WorkflowEditorV2Page.tsx      ← M2 editor page
-│       │   ├── canvas/WorkflowEditorCanvas.tsx
-│       │   ├── palette/ActivityPalette.tsx
-│       │   ├── settings/NodeSettingsPanel.tsx
+│       │   └── (other read-only forms)
+│       ├── src/features/workflow-builder/    ← all new workflow-builder code
+│       │   ├── WorkflowEditorV2Page.tsx
+│       │   ├── canvas/
+│       │   │   ├── WorkflowEditorCanvas.tsx
+│       │   │   ├── WorkflowEdge.tsx + edge-labels.ts
+│       │   │   ├── NodeContextMenu.tsx
+│       │   │   ├── NodeTypeSwapModal.tsx + swap-node-type.ts
+│       │   │   ├── HoverExtendPopover.tsx + place-extended-node.ts
+│       │   │   ├── auto-layout.ts
+│       │   │   ├── GroupChipNode.tsx
+│       │   │   └── group-projection.ts
+│       │   ├── group/
+│       │   │   ├── create-group.ts
+│       │   │   └── group-icons.ts
+│       │   ├── palette/
+│       │   │   ├── ActivityPalette.tsx
+│       │   │   ├── control-flow-palette-entries.ts
+│       │   │   └── control-flow-skeletons.ts
+│       │   ├── settings/
+│       │   │   ├── NodeSettingsPanel.tsx
+│       │   │   ├── control-flow/  ← per-type forms + duration-validation
+│       │   │   ├── group/         ← GroupNodeSettings + ExposedParamsEditor
+│       │   │   └── rich-widgets/  ← Validation/PageRange/Confusion/Keyword/Classification editors
+│       │   ├── graph-widgets/     ← NodePicker, EdgePicker, VariablePicker, ConditionExpressionEditor
+│       │   ├── json-schema-form/  ← JsonSchemaForm + per-x-widget routes
+│       │   ├── templates/         ← TemplatesPickerModal
 │       │   ├── catalog-utils.ts
-│       │   └── json-schema-form/             ← the renderer
+│       │   └── control-flow-visual-hints.ts
 │       └── src/pages/
-│           ├── WorkflowEditorPage.tsx        ← old JSON editor; coexists
-│           ├── WorkflowFormPreviewPage.tsx   ← dev tracer (Milestone 1)
 │           ├── WorkflowListPage.tsx
+│           ├── WorkflowEditorPage.tsx        ← old JSON editor; coexists
+│           ├── WorkflowFormPreviewPage.tsx   ← dev tracer
 │           ├── WorkflowEditPage.tsx          ← unknown status, investigate before changing
 │           └── WorkflowPage.tsx              ← unknown status, investigate before changing
 ├── packages/
-│   ├── graph-workflow/            ← Dylan's shared package; NOW has our catalog
+│   ├── graph-workflow/            ← Dylan's shared package
 │   │   └── src/
-│   │       ├── types.ts           ← Dylan's
-│   │       ├── validator/         ← Dylan's
-│   │       └── catalog/           ← NEW (ours), 41 activity entries
+│   │       ├── types.ts           ← schema types (Dylan's + ExposedParam.nodeId? added)
+│   │       ├── validator/         ← validator.ts + duration.ts + context-utils
+│   │       └── catalog/           ← 41 activity entries + createCatalogParameterValidator + re-exported widget schemas
 │   ├── graph-insertion-slots/
 │   ├── blob-storage-paths/
 │   ├── logging/
@@ -214,7 +277,7 @@ ai-adoption-document-intelligence/
     ├── SHARED_PACKAGES.md
     ├── workflow-builder/
     │   ├── IMPLEMENTATION_PLAN.md ← THE PLAN. READ FIRST.
-    │   ├── NOTES.md               ← user-vision walking notes + research; vision-thread → phase mapping at the top
+    │   ├── NOTES.md               ← user-vision walking notes + research
     │   ├── TYPED_IO_DESIGN.md     ← concrete artifact taxonomy for Phase 3
     │   ├── SESSION_HANDOFF.md     ← THIS FILE
     │   ├── WORKFLOW_DESIGN_BRIEF.md
@@ -229,21 +292,26 @@ ai-adoption-document-intelligence/
 
 ---
 
+## Feature-docs trail
+
+Phase 1B work spread across two feature-doc folders:
+
+- `feature-docs/20260523-workflow-builder-backend-catalog-adoption/` — US-015 → US-020 (Phase 1B item 1)
+- `feature-docs/20260524-workflow-builder-switch-edges-and-validation-editor/` — US-021 → US-030 (Milestones A + B)
+- `feature-docs/20260525-workflow-builder-phase1b-completion/` — US-031 → US-053 (Milestones C through M); umbrella REQUIREMENTS doc
+
+Phase 2 should start a new feature-doc dir, e.g. `feature-docs/20260526-workflow-builder-phase2-library-workflows/`.
+
+---
+
 ## Memory pointers (in `~/.claude/projects/-home-alstruk-GitHub-ai-adoption-document-intelligence/memory/`)
 
 - `project_workflow_builder_handoff.md` — **read this first** — pointers + cadence preferences
 - `project_workflow_builder_decisions.md` — locked-in decisions
 - `project_shared_graph_workflow_package.md` — Dylan's package status
 - `project_workflow_templates.md` — where templates live
-- (and unrelated: `project_openshift_deployment.md`, `project_primary_instance.md`, feedback files)
+- `feedback_dev_servers.md` — never start dev servers yourself
+- `feedback_secret_handling.md` — never leak secrets to chat/terminal
+- (and unrelated: `project_openshift_deployment.md`, `project_primary_instance.md`, other feedback files)
 
 If a new top-level fact is learned (e.g., AI-1192 finally merged, a major decision flips), add a new memory file and update `MEMORY.md`. Don't put implementation details there — those go in this `SESSION_HANDOFF.md` or `IMPLEMENTATION_PLAN.md`.
-
----
-
-## Things to circle back on
-
-- `apps/frontend/src/pages/WorkflowPage.tsx` and `WorkflowEditPage.tsx` exist alongside `WorkflowEditorPage.tsx`. Three workflow pages is one (or two) too many. Worth auditing before adding more.
-- Backend `activity-parameter-schema-registry.ts` only has 1 entry (`data.transform`). Most activities have no save-time parameter validation. Now that the catalog covers all 41 activities, replacing this registry to use the catalog's Zod schemas at save/execute time is the right move.
-- The decoupled `mantine-form-zod-resolver` is still imported by `apps/frontend/src/features/tables/components/RowForm.tsx`. New code uses `@mantine/form`'s built-in `schemaResolver` instead.
-- The V2 editor's settings panel renders parameters via `JsonSchemaForm` but doesn't yet wire `@mantine/form`'s `schemaResolver` for live form-level validation — current validation is the standalone `safeParse` shown as a count under the form.
