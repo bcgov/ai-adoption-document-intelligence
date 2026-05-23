@@ -49,7 +49,7 @@ After implementing the user story check it off at the bottom of this file.
 ### Phase 1 — Reusable primitives
 - [x] **US-001** (NodePicker primitive) — required by US-005, US-006
 - [x] **US-002** (EdgePicker primitive) — required by US-004, US-009
-- [ ] **US-003** (ConditionExpressionEditor primitive) — required by US-004, US-008
+- [x] **US-003** (ConditionExpressionEditor primitive) — required by US-004, US-008
 
 ### Phase 2 — Per-type forms, canvas, palette (parallelizable after Phase 1)
 - [ ] **US-004** (SwitchNodeSettings) — consumes US-002, US-003
