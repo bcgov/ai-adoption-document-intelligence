@@ -43,7 +43,7 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActivityNode,
   ErrorPolicy,
@@ -59,6 +59,9 @@ import {
   getControlFlowVisualHints,
 } from "../control-flow-visual-hints";
 import type { ControlFlowNodeType } from "../palette/control-flow-skeletons";
+import { NodeContextMenu } from "./NodeContextMenu";
+import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
+import { swapActivityType } from "./swap-node-type";
 import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
 
 interface WorkflowEditorCanvasProps {
@@ -956,6 +959,111 @@ function WorkflowEditorCanvasInner({
     [config, onConfigChange],
   );
 
+  // ---------------------------------------------------------------------------
+  // Right-click context menu (US-046)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Live menu state — null when no menu is open, otherwise carries the
+   * target node's id + discriminator type and the viewport coordinates
+   * (event.clientX / clientY) the menu pins to.
+   */
+  const [contextMenu, setContextMenu] = useState<{
+    nodeId: string;
+    nodeType: GraphNode["type"];
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      // Suppress the browser's native right-click menu so the workflow
+      // menu can sit on top without competition.
+      event.preventDefault();
+      const graphNode = config.nodes[node.id];
+      if (!graphNode) return;
+      setContextMenu({
+        nodeId: node.id,
+        nodeType: graphNode.type,
+        x: event.clientX,
+        y: event.clientY,
+      });
+    },
+    [config.nodes],
+  );
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  /**
+   * Wires the context menu's "Delete node" entry into the existing
+   * `handleNodesDelete` path so deletion via right-click and the keyboard
+   * delete key share one removal flow.
+   */
+  const deleteNodeFromContextMenu = useCallback(() => {
+    if (!contextMenu) return;
+    const target = config.nodes[contextMenu.nodeId];
+    if (!target) return;
+    const flowNode: Node = {
+      id: contextMenu.nodeId,
+      // The `data` / `position` fields are unused by `handleNodesDelete`
+      // (it only inspects `id`), but xyflow's `Node` type requires them.
+      data: {},
+      position: { x: 0, y: 0 },
+    };
+    handleNodesDelete([flowNode]);
+  }, [contextMenu, config.nodes, handleNodesDelete]);
+
+  /**
+   * Picker-modal state — `null` when no swap is in progress, otherwise
+   * carries the node id whose activity-type is being changed (US-047).
+   * Keeping this on the canvas means the picker survives the context
+   * menu's click-away handler (the menu closes itself when "Change
+   * activity type" fires, then the modal opens via this state).
+   */
+  const [swapState, setSwapState] = useState<{ nodeId: string } | null>(null);
+
+  const changeActivityTypeFromContextMenu = useCallback(() => {
+    if (!contextMenu) return;
+    const target = config.nodes[contextMenu.nodeId];
+    // Defence in depth — the menu's `disabled` state already gates this
+    // for control-flow nodes (US-046 Scenario 2), but the canvas guards
+    // the type-swap helper too so a stray call can't crash.
+    if (!target || target.type !== "activity") return;
+    setSwapState({ nodeId: contextMenu.nodeId });
+  }, [contextMenu, config.nodes]);
+
+  const closeSwapModal = useCallback(() => setSwapState(null), []);
+
+  const handleSwapPick = useCallback(
+    (newActivityType: string) => {
+      if (!swapState) return;
+      const existing = config.nodes[swapState.nodeId];
+      if (!existing || existing.type !== "activity") {
+        setSwapState(null);
+        return;
+      }
+      const updated = swapActivityType(existing, newActivityType);
+      onConfigChange({
+        ...config,
+        nodes: { ...config.nodes, [swapState.nodeId]: updated },
+      });
+      setSwapState(null);
+    },
+    [swapState, config, onConfigChange],
+  );
+
+  /**
+   * The current activity-type the swap modal is configured against.
+   * Looked up at render time so it stays in sync with the live config
+   * when other state updates flow through.
+   */
+  const swapCurrentActivityType = useMemo(() => {
+    if (!swapState) return null;
+    const node = config.nodes[swapState.nodeId];
+    if (!node || node.type !== "activity") return null;
+    return node.activityType;
+  }, [swapState, config.nodes]);
+
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
@@ -1006,6 +1114,7 @@ function WorkflowEditorCanvasInner({
         onNodesDelete={handleNodesDelete}
         onEdgesDelete={handleEdgesDelete}
         onConnect={handleConnect}
+        onNodeContextMenu={handleNodeContextMenu}
         onInit={(instance) =>
           // Cast away the typed-generic narrowing on the inner instance —
           // the host only needs the generic `ReactFlowInstance` surface
@@ -1024,6 +1133,24 @@ function WorkflowEditorCanvasInner({
         <Controls showInteractive={false} />
         <MiniMap pannable zoomable />
       </ReactFlow>
+      {contextMenu && (
+        <NodeContextMenu
+          nodeId={contextMenu.nodeId}
+          nodeType={contextMenu.nodeType}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={closeContextMenu}
+          onChangeActivityType={changeActivityTypeFromContextMenu}
+          onDelete={deleteNodeFromContextMenu}
+        />
+      )}
+      {swapState && swapCurrentActivityType !== null && (
+        <NodeTypeSwapModal
+          opened
+          currentActivityType={swapCurrentActivityType}
+          onClose={closeSwapModal}
+          onPick={handleSwapPick}
+        />
+      )}
     </div>
   );
 }

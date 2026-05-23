@@ -12,8 +12,14 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { act, render, screen } from "@testing-library/react";
-import type { Connection, Edge } from "@xyflow/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { Connection, Edge, Node as FlowNode } from "@xyflow/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -1189,5 +1195,376 @@ describe("WorkflowEditorCanvas — US-025 wiring: WorkflowEdge edge-type registr
     const errorColor = "var(--mantine-color-red-6, #e03131)";
     expect(errorEdge?.markerEnd).toMatchObject({ color: errorColor });
     expect(errorEdge?.style).toMatchObject({ stroke: errorColor });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-046: Right-click context menu on canvas nodes
+//   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-046-canvas-context-menu.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-046: node right-click context menu", () => {
+  /**
+   * Simulates a right-click on a node by invoking the captured
+   * `onNodeContextMenu` callback the canvas hands to ReactFlow. The
+   * xyflow mock above passes through the prop verbatim, so we can drive
+   * the menu state machine without rendering the real ReactFlow widget.
+   */
+  function triggerContextMenu(nodeId: string, clientX = 100, clientY = 120) {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onNodeContextMenu !== "function") {
+      throw new Error("ReactFlow mock did not capture onNodeContextMenu");
+    }
+    const handler = props.onNodeContextMenu as (
+      event: React.MouseEvent,
+      node: FlowNode,
+    ) => void;
+    const preventDefault = vi.fn();
+    const event = {
+      preventDefault,
+      clientX,
+      clientY,
+    } as unknown as React.MouseEvent;
+    const node = {
+      id: nodeId,
+      data: {},
+      position: { x: 0, y: 0 },
+    } as unknown as FlowNode;
+    act(() => {
+      handler(event, node);
+    });
+    return { preventDefault };
+  }
+
+  it("Scenario 1: right-click on an activity node opens the menu with both entries enabled", async () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    const { preventDefault } = triggerContextMenu("activity_1");
+    // xyflow's default + browser-native context menu must be suppressed
+    // so the workflow menu can render in its place.
+    expect(preventDefault).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    const changeType = screen.getByTestId("context-menu-change-activity-type");
+    const deleteNode = screen.getByTestId("context-menu-delete-node");
+    expect(changeType).toBeInTheDocument();
+    expect(deleteNode).toBeInTheDocument();
+    expect(changeType).not.toHaveAttribute("data-disabled", "true");
+    expect(deleteNode).not.toHaveAttribute("data-disabled", "true");
+  });
+
+  it("Scenario 2: right-click on a switch node disables 'Change activity type'", async () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    triggerContextMenu("switch_1");
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    const changeType = screen.getByTestId("context-menu-change-activity-type");
+    expect(changeType).toHaveAttribute("data-disabled", "true");
+    // Delete remains available for control-flow nodes.
+    expect(screen.getByTestId("context-menu-delete-node")).not.toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
+  });
+
+  it("Scenario 3: clicking outside closes the menu (no action runs)", async () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+    triggerContextMenu("activity_1");
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    // Mantine's `useClickOutside` listens for `mousedown` / `touchstart`
+    // by default — fire `mousedown` on the document body to dismiss.
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => {
+      expect(screen.queryByTestId("node-context-menu")).not.toBeInTheDocument();
+    });
+    // No mutation flowed through to onConfigChange — the menu just
+    // closed without firing any of its entry callbacks.
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("Scenario 4: 'Delete node' triggers the existing handleNodesDelete path", async () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+    triggerContextMenu("map_1");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-node"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-delete-node"));
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const calls = onConfigChange.mock.calls;
+    const lastConfig = calls[calls.length - 1][0] as GraphWorkflowConfig;
+    // Confirms the same removal path as keyboard-delete: the target node
+    // is gone from config.nodes (and any adjacent edges are dropped — no
+    // edges exist in this fixture, but the deletion still propagates).
+    expect(lastConfig.nodes).not.toHaveProperty("map_1");
+    expect(Object.keys(lastConfig.nodes)).toHaveLength(
+      Object.keys(makeAllNodeTypesConfig().nodes).length - 1,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-047: "Change activity type" preserves overlapping config
+//   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-047-node-type-swap.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-047: change activity type via context menu", () => {
+  /**
+   * Same right-click helper the US-046 block uses — invoke the captured
+   * `onNodeContextMenu` directly because the xyflow mock passes it
+   * through verbatim.
+   */
+  function triggerContextMenu(nodeId: string, clientX = 100, clientY = 120) {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onNodeContextMenu !== "function") {
+      throw new Error("ReactFlow mock did not capture onNodeContextMenu");
+    }
+    const handler = props.onNodeContextMenu as (
+      event: React.MouseEvent,
+      node: FlowNode,
+    ) => void;
+    const event = {
+      preventDefault: vi.fn(),
+      clientX,
+      clientY,
+    } as unknown as React.MouseEvent;
+    const node = {
+      id: nodeId,
+      data: {},
+      position: { x: 0, y: 0 },
+    } as unknown as FlowNode;
+    act(() => {
+      handler(event, node);
+    });
+  }
+
+  /**
+   * Config fixture with one activity node that carries a meaningful
+   * parameters map + edges in and out of it. The activity type is
+   * `data.transform` which declares `inputFormat` + `outputFormat` +
+   * `fieldMapping` in its schema — picking `file.prepare` afterwards
+   * drops all of these (file.prepare has a completely different shape).
+   */
+  function makeSwapFixture(): GraphWorkflowConfig {
+    const upstream: ActivityNode = {
+      id: "upstream",
+      type: "activity",
+      label: "Upstream",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const target: ActivityNode = {
+      id: "target",
+      type: "activity",
+      label: "My transform",
+      activityType: "data.transform",
+      parameters: {
+        inputFormat: "json",
+        outputFormat: "xml",
+        fieldMapping: '{"foo":"{{ctx.bar}}"}',
+      },
+      inputs: [{ port: "in", ctxKey: "ctx.in" }],
+      outputs: [{ port: "out", ctxKey: "ctx.out" }],
+      errorPolicy: { retryable: true, onError: "fail" },
+      retry: { maximumAttempts: 3 },
+      timeout: { startToClose: "30s" },
+      metadata: { position: { x: 200, y: 0 } },
+    };
+    const downstream: ActivityNode = {
+      id: "downstream",
+      type: "activity",
+      label: "Downstream",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 400, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Swap fixture", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        [upstream.id]: upstream,
+        [target.id]: target,
+        [downstream.id]: downstream,
+      },
+      edges: [
+        {
+          id: "edge_up",
+          source: upstream.id,
+          target: target.id,
+          type: "normal",
+        },
+        {
+          id: "edge_down",
+          source: target.id,
+          target: downstream.id,
+          type: "normal",
+        },
+      ],
+      entryNodeId: upstream.id,
+    };
+  }
+
+  it("Scenario 1: clicking 'Change activity type' opens the swap modal with the right current type", async () => {
+    renderCanvas(makeSwapFixture());
+    triggerContextMenu("target");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-change-activity-type"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-change-activity-type"));
+    await waitFor(() => {
+      expect(screen.getByTestId("node-type-swap-modal")).toBeInTheDocument();
+    });
+    // The current activity-type's row is marked with `data-current="true"`
+    // so the user can see which row they're already on.
+    const currentEntry = await screen.findByTestId(
+      "node-type-swap-entry-data.transform",
+    );
+    expect(currentEntry).toHaveAttribute("data-current", "true");
+  });
+
+  it("Scenario 2: picking a new type fires onConfigChange with the swapped node", async () => {
+    const fixture = makeSwapFixture();
+    const { onConfigChange } = renderCanvas(fixture);
+    triggerContextMenu("target");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-change-activity-type"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-change-activity-type"));
+    await waitFor(() => {
+      expect(screen.getByTestId("node-type-swap-modal")).toBeInTheDocument();
+    });
+    // Pick `file.prepare` — completely different parameter shape from
+    // data.transform, so the swap drops every key on the old node.
+    const newTypeEntry = await screen.findByTestId(
+      "node-type-swap-entry-file.prepare",
+    );
+    fireEvent.click(newTypeEntry);
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const calls = onConfigChange.mock.calls;
+    const lastConfig = calls[calls.length - 1]?.[0] as
+      | GraphWorkflowConfig
+      | undefined;
+    expect(lastConfig).toBeDefined();
+    const updatedNode = lastConfig?.nodes.target;
+    if (!updatedNode || updatedNode.type !== "activity") {
+      throw new Error(
+        "expected `target` to remain an activity node after swap",
+      );
+    }
+    expect(updatedNode.activityType).toBe("file.prepare");
+    // Carried-over fields stay untouched.
+    expect(updatedNode.label).toBe("My transform");
+    expect(updatedNode.inputs).toEqual([{ port: "in", ctxKey: "ctx.in" }]);
+    expect(updatedNode.outputs).toEqual([{ port: "out", ctxKey: "ctx.out" }]);
+    expect(updatedNode.errorPolicy).toEqual({
+      retryable: true,
+      onError: "fail",
+    });
+    expect(updatedNode.retry).toEqual({ maximumAttempts: 3 });
+    expect(updatedNode.timeout).toEqual({ startToClose: "30s" });
+    expect(updatedNode.metadata).toEqual({ position: { x: 200, y: 0 } });
+  });
+
+  it("Scenario 3: existing edges remain after the swap", async () => {
+    const fixture = makeSwapFixture();
+    const originalEdges = fixture.edges;
+    const { onConfigChange } = renderCanvas(fixture);
+    triggerContextMenu("target");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-change-activity-type"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-change-activity-type"));
+    const newTypeEntry = await screen.findByTestId(
+      "node-type-swap-entry-file.prepare",
+    );
+    fireEvent.click(newTypeEntry);
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const calls = onConfigChange.mock.calls;
+    const lastConfig = calls[calls.length - 1]?.[0] as
+      | GraphWorkflowConfig
+      | undefined;
+    // Edges array is unchanged — both edges still reference the same
+    // source/target ids and types.
+    expect(lastConfig?.edges).toEqual(originalEdges);
+  });
+
+  it("Scenario 4: swap that produces a Zod-invalid result is still applied to the config", async () => {
+    // Going from `data.transform` (no required `documentId`) to a target
+    // that requires a non-defaulted field (or where the defaulted value
+    // would fail .min(1)) lands an invalid config — the editor's
+    // validation drawer will surface the error, but the swap goes through.
+    // We simulate this by picking `file.prepare`; if any required fields
+    // are undefaulted, `onConfigChange` is still called with the swapped
+    // node and the canvas-side validator will flag the missing field.
+    const fixture = makeSwapFixture();
+    const { onConfigChange } = renderCanvas(fixture);
+    triggerContextMenu("target");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-change-activity-type"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-change-activity-type"));
+    const newTypeEntry = await screen.findByTestId(
+      "node-type-swap-entry-file.prepare",
+    );
+    fireEvent.click(newTypeEntry);
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    // The swap MUST go through to onConfigChange regardless of whether
+    // the result Zod-validates — the canvas doesn't gate on validity,
+    // the validation drawer surfaces the issue.
+    const calls = onConfigChange.mock.calls;
+    const lastConfig = calls[calls.length - 1]?.[0] as
+      | GraphWorkflowConfig
+      | undefined;
+    expect(lastConfig?.nodes.target).toBeDefined();
+    const updatedNode = lastConfig?.nodes.target;
+    if (!updatedNode || updatedNode.type !== "activity") {
+      throw new Error(
+        "expected `target` to remain an activity node after swap",
+      );
+    }
+    expect(updatedNode.activityType).toBe("file.prepare");
+  });
+
+  it("Scenario 5: the menu entry is disabled on control-flow nodes (covered by US-046)", async () => {
+    // This is a reference test — US-046 already locks down the disabled
+    // state for all six control-flow types. Here we just confirm the
+    // canvas wiring carries that contract through: opening the menu on a
+    // switch node shows the entry as disabled, and clicking it does NOT
+    // open the swap modal.
+    renderCanvas(makeAllNodeTypesConfig());
+    triggerContextMenu("switch_1");
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    const changeType = screen.getByTestId("context-menu-change-activity-type");
+    expect(changeType).toHaveAttribute("data-disabled", "true");
+    fireEvent.click(changeType);
+    // Mantine swallows the click on a disabled item — the swap modal
+    // never mounts.
+    expect(
+      screen.queryByTestId("node-type-swap-modal"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -117,8 +117,8 @@ visible UX features.
 
 ### Phase 5 — canvas interactions
 - [ ] **US-045** (hover-to-extend chains)
-- [ ] **US-046** (canvas context menu)
-- [ ] **US-047** (node-type swap, depends on US-046)
+- [x] **US-046** (canvas context menu)
+- [x] **US-047** (node-type swap, depends on US-046)
 
 ### Phase 6 — group editing (biggest milestone, save for last)
 - [ ] **US-041** (group-from-selection)

@@ -23,6 +23,7 @@ The builder canvas is where you assemble your workflow visually. It should feel 
 - **Configure nodes** by clicking them to open a settings panel
 - **Pan and zoom** the canvas to navigate large workflows
 - **Select and delete** nodes or connections
+- **Right-click a node** to open the context menu — choose **Change activity type** to swap an activity in place (keeps the label, ports, error/retry/timeout policy, and any parameters whose keys exist in both the old and the new activity's catalog schema; required new fields are seeded with sensible defaults), or **Delete node** to remove it. Control-flow nodes (switch / map / join / sub-workflow / wait-until / wait-for-approval) can't be type-swapped — the entry is disabled and a tooltip explains why.
 - **Auto-arrange** (top-bar button) tidies the canvas with a dagre layered layout. The button is disabled until at least one node is on the canvas. Templates that ship without any `metadata.position` get the same layout applied automatically on load; templates that already carry positions (full or partial) are left alone — hit **Auto-arrange** manually to re-tidy them.
 
 ### Validation
