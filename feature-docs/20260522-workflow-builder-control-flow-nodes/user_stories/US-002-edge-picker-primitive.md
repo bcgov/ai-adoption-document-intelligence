@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Lists edges that originate from `fromNodeId`
+- [x] **Scenario 1**: Lists edges that originate from `fromNodeId`
     - **Given** a `GraphWorkflowConfig` with edges where some have `source === "n1"` and others don't, and the picker is rendered with `fromNodeId="n1"`
     - **When** the option list opens
     - **Then** only edges with `source === "n1"` appear
 
-- [ ] **Scenario 2**: Option labels show the target node's label plus the edge id
+- [x] **Scenario 2**: Option labels show the target node's label plus the edge id
     - **Given** an edge `{ id: "e1", source: "n1", target: "n2" }` and `config.nodes["n2"].label === "Validate"`
     - **When** the picker renders that option
     - **Then** the option's primary text is `"Validate"` and secondary text shows `"e1"`
 
-- [ ] **Scenario 3**: Emits `onChange` with the chosen id and supports clearing
+- [x] **Scenario 3**: Emits `onChange` with the chosen id and supports clearing
     - **Given** the picker is rendered with `value="e1"`
     - **When** the user picks a different edge, then clears the field
     - **Then** `onChange` fires first with the new edge id, then with `null`
 
-- [ ] **Scenario 4**: Warns inline when the bound edge no longer exists or its source changed
+- [x] **Scenario 4**: Warns inline when the bound edge no longer exists or its source changed
     - **Given** `value="e1"` and either no edge with id `e1` exists, or the edge exists but `edge.source !== fromNodeId`
     - **When** the picker renders
     - **Then** an inline warning is displayed indicating the bound edge is stale

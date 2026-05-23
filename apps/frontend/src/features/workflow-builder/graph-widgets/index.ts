@@ -7,4 +7,5 @@
  * themselves; the parent per-type settings form owns the mutation.
  */
 
+export { EdgePicker, type EdgePickerProps } from "./EdgePicker";
 export { NodePicker, type NodePickerProps } from "./NodePicker";
