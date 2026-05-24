@@ -1,12 +1,12 @@
 /**
  * Unit tests for the source catalog (US-108).
  *
- * `SOURCE_CATALOG` is empty at this milestone (US-115 + US-116 register
- * `source.api` and `source.upload`); the empty-registry behaviour is
- * the live surface today. Synthetic catalog entries — passed as the
- * optional `catalog` parameter the same way
- * `createCatalogParameterValidator` accepts one — exercise the
- * happy-path branches of the adapter and the output-schema derivation.
+ * US-115 registers `source.api`; US-116 will add `source.upload`.
+ * Tests covering the registered-entry surface live in
+ * `./sources/source-api.test.ts`. This file covers the
+ * structural-registry contract (frozen, lookup by type, list,
+ * package-root barrel re-exports) and the synthetic-catalog
+ * happy-path branches of the validator + output-schema adapters.
  */
 
 import { z } from "zod/v4";
@@ -23,6 +23,7 @@ import {
   listSourceTypes,
 } from "./source-catalog";
 import type { JsonSchema7, SourceCatalogEntry } from "./source-types";
+import { isAssignable } from "../types/subtype-check";
 
 /** Fabricated entry used only by the synthetic happy-path tests. */
 function fakeSourceEntry(
@@ -51,13 +52,13 @@ function fakeSourceEntry(
   };
 }
 
-describe("SOURCE_CATALOG (Scenario 1 — empty frozen registry)", () => {
+describe("SOURCE_CATALOG (Scenario 1 — frozen registry)", () => {
   it("is an array", () => {
     expect(Array.isArray(SOURCE_CATALOG)).toBe(true);
   });
 
-  it("is empty at Milestone A (US-108)", () => {
-    expect(SOURCE_CATALOG).toHaveLength(0);
+  it("contains the source.api entry (US-115)", () => {
+    expect(SOURCE_CATALOG.some((e) => e.type === "source.api")).toBe(true);
   });
 
   it("is frozen (callers cannot push new entries)", () => {
@@ -66,12 +67,16 @@ describe("SOURCE_CATALOG (Scenario 1 — empty frozen registry)", () => {
 });
 
 describe("getSourceCatalogEntry (Scenario 2)", () => {
-  it("returns undefined for source.api (catalog empty)", () => {
-    expect(getSourceCatalogEntry("source.api")).toBeUndefined();
+  it("returns the source.api entry (US-115)", () => {
+    const entry = getSourceCatalogEntry("source.api");
+    expect(entry).toBeDefined();
+    expect(entry?.type).toBe("source.api");
   });
 
-  it("returns undefined for source.upload (catalog empty)", () => {
-    expect(getSourceCatalogEntry("source.upload")).toBeUndefined();
+  it("returns the source.upload entry (US-116)", () => {
+    const entry = getSourceCatalogEntry("source.upload");
+    expect(entry).toBeDefined();
+    expect(entry?.type).toBe("source.upload");
   });
 
   it("returns undefined for any unknown sourceType", () => {
@@ -80,29 +85,53 @@ describe("getSourceCatalogEntry (Scenario 2)", () => {
 });
 
 describe("listSourceTypes (Scenario 3)", () => {
-  it("returns an empty array at Milestone A", () => {
-    expect(listSourceTypes()).toEqual([]);
+  it("includes source.api after US-115", () => {
+    expect(listSourceTypes()).toContain("source.api");
   });
 });
 
+describe("SOURCE_CATALOG bulk invariants (Scenario 5)", () => {
+  // Every registered entry must satisfy the contract documented on
+  // `SourceCatalogEntry` in `./source-types.ts`. Catches accidental
+  // drift as future Phase 8.x sources land.
+  it.each(SOURCE_CATALOG.map((entry) => [entry.type, entry]))(
+    "%s — non-empty type / displayName / description, valid runtime, outputKind resolves, deriveOutputSchema callable",
+    (_typeId, entry: SourceCatalogEntry) => {
+      expect(entry.type.length).toBeGreaterThan(0);
+      expect(entry.displayName.length).toBeGreaterThan(0);
+      expect(entry.description.length).toBeGreaterThan(0);
+      expect(["push", "pull", "manual"]).toContain(entry.runtime);
+      // outputKind must resolve via the Phase 3 registry — reflexive
+      // assignability is the cheapest round-trip check.
+      expect(isAssignable(entry.outputKind, entry.outputKind)).toBe(true);
+      // Smoke-test that deriveOutputSchema is callable with empty params.
+      expect(() => entry.deriveOutputSchema({})).not.toThrow();
+    },
+  );
+});
+
 describe("createSourceParameterValidator (Scenario 3)", () => {
-  it("emits an error for unknown sourceType against the default empty catalog", () => {
+  it("emits an error for an unknown sourceType against the default catalog", () => {
     const validate = createSourceParameterValidator();
     const errors: GraphValidationError[] = [];
-    validate("source.api", "n1", {}, errors);
+    validate("source.nonexistent", "n1", {}, errors);
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({
       path: "nodes.n1.sourceType",
       severity: "error",
     });
-    expect(errors[0]?.message).toBe("Unknown source type: source.api");
+    expect(errors[0]?.message).toBe(
+      "Unknown source type: source.nonexistent",
+    );
   });
 
   it("names the unknown subtype in the error message", () => {
     const validate = createSourceParameterValidator();
     const errors: GraphValidationError[] = [];
-    validate("source.upload", "src", undefined, errors);
-    expect(errors[0]?.message).toBe("Unknown source type: source.upload");
+    validate("source.unknown.subtype", "src", undefined, errors);
+    expect(errors[0]?.message).toBe(
+      "Unknown source type: source.unknown.subtype",
+    );
   });
 
   it("validates parameters against the catalog Zod schema (synthetic entry)", () => {
@@ -147,11 +176,11 @@ describe("deriveSourceOutputSchema (Scenario 4)", () => {
     const node: SourceNode = {
       id: "src1",
       type: "source",
-      label: "API",
-      sourceType: "source.api",
+      label: "Nonexistent",
+      sourceType: "source.nonexistent",
     };
     expect(() => deriveSourceOutputSchema(node)).toThrow(
-      /Unknown source type `source\.api` for node `src1`/,
+      /Unknown source type `source\.nonexistent` for node `src1`/,
     );
   });
 
@@ -232,26 +261,27 @@ describe("deriveSourceOutputSchema (Scenario 4)", () => {
 });
 
 describe("package-root barrel re-exports (Scenario 5)", () => {
-  it("re-exports SOURCE_CATALOG", () => {
+  it("re-exports SOURCE_CATALOG (now non-empty after US-115)", () => {
     expect(packageRoot.SOURCE_CATALOG).toBeDefined();
-    expect(packageRoot.SOURCE_CATALOG).toHaveLength(0);
+    expect(packageRoot.SOURCE_CATALOG.length).toBeGreaterThan(0);
   });
 
   it("re-exports getSourceCatalogEntry", () => {
     expect(typeof packageRoot.getSourceCatalogEntry).toBe("function");
     expect(packageRoot.getSourceCatalogEntry("anything")).toBeUndefined();
+    expect(packageRoot.getSourceCatalogEntry("source.api")).toBeDefined();
   });
 
   it("re-exports listSourceTypes", () => {
     expect(typeof packageRoot.listSourceTypes).toBe("function");
-    expect(packageRoot.listSourceTypes()).toEqual([]);
+    expect(packageRoot.listSourceTypes()).toContain("source.api");
   });
 
   it("re-exports createSourceParameterValidator", () => {
     expect(typeof packageRoot.createSourceParameterValidator).toBe("function");
     const validate = packageRoot.createSourceParameterValidator();
     const errors: GraphValidationError[] = [];
-    validate("source.api", "n1", {}, errors);
+    validate("source.nonexistent", "n1", {}, errors);
     expect(errors).toHaveLength(1);
   });
 
@@ -262,7 +292,7 @@ describe("package-root barrel re-exports (Scenario 5)", () => {
         id: "x",
         type: "source",
         label: "L",
-        sourceType: "source.api",
+        sourceType: "source.nonexistent",
       }),
     ).toThrow();
   });

@@ -23,18 +23,21 @@
 
 import type { GraphValidationError, SourceNode } from "../types";
 
+import { sourceApiCatalogEntry } from "./sources/source-api";
+import { sourceUploadCatalogEntry } from "./sources/source-upload";
 import type { JsonSchema7, SourceCatalogEntry } from "./source-types";
 
 /**
  * Frozen registry of source catalog entries.
  *
- * Empty at Milestone A (US-108); US-115 + US-116 register `source.api`
- * and `source.upload`. The `readonly` array type forbids callers from
- * mutating the registry at runtime.
+ * US-115 registers `source.api`; US-116 appends `source.upload`.
+ * The `readonly` array type forbids callers from mutating the
+ * registry at runtime.
  */
-export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = Object.freeze(
-  [] as SourceCatalogEntry[],
-);
+export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = Object.freeze([
+  sourceApiCatalogEntry,
+  sourceUploadCatalogEntry,
+] as SourceCatalogEntry[]);
 
 /**
  * Lookup a source catalog entry by `sourceType`. Returns `undefined`
