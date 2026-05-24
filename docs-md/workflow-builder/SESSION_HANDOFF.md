@@ -1,8 +1,121 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-23 (**Phase 2 Track 3 — versioning UI — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit. Phase 2 Track 1 added 4 commits. Phase 2 Track 2 added 4 commits. Phase 2 Track 3 added 7 commits (docs + Milestone A shared schema + Milestone B backend per-version run-spec / runs / get-version / engine version honoring + Milestone C frontend history drawer + revert + compare + Milestone D Run drawer per-version Select + Milestone E library version-pin + bugfix-and-verification). **60+ commits ahead of `origin/AI-1192`** at Phase 2 Track 3 close, post-Playwright verification. **Phase 2 is now fully closed; Phase 3 (typed I/O) is the next milestone.**
+**Last updated:** 2026-05-24 (**Phase 3 typed I/O artifacts — CLOSED. All 7 milestones (A → G) shipped. US-105 end-to-end walkthrough passed all 8 scenarios with zero `pageerror` events**). Phase 2 closed at 2026-05-23.
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
+
+---
+
+## TL;DR for the next AI — Phase 3 close-out (DONE, 2026-05-24)
+
+**Phase 3 (typed I/O artifacts) is closed.** Seven milestones (A → G) shipped across six implementation commits + one docs-only verification commit (Milestone G). The US-105 end-to-end Playwright walkthrough — the click-and-play milestone — ran cleanly against the live dev server with **zero `pageerror` events**, exercising every typed-I/O surface end-to-end: kind-coloured handles, on-selection type pill (single-port + multi-port), cross-kind wire draws (Model A non-rejection), variable-picker compatible-first sort + dim + tooltip, save-time binding-walk error toast (US-093 surfaced through the editor's save flow), `ChildWorkflowNodeSettings` typed library signature, and Workflow-Settings-Drawer Kind round-trip.
+
+**One-liner per milestone:**
+
+- **Milestone A — `86637d94`** (US-089 → US-092): Typed I/O foundation. Added `ArtifactKind` enum + `artifact-registry` (`isAssignable`/`isKindCompatible`/array+wildcard rules) + `PortDescriptor.kind?` + `CtxDeclaration.kind?` + `LibraryPortDescriptor.kind?` extensions to `@ai-di/graph-workflow`. Package tests 222 → 248.
+- **Milestone B — `822421d3`** (US-093 + US-094): Binding-walk validator. New `validateBindings` walker in the shared package anchors errors to consumer port with exact wording `"Input port \`<port>\` (<consumerKind>) on node \`<id>\` reads from ctx key \`<ctx>\`, written by node \`<producer>\` (<producerKind>) — <producerKind> not assignable to <consumerKind>"`. Backend `validateGraphConfig` adopts it; library path depth-check ensures only top-level ctx keys participate.
+- **Milestone C — `dce45acd`** (US-095 + US-096): Canvas kind-coloured handles + on-selection type pill. Per-port `data-port-color`/`data-port-array`/`data-port-multi`/`data-port-tooltip` attrs on `port-tooltip-{input,output}-<nodeId>` spans; gray + "Multiple inputs/outputs" for multi-port nodes (Model A strictness). `NodeTypePill` renders single-port (e.g. `SEGMENT[]`) or expanded multi-port (per-port rows with coloured dots) anchored next to the handle when the node is selected.
+- **Milestone D — `95de7635`** (US-097): Variable picker compatible-first sort + dim + tooltip. `VariablePicker` Autocomplete now sorts by kind-compatibility: compatible options first, then a divider "Incompatible with this port", then dimmed incompatibles with a `data-incompatible-reason` tooltip `"<Kind> — incompatible with this port (expects <ExpectedKind>)"`.
+- **Milestone E — `a5dbc294`** (US-098 + US-099 + US-100): "Kind" Select columns in `WorkflowSettingsDrawer` (per-ctx-row) + `NodeSettings` (per-input-binding-row in port picker) + `SaveAsLibraryModal`'s `LibraryPortListEditor`. Library signature summary in `ChildWorkflowNodeSettings` now surfaces a kind-coloured dot (`[data-kind-dot="<Kind>"]`) per row.
+- **Milestone F — `35ca56a3`** (US-101 → US-104): Typed catalog exemplars + bulk invariant + provider-catalog scaffold. Five core catalog entries got typed end-to-end ports (`document.split`, `document.classify`, `mistralOcr.process`, `document.validateFields`, `tables.lookup`); bulk catalog invariant test asserts every catalog entry's port kinds are valid registry kinds; new `provider-catalog` exposes the typed catalog shape for downstream consumers. Package tests 248 → 379.
+- **Milestone G — US-105 (docs-only closeout)**: End-to-end Playwright walkthrough verified on 2026-05-24 against six fixture workflows. All 8 scenarios pass; zero `pageerror` events; 29 console-level errors (tolerated — same 401 polling noise as Tracks 2 + 3). Screenshots `01-08-*.png` at `/tmp/wb-phase3-verify/`. Walkthrough script: `/tmp/wb-phase3-verify/walkthrough.mjs`. Two script bugfixes during verification: (1) the `port-tooltip-output-split1` span is `display: inline` so wait for `attached` not `visible`; (2) the `GET /api/workflows/:id` response wraps payload in `{ workflow: {...} }` so read `json.workflow.config.ctx.<key>`. No implementation bugs found.
+
+**Test count deltas (Phase 3):**
+
+| Suite | Phase 2 close | Phase 3 close | Delta |
+|-------|---------------|---------------|-------|
+| `packages/graph-workflow` | 222 | **379** | +157 |
+| `apps/frontend` | 777 | **896** | +119 |
+| `apps/backend-services` | 2188 | **2188** | unchanged (Phase 3 wasn't backend-heavy) |
+
+**Open follow-ups (intentionally deferred — NOT in scope for Phase 3):**
+
+- **Phase 3.5 — auto-bind-on-wire-draw.** Today drawing a `document.split` → `document.classify` wire creates the visual edge but does NOT auto-fill the consumer's input-binding ctx key. The user still has to open the consumer settings + pick the producer's output ctx by hand. A future "auto-bind on wire" milestone would pre-fill the consumer's port whose kind best matches the producer's output kind when the wire lands. Locked out of Phase 3 because Phase 3 is strictly typed-I/O annotation surfaces, not wiring semantics.
+- **Phase 3.x — full catalog fan-out.** Phase 3 typed only 5 catalog activities. Remaining activities (~15) still have un-typed `PortDescriptor`s (no `kind`) so their handles render gray and their port pills show no per-port kind dot. The bulk invariant in Milestone F asserts kind-validity but doesn't enforce kind-presence. Plan: add kinds incrementally as we touch each activity. No backend break — un-typed kinds fall through to the existing string-typed pathway (Model A).
+
+**Six commits on `feature/visual-workflow-builder` for Phase 3 (most recent first):**
+
+```
+35ca56a3 feat(workflow-builder): typed catalog exemplars + bulk invariant + provider-catalog scaffold (Phase 3 — Milestone F — US-101 + US-102 + US-103 + US-104)
+a5dbc294 feat(workflow-builder): "Kind" Select columns + library signature summaries surface kind (Phase 3 — Milestone E — US-098 + US-099 + US-100)
+95de7635 feat(workflow-builder): variable picker compatible-first sort + dim-with-tooltip for incompatibles (Phase 3 — Milestone D — US-097)
+dce45acd feat(workflow-builder): canvas kind-coloured handles + on-selection type pill (Phase 3 — Milestone C — US-095 + US-096)
+822421d3 feat(graph-workflow): binding-walk validator + library path depth-check (Phase 3 — Milestone B — US-093 + US-094)
+86637d94 feat(graph-workflow): typed I/O foundation — ArtifactKind + registry + isAssignable + schema extensions (Phase 3 — Milestone A — US-089 + US-090 + US-091 + US-092)
+```
+
+A seventh, docs-only "Milestone G — US-105 verification closeout" commit will land from the orchestrator after this session (story file checkboxes + this SESSION_HANDOFF refresh).
+
+**US-105 walkthrough — script + fixtures location for posterity:**
+
+- Walkthrough: `/tmp/wb-phase3-verify/walkthrough.mjs`
+- Setup: `/tmp/wb-phase3-verify/setup-fixtures.sh`
+- Screenshots: `/tmp/wb-phase3-verify/01-document-split-typed-handle.png` → `08-ctx-kind-roundtrip.png`
+- Fixture IDs (still present in dev DB at close; safe to leave or clean up via `DELETE /api/workflows/:id`):
+  - `WF_A_ID=cmpk21ci4000o5pdu2d2gxelq` (Scenarios 1-3)
+  - `WF_B_ID=cmpk21ck0000q5pduj8xyry0e` (Scenario 4)
+  - `WF_C_ID=cmpk21clx000s5pdugazoh7ub` (Scenario 5)
+  - `WF_D_ID=cmpk21co0000u5pduwy9n9noa` (Scenario 6 — library)
+  - `WF_E_ID=cmpk21cqg000w5pduhv3lccsn` (Scenario 6 — parent)
+  - `WF_F_ID=cmpk21csb000y5pdu745fvauk` (Scenario 7)
+
+---
+
+## Phase 3 in-flight notes (superseded — kept for historical reference)
+
+**The stale-Vite-cache blocker called out in the prior handoff was resolved before US-105 ran.** Alex restarted Vite with a clean `node_modules/.vite/deps/` directory; the served `@ai-di_graph-workflow.js` bundle now contains `Segment[]` and the full typed catalog. The US-105 walkthrough then completed all 8 scenarios in one run (after 2 unrelated script-side fixes — see Milestone G one-liner above).
+
+---
+
+## TL;DR for the next AI — Phase 3 close-out (in flight — superseded by section above)
+
+**Phase 3 (typed I/O artifacts) Milestones A → F all shipped in earlier sessions.** Five activity catalog entries are now typed end-to-end:
+
+- `document.split` — `MultiPageDocument` + 2 `Artifact` wildcards in → `Segment[]` out (single-typed-output, green handle, doubled-outline cardinality marker)
+- `document.classify` — `OcrResult` + `Segment` in → `Classification` + 2 `Artifact` wildcards out (multi-port, gray + expanded type pill listing all 5 ports)
+- `mistralOcr.process` — `Document` + 2 `Artifact` wildcards in → `OcrResult` out
+- `document.validateFields` — `Segment[]` + `Artifact` in → `ValidationResult` out
+- `tables.lookup` — 3 `Artifact` in → `Reference` out
+
+Backend binding-walk validator (Milestone B / US-093) anchors errors to the consumer port with the exact wording `"Input port \`<port>\` (<consumerKind>) on node \`<id>\` reads from ctx key \`<ctx>\`, written by node \`<producer>\` (<producerKind>) — <producerKind> not assignable to <consumerKind>"`. The frontend renders kind-coloured handles (Milestone C / US-095 + US-096), compatible-first variable picker with dim + tooltip on incompatibles (Milestone D / US-097), Kind Select columns in the workflow + node settings drawers + a Kind dot in the library signature summary (Milestone E / US-098 → US-100), and the catalog exemplar bulk-invariant + provider catalog (Milestone F / US-101 → US-104).
+
+**What blocked US-105 (Milestone G — end-to-end Playwright walkthrough), 2026-05-24:**
+
+Vite's optimizeDeps pre-bundle of `@ai-di/graph-workflow` is **stale** — it was generated before the Phase 3 catalog `kind` fields shipped. The served bundle at `http://localhost:3000/node_modules/.vite/deps/@ai-di_graph-workflow.js?v=b7d9e1e2` has port descriptors WITHOUT the `kind` property, so the canvas reads zero typed ports per side and falls back to gray + "Multiple inputs/outputs" tooltip. The local `packages/graph-workflow/dist/catalog/activities/document-split.js` is correct (`kind: "Segment[]"`), and so is the source in `packages/graph-workflow/src/catalog/activities/document-split.ts`. A `npm run build` in `packages/graph-workflow` did not invalidate Vite's deps cache because Vite hashes optimizeDeps by lockfile + config, NOT by dist content. Browser-side hard reload doesn't help — the pinned `?v=b7d9e1e2` query parameter is set inside Vite's own client at startup.
+
+**The fix Alex needs to run (one of, before the next session):**
+
+1. From `apps/frontend/`: `rm -rf node_modules/.vite && npm run dev` (cleanest)
+2. OR from `apps/frontend/`: stop Vite, then `npm run dev -- --force`
+3. OR add a `--force` flag to the dev script and restart
+
+After that, the US-105 walkthrough script at `/tmp/wb-phase3-verify/walkthrough.mjs` should pick up all 8 scenarios against the SIX fixture workflows created during this session (see "Fixture workflows" below).
+
+**Fixture workflows created during the US-105 attempt (still in dev DB at handoff time):**
+
+| Var       | ID                              | Purpose |
+|-----------|---------------------------------|---------|
+| `WF_A_ID` | `cmpk21ci4000o5pdu2d2gxelq`     | Scenarios 1, 2, 3 — `document.split` + `document.classify` + `tables.lookup` on the canvas, no wires |
+| `WF_B_ID` | `cmpk21ck0000q5pduj8xyry0e`     | Scenario 4 — two ctx vars (Document + Segment producers) feeding `document.classify` |
+| `WF_C_ID` | `cmpk21clx000s5pdugazoh7ub`     | Scenario 5 — clean baseline; test rewires `segment` → `pages` (Segment[]) and saves to trigger 400 |
+| `WF_D_ID` | `cmpk21co0000u5pduwy9n9noa`     | Scenario 6 — library workflow with typed `inputs[Doc:Document]` + `outputs[Class:Classification]` |
+| `WF_E_ID` | `cmpk21cqg000w5pduhv3lccsn`     | Scenario 6 — parent with a `childWorkflow` node referencing `WF_D` |
+| `WF_F_ID` | `cmpk21csb000y5pdu745fvauk`     | Scenario 7 — single `myDoc` ctx var; test sets its Kind via the drawer + verifies round-trip |
+
+All fixtures live under `groupId: "seeddefaultgroup"`. The setup script that created them is at `/tmp/wb-phase3-verify/setup-fixtures.sh`; the walkthrough script is at `/tmp/wb-phase3-verify/walkthrough.mjs`. Both are out-of-tree per the Phase 2 Track 2/3 convention.
+
+**What was verified before the Vite blocker surfaced:**
+
+- `curl POST /api/workflows` rejects the deliberately-mismatched Scenario 5 payload (Segment[] producer → Segment consumer slot) at CREATE time with HTTP 400 + `"Input port \`segment\` (Segment) on node \`classifyConsumer\` reads from ctx key \`pages\`, written by node \`splitProducer\` (Segment[]) — Segment[] not assignable to Segment"` — confirms US-093 (binding-walk validator) is wired through the API surface.
+- All six fixture workflows were created via `POST /api/workflows` cleanly; the dev DB persists `metadata.ctx.<key>.kind` and `metadata.inputs[]`/`metadata.outputs[]` exactly as POSTed (Scenarios 6 + 7's backend halves).
+- The probe Playwright script (`/tmp/wb-phase3-verify/probe.mjs`) confirmed the auth bypass works against `WF_A_ID` and the canvas mounts (`canvas-node-split1` etc.) — the SOLE failure is the stale optimizeDeps making the handles render as gray + multi-port.
+
+**Next session — US-105 re-run checklist:**
+
+1. Verify Vite is serving the fresh bundle: `curl -s "http://localhost:3000/node_modules/.vite/deps/@ai-di_graph-workflow.js?v=..." | grep -c "Segment\[\]"` should be > 0.
+2. Run `node /tmp/wb-phase3-verify/walkthrough.mjs` (or recreate it from `feature-docs/20260529-workflow-builder-phase3-typed-io-artifacts/user_stories/US-105-end-to-end-verification.md`).
+3. Confirm all 8 screenshots in `/tmp/wb-phase3-verify/` + `pageerrors === 0`.
+4. Tick off the 8 scenarios in US-105 and check the README story-row.
 
 ---
 

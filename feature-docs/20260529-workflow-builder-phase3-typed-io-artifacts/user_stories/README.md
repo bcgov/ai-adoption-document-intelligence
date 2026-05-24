@@ -91,7 +91,7 @@ Phase 3 has a clear linear backbone (shared package → backend → frontend →
 - [x] **US-104** (`provider-catalog.ts` scaffold + 2 seed descriptors) — independent
 
 ### Phase 7 — end-to-end verification
-- [ ] **US-105** (Playwright walkthrough — typed I/O end-to-end; screenshots in `/tmp/wb-phase3-verify/`)
+- [x] **US-105** (Playwright walkthrough — typed I/O end-to-end; screenshots in `/tmp/wb-phase3-verify/`)
 
 > US-089 → US-091 ship first (`packages/graph-workflow` change); ask Alex to restart Vite — pre-bundle of `@ai-di/graph-workflow` goes stale otherwise. Phase 3 introduces NEW runtime exports (`ARTIFACT_REGISTRY` + `isAssignable`), so the restart is real (not types-only).
 >
