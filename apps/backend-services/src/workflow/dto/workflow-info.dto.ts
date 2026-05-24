@@ -1,4 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { IsString } from "class-validator";
 import { GraphWorkflowConfig } from "../graph-workflow-types";
 
 export class WorkflowInfoDto {
@@ -89,5 +90,6 @@ export class RevertHeadDto {
     description:
       "Existing WorkflowVersion.id within this lineage to set as head",
   })
+  @IsString()
   workflowVersionId!: string;
 }

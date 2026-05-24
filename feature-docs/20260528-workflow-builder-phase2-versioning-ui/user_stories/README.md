@@ -79,7 +79,7 @@ ordering below sequences them to minimize Vite-restart pauses
 - [x] **US-087** (`ChildWorkflowNodeSettings` version badge + change-version button)
 
 ### Phase 6 — end-to-end verification
-- [ ] **US-088** (Playwright walkthrough; screenshots in `/tmp/wb-phase2-track3-verify/`)
+- [x] **US-088** (Playwright walkthrough; screenshots in `/tmp/wb-phase2-track3-verify/`)
 
 > US-076 ships first so that Phase 2 backend work and Phase 5
 > frontend work can both reference the new schema. After US-076
