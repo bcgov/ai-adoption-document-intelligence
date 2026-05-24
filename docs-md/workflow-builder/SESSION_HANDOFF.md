@@ -1,6 +1,6 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-26 (Phase 1B closed; **Phase 2 Track 1 — library workflow management — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit (Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params). Phase 2 Track 1 added 4 commits (docs + Milestone A schema/types + Milestone B backend filter + Milestones C+D frontend modals). **49 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close, post-Playwright verification (includes the SESSION_HANDOFF refresh commit `b4c7e257`).
+**Last updated:** 2026-05-23 (**Phase 2 Track 2 — workflow-as-API surfacing — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit (Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params). Phase 2 Track 1 added 4 commits (docs + Milestone A schema/types + Milestone B backend filter + Milestones C+D frontend modals). Phase 2 Track 2 added 4 commits (docs + Milestone A `CtxDeclaration.isInput` + Milestone B run-spec/runs backend + Milestones C+D frontend Run drawer + workflow-list `kind` filter). **53 commits ahead of `origin/AI-1192`** at Phase 2 Track 2 close, post-Playwright verification.
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
 
@@ -8,9 +8,24 @@
 
 ## TL;DR for the next AI
 
-Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 Track 1 is complete (2026-05-26). Phase 2 Tracks 2 + 3 are the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
+Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 Track 1 is complete (2026-05-26). Phase 2 Track 2 is complete (2026-05-23). Phase 2 Track 3 (versioning UI) is the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
 
-**What shipped in Phase 2 Track 1 (this session, 2026-05-26):**
+**What shipped in Phase 2 Track 2 (this session, 2026-05-23):**
+
+- **Shared schema (Milestone A — US-065):** Optional `isInput?: boolean` added to `CtxDeclaration` in `packages/graph-workflow/src/types.ts`. Validator unchanged (accepts the new field as declarative metadata). Package tests 219 → 220 passing.
+- **Backend run-spec + runs endpoints (Milestone B — US-066 → US-069):** Two new sub-resource endpoints under `/api/workflows/:id/`:
+  - `GET /run-spec` returns `{ triggerUrl, inputSchema (JSON Schema 7 subset), authNotes, sampleCurl }`. Library workflows derive `inputSchema` from `metadata.inputs[]`; regular workflows derive it from ctx entries with `isInput: true`. `triggerUrl` is computed server-side from `X-Forwarded-Proto` + `Host`.
+  - `POST /runs` accepts `{ initialCtx?, workflowVersionId? }`, validates the body against the derived schema (400 on missing required / type mismatch), and triggers a Temporal execution. Returns `{ workflowId, workflowVersionId, status: "started" }`.
+  - `TemporalClientService.startGraphWorkflow()`'s `documentId` is now optional. When omitted, a synthetic `graph-adhoc-<uuid>` workflow id is used and the doc-specific search-attributes / memo keys are skipped. Existing OCR caller is unchanged.
+  - New pure helpers: `deriveInputSchema`, `buildRunSpec`, `buildTriggerUrl`, `validateRunInput` — each with its own unit-test file. Full Swagger DTOs (`RunSpecResponseDto`, `StartRunRequestDto`, `StartRunResponseDto`). The `WorkflowModule` ↔ `TemporalModule` cycle was broken via `forwardRef` so the controller can inject the temporal client. Backend tests 2141 → 2174 passing.
+- **Frontend Run drawer + isInput checkbox + list filter (Milestones C + D — US-070 → US-074):**
+  - `WorkflowSettingsDrawer` ctx-rows grow an "Input" checkbox (tooltip explains the run-spec implication). Toggling writes `ctx[key].isInput: true` (or strips the field when unchecked).
+  - New `RunWorkflowDrawer` (`apps/frontend/src/features/workflow-builder/run/`). Right-side Mantine `Drawer` that fetches `GET /run-spec` on open and renders: trigger URL with copy, input-schema field table (Field / Type / Required / Description-default), sample curl with copy, auth notes, and a "Test run" section with a Mantine `<JsonInput>` (prefilled with a stub body from the schema's defaults / type-appropriate stubs) + a Run button that POSTs to `/runs` and shows the returned `workflowId` inline. Backend 4xx surfaces as a red Alert.
+  - New "Run this workflow" top-bar button in `WorkflowEditorV2Page` (between Save and Save-as-library). Disabled in create mode with a tooltip; the drawer only mounts in edit mode.
+  - `WorkflowListPage` grows a SegmentedControl (Workflows / Libraries / All) above the list. Backend extends `?kind` to accept `all` (returns every kind, still honoring `includeBenchmarkCandidates`). Top bar lifted out so the filter is available even in the empty state; per-tab empty-state copy ("No library workflows yet" for Libraries). New TanStack hooks: `useWorkflowRunSpec`, `useStartWorkflowRun`. Frontend tests 713 → 738 passing.
+- **End-to-end verification (Milestone E — US-075):** Playwright walkthrough against the running dev server (with `app-browser-auth` mock auth + seed-default API key). Confirmed: (1) workflow-list filter — Workflows/Libraries/All tabs all switch, requests include `kind=library` / `kind=all` as expected; (2) regular workflow Run drawer — trigger URL, `documentUrl` schema row with REQUIRED badge, sample curl, auth notes, JsonInput prefilled `{"documentUrl":""}`; (3) paste-and-run — real Temporal execution started, returned `graph-adhoc-42733749-6be4-4e22-9dd2-69ab993a0320`; (4) library workflow Run drawer — `ctx.documentUrl` row keyed by `LibraryPortDescriptor.path` with "Document URL" title from `.label`. Screenshots: `/tmp/wb-phase2-track2-verify/01-07-*.png`. Zero page errors.
+
+**What shipped in Phase 2 Track 1 (prior session, 2026-05-26):**
 
 - **Schema + shared types (Milestone A — US-054 → US-056):** `library` added to the `WorkflowKind` Prisma enum (alongside `primary` / `benchmark_candidate`) with a new migration `20260523215517_add_library_workflow_kind`. `GraphMetadata` in `packages/graph-workflow/src/types.ts` extended with optional `kind`, `inputs[]`, `outputs[]` + a new `LibraryPortDescriptor` interface (`{ label, path, type }`, types match CtxDeclaration's set). Two new validator tests confirm acceptance of both flavors; 217 → 219 tests passing.
 - **Backend filter (Milestone B — US-057 + US-058):** `GET /api/workflows` accepts `?kind=workflow|library`. Service methods now take a typed `ListWorkflowsOptions` object; new `buildWorkflowKindWhere()` helper centralises the Prisma `workflow_kind` filter. Default unfiltered listing now excludes library workflows (filters `{ not: "library" }` when `includeBenchmarkCandidates=true`). `CreateWorkflowDto.kind?` lets the frontend POST `kind: "library"` to stamp the lineage. Full Swagger `@ApiQuery`/`@ApiBadRequestResponse` decorators. 2123 → 2141 backend tests passing.
@@ -53,10 +68,18 @@ Critical preferences (honour these):
 ## Branch + git state
 
 - **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (Dylan's shared-package consolidation; **not yet merged to develop**).
-- **49 commits ahead of `origin/AI-1192`** at Phase 2 Track 1 close (2026-05-26), including the SESSION_HANDOFF refresh commit `b4c7e257`.
+- **53 commits ahead of `origin/AI-1192`** at Phase 2 Track 2 close (2026-05-23), including the docs commits.
 - **Pre-existing commit `b86741c7`** "deps: pin cross-platform native binaries in root optionalDependencies" — unrelated to the workflow builder; should land as its own PR against develop. Cherry-pick onto a dedicated branch before opening the workflow-builder PR. Don't bundle it.
 
-**Phase 2 Track 1 commits landed in this session (2026-05-26, most recent first):**
+**Phase 2 Track 2 commits landed in this session (2026-05-23, most recent first):**
+
+- `<latest>` docs(workflow-builder): refresh SESSION_HANDOFF post-Phase-2-Track-2 closeout (this commit)
+- `d3916292` feat(workflow-builder): RunWorkflowDrawer + isInput checkbox + kind filter (Milestones C + D — US-070 → US-074)
+- `40b5f779` feat(workflow-builder): run-spec + runs backend endpoints (Milestone B — US-066 → US-069)
+- `d8d5cae6` feat(graph-workflow): CtxDeclaration.isInput flag (Milestone A — US-065)
+- `12a54543` docs(workflow-builder): requirements + user stories for Phase 2 Track 2 (workflow-as-API)
+
+**Phase 2 Track 1 commits landed in the prior session (2026-05-26, most recent first):**
 
 - `b4c7e257` docs(workflow-builder): refresh SESSION_HANDOFF post-Phase-2-Track-1 closeout
 - `6641288a` feat(workflow-builder): SaveAsLibraryModal + LibraryPickerModal in V2 editor (Milestones C + D — US-059 → US-063)
@@ -157,17 +180,19 @@ Frontend `package.json` has the `@ai-di/graph-workflow` workspace dep (added by 
 
 ---
 
-## What was verified this session (2026-05-25)
+## What was verified this session (2026-05-23, Phase 2 Track 2)
 
-Three Playwright walkthroughs against the running dev server using the `app-browser-auth` skill + mocked `GET /api/workflows`:
+One Playwright walkthrough against the live dev server using the `app-browser-auth` skill (mock auth + the seed-default `x-api-key`). Backend endpoints were also verified directly via `curl` before the browser pass.
 
-**Walkthrough 1 — Milestones A + B verification.** Loaded `multi-page-report-workflow.json` via the templates picker; segmentRouter switch's four outgoing edges showed distinct conditional-coloured strokes + labels (`case[0]: ctx.currentSegment.segmentType == "monthly-report"`, two more case predicates, `default`). validateFields node opened with 4 rules in `ValidationRuleEditor` (2 field-match + 1 arithmetic + 1 array-match). Zero page errors.
+**Walkthrough — Track 2 end-to-end (US-075).**
 
-**Walkthrough 2 — Milestone L verification.** multi-page-report loaded with dagre auto-layout (linear-rank LR, ~280px spacing). "Auto-arrange" top-bar button present + clickable.
+- **`/workflows` SegmentedControl:** The Workflows / Libraries / All tabs all switch the active filter. The Libraries tab triggers a `kind=library` request and shows only the library workflow; the All tab triggers `kind=all` and shows every kind. Per-tab empty-state copy is correct.
+- **Regular workflow Run drawer** (`/workflows/cmpixvweq0000k0duaul20yip/edit-v2`, with `ctx.documentUrl` flagged `isInput: true`): drawer opens from the new top-bar button, renders the absolute trigger URL with a copy button, a schema table with `documentUrl` (string, REQUIRED, "Input doc URL"), the sample `curl` with copy, the auth notes paragraph, and a JsonInput prefilled with `{"documentUrl": ""}`.
+- **Paste-and-run** (regular workflow): clicked Run, got a `Workflow run started` Mantine notification + a green Alert with the returned Temporal workflowId `graph-adhoc-42733749-6be4-4e22-9dd2-69ab993a0320`, copy-button alongside.
+- **Library workflow Run drawer** (`/workflows/cmpixxrm40002k0duvysgrt1r/edit-v2`): schema row renders `ctx.documentUrl` (path-keyed from `LibraryPortDescriptor.path`) + the "Document URL" title from `.label`, REQUIRED badge. Confirms the library-derivation branch of `deriveInputSchema`.
+- **Zero `pageerror` events.** (16 console-level 401s captured were background polling for endpoints the mock auth route doesn't cover; they pre-date Track 2 and are unrelated.)
 
-**Walkthrough 3 — Milestones H + I + J verification.** Top-bar buttons all present (Auto-arrange, Group selected, Simplified view). 16 canvas nodes loaded from template. Toggling simplified view collapsed 5 groups to 5 chips. Clicking a chip mounted `GroupNodeSettings` in the right rail, with the `ExposedParamsEditor` inside. The right-click context menu was NOT confirmed via headless Playwright — xyflow's onNodeContextMenu wiring is finicky in headless mode, but the jsdom tests for `NodeContextMenu` pass cleanly. Worth a manual spot-check.
-
-Screenshots from the verification runs live in `/tmp/wb-m-a-verify/`, `/tmp/wb-m-l-verify/`, `/tmp/wb-h-verify/`.
+Screenshots: `/tmp/wb-phase2-track2-verify/01-list-default-workflows-tab.png`, `02-list-libraries-tab.png`, `03-list-all-tab.png`, `04-regular-workflow-loaded.png`, `05-regular-run-drawer-open.png`, `06-regular-run-success.png`, `07-library-run-drawer.png`.
 
 ---
 
@@ -188,20 +213,36 @@ Dev server lands on `http://localhost:3000/`.
 
 ## What to do next
 
-**Phase 1B + Phase 2 Track 1 are closed.** The next pickup is **Phase 2 Tracks 2 + 3** — workflow-as-API + versioning UI. See [IMPLEMENTATION_PLAN.md §5 Phase 2](IMPLEMENTATION_PLAN.md#phase-2--library-workflows--workflow-as-api--versioning) for the full menu. Two remaining independent tracks:
+**Phase 1B + Phase 2 Tracks 1 + 2 are closed.** The next pickup is **Phase 2 Track 3 — versioning UI**. See [IMPLEMENTATION_PLAN.md §5 Phase 2](IMPLEMENTATION_PLAN.md#phase-2--library-workflows--workflow-as-api--versioning) for the full menu.
 
-### Phase 2 remaining tracks
+### Phase 2 Track 3 — versioning UI (next milestone)
 
-2. **Workflow-as-API surfacing** — every workflow gets a "Run this workflow" panel showing the run-trigger URL, the input schema (derived from the entry node's input port bindings + ctx declarations marked as inputs), a sample `curl`, and auth notes. Plus a paste-JSON-and-run dev affordance for sample testing. Also surface a "Libraries" tab/page that lists library workflows (today they're only reachable via the library-picker modal — Track 2 is where they get top-level navigation).
-3. **Versioning UI** — the backend already versions workflows via the `WorkflowVersion` schema. Add a version history panel to the editor's top bar. "Revert to version" + "Compare to version" actions. Library workflows pinned by-version in `childWorkflow.workflowRef`: `{ type: "library", workflowId, version?: number }`.
+The backend already versions workflows via the `WorkflowVersion` schema. What's missing on the UI side:
 
-**Recommended next chunk:** Track 2 (workflow-as-API) before Track 3 (versioning). The run-trigger panel is the most-asked-for UX in the design brief; versioning is more plumbing-heavy and benefits from having the API panel in place first (e.g., "Run this version" buttons).
+- A version-history panel in the editor's top bar (likely a `Drawer` opened from a new top-bar button, sibling of Save / Run / Save-as-library / Settings).
+- "Revert to version" action — backend endpoint `POST /api/workflows/:id/revert-head` already exists (`useRevertWorkflowHead` hook is wired up too).
+- "Compare to version" action — surface a diff between two versions' configs. Simplest path: render two side-by-side `JsonInput` blocks with the configs; a structural diff is a stretch.
+- Library workflows pinned by-version in `childWorkflow.workflowRef`: extend to `{ type: "library", workflowId, version?: number }`. Today (Track 1) the pin is implicit "always head version"; Track 3 lets the author pin to a specific version for reproducibility.
+- Run drawer integration: a "version" dropdown in the Run drawer that lets you pick which `workflowVersionId` to trigger (the backend's `POST /runs` already accepts the field — Track 2 just always uses head).
+- Library-picker modal integration: show each library's version + let the user pin one.
 
-**Library follow-ups deferred from Track 1:**
+**Library follow-ups deferred from Tracks 1 + 2:**
 
-- Track 2 should add a "Libraries" navigation entry / list page. Today, library workflows are only reachable via the picker modal on `childWorkflow` nodes — there's no way to browse or edit them from the workflow list page.
-- Track 3's by-version pin on `childWorkflow.workflowRef` is a natural extension of Track 1's `workflowId` stamping — current behavior is implicit "always head version". A version field gets added when the version history UI lands.
 - The validator doesn't yet verify that a library's `metadata.inputs[].path` references real ctx keys (or that `outputs[].path` is a valid output binding source). That depth-check is filed for Phase 3 typed I/O.
+- Run drawer's `versionId` selector (above) — currently always head.
+- Run history (`GET /api/workflows/:id/runs` returning past runs) — deferred to Phase 4 (try-in-place). The Run drawer today returns the `workflowId` and stops there; no list of historical runs.
+
+### Phase 2 Track 2 — done. Don't re-implement.
+
+- Shared schema: `CtxDeclaration.isInput?: boolean` (US-065).
+- Backend `TemporalClientService.startGraphWorkflow()` accepts optional `documentId` + skips doc-specific seeding when absent (US-066).
+- Backend `GET /api/workflows/:id/run-spec` returning `{ triggerUrl, inputSchema, authNotes, sampleCurl }` (US-067).
+- Pure helper `deriveInputSchema(config)`: library `metadata.inputs[]` vs regular ctx `isInput: true` (US-068).
+- Backend `POST /api/workflows/:id/runs` with body validation + Temporal trigger (US-069).
+- Frontend `WorkflowSettingsDrawer` ctx-row `isInput` checkbox (US-070).
+- Frontend `RunWorkflowDrawer` — trigger URL + schema rows + sample curl + auth notes (US-071), paste-JSON-and-run (US-072), top-bar button (US-073).
+- Frontend `WorkflowListPage` `SegmentedControl` (Workflows / Libraries / All) + backend `?kind=all` support (US-074).
+- End-to-end Playwright walkthrough (US-075).
 
 ### Phase 2 Track 1 — done. Don't re-implement.
 
@@ -278,6 +319,9 @@ ai-adoption-document-intelligence/
 │       │   │   ├── SaveAsLibraryModal.tsx
 │       │   │   ├── LibraryPortListEditor.tsx
 │       │   │   └── LibraryPickerModal.tsx
+│       │   ├── run/            ← NEW in Phase 2 Track 2
+│       │   │   ├── RunWorkflowDrawer.tsx
+│       │   │   └── build-stub-input.ts
 │       │   ├── palette/
 │       │   │   ├── ActivityPalette.tsx
 │       │   │   ├── control-flow-palette-entries.ts
@@ -339,9 +383,12 @@ Phase 2 Track 1 lives at:
 
 - `feature-docs/20260526-workflow-builder-phase2-library-workflows/` — US-054 → US-064 (Milestones A → E). REQUIREMENTS.md documents the five locked decisions D1-D5 (schema discriminator extends `WorkflowKind`; "Save as library" creates a new record; default endpoint excludes library; `LibraryPortDescriptor` shape; declarations live on `GraphMetadata`).
 
-Phase 2 Tracks 2 + 3 should start new feature-doc dirs, e.g.:
+Phase 2 Track 2 lives at:
 
-- `feature-docs/20260527-workflow-builder-phase2-workflow-as-api/`
+- `feature-docs/20260527-workflow-builder-phase2-workflow-as-api/` — US-065 → US-075 (Milestones A → E). REQUIREMENTS.md documents the five locked decisions D1-D5 (trigger URL is `POST /api/workflows/:id/runs`; regular workflows derive inputs from `CtxDeclaration.isInput`; library nav is a `SegmentedControl` on `/workflows`; Run panel actually starts Temporal runs; trigger URL is derived server-side from `Host` + `X-Forwarded-Proto`).
+
+Phase 2 Track 3 should start a new feature-doc dir, e.g.:
+
 - `feature-docs/20260528-workflow-builder-phase2-versioning-ui/`
 
 ---

@@ -64,7 +64,7 @@ endpoints → frontend drawer + filter → verification.
 - [x] **US-074** (`WorkflowListPage` kind filter SegmentedControl)
 
 ### Phase 4 — verification
-- [ ] **US-075** (end-to-end Playwright walkthrough; screenshots in `/tmp/wb-phase2-track2-verify/`)
+- [x] **US-075** (end-to-end Playwright walkthrough; screenshots in `/tmp/wb-phase2-track2-verify/`)
 
 > Phase 1 must land + Vite restart before Phase 3 starts (because the
 > frontend imports the new `CtxDeclaration.isInput` field). Phase 2
