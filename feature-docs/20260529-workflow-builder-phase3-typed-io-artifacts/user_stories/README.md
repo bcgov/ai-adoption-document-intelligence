@@ -73,8 +73,8 @@ Phase 3 has a clear linear backbone (shared package → backend → frontend →
 - [x] **US-094** (library path depth-check) — sibling pass in the same validator entrypoint; independent of US-093 but shares the validator file
 
 ### Phase 3 — frontend canvas rendering (depends on Phase 1 + Vite restart)
-- [ ] **US-095** (handle colour + hover tooltip) — consumes `ARTIFACT_REGISTRY` (US-090) + new `kind?` fields on ports (US-092)
-- [ ] **US-096** (on-selection type pill) — independent of US-095 but visually adjacent; can land in parallel
+- [x] **US-095** (handle colour + hover tooltip) — consumes `ARTIFACT_REGISTRY` (US-090) + new `kind?` fields on ports (US-092)
+- [x] **US-096** (on-selection type pill) — independent of US-095 but visually adjacent; can land in parallel
 
 ### Phase 4 — frontend picker dim (depends on Phase 1 + Phase 3 patterns)
 - [ ] **US-097** (variable picker compatible-first + dim + tooltip) — consumes `isAssignable` (US-091) + same kind-resolution helper as US-093

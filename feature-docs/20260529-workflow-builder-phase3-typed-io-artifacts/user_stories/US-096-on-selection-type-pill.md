@@ -6,14 +6,14 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Single-port node selected → one-line badge near each handle
+- [x] **Scenario 1**: Single-port node selected → one-line badge near each handle
     - **Given** a selected `document.split` node (single typed output `segments: Segment[]`)
     - **When** the canvas renders the selection
     - **Then** a Mantine `<Badge>` renders adjacent to the output handle showing the kind literal `"SEGMENT[]"` (uppercase, single-line)
     - **And** if the same node had a single typed input, an analogous badge renders adjacent to the input handle
     - **And** the badge colour matches the handle's kind palette colour (green for Segment, blue for Document, etc.) — colour redundancy is intentional for accessibility
 
-- [ ] **Scenario 2**: Multi-port node selected → expanded list pill
+- [x] **Scenario 2**: Multi-port node selected → expanded list pill
     - **Given** a selected `document.classify` node (inputs `ocrResult: OcrResult`, `segment: Segment`; outputs `segmentType: Classification`, `confidence: Artifact`, `matchedRule: Artifact`)
     - **When** the canvas renders the selection
     - **Then** the input-side pill expands to a stacked list: `"ocrResult: OcrResult"`, `"segment: Segment"`
@@ -21,13 +21,13 @@
     - **And** each row in the expanded pill is colour-coded by that port's kind (Artifact wildcards render gray)
     - **And** the pill is positioned next to the (gray) handle, not overlapping the node body
 
-- [ ] **Scenario 3**: Pill hides when the node is deselected
+- [x] **Scenario 3**: Pill hides when the node is deselected
     - **Given** a selected node with its pill visible
     - **When** the user clicks empty canvas (deselecting) or selects another node
     - **Then** the pill disappears from the originally-selected node
     - **And** the new selection's pill (if any) renders correctly
 
-- [ ] **Scenario 4**: Pill renders nothing when no ports declare a kind
+- [x] **Scenario 4**: Pill renders nothing when no ports declare a kind
     - **Given** a selected legacy node (no `kind` annotations anywhere — pre-Phase-3 unfanned entries)
     - **When** the canvas renders the selection
     - **Then** no pill renders on either side

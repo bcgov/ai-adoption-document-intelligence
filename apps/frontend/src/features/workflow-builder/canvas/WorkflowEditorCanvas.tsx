@@ -25,6 +25,7 @@
 import "@xyflow/react/dist/style.css";
 
 import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
+import { Tooltip } from "@mantine/core";
 import {
   Background,
   type Connection,
@@ -70,7 +71,9 @@ import {
   projectGroupedConfig,
 } from "./group-projection";
 import { HoverExtendPopover } from "./HoverExtendPopover";
+import { computeHandleStyle, type HandleStyle } from "./handle-style";
 import { NodeContextMenu } from "./NodeContextMenu";
+import { NodeTypePill, type NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
 import { nextNodePosition } from "./place-extended-node";
 import { swapActivityType } from "./swap-node-type";
@@ -134,6 +137,22 @@ interface CommonNodeData extends Record<string, unknown> {
     anchor: { x: number; y: number },
   ) => void;
   onSourceHandleLeave?: (nodeId: string) => void;
+  /**
+   * Pre-computed kind-aware styling for the node's single input + output
+   * handle (US-095). The projection layer derives these from the catalog
+   * entry's port kinds — the renderer just consumes them.
+   */
+  inputHandleStyle: HandleStyle;
+  outputHandleStyle: HandleStyle;
+  /**
+   * Pre-computed per-port entries used by the on-selection type pill
+   * (US-096). The projection layer derives these from the activity
+   * catalog entry's `inputs[]` / `outputs[]` — each entry carries the
+   * port name + the declared `KindRef` (or `undefined` for legacy
+   * un-typed descriptors). Control-flow nodes pass `[]` on both sides.
+   */
+  inputPillEntries: NodeTypePillEntry[];
+  outputPillEntries: NodeTypePillEntry[];
 }
 
 interface ActivityNodeData extends CommonNodeData {
@@ -297,7 +316,6 @@ const ValidationBadge = memo(function ValidationBadge({
 interface NodeHandlesProps {
   /** Id of the node owning these handles — used by the hover bridge. */
   nodeId: string;
-  accent: string;
   /**
    * When supplied with `onError === "fallback"`, the renderer mounts a
    * second source handle (`id="error"`) on the bottom of the node so
@@ -318,16 +336,56 @@ interface NodeHandlesProps {
     anchor: { x: number; y: number },
   ) => void;
   onSourceHandleLeave?: (nodeId: string) => void;
+  /** Kind-aware styles for the input + output handles (US-095). */
+  inputHandleStyle: HandleStyle;
+  outputHandleStyle: HandleStyle;
+  /**
+   * Per-port entries the on-selection type pill consumes (US-096). The
+   * pill renders only when `selected` is `true` AND the entries declare
+   * at least one typed port — both side-effects are handled inside
+   * `NodeTypePill` so this component just forwards.
+   */
+  inputPillEntries: NodeTypePillEntry[];
+  outputPillEntries: NodeTypePillEntry[];
+  /**
+   * True when this node is the current xyflow selection. Drives the
+   * on-selection type pill visibility (US-096 Scenario 3 — pill hides
+   * on deselection).
+   */
+  selected: boolean;
 }
 
 const ERROR_HANDLE_BACKGROUND = "#e03131";
 
+/**
+ * Translates a Mantine colour name from `HandleStyle.color` into the
+ * matching theme CSS variable, then renders the handle dot background.
+ * Falls back to the literal value (so `"gray"` still resolves) when the
+ * variable isn't defined in the current theme.
+ */
+function handleBackground(color: string): string {
+  return `var(--mantine-color-${color}-6, ${color})`;
+}
+
+/**
+ * Lighter outline tone used to signal array cardinality on a kind-
+ * coloured handle dot. Picks shade `3` for a faded ring against shade
+ * `6`'s saturated dot.
+ */
+function handleArrayOutline(color: string): string {
+  return `var(--mantine-color-${color}-3, ${color})`;
+}
+
 const NodeHandles = memo(function NodeHandles({
   nodeId,
-  accent,
   errorPolicy,
   onSourceHandleEnter,
   onSourceHandleLeave,
+  inputHandleStyle,
+  outputHandleStyle,
+  inputPillEntries,
+  outputPillEntries,
+  selected,
 }: NodeHandlesProps) {
   const showErrorHandle = errorPolicy?.onError === "fallback";
   const handleEnter = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -341,21 +399,116 @@ const NodeHandles = memo(function NodeHandles({
   const handleLeave = () => {
     onSourceHandleLeave?.(nodeId);
   };
+
+  // Doubled-outline cue for `T[]` cardinality (US-095 Scenario 1).
+  // Applied via inline outline so it nests around the existing handle
+  // dot without requiring extra DOM. `outline` (not `border`) is used
+  // because it doesn't affect layout / handle hit-testing.
+  const inputArrayOutline = inputHandleStyle.isArray
+    ? {
+        outline: `2px solid ${handleArrayOutline(inputHandleStyle.color)}`,
+        outlineOffset: "2px",
+      }
+    : {};
+  const outputArrayOutline = outputHandleStyle.isArray
+    ? {
+        outline: `2px solid ${handleArrayOutline(outputHandleStyle.color)}`,
+        outlineOffset: "2px",
+      }
+    : {};
+
   return (
     <>
-      <Handle
-        type="target"
-        position={Position.Left}
-        style={{ background: accent }}
-      />
-      <Handle
-        id="out"
-        type="source"
-        position={Position.Right}
-        style={{ background: accent }}
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
-      />
+      <Tooltip label={inputHandleStyle.tooltipText} withArrow position="left">
+        <span
+          data-testid={`port-tooltip-input-${nodeId}`}
+          data-port-direction="input"
+          data-port-color={inputHandleStyle.color}
+          data-port-array={inputHandleStyle.isArray ? "true" : "false"}
+          data-port-multi={inputHandleStyle.isMultiPort ? "true" : "false"}
+          data-port-tooltip={inputHandleStyle.tooltipText}
+        >
+          <Handle
+            type="target"
+            position={Position.Left}
+            style={{
+              background: handleBackground(inputHandleStyle.color),
+              ...inputArrayOutline,
+            }}
+          />
+        </span>
+      </Tooltip>
+      {/*
+        On-selection type pill — input side (US-096). Anchored to the
+        node's left edge (where xyflow pins the input handle) and
+        offset further left by 14px so the badge sits outside the
+        node body. `translateX(-100%)` flips the badge's own width to
+        the left so it doesn't overlap the handle dot. The wrapper
+        uses `pointerEvents: 'none'` so the pill never steals
+        pointer interactions from the handle or the node body.
+      */}
+      <div
+        data-pill-anchor="input"
+        style={{
+          position: "absolute",
+          left: -14,
+          top: "50%",
+          transform: "translate(-100%, -50%)",
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      >
+        <NodeTypePill
+          entries={inputPillEntries}
+          direction="input"
+          hidden={!selected}
+        />
+      </div>
+      <Tooltip label={outputHandleStyle.tooltipText} withArrow position="right">
+        <span
+          data-testid={`port-tooltip-output-${nodeId}`}
+          data-port-direction="output"
+          data-port-color={outputHandleStyle.color}
+          data-port-array={outputHandleStyle.isArray ? "true" : "false"}
+          data-port-multi={outputHandleStyle.isMultiPort ? "true" : "false"}
+          data-port-tooltip={outputHandleStyle.tooltipText}
+        >
+          <Handle
+            id="out"
+            type="source"
+            position={Position.Right}
+            style={{
+              background: handleBackground(outputHandleStyle.color),
+              ...outputArrayOutline,
+            }}
+            onMouseEnter={handleEnter}
+            onMouseLeave={handleLeave}
+          />
+        </span>
+      </Tooltip>
+      {/*
+        On-selection type pill — output side (US-096). Mirrors the
+        input-side anchor: pinned to the node's right edge with a 14px
+        gutter. No `translateX(-100%)` here because the pill grows to
+        the right of its anchor.
+      */}
+      <div
+        data-pill-anchor="output"
+        style={{
+          position: "absolute",
+          right: -14,
+          top: "50%",
+          transform: "translate(100%, -50%)",
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      >
+        <NodeTypePill
+          entries={outputPillEntries}
+          direction="output"
+          hidden={!selected}
+        />
+      </div>
       {showErrorHandle && (
         <Handle
           id="error"
@@ -444,10 +597,14 @@ const ActivityNodeRenderer = memo(
         <div style={{ fontWeight: 600 }}>{data.label}</div>
         <NodeHandles
           nodeId={id}
-          accent={accent}
           errorPolicy={data.errorPolicy}
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
+          inputHandleStyle={data.inputHandleStyle}
+          outputHandleStyle={data.outputHandleStyle}
+          inputPillEntries={data.inputPillEntries}
+          outputPillEntries={data.outputPillEntries}
+          selected={selected ?? false}
         />
       </div>
     );
@@ -579,10 +736,14 @@ const ControlFlowRectangleRenderer = memo(
         <div style={{ fontWeight: 600 }}>{data.label}</div>
         <NodeHandles
           nodeId={id}
-          accent={accent}
           errorPolicy={data.errorPolicy}
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
+          inputHandleStyle={data.inputHandleStyle}
+          outputHandleStyle={data.outputHandleStyle}
+          inputPillEntries={data.inputPillEntries}
+          outputPillEntries={data.outputPillEntries}
+          selected={selected ?? false}
         />
       </div>
     );
@@ -681,9 +842,13 @@ const SwitchNodeRenderer = memo(
         />
         <NodeHandles
           nodeId={id}
-          accent={accent}
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
+          inputHandleStyle={data.inputHandleStyle}
+          outputHandleStyle={data.outputHandleStyle}
+          inputPillEntries={data.inputPillEntries}
+          outputPillEntries={data.outputPillEntries}
+          selected={selected ?? false}
         />
       </div>
     );
@@ -718,6 +883,91 @@ interface ProjectionCallbacks {
   onSourceHandleLeave: ((nodeId: string) => void) | undefined;
 }
 
+/**
+ * Per-side projection shape consumed by the node renderers — bundles the
+ * US-095 handle style with the US-096 pill entries derived from the same
+ * catalog descriptor.
+ */
+interface SideProjection {
+  handleStyle: HandleStyle;
+  pillEntries: NodeTypePillEntry[];
+}
+
+/**
+ * Derives the input + output `HandleStyle` pair PLUS the pill entries for
+ * an activity node from its catalog entry. Activities without a registered
+ * catalog entry fall back to the wildcard / multi-port style (gray +
+ * "Multiple …" tooltip) and empty pill entries — the same shape
+ * control-flow nodes get today.
+ */
+function activityNodeSides(activityType: string): {
+  input: SideProjection;
+  output: SideProjection;
+} {
+  const entry = getActivityCatalogEntry(activityType);
+  if (!entry) {
+    return {
+      input: {
+        handleStyle: computeHandleStyle({ portKinds: [], direction: "input" }),
+        pillEntries: [],
+      },
+      output: {
+        handleStyle: computeHandleStyle({ portKinds: [], direction: "output" }),
+        pillEntries: [],
+      },
+    };
+  }
+  const inputPillEntries: NodeTypePillEntry[] = entry.inputs.map((p) => ({
+    portName: p.name,
+    kind: p.kind,
+  }));
+  const outputPillEntries: NodeTypePillEntry[] = entry.outputs.map((p) => ({
+    portName: p.name,
+    kind: p.kind,
+  }));
+  return {
+    input: {
+      handleStyle: computeHandleStyle({
+        portKinds: entry.inputs.map((p) => p.kind),
+        direction: "input",
+      }),
+      pillEntries: inputPillEntries,
+    },
+    output: {
+      handleStyle: computeHandleStyle({
+        portKinds: entry.outputs.map((p) => p.kind),
+        direction: "output",
+      }),
+      pillEntries: outputPillEntries,
+    },
+  };
+}
+
+/**
+ * Control-flow nodes (switch / map / join / childWorkflow / pollUntil /
+ * humanGate) have no `PortDescriptor.kind` declarations on the catalog
+ * today. They render as wildcard / multi-port — gray handles + the
+ * "Multiple inputs/outputs — select node to view all" tooltip — and no
+ * pill, until a future story types their I/O explicitly (e.g.
+ * childWorkflow nodes sourcing their kinds from
+ * `LibraryPortDescriptor.kind`).
+ */
+function controlFlowNodeSides(): {
+  input: SideProjection;
+  output: SideProjection;
+} {
+  return {
+    input: {
+      handleStyle: computeHandleStyle({ portKinds: [], direction: "input" }),
+      pillEntries: [],
+    },
+    output: {
+      handleStyle: computeHandleStyle({ portKinds: [], direction: "output" }),
+      pillEntries: [],
+    },
+  };
+}
+
 function projectFlowNodes(
   config: GraphWorkflowConfig,
   selectedNodeId: string | null,
@@ -728,6 +978,7 @@ function projectFlowNodes(
     const position = readPosition(node, idx);
     const isEntry = node.id === config.entryNodeId;
     if (node.type === "activity") {
+      const sides = activityNodeSides(node.activityType);
       const flowNode: ActivityFlowNode = {
         id: node.id,
         type: "activity",
@@ -743,11 +994,16 @@ function projectFlowNodes(
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
+          inputHandleStyle: sides.input.handleStyle,
+          outputHandleStyle: sides.output.handleStyle,
+          inputPillEntries: sides.input.pillEntries,
+          outputPillEntries: sides.output.pillEntries,
         },
       };
       return flowNode;
     }
     if (isControlFlowType(node.type)) {
+      const sides = controlFlowNodeSides();
       const flowNode: ControlFlowFlowNode = {
         id: node.id,
         type: node.type,
@@ -763,6 +1019,10 @@ function projectFlowNodes(
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
+          inputHandleStyle: sides.input.handleStyle,
+          outputHandleStyle: sides.output.handleStyle,
+          inputPillEntries: sides.input.pillEntries,
+          outputPillEntries: sides.output.pillEntries,
         },
       };
       return flowNode;
