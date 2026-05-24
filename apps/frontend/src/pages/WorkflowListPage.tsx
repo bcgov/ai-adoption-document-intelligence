@@ -5,6 +5,7 @@ import {
   Card,
   Group,
   Modal,
+  SegmentedControl,
   Stack,
   Switch,
   Table,
@@ -27,15 +28,21 @@ import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
 import type { WorkflowTemplate } from "../features/workflow-builder/templates";
 import { TemplatesPickerModal } from "../features/workflow-builder/templates/TemplatesPickerModal";
 
+type KindTab = "workflow" | "library" | "all";
+
 export function WorkflowListPage() {
   const navigate = useNavigate();
   const [showBenchmarkCandidates, setShowBenchmarkCandidates] = useState(false);
+  const [kindTab, setKindTab] = useState<KindTab>("workflow");
   const {
     data: workflows,
     isLoading,
     error,
   } = useWorkflows({
     includeBenchmarkCandidates: showBenchmarkCandidates,
+    // "workflow" matches the legacy default — passing undefined keeps the
+    // backend's current behavior (primary lineages, libraries excluded).
+    kind: kindTab === "workflow" ? undefined : kindTab,
   });
   const deleteWorkflowMutation = useDeleteWorkflow();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -82,18 +89,71 @@ export function WorkflowListPage() {
     setWorkflowToDelete(null);
   };
 
+  const topBar = (
+    <Group justify="space-between">
+      <Stack gap={2}>
+        <Title order={2}>Workflows</Title>
+        <Text c="dimmed" size="sm">
+          Create and manage custom OCR processing workflows
+        </Text>
+      </Stack>
+      <Group gap="md" align="center">
+        <SegmentedControl
+          value={kindTab}
+          onChange={(v) => setKindTab(v as KindTab)}
+          data={[
+            { label: "Workflows", value: "workflow" },
+            { label: "Libraries", value: "library" },
+            { label: "All", value: "all" },
+          ]}
+          size="xs"
+          data-testid="workflow-kind-filter"
+        />
+        <Switch
+          checked={showBenchmarkCandidates}
+          onChange={(e) => setShowBenchmarkCandidates(e.currentTarget.checked)}
+          label="Show benchmark candidates"
+        />
+        <Button
+          variant="light"
+          leftSection={<IconTemplate size={16} />}
+          onClick={() => setTemplatesOpen(true)}
+        >
+          New from template
+        </Button>
+        <Button
+          leftSection={<IconPlus size={16} />}
+          onClick={() => navigate("/workflows/create")}
+        >
+          Create Workflow
+        </Button>
+      </Group>
+    </Group>
+  );
+
+  const emptyStateMessage =
+    kindTab === "library"
+      ? {
+          title: "No library workflows yet",
+          body: "Use 'Save as library' in the visual editor to create one.",
+        }
+      : {
+          title: "No workflows yet",
+          body: "Create your first workflow to customize OCR processing steps and parameters.",
+        };
+
   let main: ReactNode;
   if (isLoading) {
     main = (
       <Stack gap="lg">
-        <Title order={2}>Workflows</Title>
+        {topBar}
         <Text c="dimmed">Loading workflows...</Text>
       </Stack>
     );
   } else if (error) {
     main = (
       <Stack gap="lg">
-        <Title order={2}>Workflows</Title>
+        {topBar}
         <Text c="red">
           {error instanceof Error ? error.message : "Failed to load workflows"}
         </Text>
@@ -102,29 +162,7 @@ export function WorkflowListPage() {
   } else if (!workflows || workflows.length === 0) {
     main = (
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Stack gap={2}>
-            <Title order={2}>Workflows</Title>
-            <Text c="dimmed" size="sm">
-              Create and manage custom OCR processing workflows
-            </Text>
-          </Stack>
-          <Group gap="xs">
-            <Button
-              variant="light"
-              leftSection={<IconTemplate size={16} />}
-              onClick={() => setTemplatesOpen(true)}
-            >
-              New from template
-            </Button>
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => navigate("/workflows/create")}
-            >
-              Create Workflow
-            </Button>
-          </Group>
-        </Group>
+        {topBar}
 
         <Card shadow="sm" radius="md" p="xl" withBorder>
           <Stack align="center" gap="md">
@@ -135,28 +173,29 @@ export function WorkflowListPage() {
             />
             <Stack gap={4} align="center">
               <Text fw={500} size="lg">
-                No workflows yet
+                {emptyStateMessage.title}
               </Text>
               <Text c="dimmed" size="sm" ta="center">
-                Create your first workflow to customize OCR processing steps and
-                parameters
+                {emptyStateMessage.body}
               </Text>
             </Stack>
-            <Group gap="xs" mt="md">
-              <Button
-                variant="light"
-                leftSection={<IconTemplate size={16} />}
-                onClick={() => setTemplatesOpen(true)}
-              >
-                Start from a template
-              </Button>
-              <Button
-                leftSection={<IconPlus size={16} />}
-                onClick={() => navigate("/workflows/create")}
-              >
-                Create Your First Workflow
-              </Button>
-            </Group>
+            {kindTab !== "library" && (
+              <Group gap="xs" mt="md">
+                <Button
+                  variant="light"
+                  leftSection={<IconTemplate size={16} />}
+                  onClick={() => setTemplatesOpen(true)}
+                >
+                  Start from a template
+                </Button>
+                <Button
+                  leftSection={<IconPlus size={16} />}
+                  onClick={() => navigate("/workflows/create")}
+                >
+                  Create Your First Workflow
+                </Button>
+              </Group>
+            )}
           </Stack>
         </Card>
       </Stack>
@@ -164,36 +203,7 @@ export function WorkflowListPage() {
   } else {
     main = (
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Stack gap={2}>
-            <Title order={2}>Workflows</Title>
-            <Text c="dimmed" size="sm">
-              Create and manage custom OCR processing workflows
-            </Text>
-          </Stack>
-          <Group gap="md" align="center">
-            <Switch
-              checked={showBenchmarkCandidates}
-              onChange={(e) =>
-                setShowBenchmarkCandidates(e.currentTarget.checked)
-              }
-              label="Show benchmark candidates"
-            />
-            <Button
-              variant="light"
-              leftSection={<IconTemplate size={16} />}
-              onClick={() => setTemplatesOpen(true)}
-            >
-              New from template
-            </Button>
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => navigate("/workflows/create")}
-            >
-              Create Workflow
-            </Button>
-          </Group>
-        </Group>
+        {topBar}
 
         <Card shadow="sm" radius="md" p="md" withBorder>
           <Table>

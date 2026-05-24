@@ -57,11 +57,11 @@ endpoints → frontend drawer + filter → verification.
 - [x] **US-069** (POST `/api/workflows/:id/runs` endpoint + DTOs + integration)
 
 ### Phase 3 — frontend
-- [ ] **US-070** (`WorkflowSettingsDrawer` `isInput` checkbox)
-- [ ] **US-071** (`RunWorkflowDrawer` static content: URL + schema + curl)
-- [ ] **US-072** (`RunWorkflowDrawer` paste-and-run wiring)
-- [ ] **US-073** ("Run this workflow" top-bar button in `WorkflowEditorV2Page`)
-- [ ] **US-074** (`WorkflowListPage` kind filter SegmentedControl)
+- [x] **US-070** (`WorkflowSettingsDrawer` `isInput` checkbox)
+- [x] **US-071** (`RunWorkflowDrawer` static content: URL + schema + curl)
+- [x] **US-072** (`RunWorkflowDrawer` paste-and-run wiring)
+- [x] **US-073** ("Run this workflow" top-bar button in `WorkflowEditorV2Page`)
+- [x] **US-074** (`WorkflowListPage` kind filter SegmentedControl)
 
 ### Phase 4 — verification
 - [ ] **US-075** (end-to-end Playwright walkthrough; screenshots in `/tmp/wb-phase2-track2-verify/`)

@@ -15,6 +15,7 @@ import {
   ActionIcon,
   Box,
   Button,
+  Checkbox,
   Divider,
   Drawer,
   Group,
@@ -23,6 +24,7 @@ import {
   TagsInput,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -302,6 +304,27 @@ function CtxRow({
         }
         style={{ flex: 3, minWidth: 0 }}
       />
+      <Tooltip
+        label="Mark this ctx entry as a caller-supplied input. Surfaced in the workflow's Run panel and the /run-spec endpoint."
+        multiline
+        w={260}
+        withArrow
+        position="top"
+      >
+        <Checkbox
+          label="Input"
+          size="xs"
+          checked={declaration.isInput === true}
+          onChange={(e) =>
+            onUpdate({
+              ...declaration,
+              isInput: e.currentTarget.checked ? true : undefined,
+            })
+          }
+          mb={4}
+          aria-label={`Mark ${ctxKey} as caller-supplied input`}
+        />
+      </Tooltip>
       <ActionIcon
         variant="subtle"
         color="red"

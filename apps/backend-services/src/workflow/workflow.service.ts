@@ -50,8 +50,13 @@ export interface WorkflowVersionSummary {
  * Prisma `WorkflowKind` enum: `"workflow"` ↔ `primary`,
  * `"library"` ↔ `library`. Internal `benchmark_candidate` is reached
  * via the orthogonal `includeBenchmarkCandidates` flag.
+ *
+ * `"all"` is a special value used by the workflow-list page's filter
+ * chip — it disables both the kind filter AND the default library
+ * exclusion, returning every lineage (still respecting
+ * `includeBenchmarkCandidates`).
  */
-export type WorkflowKindFilter = "workflow" | "library";
+export type WorkflowKindFilter = "workflow" | "library" | "all";
 
 export interface CreateWorkflowDto {
   name: string;
@@ -62,9 +67,10 @@ export interface CreateWorkflowDto {
    * Workflow kind. `"workflow"` (or absent) creates a regular
    * `primary` lineage; `"library"` creates a reusable building-block
    * whose declared `metadata.inputs[]` / `metadata.outputs[]` define
-   * its signature.
+   * its signature. (`"all"` is a list-filter-only value, not a
+   * creatable kind.)
    */
-  kind?: WorkflowKindFilter;
+  kind?: "workflow" | "library";
 }
 
 /** Options for the three workflow-listing service methods. */
@@ -89,12 +95,22 @@ function buildWorkflowKindWhere(
 ):
   | { workflow_kind: "primary" | "library" }
   | { workflow_kind: { not: "library" } }
+  | { workflow_kind: "primary" | "benchmark_candidate" }
   | {} {
   if (options?.kind === "library") {
     return { workflow_kind: "library" };
   }
   if (options?.kind === "workflow") {
-    return { workflow_kind: "primary" };
+    return options.includeBenchmarkCandidates
+      ? { workflow_kind: { not: "library" } as const }
+      : { workflow_kind: "primary" };
+  }
+  if (options?.kind === "all") {
+    // Return everything (no filter), still honoring includeBenchmarkCandidates
+    // by default. When false, benchmark candidates are excluded.
+    return options.includeBenchmarkCandidates
+      ? {}
+      : { workflow_kind: { not: "benchmark_candidate" } as const };
   }
   if (options?.includeBenchmarkCandidates) {
     return { workflow_kind: { not: "library" } };

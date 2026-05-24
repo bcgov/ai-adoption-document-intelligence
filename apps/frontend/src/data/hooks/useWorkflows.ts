@@ -41,8 +41,14 @@ interface WorkflowResponse {
 
 export function useWorkflows(options?: {
   includeBenchmarkCandidates?: boolean;
-  /** Filter by workflow kind. Omit to return non-library workflows. */
-  kind?: "workflow" | "library";
+  /**
+   * Filter by workflow kind:
+   * - `"workflow"` — primary lineages only (current default behavior)
+   * - `"library"` — library workflows only
+   * - `"all"` — every kind, still honoring `includeBenchmarkCandidates`
+   * - omitted — primary lineages only (default; libraries excluded)
+   */
+  kind?: "workflow" | "library" | "all";
 }) {
   const { activeGroup } = useGroup();
   const includeBenchmarkCandidates = Boolean(
@@ -161,6 +167,82 @@ export interface WorkflowVersionSummary {
   id: string;
   versionNumber: number;
   createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 Track 2 — Workflow-as-API
+// ---------------------------------------------------------------------------
+
+/**
+ * Mirror of backend's `RunSpecInputSchemaPropertyDto`. Minimal subset of
+ * JSON Schema used by the Run drawer.
+ */
+export interface RunSpecInputSchemaProperty {
+  type: "string" | "number" | "boolean" | "object" | "array";
+  title?: string;
+  description?: string;
+  default?: unknown;
+}
+
+export interface RunSpecInputSchema {
+  type: "object";
+  properties: Record<string, RunSpecInputSchemaProperty>;
+  required: string[];
+}
+
+export interface WorkflowRunSpec {
+  triggerUrl: string;
+  inputSchema: RunSpecInputSchema;
+  authNotes: string;
+  sampleCurl: string;
+}
+
+export interface StartRunRequest {
+  initialCtx?: Record<string, unknown>;
+  workflowVersionId?: string;
+}
+
+export interface StartRunResponse {
+  workflowId: string;
+  workflowVersionId: string;
+  status: "started";
+}
+
+export function useWorkflowRunSpec(workflowId: string | undefined) {
+  return useQuery({
+    queryKey: ["workflow-run-spec", workflowId],
+    queryFn: async (): Promise<WorkflowRunSpec> => {
+      const response = await apiService.get<WorkflowRunSpec>(
+        `/workflows/${workflowId}/run-spec`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch run-spec");
+      }
+      return response.data;
+    },
+    enabled: !!workflowId,
+  });
+}
+
+export function useStartWorkflowRun() {
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      body,
+    }: {
+      workflowId: string;
+      body: StartRunRequest;
+    }): Promise<StartRunResponse> => {
+      const response = await apiService.post<StartRunResponse>(
+        `/workflows/${workflowId}/runs`,
+        body,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to start workflow run");
+      }
+      return response.data;
+    },
+  });
 }
 
 export function useWorkflowVersions(lineageId: string | undefined) {

@@ -44,6 +44,7 @@ import {
   IconExclamationCircle,
   IconHelp,
   IconLayoutDistributeHorizontal,
+  IconPlayerPlay,
   IconSettings,
   IconUsersGroup,
 } from "@tabler/icons-react";
@@ -76,6 +77,7 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "./palette/control-flow-skeletons";
+import { RunWorkflowDrawer } from "./run/RunWorkflowDrawer";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
 import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
 import type { WorkflowTemplate } from "./templates";
@@ -182,6 +184,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
   const [saveAsLibraryOpen, setSaveAsLibraryOpen] = useState(false);
+  const [runDrawerOpen, setRunDrawerOpen] = useState(false);
   const [validationFocusNodeId, setValidationFocusNodeId] = useState<
     string | null
   >(null);
@@ -579,6 +582,21 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           </Button>
           <Button
             variant="light"
+            leftSection={<IconPlayerPlay size={14} />}
+            onClick={() => setRunDrawerOpen(true)}
+            size="xs"
+            data-testid="run-this-workflow-button"
+            disabled={!isEditMode || !workflowId}
+            title={
+              !isEditMode || !workflowId
+                ? "Save the workflow first to enable Run."
+                : "Open the run-trigger panel for this workflow"
+            }
+          >
+            Run this workflow
+          </Button>
+          <Button
+            variant="light"
             leftSection={<IconBookmark size={14} />}
             onClick={() => setSaveAsLibraryOpen(true)}
             size="xs"
@@ -629,6 +647,14 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         isSaving={createWorkflow.isPending}
         onSubmit={handleSaveAsLibrary}
       />
+
+      {isEditMode && workflowId && (
+        <RunWorkflowDrawer
+          opened={runDrawerOpen}
+          onClose={() => setRunDrawerOpen(false)}
+          workflowId={workflowId}
+        />
+      )}
 
       <Box
         style={{

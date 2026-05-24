@@ -8,48 +8,48 @@ browser or wiring up a separate curl invocation.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: "Paste JSON & run" section is present in the drawer
+- [x] **Scenario 1**: "Paste JSON & run" section is present in the drawer
     - **Given** the `RunWorkflowDrawer` from US-071
     - **When** it renders
     - **Then** a section labeled "Test run" (or similar) is present at the bottom of the drawer
     - **And** the section contains a Mantine `<JsonInput>` (or `<Textarea>` with JSON formatting) prefilled with a stub body that matches the input schema
     - **And** a Mantine `<Button>` labeled "Run"
 
-- [ ] **Scenario 2**: Stub body is auto-generated from the schema
+- [x] **Scenario 2**: Stub body is auto-generated from the schema
     - **Given** an input schema with `{ properties: { customerId: { type: "string" }, count: { type: "number", default: 5 } } }`
     - **When** the section renders
     - **Then** the JsonInput is prefilled with `{ "customerId": "", "count": 5 }` (default if present, type-appropriate stub otherwise: `""` for string, `0` for number, `false` for boolean, `{}` for object, `[]` for array)
 
-- [ ] **Scenario 3**: Run button POSTs and shows the result
+- [x] **Scenario 3**: Run button POSTs and shows the result
     - **Given** a valid JSON body in the JsonInput
     - **When** the user clicks "Run"
     - **Then** the drawer POSTs to `/api/workflows/:workflowId/runs` with body `{ initialCtx: <parsed JSON> }`
     - **And** on 201 response, a success state shows the returned `workflowId` in a `<Code>` block with a copy button
     - **And** a Mantine notification fires ("Workflow run started: <workflowId>")
 
-- [ ] **Scenario 4**: Run button disabled when JSON is invalid
+- [x] **Scenario 4**: Run button disabled when JSON is invalid
     - **Given** the JsonInput contains unparseable JSON
     - **When** the user looks at the Run button
     - **Then** the Run button is disabled
     - **And** the JsonInput shows an inline parse error (Mantine's default behavior)
 
-- [ ] **Scenario 5**: Backend 400 → inline error
+- [x] **Scenario 5**: Backend 400 → inline error
     - **Given** the backend returns `400 { message: "missing required field customerId" }`
     - **When** the user clicks Run
     - **Then** a Mantine `Alert` appears under the Run button with the message
     - **And** no success state is shown
 
-- [ ] **Scenario 6**: Backend 401 / 5xx → fallback error
+- [x] **Scenario 6**: Backend 401 / 5xx → fallback error
     - **Given** the backend returns any non-2xx, non-400 status
     - **When** the user clicks Run
     - **Then** a Mantine `Alert` appears with a generic message ("Run failed: <status>") and the response body's `message` if present
 
-- [ ] **Scenario 7**: Run button shows a loading state during the request
+- [x] **Scenario 7**: Run button shows a loading state during the request
     - **Given** the user has clicked Run and the request is in-flight
     - **When** the button is observed
     - **Then** it shows the Mantine `loading` prop active and is disabled
 
-- [ ] **Scenario 8**: Vitest coverage
+- [x] **Scenario 8**: Vitest coverage
     - **Given** the component spec
     - **When** `npm test` runs
     - **Then** Scenarios 2, 3, 4, 5 are each covered with mocked fetch responses

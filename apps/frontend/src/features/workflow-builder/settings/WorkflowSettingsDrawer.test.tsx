@@ -1,0 +1,124 @@
+/**
+ * Tests for WorkflowSettingsDrawer — focused on the US-070 `isInput`
+ * checkbox in each ctx-declaration row.
+ */
+
+import "@testing-library/jest-dom";
+
+import { MantineProvider } from "@mantine/core";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { describe, expect, it } from "vitest";
+import type { GraphWorkflowConfig } from "../../../types/workflow";
+import { WorkflowSettingsDrawer } from "./WorkflowSettingsDrawer";
+
+function makeConfig(
+  overrides: Partial<GraphWorkflowConfig> = {},
+): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "Test" },
+    entryNodeId: "n1",
+    nodes: {
+      n1: {
+        id: "n1",
+        type: "activity",
+        label: "Noop",
+        activityType: "noop.activity",
+      },
+    },
+    edges: [],
+    ctx: {},
+    ...overrides,
+  };
+}
+
+const noop = () => undefined;
+
+function Harness({ initial }: { initial: GraphWorkflowConfig }) {
+  const [config, setConfig] = useState(initial);
+  return (
+    <MantineProvider>
+      <WorkflowSettingsDrawer
+        opened={true}
+        onClose={noop}
+        config={config}
+        onConfigChange={setConfig}
+      />
+    </MantineProvider>
+  );
+}
+
+describe("WorkflowSettingsDrawer — US-070 isInput checkbox", () => {
+  it("renders an Input checkbox per ctx row", () => {
+    render(
+      <Harness
+        initial={makeConfig({
+          ctx: {
+            customerId: { type: "string" },
+            optionalFlag: { type: "boolean" },
+          },
+        })}
+      />,
+    );
+    const checkboxes = screen.getAllByLabelText(
+      /Mark .* as caller-supplied input/,
+    );
+    expect(checkboxes).toHaveLength(2);
+    expect(checkboxes[0]).not.toBeChecked();
+    expect(checkboxes[1]).not.toBeChecked();
+  });
+
+  it("reflects persisted isInput: true as a checked box", () => {
+    render(
+      <Harness
+        initial={makeConfig({
+          ctx: {
+            customerId: { type: "string", isInput: true },
+            internalCounter: { type: "number" },
+          },
+        })}
+      />,
+    );
+    const customerCheckbox = screen.getByLabelText(
+      "Mark customerId as caller-supplied input",
+    );
+    const counterCheckbox = screen.getByLabelText(
+      "Mark internalCounter as caller-supplied input",
+    );
+    expect(customerCheckbox).toBeChecked();
+    expect(counterCheckbox).not.toBeChecked();
+  });
+
+  it("toggles isInput on click (unchecked → true)", () => {
+    render(
+      <Harness
+        initial={makeConfig({
+          ctx: { customerId: { type: "string" } },
+        })}
+      />,
+    );
+    const checkbox = screen.getByLabelText(
+      "Mark customerId as caller-supplied input",
+    );
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+  });
+
+  it("toggles isInput off (checked → omitted)", () => {
+    render(
+      <Harness
+        initial={makeConfig({
+          ctx: { customerId: { type: "string", isInput: true } },
+        })}
+      />,
+    );
+    const checkbox = screen.getByLabelText(
+      "Mark customerId as caller-supplied input",
+    );
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).not.toBeChecked();
+  });
+});

@@ -109,6 +109,14 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
     mutateAsync: async () => undefined,
     isPending: false,
   }),
+  // RunWorkflowDrawer is only mounted in edit mode (isEditMode &&
+  // workflowId), but the page imports its hooks unconditionally at
+  // module level, so the mock must surface them.
+  useWorkflowRunSpec: () => ({ data: undefined, isLoading: false }),
+  useStartWorkflowRun: () => ({
+    mutateAsync: async () => undefined,
+    isPending: false,
+  }),
 }));
 
 import type { WorkflowTemplate } from "./templates";

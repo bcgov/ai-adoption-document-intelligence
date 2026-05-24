@@ -60,6 +60,7 @@ import {
 const ALLOWED_WORKFLOW_KIND_FILTERS: readonly WorkflowKindFilter[] = [
   "workflow",
   "library",
+  "all",
 ];
 
 function parseWorkflowKindFilter(
@@ -103,9 +104,9 @@ export class WorkflowController {
   @ApiQuery({
     name: "kind",
     required: false,
-    enum: ["workflow", "library"],
+    enum: ["workflow", "library", "all"],
     description:
-      "Filter by workflow kind. When set, overrides the default filter (which excludes library workflows). Values: 'workflow' (primary lineages only) or 'library' (library workflows only).",
+      "Filter by workflow kind. When set, overrides the default filter (which excludes library workflows). Values: 'workflow' (primary lineages only), 'library' (library workflows only), or 'all' (every kind, still honoring includeBenchmarkCandidates).",
   })
   @ApiOkResponse({
     description:
