@@ -1,6 +1,6 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-23 (**Phase 2 Track 2 — workflow-as-API surfacing — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit (Milestones A → L: switch case-routed edges, validateFields rich editor, four other rich widgets, shared duration validation + pollUntil parameter validation, dagre auto-layout, Flow Control label renames, canvas context menu + node-type swap, hover-to-extend chains, group editing + simplified view + exposed-params). Phase 2 Track 1 added 4 commits (docs + Milestone A schema/types + Milestone B backend filter + Milestones C+D frontend modals). Phase 2 Track 2 added 4 commits (docs + Milestone A `CtxDeclaration.isInput` + Milestone B run-spec/runs backend + Milestones C+D frontend Run drawer + workflow-list `kind` filter). **53 commits ahead of `origin/AI-1192`** at Phase 2 Track 2 close, post-Playwright verification.
+**Last updated:** 2026-05-23 (**Phase 2 Track 3 — versioning UI — landed end-to-end**). Phase 1B landed 11 commits + a handoff-refresh docs commit. Phase 2 Track 1 added 4 commits. Phase 2 Track 2 added 4 commits. Phase 2 Track 3 added 7 commits (docs + Milestone A shared schema + Milestone B backend per-version run-spec / runs / get-version / engine version honoring + Milestone C frontend history drawer + revert + compare + Milestone D Run drawer per-version Select + Milestone E library version-pin + bugfix-and-verification). **60+ commits ahead of `origin/AI-1192`** at Phase 2 Track 3 close, post-Playwright verification. **Phase 2 is now fully closed; Phase 3 (typed I/O) is the next milestone.**
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
 
@@ -8,9 +8,35 @@
 
 ## TL;DR for the next AI
 
-Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 Track 1 is complete (2026-05-26). Phase 2 Track 2 is complete (2026-05-23). Phase 2 Track 3 (versioning UI) is the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
+Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 Track 1 is complete (2026-05-26). Phase 2 Track 2 is complete (2026-05-23). Phase 2 Track 3 (versioning UI) is complete (2026-05-23). Phase 2 is closed in full. Phase 3 (typed I/O artifacts) is the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
 
-**What shipped in Phase 2 Track 2 (this session, 2026-05-23):**
+**What shipped in Phase 2 Track 3 (this session, 2026-05-23):**
+
+- **Shared schema (Milestone A — US-076):** Optional `version?: number` added to the `library` variant of `ChildWorkflowNode.workflowRef` in `packages/graph-workflow/src/types.ts`. Validator unchanged (it doesn't inspect `childWorkflow` nodes). Both `{ type:"library", workflowId }` and the new pinned `{ type:"library", workflowId, version:3 }` shapes validate cleanly. Package tests 220 → 222.
+- **Backend per-version surfacing (Milestone B — US-077 → US-080):**
+  - `GET /api/workflows/:id/run-spec` accepts optional `?workflowVersionId=`. When set, resolves via `resolveLineageAndVersion` and derives the spec from THAT version's config; omitted = head (regression). 404 on unknown version, 400 on cross-lineage (US-077).
+  - `POST /api/workflows/:id/runs` validation already used the resolved version's `wf.config`; added explicit regression tests covering "v2 accepts a body that head would reject" and "v2 still requires its own required fields" (US-078).
+  - New `GET /api/workflows/:id/versions/:versionId` returns the full `WorkflowInfo` for a specific version (config + metadata). 404 when version doesn't exist OR doesn't belong to :id (per-URL-space semantics); 403 for non-member. Reuses `WorkflowResponseDto` (US-079).
+  - `getWorkflowGraphConfig` Temporal activity extended to `{ workflowId, version? }`. When `version` is set, queries `workflowVersion.findFirst({ lineage_id, version_number })` and throws a clear `"Library lineage <id> has no version <n>"` on miss. `childWorkflow` executor forwards `node.workflowRef.version` to the activity proxy so pinned references actually execute the pinned version at runtime (US-080).
+  - Backend 2174 → 2188 tests. Temporal 958 → 963.
+- **Frontend version history (Milestone C — US-081 → US-084):**
+  - New "History" top-bar button in `WorkflowEditorV2Page` between Save and Run (IconHistory). Disabled in create mode with a Mantine `Tooltip` ("Save the workflow first"). New `useWorkflowVersion(lineageId, versionId)` hook wraps the new endpoint (US-081).
+  - New `VersionHistoryDrawer` (right-side Mantine Drawer, position="right") at `apps/frontend/src/features/workflow-builder/versioning/`. Renders rows newest-first: v{n} indigo badge + human-readable createdAt + optional blue "head" badge + "Revert to this version" + "Compare to head" buttons. Buttons disabled-on-head with tooltips "Already the head" / "This is the head — nothing to compare". Loading shows 3 Skeleton rows; empty shows "No versions yet — save the workflow first."; error shows a red Alert (US-082).
+  - Revert flow: clicking Revert opens `modals.openConfirmModal` ("Reverting will replace the current head with v{n}, created {ts}. Any unsaved canvas changes will be discarded. Continue?"). On confirm: `useRevertWorkflowHead`, drawer closes, green notification "Reverted to v{n}". The existing `useEffect` syncing `existingWorkflow.config` → canvas state reloads the editor automatically after invalidation. On error: red notification + drawer stays open (US-083).
+  - Compare flow: clicking Compare opens a `<Modal size="80%">` with `<SimpleGrid cols={{ base:1, md:2 }}>`. Left = selected version (via `useWorkflowVersion`; Skeleton on load, red Alert on error). Right = already-loaded head (reuses `useWorkflow`; no extra fetch). Both panels render `<JsonInput readOnly autosize maxRows={40}>`. No diff — strictly side-by-side blocks per locked decision D1 (US-084).
+- **Frontend Run drawer per-version (Milestone D — US-085):** `RunWorkflowDrawer` grows a `<Select label="Version">` above the Test-run JsonInput. Options derived from `useWorkflowVersions`: `v{n} — head` for head, `v{n}` for others. Default = head. Changing the selection refetches `useWorkflowRunSpec(lineageId, { workflowVersionId })` (hook extended to take the optional second arg); body sent to `POST /runs` includes `workflowVersionId` when non-head, OMITS the field when head selected. Backend US-078 validates against the selected version's schema.
+- **Frontend library version-pin (Milestone E — US-086 + US-087):**
+  - `LibraryPickerModal` grows an internal `<Select label="Version">` after a library is picked (default `"head"`). Loading: Select disabled + `<Loader size="xs" />`. Confirm returns `{ workflowId, version? }` — the `version` key is OMITTED (not present-with-undefined) when head is selected so existing serialized configs stay shape-equivalent. Explicit Cancel + Confirm footer replaces the previous on-click-row immediate return (US-086).
+  - `LibraryPickerModal` also gains `initialWorkflowId` + `initialVersion` props for the "re-open pre-seeded" flow needed by US-087. Pre-seed effects fire once on libraries/versions resolution and don't fight subsequent user picks in the same open session.
+  - `ChildWorkflowNodeSettings` library-branch signature summary renders a `<Badge>`: gray "head" when `workflowRef.version` is undefined; blue "v{N}" when pinned. New "Change version" button (`variant="subtle"`) next to the badge re-opens the picker pre-seeded with the current workflowId + version (US-087).
+  - Frontend 738 → 777 tests.
+- **End-to-end verification (Milestone F — US-088):** Playwright walkthrough against the running dev server with `app-browser-auth` mock auth + the seed-default API key. Confirmed: (1) History drawer renders v2-head + v1 rows newest-first with correct badge; (2) Compare-to-head opens with two side-by-side JsonInputs (v1 on left, head v2 on right) and the `isInput: true` diff on `documentUrl` is plainly visible; (3) Revert from v2→v1 succeeded — head moved on backend, drawer closed, green "Reverted to v1" notification, canvas auto-reloaded with v1's config (restored back to v2 to keep dev DB pristine); (4) Run drawer per-version Select renders `["v2 — head", "v1"]`, picking v1 + clicking Run started Temporal execution `graph-adhoc-11c9f5af-...`; (5) Library pinning end-to-end — opened container's childWorkflow node, clicked Change version, picker pre-seeded with library + Version select offering `["head", "v2", "v1"]`, picked v1, Confirmed, badge changed from "head" → "v1", Save persisted (`workflowRef = { type:"library", version:1, workflowId:<lib> }` on backend), reload showed "v1" badge still rendered (container restored to head). **Zero `pageerror` events.** Screenshots: `/tmp/wb-phase2-track3-verify/01-14-*.png`.
+
+**One bugfix surfaced during verification (and shipped):**
+
+- `RevertHeadDto` (pre-existing from before Track 3) was missing class-validator decorators — only `@ApiProperty` was set. With the global `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })` in `main.ts`, the pipe rejected every request to `POST /api/workflows/:id/revert-head` with `"property workflowVersionId should not exist"`. Added `@IsString()` + a `workflow-info.dto.spec.ts` regression suite asserting (a) the DTO whitelists `workflowVersionId`, (b) unknown properties are still rejected, (c) missing required field still surfaces. Backend tests 2185 → 2188. The frontend `useRevertWorkflowHead` mutation was correct all along — Track 3 was the first surface to actually wire a UI for it, so this bug had been latent since the endpoint shipped.
+
+**What shipped in Phase 2 Track 2 (prior session, 2026-05-23):**
 
 - **Shared schema (Milestone A — US-065):** Optional `isInput?: boolean` added to `CtxDeclaration` in `packages/graph-workflow/src/types.ts`. Validator unchanged (accepts the new field as declarative metadata). Package tests 219 → 220 passing.
 - **Backend run-spec + runs endpoints (Milestone B — US-066 → US-069):** Two new sub-resource endpoints under `/api/workflows/:id/`:
@@ -213,24 +239,47 @@ Dev server lands on `http://localhost:3000/`.
 
 ## What to do next
 
-**Phase 1B + Phase 2 Tracks 1 + 2 are closed.** The next pickup is **Phase 2 Track 3 — versioning UI**. See [IMPLEMENTATION_PLAN.md §5 Phase 2](IMPLEMENTATION_PLAN.md#phase-2--library-workflows--workflow-as-api--versioning) for the full menu.
+**Phase 1B + Phase 2 (all three tracks) are closed.** The next pickup is **Phase 3 — typed I/O artifacts**. See [IMPLEMENTATION_PLAN.md §5 Phase 3](IMPLEMENTATION_PLAN.md#phase-3--typed-io-artifacts) for the full menu and [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) for the concrete artifact taxonomy.
 
-### Phase 2 Track 3 — versioning UI (next milestone)
+### Phase 3 — typed I/O artifacts (next milestone)
 
-The backend already versions workflows via the `WorkflowVersion` schema. What's missing on the UI side:
+Phases 2 + 3 were both prerequisites for Phases 4 (try-in-place), 5 (segmentation), 6 (dynamic nodes), and 7 (AI workflow builder). Phase 2 just closed; Phase 3 is the gate that everything downstream waits on. Summary of what Track 3 (this session) unblocked together with Tracks 1 + 2:
 
-- A version-history panel in the editor's top bar (likely a `Drawer` opened from a new top-bar button, sibling of Save / Run / Save-as-library / Settings).
-- "Revert to version" action — backend endpoint `POST /api/workflows/:id/revert-head` already exists (`useRevertWorkflowHead` hook is wired up too).
-- "Compare to version" action — surface a diff between two versions' configs. Simplest path: render two side-by-side `JsonInput` blocks with the configs; a structural diff is a stretch.
-- Library workflows pinned by-version in `childWorkflow.workflowRef`: extend to `{ type: "library", workflowId, version?: number }`. Today (Track 1) the pin is implicit "always head version"; Track 3 lets the author pin to a specific version for reproducibility.
-- Run drawer integration: a "version" dropdown in the Run drawer that lets you pick which `workflowVersionId` to trigger (the backend's `POST /runs` already accepts the field — Track 2 just always uses head).
-- Library-picker modal integration: show each library's version + let the user pin one.
+- Phase 3's typed `Document` / `Segment` / etc. artifacts get reified in `packages/graph-workflow/src/types/artifacts.ts` + `artifact-registry.ts` + `subtype-check.ts`.
+- `PortDescriptor` gets an optional `kind?: ArtifactKind | T[]` field (backwards compatible — no `kind` = `Artifact`, drawable anywhere).
+- Three checkpoints: canvas `onConnect` (UX), settings-panel variable picker (filtered by kind), backend `validateGraphConfig` (save-time error on edge kind mismatch).
+- Strict nominal subtyping (`SinglePageDocument` → `Document` slot ✓; reverse ✗; no auto-wrap between `T` and `T[]`).
+- Fan out `kind` declarations across the 41 catalog entries — incrementally, one activity at a time, with the bulk catalog test asserting the "every entry that DOES declare `kind` declares it for every port" invariant.
+- Provider catalog (`provider-catalog.ts` companion: `{ id, displayName, category, acceptsKind, returns }`) for activities with a generic `provider` parameter that sources dropdowns filtered by upstream `kind`.
 
-**Library follow-ups deferred from Tracks 1 + 2:**
+Phase 3 also resolves several Phase 2 follow-ups that were filed for it:
 
-- The validator doesn't yet verify that a library's `metadata.inputs[].path` references real ctx keys (or that `outputs[].path` is a valid output binding source). That depth-check is filed for Phase 3 typed I/O.
-- Run drawer's `versionId` selector (above) — currently always head.
-- Run history (`GET /api/workflows/:id/runs` returning past runs) — deferred to Phase 4 (try-in-place). The Run drawer today returns the `workflowId` and stops there; no list of historical runs.
+- **Library `metadata.inputs[].path` depth-check** in the validator — verify the path references a real ctx key / output binding source. Filed for Phase 3 because typed I/O is the natural home for that verification.
+- **Typed `childWorkflow` signatures** — Track 1 closed the schema/types side (`LibraryPortDescriptor` with `{ label, path, type }`). Phase 3 adds the `kind?: ArtifactKind` field so a `childWorkflow` library reference exposes typed handles.
+
+**Phase 2 follow-ups still deferred (not gated on Phase 3):**
+
+- **Run history (`GET /api/workflows/:id/runs` returning past runs)** — Phase 4 (try-in-place). The Run drawer today returns the `workflowId` and stops there; no list of historical runs.
+- **Per-version run counts / last-run timestamp** in the History drawer — also Phase 4, requires the run-history endpoint.
+- **Per-version annotations / tags / changelog entries** — not in the schema today; future enhancement, not load-bearing for Phase 3.
+- **Delete-version / squash-versions actions** — versions stay immutable per the existing backend model. Revert is the closest action available today.
+
+### Phase 2 Track 3 — done. Don't re-implement.
+
+- Shared schema: `ChildWorkflowNode.workflowRef.library.version?: number` (US-076).
+- Backend `GET /:id/run-spec?workflowVersionId=` extension (US-077).
+- Backend `POST /:id/runs` validates against the selected version's schema (US-078; was already correct, regression coverage added).
+- Backend `GET /:id/versions/:versionId` returns full WorkflowInfo (US-079).
+- Temporal `childWorkflow` executor honors `workflowRef.library.version` via extended `getWorkflowGraphConfig({ workflowId, version? })` activity (US-080).
+- Frontend "History" top-bar button + `useWorkflowVersion` hook (US-081).
+- `VersionHistoryDrawer` with rows, head badge, action buttons (US-082).
+- Revert flow with `modals.openConfirmModal` + canvas auto-reload + green/red notifications (US-083). NB: `@mantine/modals@8.3.9` was added and `<ModalsProvider>` mounted in `apps/frontend/src/main.tsx` — necessary for `openConfirmModal`.
+- `CompareToHeadModal` with two side-by-side read-only `<JsonInput>` blocks (US-084).
+- `RunWorkflowDrawer` "Version" Select that refetches the spec + sends `workflowVersionId` in the POST body (omitted for head) (US-085).
+- `LibraryPickerModal` "Version" Select returning `{ workflowId, version? }` (US-086).
+- `ChildWorkflowNodeSettings` gray "head" / blue "v{N}" badge + "Change version" pre-seeded re-open (US-087).
+- End-to-end Playwright walkthrough (US-088).
+- Bugfix: `RevertHeadDto` was missing class-validator decorators — added `@IsString()` + a regression suite at `apps/backend-services/src/workflow/dto/workflow-info.dto.spec.ts`.
 
 ### Phase 2 Track 2 — done. Don't re-implement.
 
