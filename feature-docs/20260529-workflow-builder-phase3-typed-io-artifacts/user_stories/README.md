@@ -69,8 +69,8 @@ Phase 3 has a clear linear backbone (shared package → backend → frontend →
 - [x] **US-092** (schema extensions — `PortDescriptor` + `CtxDeclaration` + `LibraryPortDescriptor`) — depends on US-089's `KindRef` alias
 
 ### Phase 2 — backend validator (depends on Phase 1)
-- [ ] **US-093** (binding-walk type-check pass) — consumes `isAssignable` from US-091 + all three `kind?` fields from US-092
-- [ ] **US-094** (library path depth-check) — sibling pass in the same validator entrypoint; independent of US-093 but shares the validator file
+- [x] **US-093** (binding-walk type-check pass) — consumes `isAssignable` from US-091 + all three `kind?` fields from US-092
+- [x] **US-094** (library path depth-check) — sibling pass in the same validator entrypoint; independent of US-093 but shares the validator file
 
 ### Phase 3 — frontend canvas rendering (depends on Phase 1 + Vite restart)
 - [ ] **US-095** (handle colour + hover tooltip) — consumes `ARTIFACT_REGISTRY` (US-090) + new `kind?` fields on ports (US-092)

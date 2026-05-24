@@ -6,24 +6,24 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Path resolving to a declared ctx key passes
+- [x] **Scenario 1**: Path resolving to a declared ctx key passes
     - **Given** a library workflow whose `metadata.ctx.documentUrl` exists, and `metadata.inputs: [{ label: "Document URL", path: "ctx.documentUrl", type: "string" }]`
     - **When** `validateGraphConfig` runs
     - **Then** no error is emitted for the input
     - **And** the same passes for `path` referencing an output of an existing node (e.g. `nodes.classify.outputs.segmentType` style — match whatever path syntax Phase 2 Track 1 settled on)
 
-- [ ] **Scenario 2**: Path referencing a non-existent ctx key fails
+- [x] **Scenario 2**: Path referencing a non-existent ctx key fails
     - **Given** `metadata.inputs: [{ label: "Foo", path: "ctx.fooThatDoesntExist", type: "string" }]` and no `metadata.ctx.fooThatDoesntExist` declared
     - **When** validated
     - **Then** an error is emitted with `severity: "error"`, anchored to the workflow root (no `nodeId` — or `nodeId: null` matching whatever Phase 1A's root-error convention is)
     - **And** `message` matches: `"Library input \`Foo\` path \`ctx.fooThatDoesntExist\` does not resolve to a declared ctx key or node output in this graph"`
 
-- [ ] **Scenario 3**: Path referencing a node output that doesn't exist fails
+- [x] **Scenario 3**: Path referencing a node output that doesn't exist fails
     - **Given** `metadata.outputs: [{ label: "Result", path: "nodes.missingNode.outputs.x", type: "object" }]` with no node id `missingNode` in the graph
     - **When** validated
     - **Then** an error analogous to Scenario 2 surfaces, naming the missing node + the offending `path`
 
-- [ ] **Scenario 4**: Pre-Phase-3 libraries without `inputs[]` / `outputs[]` continue to validate cleanly
+- [x] **Scenario 4**: Pre-Phase-3 libraries without `inputs[]` / `outputs[]` continue to validate cleanly
     - **Given** a regular (non-library) workflow OR a library workflow with `metadata.inputs: []` / `metadata.outputs: []`
     - **When** validated
     - **Then** no depth-check errors fire (nothing to check)

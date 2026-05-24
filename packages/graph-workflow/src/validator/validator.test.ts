@@ -643,7 +643,11 @@ describe("US-056 Scenario 1: validator accepts metadata.kind = 'library' with de
         ],
       },
       entryNodeId: "noop",
-      ctx: {},
+      ctx: {
+        documentUrl: { type: "string" },
+        threshold: { type: "number" },
+        fields: { type: "object" },
+      },
       nodes: {
         noop: {
           id: "noop",
@@ -890,7 +894,10 @@ describe("US-092 Scenario 3: LibraryPortDescriptor.kind is accepted by the valid
         ],
       },
       entryNodeId: "noop",
-      ctx: {},
+      ctx: {
+        documentUrl: { type: "string", kind: "Document" },
+        fields: { type: "object" },
+      },
       nodes: {
         noop: {
           id: "noop",
@@ -906,5 +913,901 @@ describe("US-092 Scenario 3: LibraryPortDescriptor.kind is accepted by the valid
 
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-093: Binding-walk type-check pass
+//
+// The walker iterates ctx keys, collects (producer, consumer) pairs from
+// every node's port bindings, resolves each port's `kind` via the three
+// declared sources (activity catalog `PortDescriptor.kind` →
+// `CtxDeclaration.kind` → `LibraryPortDescriptor.kind`), and emits an
+// error anchored to the consumer port for every (producer, consumer) pair
+// where `isAssignable(producerKind, consumerKind)` is `false`.
+// ---------------------------------------------------------------------------
+
+describe("US-093 Scenario 1: producer → consumer kind mismatch surfaces an error", () => {
+  it("anchors the error to the consumer port and includes both node ids in the message", () => {
+    // We build the mismatch by INSTALLING two synthetic catalog entries
+    // — one whose output port declares `kind: "Document"`, one whose
+    // input port declares `kind: "Segment"` — for the duration of the
+    // test, then restoring the catalog.
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    const writerEntry = {
+      activityType: "test.writeDoc",
+      displayName: "Test Write Document",
+      category: "Document Handling",
+      description: "synthetic test producer",
+      iconHint: "doc",
+      colorHint: "blue",
+      inputs: [],
+      outputs: [
+        { name: "doc", label: "Doc", kind: "Document" as const },
+      ],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    const readerEntry = {
+      activityType: "test.readSegment",
+      displayName: "Test Read Segment",
+      category: "Document Handling",
+      description: "synthetic test consumer",
+      iconHint: "seg",
+      colorHint: "green",
+      inputs: [
+        { name: "seg", label: "Seg", kind: "Segment" as const },
+      ],
+      outputs: [],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[writerEntry.activityType] = writerEntry;
+    ACTIVITY_CATALOG[readerEntry.activityType] = readerEntry;
+    try {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: { name: "Producer Document → Consumer Segment" },
+        entryNodeId: "A",
+        ctx: { docRef: { type: "object" } },
+        nodes: {
+          A: {
+            id: "A",
+            type: "activity",
+            label: "Writer A",
+            activityType: "test.writeDoc",
+            outputs: [{ port: "doc", ctxKey: "docRef" }],
+          } as ActivityNode,
+          B: {
+            id: "B",
+            type: "activity",
+            label: "Reader B",
+            activityType: "test.readSegment",
+            inputs: [{ port: "seg", ctxKey: "docRef" }],
+          } as ActivityNode,
+        },
+        edges: [{ id: "e1", source: "A", target: "B", type: "normal" }],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+      const mismatchErrors = result.errors.filter((e) =>
+        e.message.includes("not assignable"),
+      );
+      expect(mismatchErrors).toHaveLength(1);
+      expect(mismatchErrors[0]).toEqual({
+        severity: "error",
+        path: "nodes.B.inputs.seg",
+        message:
+          "Input port `seg` (Segment) on node `B` reads from ctx key `docRef`, written by node `A` (Document) — Document not assignable to Segment",
+      });
+    } finally {
+      delete ACTIVITY_CATALOG[writerEntry.activityType];
+      delete ACTIVITY_CATALOG[readerEntry.activityType];
+    }
+  });
+});
+
+describe("US-093 Scenario 2: multi-producer mismatch — only the offending producer is reported", () => {
+  it("emits exactly one error naming the mismatching producer when one of two producers is incompatible", () => {
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    const producerDocEntry = {
+      activityType: "test.produceDoc",
+      displayName: "Test Producer Document",
+      category: "Document Handling",
+      description: "doc producer",
+      iconHint: "doc",
+      colorHint: "blue",
+      inputs: [],
+      outputs: [
+        { name: "out", label: "Out", kind: "Document" as const },
+      ],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    const producerRefEntry = {
+      activityType: "test.produceRef",
+      displayName: "Test Producer Reference",
+      category: "Document Handling",
+      description: "ref producer",
+      iconHint: "ref",
+      colorHint: "orange",
+      inputs: [],
+      outputs: [
+        { name: "out", label: "Out", kind: "Reference" as const },
+      ],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    const consumerDocEntry = {
+      activityType: "test.consumeDoc",
+      displayName: "Test Consumer Document",
+      category: "Document Handling",
+      description: "doc consumer",
+      iconHint: "doc",
+      colorHint: "blue",
+      inputs: [
+        { name: "in", label: "In", kind: "Document" as const },
+      ],
+      outputs: [],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[producerDocEntry.activityType] = producerDocEntry;
+    ACTIVITY_CATALOG[producerRefEntry.activityType] = producerRefEntry;
+    ACTIVITY_CATALOG[consumerDocEntry.activityType] = consumerDocEntry;
+    try {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: { name: "Switch with two branches writing same ctx" },
+        entryNodeId: "sw",
+        ctx: { out: { type: "object" } },
+        nodes: {
+          sw: {
+            id: "sw",
+            type: "switch",
+            label: "switch",
+            cases: [],
+            defaultEdge: "eA",
+          } as SwitchNode,
+          A: {
+            id: "A",
+            type: "activity",
+            label: "Producer A (Document)",
+            activityType: "test.produceDoc",
+            outputs: [{ port: "out", ctxKey: "out" }],
+          } as ActivityNode,
+          B: {
+            id: "B",
+            type: "activity",
+            label: "Producer B (Reference)",
+            activityType: "test.produceRef",
+            outputs: [{ port: "out", ctxKey: "out" }],
+          } as ActivityNode,
+          C: {
+            id: "C",
+            type: "activity",
+            label: "Consumer C (Document)",
+            activityType: "test.consumeDoc",
+            inputs: [{ port: "in", ctxKey: "out" }],
+          } as ActivityNode,
+        },
+        edges: [
+          { id: "eA", source: "sw", target: "A", type: "normal" },
+          { id: "eB", source: "sw", target: "B", type: "normal" },
+          { id: "eAC", source: "A", target: "C", type: "normal" },
+          { id: "eBC", source: "B", target: "C", type: "normal" },
+        ],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+      const mismatchErrors = result.errors.filter((e) =>
+        e.message.includes("not assignable"),
+      );
+      expect(mismatchErrors).toHaveLength(1);
+      expect(mismatchErrors[0]).toEqual({
+        severity: "error",
+        path: "nodes.C.inputs.in",
+        message:
+          "Input port `in` (Document) on node `C` reads from ctx key `out`, written by node `B` (Reference) — Reference not assignable to Document",
+      });
+    } finally {
+      delete ACTIVITY_CATALOG[producerDocEntry.activityType];
+      delete ACTIVITY_CATALOG[producerRefEntry.activityType];
+      delete ACTIVITY_CATALOG[consumerDocEntry.activityType];
+    }
+  });
+});
+
+describe("US-093 Scenario 3: kind resolves through all three sources interchangeably", () => {
+  it("source (a): producer kind from activity catalog `PortDescriptor.kind` triggers mismatch vs Segment consumer", () => {
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    type TestPortKind = "Document" | "Segment";
+    interface TestEntryShape {
+      activityType: string;
+      displayName: string;
+      category: string;
+      description: string;
+      iconHint: string;
+      colorHint: string;
+      inputs: Array<{ name: string; label: string; kind: TestPortKind }>;
+      outputs: Array<{ name: string; label: string; kind: TestPortKind }>;
+      parametersSchema: never;
+    }
+    const writerEntry: TestEntryShape = {
+      activityType: "test.s3a.writeDoc",
+      displayName: "writer",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [],
+      outputs: [{ name: "out", label: "Out", kind: "Document" }],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    const readerEntry: TestEntryShape = {
+      activityType: "test.s3a.readSeg",
+      displayName: "reader",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [{ name: "in", label: "In", kind: "Segment" }],
+      outputs: [],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[writerEntry.activityType] = writerEntry;
+    ACTIVITY_CATALOG[readerEntry.activityType] = readerEntry;
+    try {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "W",
+        ctx: { k: { type: "object" } },
+        nodes: {
+          W: {
+            id: "W",
+            type: "activity",
+            label: "writer",
+            activityType: writerEntry.activityType,
+            outputs: [{ port: "out", ctxKey: "k" }],
+          } as ActivityNode,
+          R: {
+            id: "R",
+            type: "activity",
+            label: "reader",
+            activityType: readerEntry.activityType,
+            inputs: [{ port: "in", ctxKey: "k" }],
+          } as ActivityNode,
+        },
+        edges: [{ id: "e1", source: "W", target: "R", type: "normal" }],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      const mismatch = result.errors.filter((e) =>
+        e.message.includes("not assignable"),
+      );
+      expect(mismatch).toHaveLength(1);
+      expect(mismatch[0].message).toContain("Document not assignable to Segment");
+
+      // Now flip the consumer to expect Document → passes silently
+      readerEntry.inputs[0] = { name: "in", label: "In", kind: "Document" };
+      const result2 = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      expect(
+        result2.errors.filter((e) => e.message.includes("not assignable")),
+      ).toEqual([]);
+    } finally {
+      delete ACTIVITY_CATALOG[writerEntry.activityType];
+      delete ACTIVITY_CATALOG[readerEntry.activityType];
+    }
+  });
+
+  it("source (b): producer kind from CtxDeclaration triggers mismatch vs Segment consumer", () => {
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    // Consumer expects Segment via catalog port kind. Producer activity
+    // has NO catalog kind, so resolution falls through to the ctx
+    // declaration kind = Document → mismatch.
+    const consumerEntry = {
+      activityType: "test.s3b.readSeg",
+      displayName: "reader",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [{ name: "in", label: "In", kind: "Segment" as const }],
+      outputs: [],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[consumerEntry.activityType] = consumerEntry;
+    try {
+      // For the test to isolate Document-from-CtxDeclaration as the
+      // producer's source, the producer activity must NOT have a catalog
+      // kind. We use "noop.activity" which is unregistered in the live
+      // catalog and is admitted via ALWAYS_REGISTERED_OPTIONS.
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "W",
+        ctx: { k: { type: "object", kind: "Document" } },
+        nodes: {
+          W: {
+            id: "W",
+            type: "activity",
+            label: "writer",
+            activityType: "noop.activity",
+            outputs: [{ port: "out", ctxKey: "k" }],
+          } as ActivityNode,
+          R: {
+            id: "R",
+            type: "activity",
+            label: "reader",
+            activityType: consumerEntry.activityType,
+            inputs: [{ port: "in", ctxKey: "k" }],
+          } as ActivityNode,
+        },
+        edges: [{ id: "e1", source: "W", target: "R", type: "normal" }],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      const mismatch = result.errors.filter((e) =>
+        e.message.includes("not assignable"),
+      );
+      expect(mismatch).toHaveLength(1);
+      expect(mismatch[0].message).toContain("Document not assignable to Segment");
+
+      // Flip CtxDeclaration kind to match the consumer → passes.
+      config.ctx.k = { type: "object", kind: "Segment" };
+      const result2 = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      expect(
+        result2.errors.filter((e) => e.message.includes("not assignable")),
+      ).toEqual([]);
+    } finally {
+      delete ACTIVITY_CATALOG[consumerEntry.activityType];
+    }
+  });
+
+  it("source (c): producer kind from LibraryPortDescriptor (library's metadata.inputs[]) triggers mismatch vs Segment consumer", () => {
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    const consumerEntry = {
+      activityType: "test.s3c.readSeg",
+      displayName: "reader",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [{ name: "in", label: "In", kind: "Segment" as const }],
+      outputs: [],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[consumerEntry.activityType] = consumerEntry;
+    try {
+      // No writer node — the library's `metadata.inputs[]` IS the
+      // typed producer surface for an entry-point ctx key. To trigger
+      // the binding walk's producer side we need a node that writes the
+      // ctx key. The library's input feeds ctx at entry; modelled here as
+      // an activity output bound to the entry-point ctx key, whose own
+      // kind falls through (no catalog kind, no ctx kind) to the
+      // LibraryPortDescriptor.kind via the `metadata.inputs[]` path.
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "library",
+          kind: "library",
+          inputs: [
+            {
+              label: "input doc",
+              path: "ctx.entryDoc",
+              type: "object",
+              kind: "Document",
+            },
+          ],
+          outputs: [],
+        },
+        entryNodeId: "entry",
+        ctx: { entryDoc: { type: "object" } },
+        nodes: {
+          entry: {
+            id: "entry",
+            type: "activity",
+            label: "entry",
+            activityType: "noop.activity",
+            outputs: [{ port: "out", ctxKey: "entryDoc" }],
+          } as ActivityNode,
+          R: {
+            id: "R",
+            type: "activity",
+            label: "reader",
+            activityType: consumerEntry.activityType,
+            inputs: [{ port: "in", ctxKey: "entryDoc" }],
+          } as ActivityNode,
+        },
+        edges: [{ id: "e1", source: "entry", target: "R", type: "normal" }],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      const mismatch = result.errors.filter((e) =>
+        e.message.includes("not assignable"),
+      );
+      expect(mismatch).toHaveLength(1);
+      expect(mismatch[0].message).toContain("Document not assignable to Segment");
+    } finally {
+      delete ACTIVITY_CATALOG[consumerEntry.activityType];
+    }
+  });
+});
+
+describe("US-093 Scenario 4: missing kind on either side defaults to Artifact wildcard", () => {
+  it("untyped producer + typed consumer passes (legacy producer treated as wildcard)", () => {
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    const consumerEntry = {
+      activityType: "test.s4.readSeg",
+      displayName: "reader",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [{ name: "in", label: "In", kind: "Segment" as const }],
+      outputs: [],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[consumerEntry.activityType] = consumerEntry;
+    try {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "W",
+        // Ctx has NO `kind`, producer is `noop.activity` (no catalog kind)
+        // → producer kind resolves to undefined → wildcard.
+        ctx: { k: { type: "object" } },
+        nodes: {
+          W: {
+            id: "W",
+            type: "activity",
+            label: "writer",
+            activityType: "noop.activity",
+            outputs: [{ port: "out", ctxKey: "k" }],
+          } as ActivityNode,
+          R: {
+            id: "R",
+            type: "activity",
+            label: "reader",
+            activityType: consumerEntry.activityType,
+            inputs: [{ port: "in", ctxKey: "k" }],
+          } as ActivityNode,
+        },
+        edges: [{ id: "e1", source: "W", target: "R", type: "normal" }],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      expect(
+        result.errors.filter((e) => e.message.includes("not assignable")),
+      ).toEqual([]);
+    } finally {
+      delete ACTIVITY_CATALOG[consumerEntry.activityType];
+    }
+  });
+
+  it("typed producer + untyped consumer passes (consumer wildcard accepts anything)", () => {
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    const writerEntry = {
+      activityType: "test.s4b.writeDoc",
+      displayName: "writer",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [],
+      outputs: [{ name: "out", label: "Out", kind: "Document" as const }],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[writerEntry.activityType] = writerEntry;
+    try {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "W",
+        ctx: { k: { type: "object" } },
+        nodes: {
+          W: {
+            id: "W",
+            type: "activity",
+            label: "writer",
+            activityType: writerEntry.activityType,
+            outputs: [{ port: "out", ctxKey: "k" }],
+          } as ActivityNode,
+          R: {
+            id: "R",
+            type: "activity",
+            label: "reader",
+            activityType: "noop.activity",
+            inputs: [{ port: "in", ctxKey: "k" }],
+          } as ActivityNode,
+        },
+        edges: [{ id: "e1", source: "W", target: "R", type: "normal" }],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      expect(
+        result.errors.filter((e) => e.message.includes("not assignable")),
+      ).toEqual([]);
+    } finally {
+      delete ACTIVITY_CATALOG[writerEntry.activityType];
+    }
+  });
+});
+
+describe("US-093 Scenario 5: cleanly-typed graph passes", () => {
+  it("emits zero kind errors when producer and consumer agree via CtxDeclaration kind", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Cleanly typed via CtxDeclaration" },
+      entryNodeId: "W",
+      ctx: { docKey: { type: "object", kind: "Document" } },
+      nodes: {
+        W: {
+          id: "W",
+          type: "activity",
+          label: "writer",
+          activityType: "noop.activity",
+          outputs: [{ port: "out", ctxKey: "docKey" }],
+        } as ActivityNode,
+        R: {
+          id: "R",
+          type: "activity",
+          label: "reader",
+          activityType: "noop.activity",
+          inputs: [{ port: "in", ctxKey: "docKey" }],
+        } as ActivityNode,
+      },
+      edges: [{ id: "e1", source: "W", target: "R", type: "normal" }],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.valid).toBe(true);
+    expect(
+      result.errors.filter((e) => e.message.includes("not assignable")),
+    ).toEqual([]);
+  });
+
+  it("emits zero kind errors for a Phase 3 exemplar shape: Segment[] producer → Segment[] consumer via catalog kinds", () => {
+    const { ACTIVITY_CATALOG } = require("../catalog");
+    const splitEntry = {
+      activityType: "test.s5.documentSplit",
+      displayName: "Document Split",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [],
+      outputs: [
+        { name: "segments", label: "Segments", kind: "Segment[]" as const },
+      ],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    const classifyEntry = {
+      activityType: "test.s5.documentClassify",
+      displayName: "Document Classify",
+      category: "Document Handling",
+      description: "",
+      iconHint: "",
+      colorHint: "",
+      inputs: [
+        { name: "segments", label: "Segments", kind: "Segment[]" as const },
+      ],
+      outputs: [],
+      parametersSchema: { _def: {}, parse: () => ({}) } as never,
+    };
+    ACTIVITY_CATALOG[splitEntry.activityType] = splitEntry;
+    ACTIVITY_CATALOG[classifyEntry.activityType] = classifyEntry;
+    try {
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: { name: "Phase 3 exemplar: split → classify" },
+        entryNodeId: "split",
+        ctx: { segs: { type: "array" } },
+        nodes: {
+          split: {
+            id: "split",
+            type: "activity",
+            label: "split",
+            activityType: splitEntry.activityType,
+            outputs: [{ port: "segments", ctxKey: "segs" }],
+          } as ActivityNode,
+          classify: {
+            id: "classify",
+            type: "activity",
+            label: "classify",
+            activityType: classifyEntry.activityType,
+            inputs: [{ port: "segments", ctxKey: "segs" }],
+          } as ActivityNode,
+        },
+        edges: [
+          { id: "e1", source: "split", target: "classify", type: "normal" },
+        ],
+      };
+
+      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+      expect(result.valid).toBe(true);
+      expect(
+        result.errors.filter((e) => e.message.includes("not assignable")),
+      ).toEqual([]);
+    } finally {
+      delete ACTIVITY_CATALOG[splitEntry.activityType];
+      delete ACTIVITY_CATALOG[classifyEntry.activityType];
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-094: Library `metadata.inputs[].path` / `metadata.outputs[].path`
+//         depth-check
+//
+// Library workflows must declare paths that actually resolve in their own
+// graph — either to a declared ctx key (with optional `ctx.` prefix) or to
+// an existing node's bound output port via `nodes.<id>.outputs.<port>`.
+//
+// The depth check is independent of US-093's kind-mismatch walk: both
+// passes run, and they don't share logic.
+// ---------------------------------------------------------------------------
+
+describe("US-094 Scenario 1a: library input path resolving to a declared ctx key passes", () => {
+  it("emits no path-depth errors when `ctx.documentUrl` is declared", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Library with ctx-anchored input",
+        kind: "library",
+        inputs: [
+          { label: "Document URL", path: "ctx.documentUrl", type: "string" },
+        ],
+        outputs: [],
+      },
+      entryNodeId: "noop",
+      ctx: { documentUrl: { type: "string" } },
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    const depthErrors = result.errors.filter((e) =>
+      e.message.includes("does not resolve to a declared ctx key or node output"),
+    );
+    expect(depthErrors).toEqual([]);
+  });
+});
+
+describe("US-094 Scenario 1b: library output path resolving to an existing node's output passes", () => {
+  it("emits no path-depth errors when `nodes.classify.outputs.segmentType` is bound", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Library with node-output path",
+        kind: "library",
+        inputs: [],
+        outputs: [
+          {
+            label: "Segment Type",
+            path: "nodes.classify.outputs.segmentType",
+            type: "string",
+          },
+        ],
+      },
+      entryNodeId: "classify",
+      ctx: { segType: { type: "string" } },
+      nodes: {
+        classify: {
+          id: "classify",
+          type: "activity",
+          label: "Classify",
+          activityType: "noop.activity",
+          outputs: [{ port: "segmentType", ctxKey: "segType" }],
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    const depthErrors = result.errors.filter((e) =>
+      e.message.includes("does not resolve to a declared ctx key or node output"),
+    );
+    expect(depthErrors).toEqual([]);
+  });
+});
+
+describe("US-094 Scenario 2: library input path referencing a non-existent ctx key fails", () => {
+  it("emits one error anchored to `metadata.inputs[0].path` with the expected message", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Library referencing missing ctx key",
+        kind: "library",
+        inputs: [
+          { label: "Foo", path: "ctx.fooThatDoesntExist", type: "string" },
+        ],
+        outputs: [],
+      },
+      entryNodeId: "noop",
+      ctx: { someOtherKey: { type: "string" } },
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    const depthErrors = result.errors.filter((e) =>
+      e.message.includes("does not resolve to a declared ctx key or node output"),
+    );
+    expect(depthErrors).toHaveLength(1);
+    expect(depthErrors[0]).toEqual({
+      severity: "error",
+      path: "metadata.inputs[0].path",
+      message:
+        "Library input `Foo` path `ctx.fooThatDoesntExist` does not resolve to a declared ctx key or node output in this graph",
+    });
+    expect(result.valid).toBe(false);
+  });
+});
+
+describe("US-094 Scenario 3: library output path referencing a missing node id fails", () => {
+  it("emits one error anchored to `metadata.outputs[0].path` naming the offending path", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Library output references missing node",
+        kind: "library",
+        inputs: [],
+        outputs: [
+          {
+            label: "Result",
+            path: "nodes.missingNode.outputs.x",
+            type: "object",
+          },
+        ],
+      },
+      entryNodeId: "noop",
+      ctx: { someOtherKey: { type: "string" } },
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    const depthErrors = result.errors.filter((e) =>
+      e.message.includes("does not resolve to a declared ctx key or node output"),
+    );
+    expect(depthErrors).toHaveLength(1);
+    expect(depthErrors[0]).toEqual({
+      severity: "error",
+      path: "metadata.outputs[0].path",
+      message:
+        "Library output `Result` path `nodes.missingNode.outputs.x` does not resolve to a declared ctx key or node output in this graph",
+    });
+    expect(result.valid).toBe(false);
+  });
+
+  it("also fails when the node exists but doesn't bind the named output port", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Library output references existing node but missing port",
+        kind: "library",
+        inputs: [],
+        outputs: [
+          {
+            label: "Result",
+            path: "nodes.classify.outputs.notARealPort",
+            type: "object",
+          },
+        ],
+      },
+      entryNodeId: "classify",
+      ctx: { segType: { type: "string" } },
+      nodes: {
+        classify: {
+          id: "classify",
+          type: "activity",
+          label: "Classify",
+          activityType: "noop.activity",
+          outputs: [{ port: "segmentType", ctxKey: "segType" }],
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    const depthErrors = result.errors.filter((e) =>
+      e.message.includes("does not resolve to a declared ctx key or node output"),
+    );
+    expect(depthErrors).toHaveLength(1);
+    expect(depthErrors[0]).toEqual({
+      severity: "error",
+      path: "metadata.outputs[0].path",
+      message:
+        "Library output `Result` path `nodes.classify.outputs.notARealPort` does not resolve to a declared ctx key or node output in this graph",
+    });
+  });
+});
+
+describe("US-094 Scenario 4: regression-safe for non-library and empty-inputs cases", () => {
+  it("emits no depth errors for a library workflow with empty inputs[] and outputs[]", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Pure-library with empty signature",
+        kind: "library",
+        inputs: [],
+        outputs: [],
+      },
+      entryNodeId: "noop",
+      ctx: {},
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    const depthErrors = result.errors.filter((e) =>
+      e.message.includes("does not resolve to a declared ctx key or node output"),
+    );
+    expect(depthErrors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("emits no depth errors for a non-library workflow whose metadata has arbitrary content", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Regular workflow",
+        // No `kind: "library"` set — this is a regular workflow.
+        // The depth-check must not fire here even if hypothetical inputs[]
+        // were present.
+      },
+      entryNodeId: "noop",
+      ctx: { foo: { type: "string" } },
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    const depthErrors = result.errors.filter((e) =>
+      e.message.includes("does not resolve to a declared ctx key or node output"),
+    );
+    expect(depthErrors).toEqual([]);
+    expect(result.valid).toBe(true);
   });
 });

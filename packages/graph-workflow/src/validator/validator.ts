@@ -17,15 +17,20 @@
 import type {
   ActivityNode,
   ConditionExpression,
+  GraphNode,
   GraphValidationError,
   GraphWorkflowConfig,
   HumanGateNode,
   JoinNode,
+  LibraryPortDescriptor,
   MapNode,
   PollUntilNode,
   SwitchNode,
   ValueRef,
 } from "../types";
+import { getActivityCatalogEntry } from "../catalog";
+import type { KindRef } from "../types/artifacts";
+import { isAssignable } from "../types/subtype-check";
 import { getCtxRootKey, getRefCtxRootKey } from "./context-utils";
 import { isValidTemporalDuration } from "./duration";
 
@@ -117,6 +122,8 @@ export function validateGraphConfig(
   validateDagStructure(config, errors);
   validateReachability(config, errors);
   validateNodeGroups(config, errors);
+  walkCtxKeyBindings(config, errors);
+  walkLibraryPaths(config, errors);
 
   return {
     valid: errors.filter((e) => e.severity === "error").length === 0,
@@ -833,4 +840,288 @@ function validateNodeGroups(
       });
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// US-093: Binding-walk type-check pass
+// ---------------------------------------------------------------------------
+
+type PortDirection = "input" | "output";
+
+interface BindingParticipant {
+  node: GraphNode;
+  port: string;
+  ctxKey: string;
+  kind: KindRef | undefined;
+}
+
+interface CtxKeyParticipants {
+  producers: BindingParticipant[];
+  consumers: BindingParticipant[];
+}
+
+/**
+ * Resolve the typed-I/O `kind` for a port on a node in a given direction.
+ *
+ * Resolution order per REQUIREMENTS.md §4.2:
+ *   1. Activity `PortDescriptor.kind?` (catalog lookup for activity / pollUntil nodes)
+ *   2. `CtxDeclaration.kind?` (the ctx key the port binds to)
+ *   3. `LibraryPortDescriptor.kind?` (library workflow's own entry-point ports)
+ *   4. Undefined → callers treat as `Artifact` wildcard via `isAssignable`.
+ *
+ * Cross-workflow library port resolution (parent referencing a library via
+ * `childWorkflow.workflowRef.type === "library"`) is intentionally out of
+ * scope for this pass — those ports collapse to the `Artifact` wildcard.
+ */
+function resolvePortKind(
+  node: GraphNode,
+  portName: string,
+  direction: PortDirection,
+  ctxKey: string,
+  config: GraphWorkflowConfig,
+): KindRef | undefined {
+  // 1. Activity / pollUntil catalog PortDescriptor.kind
+  if (node.type === "activity") {
+    const activityNode = node as ActivityNode;
+    const entry = getActivityCatalogEntry(activityNode.activityType);
+    if (entry) {
+      const descriptors =
+        direction === "input" ? entry.inputs : entry.outputs;
+      const portDescriptor = descriptors.find((p) => p.name === portName);
+      if (portDescriptor?.kind !== undefined) {
+        return portDescriptor.kind;
+      }
+    }
+  } else if (node.type === "pollUntil") {
+    const pollNode = node as PollUntilNode;
+    const entry = getActivityCatalogEntry(pollNode.activityType);
+    if (entry) {
+      const descriptors =
+        direction === "input" ? entry.inputs : entry.outputs;
+      const portDescriptor = descriptors.find((p) => p.name === portName);
+      if (portDescriptor?.kind !== undefined) {
+        return portDescriptor.kind;
+      }
+    }
+  }
+
+  // 2. CtxDeclaration.kind for the ctx key this port binds to
+  const rootKey = getCtxRootKey(ctxKey);
+  const ctxDecl = config.ctx?.[rootKey];
+  if (ctxDecl?.kind !== undefined) {
+    return ctxDecl.kind;
+  }
+
+  // 3. LibraryPortDescriptor.kind — only meaningful when validating a
+  // library workflow's own entry-point signature. A library's declared
+  // `metadata.inputs[]` describes ctx writers (producers); `metadata.outputs[]`
+  // describes ctx readers (consumers). Match by `path` resolving to this ctx
+  // key (both `"ctx.<key>"` and bare `"<key>"` shapes are accepted to mirror
+  // the picker / runtime path resolution surface).
+  if (config.metadata?.kind === "library") {
+    const descriptors =
+      direction === "output"
+        ? config.metadata.inputs
+        : config.metadata.outputs;
+    // direction === "output" on a node means the node WRITES the ctx key,
+    // which is itself READ from the library's declared INPUT surface (the
+    // library's input feeds the graph). Symmetrically, an output port of
+    // the library is READ by downstream callers and FED by node inputs
+    // inside the library graph... but inside a library the typed surface
+    // for ctx writers comes from `metadata.inputs[]`. We only consult
+    // `metadata.inputs[]` here when no closer (catalog / CtxDeclaration)
+    // kind was found and we're looking at the producer side; similarly
+    // `metadata.outputs[]` for the consumer side.
+    if (descriptors) {
+      const match = descriptors.find(
+        (descriptor) => libraryPortPathMatchesCtxKey(descriptor.path, ctxKey),
+      );
+      if (match?.kind !== undefined) {
+        return match.kind;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * `LibraryPortDescriptor.path` may be written as `"ctx.<key>"` or the bare
+ * `"<key>"`. Match either form against the ctx key the port binds to.
+ */
+function libraryPortPathMatchesCtxKey(path: string, ctxKey: string): boolean {
+  if (path === ctxKey) return true;
+  if (path === `ctx.${ctxKey}`) return true;
+  // Compare on root keys too — the picker resolves `doc.X` / `segment.X`
+  // through the same `getCtxRootKey` helper, so a path of `ctx.documentMetadata`
+  // matches a port binding of `doc.something`.
+  const pathRoot = path.startsWith("ctx.") ? path.slice(4).split(".")[0] : path.split(".")[0];
+  const ctxRoot = getCtxRootKey(ctxKey);
+  return pathRoot === ctxRoot;
+}
+
+/**
+ * Walk every node's `inputs[]` / `outputs[]` bindings and group them by ctx
+ * key. For each ctx key that has both producers and consumers, verify that
+ * every producer's kind is assignable to every consumer's kind. Mismatches
+ * are anchored to the consumer port.
+ *
+ * Pure pass — no I/O, no side effects beyond pushing errors.
+ */
+function walkCtxKeyBindings(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  const byCtxKey = new Map<string, CtxKeyParticipants>();
+
+  function ensureEntry(ctxKey: string): CtxKeyParticipants {
+    let entry = byCtxKey.get(ctxKey);
+    if (!entry) {
+      entry = { producers: [], consumers: [] };
+      byCtxKey.set(ctxKey, entry);
+    }
+    return entry;
+  }
+
+  for (const node of Object.values(config.nodes)) {
+    if (node.inputs) {
+      for (const binding of node.inputs) {
+        const kind = resolvePortKind(
+          node,
+          binding.port,
+          "input",
+          binding.ctxKey,
+          config,
+        );
+        ensureEntry(binding.ctxKey).consumers.push({
+          node,
+          port: binding.port,
+          ctxKey: binding.ctxKey,
+          kind,
+        });
+      }
+    }
+    if (node.outputs) {
+      for (const binding of node.outputs) {
+        const kind = resolvePortKind(
+          node,
+          binding.port,
+          "output",
+          binding.ctxKey,
+          config,
+        );
+        ensureEntry(binding.ctxKey).producers.push({
+          node,
+          port: binding.port,
+          ctxKey: binding.ctxKey,
+          kind,
+        });
+      }
+    }
+  }
+
+  for (const [ctxKey, { producers, consumers }] of byCtxKey.entries()) {
+    if (producers.length === 0 || consumers.length === 0) continue;
+    for (const consumer of consumers) {
+      for (const producer of producers) {
+        if (isAssignable(producer.kind, consumer.kind)) continue;
+        const producerKindLabel = producer.kind ?? "Artifact";
+        const consumerKindLabel = consumer.kind ?? "Artifact";
+        errors.push({
+          path: `nodes.${consumer.node.id}.inputs.${consumer.port}`,
+          message: `Input port \`${consumer.port}\` (${consumerKindLabel}) on node \`${consumer.node.id}\` reads from ctx key \`${ctxKey}\`, written by node \`${producer.node.id}\` (${producerKindLabel}) — ${producerKindLabel} not assignable to ${consumerKindLabel}`,
+          severity: "error",
+        });
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// US-094: Library `metadata.inputs[].path` / `metadata.outputs[].path`
+//         depth-check pass
+//
+// For library workflows only, every declared `LibraryPortDescriptor.path`
+// must resolve to a real referent in the graph:
+//   - `"ctx.<key>"` or bare `"<key>"` → must match a declared `config.ctx`
+//     entry (compared on the root ctx key, mirroring the picker / runtime
+//     surface).
+//   - `"nodes.<nodeId>.outputs.<port>"` → must match a node whose
+//     `outputs[]` binds that port name.
+//
+// This pass is INDEPENDENT of US-093's kind-mismatch walk. A path may
+// resolve cleanly here yet still fail kind-check there, and vice versa.
+// ---------------------------------------------------------------------------
+
+type LibraryPortDirection = "inputs" | "outputs";
+
+/**
+ * Determine whether `descriptor.path` resolves to either a declared ctx
+ * key or an existing node's bound output port in the graph.
+ */
+function libraryPathResolves(
+  path: string,
+  config: GraphWorkflowConfig,
+): boolean {
+  // Shape A: explicit `nodes.<nodeId>.outputs.<port>` reference.
+  if (path.startsWith("nodes.")) {
+    const segments = path.split(".");
+    // Expected shape: ["nodes", "<nodeId>", "outputs", "<port>", ...]
+    if (segments.length >= 4 && segments[2] === "outputs") {
+      const nodeId = segments[1];
+      const portName = segments[3];
+      const node = config.nodes?.[nodeId];
+      if (!node) return false;
+      if (!node.outputs) return false;
+      return node.outputs.some((binding) => binding.port === portName);
+    }
+    return false;
+  }
+
+  // Shape B: `ctx.<key>` (with optional dotted sub-path) → resolve root.
+  // Shape C: bare `<key>` (with optional dotted sub-path) → resolve root.
+  const declaredCtxKeys = config.ctx ? Object.keys(config.ctx) : [];
+  if (declaredCtxKeys.length === 0) return false;
+  const declaredSet = new Set(declaredCtxKeys);
+
+  const rootKey = path.startsWith("ctx.")
+    ? path.slice(4).split(".")[0]
+    : path.split(".")[0];
+
+  if (!rootKey) return false;
+  return declaredSet.has(rootKey);
+}
+
+/**
+ * Walk `metadata.inputs[]` / `metadata.outputs[]` and emit an error for
+ * every descriptor whose `path` doesn't resolve.
+ *
+ * No-op for non-library workflows and for library workflows with empty
+ * `inputs[]` / `outputs[]`.
+ */
+function walkLibraryPaths(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  if (config.metadata?.kind !== "library") return;
+
+  const checkDescriptors = (
+    descriptors: LibraryPortDescriptor[] | undefined,
+    direction: LibraryPortDirection,
+  ): void => {
+    if (!descriptors) return;
+    const labelPrefix = direction === "inputs" ? "Library input" : "Library output";
+    for (let i = 0; i < descriptors.length; i++) {
+      const descriptor = descriptors[i];
+      if (libraryPathResolves(descriptor.path, config)) continue;
+      errors.push({
+        path: `metadata.${direction}[${i}].path`,
+        message: `${labelPrefix} \`${descriptor.label}\` path \`${descriptor.path}\` does not resolve to a declared ctx key or node output in this graph`,
+        severity: "error",
+      });
+    }
+  };
+
+  checkDescriptors(config.metadata.inputs, "inputs");
+  checkDescriptors(config.metadata.outputs, "outputs");
 }
