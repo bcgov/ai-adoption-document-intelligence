@@ -61,6 +61,13 @@ export type {
   PortDescriptor,
 } from "./types";
 
+export type {
+  FieldDescriptor,
+  JsonSchema7,
+  SourceCatalogEntry,
+  SourceRuntimePattern,
+} from "./source-types";
+
 export {
   createCatalogParameterValidator,
   type ValidateActivityParameters,
@@ -88,6 +95,15 @@ export {
   listProvidersForKind,
   type ProviderDescriptor,
 } from "./provider-catalog";
+
+export {
+  SOURCE_CATALOG,
+  createSourceParameterValidator,
+  deriveSourceOutputSchema,
+  getSourceCatalogEntry,
+  listSourceTypes,
+  type ValidateSourceParameters,
+} from "./source-catalog";
 
 const ENTRIES: ActivityCatalogEntry[] = [
   filePrepareCatalogEntry,

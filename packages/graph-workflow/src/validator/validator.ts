@@ -25,10 +25,18 @@ import type {
   LibraryPortDescriptor,
   MapNode,
   PollUntilNode,
+  SourceNode,
   SwitchNode,
   ValueRef,
 } from "../types";
 import { getActivityCatalogEntry } from "../catalog";
+import {
+  getSourceCatalogEntry as defaultGetSourceCatalogEntry,
+} from "../catalog/source-catalog";
+import type {
+  FieldDescriptor,
+  SourceCatalogEntry,
+} from "../catalog/source-types";
 import type { KindRef } from "../types/artifacts";
 import { isAssignable } from "../types/subtype-check";
 import { getCtxRootKey, getRefCtxRootKey } from "./context-utils";
@@ -78,6 +86,14 @@ export interface ValidateGraphConfigOptions {
     parameters: Record<string, unknown> | undefined,
     errors: GraphValidationError[],
   ) => void;
+  /**
+   * Optional lookup for source catalog entries. Defaults to the
+   * imported `getSourceCatalogEntry` against the package-level
+   * `SOURCE_CATALOG`. Tests inject a synthetic catalog by passing a
+   * custom lookup function (mirrors the activity validator pattern
+   * without requiring `jest.doMock` on the frozen catalog).
+   */
+  getSourceCatalogEntry?: (sourceType: string) => SourceCatalogEntry | undefined;
 }
 
 /**
@@ -114,6 +130,7 @@ export function validateGraphConfig(
   validateEdges(config, errors);
   validateErrorPolicies(config, errors);
   validateActivityTypes(config, errors, options);
+  validateSourceNodes(config, errors, options);
   validateSwitchNodes(config, errors);
   validateMapJoinNodes(config, errors);
   validatePortBindings(config, errors);
@@ -122,7 +139,7 @@ export function validateGraphConfig(
   validateDagStructure(config, errors);
   validateReachability(config, errors);
   validateNodeGroups(config, errors);
-  walkCtxKeyBindings(config, errors);
+  walkCtxKeyBindings(config, errors, options);
   walkLibraryPaths(config, errors);
 
   return {
@@ -349,6 +366,121 @@ function validateActivityTypes(
           errors,
         );
       }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// US-109: SourceNode structural validation
+//
+// Five rules:
+//   1. SourceNode.inputs[] must be empty/absent — sources have no upstream.
+//   2. `sourceType` must resolve against the source catalog.
+//   3. `parameters` must satisfy the entry's `parametersSchema` (Zod).
+//   4. Phase 8.0 supports at most one source per subtype — coexistence of
+//      different subtypes (e.g. one `source.api` + one `source.upload`) is
+//      allowed, but two of the same subtype is deferred to Phase 8.x.
+//   5. SOFT WARNING (not error) when a `source.api` node coexists with one
+//      or more `CtxDeclaration` entries flagged `isInput: true` — both
+//      surfaces produce the run-spec input shape, and the source wins at
+//      runtime so the `isInput` flags are ignored.
+//
+// See feature-docs/20260530-workflow-builder-phase8-document-sources/REQUIREMENTS.md
+// §3.3 (L17, L16) and DOCUMENT_SOURCES_DESIGN.md §1.
+// ---------------------------------------------------------------------------
+
+function validateSourceNodes(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+  options: ValidateGraphConfigOptions,
+): void {
+  const lookupEntry =
+    options.getSourceCatalogEntry ?? defaultGetSourceCatalogEntry;
+
+  const sourceNodes: SourceNode[] = [];
+
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.type !== "source") continue;
+    const sourceNode = node as SourceNode;
+    sourceNodes.push(sourceNode);
+
+    // Rule 1: source nodes cannot have upstream port bindings.
+    if (sourceNode.inputs && sourceNode.inputs.length > 0) {
+      errors.push({
+        path: `nodes.${nodeId}.inputs`,
+        message: `Source node \`${nodeId}\` cannot have inputs[]; sources have no upstream`,
+        severity: "error",
+      });
+    }
+
+    // Rule 2 + 3: sourceType resolves, then parameters pass the entry's Zod schema.
+    const entry = lookupEntry(sourceNode.sourceType);
+    if (!entry) {
+      errors.push({
+        path: `nodes.${nodeId}.sourceType`,
+        message: `Source node \`${nodeId}\` references unknown source type \`${sourceNode.sourceType}\``,
+        severity: "error",
+      });
+    } else {
+      const parsed = entry.parametersSchema.safeParse(
+        sourceNode.parameters ?? {},
+      );
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          const suffix =
+            issue.path.length > 0 ? `.${issue.path.join(".")}` : "";
+          errors.push({
+            path: `nodes.${nodeId}.parameters${suffix}`,
+            message: issue.message,
+            severity: "error",
+          });
+        }
+      }
+    }
+  }
+
+  // Rule 4: Phase 8.0 supports at most one source per subtype. Group source
+  // nodes by `sourceType`; for any group with count > 1, emit one error per
+  // duplicate (anchored to each duplicate beyond the first occurrence).
+  const bySubtype = new Map<string, SourceNode[]>();
+  for (const node of sourceNodes) {
+    const existing = bySubtype.get(node.sourceType);
+    if (existing) {
+      existing.push(node);
+    } else {
+      bySubtype.set(node.sourceType, [node]);
+    }
+  }
+  for (const [sourceType, group] of bySubtype.entries()) {
+    if (group.length <= 1) continue;
+    // Anchor each error to the duplicate (every node after the first
+    // occurrence). Keeps the message attached to *a* source node so the
+    // builder's per-node error surfacing can highlight it.
+    for (let i = 1; i < group.length; i++) {
+      const duplicate = group[i];
+      errors.push({
+        path: `nodes.${duplicate.id}.sourceType`,
+        message: `Phase 8.0 supports at most one source of subtype \`${sourceType}\` per workflow — multi-${sourceType} is deferred to Phase 8.x`,
+        severity: "error",
+      });
+    }
+  }
+
+  // Rule 5: source.api + isInput-flagged ctx → soft warning.
+  const hasApiSource = sourceNodes.some(
+    (node) => node.sourceType === "source.api",
+  );
+  if (hasApiSource && config.ctx) {
+    const hasIsInputCtx = Object.values(config.ctx).some(
+      (decl) => decl.isInput === true,
+    );
+    if (hasIsInputCtx) {
+      errors.push({
+        path: "metadata.ctx",
+        message:
+          "Workflow has a source.api node — isInput flags on ctx declarations are ignored. Remove isInput flags or remove the source.api to clarify intent.",
+        severity: "warning",
+      });
     }
   }
 }
@@ -961,17 +1093,85 @@ function libraryPortPathMatchesCtxKey(path: string, ctxKey: string): boolean {
 }
 
 /**
+ * US-110: Enumerate the ctx producers a `SourceNode` contributes to the
+ * binding-walk pass.
+ *
+ * Dispatches on `sourceType`:
+ *   - `"source.api"`   — walks `parameters.fields[]`; each row contributes
+ *     `(node, port: field.name, ctxKey: field.name, kind: field.kind ?? "Artifact")`.
+ *     Per-field `kind?` annotations make the producer surface heterogeneous.
+ *   - `"source.upload"` — single ctx key from `parameters.ctxKey ?? "documentUrl"`
+ *     with the catalog entry's `outputKind` (i.e. `"Document"` for the
+ *     Phase 8.0 upload subtype).
+ *   - Anything else — no producers enumerated. Future Phase 8.x subtypes
+ *     don't exist in the catalog yet, so reaching this branch implies
+ *     the structural validator (US-109) would have already flagged the
+ *     subtype before we got here.
+ */
+function enumerateSourceProducers(
+  sourceNode: SourceNode,
+  entry: SourceCatalogEntry,
+  ensureEntry: (ctxKey: string) => CtxKeyParticipants,
+): void {
+  if (sourceNode.sourceType === "source.api") {
+    const rawFields = (sourceNode.parameters as { fields?: unknown } | undefined)
+      ?.fields;
+    if (!Array.isArray(rawFields)) return;
+    for (const raw of rawFields) {
+      const field = raw as FieldDescriptor;
+      if (!field || typeof field.name !== "string") continue;
+      ensureEntry(field.name).producers.push({
+        node: sourceNode,
+        port: field.name,
+        ctxKey: field.name,
+        kind: field.kind ?? "Artifact",
+      });
+    }
+    return;
+  }
+
+  if (sourceNode.sourceType === "source.upload") {
+    const params = sourceNode.parameters as
+      | { ctxKey?: unknown }
+      | undefined;
+    const ctxKey =
+      typeof params?.ctxKey === "string" && params.ctxKey.length > 0
+        ? params.ctxKey
+        : "documentUrl";
+    ensureEntry(ctxKey).producers.push({
+      node: sourceNode,
+      port: ctxKey,
+      ctxKey,
+      kind: entry.outputKind,
+    });
+    return;
+  }
+}
+
+/**
  * Walk every node's `inputs[]` / `outputs[]` bindings and group them by ctx
  * key. For each ctx key that has both producers and consumers, verify that
  * every producer's kind is assignable to every consumer's kind. Mismatches
  * are anchored to the consumer port.
+ *
+ * US-110: Source nodes (`type === "source"`) are also enumerated as ctx
+ * producers — they have no `outputs[]` bindings (they write directly to
+ * ctx via their catalog entry's `deriveOutputSchema`), so their producer
+ * records are synthesised from `parameters.fields[]` (for `source.api`)
+ * or the configured `ctxKey` (for `source.upload`). The producer kind
+ * comes from each `FieldDescriptor.kind?` (heterogeneous, source.api) or
+ * the catalog entry's `outputKind` (single fixed kind, source.upload).
  *
  * Pure pass — no I/O, no side effects beyond pushing errors.
  */
 function walkCtxKeyBindings(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
+  options: ValidateGraphConfigOptions,
 ): void {
+  const lookupSourceEntry =
+    options.getSourceCatalogEntry ?? defaultGetSourceCatalogEntry;
+
   const byCtxKey = new Map<string, CtxKeyParticipants>();
 
   function ensureEntry(ctxKey: string): CtxKeyParticipants {
@@ -1017,6 +1217,17 @@ function walkCtxKeyBindings(
           kind,
         });
       }
+    }
+
+    // US-110: source nodes contribute synthetic producer records derived
+    // from their catalog entry / configured parameters. If the source
+    // catalog entry is unknown the structural validator (US-109) has
+    // already flagged it — skip enumeration here to avoid noise.
+    if (node.type === "source") {
+      const sourceNode = node as SourceNode;
+      const entry = lookupSourceEntry(sourceNode.sourceType);
+      if (!entry) continue;
+      enumerateSourceProducers(sourceNode, entry, ensureEntry);
     }
   }
 

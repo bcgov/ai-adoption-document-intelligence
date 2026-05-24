@@ -116,6 +116,16 @@ export interface ExposedParam {
 // Node Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Discriminator union for every node variant in the graph.
+ *
+ * The `"source"` variant is Phase 8's intake-as-node abstraction — see
+ * `docs-md/workflow-builder/DOCUMENT_SOURCES_DESIGN.md` §1 ("The source
+ * node TYPE") for the locked schema and rationale. Source nodes have no
+ * input handle, declare a `sourceType` resolved against the source
+ * catalog, and carry static `parameters` validated against the subtype's
+ * `parametersSchema`.
+ */
 export type NodeType =
   | "activity"
   | "switch"
@@ -123,7 +133,8 @@ export type NodeType =
   | "join"
   | "childWorkflow"
   | "pollUntil"
-  | "humanGate";
+  | "humanGate"
+  | "source";
 
 export interface GraphNodeBase {
   id: string;
@@ -245,6 +256,25 @@ export interface HumanGateNode extends GraphNodeBase {
   fallbackEdgeId?: string;
 }
 
+// -- Source Node ------------------------------------------------------------
+
+/**
+ * Phase 8 source node — the workflow's edge to the outside world.
+ *
+ * Source nodes have no upstream (`inputs` MUST be empty/absent — enforced
+ * by the validator, NOT the type, so the discriminated union stays
+ * ergonomic for incremental graph-edit operations). Their `sourceType`
+ * resolves against the source catalog (SOURCE_CATALOG) at validation
+ * time. Their `parameters` are validated against the subtype's
+ * `parametersSchema`. See DOCUMENT_SOURCES_DESIGN.md §1.
+ */
+export interface SourceNode extends GraphNodeBase {
+  type: "source";
+  /** Subtype id resolved against the source catalog (SOURCE_CATALOG); e.g. "source.api" or "source.upload" */
+  sourceType: string;
+  parameters?: Record<string, unknown>;
+}
+
 // -- Discriminated Union ----------------------------------------------------
 
 export type GraphNode =
@@ -254,7 +284,8 @@ export type GraphNode =
   | JoinNode
   | ChildWorkflowNode
   | PollUntilNode
-  | HumanGateNode;
+  | HumanGateNode
+  | SourceNode;
 
 // ---------------------------------------------------------------------------
 // Edges
