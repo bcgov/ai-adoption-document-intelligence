@@ -6,35 +6,35 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Entry registered in `SOURCE_CATALOG`
+- [x] **Scenario 1**: Entry registered in `SOURCE_CATALOG`
     - **Given** `packages/graph-workflow/src/catalog/sources/source-api.ts` (new) and `source-catalog.ts` (US-108)
     - **When** the package is built
     - **Then** `SOURCE_CATALOG` includes one entry with `type: "source.api"`, `category: "source"`, `displayName: "API endpoint"`, `runtime: "push"`, `outputKind: "Artifact"`
     - **And** `iconHint: "cloud-upload"` and `colorHint: "indigo"` per DOCUMENT_SOURCES_DESIGN.md §7.1
     - **And** `getSourceCatalogEntry("source.api")` returns this entry
 
-- [ ] **Scenario 2**: `parametersSchema` includes `fields[]` of `FieldDescriptor` shape
+- [x] **Scenario 2**: `parametersSchema` includes `fields[]` of `FieldDescriptor` shape
     - **Given** the same file
     - **When** read
     - **Then** the entry's `parametersSchema` is a `z.object({ fields: z.array(...).meta({ "x-widget": "field-list-editor", title: "Fields", description: "..." }), authNotes: z.string().optional() })` Zod v4 schema
     - **And** each `fields[]` element validates a `FieldDescriptor`: `{ name: string (URL-safe identifier), type: enum, kind?: enum from registry, required: boolean, description?: string, defaultValue?: unknown }`
     - **And** `authNotes` is optional (overrides the default auth-notes string in the Run drawer)
 
-- [ ] **Scenario 3**: `deriveOutputSchema(parameters)` walks `fields[]`
+- [x] **Scenario 3**: `deriveOutputSchema(parameters)` walks `fields[]`
     - **Given** `parameters: { fields: [{ name: "documentUrl", type: "string", required: true }, { name: "priority", type: "number", required: false, defaultValue: 1 }] }`
     - **When** `deriveOutputSchema(parameters)` is called
     - **Then** it returns `{ type: "object", properties: { documentUrl: { type: "string" }, priority: { type: "number", default: 1 } }, required: ["documentUrl"] }`
     - **And** when `fields[]` is empty or absent, returns `{ type: "object", properties: {}, required: [] }`
     - **And** per-field `description` / `defaultValue` round-trip into the JSON Schema
 
-- [ ] **Scenario 4**: Per-entry unit test
+- [x] **Scenario 4**: Per-entry unit test
     - **Given** `packages/graph-workflow/src/catalog/sources/source-api.test.ts` (new)
     - **When** the test runs
     - **Then** Scenario 1's registration is asserted (lookup via `getSourceCatalogEntry`)
     - **And** Scenario 2's `parametersSchema` accepts the documented happy-path shape and rejects (a) duplicate field names within `fields[]` (b) non-URL-safe `name` values
     - **And** Scenario 3's `deriveOutputSchema` round-trips for 3 representative `parameters` shapes (empty fields, single required field, multi-field with mixed required/optional/defaultValue)
 
-- [ ] **Scenario 5**: Catalog invariant test passes
+- [x] **Scenario 5**: Catalog invariant test passes
     - **Given** the bulk source-catalog invariant test in `packages/graph-workflow/src/catalog/source-catalog.test.ts`
     - **When** the test runs after this story
     - **Then** the test asserts every `SOURCE_CATALOG` entry has: non-empty `type`/`displayName`/`description`, valid `runtime` enum value, valid `outputKind` resolving via the Phase 3 registry, callable `deriveOutputSchema` (smoke test with `{}` parameters)

@@ -76,8 +76,8 @@ Phase 8 has a clear linear backbone (shared package → backend → catalog entr
 - [x] **US-114** (`POST /sources/:id/upload` multipart endpoint) — independent of US-111/112/113; shares the controller file though
 
 ### Phase 3 — catalog entries (Milestone C — Vite-restart point after both stories land)
-- [ ] **US-115** (`source-api.ts` catalog entry) — depends on US-108 + US-107
-- [ ] **US-116** (`source-upload.ts` catalog entry) — depends on US-108 + US-107; independent of US-115
+- [x] **US-115** (`source-api.ts` catalog entry) — depends on US-108 + US-107
+- [x] **US-116** (`source-upload.ts` catalog entry) — depends on US-108 + US-107; independent of US-115
 
 ### Phase 4 — frontend palette + renderer + settings + FieldListEditor (Milestone D — depends on Phase 1 + Phase 3)
 - [ ] **US-117** (`SourceNodeRenderer`) — depends on US-115/116 (uses `outputKind`) and Phase 3's handle-colour helper

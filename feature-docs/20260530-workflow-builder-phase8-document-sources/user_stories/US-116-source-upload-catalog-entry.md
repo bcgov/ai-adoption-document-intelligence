@@ -6,33 +6,33 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Entry registered in `SOURCE_CATALOG`
+- [x] **Scenario 1**: Entry registered in `SOURCE_CATALOG`
     - **Given** `packages/graph-workflow/src/catalog/sources/source-upload.ts` (new) and `source-catalog.ts` (US-108)
     - **When** the package is built
     - **Then** `SOURCE_CATALOG` includes a second entry with `type: "source.upload"`, `category: "source"`, `displayName: "File upload"`, `runtime: "manual"`, `outputKind: "Document"`
     - **And** `iconHint: "file-upload"` and `colorHint: "blue"` per DOCUMENT_SOURCES_DESIGN.md §7.1
     - **And** `getSourceCatalogEntry("source.upload")` returns this entry
 
-- [ ] **Scenario 2**: `parametersSchema` shape + defaults
+- [x] **Scenario 2**: `parametersSchema` shape + defaults
     - **Given** the same file
     - **When** read
     - **Then** the entry's `parametersSchema` is a `z.object({ allowedMimeTypes: z.array(z.string()).optional(), maxFileSizeMB: z.number().int().positive().optional(), ctxKey: z.string().optional() })` Zod v4 schema
     - **And** `.meta({ "x-default": [...] })` annotates defaults: `allowedMimeTypes` default `["application/pdf", "image/*"]`, `maxFileSizeMB` default `50`, `ctxKey` default `"documentUrl"`
     - **And** each field has a `title` + `description` for the JsonSchemaForm rendering
 
-- [ ] **Scenario 3**: `deriveOutputSchema(parameters)` returns ctxKey-keyed fixed shape
+- [x] **Scenario 3**: `deriveOutputSchema(parameters)` returns ctxKey-keyed fixed shape
     - **Given** `parameters: { ctxKey: "myFile" }`
     - **When** `deriveOutputSchema(parameters)` is called
     - **Then** it returns `{ type: "object", properties: { myFile: { type: "string", format: "uri" } }, required: ["myFile"] }`
     - **And** when `ctxKey` is absent in `parameters`, the function reads the default `"documentUrl"` from the schema and returns the `documentUrl`-keyed shape
 
-- [ ] **Scenario 4**: `outputKind === "Document"` (typed handle)
+- [x] **Scenario 4**: `outputKind === "Document"` (typed handle)
     - **Given** the same entry
     - **When** the canvas renderer (US-117) consumes `outputKind`
     - **Then** the source.upload node's output handle gets the Document colour (blue) from the Phase 3 registry palette
     - **And** Phase 3's binding-walk validator (US-110) treats the configured `ctxKey` as a producer of `kind: "Document"`
 
-- [ ] **Scenario 5**: Per-entry unit test
+- [x] **Scenario 5**: Per-entry unit test
     - **Given** `packages/graph-workflow/src/catalog/sources/source-upload.test.ts` (new)
     - **When** the test runs
     - **Then** Scenario 1's registration is asserted
