@@ -1,10 +1,10 @@
 # Typed I/O Artifacts on the Canvas — Design
 
 **Status:** Decided. Phase 3 of the post-1A plan. (Formerly the `TYPED_IO_BRAINSTORM.md` placeholder.)
-**Last updated:** 2026-05-23.
+**Last updated:** 2026-05-23 — amended to clarify that types attach to **ports** (and the ctx slots they bind to), not to wires. See §5.
 **Why now:** Three downstream phases all depend on a concrete artifact taxonomy — segmentation node pack (Phase 5), dynamic nodes (Phase 6), and the AI workflow builder (Phase 7). Continuing to defer this means those phases ship as half-features (segments are opaque blobs, the agent can't reason about port compatibility, dynamic nodes have no signature vocabulary).
 
-This document commits to concrete decisions for the typed-handles question. Engine semantics are unchanged from [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) (Model A — single in / single out + blackboard ctx). Types are a **UI-layer assertion**: the canvas refuses to draw a wire if the types don't match; the runtime still passes opaque `Record<string, unknown>` through ctx.
+This document commits to concrete decisions for the typed-handles question. Engine semantics are unchanged from [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) (Model A — single in / single out + blackboard ctx). Types are a **UI-layer + save-time assertion**: handles get coloured by their port's kind, the settings-panel variable picker filters by kind, and the backend `validateGraphConfig` walks ctx-key bindings to assert kind assignability between producers and consumers. Wires themselves remain pure execution-order arrows; the runtime still passes opaque `Record<string, unknown>` through ctx.
 
 ---
 
@@ -125,19 +125,47 @@ Hover-tooltip text: `"Segment[]"`, `"OcrResult"`, etc. — the rendered string i
 
 **On selected nodes**, a small type pill renders next to the handle (`OCR RESULT` / `SEGMENT[]`) for accessibility.
 
-**Mismatched-draw feedback.** When the user starts a connection from a typed handle, the canvas highlights compatible target handles in green and pulses incompatible ones with a red border. The draw is rejected on release if the target is incompatible; a Mantine notification names the reason (`"OcrResult cannot be wired to Segment input"`).
+**Wires are NOT type-rejected at draw time.** In Model A, wires represent execution order only — data flows through the ctx blackboard via per-node `inputs[]` / `outputs[]` port bindings (`PortBinding { port, ctxKey }`), not along the wire. Drawing a wire from a typed output handle to an incompatible input handle is allowed — the wire just adds an ordering constraint. The picker is the first design-time discovery surface for kind mismatches (see §5).
+
+**Wire body colour stays unchanged from Phase 1B** — wires are coloured by edge type (switch case / error / normal), not by data kind. The kind signal lives on the handle dot.
 
 ---
 
 ## 5. Where type-checking actually runs
 
-Three checkpoints, all consuming the same `isAssignable()` from the shared package:
+**Two checkpoints, both operating on ctx-key bindings (NOT on wires).** Wires are pure execution-order arrows in Model A; the actual data hop is from a producer node's output port → its declared `ctxKey` → a consumer node's input port that reads the same `ctxKey`. Type checking follows the data, not the wire.
 
-1. **Canvas — `onConnect`** — UI rejects draws that aren't assignable. Best UX. Implementation in `WorkflowEditorCanvas.tsx`'s `handleConnect`.
-2. **Settings panel — variable picker** — when a port has a `kind`, the picker filters ctx variables to only those whose latest-known producer kind is assignable. The producer kind comes from the upstream-output catalog `kind` lookup. (Today's picker shows everything; Phase 3 filters.)
-3. **Backend — save-time validator** — `validateGraphConfig` in `@ai-di/graph-workflow` walks every edge and asserts the source output port's `kind` is assignable to the target input port's `kind`. Mismatch produces a `GraphValidationError` with severity `"error"`, surfaced via the existing red node badges + drawer.
+Both checkpoints consume the same `isAssignable()` from the shared package:
+
+1. **Settings panel — variable picker** *(design-time, primary discovery surface)*. When a port with a declared `kind` is being bound to a ctx variable in the right-rail settings panel:
+   - All ctx variables stay visible (don't hide — users will think "where did my variable go?").
+   - Compatible variables list first (variables whose upstream-producer port kind is assignable to the consumer's `kind`).
+   - Incompatible variables list below a divider, dimmed, with a hover tooltip naming the reason (`"OcrResult — incompatible with this port (expects Segment)"`).
+   - Manually-declared ctx variables (those declared via the workflow-settings drawer's ctx editor, with primitive `type` only and no `kind`) are treated as `Artifact` (wildcard — always compatible). Filed as a follow-up: extend `CtxDeclaration` with optional `kind?: ArtifactKind`.
+
+2. **Backend — save-time validator** *(authoritative; runs in `validateGraphConfig`)*. Walks **ctx keys**, not edges:
+
+   ```
+   for each ctxKey written or read anywhere in the graph:
+     producers = [(node, outputPort, kind)  // every node.outputs[].ctxKey === ctxKey]
+     consumers = [(node, inputPort, kind)   // every node.inputs[].ctxKey  === ctxKey]
+     for each (cnode, cport, ckind) in consumers:
+       for each (pnode, pport, pkind) in producers:
+         if not isAssignable(pkind, ckind):
+           emit GraphValidationError {
+             severity: "error",
+             nodeId: cnode.id, port: cport,
+             message: "Input port `{cport}` ({ckind}) on node `{cnode}` reads from ctx key `{ctxKey}`, written by node `{pnode}` ({pkind}) — {pkind} not assignable to {ckind}"
+           }
+   ```
+
+   The error anchors to the **consumer port** (where the mismatch is felt). The existing red node badges + error drawer (from Phase 1A) render the message verbatim.
+
+**Multi-producer ctx keys** (a key written by multiple producers across switch / map / parallel branches): every producer's kind must be assignable to every consumer's kind. Strict producer-side check — if producers disagree, every consumer that doesn't accept the most-restrictive producer surfaces an error. Simpler than computing a least-common-supertype; encourages workflow authors to be explicit about merging branch outputs into typed ctx keys.
 
 The runtime engine still doesn't check types. The blackboard is opaque `Record<string, unknown>`. Type safety is a save-time + design-time property only.
+
+**Explicitly not in Phase 3:** draw-time wire rejection. Wires are ordering; rejecting them on type grounds would conflate two distinct user actions (wiring = ordering vs binding = data). An auto-bind-on-wire-draw layer (option C from the design discussion) is filed as a Phase 3.5 follow-up — it would make wires semantically meaningful AND restore draw-time UX in one move.
 
 ---
 
@@ -201,11 +229,13 @@ Activities that take a `provider: string` parameter (e.g., a generic `ocr.run` t
 
 ## 11. Out of scope for Phase 3
 
+- **Draw-time wire rejection on type grounds.** Wires are execution-order only; rejecting them on kind mismatch would conflate ordering with data flow. See §5. An auto-bind-on-wire-draw layer that makes wires semantically meaningful (and brings back draw-time UX) is filed for **Phase 3.5**.
 - **Auto-wrap / auto-unwrap** between `T` and `T[]`. Use `map` / `join`.
 - **Structural typing or shape inference.** Strictly nominal — every `ArtifactKind` is declared in the registry.
 - **Per-field types inside an artifact.** `OcrFields` is one kind; the individual fields it contains are not separately typed at the wiring layer.
 - **Runtime type checks.** The engine stays opaque.
-- **Migrating ctx declarations to typed.** `CtxDeclaration.type` (`"string" | "number" | "boolean" | "object" | "array"`) is a separate, runtime-shape concept; it stays as-is. Artifact kinds layer above it for UI/save-time purposes only.
+- **Migrating `CtxDeclaration` to carry `kind?`.** `CtxDeclaration.type` (`"string" | "number" | "boolean" | "object" | "array"`) stays as-is for Phase 3. Manually-declared ctx variables are treated as `Artifact` (wildcard) by the picker filter. Extending `CtxDeclaration` with optional `kind?: ArtifactKind` (+ a kind picker in the workflow-settings ctx editor) is filed as a Phase 3 follow-up; it's straightforward but adds UI surface that's better tackled once the activity-side fan-out is done.
+- **Typed library port descriptors.** Track 1's `LibraryPortDescriptor { label, path, type }` stays at primitive `type` only for Phase 3. Extending with `kind?: ArtifactKind` so library `childWorkflow` references participate in the binding-walk validator is filed alongside the `CtxDeclaration` extension — same shape, same UI surface.
 
 ---
 
@@ -214,17 +244,20 @@ Activities that take a `provider: string` parameter (e.g., a generic `ocr.run` t
 1. `packages/graph-workflow/src/types/artifacts.ts` — interfaces + `ArtifactKind` union
 2. `packages/graph-workflow/src/types/artifact-registry.ts` — registry + `registerArtifactKind`
 3. `packages/graph-workflow/src/types/subtype-check.ts` — `isAssignable`
-4. Extend `PortDescriptor` with `kind?: ArtifactKind | ...[]`
-5. Add type-check pass to `validator.ts` (save-time)
-6. Frontend: handle colour + tooltip; reject mismatched draws in `handleConnect`
-7. Frontend: filter variable picker by `kind`
-8. Fan out `kind` declarations across the 41 catalog entries (incrementally)
+4. Extend `PortDescriptor` with `kind?: ArtifactKind | "${ArtifactKind}[]"`
+5. Add **binding-walk** type-check pass to `validator.ts` (save-time; walks ctx keys not edges — see §5)
+6. Frontend: handle colour + hover tooltip + on-selection type pill. **No `handleConnect` rejection** — wires are ordering only.
+7. Frontend: variable picker shows all ctx variables; compatible ones first, incompatible ones dimmed below a divider with a hover-tooltip naming the reason.
+8. Fan out `kind` declarations across the 41 catalog entries (incrementally; framework + 4–6 exemplars is a reasonable Phase 3 cap, full fan-out as Phase 3.x)
 9. Provider catalog (Phase 3 → Phase 5 hand-off)
 
 ---
 
 ## 13. Open after this lands
 
+- **Phase 3.5 — auto-bind-on-wire-draw.** Make wire-draw semantically meaningful: drawing a wire between two typed handles auto-creates a ctx key + the matching input/output bindings on both sides. Restores draw-time UX (rejection on kind mismatch becomes consistent because the wire IS the binding). Bigger lift; punted to keep Phase 3 small.
+- **Typed `CtxDeclaration`.** Extend with optional `kind?: ArtifactKind` + add a kind picker to the workflow-settings ctx editor so manually-declared ctx slots participate in the binding-walk type check.
+- **Typed `LibraryPortDescriptor`.** Same shape — extend Track 1's `{ label, path, type }` with `kind?: ArtifactKind` so library `childWorkflow` references are typed end-to-end.
 - Concrete kind palette beyond v1 list (when new domains appear)
 - Auto-fan-out fixers in the editor ("you wired `Document[]` into a `Document` slot — add a `map` node?")
 - LSP-style hovers that show the producer's actual ctxKey path, not just the kind

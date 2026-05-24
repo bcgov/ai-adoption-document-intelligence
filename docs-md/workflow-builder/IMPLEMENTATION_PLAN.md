@@ -245,22 +245,28 @@ The "Phase 8+" items dissolved into a real phase, because Phase 7's AI agent and
 The foundational layer for Phases 4, 5, 6, and 7. Concrete decisions and the artifact taxonomy are in [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md). Summary:
 
 - **Artifact taxonomy** — single rooted hierarchy: `Artifact` (base) → `Document` (`MultiPageDocument` / `SinglePageDocument`), `Segment` (with parameterised `Segment<Text|Table|Figure|Form|KeyValue|Signature|Header>`), `OcrResult` / `OcrFields` / `OcrTable`, `Classification`, `ValidationResult`, `Reference`
-- **Where it lives** — `packages/graph-workflow/src/types/artifacts.ts` + `artifact-registry.ts` + `subtype-check.ts`, consumed by both backend save-time validation and the frontend canvas / settings panel
-- **PortDescriptor extension** — optional `kind?: ArtifactKind | T[]` field; backwards compatible (no `kind` = `Artifact`, drawable anywhere)
-- **UI rendering** — colour-coded handle dots + hover tooltip + on-selection type pill; mismatched-draw rejected at canvas connect time with a Mantine notification
-- **Three checkpoints** — canvas `onConnect` (UX), settings-panel variable picker (filtered by kind), backend `validateGraphConfig` (save-time error)
+- **Where it lives** — `packages/graph-workflow/src/types/artifacts.ts` + `artifact-registry.ts` + `subtype-check.ts`, consumed by both the backend `validateGraphConfig` walker and the frontend handle renderer + variable picker
+- **PortDescriptor extension** — optional `kind?: ArtifactKind | "${ArtifactKind}[]"` field; backwards compatible (no `kind` = `Artifact`, treated as wildcard)
+- **UI rendering** — colour-coded handle dots + hover tooltip + on-selection type pill. **No draw-time wire rejection** — wires remain pure execution-order arrows in Model A; type checking operates on ctx-key bindings (see TYPED_IO_DESIGN.md §5).
+- **Two checkpoints (both binding-based, not edge-based):**
+  1. Settings-panel variable picker filters by kind (compatible first; incompatible dimmed below a divider with a hover-tooltip naming the reason)
+  2. Backend `validateGraphConfig` walks **ctx keys**: for each key, every producer port's kind must be assignable to every consumer port's kind. Errors anchor to the consumer port.
 - **Subtyping** — strict nominal: `SinglePageDocument` → `Document` slot ✓; reverse ✗; no auto-wrap between `T` and `T[]`
+- **Manually-declared ctx variables** — `CtxDeclaration` keeps its primitive `type` field for Phase 3; treated as `Artifact` (wildcard) by the picker filter. Typed `CtxDeclaration.kind?` filed as a Phase 3 follow-up.
+- **Library port descriptors** — Track 1's `LibraryPortDescriptor { label, path, type }` keeps primitive `type` only for Phase 3. Typed `LibraryPortDescriptor.kind?` filed as a Phase 3 follow-up alongside `CtxDeclaration`.
 - **Provider catalog** — `provider-catalog.ts` companion: `{ id, displayName, category, acceptsKind, returns }`; activities with a generic `provider` parameter source dropdowns filtered by upstream `kind`
 
 Implementation order:
 
 - [ ] Types + registry + `isAssignable` in `packages/graph-workflow`
 - [ ] Extend `PortDescriptor` with `kind?`
-- [ ] Add type-check pass to `validator.ts` (backend save-time error on edge kind mismatch)
-- [ ] Frontend: handle colour + tooltip; reject mismatched draws in `handleConnect`
-- [ ] Frontend: filter variable picker by `kind`
-- [ ] Fan out `kind` declarations across the 41 catalog entries — incrementally, one activity at a time, with the bulk catalog test asserting "every entry that DOES declare `kind` declares it for every port"
+- [ ] Add **binding-walk** type-check pass to `validator.ts` (walks ctx keys, errors anchor to consumer port)
+- [ ] Frontend: handle colour + hover tooltip + on-selection type pill (no `handleConnect` change)
+- [ ] Frontend: variable picker sorts compatible-first + dims incompatible with a "why" tooltip
+- [ ] Fan out `kind` declarations across the 41 catalog entries — framework + 4–6 exemplars in Phase 3 (split / classify / OCR / validate); full fan-out as Phase 3.x. Bulk catalog test asserts "every entry that DOES declare `kind` declares it for every port."
 - [ ] Provider catalog skeleton + 1-2 example providers (Phase 3 → Phase 5 hand-off)
+
+**Phase 3.5 — auto-bind-on-wire-draw (filed; not in Phase 3).** Make wires semantically meaningful: drawing a wire between two typed handles auto-creates a ctx key + the matching input/output bindings on both sides. Restores draw-time UX (rejection on kind mismatch becomes consistent because the wire IS the binding). Bigger lift; deferred to keep Phase 3 small and to land typed I/O quickly for Phases 4–7.
 
 ### Phase 4 — Try-in-place + caching + per-node previews
 
