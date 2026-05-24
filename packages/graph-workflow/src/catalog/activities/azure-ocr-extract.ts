@@ -17,30 +17,35 @@ export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
       label: "APIM request ID",
       description: "Azure request tracking ID.",
       required: true,
+      kind: "Artifact",
     },
     {
       name: "fileName",
       label: "File name",
       description: "Original file name.",
       required: true,
+      kind: "Artifact",
     },
     {
       name: "fileType",
       label: "File type",
       description: "`pdf` or `image`.",
       required: true,
+      kind: "Artifact",
     },
     {
       name: "modelId",
       label: "OCR model ID",
       description: "Model the OCR was submitted against.",
       required: true,
+      kind: "Artifact",
     },
     {
       name: "ocrResponse",
       label: "OCR response",
       description: "Raw OCR response. Refetched if omitted.",
       required: false,
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -50,6 +55,7 @@ export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
       description:
         "Structured OCR result with pages, paragraphs, key-value pairs, confidence scores.",
       required: true,
+      kind: "OcrResult",
     },
   ],
   parametersSchema: azureOcrExtractParametersSchema,

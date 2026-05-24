@@ -17,6 +17,7 @@ export const ocrCleanupCatalogEntry: ActivityCatalogEntry = {
       label: "OCR result",
       description: "OCR result to clean.",
       required: true,
+      kind: "OcrResult",
     },
   ],
   outputs: [
@@ -25,6 +26,7 @@ export const ocrCleanupCatalogEntry: ActivityCatalogEntry = {
       label: "Cleaned result",
       description: "OCR result with normalized text.",
       required: true,
+      kind: "OcrResult",
     },
   ],
   parametersSchema: ocrCleanupParametersSchema,

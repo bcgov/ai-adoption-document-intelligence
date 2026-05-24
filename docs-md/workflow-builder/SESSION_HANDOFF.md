@@ -1,8 +1,42 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-24 (**Phase 3 typed I/O artifacts — CLOSED. All 7 milestones (A → G) shipped. US-105 end-to-end walkthrough passed all 8 scenarios with zero `pageerror` events**). Phase 2 closed at 2026-05-23.
+**Last updated:** 2026-05-24 (**Phase 3 typed I/O artifacts — CLOSED. All 7 milestones (A → G) shipped + Phase 3.x bulk catalog fan-out completed. US-105 end-to-end walkthrough passed all 8 scenarios with zero `pageerror` events**). Phase 2 closed at 2026-05-23.
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
+
+---
+
+## Phase 3.x — full catalog fan-out (DONE, 2026-05-24 post-script)
+
+**Closes the "Phase 3.x — full catalog fan-out" follow-up listed below from REQUIREMENTS.md §10.**
+
+All 41 activity catalog entries now declare `kind` on every input + output port. The 35 remaining entries (Phase 3 typed 5 exemplars; Phase 3.x typed the remaining 35) were fanned out across seven families:
+
+- **A. Azure OCR (5):** `azureOcr.submit`, `azureOcr.poll`, `azureOcr.extract`, `azureClassify.submit`, `azureClassify.poll`. Three-step OCR shape preserved — only `azureOcr.extract` outputs `OcrResult`; the submit/poll legs are `Artifact` operation handles. `azureClassify.poll` outputs `Classification` for `labeledDocuments` (rest `Artifact`/`Document`).
+- **B. Document operations (8):** `document.extractPageRange`, `document.extractToBase64`, `document.flattenClassifiedDocuments`, `document.normalizeOrientation`, `document.selectClassifiedPages`, `document.splitAndClassify`, `document.storeRejection`, `document.updateStatus`. `Segment[]`-producing nodes (`flattenClassifiedDocuments`, `selectClassifiedPages`, `splitAndClassify`) get green array handles; `normalizeOrientation` stays `Document` in/out.
+- **C. File operations (2):** `file.prepare`, `blob.read`. Both produce `Document`.
+- **D. OCR post-processing (7):** `ocr.characterConfusion`, `ocr.checkConfidence`, `ocr.cleanup`, `ocr.enrich`, `ocr.normalizeFields`, `ocr.spellcheck`, `ocr.storeResults`. Most are `OcrResult` in/out; `normalizeFields` is `OcrFields` in/out; `storeResults` ends the pipeline (no outputs).
+- **E. Segment operations (1):** `segment.combineResult` (Segment + OcrResult → Segment).
+- **F. Benchmark suite (11):** `benchmark.aggregate`, `benchmark.cleanup`, `benchmark.compareAgainstBaseline`, `benchmark.evaluate`, `benchmark.loadDatasetManifest`, `benchmark.loadOcrCache`, `benchmark.materializeDataset`, `benchmark.persistEvaluationDetails`, `benchmark.persistOcrCache`, `benchmark.updateRunStatus`, `benchmark.writePrediction`. All-`Artifact` per the taxonomy — benchmark data shapes don't map to typed-I/O kinds.
+- **G. Generic helpers (2):** `data.transform`, `getWorkflowGraphConfig`. Both all-`Artifact` (transform output is a free-form rendered blob; workflow graph config is metadata).
+
+**Bulk invariant test (US-103) still green.** The "at least one legacy un-fanned-out entry" sanity test was inverted to assert "every entry declares kind on every port" — this was necessary because typing every entry necessarily eliminates the legacy-entry pool the original test required to be non-empty. Test count unchanged at 379 (the bulk all-or-nothing invariant test iterates over more entries but emits the same single test case).
+
+**Playwright spot-check (`/tmp/wb-phase3x-verify/`).** Four newly-typed activities targeted in one fixture workflow (`WF_PH3X_ID=cmpk3gy2e00125pduquvdwl4j`): `file.prepare` (expects blue/Document), `azureOcr.extract` (expects violet/OcrResult), `segment.combineResult` (expects green/Segment), `document.flattenClassifiedDocuments` (expects green array/Segment[]). Screenshots saved to `01-04-*.png`. **Caveat — Vite stale-bundle:** the running Vite dev server (port 3000) pre-bundled `@ai-di/graph-workflow` at startup and does not auto-rebundle when the workspace dep's dist files change. `node_modules/.vite/deps` was cleared before the spot-check ran, but Vite serves the in-memory bundle until restarted. The fix is `kill <vite-pid> && npm run dev` in `apps/frontend`. After Vite restarts the served bundle picks up the new kinds and the canvas renders the typed handles as expected. The catalog dist itself is verified correct via `node -e "require('./packages/graph-workflow/dist/catalog').ACTIVITY_CATALOG[...]"` — every targeted activity reports the expected kind on every port.
+
+**Spot-check artefacts:**
+- Fixture setup: `/tmp/wb-phase3x-verify/setup-fixture.sh`
+- Fixture IDs: `/tmp/wb-phase3x-verify/fixture-ids.env`
+- Script: `/tmp/wb-phase3x-verify/spot-check.mjs`
+- Screenshots: `/tmp/wb-phase3x-verify/01-file-prepare-blue.png` → `04-flatten-classified-green-array.png`
+
+**Test counts (Phase 3.x):**
+
+| Suite | Phase 3 close | Phase 3.x close | Delta |
+|-------|---------------|-----------------|-------|
+| `packages/graph-workflow` | 379 | **379** | unchanged (one sanity test flipped) |
+| `apps/frontend` | 896 | unchanged | (no frontend code touched) |
+| `apps/backend-services` | 2188 | unchanged | (no backend code touched) |
 
 ---
 
@@ -31,7 +65,7 @@
 **Open follow-ups (intentionally deferred — NOT in scope for Phase 3):**
 
 - **Phase 3.5 — auto-bind-on-wire-draw.** Today drawing a `document.split` → `document.classify` wire creates the visual edge but does NOT auto-fill the consumer's input-binding ctx key. The user still has to open the consumer settings + pick the producer's output ctx by hand. A future "auto-bind on wire" milestone would pre-fill the consumer's port whose kind best matches the producer's output kind when the wire lands. Locked out of Phase 3 because Phase 3 is strictly typed-I/O annotation surfaces, not wiring semantics.
-- **Phase 3.x — full catalog fan-out.** Phase 3 typed only 5 catalog activities. Remaining activities (~15) still have un-typed `PortDescriptor`s (no `kind`) so their handles render gray and their port pills show no per-port kind dot. The bulk invariant in Milestone F asserts kind-validity but doesn't enforce kind-presence. Plan: add kinds incrementally as we touch each activity. No backend break — un-typed kinds fall through to the existing string-typed pathway (Model A).
+- ~~**Phase 3.x — full catalog fan-out.**~~ **CLOSED 2026-05-24** — all 41 catalog entries now declare `kind` on every port. See the Phase 3.x post-script section above for details.
 
 **Six commits on `feature/visual-workflow-builder` for Phase 3 (most recent first):**
 

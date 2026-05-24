@@ -11,8 +11,8 @@ export const benchmarkLoadOcrCacheCatalogEntry: ActivityCatalogEntry = {
   iconHint: "database",
   colorHint: "green",
   inputs: [
-    { name: "sourceRunId", label: "Source run ID", required: true },
-    { name: "sampleId", label: "Sample ID", required: true },
+    { name: "sourceRunId", label: "Source run ID", required: true, kind: "Artifact" },
+    { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
   ],
   outputs: [
     {
@@ -20,6 +20,7 @@ export const benchmarkLoadOcrCacheCatalogEntry: ActivityCatalogEntry = {
       label: "OCR response",
       description: "Cached Azure OCR response (null if not found).",
       required: false,
+      kind: "Artifact",
     },
   ],
   parametersSchema: benchmarkLoadOcrCacheParametersSchema,

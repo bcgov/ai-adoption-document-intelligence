@@ -18,6 +18,7 @@ export const benchmarkCompareAgainstBaselineCatalogEntry: ActivityCatalogEntry =
         label: "Run ID",
         description: "Benchmark run identifier.",
         required: true,
+        kind: "Artifact",
       },
     ],
     outputs: [
@@ -26,6 +27,7 @@ export const benchmarkCompareAgainstBaselineCatalogEntry: ActivityCatalogEntry =
         label: "Comparison",
         description: "Baseline comparison result (null if no baseline).",
         required: false,
+        kind: "Artifact",
       },
     ],
     parametersSchema: benchmarkCompareAgainstBaselineParametersSchema,

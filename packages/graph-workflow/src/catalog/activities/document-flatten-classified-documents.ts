@@ -18,12 +18,14 @@ export const documentFlattenClassifiedDocumentsCatalogEntry: ActivityCatalogEntr
         label: "Labeled documents",
         description: "Output from azureClassify.poll (keyed by label).",
         required: true,
+        kind: "Classification",
       },
       {
         name: "filterLabels",
         label: "Filter labels",
         description: "Optional allow-list of labels to include.",
         required: false,
+        kind: "Artifact",
       },
     ],
     outputs: [
@@ -33,6 +35,7 @@ export const documentFlattenClassifiedDocumentsCatalogEntry: ActivityCatalogEntr
         description:
           "Flat, page-ordered array of classified segments with their labels.",
         required: true,
+        kind: "Segment[]",
       },
     ],
     parametersSchema: documentFlattenClassifiedDocumentsParametersSchema,

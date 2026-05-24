@@ -12,14 +12,15 @@ export const benchmarkPersistEvaluationDetailsCatalogEntry: ActivityCatalogEntry
     iconHint: "save",
     colorHint: "green",
     inputs: [
-      { name: "runId", label: "Run ID", required: true },
-      { name: "sampleId", label: "Sample ID", required: true },
+      { name: "runId", label: "Run ID", required: true, kind: "Artifact" },
+      { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
       {
         name: "details",
         label: "Details",
         description:
           "Heavy evaluation fields (groundTruth, prediction, evaluationDetails, diagnostics).",
         required: true,
+        kind: "Artifact",
       },
     ],
     outputs: [
@@ -28,6 +29,7 @@ export const benchmarkPersistEvaluationDetailsCatalogEntry: ActivityCatalogEntry
         label: "Evaluation blob path",
         description: "Blob storage key the evaluation details were written to.",
         required: true,
+        kind: "Artifact",
       },
     ],
     parametersSchema: benchmarkPersistEvaluationDetailsParametersSchema,

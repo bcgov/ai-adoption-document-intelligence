@@ -34,6 +34,7 @@ export const benchmarkUpdateRunStatusCatalogEntry: ActivityCatalogEntry = {
       label: "Run ID",
       description: "Benchmark run identifier.",
       required: true,
+      kind: "Artifact",
     },
   ],
   outputs: [],

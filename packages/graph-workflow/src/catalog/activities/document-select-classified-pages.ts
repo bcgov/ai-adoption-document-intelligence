@@ -17,12 +17,14 @@ export const documentSelectClassifiedPagesCatalogEntry: ActivityCatalogEntry = {
       label: "Labeled documents",
       description: "Output from azureClassify.poll (keyed by label).",
       required: true,
+      kind: "Classification",
     },
     {
       name: "targetLabel",
       label: "Target label",
       description: "Classifier label to select.",
       required: true,
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -32,6 +34,7 @@ export const documentSelectClassifiedPagesCatalogEntry: ActivityCatalogEntry = {
       description:
         "All detected segments for the target label, sorted by pageRange.start.",
       required: true,
+      kind: "Segment[]",
     },
   ],
   parametersSchema: documentSelectClassifiedPagesParametersSchema,

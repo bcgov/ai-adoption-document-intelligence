@@ -67,6 +67,7 @@ export const ocrNormalizeFieldsCatalogEntry: ActivityCatalogEntry = {
       label: "OCR result",
       description: "OCR result to normalize.",
       required: true,
+      kind: "OcrFields",
     },
   ],
   outputs: [
@@ -75,12 +76,14 @@ export const ocrNormalizeFieldsCatalogEntry: ActivityCatalogEntry = {
       label: "Normalized result",
       description: "OCR result with normalized field values.",
       required: true,
+      kind: "OcrFields",
     },
     {
       name: "changes",
       label: "Changes",
       description: "Optional list of changes made by normalization.",
       required: false,
+      kind: "Artifact",
     },
   ],
   parametersSchema: ocrNormalizeFieldsParametersSchema,

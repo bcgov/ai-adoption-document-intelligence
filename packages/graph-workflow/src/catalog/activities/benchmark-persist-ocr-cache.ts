@@ -11,9 +11,9 @@ export const benchmarkPersistOcrCacheCatalogEntry: ActivityCatalogEntry = {
   iconHint: "save",
   colorHint: "green",
   inputs: [
-    { name: "sourceRunId", label: "Source run ID", required: true },
-    { name: "sampleId", label: "Sample ID", required: true },
-    { name: "ocrResponse", label: "OCR response", required: true },
+    { name: "sourceRunId", label: "Source run ID", required: true, kind: "Artifact" },
+    { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
+    { name: "ocrResponse", label: "OCR response", required: true, kind: "Artifact" },
   ],
   outputs: [],
   parametersSchema: benchmarkPersistOcrCacheParametersSchema,

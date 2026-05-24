@@ -82,6 +82,7 @@ export const dataTransformCatalogEntry: ActivityCatalogEntry = {
       label: "Output",
       description: "Rendered result in the chosen output format.",
       required: true,
+      kind: "Artifact",
     },
   ],
   parametersSchema: dataTransformParametersSchema,

@@ -15,6 +15,7 @@ export const benchmarkMaterializeDatasetCatalogEntry: ActivityCatalogEntry = {
       name: "datasetVersionId",
       label: "Dataset version ID",
       required: true,
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -23,6 +24,7 @@ export const benchmarkMaterializeDatasetCatalogEntry: ActivityCatalogEntry = {
       label: "Materialized path",
       description: "Local path where the dataset was materialized.",
       required: true,
+      kind: "Artifact",
     },
   ],
   parametersSchema: benchmarkMaterializeDatasetParametersSchema,

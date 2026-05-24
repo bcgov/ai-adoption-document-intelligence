@@ -145,20 +145,22 @@ describe("Phase 3 — kind annotation all-or-nothing invariant (US-103)", () => 
     });
   });
 
-  it("at least one legacy un-fanned-out entry has hasAnyKind === false", () => {
-    // Sanity check: confirm the catalog still has entries that haven't been typed yet
-    // (we wouldn't want to accidentally type every entry without doing it deliberately).
-    const legacyEntries = Object.values(ACTIVITY_CATALOG).filter((entry) => {
-      const inputs = entry.inputs ?? [];
-      const outputs = entry.outputs ?? [];
-      return (
-        inputs.every((p) => p.kind === undefined) &&
-        outputs.every((p) => p.kind === undefined)
-      );
-    });
-    // If this fails, all catalog entries are typed — confirm this is intentional
-    // (Phase 3 expected only 5 exemplars; the rest should remain un-typed legacy entries).
-    expect(legacyEntries.length).toBeGreaterThan(0);
+  it("every catalog entry declares kind on every port (Phase 3.x full fan-out)", () => {
+    // Phase 3.x completed the bulk fan-out: every registered activity catalog
+    // entry now declares `kind` on every input + output port. If an entry is
+    // added without typed ports, this test fails — surface that explicitly so
+    // the all-or-nothing invariant stays satisfied across the whole catalog.
+    const untypedEntries = Object.values(ACTIVITY_CATALOG)
+      .filter((entry) => {
+        const inputs = entry.inputs ?? [];
+        const outputs = entry.outputs ?? [];
+        return (
+          inputs.some((p) => p.kind === undefined) ||
+          outputs.some((p) => p.kind === undefined)
+        );
+      })
+      .map((entry) => entry.activityType);
+    expect(untypedEntries).toEqual([]);
   });
 
   // Sanity check (do NOT commit failing): temporarily remove `kind` from one port of

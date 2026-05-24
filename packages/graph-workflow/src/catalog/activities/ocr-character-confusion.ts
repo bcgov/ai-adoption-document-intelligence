@@ -71,6 +71,7 @@ export const ocrCharacterConfusionCatalogEntry: ActivityCatalogEntry = {
       label: "OCR result",
       description: "OCR result to correct.",
       required: true,
+      kind: "OcrResult",
     },
   ],
   outputs: [
@@ -79,12 +80,14 @@ export const ocrCharacterConfusionCatalogEntry: ActivityCatalogEntry = {
       label: "Corrected result",
       description: "OCR result with character-confusion fixes applied.",
       required: true,
+      kind: "OcrResult",
     },
     {
       name: "corrections",
       label: "Corrections",
       description: "List of corrections applied.",
       required: false,
+      kind: "Artifact",
     },
   ],
   parametersSchema: ocrCharacterConfusionParametersSchema,

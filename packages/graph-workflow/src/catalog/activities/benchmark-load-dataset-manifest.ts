@@ -15,6 +15,7 @@ export const benchmarkLoadDatasetManifestCatalogEntry: ActivityCatalogEntry = {
       name: "materializedPath",
       label: "Materialized path",
       required: true,
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -23,6 +24,7 @@ export const benchmarkLoadDatasetManifestCatalogEntry: ActivityCatalogEntry = {
       label: "Manifest",
       description: "Parsed dataset manifest (metadata + sample list).",
       required: true,
+      kind: "Artifact",
     },
   ],
   parametersSchema: benchmarkLoadDatasetManifestParametersSchema,

@@ -39,24 +39,28 @@ export const documentSplitAndClassifyCatalogEntry: ActivityCatalogEntry = {
       label: "Source file reference (blob key)",
       description: "Storage key for the multi-page PDF to split.",
       required: true,
+      kind: "MultiPageDocument",
     },
     {
       name: "groupId",
       label: "Group ID",
       description: "Destination group for segment storage.",
       required: true,
+      kind: "Artifact",
     },
     {
       name: "ocrResult",
       label: "OCR result",
       description: "OCR result for the full document.",
       required: true,
+      kind: "OcrResult",
     },
     {
       name: "documentId",
       label: "Document ID",
       description: "Inferred from the file reference if not provided.",
       required: false,
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -66,6 +70,7 @@ export const documentSplitAndClassifyCatalogEntry: ActivityCatalogEntry = {
       description:
         "Standard segment fields plus segmentType, keywordMatch, and confidence.",
       required: true,
+      kind: "Segment[]",
     },
   ],
   parametersSchema: documentSplitAndClassifyParametersSchema,

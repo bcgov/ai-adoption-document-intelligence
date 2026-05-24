@@ -17,12 +17,14 @@ export const segmentCombineResultCatalogEntry: ActivityCatalogEntry = {
       label: "Current segment",
       description: "Segment metadata produced upstream.",
       required: true,
+      kind: "Segment",
     },
     {
       name: "segmentOcrResult",
       label: "Segment OCR result",
       description: "OCR result for this segment.",
       required: true,
+      kind: "OcrResult",
     },
   ],
   outputs: [
@@ -31,6 +33,7 @@ export const segmentCombineResultCatalogEntry: ActivityCatalogEntry = {
       label: "Combined segment",
       description: "Merged segment object with ocrResult embedded.",
       required: true,
+      kind: "Segment",
     },
   ],
   parametersSchema: segmentCombineResultParametersSchema,

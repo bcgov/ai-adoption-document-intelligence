@@ -16,6 +16,7 @@ export const getWorkflowGraphConfigCatalogEntry: ActivityCatalogEntry = {
       label: "Workflow ID",
       description: "Workflow version ID, lineage ID, or lineage name.",
       required: true,
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -24,6 +25,7 @@ export const getWorkflowGraphConfigCatalogEntry: ActivityCatalogEntry = {
       label: "Graph",
       description: "Graph workflow configuration.",
       required: true,
+      kind: "Artifact",
     },
   ],
   parametersSchema: getWorkflowGraphConfigParametersSchema,

@@ -11,9 +11,9 @@ export const benchmarkWritePredictionCatalogEntry: ActivityCatalogEntry = {
   iconHint: "save",
   colorHint: "green",
   inputs: [
-    { name: "predictionData", label: "Prediction data", required: true },
-    { name: "outputDir", label: "Output directory", required: true },
-    { name: "sampleId", label: "Sample ID", required: true },
+    { name: "predictionData", label: "Prediction data", required: true, kind: "Artifact" },
+    { name: "outputDir", label: "Output directory", required: true, kind: "Artifact" },
+    { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
   ],
   outputs: [
     {
@@ -21,6 +21,7 @@ export const benchmarkWritePredictionCatalogEntry: ActivityCatalogEntry = {
       label: "Prediction path",
       description: "Absolute path to the written prediction JSON file.",
       required: true,
+      kind: "Artifact",
     },
   ],
   parametersSchema: benchmarkWritePredictionParametersSchema,
