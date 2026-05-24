@@ -6,38 +6,38 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: No input handle on the left side
+- [x] **Scenario 1**: No input handle on the left side
     - **Given** a `SourceNode` rendered via the new `SourceNodeRenderer` xyflow custom-node
     - **When** the rendered DOM is inspected
     - **Then** there is NO `Handle` component with `type="target"` on the left side of the node
     - **And** no incoming-wire affordance is interactive on the source's left edge
 
-- [ ] **Scenario 2**: Single output handle coloured per `outputKind`
+- [x] **Scenario 2**: Single output handle coloured per `outputKind`
     - **Given** the same renderer for a `source.upload` node (catalog `outputKind: "Document"`)
     - **When** the node is rendered
     - **Then** the right-side output handle's dot is coloured blue (Document family per Phase 3 palette)
     - **And** for `source.api` (`outputKind: "Artifact"`), the handle is gray
     - **And** hovering the handle shows tooltip text matching the kind literal verbatim ("Document" or "Artifact")
 
-- [ ] **Scenario 3**: Phase 3 type pill renders on selection
+- [x] **Scenario 3**: Phase 3 type pill renders on selection
     - **Given** the same renderer
     - **When** the user selects the source node on the canvas
     - **Then** Phase 3's type-pill component renders next to the output handle: source.api shows a single-line `"ARTIFACT"` pill with a small footnote `"see Settings → Fields for typed field-level kinds"`; source.upload shows `"DOCUMENT"`
     - **And** the pill disappears when the node is deselected
 
-- [ ] **Scenario 4**: Label, icon, color sourced from catalog entry via `source-catalog-utils`
+- [x] **Scenario 4**: Label, icon, color sourced from catalog entry via `source-catalog-utils`
     - **Given** the catalog entries from US-115/116 and `source-catalog-utils.ts` (US-118)
     - **When** the renderer reads the source's `sourceType` and looks up the entry
     - **Then** the rendered header shows `displayName` ("API endpoint" / "File upload"), `iconHint` resolved to a Tabler icon component, and `colorHint` resolved to a Mantine theme color
     - **And** the user-authored `label` (from `SourceNode.label`) appears below the displayName if it differs
 
-- [ ] **Scenario 5**: Registered in `WorkflowEditorCanvas` `nodeTypes`
+- [x] **Scenario 5**: Registered in `WorkflowEditorCanvas` `nodeTypes`
     - **Given** `apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx`
     - **When** read after the change
     - **Then** the xyflow `nodeTypes` map includes `source: SourceNodeRenderer`
     - **And** existing entries for `activity` / `switch` / `map` / `join` / `childWorkflow` / `pollUntil` / `humanGate` / group-chip nodes are untouched
 
-- [ ] **Scenario 6**: Frontend vitest coverage
+- [x] **Scenario 6**: Frontend vitest coverage
     - **Given** `apps/frontend/src/features/workflow-builder/sources/SourceNodeRenderer.test.tsx` (new)
     - **When** the test suite runs
     - **Then** it covers Scenarios 1–4 explicitly (no input handle, output handle colour for both subtypes, pill render on selection, header reads from catalog)

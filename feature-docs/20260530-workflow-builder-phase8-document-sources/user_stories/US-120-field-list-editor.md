@@ -6,13 +6,13 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Registered as the `field-list-editor` x-widget
+- [x] **Scenario 1**: Registered as the `field-list-editor` x-widget
     - **Given** `apps/frontend/src/features/workflow-builder/json-schema-form/JsonSchemaForm.tsx`
     - **When** the form encounters a field with `x-widget: "field-list-editor"`
     - **Then** it dispatches to `FieldListEditor` (mirrors how `validation-rule-editor` / `keyword-pattern-editor` / etc. are registered)
     - **And** the dispatch is added to the existing x-widget registry — don't fork the registry
 
-- [ ] **Scenario 2**: Per-row columns + add/remove/reorder
+- [x] **Scenario 2**: Per-row columns + add/remove/reorder
     - **Given** `apps/frontend/src/features/workflow-builder/sources/FieldListEditor.tsx` (new)
     - **When** the editor renders against `fields[]` with N entries
     - **Then** each row displays: `name` (TextInput, URL-safe regex enforced), `type` (Select: string/number/boolean/object/array), `kind` (Select: options from `ARTIFACT_REGISTRY` plus a blank "—" Artifact option per Phase 3 US-098's convention), `required` (Checkbox), `description` (TextInput, optional), `default` (JsonInput with `autosize` + `formatOnBlur`, optional)
@@ -20,26 +20,26 @@
     - **And** a per-row delete icon removes that row
     - **And** drag-handle drag-reorder works (Mantine `<DragDropContext>` or the simpler row-swap UI used elsewhere in workflow-builder — pick the one already used by KeywordPatternEditor)
 
-- [ ] **Scenario 3**: `kind` Select wired to Phase 3 registry
+- [x] **Scenario 3**: `kind` Select wired to Phase 3 registry
     - **Given** the per-row `kind` Select
     - **When** opened
     - **Then** options come from `ARTIFACT_REGISTRY` (Phase 3 / US-090) — displayName as label, kind literal as value — matching the same options the existing `WorkflowSettingsDrawer` Kind column (Phase 3 / US-098) shows
     - **And** array variants (`Document[]`, `Segment[]`, …) are listed alongside their scalar counterparts
     - **And** the blank "—" option means "no kind / Artifact wildcard" — persists as `kind: undefined` (NOT `kind: "Artifact"` literal; preserve the existing "absent = Artifact" convention)
 
-- [ ] **Scenario 4**: Round-trip — save → load preserves all field props
+- [x] **Scenario 4**: Round-trip — save → load preserves all field props
     - **Given** a source.api configured with 3 fields including kind annotations and a non-trivial `defaultValue`
     - **When** the workflow is saved + reloaded
     - **Then** all field rows reappear with their saved values (name / type / kind / required / description / default)
     - **And** the `defaultValue` JSON round-trips losslessly (string → JSON.parse stays consistent)
 
-- [ ] **Scenario 5**: Validation — duplicate names + invalid name regex
+- [x] **Scenario 5**: Validation — duplicate names + invalid name regex
     - **Given** the editor with one existing field `name: "documentUrl"`
     - **When** the user attempts to add another field with the same name
     - **Then** the new row's name input shows an inline error `"Field name must be unique within this source"` and the row's "Add field" is blocked until resolved
     - **And** entering a non-URL-safe name (e.g. `"my field"`) shows `"Field name must match /^[a-zA-Z_][a-zA-Z0-9_]*$/"` inline
 
-- [ ] **Scenario 6**: Frontend vitest coverage
+- [x] **Scenario 6**: Frontend vitest coverage
     - **Given** `apps/frontend/src/features/workflow-builder/sources/FieldListEditor.test.tsx` (new)
     - **When** the test runs
     - **Then** Scenarios 1–5 all have assertions (registry dispatch, row rendering for the 6 columns, kind options populated from registry, save/load round-trip, validation messages)

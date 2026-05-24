@@ -6,32 +6,32 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Dispatch routes source nodes to `SourceNodeSettings`
+- [x] **Scenario 1**: Dispatch routes source nodes to `SourceNodeSettings`
     - **Given** `apps/frontend/src/features/workflow-builder/settings/NodeSettingsPanel.tsx` (the dispatch shell)
     - **When** the selected node's `type === "source"`
     - **Then** the panel renders `<SourceNodeSettings node={selectedNode as SourceNode} />`
     - **And** the existing branches for `activity` / group / control-flow nodes are unchanged
 
-- [ ] **Scenario 2**: Header surfaces displayName + description + icon
+- [x] **Scenario 2**: Header surfaces displayName + description + icon
     - **Given** `apps/frontend/src/features/workflow-builder/sources/SourceNodeSettings.tsx` (new)
     - **When** the panel renders for a `source.api` node
     - **Then** the header shows the catalog entry's `displayName` ("API endpoint"), `description`, and the resolved Tabler icon
     - **And** when the user-authored `node.label` differs from the displayName, the label renders below the displayName as a subtitle
 
-- [ ] **Scenario 3**: Body renders `JsonSchemaForm` against `parametersSchema`
+- [x] **Scenario 3**: Body renders `JsonSchemaForm` against `parametersSchema`
     - **Given** the same panel for a `source.upload` node
     - **When** the body renders
     - **Then** the existing `JsonSchemaForm` component receives the catalog entry's `parametersSchema` converted via `z.toJSONSchema(parametersSchema)` AND the current `node.parameters` as initial values
     - **And** rendering matches activity-node-settings parity (same form components, same x-widget dispatch)
     - **And** changes to fields fire the existing `onChange` callback that mutates `node.parameters` through the canvas state-management layer
 
-- [ ] **Scenario 4**: Source.api fields[] x-widget routes to FieldListEditor (forward reference to US-120)
+- [x] **Scenario 4**: Source.api fields[] x-widget routes to FieldListEditor (forward reference to US-120)
     - **Given** a source.api node rendered via this panel
     - **When** the `parametersSchema` includes `fields` with `x-widget: "field-list-editor"`
     - **Then** the JsonSchemaForm dispatches that field to the `FieldListEditor` registered widget (US-120)
     - **And** until US-120 lands, the field falls back to the default array-renderer behaviour (a vitest in this story can assert the dispatch wiring; rich-editor behaviour is verified in US-120)
 
-- [ ] **Scenario 5**: Frontend vitest coverage
+- [x] **Scenario 5**: Frontend vitest coverage
     - **Given** `apps/frontend/src/features/workflow-builder/sources/SourceNodeSettings.test.tsx` (new)
     - **When** the test runs against fixtures for both subtypes (source.api with empty fields, source.upload with defaults)
     - **Then** the header content is asserted (displayName + icon + label override)

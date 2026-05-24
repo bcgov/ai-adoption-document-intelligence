@@ -80,11 +80,11 @@ Phase 8 has a clear linear backbone (shared package → backend → catalog entr
 - [x] **US-116** (`source-upload.ts` catalog entry) — depends on US-108 + US-107; independent of US-115
 
 ### Phase 4 — frontend palette + renderer + settings + FieldListEditor (Milestone D — depends on Phase 1 + Phase 3)
-- [ ] **US-117** (`SourceNodeRenderer`) — depends on US-115/116 (uses `outputKind`) and Phase 3's handle-colour helper
-- [ ] **US-118** ("Sources" palette section + `source-catalog-utils`) — depends on US-115/116 (palette reads `SOURCE_CATALOG`)
-- [ ] **US-119** (`SourceNodeSettings` panel + dispatch) — depends on US-115/116 (renders `parametersSchema`); can land in parallel with US-117/118
-- [ ] **US-120** (`FieldListEditor` x-widget) — depends on Phase 3's Kind Select helper (US-098) + US-119's panel registering the x-widget
-- [ ] **US-121** (`entryNodeId` autoset on source-first drop) — independent of US-117/118/119/120; depends only on US-115/116 for the palette catalog lookup
+- [x] **US-117** (`SourceNodeRenderer`) — depends on US-115/116 (uses `outputKind`) and Phase 3's handle-colour helper
+- [x] **US-118** ("Sources" palette section + `source-catalog-utils`) — depends on US-115/116 (palette reads `SOURCE_CATALOG`)
+- [x] **US-119** (`SourceNodeSettings` panel + dispatch) — depends on US-115/116 (renders `parametersSchema`); can land in parallel with US-117/118
+- [x] **US-120** (`FieldListEditor` x-widget) — depends on Phase 3's Kind Select helper (US-098) + US-119's panel registering the x-widget
+- [x] **US-121** (`entryNodeId` autoset on source-first drop) — independent of US-117/118/119/120; depends only on US-115/116 for the palette catalog lookup
 
 ### Phase 5 — Run drawer + SourceUploadButton (Milestone E — depends on Phase 2 + Phase 4)
 - [ ] **US-122** (`useSourceUpload` TanStack hook) — depends on US-114 (the endpoint)

@@ -6,26 +6,26 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Source dropped on empty canvas → `entryNodeId` set
+- [x] **Scenario 1**: Source dropped on empty canvas → `entryNodeId` set
     - **Given** `apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx` (or the canvas-state Zustand store that owns graph state)
     - **When** the canvas has no nodes (`Object.keys(config.nodes).length === 0`) and the user drops a source palette entry
     - **Then** the new `SourceNode` is created AND `config.entryNodeId` is set to the new source node's id
     - **And** a vitest asserts the entryNodeId state update
 
-- [ ] **Scenario 2**: Additional nodes don't override entryNodeId
+- [x] **Scenario 2**: Additional nodes don't override entryNodeId
     - **Given** a workflow with a source node already on the canvas (entryNodeId pointing at it)
     - **When** the user drops an activity (or another source) onto the canvas
     - **Then** `entryNodeId` is unchanged
     - **And** the new node is added to `config.nodes` but does NOT replace the entry
 
-- [ ] **Scenario 3**: Existing workflows opened in editor — `entryNodeId` never silently rewritten
+- [x] **Scenario 3**: Existing workflows opened in editor — `entryNodeId` never silently rewritten
     - **Given** an existing legacy workflow whose `entryNodeId` points at an activity node (no source nodes in the config)
     - **When** the user opens the workflow in the V2 editor
     - **Then** `entryNodeId` is NOT changed
     - **And** the user can still drop a source node onto the canvas, but the autoset does NOT fire (the canvas had nodes — Scenario 1's empty-canvas precondition fails)
     - **And** the user can manually rewire `entryNodeId` to the source via the existing entryNode picker
 
-- [ ] **Scenario 4**: Frontend vitest coverage
+- [x] **Scenario 4**: Frontend vitest coverage
     - **Given** a test for the canvas-state mutation that handles drops
     - **When** the test exercises both branches (empty canvas vs non-empty)
     - **Then** Scenarios 1 + 2 are asserted explicitly
