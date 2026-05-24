@@ -444,3 +444,181 @@ describe("LibraryPickerModal — US-087: initialWorkflowId + initialVersion pre-
     expect(select.value).toBe("head");
   });
 });
+
+// ---------------------------------------------------------------------------
+// US-100 — kind annotations + Compatible / Other libraries grouping
+// ---------------------------------------------------------------------------
+
+describe("LibraryPickerModal — US-100 Scenario 1: signature preview surfaces kind", () => {
+  it("renders the kind in the parenthesised segment when port.kind is defined", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        workflows: [
+          makeLibrary("lib-1", "Doc summariser", {
+            inputs: [
+              {
+                label: "Doc",
+                path: "ctx.docUrl",
+                type: "string",
+                kind: "Document",
+              },
+            ],
+            outputs: [
+              {
+                label: "Classification",
+                path: "ctx.classification",
+                type: "object",
+                kind: "Classification",
+              },
+            ],
+          }),
+        ],
+      },
+    });
+
+    renderPicker();
+
+    const card = await screen.findByTestId("library-picker-card-lib-1");
+    expect(card.textContent ?? "").toContain("Doc (string, Document)");
+    expect(card.textContent ?? "").toContain(
+      "Classification (object, Classification)",
+    );
+  });
+
+  it("omits the kind segment cleanly when port.kind is undefined (Scenario 3 fall-back)", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        workflows: [
+          makeLibrary("lib-legacy", "Legacy lib", {
+            inputs: [{ label: "URL", path: "ctx.documentUrl", type: "string" }],
+            outputs: [{ label: "Fields", path: "ctx.fields", type: "object" }],
+          }),
+        ],
+      },
+    });
+
+    renderPicker();
+
+    const card = await screen.findByTestId("library-picker-card-lib-legacy");
+    expect(card.textContent ?? "").toContain("URL (string)");
+    expect(card.textContent ?? "").toContain("Fields (object)");
+    // Crucially: NO trailing kind segment for these undefined-kind ports.
+    expect(card.textContent ?? "").not.toMatch(/URL \(string,/);
+    expect(card.textContent ?? "").not.toMatch(/Fields \(object,/);
+  });
+});
+
+describe("LibraryPickerModal — US-100 Scenario 4: filter to 'Compatible' / 'Other libraries' by upstream producer kind", () => {
+  it("when expectedFirstInputKind is provided, compatible libraries appear above the divider and others below (dimmed)", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        workflows: [
+          makeLibrary("lib-doc", "Document tagger", {
+            inputs: [
+              {
+                label: "Doc",
+                path: "ctx.doc",
+                type: "string",
+                kind: "Document",
+              },
+            ],
+            outputs: [],
+          }),
+          makeLibrary("lib-seg", "Segment classifier", {
+            inputs: [
+              {
+                label: "Seg",
+                path: "ctx.seg",
+                type: "string",
+                kind: "Segment",
+              },
+            ],
+            outputs: [],
+          }),
+          makeLibrary("lib-legacy", "Legacy lib (untyped)", {
+            inputs: [{ label: "Anything", path: "ctx.any", type: "string" }],
+            outputs: [],
+          }),
+        ],
+      },
+    });
+
+    renderPicker({ expectedFirstInputKind: "Document" });
+
+    // The Document-typed library is "Compatible" — not dimmed.
+    const compatibleCard = await screen.findByTestId(
+      "library-picker-card-lib-doc",
+    );
+    expect(compatibleCard.getAttribute("data-dimmed")).toBe("false");
+
+    // The Segment-typed library is incompatible — dimmed.
+    const incompatibleCard = await screen.findByTestId(
+      "library-picker-card-lib-seg",
+    );
+    expect(incompatibleCard.getAttribute("data-dimmed")).toBe("true");
+
+    // Legacy (no kind on first input) — surfaced honestly as "Other".
+    const legacyCard = await screen.findByTestId(
+      "library-picker-card-lib-legacy",
+    );
+    expect(legacyCard.getAttribute("data-dimmed")).toBe("true");
+
+    // The "Other libraries" divider is rendered between the two buckets.
+    const divider = await screen.findByTestId("library-picker-other-divider");
+    expect(divider).toBeInTheDocument();
+    expect(divider.textContent ?? "").toContain("Other libraries");
+
+    // Clicking an "Other" library still works (no hard reject) — confirm
+    // selection state flips on click.
+    fireEvent.click(incompatibleCard);
+    await waitFor(() => {
+      expect(incompatibleCard.getAttribute("data-selected")).toBe("true");
+    });
+    expect(screen.getByTestId("library-picker-confirm")).not.toBeDisabled();
+  });
+
+  it("when expectedFirstInputKind is omitted, the picker renders un-grouped (no divider)", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        workflows: [
+          makeLibrary("lib-1", "Lib 1", {
+            inputs: [
+              {
+                label: "Doc",
+                path: "ctx.doc",
+                type: "string",
+                kind: "Document",
+              },
+            ],
+            outputs: [],
+          }),
+          makeLibrary("lib-2", "Lib 2", {
+            inputs: [
+              {
+                label: "Seg",
+                path: "ctx.seg",
+                type: "string",
+                kind: "Segment",
+              },
+            ],
+            outputs: [],
+          }),
+        ],
+      },
+    });
+
+    renderPicker();
+
+    const card1 = await screen.findByTestId("library-picker-card-lib-1");
+    const card2 = await screen.findByTestId("library-picker-card-lib-2");
+    expect(card1.getAttribute("data-dimmed")).toBe("false");
+    expect(card2.getAttribute("data-dimmed")).toBe("false");
+    expect(
+      screen.queryByTestId("library-picker-other-divider"),
+    ).not.toBeInTheDocument();
+  });
+});

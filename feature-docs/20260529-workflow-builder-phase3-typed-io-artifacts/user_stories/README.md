@@ -80,9 +80,9 @@ Phase 3 has a clear linear backbone (shared package → backend → frontend →
 - [x] **US-097** (variable picker compatible-first + dim + tooltip) — consumes `isAssignable` (US-091) + same kind-resolution helper as US-093
 
 ### Phase 5 — frontend "Kind" Select columns + signature summaries (depends on Phase 1)
-- [ ] **US-098** (`WorkflowSettingsDrawer` Kind column) — first surface; produces `kind-select-options.ts` helper
-- [ ] **US-099** (`LibraryPortListEditor` Kind column) — reuses the helper from US-098
-- [ ] **US-100** (signature summaries surface kind — `LibraryPickerModal` + `ChildWorkflowNodeSettings`) — independent of US-098/099 but uses the same `<KindDot>` helper from US-095
+- [x] **US-098** (`WorkflowSettingsDrawer` Kind column) — first surface; produces `kind-select-options.ts` helper
+- [x] **US-099** (`LibraryPortListEditor` Kind column) — reuses the helper from US-098
+- [x] **US-100** (signature summaries surface kind — `LibraryPickerModal` + `ChildWorkflowNodeSettings`) — independent of US-098/099 but uses the same `<KindDot>` helper from US-095
 
 ### Phase 6 — catalog fan-out + provider catalog (depends on Phase 1; Phase 2/3/4/5 happy-path tests benefit from this landing)
 - [ ] **US-101** (type 4 single-output exemplars) — independent

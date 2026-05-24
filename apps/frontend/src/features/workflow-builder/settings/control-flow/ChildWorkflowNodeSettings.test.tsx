@@ -17,10 +17,11 @@ import {
   within,
 } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   ChildWorkflowNode,
   CtxDeclaration,
+  GraphMetadata,
   GraphNode,
   GraphWorkflowConfig,
   PortBinding,
@@ -30,6 +31,13 @@ import { ChildWorkflowNodeSettings } from "./ChildWorkflowNodeSettings";
 vi.mock("../../../../auth/GroupContext", () => ({
   useGroup: () => ({ activeGroup: { id: "group-1", name: "Group 1" } }),
 }));
+
+/**
+ * Per-id metadata overrides — tests that want a typed library set this
+ * before rendering so the `/workflows/:id` mock returns the right
+ * `metadata.inputs[]` / `outputs[]` for the signature summary.
+ */
+const libraryMetadataById = new Map<string, GraphMetadata>();
 
 vi.mock("../../../../data/services/api.service", () => ({
   apiService: {
@@ -45,6 +53,7 @@ vi.mock("../../../../data/services/api.service", () => ({
       const match = url.match(/^\/workflows\/([^/?]+)$/);
       if (match) {
         const id = match[1];
+        const metadataOverride = libraryMetadataById.get(id);
         return {
           success: true,
           data: {
@@ -57,7 +66,7 @@ vi.mock("../../../../data/services/api.service", () => ({
               actorId: "actor-1",
               config: {
                 schemaVersion: "1.0",
-                metadata: { inputs: [], outputs: [] },
+                metadata: metadataOverride ?? { inputs: [], outputs: [] },
                 entryNodeId: "",
                 nodes: {},
                 edges: [],
@@ -75,6 +84,10 @@ vi.mock("../../../../data/services/api.service", () => ({
     }),
   },
 }));
+
+afterEach(() => {
+  libraryMetadataById.clear();
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -554,5 +567,124 @@ describe('ChildWorkflowNodeSettings — US-087 Scenario 3: "Change version" re-o
     await waitFor(() => {
       expect(screen.getByText("Pick library workflow")).toBeInTheDocument();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-100 — Library signature summary surfaces typed-I/O `kind` (Scenarios 2 + 3)
+// ---------------------------------------------------------------------------
+
+describe("ChildWorkflowNodeSettings — US-100 Scenario 2: signature summary surfaces kind + coloured dot", () => {
+  it("renders KindDot + 'label (type, kind)' text for typed inputs and outputs", async () => {
+    libraryMetadataById.set("lib-typed", {
+      inputs: [
+        {
+          label: "Doc",
+          path: "ctx.docUrl",
+          type: "string",
+          kind: "Document",
+        },
+      ],
+      outputs: [
+        {
+          label: "Classification",
+          path: "ctx.classification",
+          type: "object",
+          kind: "Classification",
+        },
+      ],
+    });
+
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "library", workflowId: "lib-typed" },
+    });
+    const config = makeConfig([initial]);
+
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Input row — surfaces the typed text + dot.
+    const inputRow = await screen.findByTestId(
+      "child-workflow-node-settings-input-port-Doc",
+    );
+    expect(inputRow.textContent ?? "").toContain("Doc (string, Document)");
+    // The KindDot's `data-kind-dot` attribute is rendered as a child span.
+    const inputDot = inputRow.querySelector('[data-kind-dot="Document"]');
+    expect(inputDot).not.toBeNull();
+    expect((inputDot as HTMLElement).style.background).toContain(
+      "--mantine-color-blue-6",
+    );
+
+    // Output row — surfaces the typed text + dot.
+    const outputRow = await screen.findByTestId(
+      "child-workflow-node-settings-output-port-Classification",
+    );
+    expect(outputRow.textContent ?? "").toContain(
+      "Classification (object, Classification)",
+    );
+    const outputDot = outputRow.querySelector(
+      '[data-kind-dot="Classification"]',
+    );
+    expect(outputDot).not.toBeNull();
+    // Classification → "yellow" in the registry (per artifact-registry.ts).
+    expect((outputDot as HTMLElement).style.background).toContain(
+      "--mantine-color-yellow-6",
+    );
+
+    // The Track 3 version badge MUST still render alongside the new
+    // annotations (Scenario 2 explicit: kind annotations coexist with the
+    // version badge).
+    const badge = await screen.findByTestId(
+      "child-workflow-node-settings-version-badge",
+    );
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toBe("head");
+  });
+});
+
+describe("ChildWorkflowNodeSettings — US-100 Scenario 3: untyped library ports render without kind text or dot", () => {
+  it("renders just 'label (type)' with no KindDot for ports whose kind is undefined", async () => {
+    libraryMetadataById.set("lib-legacy", {
+      inputs: [{ label: "URL", path: "ctx.documentUrl", type: "string" }],
+      outputs: [{ label: "Fields", path: "ctx.fields", type: "object" }],
+    });
+
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "library", workflowId: "lib-legacy" },
+    });
+    const config = makeConfig([initial]);
+
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    const inputRow = await screen.findByTestId(
+      "child-workflow-node-settings-input-port-URL",
+    );
+    expect(inputRow.textContent ?? "").toContain("URL (string)");
+    expect(inputRow.textContent ?? "").not.toContain("URL (string,");
+    expect(inputRow.querySelector("[data-kind-dot]")).toBeNull();
+
+    const outputRow = await screen.findByTestId(
+      "child-workflow-node-settings-output-port-Fields",
+    );
+    expect(outputRow.textContent ?? "").toContain("Fields (object)");
+    expect(outputRow.textContent ?? "").not.toContain("Fields (object,");
+    expect(outputRow.querySelector("[data-kind-dot]")).toBeNull();
+
+    // Track 3 badge still renders (regression check).
+    const badge = await screen.findByTestId(
+      "child-workflow-node-settings-version-badge",
+    );
+    expect(badge).toBeInTheDocument();
   });
 });

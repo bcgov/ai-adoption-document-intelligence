@@ -6,34 +6,34 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New "Kind" column renders between Description and Default
+- [x] **Scenario 1**: New "Kind" column renders between Description and Default
     - **Given** the workflow settings drawer is open with one or more ctx variables declared
     - **When** the drawer renders
     - **Then** each ctx row shows columns in the order: Key, Type, Description, **Kind**, Default, (existing trailing actions)
     - **And** the Kind column header reads `"Kind"`
     - **And** the column width fits the longest registry display name without horizontal scroll
 
-- [ ] **Scenario 2**: Kind Select options come from the artifact registry + a blank wildcard
+- [x] **Scenario 2**: Kind Select options come from the artifact registry + a blank wildcard
     - **Given** a ctx row's Kind Select is opened
     - **When** the options render
     - **Then** the first option is `"—"` (em dash) with a description "No kind / Artifact wildcard"
     - **And** the remaining options are every entry in `ARTIFACT_REGISTRY` rendered as `<display name> (<kind literal>)` (e.g. "Multi-page document (MultiPageDocument)", "Segment (Table) (Segment<Table>)")
     - **And** each option is grouped by base-kind family (Document family, Segment family, OCR family, Classification/Validation, Reference) for findability — use Mantine `<Select>` groups
 
-- [ ] **Scenario 3**: Picking "Document" persists `kind: "Document"` on save/load round-trip
+- [x] **Scenario 3**: Picking "Document" persists `kind: "Document"` on save/load round-trip
     - **Given** a row whose Kind is set to "Document"
     - **When** the workflow is saved + reloaded
     - **Then** the persisted JSON shows `metadata.ctx.<key>.kind === "Document"`
     - **And** the drawer re-renders the row with "Document" still selected
 
-- [ ] **Scenario 4**: Picking "—" persists no `kind` field at all
+- [x] **Scenario 4**: Picking "—" persists no `kind` field at all
     - **Given** a row whose Kind is set to "—"
     - **When** saved + reloaded
     - **Then** the persisted JSON has no `kind` key on `metadata.ctx.<key>` (the field is omitted entirely, not stored as `null` or `""`)
     - **And** the drawer re-renders the row with "—" selected
     - **And** legacy variables that pre-date Phase 3 (no `kind` field) also render "—" by default
 
-- [ ] **Scenario 5**: Array-kind options render correctly
+- [x] **Scenario 5**: Array-kind options render correctly
     - **Given** the Kind Select is opened
     - **When** the options render
     - **Then** array variants (`"Document[]"`, `"Segment[]"`, etc.) appear as their own options below the base entries, labelled `"<display name> (array)"` (e.g. "Multi-page document (array) (MultiPageDocument[])")

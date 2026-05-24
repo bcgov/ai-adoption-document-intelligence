@@ -45,7 +45,8 @@ import type {
   LibraryPortDescriptor,
   PortBinding,
 } from "../../../../types/workflow";
-import { VariablePicker } from "../../graph-widgets";
+import { KindDot, VariablePicker } from "../../graph-widgets";
+import { formatLibraryPortSummary } from "../../library/format-library-port-summary";
 import { LibraryPickerModal } from "../../library/LibraryPickerModal";
 
 // ---------------------------------------------------------------------------
@@ -499,20 +500,36 @@ function LibraryRefBody({ workflowId, version, onPick }: LibraryRefBodyProps) {
                   {pickedLibrary.slug} · {workflowId}
                 </Text>
                 {declaredInputs.length > 0 && (
-                  <Text size="10px" c="dimmed">
-                    <strong>Inputs:</strong>{" "}
-                    {declaredInputs
-                      .map((i) => `${i.label} (${i.type})`)
-                      .join(", ")}
-                  </Text>
+                  <Box data-testid="child-workflow-node-settings-inputs">
+                    <Text size="10px" c="dimmed" fw={600}>
+                      Inputs:
+                    </Text>
+                    <Stack gap={2}>
+                      {declaredInputs.map((port) => (
+                        <SignaturePortRow
+                          key={`in-${port.path}-${port.label}`}
+                          port={port}
+                          testId={`child-workflow-node-settings-input-port-${port.label}`}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
                 )}
                 {declaredOutputs.length > 0 && (
-                  <Text size="10px" c="dimmed">
-                    <strong>Outputs:</strong>{" "}
-                    {declaredOutputs
-                      .map((o) => `${o.label} (${o.type})`)
-                      .join(", ")}
-                  </Text>
+                  <Box data-testid="child-workflow-node-settings-outputs">
+                    <Text size="10px" c="dimmed" fw={600}>
+                      Outputs:
+                    </Text>
+                    <Stack gap={2}>
+                      {declaredOutputs.map((port) => (
+                        <SignaturePortRow
+                          key={`out-${port.path}-${port.label}`}
+                          port={port}
+                          testId={`child-workflow-node-settings-output-port-${port.label}`}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
                 )}
               </Stack>
             ) : (
@@ -539,5 +556,28 @@ function LibraryRefBody({ workflowId, version, onPick }: LibraryRefBodyProps) {
         initialVersion={version}
       />
     </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SignaturePortRow — renders one row of the library signature summary
+// (US-100 Scenario 2). Each row prefixes a KindDot (rendered only when
+// `port.kind` is defined) and surfaces the formatted "label (type, kind)"
+// or "label (type)" text via the shared `formatLibraryPortSummary` helper.
+// ---------------------------------------------------------------------------
+
+interface SignaturePortRowProps {
+  port: LibraryPortDescriptor;
+  testId: string;
+}
+
+function SignaturePortRow({ port, testId }: SignaturePortRowProps) {
+  return (
+    <Group gap={4} wrap="nowrap" data-testid={testId}>
+      <KindDot kind={port.kind} size={6} />
+      <Text size="10px" c="dimmed">
+        {formatLibraryPortSummary(port)}
+      </Text>
+    </Group>
   );
 }

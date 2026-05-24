@@ -6,26 +6,26 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `LibraryPickerModal` signature summary surfaces `kind` per port
+- [x] **Scenario 1**: `LibraryPickerModal` signature summary surfaces `kind` per port
     - **Given** `LibraryPickerModal` open and a library workflow with declared `inputs: [{ label: "Doc", path: "ctx.docUrl", type: "string", kind: "Document" }]` and `outputs: [{ label: "Classification", path: "...", type: "object", kind: "Classification" }]`
     - **When** the user clicks/hovers the library row to see its signature preview
     - **Then** each input/output row shows `<label> (<type>, <kind literal>)` — e.g. `"Doc (string, Document)"`, `"Classification (object, Classification)"`
     - **And** rows where `kind` is undefined render as `<label> (<type>)` (no parenthesised kind segment — clean fallback)
 
-- [ ] **Scenario 2**: `ChildWorkflowNodeSettings` signature summary surfaces `kind` next to each port
+- [x] **Scenario 2**: `ChildWorkflowNodeSettings` signature summary surfaces `kind` next to each port
     - **Given** a `childWorkflow` node whose `workflowRef.library` references a library with the same typed ports from Scenario 1
     - **When** the settings panel renders
     - **Then** the signature summary shows each input + output row labelled `"<label>: <kind>"` (or `"<label>"` when no kind)
     - **And** the existing v{N}/head badge from Track 3 still renders adjacent to the library name (kind annotations coexist with the version badge)
     - **And** colour styling on each row matches the kind palette (Document → blue dot, etc.) — small dot prefix for accessibility
 
-- [ ] **Scenario 3**: Untyped library ports render without kind text
+- [x] **Scenario 3**: Untyped library ports render without kind text
     - **Given** a library whose `metadata.inputs[].kind` is undefined on every port (legacy or user opted out via "—")
     - **When** either summary surface renders
     - **Then** no kind text or coloured dot appears on those rows
     - **And** the existing Phase 2 Track 1 summary rendering is regression-safe (Track 1 + Track 3 tests stay green)
 
-- [ ] **Scenario 4**: The picker can be FILTERED to libraries whose signature matches an upstream producer (forward-looking)
+- [x] **Scenario 4**: The picker can be FILTERED to libraries whose signature matches an upstream producer (forward-looking)
     - **Given** a `childWorkflow` node whose upstream producer writes `kind: "Document"` to the ctx key that the library's first input reads
     - **When** the user opens `LibraryPickerModal`
     - **Then** libraries whose first input's `kind` is assignable from "Document" (Document family) appear in a "Compatible" group at the top

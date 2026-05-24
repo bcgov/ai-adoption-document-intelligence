@@ -31,7 +31,9 @@ import { useEffect, useState } from "react";
 import type {
   CtxDeclaration,
   GraphWorkflowConfig,
+  KindRef,
 } from "../../../types/workflow";
+import { KindSelect } from "./KindSelect";
 
 const CTX_TYPES: CtxDeclaration["type"][] = [
   "string",
@@ -303,6 +305,25 @@ function CtxRow({
           })
         }
         style={{ flex: 3, minWidth: 0 }}
+      />
+      <KindSelect
+        label="Kind"
+        size="xs"
+        placeholder="—"
+        value={declaration.kind}
+        onChange={(next: KindRef | undefined) => {
+          // Strip the `kind` property entirely when wildcard is picked —
+          // `kind?` is optional, not nullable (TYPED_IO_DESIGN.md §5.1).
+          // Mirrors the `isInput` strip-on-false pattern.
+          if (next === undefined) {
+            const { kind: _omitted, ...rest } = declaration;
+            onUpdate(rest);
+          } else {
+            onUpdate({ ...declaration, kind: next });
+          }
+        }}
+        style={{ flex: 2, minWidth: 120 }}
+        aria-label={`Kind for ${ctxKey}`}
       />
       <Tooltip
         label="Mark this ctx entry as a caller-supplied input. Surfaced in the workflow's Run panel and the /run-spec endpoint."

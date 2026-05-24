@@ -2,11 +2,14 @@
  * LibraryPortListEditor — row editor for a library workflow's
  * `metadata.inputs[]` / `metadata.outputs[]`.
  *
- * Each row is a `LibraryPortDescriptor` ({ label, path, type }). Adapted
- * from the group panel's `ExposedParamsEditor` (US-044) but simplified:
- * no `nodeId`, no `options`/`default`, and the type set matches
+ * Each row is a `LibraryPortDescriptor` ({ label, path, type, kind? }).
+ * Adapted from the group panel's `ExposedParamsEditor` (US-044) but
+ * simplified: no `nodeId`, no `options`/`default`, and the type set matches
  * `CtxDeclaration`'s ("string" | "number" | "boolean" | "object" |
- * "array"). Used by the "Save as library" modal.
+ * "array"). The optional `kind` column (US-099) annotates the port with
+ * an `ArtifactKind` from the typed-I/O registry; it reuses the helpers
+ * from `../settings/KindSelect` so library + ctx kind pickers stay in
+ * sync. Used by the "Save as library" modal.
  */
 
 import {
@@ -21,7 +24,8 @@ import {
   Title,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import type { LibraryPortDescriptor } from "../../../types/workflow";
+import type { KindRef, LibraryPortDescriptor } from "../../../types/workflow";
+import { KindSelect } from "../settings/KindSelect";
 
 const PORT_TYPE_OPTIONS: Array<{
   value: LibraryPortDescriptor["type"];
@@ -151,6 +155,25 @@ export function LibraryPortListEditor({
                   }}
                   allowDeselect={false}
                   data-testid={`${testIdBase}-row-${index}-type`}
+                />
+                <KindSelect
+                  label="Kind"
+                  size="xs"
+                  placeholder="—"
+                  value={row.kind}
+                  onChange={(next: KindRef | undefined) => {
+                    // Strip the `kind` property entirely when the wildcard is
+                    // picked — `kind?` is optional, not nullable. Mirrors the
+                    // ctx-row pattern in WorkflowSettingsDrawer (US-098).
+                    if (next === undefined) {
+                      const { kind: _omitted, ...rest } = row;
+                      setRowAt(index, rest);
+                    } else {
+                      setRowAt(index, { ...row, kind: next });
+                    }
+                  }}
+                  aria-label={`Kind for ${row.label || row.path || `row ${index + 1}`}`}
+                  data-testid={`${testIdBase}-row-${index}-kind`}
                 />
               </Stack>
             </Box>

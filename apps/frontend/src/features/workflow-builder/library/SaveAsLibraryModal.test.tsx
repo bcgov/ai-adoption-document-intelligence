@@ -173,3 +173,33 @@ describe("SaveAsLibraryModal — Scenario 1 (US-061): Save POSTs a submission wi
     );
   });
 });
+
+describe("SaveAsLibraryModal — US-099 Scenario 3: Kind selections flow through onSubmit", () => {
+  it("setting an input row's Kind to 'Document' surfaces `kind: \"Document\"` in the submission payload", () => {
+    const { onSubmit } = renderModal({ initialName: "Doc lib" });
+
+    // Add one input row + fill required fields.
+    const inputsContainer = screen.getByTestId("save-as-library-inputs");
+    fireEvent.click(
+      inputsContainer.querySelector(
+        '[data-testid="save-as-library-inputs-add"]',
+      ) as HTMLElement,
+    );
+    fireEvent.change(screen.getByTestId("save-as-library-inputs-row-0-label"), {
+      target: { value: "Doc URL" },
+    });
+    fireEvent.change(screen.getByTestId("save-as-library-inputs-row-0-path"), {
+      target: { value: "ctx.documentUrl" },
+    });
+
+    // Pick Document on the input row's Kind Select.
+    fireEvent.click(screen.getByLabelText("Kind for Doc URL"));
+    fireEvent.click(screen.getByRole("option", { name: "Document" }));
+
+    fireEvent.click(screen.getByTestId("save-as-library-submit"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const submission = onSubmit.mock.calls[0][0];
+    expect(submission.inputs[0].kind).toBe("Document");
+  });
+});

@@ -12,6 +12,7 @@ export {
   type ConditionExpressionEditorProps,
 } from "./ConditionExpressionEditor";
 export { EdgePicker, type EdgePickerProps } from "./EdgePicker";
+export { KindDot, type KindDotProps } from "./KindDot";
 export { NodePicker, type NodePickerProps } from "./NodePicker";
 export { resolveProducerKindFor } from "./resolve-producer-kind";
 export {
