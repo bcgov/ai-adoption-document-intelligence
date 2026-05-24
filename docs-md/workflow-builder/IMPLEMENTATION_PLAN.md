@@ -110,27 +110,28 @@ The phases form a small DAG, not a strict line. The previous version of this doc
                             ▼
                 Phase 3 (typed I/O artifacts)
                             │
-              ┌─────────────┼─────────────┐
-              ▼             ▼             ▼
-          Phase 4       Phase 5         Phase 6
-       (try-in-place  (segmentation   (dynamic nodes —
-        + caching +    node pack)      Windmill-style)
-        per-node                              │
-        previews)                             │
-              │             │                 │
-              └─────────────┼─────────────────┘
-                            ▼
-                    Phase 7 (AI workflow builder)
+              ┌─────────────┼─────────────┬─────────────┐
+              ▼             ▼             ▼             ▼
+          Phase 4       Phase 5         Phase 6      Phase 8
+       (try-in-place  (segmentation   (dynamic       (sources —
+        + caching +    node pack)      nodes —        document
+        per-node                       Windmill-      intake as
+        previews)                      style)         nodes)
+              │             │             │             │
+              └─────────────┴──────┬──────┴─────────────┘
+                                   ▼
+                          Phase 7 (AI workflow builder)
 ```
 
 **Why this ordering:**
 
 - **Phase 2 before 3.** `childWorkflow` nodes need typed signatures to be useful in Phase 3; library workflows declare those signatures. Doing typed I/O first means typed handles have nothing to point at except activities.
 - **Phase 3 before 5.** Segmentation produces `Segment[]` artifacts. Without a registered `Segment` type, those are opaque blobs in ctx and the user gets no design-time enforcement that "this segment goes into a table-extraction VLM, that one into a signature classifier."
-- **Phase 4 parallelisable with 5 + 6.** Try-in-place needs Phase 3's typed handles to render type-specific previews (a `Segment<Table>` preview ≠ an `OcrFields` preview), but doesn't depend on 5 or 6.
-- **Phase 7 depends on 2, 3, and 6.** The agent reads library workflows (Phase 2), composes by type (Phase 3), and authors novel work via dynamic nodes (Phase 6).
+- **Phase 4 parallelisable with 5 + 6 + 8.** Try-in-place needs Phase 3's typed handles to render type-specific previews (a `Segment<Table>` preview ≠ an `OcrFields` preview), but doesn't depend on 5, 6, or 8.
+- **Phase 8 parallelisable with 4, 5, 6.** Sources emit `Document` artifacts, so they want Phase 3's typed handles — but otherwise they're independent of the other three. A `source.upload` node also naturally absorbs Phase 4's canvas-side "Input" affordance, so landing 8 before 4 lets that affordance plug into a unified abstraction instead of being a one-off widget. Either ordering works; bias toward 8 first if you're picking.
+- **Phase 7 depends on 2, 3, 6, and 8.** The agent reads library workflows (Phase 2), composes by type (Phase 3), authors novel work via dynamic nodes (Phase 6), and now also wires source nodes (Phase 8) — sources expand the agent's composition surface from "what does this workflow do given input X" to "where does input X come from."
 
-The previous "Phase 8+" bucket (workflow-as-API, library workflows, versioning) is dissolved — each item moved into the phase that needs it.
+The previous "Phase 8+" bucket (workflow-as-API, library workflows, versioning) is dissolved — each item moved into the phase that needs it. The new "Phase 8" reuses the slot but for a different concept (document sources); see [Phase 8 below](#phase-8--sources-document-intake-as-nodes).
 
 ---
 
@@ -312,7 +313,7 @@ User vision: *"can we have dynamic nodes, or basically nodes that you define at 
 
 ### Phase 7 — AI workflow builder (Claude Code sub-agent)
 
-User vision: *"instruct an AI agent to build these workflows for you on the fly… work in a feedback loop where it sets up the pipeline and tests it"* ([NOTES.md §1.7](NOTES.md#17-ai-built-workflows--feedback-loop)). Designer confirmed this is the long-term primary creation path ([NOTES.md §2](NOTES.md#2-designer-conversation-outcomes)). Depends on Phase 2 (library workflows), Phase 3 (typed I/O — narrows valid compositions), and Phase 6 (dynamic nodes — agent's lever for novel work).
+User vision: *"instruct an AI agent to build these workflows for you on the fly… work in a feedback loop where it sets up the pipeline and tests it"* ([NOTES.md §1.7](NOTES.md#17-ai-built-workflows--feedback-loop)). Designer confirmed this is the long-term primary creation path ([NOTES.md §2](NOTES.md#2-designer-conversation-outcomes)). Depends on Phase 2 (library workflows), Phase 3 (typed I/O — narrows valid compositions), Phase 6 (dynamic nodes — agent's lever for novel work), and Phase 8 (sources — composition surface for "where does input come from").
 
 - [ ] `.claude/agents/workflow-builder.md` agent spec
 - [ ] Chat surface in the editor invokes the agent via Claude Agent SDK with a constrained tool allowlist: `{ read catalog, read library workflows, write workflow JSON, deploy, run on sample, read results, write Windmill script, register dynamic node }`
@@ -320,6 +321,38 @@ User vision: *"instruct an AI agent to build these workflows for you on the fly�
 - [ ] Type-narrowed composition: agent consumes Phase 3's `kind` metadata to reject invalid candidates before deployment
 - [ ] Windmill-script authoring as the agent's escape hatch — when no existing activity fits, the agent writes a Phase-6 dynamic node and uses it
 - [ ] Likely consumes the existing `@ai-di/graph-insertion-slots` package (Dylan's earlier work) as the contract for "where in this workflow can the agent splice nodes?"
+
+### Phase 8 — Sources (document intake as nodes)
+
+**Why this exists.** [NOTES.md §1.1](NOTES.md#11-typed-connections-between-nodes) names two halves of the typed-connections vision: a *typed artifact hierarchy* (delivered by Phase 3) AND *document sources as nodes* — *"clearly you have document, and you could have a document source — for example SharePoint or API input."* The source half was orphaned during the original plan write-up; this phase reclaims it.
+
+Today (post-Phase-2-Track-2), every workflow's intake is implicit: a caller POSTs to `/api/workflows/:id/runs` with an `initialCtx` body, OR (Phase 4) the user uploads a document from the canvas's try-in-place affordance. Sources from SharePoint, email, S3, cron, watched folders, etc. would have to be glued on outside the graph (a separate cron job; an external webhook handler that calls `/runs`) — they're not first-class concepts in the workflow.
+
+Phase 8 makes the source a node:
+
+- [ ] **A new `source` node type** in the schema, with subtypes via the activity catalog: `source.api`, `source.upload`, `source.sharepoint`, `source.email`, `source.s3`, `source.cron`, etc. Each subtype is a normal catalog entry with its own Zod schema for static config — gets the schema-driven settings form for free.
+- [ ] **Three runtime patterns**, each mapped to existing Temporal primitives:
+  - **Pull** (polling) — `source.sharepoint`, `source.email`, `source.s3`: scheduled Temporal cron child workflow lists new items + spawns a workflow execution per item.
+  - **Push** (webhook / API) — `source.api`, `source.webhook`: backend exposes `/api/sources/:id/ingest` and signals a workflow execution. (Phase 2 Track 2's `POST /workflows/:id/runs` is the degenerate case where the whole workflow is the source.)
+  - **Manual / test** — `source.upload`: the canvas's try-in-place upload (originally filed in Phase 4 as a one-off widget) becomes the test interface for any source node. The Run drawer's paste-JSON-and-run becomes "Run with this stub document."
+- [ ] **`entryNodeId` semantics extend.** A workflow whose entry is a `source` node uses the source's output as `initialCtx`. Workflows can have multiple source nodes (like Zapier multi-trigger) — each is its own entry; any can fire the same downstream pipeline.
+- [ ] **Source registration is stateful.** When a workflow with a polling source saves, the backend has to know to start polling. Likely a `WorkflowSourceBinding` table keyed by lineage + version; the head-version's sources define what's actually polling. Track 3's revert-to-version flow needs to re-bind.
+- [ ] **Credentials / secrets.** OAuth tokens, IMAP passwords, etc. — not in the current plan at all. Needs a `Credentials` storage table referenced by `credentialId` in the source node's static config, with the backend resolving the secret at runtime.
+- [ ] **Source library.** A `source.sharepoint` config (folder, credentials, polling cadence) probably wants to be reusable across workflows — i.e., a Track-1-style library workflow but for sources. Lets you point N workflows at the same SharePoint folder without duplicating credentials.
+
+**Reframings this enables:**
+
+- **Phase 2 Track 2's `CtxDeclaration.isInput` becomes a degenerate `source.api` node.** Both express "this value comes from outside the workflow." Source-fed workflows bypass `isInput`; API-fed workflows can either keep using `isInput` or upgrade to an explicit `source.api` node. The migration story is graceful.
+- **Phase 4's canvas-side "Input" affordance is no longer a special widget** — it's `source.upload`'s "test" interface. Phase 4 still owns deploy-on-open + status overlays + per-node previews + caching; only the upload widget moves.
+- **Phase 7's agent gains a richer composition surface.** "Build me a workflow that processes invoices from this SharePoint folder" becomes a single agent invocation that wires the source too.
+
+**Open design questions** — resolve at Phase 8 kickoff via a brainstorm:
+
+1. **Source as node vs. source as binding.** Putting it in the graph is more elegant (composition, typed wiring, agent-friendly) but creates the lifecycle / registration problem above. Putting it outside the graph keeps the graph pure but bifurcates the user's mental model. Recommend: in the graph.
+2. **One-workflow-one-source vs. shared source library.** Per the bullet above — recommend yes.
+3. **Backfill semantics.** Does pointing a workflow at a SharePoint folder mean "process every existing doc" or "only docs added from now on"? Per-source choice with a sensible default.
+4. **Multiple-source ordering.** When N source nodes can fire the same pipeline, do we need ordering / priority / dedup keys? Probably yes for production sources, no for `source.upload`.
+5. **Migration of existing workflows.** Workflows authored before Phase 8 have implicit API intake. Do we auto-insert a `source.api` node on open, or leave them as-is and only require source nodes for new workflows? Leaving them as-is is simpler; auto-inserting normalises the model.
 
 ---
 
@@ -339,6 +372,7 @@ User vision: *"instruct an AI agent to build these workflows for you on the fly�
 - **Cached re-execution backend** (Phase 4). Temporal replay vs sidecar K/V store. Resolve early in Phase 4.
 - **Dynamic-node sandbox** (Phase 6). Deno vs Pyodide vs Windmill-style worker. Resolve at Phase 6 kickoff.
 - **Library workflow signature DSL** (Phase 2). Probably just `ctx` declarations marked with `isInput: true` / `isOutput: true`; needs a brief design pass at Phase 2 kickoff.
+- **Source-node lifecycle + credential storage** (Phase 8). Source-as-node vs source-as-binding, source library, backfill semantics, multi-source ordering, migration of existing workflows. Five open questions enumerated in Phase 8 below; resolve at phase kickoff via a brainstorm.
 
 ---
 
