@@ -523,7 +523,12 @@ async function executeChildWorkflowNode(
       activityProxy.getWorkflowGraphConfig as (
         params: Record<string, unknown>,
       ) => Promise<Record<string, unknown>>
-    )({ workflowId: node.workflowRef.workflowId })) as {
+    )({
+      workflowId: node.workflowRef.workflowId,
+      // US-080: forward the optional pinned version. When undefined, the
+      // activity falls through to its existing head-resolution lookup.
+      version: node.workflowRef.version,
+    })) as {
       graph: GraphWorkflowConfig;
     };
     childGraph = result.graph;

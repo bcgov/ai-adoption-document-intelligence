@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -178,6 +179,46 @@ export class WorkflowController {
     return { versions };
   }
 
+  @Get(":id/versions/:versionId")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Get a specific WorkflowVersion by id (config + metadata)",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiParam({
+    name: "versionId",
+    description: "WorkflowVersion.id within this lineage",
+  })
+  @ApiOkResponse({
+    description: "Returns the workflow snapshot at this version",
+    type: WorkflowResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Workflow or version not found, or version does not belong to this lineage",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getVersion(
+    @Param("id") lineageId: string,
+    @Param("versionId") versionId: string,
+    @Req() req: Request,
+  ): Promise<{ workflow: WorkflowInfo }> {
+    const workflow =
+      await this.workflowService.getWorkflowVersionById(versionId);
+    if (!workflow || workflow.id !== lineageId) {
+      throw new NotFoundException(
+        `Workflow version not found: ${versionId} in lineage ${lineageId}`,
+      );
+    }
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      workflow.groupId,
+      GroupRole.MEMBER,
+    );
+    return { workflow };
+  }
+
   @Get(":id/run-spec")
   @Identity({ allowApiKey: true })
   @ApiOperation({
@@ -185,20 +226,35 @@ export class WorkflowController {
       "Get the run-trigger contract for a workflow (URL, input schema, sample curl, auth notes)",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiQuery({
+    name: "workflowVersionId",
+    required: false,
+    description:
+      "Specific WorkflowVersion.id to derive the spec from. Defaults to head.",
+  })
   @ApiOkResponse({
     description:
-      "Run-trigger spec for the workflow's head version. Library workflows derive their input schema from `metadata.inputs[]`; regular workflows derive it from ctx entries flagged `isInput: true`.",
+      "Run-trigger spec for the workflow. When `workflowVersionId` is omitted, the spec is derived from the lineage's head version. Library workflows derive their input schema from `metadata.inputs[]`; regular workflows derive it from ctx entries flagged `isInput: true`.",
     type: RunSpecResponseDto,
   })
-  @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiNotFoundResponse({
+    description: "Workflow or workflowVersionId not found",
+  })
+  @ApiBadRequestResponse({
+    description: "workflowVersionId does not belong to this workflow",
+  })
   @ApiConflictResponse({ description: "Workflow has no published version yet" })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getRunSpec(
     @Param("id") id: string,
+    @Query("workflowVersionId") workflowVersionId: string | undefined,
     @Req() req: Request,
   ): Promise<RunSpecResponseDto> {
-    const wf = await this.workflowService.resolveLineageAndVersion(id);
+    const wf = await this.workflowService.resolveLineageAndVersion(
+      id,
+      workflowVersionId,
+    );
     identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
     const triggerUrl = buildTriggerUrl(req, id);
     return buildRunSpec(wf.config, triggerUrl);

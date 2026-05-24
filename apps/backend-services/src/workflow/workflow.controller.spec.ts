@@ -65,6 +65,7 @@ describe("WorkflowController", () => {
       getGroupWorkflows: jest.fn(),
       getAllWorkflowLineages: jest.fn(),
       getWorkflow: jest.fn(),
+      getWorkflowVersionById: jest.fn(),
       resolveLineageAndVersion: jest.fn(),
       listVersions: jest.fn(),
       createWorkflow: jest.fn(),
@@ -296,6 +297,88 @@ describe("WorkflowController", () => {
     });
   });
 
+  describe("getVersion", () => {
+    const mockReq = () =>
+      ({
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as Request;
+
+    // US-079 Scenario 1: happy path — returns the version's WorkflowInfo
+    it("returns the WorkflowInfo for the requested version when version belongs to the lineage", async () => {
+      const v2WorkflowInfo: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        workflowVersionId: "wv-v2",
+        version: 2,
+      };
+      workflowService.getWorkflowVersionById.mockResolvedValue(v2WorkflowInfo);
+
+      const result = await controller.getVersion("wf-1", "wv-v2", mockReq());
+
+      expect(result).toEqual({ workflow: v2WorkflowInfo });
+      expect(result.workflow.workflowVersionId).toBe("wv-v2");
+      expect(result.workflow.config).toEqual(mockGraphConfig);
+      expect(workflowService.getWorkflowVersionById).toHaveBeenCalledWith(
+        "wv-v2",
+      );
+    });
+
+    // US-079 Scenario 2: unknown version id → 404
+    it("throws NotFoundException when the version id does not exist", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.getWorkflowVersionById.mockResolvedValue(null);
+
+      await expect(
+        controller.getVersion("wf-1", "wv-missing", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(workflowService.getWorkflowVersionById).toHaveBeenCalledWith(
+        "wv-missing",
+      );
+    });
+
+    // US-079 Scenario 3: cross-lineage version id → 404 (preferred over 400)
+    it("throws NotFoundException when the version belongs to a different lineage", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      const otherLineageWorkflow: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        id: "wf-other",
+        workflowVersionId: "wv-other",
+      };
+      workflowService.getWorkflowVersionById.mockResolvedValue(
+        otherLineageWorkflow,
+      );
+
+      await expect(
+        controller.getVersion("wf-1", "wv-other", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(workflowService.getWorkflowVersionById).toHaveBeenCalledWith(
+        "wv-other",
+      );
+    });
+
+    // US-079 Scenario 4: authorization — non-member of the group → 403
+    // (401 — missing x-api-key — is enforced by the @Identity guard upstream of
+    // the controller method and is exercised by the auth-pipeline e2e suite;
+    // here we cover the in-controller forbidden path.)
+    it("throws ForbiddenException when caller is not a member of the workflow's group", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getWorkflowVersionById.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(
+        controller.getVersion("wf-1", "wv-wf-1", req),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
   describe("getRunSpec", () => {
     const mockReq = () =>
       ({
@@ -323,7 +406,7 @@ describe("WorkflowController", () => {
       };
       workflowService.resolveLineageAndVersion.mockResolvedValue(wfWithInput);
 
-      const result = await controller.getRunSpec("wf-1", mockReq());
+      const result = await controller.getRunSpec("wf-1", undefined, mockReq());
 
       expect(result.triggerUrl).toBe(
         "http://localhost:3002/api/workflows/wf-1/runs",
@@ -336,6 +419,7 @@ describe("WorkflowController", () => {
       expect(result.sampleCurl).toContain("wf-1/runs");
       expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
         "wf-1",
+        undefined,
       );
     });
 
@@ -352,7 +436,7 @@ describe("WorkflowController", () => {
       };
       workflowService.resolveLineageAndVersion.mockResolvedValue(libWf);
 
-      const result = await controller.getRunSpec("wf-1", mockReq());
+      const result = await controller.getRunSpec("wf-1", undefined, mockReq());
 
       expect(result.inputSchema.properties.foo).toEqual({
         type: "string",
@@ -367,9 +451,9 @@ describe("WorkflowController", () => {
         new NotFoundException("Workflow not found: missing"),
       );
 
-      await expect(controller.getRunSpec("missing", mockReq())).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.getRunSpec("missing", undefined, mockReq()),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("propagates ConflictException when the workflow has no published version", async () => {
@@ -379,7 +463,7 @@ describe("WorkflowController", () => {
       );
 
       await expect(
-        controller.getRunSpec("draft-only", mockReq()),
+        controller.getRunSpec("draft-only", undefined, mockReq()),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -395,8 +479,94 @@ describe("WorkflowController", () => {
         mockWorkflowInfo,
       );
 
-      await expect(controller.getRunSpec("wf-1", req)).rejects.toThrow(
-        ForbiddenException,
+      await expect(
+        controller.getRunSpec("wf-1", undefined, req),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    // US-077 Scenario 1: ?workflowVersionId=<v2id> returns spec derived from v2
+    it("derives the spec from the requested workflowVersionId (NOT head) when query param is provided", async () => {
+      const v2Wf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        workflowVersionId: "wv-v2",
+        version: 2,
+        config: {
+          ...mockGraphConfig,
+          ctx: {
+            v2OnlyInput: {
+              type: "string",
+              isInput: true,
+              description: "Only present in v2",
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(v2Wf);
+
+      const result = await controller.getRunSpec("wf-1", "wv-v2", mockReq());
+
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        "wv-v2",
+      );
+      expect(Object.keys(result.inputSchema.properties)).toEqual([
+        "v2OnlyInput",
+      ]);
+      expect(result.inputSchema.required).toEqual(["v2OnlyInput"]);
+      // triggerUrl and authNotes unchanged
+      expect(result.triggerUrl).toBe(
+        "http://localhost:3002/api/workflows/wf-1/runs",
+      );
+      expect(result.authNotes).toMatch(/x-api-key/);
+    });
+
+    // US-077 Scenario 2 — covered by the existing "returns a run-spec..." test
+    // above (omitting param resolves head via resolveLineageAndVersion(id,
+    // undefined)). Kept as a named alias for traceability.
+    it("(regression) without workflowVersionId resolves the lineage's head", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await controller.getRunSpec("wf-1", undefined, mockReq());
+
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        undefined,
+      );
+    });
+
+    // US-077 Scenario 3: unknown workflowVersionId → 404
+    it("propagates NotFoundException for an unknown workflowVersionId", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockRejectedValue(
+        new NotFoundException("Workflow version not found: wv-missing"),
+      );
+
+      await expect(
+        controller.getRunSpec("wf-1", "wv-missing", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        "wv-missing",
+      );
+    });
+
+    // US-077 Scenario 4: cross-lineage workflowVersionId → 400
+    it("propagates BadRequestException when workflowVersionId belongs to a different lineage", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockRejectedValue(
+        new BadRequestException(
+          "workflowVersionId does not belong to this workflow",
+        ),
+      );
+
+      await expect(
+        controller.getRunSpec("wf-1", "wv-other-lineage", mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        "wv-other-lineage",
       );
     });
   });
@@ -527,6 +697,110 @@ describe("WorkflowController", () => {
 
       await expect(controller.startRun("wf-1", {}, req)).rejects.toThrow(
         ForbiddenException,
+      );
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    // US-078 Scenario 1: initialCtx validated against selected version's schema
+    // head requires `foo`; v2 doesn't — running v2 with empty body must succeed
+    it("validates initialCtx against the selected version's schema (head requires foo, v2 doesn't → empty body accepted)", async () => {
+      // v2 config has no `isInput: true` ctx entries → empty body is valid for v2
+      const v2NoRequiredInputs: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        workflowVersionId: "wv-v2",
+        version: 2,
+        config: {
+          ...mockGraphConfig,
+          ctx: {
+            // No isInput entries — v2 requires nothing
+            internalOnly: { type: "string" },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        v2NoRequiredInputs,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-v2");
+
+      const result = await controller.startRun(
+        "wf-1",
+        { workflowVersionId: "wv-v2", initialCtx: {} },
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        workflowId: "graph-adhoc-v2",
+        workflowVersionId: "wv-v2",
+        status: "started",
+      });
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        "wv-v2",
+      );
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        "wv-v2",
+        {},
+        "group-1",
+      );
+    });
+
+    // US-078 Scenario 2: missing-required errors raised relative to selected version
+    it("returns 400 with the selected version's required-field name when initialCtx is missing it", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      const v2RequiresCustomerId: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        workflowVersionId: "wv-v2",
+        version: 2,
+        config: {
+          ...mockGraphConfig,
+          ctx: {
+            customerId: { type: "string", isInput: true },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        v2RequiresCustomerId,
+      );
+
+      // Use a function that captures the thrown exception so we can inspect its response
+      let caught: unknown;
+      try {
+        await controller.startRun(
+          "wf-1",
+          { workflowVersionId: "wv-v2", initialCtx: {} },
+          mockReq(),
+        );
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const bre = caught as InstanceType<typeof BadRequestException>;
+      const response = bre.getResponse() as {
+        message: string;
+        errors: Array<{ path: string; message: string }>;
+      };
+      expect(response.message).toBe(
+        "Invalid initialCtx for this workflow's input schema",
+      );
+      expect(response.errors.map((e) => e.path)).toContain("customerId");
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    // US-078 Scenario 3: omitting workflowVersionId validates against head (regression)
+    it("validates initialCtx against the head version's schema when workflowVersionId is omitted", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      // Head requires `customerId`. Body omits it. Should fail validation.
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+
+      await expect(
+        controller.startRun("wf-1", { initialCtx: {} }, mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        undefined,
       );
       expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
     });

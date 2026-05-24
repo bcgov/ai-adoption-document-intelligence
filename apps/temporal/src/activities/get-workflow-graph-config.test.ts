@@ -26,13 +26,13 @@ const sampleConfig = (): GraphWorkflowConfig => ({
 
 describe("getWorkflowGraphConfig activity", () => {
   let prismaMock: {
-    workflowVersion: { findUnique: jest.Mock };
+    workflowVersion: { findUnique: jest.Mock; findFirst: jest.Mock };
     workflowLineage: { findUnique: jest.Mock; findFirst: jest.Mock };
   };
 
   beforeEach(() => {
     prismaMock = {
-      workflowVersion: { findUnique: jest.fn() },
+      workflowVersion: { findUnique: jest.fn(), findFirst: jest.fn() },
       workflowLineage: { findUnique: jest.fn(), findFirst: jest.fn() },
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
@@ -104,5 +104,40 @@ describe("getWorkflowGraphConfig activity", () => {
     await expect(
       getWorkflowGraphConfig({ workflowId: "missing" }),
     ).rejects.toThrow("Workflow not found by ID or name: missing");
+  });
+
+  // US-080: version-pinned resolution
+  describe("with `version` param", () => {
+    it("loads graph by (lineage_id, version_number) pair when version is provided", async () => {
+      const cfg = sampleConfig();
+      prismaMock.workflowVersion.findFirst.mockResolvedValue({ config: cfg });
+
+      const result = await getWorkflowGraphConfig({
+        workflowId: "lin-1",
+        version: 3,
+      });
+
+      expect(result.graph).toEqual(cfg);
+      expect(prismaMock.workflowVersion.findFirst).toHaveBeenCalledWith({
+        where: { lineage_id: "lin-1", version_number: 3 },
+        select: { config: true },
+      });
+      // Pinned lookup short-circuits the legacy 3-step resolution.
+      expect(prismaMock.workflowVersion.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("throws a clear error mentioning lineage + version when the pinned version does not exist", async () => {
+      prismaMock.workflowVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        getWorkflowGraphConfig({ workflowId: "lin-1", version: 99 }),
+      ).rejects.toThrow("Library lineage lin-1 has no version 99");
+      // Does NOT fall through to the head/name resolution paths.
+      expect(prismaMock.workflowVersion.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
+    });
   });
 });

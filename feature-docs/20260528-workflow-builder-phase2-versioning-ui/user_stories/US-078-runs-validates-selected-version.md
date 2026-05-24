@@ -9,23 +9,23 @@ an older version that didn't have it.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `initialCtx` validated against the selected version's schema
+- [x] **Scenario 1**: `initialCtx` validated against the selected version's schema
     - **Given** head requires `foo: string` (added in head, absent in v2)
     - **When** `POST /:id/runs` is called with `{ workflowVersionId: "<v2id>", initialCtx: {} }` (no `foo`)
     - **Then** the response is 201 (NOT 400) — v2's schema doesn't require `foo`
     - **And** the Temporal run starts against v2's config
 
-- [ ] **Scenario 2**: Missing-required error still raised relative to selected version
+- [x] **Scenario 2**: Missing-required error still raised relative to selected version
     - **Given** v2 requires `customerId: string`
     - **When** `POST /:id/runs` is called with `{ workflowVersionId: "<v2id>", initialCtx: {} }` (no `customerId`)
     - **Then** the response is 400 with `customerId` in the error list
 
-- [ ] **Scenario 3**: Default behaviour unchanged when `workflowVersionId` omitted
+- [x] **Scenario 3**: Default behaviour unchanged when `workflowVersionId` omitted
     - **Given** a body without `workflowVersionId`
     - **When** `POST /:id/runs` is called
     - **Then** validation runs against head's schema (Track 2 regression coverage)
 
-- [ ] **Scenario 4**: Vitest + supertest coverage
+- [x] **Scenario 4**: Vitest + supertest coverage
     - **Given** the controller spec
     - **When** `npm test` runs
     - **Then** Scenarios 1, 2, and 3 each have a corresponding test case

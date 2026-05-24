@@ -60,10 +60,10 @@ ordering below sequences them to minimize Vite-restart pauses
 - [x] **US-076** (`workflowRef.library.version?` in `@ai-di/graph-workflow`)
 
 ### Phase 2 — backend (can land in parallel with Phase 1; can ship even before Vite restart)
-- [ ] **US-077** (extend `/run-spec` with `?workflowVersionId=`)
-- [ ] **US-078** (`/runs` validates against the selected version)
-- [ ] **US-079** (`GET /:id/versions/:versionId` endpoint)
-- [ ] **US-080** (childWorkflow executor honors `version` at runtime)
+- [x] **US-077** (extend `/run-spec` with `?workflowVersionId=`)
+- [x] **US-078** (`/runs` validates against the selected version)
+- [x] **US-079** (`GET /:id/versions/:versionId` endpoint)
+- [x] **US-080** (childWorkflow executor honors `version` at runtime)
 
 ### Phase 3 — frontend history drawer (depends on US-079 for compare; everything else is local)
 - [ ] **US-081** ("History" top-bar button + `useWorkflowVersion` hook)

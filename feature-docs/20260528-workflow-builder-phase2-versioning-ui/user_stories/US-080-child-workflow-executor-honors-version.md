@@ -9,24 +9,24 @@ instead of silently following head.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: When `version` is set, the executor resolves it to a `WorkflowVersion.id` and passes that to the loader
+- [x] **Scenario 1**: When `version` is set, the executor resolves it to a `WorkflowVersion.id` and passes that to the loader
     - **Given** a `childWorkflow` node with `workflowRef: { type: "library", workflowId: "<lineageId>", version: 3 }`
     - **When** the engine executes the node
     - **Then** `getWorkflowGraphConfig` is called with `{ workflowId: <the resolved v3 WorkflowVersion.id> }` (NOT the lineage id)
     - **And** the returned `graph` is v3's config
 
-- [ ] **Scenario 2**: When `version` is undefined, behaviour is unchanged
+- [x] **Scenario 2**: When `version` is undefined, behaviour is unchanged
     - **Given** a `childWorkflow` node with `workflowRef: { type: "library", workflowId: "<lineageId>" }` (no `version`)
     - **When** the engine executes the node
     - **Then** `getWorkflowGraphConfig` is called with `{ workflowId: <lineageId> }` (existing behaviour — resolver falls through to head)
 
-- [ ] **Scenario 3**: Pinned version no longer exists → executor surfaces a clear error
+- [x] **Scenario 3**: Pinned version no longer exists → executor surfaces a clear error
     - **Given** `version: 99` on a lineage that has only 3 versions
     - **When** the engine executes the node
     - **Then** the executor raises an error mentioning the lineage id + pinned version number (not a cryptic Prisma null deref)
     - **And** the child workflow is not started
 
-- [ ] **Scenario 4**: Vitest coverage for the executor
+- [x] **Scenario 4**: Vitest coverage for the executor
     - **Given** the `node-executors.ts` test suite with a mock activity proxy
     - **When** `npm test` runs in `apps/temporal/`
     - **Then** Scenarios 1, 2, and 3 each have a corresponding test case
