@@ -76,6 +76,26 @@ export const documentClassifyParametersSchema = z.object({
     }),
 });
 
+/**
+ * Catalog entry for `document.classify`.
+ *
+ * This is the SINGLE multi-typed-port exemplar in Phase 3
+ * (REQUIREMENTS.md §3.2 D9). Two typed inputs of distinct kinds
+ * (`OcrResult` + `Segment`) and three typed outputs drive the
+ * gray multi-port handle rendering (US-095) and the expanded
+ * per-row selection type pill (US-096).
+ *
+ * Output kind rationale:
+ *   - `segmentType: Classification` — the typed output that actually
+ *     names a taxonomy kind; downstream nodes consume it as a
+ *     `Classification` artifact.
+ *   - `confidence: Artifact` + `matchedRule: Artifact` — scalar /
+ *     structural metadata that doesn't belong to the artifact
+ *     taxonomy. Using the `Artifact` wildcard per the all-or-nothing
+ *     rule (REQUIREMENTS.md §3.2 D15) is more honest than inventing
+ *     kind names like `ConfidenceScore` that would force the
+ *     taxonomy to grow without a real use case.
+ */
 export const documentClassifyCatalogEntry: ActivityCatalogEntry = {
   activityType: "document.classify",
   displayName: "Classify Document",
@@ -90,12 +110,14 @@ export const documentClassifyCatalogEntry: ActivityCatalogEntry = {
       label: "OCR result for this segment",
       description: "Segment OCR result to classify.",
       required: true,
+      kind: "OcrResult",
     },
     {
       name: "segment",
       label: "Segment metadata",
       description: "Segment metadata produced upstream.",
       required: true,
+      kind: "Segment",
     },
   ],
   outputs: [
@@ -104,18 +126,21 @@ export const documentClassifyCatalogEntry: ActivityCatalogEntry = {
       label: "Detected segment type",
       description: "Document type assigned by the matched rule.",
       required: true,
+      kind: "Classification",
     },
     {
       name: "confidence",
       label: "Confidence",
       description: "Classification confidence (0–1).",
       required: false,
+      kind: "Artifact",
     },
     {
       name: "matchedRule",
       label: "Matched rule",
       description: "Name of the rule that matched.",
       required: false,
+      kind: "Artifact",
     },
   ],
   parametersSchema: documentClassifyParametersSchema,

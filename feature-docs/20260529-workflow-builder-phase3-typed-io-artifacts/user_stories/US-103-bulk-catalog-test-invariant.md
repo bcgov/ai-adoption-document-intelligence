@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Test asserts the invariant across every catalog entry
+- [x] **Scenario 1**: Test asserts the invariant across every catalog entry
     - **Given** `packages/graph-workflow/src/catalog/catalog.test.ts` (extend existing bulk-invariant suite)
     - **When** the suite runs
     - **Then** for each entry in `ACTIVITY_CATALOG`, the test reads `entry.inputs[]` + `entry.outputs[]` and computes:
@@ -15,19 +15,19 @@
     - **And** the assertion is: `hasAnyKind === false || allHaveKind === true` (entry either typed fully or not at all)
     - **And** a failure message lists the offending entry's `activityType` + the names of the un-typed ports
 
-- [ ] **Scenario 2**: Five exemplars (US-101 + US-102) pass the invariant
+- [x] **Scenario 2**: Five exemplars (US-101 + US-102) pass the invariant
     - **Given** all Phase 3 catalog fan-outs (`document.split`, `mistral-ocr.process`, `document.validateFields`, `tables.lookup`, `document.classify`)
     - **When** the bulk test runs
     - **Then** every one of those five entries has `allHaveKind === true`
     - **And** the test reports zero invariant violations
 
-- [ ] **Scenario 3**: Remaining ~35 entries pass via `hasAnyKind === false`
+- [x] **Scenario 3**: Remaining ~35 entries pass via `hasAnyKind === false`
     - **Given** the un-typed entries (Azure OCR triple, benchmark.*, document-extract-page-range, etc.)
     - **When** the bulk test runs
     - **Then** each shows `hasAnyKind === false` (no `kind` annotations anywhere on the entry)
     - **And** the invariant `hasAnyKind === false || allHaveKind === true` holds trivially
 
-- [ ] **Scenario 4**: A deliberately half-typed entry would fail the test
+- [x] **Scenario 4**: A deliberately half-typed entry would fail the test
     - **Given** a tampered local copy of `document-split.ts` where `blobKey` retains `kind: "MultiPageDocument"` but `groupId` has its `kind` removed
     - **When** the bulk test runs locally
     - **Then** the suite fails with a message naming `document.split` and the un-typed port `groupId`

@@ -85,10 +85,10 @@ Phase 3 has a clear linear backbone (shared package → backend → frontend →
 - [x] **US-100** (signature summaries surface kind — `LibraryPickerModal` + `ChildWorkflowNodeSettings`) — independent of US-098/099 but uses the same `<KindDot>` helper from US-095
 
 ### Phase 6 — catalog fan-out + provider catalog (depends on Phase 1; Phase 2/3/4/5 happy-path tests benefit from this landing)
-- [ ] **US-101** (type 4 single-output exemplars) — independent
-- [ ] **US-102** (type `document.classify` multi-port exemplar) — independent of US-101
-- [ ] **US-103** (bulk catalog test invariant) — depends on US-101 + US-102 (the invariant needs typed entries to compare against the un-typed ones)
-- [ ] **US-104** (`provider-catalog.ts` scaffold + 2 seed descriptors) — independent
+- [x] **US-101** (type 4 single-output exemplars) — independent
+- [x] **US-102** (type `document.classify` multi-port exemplar) — independent of US-101
+- [x] **US-103** (bulk catalog test invariant) — depends on US-101 + US-102 (the invariant needs typed entries to compare against the un-typed ones)
+- [x] **US-104** (`provider-catalog.ts` scaffold + 2 seed descriptors) — independent
 
 ### Phase 7 — end-to-end verification
 - [ ] **US-105** (Playwright walkthrough — typed I/O end-to-end; screenshots in `/tmp/wb-phase3-verify/`)

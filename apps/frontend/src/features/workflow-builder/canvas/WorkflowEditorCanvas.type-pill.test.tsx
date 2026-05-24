@@ -280,6 +280,38 @@ describe("WorkflowEditorCanvas — US-096 Scenario 3: pill hides when node is de
   });
 });
 
+describe("WorkflowEditorCanvas — US-102: document.classify selection pill expands to the full signature (real catalog entry)", () => {
+  it("input pill lists ocrResult: OcrResult (violet) + segment: Segment (green); output pill lists segmentType: Classification (yellow) + confidence/matchedRule: Artifact (gray)", () => {
+    renderCanvas(makeConfigWith("document.classify"), "activity_1");
+
+    const inputPill = screen.getByTestId("node-type-pill-input");
+    const ocrRow = inputPill.querySelector("[data-pill-port='ocrResult']");
+    const segmentRow = inputPill.querySelector("[data-pill-port='segment']");
+    expect(ocrRow).toHaveTextContent("ocrResult: OcrResult");
+    expect(segmentRow).toHaveTextContent("segment: Segment");
+    expect(ocrRow?.getAttribute("data-pill-color")).toBe("violet");
+    expect(segmentRow?.getAttribute("data-pill-color")).toBe("green");
+
+    const outputPill = screen.getByTestId("node-type-pill-output");
+    const segmentType = outputPill.querySelector(
+      "[data-pill-port='segmentType']",
+    );
+    const confidence = outputPill.querySelector(
+      "[data-pill-port='confidence']",
+    );
+    const matchedRule = outputPill.querySelector(
+      "[data-pill-port='matchedRule']",
+    );
+    expect(segmentType).toHaveTextContent("segmentType: Classification");
+    expect(confidence).toHaveTextContent("confidence: Artifact");
+    expect(matchedRule).toHaveTextContent("matchedRule: Artifact");
+    // Classification → yellow (Mantine's amber substitute); Artifact wildcards → gray.
+    expect(segmentType?.getAttribute("data-pill-color")).toBe("yellow");
+    expect(confidence?.getAttribute("data-pill-color")).toBe("gray");
+    expect(matchedRule?.getAttribute("data-pill-color")).toBe("gray");
+  });
+});
+
 describe("WorkflowEditorCanvas — US-096 Scenario 4: pill renders nothing when no ports declare a kind", () => {
   it("renders no pill for an un-typed activity (legacy descriptors) even when selected", () => {
     renderCanvas(makeConfigWith("test.untyped"), "activity_1");

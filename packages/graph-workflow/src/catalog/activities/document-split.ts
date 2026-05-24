@@ -86,18 +86,21 @@ export const documentSplitCatalogEntry: ActivityCatalogEntry = {
       label: "Source file reference (blob key)",
       description: "Storage key for the multi-page PDF to split.",
       required: true,
+      kind: "MultiPageDocument",
     },
     {
       name: "groupId",
       label: "Group ID",
       description: "Destination group used for storing the produced segments.",
       required: true,
+      kind: "Artifact",
     },
     {
       name: "documentId",
       label: "Document ID",
       description: "Inferred from the file reference if not provided.",
       required: false,
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -107,6 +110,7 @@ export const documentSplitCatalogEntry: ActivityCatalogEntry = {
       description:
         "List of produced segments — each with segmentIndex, pageRange, blobKey, and pageCount.",
       required: true,
+      kind: "Segment[]",
     },
   ],
   parametersSchema: documentSplitParametersSchema,

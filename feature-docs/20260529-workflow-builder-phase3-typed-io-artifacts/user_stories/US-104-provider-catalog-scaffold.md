@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `ProviderDescriptor` interface declared
+- [x] **Scenario 1**: `ProviderDescriptor` interface declared
     - **Given** `packages/graph-workflow/src/catalog/provider-catalog.ts` (new file)
     - **When** read
     - **Then** it exports `interface ProviderDescriptor { id: string; displayName: string; category: "ocr" | "vlm" | "classifier" | "validator"; acceptsKind: KindRef; returns: KindRef }`
     - **And** the file imports `KindRef` from the package's `types/artifacts` module (US-089)
 
-- [ ] **Scenario 2**: `PROVIDER_CATALOG` constant exported with 2 seed entries
+- [x] **Scenario 2**: `PROVIDER_CATALOG` constant exported with 2 seed entries
     - **Given** the same file
     - **When** read
     - **Then** it exports `const PROVIDER_CATALOG: ProviderDescriptor[]` with exactly two entries:
       - `{ id: "azure-ocr", displayName: "Azure OCR", category: "ocr", acceptsKind: "Document", returns: "OcrResult" }`
       - `{ id: "mistral-ocr", displayName: "Mistral OCR", category: "ocr", acceptsKind: "Document", returns: "OcrResult" }`
 
-- [ ] **Scenario 3**: Helpers `getProviderDescriptor` + `listProvidersForKind` exported
+- [x] **Scenario 3**: Helpers `getProviderDescriptor` + `listProvidersForKind` exported
     - **Given** the same file
     - **When** read
     - **Then** it exports `getProviderDescriptor(id: string): ProviderDescriptor | undefined`
     - **And** `listProvidersForKind(acceptsKind: KindRef): ProviderDescriptor[]` returning every descriptor whose `acceptsKind` is assignable from the parameter (via `isAssignable` from US-091)
     - **And** unit tests cover both helpers' happy paths + a "no matches" case
 
-- [ ] **Scenario 4**: Barrel re-export from package root
+- [x] **Scenario 4**: Barrel re-export from package root
     - **Given** `packages/graph-workflow/src/catalog/index.ts` and `packages/graph-workflow/src/index.ts`
     - **When** read
     - **Then** `ProviderDescriptor`, `PROVIDER_CATALOG`, `getProviderDescriptor`, `listProvidersForKind` are re-exported

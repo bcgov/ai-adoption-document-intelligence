@@ -21,7 +21,10 @@ export {
   documentValidateFieldsParametersSchema,
   getActivityCatalogEntry,
   getActivityParametersJsonSchema,
+  getProviderDescriptor,
   listActivityTypes,
+  listProvidersForKind,
+  PROVIDER_CATALOG,
   validationRuleSchema,
 } from "./catalog";
 export type {
@@ -30,6 +33,7 @@ export type {
   ClassificationPattern,
   ClassificationRule,
   PortDescriptor,
+  ProviderDescriptor,
   ValidateActivityParameters,
   ValidationRule,
 } from "./catalog";

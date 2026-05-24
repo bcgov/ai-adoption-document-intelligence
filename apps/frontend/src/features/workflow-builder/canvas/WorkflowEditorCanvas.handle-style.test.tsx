@@ -338,3 +338,36 @@ describe("WorkflowEditorCanvas — US-095 Scenario 4: multi-port tooltip explain
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// US-102 — real `document.classify` catalog entry drives the multi-port
+// gray rendering on BOTH sides. Unlike the `test.*` fixtures above, this
+// scenario hits the production catalog (US-102 typed the entry with
+// OcrResult + Segment inputs and Classification + Artifact + Artifact
+// outputs), so the multi-port branch of `computeHandleStyle` fires
+// against the real shipped data.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — US-102: document.classify renders gray multi-port handles on both sides", () => {
+  it("renders gray input handle with the 'Multiple inputs' tooltip (real catalog entry, 2 typed inputs of distinct kinds)", () => {
+    renderCanvas(makeConfigWith("document.classify"));
+
+    const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
+    expect(inputWrap.getAttribute("data-port-color")).toBe("gray");
+    expect(inputWrap.getAttribute("data-port-multi")).toBe("true");
+    expect(inputWrap.getAttribute("data-port-tooltip")).toBe(
+      "Multiple inputs — select node to view all",
+    );
+  });
+
+  it("renders gray output handle with the 'Multiple outputs' tooltip (real catalog entry, 3 typed outputs)", () => {
+    renderCanvas(makeConfigWith("document.classify"));
+
+    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
+    expect(outputWrap.getAttribute("data-port-color")).toBe("gray");
+    expect(outputWrap.getAttribute("data-port-multi")).toBe("true");
+    expect(outputWrap.getAttribute("data-port-tooltip")).toBe(
+      "Multiple outputs — select node to view all",
+    );
+  });
+});

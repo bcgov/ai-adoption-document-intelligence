@@ -112,12 +112,16 @@ export const documentValidateFieldsCatalogEntry: ActivityCatalogEntry = {
       description:
         "Array of segments (item 0 = primary, items 1+ = attachments).",
       required: true,
+      // Array of segment artifacts — the rules walk per-segment field paths.
+      kind: "Segment[]",
     },
     {
       name: "documentId",
       label: "Document ID",
       description: "Identifier of the document being validated.",
       required: true,
+      // Identifier — `Artifact` wildcard per the all-or-nothing invariant.
+      kind: "Artifact",
     },
   ],
   outputs: [
@@ -126,6 +130,7 @@ export const documentValidateFieldsCatalogEntry: ActivityCatalogEntry = {
       label: "Validation results",
       description: "Per-rule results plus a summary of matches and mismatches.",
       required: true,
+      kind: "ValidationResult",
     },
   ],
   parametersSchema: documentValidateFieldsParametersSchema,

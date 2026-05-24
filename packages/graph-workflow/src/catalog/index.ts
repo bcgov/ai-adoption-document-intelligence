@@ -82,6 +82,13 @@ export {
   type ClassificationRule,
 } from "./activities/document-classify";
 
+export {
+  PROVIDER_CATALOG,
+  getProviderDescriptor,
+  listProvidersForKind,
+  type ProviderDescriptor,
+} from "./provider-catalog";
+
 const ENTRIES: ActivityCatalogEntry[] = [
   filePrepareCatalogEntry,
   blobReadCatalogEntry,
