@@ -8,19 +8,19 @@ Save-as-library / Settings rather than buried in a sub-menu.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: "History" button rendered between "Save" and "Run this workflow"
+- [x] **Scenario 1**: "History" button rendered between "Save" and "Run this workflow"
     - **Given** `WorkflowEditorV2Page` in edit mode (workflow has an `id`)
     - **When** the page renders
     - **Then** a button labelled "History" with `IconHistory` (from `@tabler/icons-react`) appears between "Save" and "Run this workflow" in the top bar
     - **And** clicking it sets the drawer-open state to true
 
-- [ ] **Scenario 2**: Button disabled in create mode
+- [x] **Scenario 2**: Button disabled in create mode
     - **Given** `WorkflowEditorV2Page` in create mode (no `workflowId` yet)
     - **When** the page renders
     - **Then** the History button is disabled
     - **And** hover shows a Mantine `Tooltip` with text "Save the workflow first"
 
-- [ ] **Scenario 3**: `useWorkflowVersion` hook fetches a single version
+- [x] **Scenario 3**: `useWorkflowVersion` hook fetches a single version
     - **Given** `apps/frontend/src/data/hooks/useWorkflows.ts`
     - **When** the hook is read
     - **Then** an exported `useWorkflowVersion(lineageId: string | undefined, versionId: string | undefined)` returns a TanStack `useQuery`
@@ -28,7 +28,7 @@ Save-as-library / Settings rather than buried in a sub-menu.
     - **And** it fetches `GET /workflows/${lineageId}/versions/${versionId}` and returns the `WorkflowInfo`
     - **And** the query is `enabled` only when both ids are defined
 
-- [ ] **Scenario 4**: Vitest coverage
+- [x] **Scenario 4**: Vitest coverage
     - **Given** existing frontend test patterns for top-bar buttons + hooks
     - **When** `npm test` runs in `apps/frontend/`
     - **Then** a test asserts the History button rendering in both modes (enabled/disabled + tooltip)

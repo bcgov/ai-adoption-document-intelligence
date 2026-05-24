@@ -8,31 +8,31 @@ to a separate page.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Drawer renders right-side with versions newest-first
+- [x] **Scenario 1**: Drawer renders right-side with versions newest-first
     - **Given** a workflow with 3 versions (v1, v2, v3 head)
     - **When** the drawer opens
     - **Then** a right-side Mantine `Drawer` with `position="right"` and `size="md"` mounts
     - **And** rows appear newest-first (v3, v2, v1 reading top-to-bottom)
     - **And** each row shows the version number badge (e.g. `v3`), the ISO `createdAt` formatted human-readably, and the row's action buttons
 
-- [ ] **Scenario 2**: Head row carries a `<Badge color="blue">head</Badge>`
+- [x] **Scenario 2**: Head row carries a `<Badge color="blue">head</Badge>`
     - **Given** the lineage's `workflowVersionId` matches one of the rows
     - **When** the drawer renders
     - **Then** that row (and only that row) shows the "head" badge
 
-- [ ] **Scenario 3**: Action buttons present on non-head rows, disabled on head
+- [x] **Scenario 3**: Action buttons present on non-head rows, disabled on head
     - **Given** any row
     - **When** the drawer renders
     - **Then** the row has two buttons: "Revert to this version" and "Compare to head"
     - **And** both buttons are disabled on the head row, with tooltips "Already the head" and "This is the head — nothing to compare" respectively
 
-- [ ] **Scenario 4**: Loading / empty / error states
+- [x] **Scenario 4**: Loading / empty / error states
     - **Given** the `useWorkflowVersions` query state
     - **When** loading: the drawer body shows Mantine `<Skeleton>` rows (at least 3)
     - **When** the query resolves to an empty list: a plain text "No versions yet — save the workflow first." is shown
     - **When** the query errors: a red Mantine `<Alert>` with the error message is shown
 
-- [ ] **Scenario 5**: Vitest coverage
+- [x] **Scenario 5**: Vitest coverage
     - **Given** the new component
     - **When** `npm test` runs in `apps/frontend/`
     - **Then** tests cover: row count + ordering, head badge, button disabled state on head, loading + empty + error states

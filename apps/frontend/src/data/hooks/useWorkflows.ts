@@ -263,6 +263,31 @@ export function useWorkflowVersions(lineageId: string | undefined) {
   });
 }
 
+/**
+ * Fetches the full `WorkflowInfo` (config + metadata) for a specific
+ * version within a lineage. Backs the version-history drawer's
+ * "Compare to head" action and per-version run-spec refetches that need
+ * the raw config (US-079 / US-081).
+ */
+export function useWorkflowVersion(
+  lineageId: string | undefined,
+  versionId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["workflow-version", lineageId, versionId],
+    queryFn: async (): Promise<WorkflowInfo> => {
+      const response = await apiService.get<WorkflowResponse>(
+        `/workflows/${lineageId}/versions/${versionId}`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch workflow version");
+      }
+      return response.data.workflow;
+    },
+    enabled: !!lineageId && !!versionId,
+  });
+}
+
 export function useRevertWorkflowHead() {
   const queryClient = useQueryClient();
 

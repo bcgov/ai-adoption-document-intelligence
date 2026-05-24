@@ -15,7 +15,13 @@ import "@testing-library/jest-dom";
 import { MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -109,6 +115,13 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
     mutateAsync: async () => undefined,
     isPending: false,
   }),
+  // US-083 — the page now calls `useRevertWorkflowHead` for the
+  // version-history drawer's Revert action. Surface a no-op mutation
+  // so the page renders.
+  useRevertWorkflowHead: () => ({
+    mutateAsync: async () => undefined,
+    isPending: false,
+  }),
   // RunWorkflowDrawer is only mounted in edit mode (isEditMode &&
   // workflowId), but the page imports its hooks unconditionally at
   // module level, so the mock must surface them.
@@ -116,6 +129,19 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
   useStartWorkflowRun: () => ({
     mutateAsync: async () => undefined,
     isPending: false,
+  }),
+  // US-081 — hook is exported alongside the others; the page itself
+  // does not call it directly, but the version-history drawer body
+  // (mounted in US-082) does, so the mock must surface it.
+  useWorkflowVersion: () => ({ data: undefined, isLoading: false }),
+  // US-082 — `VersionHistoryDrawer` calls `useWorkflowVersions` to list
+  // the lineage's versions. Default to an empty list so the drawer
+  // renders its empty-state text instead of querying the network.
+  useWorkflowVersions: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+    error: null,
   }),
 }));
 
@@ -520,5 +546,116 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
         .getByTestId("node-settings-stub")
         .getAttribute("data-active-group-id"),
     ).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-081 — "History" top-bar button
+//   feature-docs/20260528-workflow-builder-phase2-versioning-ui/user_stories/
+//   US-081-history-top-bar-button-and-hook.md (Scenarios 1, 2, 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Renders the page directly under the `:workflowId/edit-v2` route so
+ * `mode="edit"` + a defined `workflowId` flow through to the top-bar
+ * disabled-state checks. The default `renderPage` only supports
+ * create-mode entries.
+ */
+function renderEditPage(workflowId: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <Notifications />
+        <MemoryRouter
+          initialEntries={[{ pathname: `/workflows/${workflowId}/edit-v2` }]}
+        >
+          <Routes>
+            <Route
+              path="/workflows/create-v2"
+              element={<WorkflowEditorV2Page mode="create" />}
+            />
+            <Route
+              path="/workflows/:workflowId/edit-v2"
+              element={<WorkflowEditorV2Page mode="edit" />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+}
+
+describe("WorkflowEditorV2Page — US-081: History top-bar button", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    fitViewMock.mockClear();
+  });
+
+  it("Scenario 1: renders the History button in edit mode and clicking it opens the drawer", async () => {
+    renderEditPage("workflow-7");
+    const button = screen.getByTestId("history-button");
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveTextContent(/History/i);
+    expect(button).not.toBeDisabled();
+
+    // Mantine only renders the Drawer body when `opened=true`. The
+    // `useWorkflowVersions` mock in this file returns an empty list, so
+    // the open drawer renders `VersionHistoryDrawer`'s empty-state node
+    // — `history-drawer-empty` doubles as our open/closed signal.
+    expect(
+      screen.queryByTestId("history-drawer-empty"),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    // The Drawer body mounts inside a Mantine portal — `findByTestId`
+    // searches `document.body`, so the portaled empty-state node is
+    // visible.
+    const emptyState = await screen.findByTestId("history-drawer-empty");
+    expect(emptyState).toBeInTheDocument();
+  });
+
+  it("Scenario 1: History button sits between Save and Run this workflow in the DOM", () => {
+    renderEditPage("workflow-7");
+    const saveBtn = screen.getByTestId("save-button");
+    const historyBtn = screen.getByTestId("history-button");
+    const runBtn = screen.getByTestId("run-this-workflow-button");
+
+    // `compareDocumentPosition` returns a bitmask. The bit `DOCUMENT_POSITION_FOLLOWING`
+    // (4) is set when the argument node follows the receiver in
+    // document order.
+    expect(
+      saveBtn.compareDocumentPosition(historyBtn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      historyBtn.compareDocumentPosition(runBtn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("Scenario 2: History button is disabled in create mode", () => {
+    renderPage();
+    const button = screen.getByTestId("history-button");
+    expect(button).toBeDisabled();
+  });
+
+  it("Scenario 2: tooltip 'Save the workflow first' surfaces on hover when the button is disabled", async () => {
+    renderPage();
+    const button = screen.getByTestId("history-button");
+    expect(button).toBeDisabled();
+    // Same pattern as DocumentUploadPanel's tooltip test — Mantine's
+    // Tooltip relays hover from a disabled child via its wrapper, so
+    // `mouseEnter` on the button surfaces the floating label.
+    fireEvent.mouseEnter(button);
+    await waitFor(() => {
+      expect(screen.getByText("Save the workflow first")).toBeInTheDocument();
+    });
   });
 });

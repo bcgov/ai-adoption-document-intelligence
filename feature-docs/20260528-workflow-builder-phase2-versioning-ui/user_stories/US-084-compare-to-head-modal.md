@@ -9,7 +9,7 @@ revert or pin to a library version.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Compare-to-head opens a large modal with two columns
+- [x] **Scenario 1**: Compare-to-head opens a large modal with two columns
     - **Given** a non-head row in `VersionHistoryDrawer`
     - **When** the user clicks "Compare to head"
     - **Then** a Mantine `<Modal size="80%">` opens
@@ -17,26 +17,26 @@ revert or pin to a library version.
     - **And** the left column header reads `"v{n} — {iso timestamp}"` for the selected version
     - **And** the right column header reads `"head (v{headN} — {iso timestamp})"`
 
-- [ ] **Scenario 2**: Each column renders a read-only `JsonInput`
+- [x] **Scenario 2**: Each column renders a read-only `JsonInput`
     - **Given** the modal is open
     - **When** the configs have been fetched
     - **Then** each column contains a Mantine `<JsonInput value={JSON.stringify(config, null, 2)} readOnly autosize maxRows={40} formatOnBlur={false} />`
     - **And** both panels scroll independently
 
-- [ ] **Scenario 3**: Selected-version config fetched via `useWorkflowVersion`
+- [x] **Scenario 3**: Selected-version config fetched via `useWorkflowVersion`
     - **Given** the modal mounts with a `versionId` prop
     - **When** rendering
     - **Then** `useWorkflowVersion(lineageId, versionId)` is invoked for the left column
     - **And** the current head's config comes from the already-loaded `useWorkflow(lineageId)` (no extra fetch — reuse the editor's cached query)
     - **And** loading state shows a single skeleton block in the left column while the version fetch is in flight
 
-- [ ] **Scenario 4**: Error / not-found state
+- [x] **Scenario 4**: Error / not-found state
     - **Given** the version fetch returns 404 or errors
     - **When** the modal renders
     - **Then** the left column shows a red Mantine `<Alert>` with the error message
     - **And** the right column still renders head's config
 
-- [ ] **Scenario 5**: Vitest coverage
+- [x] **Scenario 5**: Vitest coverage
     - **Given** the new modal
     - **When** `npm test` runs
     - **Then** tests cover: modal opens via callback, two columns + headers render, JsonInputs are readOnly, error state renders the alert

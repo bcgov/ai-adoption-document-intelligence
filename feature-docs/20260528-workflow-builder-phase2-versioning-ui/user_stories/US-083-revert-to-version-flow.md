@@ -8,14 +8,14 @@ editor reflects reality after the revert.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Confirm modal warns + revert posts on confirm
+- [x] **Scenario 1**: Confirm modal warns + revert posts on confirm
     - **Given** a non-head row in `VersionHistoryDrawer`
     - **When** the user clicks "Revert to this version"
     - **Then** Mantine `modals.openConfirmModal` opens with body text "Reverting will replace the current head with v{n}, created {timestamp}. Any unsaved canvas changes will be discarded. Continue?"
     - **And** confirming calls `useRevertWorkflowHead().mutateAsync({ lineageId, workflowVersionId })`
     - **And** cancelling closes the modal with no network call
 
-- [ ] **Scenario 2**: Success — canvas reloads with the reverted config
+- [x] **Scenario 2**: Success — canvas reloads with the reverted config
     - **Given** `useRevertWorkflowHead` resolves successfully
     - **When** the mutation completes
     - **Then** the `useWorkflow(lineageId)` query is invalidated (already done by the hook)
@@ -23,13 +23,13 @@ editor reflects reality after the revert.
     - **And** the `VersionHistoryDrawer` closes
     - **And** a green Mantine notification fires with title `"Reverted to v{n}"`
 
-- [ ] **Scenario 3**: Error — alert with the response message
+- [x] **Scenario 3**: Error — alert with the response message
     - **Given** the mutation rejects with an error message
     - **When** the mutation completes
     - **Then** a red Mantine notification (or in-drawer `<Alert>`) fires with the error message
     - **And** the drawer remains open so the user can retry
 
-- [ ] **Scenario 4**: Vitest coverage
+- [x] **Scenario 4**: Vitest coverage
     - **Given** the wired-up drawer + revert handler
     - **When** `npm test` runs
     - **Then** tests cover: confirm-modal opens with the expected copy, confirm calls the mutation with the right args, success closes the drawer + fires notification, error keeps the drawer open

@@ -66,10 +66,10 @@ ordering below sequences them to minimize Vite-restart pauses
 - [x] **US-080** (childWorkflow executor honors `version` at runtime)
 
 ### Phase 3 — frontend history drawer (depends on US-079 for compare; everything else is local)
-- [ ] **US-081** ("History" top-bar button + `useWorkflowVersion` hook)
-- [ ] **US-082** (`VersionHistoryDrawer` list + head badge + buttons)
-- [ ] **US-083** (revert confirm + canvas reload)
-- [ ] **US-084** (compare-to-head modal)
+- [x] **US-081** ("History" top-bar button + `useWorkflowVersion` hook)
+- [x] **US-082** (`VersionHistoryDrawer` list + head badge + buttons)
+- [x] **US-083** (revert confirm + canvas reload)
+- [x] **US-084** (compare-to-head modal)
 
 ### Phase 4 — frontend Run drawer per-version (depends on US-077)
 - [ ] **US-085** (Run drawer Version Select wiring)

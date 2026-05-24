@@ -27,6 +27,7 @@ import {
 import {
   Box,
   Button,
+  Drawer,
   Group,
   Loader,
   Stack,
@@ -34,7 +35,9 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
+import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
@@ -43,6 +46,7 @@ import {
   IconDeviceFloppy,
   IconExclamationCircle,
   IconHelp,
+  IconHistory,
   IconLayoutDistributeHorizontal,
   IconPlayerPlay,
   IconSettings,
@@ -54,6 +58,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   type CreateWorkflowDto,
   useCreateWorkflow,
+  useRevertWorkflowHead,
   useUpdateWorkflow,
   useWorkflow,
 } from "../../data/hooks/useWorkflows";
@@ -83,6 +88,8 @@ import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
 import type { WorkflowTemplate } from "./templates";
 import { useGraphValidation } from "./validation/useGraphValidation";
 import { ValidationDrawer } from "./validation/ValidationDrawer";
+import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
+import { VersionHistoryDrawer } from "./versioning/VersionHistoryDrawer";
 
 /** Router-state payload accepted by /workflows/create-v2 when launched
  *  from the templates picker. */
@@ -117,6 +124,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   );
   const createWorkflow = useCreateWorkflow();
   const updateWorkflow = useUpdateWorkflow();
+  const revertWorkflow = useRevertWorkflowHead();
 
   // Template payload from the picker — consumed once on initial mount
   // for create mode, then cleared from history so a back/forward
@@ -185,6 +193,19 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [validationOpen, setValidationOpen] = useState(false);
   const [saveAsLibraryOpen, setSaveAsLibraryOpen] = useState(false);
   const [runDrawerOpen, setRunDrawerOpen] = useState(false);
+  // US-081: version-history drawer open/close state. The drawer body
+  // (`VersionHistoryDrawer`) is mounted in US-082; this story owns the
+  // top-bar button + state plumbing. The state is read by the inline
+  // placeholder drawer below so React's exhaustive-deps stays clean.
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  // US-084: state for the compare-to-head modal. `null` = closed; an
+  // object describes the selected (non-head) version being compared
+  // against the editor's already-loaded head workflow.
+  const [compareState, setCompareState] = useState<{
+    versionId: string;
+    versionNumber: number;
+    createdAt: string;
+  } | null>(null);
   const [validationFocusNodeId, setValidationFocusNodeId] = useState<
     string | null
   >(null);
@@ -458,6 +479,72 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     [config, createWorkflow],
   );
 
+  /**
+   * Revert-to-version handler (US-083). Opens a confirm modal warning the
+   * user the in-flight canvas state will be replaced with the selected
+   * version's config. On confirm, calls `useRevertWorkflowHead`; on
+   * success, closes the history drawer and notifies. The query
+   * invalidation inside the hook causes `useWorkflow(workflowId)` to
+   * refetch, which is then synced into canvas state by the existing
+   * `useEffect` above (the one that depends on `existingWorkflow`).
+   */
+  const handleRevert = useCallback(
+    (versionId: string, versionNumber: number, createdAt: string) => {
+      if (!workflowId) return;
+      const created = new Date(createdAt);
+      const createdLabel = Number.isNaN(created.getTime())
+        ? createdAt
+        : created.toLocaleString();
+      modals.openConfirmModal({
+        title: "Revert to this version?",
+        children: (
+          <Text size="sm">
+            Reverting will replace the current head with v{versionNumber},
+            created {createdLabel}. Any unsaved canvas changes will be
+            discarded. Continue?
+          </Text>
+        ),
+        labels: { confirm: "Revert", cancel: "Cancel" },
+        confirmProps: { color: "red", "data-testid": "revert-confirm-button" },
+        cancelProps: { "data-testid": "revert-cancel-button" },
+        onConfirm: async () => {
+          try {
+            await revertWorkflow.mutateAsync({
+              lineageId: workflowId,
+              workflowVersionId: versionId,
+            });
+            setHistoryDrawerOpen(false);
+            notifications.show({
+              color: "green",
+              title: `Reverted to v${versionNumber}`,
+              message: "The editor now reflects the reverted version.",
+            });
+          } catch (err) {
+            notifications.show({
+              color: "red",
+              title: "Revert failed",
+              message: err instanceof Error ? err.message : "Unknown error.",
+            });
+          }
+        },
+      });
+    },
+    [workflowId, revertWorkflow],
+  );
+
+  /**
+   * Compare-to-head handler (US-084). Stores the selected (non-head)
+   * version into local state; the modal renders only when this state
+   * is non-null and `existingWorkflow` is available (we reuse the
+   * already-loaded head from `useWorkflow` — no extra fetch).
+   */
+  const handleCompare = useCallback(
+    (versionId: string, versionNumber: number, createdAt: string) => {
+      setCompareState({ versionId, versionNumber, createdAt });
+    },
+    [],
+  );
+
   const isSaving = createWorkflow.isPending || updateWorkflow.isPending;
   const nodeCount = useMemo(
     () => Object.keys(config.nodes).length,
@@ -580,6 +667,18 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           >
             Save
           </Button>
+          <Tooltip label="Save the workflow first" disabled={!!workflowId}>
+            <Button
+              variant="light"
+              leftSection={<IconHistory size={14} />}
+              onClick={() => setHistoryDrawerOpen(true)}
+              size="xs"
+              data-testid="history-button"
+              disabled={!workflowId}
+            >
+              History
+            </Button>
+          </Tooltip>
           <Button
             variant="light"
             leftSection={<IconPlayerPlay size={14} />}
@@ -653,6 +752,42 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           opened={runDrawerOpen}
           onClose={() => setRunDrawerOpen(false)}
           workflowId={workflowId}
+        />
+      )}
+
+      {/*
+        US-081 mounted the open/close plumbing for the version-history
+        drawer; US-082 fills the drawer body with the real
+        `VersionHistoryDrawer` list. The `<Drawer>` wrapper itself stays
+        here so the editor owns drawer-open state in one place. The
+        Revert / Compare click handlers are wired in US-083 and US-084.
+      */}
+      <Drawer
+        opened={historyDrawerOpen}
+        onClose={() => setHistoryDrawerOpen(false)}
+        position="right"
+        title="Version history"
+        data-testid="history-drawer"
+      >
+        {workflowId && (
+          <VersionHistoryDrawer
+            lineageId={workflowId}
+            headVersionId={existingWorkflow?.workflowVersionId}
+            onRevert={handleRevert}
+            onCompare={handleCompare}
+          />
+        )}
+      </Drawer>
+
+      {compareState && existingWorkflow && workflowId && (
+        <CompareToHeadModal
+          opened={true}
+          onClose={() => setCompareState(null)}
+          lineageId={workflowId}
+          selectedVersionId={compareState.versionId}
+          selectedVersionNumber={compareState.versionNumber}
+          selectedCreatedAt={compareState.createdAt}
+          headWorkflow={existingWorkflow}
         />
       )}
 
