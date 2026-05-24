@@ -208,13 +208,18 @@ export interface StartRunResponse {
   status: "started";
 }
 
-export function useWorkflowRunSpec(workflowId: string | undefined) {
+export function useWorkflowRunSpec(
+  workflowId: string | undefined,
+  options?: { workflowVersionId?: string },
+) {
+  const versionId = options?.workflowVersionId;
   return useQuery({
-    queryKey: ["workflow-run-spec", workflowId],
+    queryKey: ["workflow-run-spec", workflowId, versionId ?? null],
     queryFn: async (): Promise<WorkflowRunSpec> => {
-      const response = await apiService.get<WorkflowRunSpec>(
-        `/workflows/${workflowId}/run-spec`,
-      );
+      const url = versionId
+        ? `/workflows/${workflowId}/run-spec?workflowVersionId=${encodeURIComponent(versionId)}`
+        : `/workflows/${workflowId}/run-spec`;
+      const response = await apiService.get<WorkflowRunSpec>(url);
       if (!response.success || !response.data) {
         throw new Error(response.message || "Failed to fetch run-spec");
       }

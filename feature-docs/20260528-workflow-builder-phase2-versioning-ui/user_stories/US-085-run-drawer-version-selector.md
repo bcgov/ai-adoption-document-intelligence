@@ -8,14 +8,14 @@ between curl + the Temporal Web UI.
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Version `<Select>` appears above the JsonInput
+- [x] **Scenario 1**: Version `<Select>` appears above the JsonInput
     - **Given** the Run drawer is open for a workflow with multiple versions
     - **When** the drawer renders
     - **Then** a Mantine `<Select label="Version">` is shown above the "Test run" JsonInput
     - **And** the options are one per row from `useWorkflowVersions(lineageId)`, labelled `v{n}` (or `v{n} — head` for the head row)
     - **And** the default selected value is the head version's id
 
-- [ ] **Scenario 2**: Changing the version refetches the spec
+- [x] **Scenario 2**: Changing the version refetches the spec
     - **Given** the user picks a non-head version from the Select
     - **When** the change handler fires
     - **Then** `useWorkflowRunSpec(lineageId, { workflowVersionId: <chosenId> })` refetches (the hook adds the new query param to the URL)
@@ -23,18 +23,18 @@ between curl + the Temporal Web UI.
     - **And** the prefilled JsonInput body resets to the new schema's `buildStubInput` output
     - **And** the sample curl is regenerated for the new schema
 
-- [ ] **Scenario 3**: Run button sends the selected version in the body
+- [x] **Scenario 3**: Run button sends the selected version in the body
     - **Given** a non-head version is selected
     - **When** the user clicks Run
     - **Then** `useStartWorkflowRun().mutateAsync` is called with `{ initialCtx, workflowVersionId: <chosenId> }`
     - **And** the response handling (workflowId display, copy, success notification) works identically to Track 2
 
-- [ ] **Scenario 4**: When head is selected, body omits `workflowVersionId`
+- [x] **Scenario 4**: When head is selected, body omits `workflowVersionId`
     - **Given** the head version is selected
     - **When** the user clicks Run
     - **Then** the body sent to `/api/workflows/:id/runs` is `{ initialCtx }` only — no `workflowVersionId` field — so the backend defaults to head (matches Track 2 default)
 
-- [ ] **Scenario 5**: Vitest coverage
+- [x] **Scenario 5**: Vitest coverage
     - **Given** the wired-up Select + hooks
     - **When** `npm test` runs
     - **Then** tests cover: Select default = head, change → spec refetch with the right query param, Run body includes `workflowVersionId` for non-head, Run body omits it for head

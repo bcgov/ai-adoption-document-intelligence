@@ -752,6 +752,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           opened={runDrawerOpen}
           onClose={() => setRunDrawerOpen(false)}
           workflowId={workflowId}
+          headVersionId={existingWorkflow?.workflowVersionId}
         />
       )}
 

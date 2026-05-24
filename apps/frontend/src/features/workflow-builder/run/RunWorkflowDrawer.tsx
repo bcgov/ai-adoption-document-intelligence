@@ -19,6 +19,7 @@ import {
   Group,
   JsonInput,
   Loader,
+  Select,
   Stack,
   Table,
   Text,
@@ -30,8 +31,10 @@ import { IconCheck, IconCopy, IconPlayerPlay } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   type RunSpecInputSchema,
+  type StartRunRequest,
   useStartWorkflowRun,
   useWorkflowRunSpec,
+  useWorkflowVersions,
 } from "../../../data/hooks/useWorkflows";
 import { buildStubInput } from "./build-stub-input";
 
@@ -39,19 +42,57 @@ interface RunWorkflowDrawerProps {
   opened: boolean;
   onClose: () => void;
   workflowId: string;
+  /**
+   * The current head version id of the workflow lineage. Used as the
+   * default selection for the version `<Select>` and to decide whether
+   * to send `workflowVersionId` in the run body (head is the backend's
+   * default — body omits the field when head is selected).
+   */
+  headVersionId: string | undefined;
 }
 
 export function RunWorkflowDrawer({
   opened,
   onClose,
   workflowId,
+  headVersionId,
 }: RunWorkflowDrawerProps) {
-  const runSpecQuery = useWorkflowRunSpec(opened ? workflowId : undefined);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
+    headVersionId ?? null,
+  );
+
+  // Keep the selected version in sync with the head as it loads / changes
+  // (e.g. on initial open, or after a revert).
+  useEffect(() => {
+    if (headVersionId) {
+      setSelectedVersionId(headVersionId);
+    }
+  }, [headVersionId]);
+
+  const isHeadSelected = !!headVersionId && selectedVersionId === headVersionId;
+
+  const runSpecQuery = useWorkflowRunSpec(opened ? workflowId : undefined, {
+    workflowVersionId: isHeadSelected
+      ? undefined
+      : (selectedVersionId ?? undefined),
+  });
+  const versionsQuery = useWorkflowVersions(opened ? workflowId : undefined);
   const startRun = useStartWorkflowRun();
 
   const [pasteBody, setPasteBody] = useState<string>("");
   const [lastWorkflowId, setLastWorkflowId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+
+  const versionSelectData = useMemo(() => {
+    const versions = versionsQuery.data ?? [];
+    return versions.map((v) => ({
+      value: v.id,
+      label:
+        v.id === headVersionId
+          ? `v${v.versionNumber} — head`
+          : `v${v.versionNumber}`,
+    }));
+  }, [versionsQuery.data, headVersionId]);
 
   // Prefill the JsonInput whenever the schema changes (i.e. when the
   // drawer opens for a workflow with a fresh schema).
@@ -87,9 +128,15 @@ export function RunWorkflowDrawer({
       const initialCtx = pasteBody.trim()
         ? (JSON.parse(pasteBody) as Record<string, unknown>)
         : {};
+      // Omit `workflowVersionId` entirely when head is selected so the
+      // backend defaults to head (matches Track 2 default behaviour).
+      const body: StartRunRequest =
+        isHeadSelected || !selectedVersionId
+          ? { initialCtx }
+          : { initialCtx, workflowVersionId: selectedVersionId };
       const result = await startRun.mutateAsync({
         workflowId,
-        body: { initialCtx },
+        body,
       });
       setLastWorkflowId(result.workflowId);
       notifications.show({
@@ -148,6 +195,18 @@ export function RunWorkflowDrawer({
 
           <Section title="Test run">
             <Stack gap="xs">
+              <Select
+                label="Version"
+                data={versionSelectData}
+                value={selectedVersionId}
+                onChange={(value) => setSelectedVersionId(value)}
+                disabled={
+                  versionsQuery.isLoading || versionSelectData.length === 0
+                }
+                allowDeselect={false}
+                aria-label="Workflow version to run"
+                data-testid="run-workflow-version-select"
+              />
               <JsonInput
                 value={pasteBody}
                 onChange={setPasteBody}

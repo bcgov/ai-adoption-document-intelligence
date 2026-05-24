@@ -72,7 +72,7 @@ ordering below sequences them to minimize Vite-restart pauses
 - [x] **US-084** (compare-to-head modal)
 
 ### Phase 4 — frontend Run drawer per-version (depends on US-077)
-- [ ] **US-085** (Run drawer Version Select wiring)
+- [x] **US-085** (Run drawer Version Select wiring)
 
 ### Phase 5 — frontend library pinning (depends on US-076 + Vite restart)
 - [ ] **US-086** (`LibraryPickerModal` Version Select returns `{ workflowId, version? }`)
