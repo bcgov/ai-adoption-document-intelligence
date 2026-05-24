@@ -6,28 +6,28 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `SOURCE_CATALOG` exported as a frozen array
+- [x] **Scenario 1**: `SOURCE_CATALOG` exported as a frozen array
     - **Given** `packages/graph-workflow/src/catalog/source-catalog.ts` (new file)
     - **When** the file is read
     - **Then** it exports `export const SOURCE_CATALOG: ReadonlyArray<SourceCatalogEntry> = [] as const`
     - **And** the entries array is empty at this milestone (US-115 + US-116 add the two 8.0 entries)
     - **And** the array is `as const` / `ReadonlyArray` so callers cannot mutate it
 
-- [ ] **Scenario 2**: `getSourceCatalogEntry(sourceType)` lookup
+- [x] **Scenario 2**: `getSourceCatalogEntry(sourceType)` lookup
     - **Given** the same file
     - **When** read
     - **Then** it exports `function getSourceCatalogEntry(sourceType: string): SourceCatalogEntry | undefined`
     - **And** the function does an O(n) linear search over `SOURCE_CATALOG` (n ≤ 6 in foreseeable scope; no need for a Map)
     - **And** a unit test asserts unknown sourceType returns undefined
 
-- [ ] **Scenario 3**: `listSourceTypes()` + `createSourceParameterValidator()`
+- [x] **Scenario 3**: `listSourceTypes()` + `createSourceParameterValidator()`
     - **Given** the same file
     - **When** read
     - **Then** it exports `listSourceTypes(): readonly string[]` (returns `SOURCE_CATALOG.map(e => e.type)`)
     - **And** it exports `createSourceParameterValidator(): (sourceType: string, parameters: unknown) => Result<void, ValidationError>` — the result-shaped adapter consumed by the validator
     - **And** the adapter rejects unknown sourceType with a clear error message naming the unknown subtype
 
-- [ ] **Scenario 4**: `deriveSourceOutputSchema(sourceNode)` helper
+- [x] **Scenario 4**: `deriveSourceOutputSchema(sourceNode)` helper
     - **Given** the same file
     - **When** read
     - **Then** it exports `deriveSourceOutputSchema(sourceNode: SourceNode): JsonSchema7`
@@ -35,7 +35,7 @@
     - **And** throws a clear error if the sourceType doesn't resolve (caller is expected to have validated upstream)
     - **And** unit tests cover happy path + unknown sourceType
 
-- [ ] **Scenario 5**: Package barrel re-exports + build green
+- [x] **Scenario 5**: Package barrel re-exports + build green
     - **Given** the package barrel and any catalog sub-barrel
     - **When** read after the change
     - **Then** `SOURCE_CATALOG`, `getSourceCatalogEntry`, `listSourceTypes`, `createSourceParameterValidator`, `deriveSourceOutputSchema` are all re-exported

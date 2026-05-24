@@ -6,23 +6,23 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `source.api` `fields[]` enumerated as ctx producers
+- [x] **Scenario 1**: `source.api` `fields[]` enumerated as ctx producers
     - **Given** `packages/graph-workflow/src/validator/validator.ts` (the binding-walk pass introduced in Phase 3 / US-093)
     - **When** the walker enumerates ctx-key producers for a graph containing a `source.api` node
     - **Then** each entry in the source's `parameters.fields[]` contributes a `(node: <source.api.id>, port: "<fieldName>", kind: <field.kind | "Artifact">)` producer record
     - **And** the producer kind is `"Artifact"` when the field omits `kind?`
 
-- [ ] **Scenario 2**: `source.upload`'s configured `ctxKey` enumerated as a Document producer
+- [x] **Scenario 2**: `source.upload`'s configured `ctxKey` enumerated as a Document producer
     - **Given** the same walker
     - **When** the walker enumerates ctx-key producers for a graph containing a `source.upload` node
     - **Then** the source contributes `(node: <source.upload.id>, port: "<ctxKey>", kind: "Document")` — where `ctxKey` is `parameters.ctxKey ?? "documentUrl"`
 
-- [ ] **Scenario 3**: Mismatched source field → consumer port surfaces standard binding-walk error
+- [x] **Scenario 3**: Mismatched source field → consumer port surfaces standard binding-walk error
     - **Given** a graph with a `source.api` whose field `pages` declares `kind: "Segment[]"` and a downstream `document.classify` whose `segment` input port has `kind: "Segment"` (single, not array) — both binding the ctx key `pages`
     - **When** `validateGraphConfig` runs
     - **Then** it emits a `GraphValidationError` anchored to `document.classify.segment` with the same wording as Phase 3's binding-walk error: `"Input port \`segment\` (Segment) on node \`<classify.id>\` reads from ctx key \`pages\`, written by node \`<source.id>\` (Segment[]) — Segment[] not assignable to Segment"`
 
-- [ ] **Scenario 4**: Tests use synthetic catalog entries until Milestone C lands
+- [x] **Scenario 4**: Tests use synthetic catalog entries until Milestone C lands
     - **Given** the validator's binding-walk tests
     - **When** new test cases for Scenarios 1–3 are added
     - **Then** they fabricate `SourceCatalogEntry` test fixtures (mirrors the synthetic-fixture pattern used by US-093's tests before Phase 3 catalog fan-out)

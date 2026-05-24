@@ -6,25 +6,25 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `NodeType` union extended with `"source"`
+- [x] **Scenario 1**: `NodeType` union extended with `"source"`
     - **Given** `packages/graph-workflow/src/types.ts`
     - **When** the file is read
     - **Then** `NodeType` includes `"source"` alongside the existing seven (`activity` / `switch` / `map` / `join` / `childWorkflow` / `pollUntil` / `humanGate`)
     - **And** a JSDoc on the extension cross-references DOCUMENT_SOURCES_DESIGN.md §1 ("new source node TYPE")
 
-- [ ] **Scenario 2**: `SourceNode` interface shape
+- [x] **Scenario 2**: `SourceNode` interface shape
     - **Given** the same file
     - **When** read
     - **Then** it exports `interface SourceNode extends GraphNodeBase` with fields: `type: "source"`, `sourceType: string`, `parameters?: Record<string, unknown>`
     - **And** JSDoc on `sourceType` reads "Subtype id resolved against the source catalog (SOURCE_CATALOG); e.g. \"source.api\" or \"source.upload\""
 
-- [ ] **Scenario 3**: `SourceNode` joins the `GraphNode` discriminated union
+- [x] **Scenario 3**: `SourceNode` joins the `GraphNode` discriminated union
     - **Given** the existing `export type GraphNode = ActivityNode | SwitchNode | …`
     - **When** read after the change
     - **Then** `SourceNode` is appended: `… | SourceNode`
     - **And** narrowing on `node.type === "source"` resolves to `SourceNode` (TS exhaustiveness still complete)
 
-- [ ] **Scenario 4**: Package barrel re-export + build green
+- [x] **Scenario 4**: Package barrel re-export + build green
     - **Given** `packages/graph-workflow/src/index.ts`
     - **When** the package is built
     - **Then** `SourceNode` is re-exported from the package barrel

@@ -63,11 +63,11 @@ After implementing the user story check it off at the bottom of this file.
 Phase 8 has a clear linear backbone (shared package → backend → catalog entries → frontend → Run drawer → verification). Most stories within a milestone can land in parallel; later milestones depend on earlier ones in full. After Milestone A (US-108 introduces `SOURCE_CATALOG` as a runtime export) and Milestone C (catalog entries are runtime exports), **ask Alex to restart Vite** — the package pre-bundle goes stale otherwise.
 
 ### Phase 1 — shared package (Milestone A — Vite-restart point after US-108)
-- [ ] **US-106** (`SourceNode` type + `NodeType` union extension) — foundation; everything below depends on it
-- [ ] **US-107** (`source-types.ts` — catalog entry types) — depends on US-106 (and Phase 3's `KindRef`)
-- [ ] **US-108** (`source-catalog.ts` registry + helpers) — depends on US-107 (consumes the types)
-- [ ] **US-109** (SourceNode structural validation + source.api ⇄ isInput warning) — depends on US-106 + US-108 (uses `getSourceCatalogEntry`)
-- [ ] **US-110** (binding-walk integration for source-derived ctx producers) — depends on US-108 + Phase 3's binding-walk (US-093); independent of US-109 but shares the validator file
+- [x] **US-106** (`SourceNode` type + `NodeType` union extension) — foundation; everything below depends on it
+- [x] **US-107** (`source-types.ts` — catalog entry types) — depends on US-106 (and Phase 3's `KindRef`)
+- [x] **US-108** (`source-catalog.ts` registry + helpers) — depends on US-107 (consumes the types)
+- [x] **US-109** (SourceNode structural validation + source.api ⇄ isInput warning) — depends on US-106 + US-108 (uses `getSourceCatalogEntry`)
+- [x] **US-110** (binding-walk integration for source-derived ctx producers) — depends on US-108 + Phase 3's binding-walk (US-093); independent of US-109 but shares the validator file
 
 ### Phase 2 — backend API surface (Milestone B — depends on Phase 1)
 - [ ] **US-111** (`deriveInputSchema()` precedence) — depends on US-108 (uses `getSourceCatalogEntry` + `deriveSourceOutputSchema`)

@@ -6,25 +6,25 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `SourceRuntimePattern` union
+- [x] **Scenario 1**: `SourceRuntimePattern` union
     - **Given** `packages/graph-workflow/src/catalog/source-types.ts` (new file)
     - **When** the file is read
     - **Then** it exports `type SourceRuntimePattern = "push" | "pull" | "manual"`
     - **And** a top-level JSDoc explains the mapping: push = webhook/API (8.0: source.api); pull = polling/cron (8.x: source.cron, source.sharepoint, …); manual = canvas-side test affordance (8.0: source.upload)
 
-- [ ] **Scenario 2**: `SourceCatalogEntry` interface
+- [x] **Scenario 2**: `SourceCatalogEntry` interface
     - **Given** the same file
     - **When** read
     - **Then** it exports `interface SourceCatalogEntry` with fields per DOCUMENT_SOURCES_DESIGN.md §2: `type: string`, `category: "source"`, `displayName: string`, `description: string`, `iconHint?: string`, `colorHint?: string`, `parametersSchema: ZodSchema`, `runtime: SourceRuntimePattern`, `deriveOutputSchema: (parameters: Record<string, unknown>) => JsonSchema7`, `outputKind: KindRef`
     - **And** JSDoc on `deriveOutputSchema` notes it MUST be pure (no I/O)
 
-- [ ] **Scenario 3**: `FieldDescriptor` interface for source.api fields
+- [x] **Scenario 3**: `FieldDescriptor` interface for source.api fields
     - **Given** the same file
     - **When** read
     - **Then** it exports `interface FieldDescriptor` with: `name: string`, `type: "string" | "number" | "boolean" | "object" | "array"`, `kind?: KindRef`, `required: boolean`, `description?: string`, `defaultValue?: unknown`
     - **And** JSDoc cross-references the `CtxDeclaration` shape (intentionally mirrors it minus optional `isInput`)
 
-- [ ] **Scenario 4**: Package barrel re-export + build green
+- [x] **Scenario 4**: Package barrel re-export + build green
     - **Given** the package barrel
     - **When** read after the change
     - **Then** all three new types (`SourceCatalogEntry`, `SourceRuntimePattern`, `FieldDescriptor`) are re-exported
