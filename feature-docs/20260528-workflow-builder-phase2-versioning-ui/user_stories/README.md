@@ -75,8 +75,8 @@ ordering below sequences them to minimize Vite-restart pauses
 - [x] **US-085** (Run drawer Version Select wiring)
 
 ### Phase 5 — frontend library pinning (depends on US-076 + Vite restart)
-- [ ] **US-086** (`LibraryPickerModal` Version Select returns `{ workflowId, version? }`)
-- [ ] **US-087** (`ChildWorkflowNodeSettings` version badge + change-version button)
+- [x] **US-086** (`LibraryPickerModal` Version Select returns `{ workflowId, version? }`)
+- [x] **US-087** (`ChildWorkflowNodeSettings` version badge + change-version button)
 
 ### Phase 6 — end-to-end verification
 - [ ] **US-088** (Playwright walkthrough; screenshots in `/tmp/wb-phase2-track3-verify/`)

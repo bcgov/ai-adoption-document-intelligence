@@ -125,11 +125,25 @@ export function ChildWorkflowNodeSettings({
     updateNode({ ...node, workflowRef: nextRef });
   };
 
-  const setWorkflowId = (workflowId: string) => {
+  const setLibraryRef = (selection: {
+    workflowId: string;
+    version?: number;
+  }) => {
     if (node.workflowRef.type !== "library") return;
+    // Build the new library ref object so `version` is only present when
+    // the picker returned an explicit pinned version. Existing configs
+    // without `version` continue to mean "follow head" (REQUIREMENTS D3 /
+    // schema US-076).
+    const nextRef: ChildWorkflowNode["workflowRef"] = {
+      type: "library",
+      workflowId: selection.workflowId,
+    };
+    if (selection.version !== undefined) {
+      nextRef.version = selection.version;
+    }
     updateNode({
       ...node,
-      workflowRef: { type: "library", workflowId },
+      workflowRef: nextRef,
     });
   };
 
@@ -182,7 +196,8 @@ export function ChildWorkflowNodeSettings({
       {node.workflowRef.type === "library" ? (
         <LibraryRefBody
           workflowId={node.workflowRef.workflowId}
-          onPick={(picked) => setWorkflowId(picked)}
+          version={node.workflowRef.version}
+          onPick={setLibraryRef}
         />
       ) : (
         <Box data-testid="child-workflow-node-settings-inline-body">
@@ -378,10 +393,16 @@ function MappingRow({
 
 interface LibraryRefBodyProps {
   workflowId: string;
-  onPick: (workflowId: string) => void;
+  /**
+   * The currently pinned `WorkflowVersion.versionNumber` on the node's
+   * `workflowRef.library.version`. `undefined` means "follow head"
+   * (REQUIREMENTS D3 — absence is the on-disk shape for head).
+   */
+  version: number | undefined;
+  onPick: (selection: { workflowId: string; version?: number }) => void;
 }
 
-function LibraryRefBody({ workflowId, onPick }: LibraryRefBodyProps) {
+function LibraryRefBody({ workflowId, version, onPick }: LibraryRefBodyProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const { data: pickedLibrary, isLoading: isLoadingLibrary } =
     useWorkflow(workflowId);
@@ -432,6 +453,39 @@ function LibraryRefBody({ workflowId, onPick }: LibraryRefBodyProps) {
                   <Text size="xs" fw={600}>
                     {pickedLibrary.name}
                   </Text>
+                  {/*
+                   * Version badge — gray "head" when no pin (de-emphasized
+                   * implicit reference), blue "v{N}" when explicitly pinned
+                   * (load-bearing — author chose this version on purpose).
+                   * REQUIREMENTS D3 + US-087.
+                   */}
+                  {version === undefined ? (
+                    <Badge
+                      size="xs"
+                      variant="light"
+                      color="gray"
+                      data-testid="child-workflow-node-settings-version-badge"
+                    >
+                      head
+                    </Badge>
+                  ) : (
+                    <Badge
+                      size="xs"
+                      variant="light"
+                      color="blue"
+                      data-testid="child-workflow-node-settings-version-badge"
+                    >
+                      v{version}
+                    </Badge>
+                  )}
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    onClick={() => setPickerOpen(true)}
+                    data-testid="child-workflow-node-settings-change-version"
+                  >
+                    Change version
+                  </Button>
                   <Badge size="xs" variant="light" color="blue">
                     {declaredInputs.length} input
                     {declaredInputs.length === 1 ? "" : "s"}
@@ -477,10 +531,12 @@ function LibraryRefBody({ workflowId, onPick }: LibraryRefBodyProps) {
       <LibraryPickerModal
         opened={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onSelect={(picked) => {
-          onPick(picked.id);
+        onSelect={(selection) => {
+          onPick(selection);
           setPickerOpen(false);
         }}
+        initialWorkflowId={workflowId || undefined}
+        initialVersion={version}
       />
     </Box>
   );

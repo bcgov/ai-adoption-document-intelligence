@@ -9,7 +9,13 @@ import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -32,9 +38,39 @@ vi.mock("../../../../data/services/api.service", () => ({
       if (url.startsWith("/workflows?") || url === "/workflows") {
         return { success: true, data: { workflows: [] } };
       }
-      // Single-workflow GETs (`/workflows/:id`) — return a failure so
-      // useWorkflow surfaces "Library not found" rather than emitting a
-      // react-query "data is undefined" warning.
+      // Single-workflow GETs (`/workflows/:id`) — return a synthesised
+      // library so the signature summary renders the name + slug. Tests
+      // that need a "Library not found" surface set a different id (e.g.
+      // empty workflowId).
+      const match = url.match(/^\/workflows\/([^/?]+)$/);
+      if (match) {
+        const id = match[1];
+        return {
+          success: true,
+          data: {
+            workflow: {
+              id,
+              workflowVersionId: `${id}-v1`,
+              slug: `slug-${id}`,
+              name: `Library ${id}`,
+              description: null,
+              actorId: "actor-1",
+              config: {
+                schemaVersion: "1.0",
+                metadata: { inputs: [], outputs: [] },
+                entryNodeId: "",
+                nodes: {},
+                edges: [],
+                ctx: {},
+              },
+              schemaVersion: "1.0",
+              version: 1,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        };
+      }
       return { success: false, message: "no test data for this id" };
     }),
   },
@@ -430,6 +466,93 @@ describe("ChildWorkflowNodeSettings — Scenario 5: outputMappings supports add 
     expect(nodeAfterRemove.outputMappings?.[1]).toEqual({
       port: "",
       ctxKey: "",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-087 — Version badge + "Change version" button
+// ---------------------------------------------------------------------------
+
+describe("ChildWorkflowNodeSettings — US-087 Scenario 1: head badge when version is undefined", () => {
+  it("renders a gray 'head' Badge next to the library name when workflowRef.version is undefined", async () => {
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "library", workflowId: "lib-1" },
+    });
+    const config = makeConfig([initial]);
+
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Wait for the library signature to load (async useWorkflow fetch).
+    const badge = await screen.findByTestId(
+      "child-workflow-node-settings-version-badge",
+    );
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toBe("head");
+  });
+});
+
+describe("ChildWorkflowNodeSettings — US-087 Scenario 2: v{N} badge when pinned", () => {
+  it("renders a blue 'v3' Badge next to the library name when workflowRef.version === 3", async () => {
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "library", workflowId: "lib-1", version: 3 },
+    });
+    const config = makeConfig([initial]);
+
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    const badge = await screen.findByTestId(
+      "child-workflow-node-settings-version-badge",
+    );
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toBe("v3");
+  });
+});
+
+describe('ChildWorkflowNodeSettings — US-087 Scenario 3: "Change version" re-opens the picker pre-seeded', () => {
+  it("clicking 'Change version' opens the LibraryPickerModal", async () => {
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "library", workflowId: "lib-1", version: 3 },
+    });
+    const config = makeConfig([initial]);
+
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Wait for the signature summary (and the Change version button) to mount
+    // after the async library fetch resolves.
+    const changeButton = await screen.findByTestId(
+      "child-workflow-node-settings-change-version",
+    );
+
+    // Sanity: the modal title (which only appears in the open modal) is not
+    // present before the user clicks Change version. (Mantine's Modal portal
+    // node mounts unconditionally, so we don't assert on the testid
+    // container — we assert on user-visible content.)
+    expect(screen.queryByText("Pick library workflow")).not.toBeInTheDocument();
+
+    fireEvent.click(changeButton);
+
+    // Modal opens — the title becomes visible in the DOM.
+    await waitFor(() => {
+      expect(screen.getByText("Pick library workflow")).toBeInTheDocument();
     });
   });
 });
