@@ -35,7 +35,7 @@ import {
   type ControlFlowPaletteEntry,
 } from "./control-flow-palette-entries";
 
-export type ControlFlowNodeType = Exclude<NodeType, "activity">;
+export type ControlFlowNodeType = Exclude<NodeType, "activity" | "source">;
 
 function entryFor(type: ControlFlowNodeType): ControlFlowPaletteEntry {
   const entry = CONTROL_FLOW_PALETTE_ENTRIES.find((e) => e.type === type);

@@ -34,15 +34,27 @@ import type { ActivityNode, GraphWorkflowConfig } from "../../types/workflow";
 // Capture the live config the canvas was rendered with so assertions can
 // inspect what the page is feeding it. The handler stub also exposes the
 // onReactFlowReady callback so we can simulate the canvas mount.
-const { capturedCanvasProps, capturedCreateDto, fitViewMock } = vi.hoisted(
-  () => {
-    return {
-      capturedCanvasProps: { current: null as null | Record<string, unknown> },
-      capturedCreateDto: { current: null as null | Record<string, unknown> },
-      fitViewMock: vi.fn(),
-    };
-  },
-);
+const {
+  capturedCanvasProps,
+  capturedCreateDto,
+  capturedPaletteProps,
+  fitViewMock,
+  existingWorkflowRef,
+} = vi.hoisted(() => {
+  return {
+    capturedCanvasProps: { current: null as null | Record<string, unknown> },
+    capturedCreateDto: { current: null as null | Record<string, unknown> },
+    // US-121 — palette stub captures the add-* callbacks so tests can
+    // invoke `onAddSource(...)` directly without spinning up the real
+    // palette UI.
+    capturedPaletteProps: { current: null as null | Record<string, unknown> },
+    fitViewMock: vi.fn(),
+    // US-121 Scenario 3 — let tests inject a fake existing workflow that
+    // the page's `useWorkflow` mock will return, so edit-mode hydration
+    // exercises the legacy-entryNodeId-preservation path.
+    existingWorkflowRef: { current: null as null | Record<string, unknown> },
+  };
+});
 
 vi.mock("./canvas/WorkflowEditorCanvas", () => {
   return {
@@ -62,7 +74,10 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
 });
 
 vi.mock("./palette/ActivityPalette", () => ({
-  ActivityPalette: () => <div data-testid="palette-stub" />,
+  ActivityPalette: (props: Record<string, unknown>) => {
+    capturedPaletteProps.current = props;
+    return <div data-testid="palette-stub" />;
+  },
 }));
 
 vi.mock("./settings/NodeSettingsPanel", () => ({
@@ -103,7 +118,10 @@ vi.mock("./validation/useGraphValidation", () => ({
 }));
 
 vi.mock("../../data/hooks/useWorkflows", () => ({
-  useWorkflow: () => ({ data: undefined, isLoading: false }),
+  useWorkflow: () => ({
+    data: existingWorkflowRef.current ?? undefined,
+    isLoading: false,
+  }),
   useCreateWorkflow: () => ({
     mutateAsync: async (dto: Record<string, unknown>) => {
       capturedCreateDto.current = dto;
@@ -657,5 +675,150 @@ describe("WorkflowEditorV2Page — US-081: History top-bar button", () => {
     await waitFor(() => {
       expect(screen.getByText("Save the workflow first")).toBeInTheDocument();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-121 — `entryNodeId` autoset on source-node-first drop
+//   feature-docs/20260530-workflow-builder-phase8-document-sources/user_stories/
+//   US-121-entry-node-autoset.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — US-121: entryNodeId autoset on source drop", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedPaletteProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  /**
+   * Drives the palette-mock's `onAddSource` callback so the page's
+   * `addSource` callback fires the same way it would after a real drop.
+   */
+  function dispatchAddSource(sourceType: string) {
+    const onAddSource = capturedPaletteProps.current?.onAddSource as
+      | ((type: string) => void)
+      | undefined;
+    if (!onAddSource) {
+      throw new Error("Palette stub did not capture onAddSource");
+    }
+    act(() => {
+      onAddSource(sourceType);
+    });
+  }
+
+  function dispatchAddActivity(activityType: string) {
+    const onAddActivity = capturedPaletteProps.current?.onAddActivity as
+      | ((type: string) => void)
+      | undefined;
+    if (!onAddActivity) {
+      throw new Error("Palette stub did not capture onAddActivity");
+    }
+    act(() => {
+      onAddActivity(activityType);
+    });
+  }
+
+  function readConfigFromCanvas(): GraphWorkflowConfig {
+    const config = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!config) {
+      throw new Error("Canvas stub did not capture config");
+    }
+    return config;
+  }
+
+  it("Scenario 1: source dropped on empty canvas sets entryNodeId to the new source id", () => {
+    renderPage();
+    // Pre-condition: the editor opens empty (the default EMPTY_CONFIG
+    // surfaces `entryNodeId: ""` + `nodes: {}`).
+    const before = readConfigFromCanvas();
+    expect(Object.keys(before.nodes)).toHaveLength(0);
+    expect(before.entryNodeId).toBe("");
+
+    dispatchAddSource("source.api");
+
+    const after = readConfigFromCanvas();
+    const sourceIds = Object.keys(after.nodes);
+    expect(sourceIds).toHaveLength(1);
+    // The new node is a source node with the registered subtype.
+    const newNode = after.nodes[sourceIds[0]];
+    expect(newNode.type).toBe("source");
+    // And the workflow's entryNodeId points at that new source.
+    expect(after.entryNodeId).toBe(sourceIds[0]);
+  });
+
+  it("Scenario 2: additional source drop on a non-empty canvas does NOT rewrite entryNodeId", () => {
+    renderPage();
+    // First drop establishes the entry.
+    dispatchAddSource("source.api");
+    const afterFirst = readConfigFromCanvas();
+    const firstSourceId = Object.keys(afterFirst.nodes)[0];
+    expect(afterFirst.entryNodeId).toBe(firstSourceId);
+
+    // Second drop — entryNodeId must NOT move.
+    dispatchAddSource("source.upload");
+    const afterSecond = readConfigFromCanvas();
+    expect(Object.keys(afterSecond.nodes)).toHaveLength(2);
+    expect(afterSecond.entryNodeId).toBe(firstSourceId);
+  });
+
+  it("Scenario 2 (activity variant): activity drop after a source leaves entryNodeId unchanged", () => {
+    renderPage();
+    dispatchAddSource("source.api");
+    const afterSource = readConfigFromCanvas();
+    const sourceId = Object.keys(afterSource.nodes)[0];
+    expect(afterSource.entryNodeId).toBe(sourceId);
+
+    // Drop an activity — entryNodeId stays on the source.
+    dispatchAddActivity("data.transform");
+    const afterActivity = readConfigFromCanvas();
+    expect(Object.keys(afterActivity.nodes)).toHaveLength(2);
+    expect(afterActivity.entryNodeId).toBe(sourceId);
+  });
+
+  it("Scenario 3: legacy workflow with entryNodeId pointing at an activity is preserved on open AND a later source drop does NOT autoset", () => {
+    // Build a legacy-shaped workflow: one activity, entryNodeId pointing
+    // at it, no source nodes. The page's edit-mode hydration effect
+    // pushes this into local state.
+    const legacyConfig: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Legacy" },
+      ctx: {},
+      nodes: {
+        legacy_activity: {
+          id: "legacy_activity",
+          type: "activity",
+          label: "Legacy activity",
+          activityType: "data.transform",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+      },
+      edges: [],
+      entryNodeId: "legacy_activity",
+    };
+    existingWorkflowRef.current = {
+      id: "wf-legacy",
+      name: "Legacy",
+      description: "",
+      config: legacyConfig,
+      workflowVersionId: "wf-legacy-v1",
+    };
+    renderEditPage("wf-legacy");
+
+    const hydrated = readConfigFromCanvas();
+    expect(hydrated.entryNodeId).toBe("legacy_activity");
+
+    // Now drop a source node — the canvas is NOT empty, so the autoset
+    // must not fire. entryNodeId stays pinned to the legacy activity.
+    dispatchAddSource("source.api");
+    const after = readConfigFromCanvas();
+    expect(Object.keys(after.nodes)).toHaveLength(2);
+    expect(after.entryNodeId).toBe("legacy_activity");
   });
 });

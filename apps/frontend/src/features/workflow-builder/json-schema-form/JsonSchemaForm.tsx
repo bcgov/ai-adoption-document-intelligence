@@ -14,7 +14,11 @@
  * hint vocabulary.
  */
 
-import type { ClassificationRule, ValidationRule } from "@ai-di/graph-workflow";
+import type {
+  ClassificationRule,
+  FieldDescriptor,
+  ValidationRule,
+} from "@ai-di/graph-workflow";
 import {
   ActionIcon,
   Autocomplete,
@@ -40,6 +44,7 @@ import {
   PageRangeListEditor,
   ValidationRuleEditor,
 } from "../settings/rich-widgets";
+import { FieldListEditor } from "../sources/FieldListEditor";
 import {
   detectDiscriminatedUnion,
   isObjectSchema,
@@ -415,6 +420,36 @@ function FieldRenderer({
         )}
         <KeywordPatternEditor
           value={patterns}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── array + x-widget: field-list-editor ───────────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "field-list-editor"
+  ) {
+    const fields = Array.isArray(value) ? (value as FieldDescriptor[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <FieldListEditor
+          value={fields}
           onChange={(next) => onChange(next.length === 0 ? undefined : next)}
         />
       </Box>

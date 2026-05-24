@@ -47,6 +47,8 @@ import type {
 import { getActivityVisualHints } from "../catalog-utils";
 import { resolveProducerKindFor, VariablePicker } from "../graph-widgets";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
+import { SourceNodeSettings } from "../sources/SourceNodeSettings";
+import { getSourceVisualHints } from "../sources/source-catalog-utils";
 import {
   ChildWorkflowNodeSettings,
   HumanGateNodeSettings,
@@ -167,6 +169,9 @@ function NodeSettings({
       case "humanGate":
         updateNode({ ...node, label });
         return;
+      case "source":
+        updateNode({ ...node, label });
+        return;
     }
   };
 
@@ -193,6 +198,13 @@ function NodeSettings({
       case "humanGate":
         updateNode({ ...node, inputs: next });
         return;
+      case "source":
+        // Source nodes MUST keep `inputs` empty — see the design
+        // (DOCUMENT_SOURCES_DESIGN.md §1) and the validator (US-109).
+        // The PortBindingsFooter doesn't surface an input editor for
+        // source nodes, but defensive-no-op here so a stray call from
+        // a future caller doesn't sneak inputs onto a source.
+        return;
     }
   };
 
@@ -217,6 +229,9 @@ function NodeSettings({
         updateNode({ ...node, outputs: next });
         return;
       case "humanGate":
+        updateNode({ ...node, outputs: next });
+        return;
+      case "source":
         updateNode({ ...node, outputs: next });
         return;
     }
@@ -292,7 +307,9 @@ function NodeHeader({
 
   // Activity nodes show the catalog's display name + icon; control-flow
   // nodes don't have a catalog entry, so fall back to the node's label and
-  // a neutral icon.
+  // a neutral icon. Source nodes (US-118) resolve their display strings
+  // through the source catalog; US-119 will replace this header with a
+  // dedicated source-settings shell.
   const display = useMemo(() => {
     if (node.type === "activity") {
       const entry = ACTIVITY_CATALOG[node.activityType];
@@ -301,6 +318,15 @@ function NodeHeader({
         title: entry?.displayName ?? node.activityType,
         icon: hints.icon,
         subtitle: node.activityType,
+        description: hints.description,
+      };
+    }
+    if (node.type === "source") {
+      const hints = getSourceVisualHints(node.sourceType);
+      return {
+        title: node.label || hints.displayName,
+        icon: SOURCE_DISPLAY_ICON_GLYPH,
+        subtitle: node.sourceType,
         description: hints.description,
       };
     }
@@ -373,8 +399,16 @@ function NodeHeader({
   );
 }
 
+/**
+ * Header-strip glyph for source nodes (US-118). The existing
+ * `CONTROL_FLOW_ICONS` table uses emoji glyphs to match the activity
+ * header's lightweight string-icon contract; source nodes follow suit
+ * here until US-119 ships a dedicated source-settings shell.
+ */
+const SOURCE_DISPLAY_ICON_GLYPH = "🛰";
+
 const CONTROL_FLOW_ICONS: Record<
-  Exclude<GraphNode["type"], "activity">,
+  Exclude<GraphNode["type"], "activity" | "source">,
   string
 > = {
   switch: "◆",
@@ -386,7 +420,7 @@ const CONTROL_FLOW_ICONS: Record<
 };
 
 const CONTROL_FLOW_DESCRIPTIONS: Record<
-  Exclude<GraphNode["type"], "activity">,
+  Exclude<GraphNode["type"], "activity" | "source">,
   string
 > = {
   switch: "Branches the workflow on the first matching case.",
@@ -461,6 +495,14 @@ function NodeBody({ node, config, onConfigChange }: NodeBodyProps) {
     case "humanGate":
       return (
         <HumanGateNodeSettings
+          node={node}
+          config={config}
+          onConfigChange={onConfigChange}
+        />
+      );
+    case "source":
+      return (
+        <SourceNodeSettings
           node={node}
           config={config}
           onConfigChange={onConfigChange}

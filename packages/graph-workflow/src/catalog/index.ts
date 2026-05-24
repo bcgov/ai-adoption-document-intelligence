@@ -101,6 +101,7 @@ export {
   createSourceParameterValidator,
   deriveSourceOutputSchema,
   getSourceCatalogEntry,
+  getSourceParametersJsonSchema,
   listSourceTypes,
   type ValidateSourceParameters,
 } from "./source-catalog";

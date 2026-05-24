@@ -53,6 +53,7 @@ import type {
   GraphNode,
   GraphValidationError,
   GraphWorkflowConfig,
+  SourceNode,
   SwitchNode,
 } from "../../../types/workflow";
 import { getActivityVisualHints } from "../catalog-utils";
@@ -64,6 +65,10 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "../palette/control-flow-skeletons";
+import {
+  type SourceNodeData,
+  SourceNodeRenderer,
+} from "../sources/SourceNodeRenderer";
 import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
 import {
   type GroupChip,
@@ -173,7 +178,12 @@ interface ControlFlowNodeData extends CommonNodeData {
 
 type ActivityFlowNode = Node<ActivityNodeData, "activity">;
 type ControlFlowFlowNode = Node<ControlFlowNodeData, ControlFlowNodeType>;
-type FlowNode = ActivityFlowNode | ControlFlowFlowNode | GroupChipFlowNode;
+type SourceFlowNode = Node<SourceNodeData, "source">;
+type FlowNode =
+  | ActivityFlowNode
+  | ControlFlowFlowNode
+  | SourceFlowNode
+  | GroupChipFlowNode;
 
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
@@ -864,6 +874,7 @@ const NODE_TYPES = {
   childWorkflow: ControlFlowRectangleRenderer,
   pollUntil: ControlFlowRectangleRenderer,
   humanGate: ControlFlowRectangleRenderer,
+  source: SourceNodeRenderer,
   "group-chip": GroupChipNode,
 };
 
@@ -1024,6 +1035,21 @@ function projectFlowNodes(
           inputPillEntries: sides.input.pillEntries,
           outputPillEntries: sides.output.pillEntries,
         },
+      };
+      return flowNode;
+    }
+    if (node.type === "source") {
+      // Source nodes own their own rendering shell (no input handle, a
+      // single typed output handle). The renderer reads the full
+      // `SourceNode` from `data` and resolves the catalog entry itself
+      // — the projection just forwards the node verbatim under the
+      // `SourceNodeData` widening (`SourceNode & Record<string, unknown>`).
+      const flowNode: SourceFlowNode = {
+        id: node.id,
+        type: "source",
+        position,
+        selected: node.id === selectedNodeId,
+        data: node as SourceNodeData,
       };
       return flowNode;
     }
@@ -1355,6 +1381,11 @@ function WorkflowEditorCanvasInner({
         // Chips don't render a validation badge — they're a pure visual
         // collapse, so they have no per-node counts to sync.
         if (n.type === "group-chip") return n;
+        // Source nodes don't surface a validation badge in US-117 (no
+        // `errorCount` / `warningCount` fields on `SourceNodeData`).
+        // Skip the patch to avoid stamping undefined → 0 mutations and
+        // re-rendering for no reason.
+        if (n.type === "source") return n;
         const bucket = errorsByNode.get(n.id) ?? [];
         let errorCount = 0;
         let warningCount = 0;
@@ -1442,6 +1473,9 @@ function WorkflowEditorCanvasInner({
         case "pollUntil":
         case "humanGate":
           updated = withPosition(existing);
+          break;
+        case "source":
+          updated = withPosition(existing) as SourceNode;
           break;
         default: {
           const exhaustive: never = existing;

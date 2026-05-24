@@ -20,6 +20,7 @@ import {
   createSourceParameterValidator,
   deriveSourceOutputSchema,
   getSourceCatalogEntry,
+  getSourceParametersJsonSchema,
   listSourceTypes,
 } from "./source-catalog";
 import type { JsonSchema7, SourceCatalogEntry } from "./source-types";
@@ -295,5 +296,44 @@ describe("package-root barrel re-exports (Scenario 5)", () => {
         sourceType: "source.nonexistent",
       }),
     ).toThrow();
+  });
+
+  it("re-exports getSourceParametersJsonSchema", () => {
+    expect(typeof packageRoot.getSourceParametersJsonSchema).toBe("function");
+    expect(
+      packageRoot.getSourceParametersJsonSchema("source.nonexistent"),
+    ).toBeUndefined();
+  });
+});
+
+describe("getSourceParametersJsonSchema — preserves Zod .meta() hints (US-119)", () => {
+  it("returns a JSON Schema that surfaces title + description + x-widget", () => {
+    const schema = getSourceParametersJsonSchema("source.api") as {
+      type: string;
+      properties: Record<
+        string,
+        { title?: string; description?: string; "x-widget"?: string }
+      >;
+    };
+    expect(schema).toBeDefined();
+    expect(schema.type).toBe("object");
+    expect(schema.properties.fields.title).toBe("Fields");
+    expect(schema.properties.fields["x-widget"]).toBe("field-list-editor");
+    expect(schema.properties.authNotes.title).toBe("Auth notes");
+  });
+
+  it("returns a JSON Schema with field titles for source.upload", () => {
+    const schema = getSourceParametersJsonSchema("source.upload") as {
+      properties: Record<string, { title?: string }>;
+    };
+    expect(schema.properties.allowedMimeTypes.title).toBe(
+      "Allowed MIME types",
+    );
+    expect(schema.properties.maxFileSizeMB.title).toBe("Max file size (MB)");
+    expect(schema.properties.ctxKey.title).toBe("Ctx key");
+  });
+
+  it("returns undefined for an unregistered source type", () => {
+    expect(getSourceParametersJsonSchema("source.nonexistent")).toBeUndefined();
   });
 });

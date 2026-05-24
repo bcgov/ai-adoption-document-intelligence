@@ -3,6 +3,7 @@ import "@xyflow/react/dist/style.css";
 import { Badge } from "@mantine/core";
 import {
   IconBolt,
+  IconCloudUpload,
   IconCornerDownRight,
   IconFolder,
   IconGitMerge,
@@ -86,6 +87,9 @@ const NODE_DIMENSIONS: Record<
   childWorkflow: { width: 200, height: 80 },
   pollUntil: { width: 190, height: 80 },
   humanGate: { width: 190, height: 80 },
+  // Source nodes use the same rectangle footprint as activity nodes —
+  // matches the SourceNodeRenderer's visual shell (US-117).
+  source: { width: 180, height: 72 },
 };
 
 const LAYER_GAP = 120; // Vertical spacing between layers in map containers
@@ -98,6 +102,10 @@ const NODE_COLORS: Record<GraphNode["type"], string> = {
   childWorkflow: "#a855f7",
   pollUntil: "#fb923c",
   humanGate: "#ef4444",
+  // Source nodes pick up an indigo accent on the static visualisation
+  // surface — the live editor surface uses the per-subtype `colorHint`
+  // via `getSourceVisualHints` (US-118).
+  source: "#6366f1",
 };
 
 const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
@@ -108,6 +116,7 @@ const NODE_ICONS: Record<GraphNode["type"], React.ReactElement> = {
   childWorkflow: <IconFolder size={18} />,
   pollUntil: <IconRefresh size={18} />,
   humanGate: <IconUserCheck size={18} />,
+  source: <IconCloudUpload size={18} />,
 };
 
 /**

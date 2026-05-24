@@ -25,6 +25,7 @@ export {
   getActivityParametersJsonSchema,
   getProviderDescriptor,
   getSourceCatalogEntry,
+  getSourceParametersJsonSchema,
   listActivityTypes,
   listProvidersForKind,
   listSourceTypes,

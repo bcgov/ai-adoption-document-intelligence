@@ -16,7 +16,7 @@ import type { NodeType } from "../../../types/workflow";
 
 export interface ControlFlowPaletteEntry {
   /** The discriminator written to `node.type` when this entry is added. */
-  type: Exclude<NodeType, "activity">;
+  type: Exclude<NodeType, "activity" | "source">;
   /** Short, user-friendly name shown in the palette row. */
   displayName: string;
   /** Tooltip / hover description explaining what the node does. */

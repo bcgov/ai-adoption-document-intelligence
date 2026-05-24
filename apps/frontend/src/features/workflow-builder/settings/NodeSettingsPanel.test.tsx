@@ -39,6 +39,7 @@ import type {
   JoinNode,
   MapNode,
   PollUntilNode,
+  SourceNode,
   SwitchNode,
 } from "../../../types/workflow";
 import { NodeSettingsPanel } from "./NodeSettingsPanel";
@@ -123,6 +124,16 @@ function humanGateNode(id: string, label: string): HumanGateNode {
     signal: { name: "approve" },
     timeout: "1h",
     onTimeout: "fail",
+  };
+}
+
+function sourceNode(id: string, label: string): SourceNode {
+  return {
+    id,
+    type: "source",
+    label,
+    sourceType: "source.api",
+    parameters: { fields: [] },
   };
 }
 
@@ -420,5 +431,45 @@ describe("NodeSettingsPanel — Scenario 4: edits bubble up via onConfigChange",
     expect(updated.activityType).toBe("test.noop");
     // Inputs preserved.
     expect(updated.inputs).toEqual([{ port: "in", ctxKey: "ctx.in" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-119 Scenario 1: dispatch routes source nodes to SourceNodeSettings
+// ---------------------------------------------------------------------------
+
+describe("NodeSettingsPanel — US-119 Scenario 1: source dispatch", () => {
+  it("renders SourceNodeSettings when a source node is selected", () => {
+    const node = sourceNode("src1", "API endpoint");
+    const config = makeConfig([node]);
+    mountWithSpy(config, "src1");
+
+    expect(screen.getByTestId("source-node-settings")).toBeInTheDocument();
+    // Catalog-driven displayName surfaces in the body header.
+    expect(
+      screen.getByTestId("source-node-settings-display-name"),
+    ).toHaveTextContent("API endpoint");
+  });
+
+  it("leaves the activity / control-flow branches unchanged", () => {
+    const nodes: GraphNode[] = [
+      activityNode("a1", "Activity"),
+      switchNode("sw1", "Branch"),
+      sourceNode("src1", "API endpoint"),
+    ];
+    const config = makeConfig(nodes);
+    mountWithSpy(config, "a1");
+
+    // Activity branch is unchanged — no source-settings body present.
+    expect(screen.queryByTestId("source-node-settings")).toBeNull();
+
+    selectNode("sw1");
+    // Switch branch still renders its dedicated body.
+    expect(screen.getByTestId("switch-node-settings")).toBeInTheDocument();
+    expect(screen.queryByTestId("source-node-settings")).toBeNull();
+
+    selectNode("src1");
+    expect(screen.getByTestId("source-node-settings")).toBeInTheDocument();
+    expect(screen.queryByTestId("switch-node-settings")).toBeNull();
   });
 });

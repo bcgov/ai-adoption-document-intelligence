@@ -15,6 +15,7 @@
  * interaction agreed with the designer.
  */
 
+import { SOURCE_CATALOG } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
   Box,
@@ -41,6 +42,7 @@ import {
   getActivityVisualHints,
   getCatalogByCategory,
 } from "../catalog-utils";
+import { getSourceVisualHints } from "../sources/source-catalog-utils";
 import {
   CONTROL_FLOW_PALETTE_ENTRIES,
   type ControlFlowPaletteEntry,
@@ -52,6 +54,12 @@ interface ActivityPaletteProps {
   onAddActivity: (activityType: string) => void;
   /** Adds a fresh skeleton for the given control-flow node type. */
   onAddControlFlowNode: (type: ControlFlowNodeType) => void;
+  /**
+   * Adds a fresh `SourceNode` skeleton for the given subtype (US-118).
+   * The host calls `getSourceCatalogEntry` + `entry.parametersSchema.parse({})`
+   * to fill in the catalog defaults.
+   */
+  onAddSource: (sourceType: string) => void;
 }
 
 interface TablerIconProps {
@@ -68,13 +76,26 @@ const CONTROL_FLOW_ICONS: Record<string, ComponentType<TablerIconProps>> = {
 };
 
 const CONTROL_FLOW_SECTION_LABEL = "Flow Control";
+const SOURCES_SECTION_LABEL = "Sources";
 
 export function ActivityPalette({
   onAddActivity,
   onAddControlFlowNode,
+  onAddSource,
 }: ActivityPaletteProps) {
   const [query, setQuery] = useState("");
   const grouped = useMemo(() => getCatalogByCategory(), []);
+
+  const filteredSourceEntries = useMemo(() => {
+    const lower = query.trim().toLowerCase();
+    if (!lower) return SOURCE_CATALOG;
+    return SOURCE_CATALOG.filter(
+      (e) =>
+        e.displayName.toLowerCase().includes(lower) ||
+        e.type.toLowerCase().includes(lower) ||
+        e.description.toLowerCase().includes(lower),
+    );
+  }, [query]);
 
   const filteredControlFlowEntries = useMemo(() => {
     const lower = query.trim().toLowerCase();
@@ -119,7 +140,9 @@ export function ActivityPalette({
   );
 
   const nothingMatchesQuery =
-    filteredControlFlowEntries.length === 0 && filteredCategories.length === 0;
+    filteredSourceEntries.length === 0 &&
+    filteredControlFlowEntries.length === 0 &&
+    filteredCategories.length === 0;
 
   return (
     <Stack
@@ -151,6 +174,38 @@ export function ActivityPalette({
       />
       <ScrollArea style={{ flex: 1 }} type="auto">
         <Stack gap="md">
+          <Stack key={SOURCES_SECTION_LABEL} gap={4}>
+            <Text
+              size="xs"
+              fw={600}
+              c="dimmed"
+              tt="uppercase"
+              style={{ letterSpacing: 0.4 }}
+            >
+              {SOURCES_SECTION_LABEL}
+            </Text>
+            {filteredSourceEntries.length === 0 ? (
+              <Text
+                size="10px"
+                c="dimmed"
+                data-testid="sources-empty-placeholder"
+              >
+                {SOURCE_CATALOG.length === 0
+                  ? "No source types available"
+                  : `No sources match "${query}"`}
+              </Text>
+            ) : (
+              filteredSourceEntries.map((entry) => (
+                <SourcePaletteRow
+                  key={entry.type}
+                  sourceType={entry.type}
+                  displayName={entry.displayName}
+                  description={entry.description}
+                  onClick={() => onAddSource(entry.type)}
+                />
+              ))
+            )}
+          </Stack>
           {filteredControlFlowEntries.length > 0 && (
             <Stack key={CONTROL_FLOW_SECTION_LABEL} gap={4}>
               <Text
@@ -239,6 +294,85 @@ export function ActivityPalette({
         </Stack>
       </ScrollArea>
     </Stack>
+  );
+}
+
+interface SourcePaletteRowProps {
+  sourceType: string;
+  displayName: string;
+  description: string;
+  onClick: () => void;
+}
+
+function SourcePaletteRow({
+  sourceType,
+  displayName,
+  description,
+  onClick,
+}: SourcePaletteRowProps) {
+  // Resolve via the shared utils so palette + canvas + settings stay in
+  // sync. Falls back to gray + IconDatabase when the catalog hints are
+  // missing.
+  const hints = getSourceVisualHints(sourceType);
+  const accent = hints.color;
+  const Icon = hints.Icon;
+  // Drag payload — `kind: "source"` is the discriminator the
+  // `WorkflowEditorCanvas` drop handler keys off when constructing the
+  // new `SourceNode`. Mirrors the implicit contract the activity /
+  // control-flow rows use today (click-to-add via `onClick`); the drop
+  // handler is wired in the same milestone for completeness.
+  const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData(
+      "application/x-workflow-palette",
+      JSON.stringify({ kind: "source", sourceType }),
+    );
+    e.dataTransfer.effectAllowed = "copy";
+  };
+  return (
+    <Tooltip
+      label={description}
+      multiline
+      w={260}
+      withArrow
+      position="right"
+      openDelay={400}
+    >
+      <Group
+        gap="xs"
+        wrap="nowrap"
+        onClick={onClick}
+        draggable
+        onDragStart={onDragStart}
+        data-testid={`source-palette-entry-${sourceType}`}
+        style={{
+          cursor: "pointer",
+          padding: "6px 8px",
+          borderRadius: 6,
+          borderLeftWidth: 3,
+          borderLeftStyle: "solid",
+          borderLeftColor: accent,
+          background: "var(--mantine-color-default-hover, #25262b)",
+        }}
+      >
+        <ActionIcon
+          variant="transparent"
+          color="gray"
+          size="sm"
+          style={{ pointerEvents: "none" }}
+          aria-hidden
+        >
+          <Icon size={16} />
+        </ActionIcon>
+        <Box style={{ minWidth: 0, flex: 1 }}>
+          <Text size="xs" fw={500} truncate>
+            {displayName}
+          </Text>
+          <Text size="10px" c="dimmed" ff="monospace" truncate>
+            {sourceType}
+          </Text>
+        </Box>
+      </Group>
+    </Tooltip>
   );
 }
 

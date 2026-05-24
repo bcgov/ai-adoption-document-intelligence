@@ -22,23 +22,25 @@ function renderPalette(
 ) {
   const onAddActivity = overrides.onAddActivity ?? vi.fn();
   const onAddControlFlowNode = overrides.onAddControlFlowNode ?? vi.fn();
+  const onAddSource = overrides.onAddSource ?? vi.fn();
   const utils = render(
     <MantineProvider>
       <ActivityPalette
         onAddActivity={onAddActivity}
         onAddControlFlowNode={onAddControlFlowNode}
+        onAddSource={onAddSource}
       />
     </MantineProvider>,
   );
-  return { ...utils, onAddActivity, onAddControlFlowNode };
+  return { ...utils, onAddActivity, onAddControlFlowNode, onAddSource };
 }
 
 // ---------------------------------------------------------------------------
 // Scenario 1: "Flow Control" section appears first
 // ---------------------------------------------------------------------------
 
-describe('ActivityPalette — Scenario 1: "Flow Control" section appears first', () => {
-  it("renders a Flow Control section as the first section in the palette", () => {
+describe('ActivityPalette — Scenario 1: "Flow Control" section appears first (above activities)', () => {
+  it("renders Flow Control before any activity-category header", () => {
     renderPalette();
 
     const headers = screen.getAllByText(
@@ -56,7 +58,9 @@ describe('ActivityPalette — Scenario 1: "Flow Control" section appears first',
     expect(flowControlHeader).toBeInTheDocument();
 
     // The Flow Control header must appear textually before any of the
-    // activity-category headers in the rendered DOM.
+    // activity-category headers in the rendered DOM. (US-118 adds a
+    // "Sources" section ABOVE Flow Control — Flow Control still comes
+    // before every activity category, so the original guarantee holds.)
     const headerTexts = headers.map((h) => h.textContent?.trim() ?? "");
     const firstFlowControlIdx = headerTexts.indexOf("Flow Control");
     expect(firstFlowControlIdx).toBeGreaterThanOrEqual(0);
@@ -221,5 +225,55 @@ describe("ActivityPalette — Scenario 4: position-stagger formula", () => {
       };
       expect(skeleton.metadata.position).toEqual({ x: 560, y: 380 });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-118: "Sources" palette section
+// ---------------------------------------------------------------------------
+
+describe('ActivityPalette — US-118: "Sources" section', () => {
+  it("renders a Sources section ABOVE the Flow Control section", () => {
+    renderPalette();
+    const sourcesHeader = screen.getByText("Sources");
+    const flowControlHeader = screen.getByText("Flow Control");
+    expect(sourcesHeader).toBeInTheDocument();
+    expect(flowControlHeader).toBeInTheDocument();
+    // Compare positions in document order.
+    const pos = sourcesHeader.compareDocumentPosition(flowControlHeader);
+    // `DOCUMENT_POSITION_FOLLOWING` (4) means the second arg comes
+    // AFTER the first in document order.
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("lists the two 8.0 source entries (source.api + source.upload)", () => {
+    renderPalette();
+    expect(
+      screen.getByTestId("source-palette-entry-source.api"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("source-palette-entry-source.upload"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the catalog displayName for each source row", () => {
+    renderPalette();
+    const apiRow = screen.getByTestId("source-palette-entry-source.api");
+    expect(apiRow).toHaveTextContent("API endpoint");
+    expect(apiRow).toHaveTextContent("source.api");
+    const uploadRow = screen.getByTestId("source-palette-entry-source.upload");
+    expect(uploadRow).toHaveTextContent("File upload");
+    expect(uploadRow).toHaveTextContent("source.upload");
+  });
+
+  it("clicking a source row calls onAddSource with that exact subtype", () => {
+    const onAddSource = vi.fn<(t: string) => void>();
+    renderPalette({ onAddSource });
+    screen.getByTestId("source-palette-entry-source.api").click();
+    expect(onAddSource).toHaveBeenCalledTimes(1);
+    expect(onAddSource).toHaveBeenCalledWith("source.api");
+    screen.getByTestId("source-palette-entry-source.upload").click();
+    expect(onAddSource).toHaveBeenCalledTimes(2);
+    expect(onAddSource).toHaveBeenLastCalledWith("source.upload");
   });
 });

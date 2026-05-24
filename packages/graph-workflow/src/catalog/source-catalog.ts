@@ -21,6 +21,8 @@
  * See docs-md/workflow-builder/DOCUMENT_SOURCES_DESIGN.md §2.
  */
 
+import { z } from "zod/v4";
+
 import type { GraphValidationError, SourceNode } from "../types";
 
 import { sourceApiCatalogEntry } from "./sources/source-api";
@@ -60,6 +62,26 @@ export function getSourceCatalogEntry(
  */
 export function listSourceTypes(): readonly string[] {
   return SOURCE_CATALOG.map((entry) => entry.type);
+}
+
+/**
+ * JSON Schema for a source subtype's static parameters.
+ *
+ * Mirrors `getActivityParametersJsonSchema` — the conversion has to
+ * happen on the same Zod module that `.meta(...)` was called against,
+ * otherwise the metadata registry returns no hits and `title` /
+ * `description` / `x-widget` entries silently disappear. Centralising
+ * the conversion here keeps frontend callers (e.g. the
+ * `SourceNodeSettings` form body) on a single zod instance.
+ *
+ * Returns `undefined` when the `sourceType` is not registered.
+ */
+export function getSourceParametersJsonSchema(
+  sourceType: string,
+): unknown | undefined {
+  const entry = getSourceCatalogEntry(sourceType);
+  if (!entry) return undefined;
+  return z.toJSONSchema(entry.parametersSchema);
 }
 
 /**

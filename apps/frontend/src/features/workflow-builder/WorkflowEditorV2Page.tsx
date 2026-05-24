@@ -23,6 +23,7 @@
 import {
   ACTIVITY_CATALOG,
   type ActivityCatalogEntry,
+  getSourceCatalogEntry,
 } from "@ai-di/graph-workflow";
 import {
   Box,
@@ -66,6 +67,7 @@ import type {
   ActivityNode,
   GraphNode,
   GraphWorkflowConfig,
+  SourceNode,
 } from "../../types/workflow";
 import {
   layoutGraph,
@@ -355,6 +357,71 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       };
       setConfig((prev) => {
         const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
+        const nextNodes = { ...prev.nodes, [id]: newNode };
+        return {
+          ...prev,
+          nodes: nextNodes,
+          entryNodeId: nextEntryNodeId,
+        };
+      });
+      setSelectedNodeId(id);
+    },
+    [config],
+  );
+
+  /**
+   * Adds a fresh `SourceNode` to the canvas (US-118). The subtype's
+   * catalog entry supplies the display name + `parametersSchema`; we
+   * call `parametersSchema.parse({})` so Zod fills in the documented
+   * defaults (e.g. `fields: []` for `source.api`,
+   * `{ allowedMimeTypes, maxFileSizeMB, ctxKey }` for `source.upload`).
+   * Position reuses the same `x = 80 + i*240, y = 100 + (i%3)*140`
+   * stagger the activity / control-flow add paths share.
+   *
+   * US-121: when the canvas is empty BEFORE this drop
+   * (`Object.keys(prev.nodes).length === 0`), the new source becomes the
+   * workflow's entry node automatically. In every other case
+   * (additional drops, existing workflows opened with an entryNodeId
+   * already set to an activity, etc.), `entryNodeId` is left alone — the
+   * runtime treats `entryNodeId`-pointing-at-source as a no-op and
+   * starts at the source's outbound-edge target (per
+   * DOCUMENT_SOURCES_DESIGN.md §5).
+   */
+  const addSource = useCallback(
+    (sourceType: string) => {
+      const entry = getSourceCatalogEntry(sourceType);
+      if (!entry) return;
+      const id = makeNodeId(config, sourceType);
+      const offsetIndex = Object.keys(config.nodes).length;
+      // `.parse({})` is the documented way to materialise the catalog
+      // defaults — the schema is the single source of truth for
+      // save-time validation, so the dropped node is guaranteed
+      // structurally valid out of the gate.
+      const defaults = entry.parametersSchema.parse({}) as Record<
+        string,
+        unknown
+      >;
+      const newNode: SourceNode = {
+        id,
+        type: "source",
+        label: entry.displayName,
+        sourceType,
+        parameters: defaults,
+        metadata: {
+          position: {
+            x: 80 + offsetIndex * 240,
+            y: 100 + (offsetIndex % 3) * 140,
+          },
+        },
+      };
+      setConfig((prev) => {
+        // US-121: autoset entryNodeId only when the canvas was empty
+        // BEFORE this drop. This is the documented precondition in the
+        // story's technical note — checked against `prev.nodes` (not the
+        // already-mutated next state) so a non-empty canvas never
+        // accidentally rewrites the user's chosen entry.
+        const wasEmpty = Object.keys(prev.nodes).length === 0;
+        const nextEntryNodeId = wasEmpty ? id : prev.entryNodeId;
         const nextNodes = { ...prev.nodes, [id]: newNode };
         return {
           ...prev,
@@ -802,6 +869,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         <ActivityPalette
           onAddActivity={addActivity}
           onAddControlFlowNode={addControlFlowNode}
+          onAddSource={addSource}
         />
         <Box style={{ flex: 1, minWidth: 0, position: "relative" }}>
           {nodeCount === 0 && (
