@@ -141,7 +141,7 @@ Both checkpoints consume the same `isAssignable()` from the shared package:
    - All ctx variables stay visible (don't hide — users will think "where did my variable go?").
    - Compatible variables list first (variables whose upstream-producer port kind is assignable to the consumer's `kind`).
    - Incompatible variables list below a divider, dimmed, with a hover tooltip naming the reason (`"OcrResult — incompatible with this port (expects Segment)"`).
-   - Manually-declared ctx variables (those declared via the workflow-settings drawer's ctx editor, with primitive `type` only and no `kind`) are treated as `Artifact` (wildcard — always compatible). Filed as a follow-up: extend `CtxDeclaration` with optional `kind?: ArtifactKind`.
+   - **Manually-declared ctx variables** carry their own `kind` via Phase 3's extension to `CtxDeclaration` (see §6.1). Variables without a `kind` field (legacy entries before Phase 3) are treated as `Artifact` (wildcard — always compatible).
 
 2. **Backend — save-time validator** *(authoritative; runs in `validateGraphConfig`)*. Walks **ctx keys**, not edges:
 
@@ -166,6 +166,48 @@ Both checkpoints consume the same `isAssignable()` from the shared package:
 The runtime engine still doesn't check types. The blackboard is opaque `Record<string, unknown>`. Type safety is a save-time + design-time property only.
 
 **Explicitly not in Phase 3:** draw-time wire rejection. Wires are ordering; rejecting them on type grounds would conflate two distinct user actions (wiring = ordering vs binding = data). An auto-bind-on-wire-draw layer (option C from the design discussion) is filed as a Phase 3.5 follow-up — it would make wires semantically meaningful AND restore draw-time UX in one move.
+
+---
+
+## 5.1 Typed soft edges — `CtxDeclaration` and `LibraryPortDescriptor`
+
+Phase 3 extends two existing schema shapes so the type story doesn't break at workflow boundaries:
+
+**`CtxDeclaration` extension** (workflow-settings drawer's ctx editor — the variable list every workflow declares). Adds optional `kind?: ArtifactKind | "${ArtifactKind}[]"` alongside the existing primitive `type` field:
+
+```ts
+interface CtxDeclaration {
+  type: "string" | "number" | "boolean" | "object" | "array";  // unchanged
+  description?: string;                                          // unchanged
+  defaultValue?: unknown;                                        // unchanged
+  isInput?: boolean;                                             // Track 2
+  kind?: ArtifactKind | `${ArtifactKind}[]`;                     // Phase 3 — NEW
+}
+```
+
+UI: the `WorkflowSettingsDrawer` ctx-rows grow a "Kind" Select column (after Description, before Default). Options populated from the registry. Optional — legacy entries with no `kind` default to `Artifact` (wildcard).
+
+Why this matters: workflow entry-point inputs (those flagged `isInput: true` in Track 2) are the first hop into the typed graph. Without this extension, every entry-point binding shows as Artifact-compatible-with-everything in the picker, so the first activity's typed handle has nothing meaningful to filter against.
+
+**`LibraryPortDescriptor` extension** (Track 1's library-signature editor + the library-picker modal + the childWorkflow signature summary). Adds optional `kind?: ArtifactKind | "${ArtifactKind}[]"` alongside the existing primitive `type` field:
+
+```ts
+interface LibraryPortDescriptor {
+  label: string;                                                 // unchanged
+  path: string;                                                  // unchanged
+  type: "string" | "number" | "boolean" | "object" | "array";    // unchanged
+  kind?: ArtifactKind | `${ArtifactKind}[]`;                     // Phase 3 — NEW
+}
+```
+
+UI surfaces touched:
+- `LibraryPortListEditor` (inside `SaveAsLibraryModal`) — each port row grows a "Kind" Select column.
+- `LibraryPickerModal` — the per-library signature summary shows `kind` (when declared) alongside the primitive `type`.
+- `ChildWorkflowNodeSettings` signature summary — shows the pinned library's typed signature (the new `v{N}` / `head` badge from Track 3 stays where it is; the kind annotations join it).
+
+Why this matters: when a parent workflow references a library via a `childWorkflow` node, the library's port descriptors ARE the childWorkflow node's effective ports. Without this extension, library-referencing nodes render gray-on-gray handles, the library-picker can't be filtered by signature, and the binding-walk validator can't catch kind mismatches at the library boundary.
+
+Both extensions are mechanically the same shape (optional `kind?: ArtifactKind | "${ArtifactKind}[]"`) and use the same registry / `isAssignable` function as activity `PortDescriptor`. The validator treats both the same way it treats activity ports.
 
 ---
 
@@ -234,8 +276,7 @@ Activities that take a `provider: string` parameter (e.g., a generic `ocr.run` t
 - **Structural typing or shape inference.** Strictly nominal — every `ArtifactKind` is declared in the registry.
 - **Per-field types inside an artifact.** `OcrFields` is one kind; the individual fields it contains are not separately typed at the wiring layer.
 - **Runtime type checks.** The engine stays opaque.
-- **Migrating `CtxDeclaration` to carry `kind?`.** `CtxDeclaration.type` (`"string" | "number" | "boolean" | "object" | "array"`) stays as-is for Phase 3. Manually-declared ctx variables are treated as `Artifact` (wildcard) by the picker filter. Extending `CtxDeclaration` with optional `kind?: ArtifactKind` (+ a kind picker in the workflow-settings ctx editor) is filed as a Phase 3 follow-up; it's straightforward but adds UI surface that's better tackled once the activity-side fan-out is done.
-- **Typed library port descriptors.** Track 1's `LibraryPortDescriptor { label, path, type }` stays at primitive `type` only for Phase 3. Extending with `kind?: ArtifactKind` so library `childWorkflow` references participate in the binding-walk validator is filed alongside the `CtxDeclaration` extension — same shape, same UI surface.
+- **Migrating `CtxDeclaration.type` away.** The primitive `type` field (`"string" | "number" | "boolean" | "object" | "array"`) stays as-is alongside the new `kind?` field. `type` is a runtime-shape concept (Zod/JSON-Schema validation of the actual value); `kind?` is the artifact-layer annotation for UI/save-time purposes. Both coexist.
 
 ---
 
@@ -244,20 +285,23 @@ Activities that take a `provider: string` parameter (e.g., a generic `ocr.run` t
 1. `packages/graph-workflow/src/types/artifacts.ts` — interfaces + `ArtifactKind` union
 2. `packages/graph-workflow/src/types/artifact-registry.ts` — registry + `registerArtifactKind`
 3. `packages/graph-workflow/src/types/subtype-check.ts` — `isAssignable`
-4. Extend `PortDescriptor` with `kind?: ArtifactKind | "${ArtifactKind}[]"`
-5. Add **binding-walk** type-check pass to `validator.ts` (save-time; walks ctx keys not edges — see §5)
-6. Frontend: handle colour + hover tooltip + on-selection type pill. **No `handleConnect` rejection** — wires are ordering only.
-7. Frontend: variable picker shows all ctx variables; compatible ones first, incompatible ones dimmed below a divider with a hover-tooltip naming the reason.
-8. Fan out `kind` declarations across the 41 catalog entries (incrementally; framework + 4–6 exemplars is a reasonable Phase 3 cap, full fan-out as Phase 3.x)
-9. Provider catalog (Phase 3 → Phase 5 hand-off)
+4. Extend `PortDescriptor` with `kind?: ArtifactKind | "${ArtifactKind}[]"` (activity catalog ports)
+5. Extend `CtxDeclaration` with `kind?: ArtifactKind | "${ArtifactKind}[]"` (manually-declared ctx variables) — see §5.1
+6. Extend `LibraryPortDescriptor` with `kind?: ArtifactKind | "${ArtifactKind}[]"` (library inputs/outputs) — see §5.1
+7. Add **binding-walk** type-check pass to `validator.ts` (save-time; walks ctx keys not edges — see §5; consults activity `PortDescriptor.kind`, `CtxDeclaration.kind`, and `LibraryPortDescriptor.kind` interchangeably)
+8. Frontend: handle colour + hover tooltip + on-selection type pill. **No `handleConnect` rejection** — wires are ordering only.
+9. Frontend: variable picker shows all ctx variables; compatible ones first, incompatible ones dimmed below a divider with a hover-tooltip naming the reason.
+10. Frontend: `WorkflowSettingsDrawer` ctx-rows grow a "Kind" Select column populated from the registry.
+11. Frontend: `LibraryPortListEditor` (inside `SaveAsLibraryModal`) ports grow a "Kind" Select column. `LibraryPickerModal` signature summary + `ChildWorkflowNodeSettings` signature summary surface the kind annotations.
+12. Fan out `kind` declarations across the 41 catalog entries (incrementally; framework + 4–6 exemplars is a reasonable Phase 3 cap, full fan-out as Phase 3.x)
+13. Provider catalog (Phase 3 → Phase 5 hand-off)
 
 ---
 
 ## 13. Open after this lands
 
 - **Phase 3.5 — auto-bind-on-wire-draw.** Make wire-draw semantically meaningful: drawing a wire between two typed handles auto-creates a ctx key + the matching input/output bindings on both sides. Restores draw-time UX (rejection on kind mismatch becomes consistent because the wire IS the binding). Bigger lift; punted to keep Phase 3 small.
-- **Typed `CtxDeclaration`.** Extend with optional `kind?: ArtifactKind` + add a kind picker to the workflow-settings ctx editor so manually-declared ctx slots participate in the binding-walk type check.
-- **Typed `LibraryPortDescriptor`.** Same shape — extend Track 1's `{ label, path, type }` with `kind?: ArtifactKind` so library `childWorkflow` references are typed end-to-end.
+- **Phase 3.x — full catalog fan-out.** Phase 3 ships framework + 4–6 exemplar activity entries; the remaining ~35 catalog entries get their `kind` declarations fanned out incrementally afterward. The bulk catalog test enforces "every entry that DOES declare `kind` declares it for every port" so partial fan-out stays consistent.
 - Concrete kind palette beyond v1 list (when new domains appear)
 - Auto-fan-out fixers in the editor ("you wired `Document[]` into a `Document` slot — add a `map` node?")
 - LSP-style hovers that show the producer's actual ctxKey path, not just the kind

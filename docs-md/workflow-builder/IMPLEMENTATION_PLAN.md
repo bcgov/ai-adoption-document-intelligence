@@ -252,21 +252,26 @@ The foundational layer for Phases 4, 5, 6, and 7. Concrete decisions and the art
   1. Settings-panel variable picker filters by kind (compatible first; incompatible dimmed below a divider with a hover-tooltip naming the reason)
   2. Backend `validateGraphConfig` walks **ctx keys**: for each key, every producer port's kind must be assignable to every consumer port's kind. Errors anchor to the consumer port.
 - **Subtyping** — strict nominal: `SinglePageDocument` → `Document` slot ✓; reverse ✗; no auto-wrap between `T` and `T[]`
-- **Manually-declared ctx variables** — `CtxDeclaration` keeps its primitive `type` field for Phase 3; treated as `Artifact` (wildcard) by the picker filter. Typed `CtxDeclaration.kind?` filed as a Phase 3 follow-up.
-- **Library port descriptors** — Track 1's `LibraryPortDescriptor { label, path, type }` keeps primitive `type` only for Phase 3. Typed `LibraryPortDescriptor.kind?` filed as a Phase 3 follow-up alongside `CtxDeclaration`.
+- **Typed soft edges (workflow boundaries) — extended IN Phase 3:**
+  - `CtxDeclaration` (workflow-settings drawer's ctx editor) grows optional `kind?: ArtifactKind | "${ArtifactKind}[]"` alongside the existing primitive `type` field. Workflow entry-point inputs (Track 2's `isInput: true`) get a proper kind annotation so the first hop into the graph isn't gray-on-gray. UI: new "Kind" Select column on `WorkflowSettingsDrawer` ctx rows.
+  - `LibraryPortDescriptor` (Track 1) grows optional `kind?: ArtifactKind | "${ArtifactKind}[]"` alongside `type`. Library `childWorkflow` references become typed end-to-end. UI surfaces: `LibraryPortListEditor` (inside `SaveAsLibraryModal`), `LibraryPickerModal` signature summary, `ChildWorkflowNodeSettings` signature summary (alongside the Track 3 v{N}/head badge).
 - **Provider catalog** — `provider-catalog.ts` companion: `{ id, displayName, category, acceptsKind, returns }`; activities with a generic `provider` parameter source dropdowns filtered by upstream `kind`
 
 Implementation order:
 
 - [ ] Types + registry + `isAssignable` in `packages/graph-workflow`
-- [ ] Extend `PortDescriptor` with `kind?`
-- [ ] Add **binding-walk** type-check pass to `validator.ts` (walks ctx keys, errors anchor to consumer port)
+- [ ] Extend `PortDescriptor` with `kind?` (activity catalog ports)
+- [ ] Extend `CtxDeclaration` with `kind?` (manually-declared ctx variables)
+- [ ] Extend `LibraryPortDescriptor` with `kind?` (library inputs/outputs)
+- [ ] Add **binding-walk** type-check pass to `validator.ts` (walks ctx keys, consults all three `kind` sources interchangeably, errors anchor to consumer port)
 - [ ] Frontend: handle colour + hover tooltip + on-selection type pill (no `handleConnect` change)
 - [ ] Frontend: variable picker sorts compatible-first + dims incompatible with a "why" tooltip
+- [ ] Frontend: `WorkflowSettingsDrawer` ctx-rows grow a "Kind" Select column
+- [ ] Frontend: `LibraryPortListEditor` ports grow a "Kind" Select column; `LibraryPickerModal` + `ChildWorkflowNodeSettings` signature summaries surface the kind
 - [ ] Fan out `kind` declarations across the 41 catalog entries — framework + 4–6 exemplars in Phase 3 (split / classify / OCR / validate); full fan-out as Phase 3.x. Bulk catalog test asserts "every entry that DOES declare `kind` declares it for every port."
 - [ ] Provider catalog skeleton + 1-2 example providers (Phase 3 → Phase 5 hand-off)
 
-**Phase 3.5 — auto-bind-on-wire-draw (filed; not in Phase 3).** Make wires semantically meaningful: drawing a wire between two typed handles auto-creates a ctx key + the matching input/output bindings on both sides. Restores draw-time UX (rejection on kind mismatch becomes consistent because the wire IS the binding). Bigger lift; deferred to keep Phase 3 small and to land typed I/O quickly for Phases 4–7.
+**Phase 3.5 — auto-bind-on-wire-draw (filed; not in Phase 3).** Make wires semantically meaningful: drawing a wire between two typed handles auto-creates a ctx key + the matching input/output bindings on both sides. Restores draw-time UX (rejection on kind mismatch becomes consistent because the wire IS the binding). Bigger lift; deferred to keep Phase 3 focused on the typing foundation.
 
 ### Phase 4 — Try-in-place + caching + per-node previews
 
