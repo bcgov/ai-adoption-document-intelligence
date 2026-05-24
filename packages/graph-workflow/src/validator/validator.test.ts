@@ -19,6 +19,7 @@ import * as path from "node:path";
 
 import type {
   ActivityNode,
+  ChildWorkflowNode,
   GraphValidationError,
   GraphWorkflowConfig,
   HumanGateNode,
@@ -719,6 +720,65 @@ describe("US-065 Scenario 3: validator accepts ctx declarations flagged as calle
           activityType: "noop.activity",
         } as ActivityNode,
       },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-076: ChildWorkflowNode.workflowRef.library accepts optional version?
+// ---------------------------------------------------------------------------
+
+describe("US-076: ChildWorkflowNode library workflowRef accepts optional version", () => {
+  it("validates a library workflowRef without a `version` field (head-resolution shape)", () => {
+    const childNode: ChildWorkflowNode = {
+      id: "child",
+      type: "childWorkflow",
+      label: "Run library child",
+      workflowRef: {
+        type: "library",
+        workflowId: "lib-abc",
+      },
+    };
+
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Parent calling library head" },
+      entryNodeId: "child",
+      ctx: {},
+      nodes: { child: childNode },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("validates a library workflowRef with `version: 3` (pinned-version shape)", () => {
+    const childNode: ChildWorkflowNode = {
+      id: "child",
+      type: "childWorkflow",
+      label: "Run pinned library child",
+      workflowRef: {
+        type: "library",
+        workflowId: "lib-abc",
+        version: 3,
+      },
+    };
+
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Parent pinned to library v3" },
+      entryNodeId: "child",
+      ctx: {},
+      nodes: { child: childNode },
       edges: [],
     };
 

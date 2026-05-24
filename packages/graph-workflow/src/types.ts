@@ -196,7 +196,12 @@ export interface JoinNode extends GraphNodeBase {
 export interface ChildWorkflowNode extends GraphNodeBase {
   type: "childWorkflow";
   workflowRef:
-    | { type: "library"; workflowId: string }
+    | {
+        type: "library";
+        workflowId: string;
+        /** Optional. When set, pins the child execution to this specific `WorkflowVersion.versionNumber`. When omitted, the runtime resolves to the library's head. */
+        version?: number;
+      }
     | { type: "inline"; graph: GraphWorkflowConfig };
   inputMappings?: PortBinding[];
   outputMappings?: PortBinding[];
