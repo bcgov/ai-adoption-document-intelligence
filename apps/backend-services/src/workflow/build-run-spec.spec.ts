@@ -1,6 +1,15 @@
 import type { Request } from "express";
-import { buildRunSpec, buildTriggerUrl } from "./build-run-spec";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
+import { z } from "zod/v4";
+import {
+  buildRunSpec,
+  buildTriggerUrl,
+  buildUploadSpec,
+} from "./build-run-spec";
+import type {
+  GraphWorkflowConfig,
+  SourceCatalogEntry,
+  SourceNode,
+} from "./graph-workflow-types";
 
 const baseConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",
@@ -119,5 +128,161 @@ describe("buildRunSpec", () => {
 
     expect(spec.sampleCurl).toMatch(/"count":5/);
     expect(spec.sampleCurl).toMatch(/"customerId":""/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-112 — buildUploadSpec (source.upload extension of /run-spec)
+// ---------------------------------------------------------------------------
+describe("buildUploadSpec", () => {
+  /**
+   * Synthetic `source.upload` catalog entry. The real entry is
+   * registered by US-116; until then tests inject this fake via the
+   * `getSourceCatalogEntry` option (mirrors the validator and US-111's
+   * injection patterns). The Zod schema applies the documented
+   * DOCUMENT_SOURCES_DESIGN.md §3.2 defaults via `.default(...)`.
+   */
+  const sourceUploadParametersSchema = z.object({
+    allowedMimeTypes: z
+      .array(z.string())
+      .default(["application/pdf", "image/*"]),
+    maxFileSizeMB: z.number().default(50),
+    ctxKey: z.string().default("documentUrl"),
+  });
+
+  const fakeSourceUploadEntry: SourceCatalogEntry = {
+    type: "source.upload",
+    category: "source",
+    displayName: "File upload (test)",
+    description: "Synthetic source.upload entry used in unit tests",
+    parametersSchema: sourceUploadParametersSchema,
+    runtime: "manual",
+    outputKind: "Document",
+    deriveOutputSchema: (parameters) => {
+      const ctxKey =
+        typeof parameters?.ctxKey === "string"
+          ? parameters.ctxKey
+          : "documentUrl";
+      return {
+        type: "object",
+        properties: { [ctxKey]: { type: "string", format: "uri" } },
+        required: [ctxKey],
+      };
+    },
+  };
+
+  const synthLookup = (sourceType: string) =>
+    sourceType === "source.upload" ? fakeSourceUploadEntry : undefined;
+
+  const sourceUploadNode = (
+    parameters: Record<string, unknown>,
+    id = "src-upload-1",
+  ): SourceNode => ({
+    id,
+    type: "source",
+    label: "Upload source",
+    sourceType: "source.upload",
+    parameters,
+  });
+
+  const baseUrl = "http://localhost:3002";
+
+  it("Scenario 2: returns undefined when no source.upload node exists", () => {
+    const spec = buildUploadSpec(baseConfig, "wf-1", baseUrl, {
+      getSourceCatalogEntry: synthLookup,
+    });
+    expect(spec).toBeUndefined();
+  });
+
+  it("Scenario 1: surfaces explicit parameters verbatim", () => {
+    const config: GraphWorkflowConfig = {
+      ...baseConfig,
+      nodes: {
+        ...baseConfig.nodes,
+        upload: sourceUploadNode(
+          {
+            ctxKey: "myFile",
+            allowedMimeTypes: ["application/pdf"],
+            maxFileSizeMB: 25,
+          },
+          "upload",
+        ),
+      },
+    };
+
+    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+      getSourceCatalogEntry: synthLookup,
+    });
+
+    expect(spec).toEqual({
+      sourceNodeId: "upload",
+      uploadUrl:
+        "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
+      allowedMimeTypes: ["application/pdf"],
+      maxFileSizeMB: 25,
+      ctxKey: "myFile",
+    });
+  });
+
+  it("Scenario 1 (defaults): fills in defaults from parametersSchema when parameters are absent", () => {
+    const config: GraphWorkflowConfig = {
+      ...baseConfig,
+      nodes: {
+        ...baseConfig.nodes,
+        upload: sourceUploadNode({}, "upload"),
+      },
+    };
+
+    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+      getSourceCatalogEntry: synthLookup,
+    });
+
+    expect(spec).toEqual({
+      sourceNodeId: "upload",
+      uploadUrl:
+        "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
+      allowedMimeTypes: ["application/pdf", "image/*"],
+      maxFileSizeMB: 50,
+      ctxKey: "documentUrl",
+    });
+  });
+
+  it("fills in defaults when the source node has no parameters object at all", () => {
+    const config: GraphWorkflowConfig = {
+      ...baseConfig,
+      nodes: {
+        ...baseConfig.nodes,
+        upload: {
+          id: "upload",
+          type: "source",
+          label: "Upload",
+          sourceType: "source.upload",
+        },
+      },
+    };
+
+    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+      getSourceCatalogEntry: synthLookup,
+    });
+
+    expect(spec?.allowedMimeTypes).toEqual(["application/pdf", "image/*"]);
+    expect(spec?.maxFileSizeMB).toBe(50);
+    expect(spec?.ctxKey).toBe("documentUrl");
+  });
+
+  it("returns undefined when the catalog lookup yields nothing for source.upload", () => {
+    const config: GraphWorkflowConfig = {
+      ...baseConfig,
+      nodes: {
+        ...baseConfig.nodes,
+        upload: sourceUploadNode({}, "upload"),
+      },
+    };
+
+    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+      getSourceCatalogEntry: () => undefined,
+    });
+
+    expect(spec).toBeUndefined();
   });
 });

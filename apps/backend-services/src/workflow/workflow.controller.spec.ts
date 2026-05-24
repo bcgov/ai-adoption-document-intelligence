@@ -2,16 +2,49 @@ import { GroupRole } from "@generated/client";
 import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { z } from "zod/v4";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
+import type {
+  GraphWorkflowConfig,
+  SourceCatalogEntry,
+} from "./graph-workflow-types";
+import { SourceUploadService } from "./source-upload.service";
 import { WorkflowController } from "./workflow.controller";
 import {
   CreateWorkflowDto,
   WorkflowInfo,
   WorkflowService,
 } from "./workflow.service";
+
+// ---------------------------------------------------------------------------
+// US-112 — synthetic source catalog injection
+//
+// The real `source.api` / `source.upload` catalog entries land in
+// US-115 / US-116. Until then, this spec swaps the package-level
+// `getSourceCatalogEntry` with a controllable lookup so the
+// `/run-spec` handler can exercise the source-aware paths
+// (`buildUploadSpec` + `deriveInputSchema`'s source.api precedence) in
+// isolation. Each test that needs catalog entries sets the per-test
+// registry via `setSourceCatalog([...])`.
+// ---------------------------------------------------------------------------
+let testSourceCatalog: SourceCatalogEntry[] = [];
+
+const setSourceCatalog = (entries: SourceCatalogEntry[]): void => {
+  testSourceCatalog = entries;
+};
+
+jest.mock("@ai-di/graph-workflow", () => {
+  const actual = jest.requireActual<typeof import("@ai-di/graph-workflow")>(
+    "@ai-di/graph-workflow",
+  );
+  return {
+    ...actual,
+    getSourceCatalogEntry: (sourceType: string) =>
+      testSourceCatalog.find((entry) => entry.type === sourceType),
+  };
+});
 
 const mockGraphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",
@@ -59,6 +92,7 @@ describe("WorkflowController", () => {
   let controller: WorkflowController;
   let workflowService: jest.Mocked<WorkflowService>;
   let temporalClient: jest.Mocked<TemporalClientService>;
+  let sourceUploadService: jest.Mocked<SourceUploadService>;
 
   beforeEach(async () => {
     workflowService = {
@@ -78,6 +112,10 @@ describe("WorkflowController", () => {
       startGraphWorkflow: jest.fn(),
     } as unknown as jest.Mocked<TemporalClientService>;
 
+    sourceUploadService = {
+      uploadFileForSource: jest.fn(),
+    } as unknown as jest.Mocked<SourceUploadService>;
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WorkflowController],
       providers: [
@@ -92,6 +130,10 @@ describe("WorkflowController", () => {
         {
           provide: AppLoggerService,
           useValue: mockAppLogger,
+        },
+        {
+          provide: SourceUploadService,
+          useValue: sourceUploadService,
         },
       ],
     }).compile();
@@ -569,6 +611,234 @@ describe("WorkflowController", () => {
         "wv-other-lineage",
       );
     });
+
+    // -----------------------------------------------------------------------
+    // US-112 — `uploadSpec?` extension for `source.upload`
+    // -----------------------------------------------------------------------
+    describe("US-112: uploadSpec extension", () => {
+      // Synthetic source.upload entry — Zod schema's `.default(...)`
+      // mirrors the documented DOCUMENT_SOURCES_DESIGN.md §3.2 defaults
+      // and matches what US-116 will register.
+      const fakeSourceUploadEntry: SourceCatalogEntry = {
+        type: "source.upload",
+        category: "source",
+        displayName: "File upload (test)",
+        description: "Synthetic source.upload entry used in controller tests",
+        parametersSchema: z.object({
+          allowedMimeTypes: z
+            .array(z.string())
+            .default(["application/pdf", "image/*"]),
+          maxFileSizeMB: z.number().default(50),
+          ctxKey: z.string().default("documentUrl"),
+        }),
+        runtime: "manual",
+        outputKind: "Document",
+        deriveOutputSchema: (parameters) => {
+          const ctxKey =
+            typeof parameters?.ctxKey === "string"
+              ? parameters.ctxKey
+              : "documentUrl";
+          return {
+            type: "object",
+            properties: { [ctxKey]: { type: "string", format: "uri" } },
+            required: [ctxKey],
+          };
+        },
+      };
+
+      // Synthetic source.api entry — minimal `fields[]` → JSON Schema
+      // derivation, sufficient to exercise the `inputSchema` + `uploadSpec`
+      // co-existence branch.
+      const fakeSourceApiEntry: SourceCatalogEntry = {
+        type: "source.api",
+        category: "source",
+        displayName: "API endpoint (test)",
+        description: "Synthetic source.api entry used in controller tests",
+        parametersSchema: z.object({}).passthrough(),
+        runtime: "push",
+        outputKind: "Artifact",
+        deriveOutputSchema: (parameters) => {
+          const fields =
+            (parameters?.fields as
+              | {
+                  name: string;
+                  type: "string" | "number" | "boolean" | "object" | "array";
+                  required?: boolean;
+                }[]
+              | undefined) ?? [];
+          const properties: Record<string, { type: string }> = {};
+          const required: string[] = [];
+          for (const f of fields) {
+            properties[f.name] = { type: f.type };
+            if (f.required) required.push(f.name);
+          }
+          return { type: "object", properties, required };
+        },
+      };
+
+      afterEach(() => {
+        setSourceCatalog([]);
+      });
+
+      it("Scenario 1: includes uploadSpec when a source.upload node exists", async () => {
+        setSourceCatalog([fakeSourceUploadEntry]);
+        const wf: WorkflowInfo = {
+          ...mockWorkflowInfo,
+          config: {
+            ...mockGraphConfig,
+            ctx: {},
+            nodes: {
+              ...mockGraphConfig.nodes,
+              upload: {
+                id: "upload",
+                type: "source",
+                label: "Upload",
+                sourceType: "source.upload",
+                parameters: {
+                  ctxKey: "myFile",
+                  allowedMimeTypes: ["application/pdf"],
+                  maxFileSizeMB: 25,
+                },
+              },
+            },
+          },
+        };
+        workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+
+        const result = await controller.getRunSpec(
+          "wf-1",
+          undefined,
+          mockReq(),
+        );
+
+        expect(result.uploadSpec).toEqual({
+          sourceNodeId: "upload",
+          uploadUrl:
+            "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
+          allowedMimeTypes: ["application/pdf"],
+          maxFileSizeMB: 25,
+          ctxKey: "myFile",
+        });
+      });
+
+      it("Scenario 1 (defaults): fills in catalog defaults when source omits parameters", async () => {
+        setSourceCatalog([fakeSourceUploadEntry]);
+        const wf: WorkflowInfo = {
+          ...mockWorkflowInfo,
+          config: {
+            ...mockGraphConfig,
+            ctx: {},
+            nodes: {
+              ...mockGraphConfig.nodes,
+              upload: {
+                id: "upload",
+                type: "source",
+                label: "Upload",
+                sourceType: "source.upload",
+              },
+            },
+          },
+        };
+        workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+
+        const result = await controller.getRunSpec(
+          "wf-1",
+          undefined,
+          mockReq(),
+        );
+
+        expect(result.uploadSpec).toEqual({
+          sourceNodeId: "upload",
+          uploadUrl:
+            "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
+          allowedMimeTypes: ["application/pdf", "image/*"],
+          maxFileSizeMB: 50,
+          ctxKey: "documentUrl",
+        });
+      });
+
+      it("Scenario 2: omits uploadSpec entirely when no source.upload node exists", async () => {
+        setSourceCatalog([]);
+        const wfWithInput: WorkflowInfo = {
+          ...mockWorkflowInfo,
+          config: {
+            ...mockGraphConfig,
+            ctx: {
+              customerId: { type: "string", isInput: true },
+            },
+          },
+        };
+        workflowService.resolveLineageAndVersion.mockResolvedValue(wfWithInput);
+
+        const result = await controller.getRunSpec(
+          "wf-1",
+          undefined,
+          mockReq(),
+        );
+
+        expect("uploadSpec" in result).toBe(false);
+        expect(result.uploadSpec).toBeUndefined();
+      });
+
+      it("Scenario 3: includes BOTH inputSchema (from source.api) AND uploadSpec when both source nodes exist", async () => {
+        setSourceCatalog([fakeSourceApiEntry, fakeSourceUploadEntry]);
+        const wf: WorkflowInfo = {
+          ...mockWorkflowInfo,
+          config: {
+            ...mockGraphConfig,
+            ctx: {},
+            nodes: {
+              ...mockGraphConfig.nodes,
+              api: {
+                id: "api",
+                type: "source",
+                label: "API",
+                sourceType: "source.api",
+                parameters: {
+                  fields: [
+                    { name: "customerId", type: "string", required: true },
+                  ],
+                },
+              },
+              upload: {
+                id: "upload",
+                type: "source",
+                label: "Upload",
+                sourceType: "source.upload",
+                parameters: { ctxKey: "myFile" },
+              },
+            },
+          },
+        };
+        workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+
+        const result = await controller.getRunSpec(
+          "wf-1",
+          undefined,
+          mockReq(),
+        );
+
+        // inputSchema derived from source.api (per US-111 precedence)
+        expect(Object.keys(result.inputSchema.properties)).toEqual([
+          "customerId",
+        ]);
+        expect(result.inputSchema.required).toEqual(["customerId"]);
+
+        // uploadSpec populated from source.upload
+        expect(result.uploadSpec).toBeDefined();
+        expect(result.uploadSpec?.sourceNodeId).toBe("upload");
+        expect(result.uploadSpec?.ctxKey).toBe("myFile");
+        expect(result.uploadSpec?.uploadUrl).toBe(
+          "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
+        );
+        // Defaults still applied for omitted fields
+        expect(result.uploadSpec?.allowedMimeTypes).toEqual([
+          "application/pdf",
+          "image/*",
+        ]);
+        expect(result.uploadSpec?.maxFileSizeMB).toBe(50);
+      });
+    });
   });
 
   describe("startRun", () => {
@@ -803,6 +1073,635 @@ describe("WorkflowController", () => {
         undefined,
       );
       expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    // -----------------------------------------------------------------------
+    // US-113 — `POST /runs` body validation honors the Phase 8 precedence
+    // (source.api > library > isInput > empty). The controller already calls
+    // `deriveInputSchema(wf.config)` directly, and US-111 extended that
+    // helper to honor source.api — so the precedence applies automatically.
+    // These tests pin the contract: source.api drives /runs validation, the
+    // legacy isInput path still works, extras are accepted (matches the
+    // existing Phase 2 Track 2 semantics in `validateRunInput`), and the
+    // selected workflowVersionId picks the right config to derive from.
+    // -----------------------------------------------------------------------
+    describe("US-113: source.api precedence drives /runs body validation", () => {
+      // Synthetic source.api entry — mirrors the one used in the
+      // /run-spec US-112 describe block above. Each test sets the
+      // per-test registry via `setSourceCatalog([...])`.
+      const fakeSourceApiEntry: SourceCatalogEntry = {
+        type: "source.api",
+        category: "source",
+        displayName: "API endpoint (test)",
+        description: "Synthetic source.api entry used in /runs tests",
+        parametersSchema: z.object({}).passthrough(),
+        runtime: "push",
+        outputKind: "Artifact",
+        deriveOutputSchema: (parameters) => {
+          const fields =
+            (parameters?.fields as
+              | {
+                  name: string;
+                  type: "string" | "number" | "boolean" | "object" | "array";
+                  required?: boolean;
+                }[]
+              | undefined) ?? [];
+          const properties: Record<string, { type: string }> = {};
+          const required: string[] = [];
+          for (const f of fields) {
+            properties[f.name] = { type: f.type };
+            if (f.required) required.push(f.name);
+          }
+          return { type: "object", properties, required };
+        },
+      };
+
+      const wfWithSourceApi = (
+        fields: Array<{
+          name: string;
+          type: "string" | "number" | "boolean" | "object" | "array";
+          required?: boolean;
+        }>,
+        overrides: Partial<WorkflowInfo> = {},
+      ): WorkflowInfo => ({
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          ctx: {},
+          nodes: {
+            ...mockGraphConfig.nodes,
+            api: {
+              id: "api",
+              type: "source",
+              label: "API",
+              sourceType: "source.api",
+              parameters: { fields },
+            },
+          },
+        },
+        ...overrides,
+      });
+
+      afterEach(() => {
+        setSourceCatalog([]);
+      });
+
+      // ---------------------------------------------------------------------
+      // Scenario 1: source.api fields drive /runs validation
+      // ---------------------------------------------------------------------
+      it("Scenario 1: returns 400 when source.api required field is missing, succeeds when provided", async () => {
+        setSourceCatalog([fakeSourceApiEntry]);
+        const wf = wfWithSourceApi([
+          { name: "documentUrl", type: "string", required: true },
+        ]);
+        workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+
+        // Missing required `documentUrl` → 400 with `documentUrl` in errors
+        const { BadRequestException } = await import("@nestjs/common");
+        let caught: unknown;
+        try {
+          await controller.startRun("wf-1", { initialCtx: {} }, mockReq());
+        } catch (err) {
+          caught = err;
+        }
+        expect(caught).toBeInstanceOf(BadRequestException);
+        const bre = caught as InstanceType<typeof BadRequestException>;
+        const response = bre.getResponse() as {
+          message: string;
+          errors: Array<{ path: string; message: string }>;
+        };
+        expect(response.errors.map((e) => e.path)).toContain("documentUrl");
+        expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+
+        // Providing the field → succeeds, starts a Temporal execution
+        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-doc");
+        const result = await controller.startRun(
+          "wf-1",
+          { initialCtx: { documentUrl: "https://example.com/doc.pdf" } },
+          mockReq(),
+        );
+        expect(result).toEqual({
+          workflowId: "graph-adhoc-doc",
+          workflowVersionId: "wv-wf-1",
+          status: "started",
+        });
+        expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+          undefined,
+          "wv-wf-1",
+          { documentUrl: "https://example.com/doc.pdf" },
+          "group-1",
+        );
+      });
+
+      // ---------------------------------------------------------------------
+      // Scenario 2: legacy `isInput` fallback unchanged
+      //
+      // When the workflow has NO source nodes and an `isInput`-flagged ctx
+      // entry, body validation derives from `ctx[]` exactly as Phase 2
+      // Track 2 — no behaviour change. The pre-existing tests above
+      // ("returns 400 when initialCtx is missing a required field" and
+      // "starts a Temporal run and returns the execution id") cover this
+      // path against `wfWithCustomerInput`. This test re-asserts the same
+      // path inside the US-113 block with the catalog empty, pinning the
+      // contract that an unrelated source catalog has no effect on
+      // legacy workflows.
+      // ---------------------------------------------------------------------
+      it("Scenario 2: legacy isInput-flagged ctx still drives validation when no source.api node exists", async () => {
+        setSourceCatalog([]);
+        workflowService.resolveLineageAndVersion.mockResolvedValue(
+          wfWithCustomerInput,
+        );
+
+        // Missing required `customerId` → 400 (isInput path unchanged)
+        const { BadRequestException } = await import("@nestjs/common");
+        await expect(
+          controller.startRun("wf-1", { initialCtx: {} }, mockReq()),
+        ).rejects.toThrow(BadRequestException);
+        expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+
+        // Providing it → succeeds
+        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-leg");
+        const result = await controller.startRun(
+          "wf-1",
+          { initialCtx: { customerId: "cust-1" } },
+          mockReq(),
+        );
+        expect(result.workflowId).toBe("graph-adhoc-leg");
+      });
+
+      // ---------------------------------------------------------------------
+      // Scenario 3: source.api with 2 fields — extras coexist with the
+      // declared inputs (matches `validateRunInput`'s Phase 2 Track 2
+      // semantics: extras are permitted, not strict-rejected). What this
+      // scenario locks in: the 2 declared source.api fields ARE what
+      // drives validation — typing them correctly is required, and
+      // typing them wrong still surfaces a 400 with the source.api field
+      // name. Adding an additional non-declared key does not affect the
+      // outcome.
+      // ---------------------------------------------------------------------
+      it("Scenario 3: source.api fields gate validation; extras are accepted alongside (Phase 2 Track 2 parity)", async () => {
+        setSourceCatalog([fakeSourceApiEntry]);
+        const wf = wfWithSourceApi([
+          { name: "documentUrl", type: "string", required: true },
+          { name: "priority", type: "number", required: false },
+        ]);
+        workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+
+        // Wrong type for a source.api field → 400, error path is the
+        // source.api field name (proves source.api drives the schema)
+        const { BadRequestException } = await import("@nestjs/common");
+        let caught: unknown;
+        try {
+          await controller.startRun(
+            "wf-1",
+            {
+              initialCtx: {
+                documentUrl: 42,
+                priority: 1,
+                extra: true,
+              },
+            },
+            mockReq(),
+          );
+        } catch (err) {
+          caught = err;
+        }
+        expect(caught).toBeInstanceOf(BadRequestException);
+        const bre = caught as InstanceType<typeof BadRequestException>;
+        const response = bre.getResponse() as {
+          message: string;
+          errors: Array<{ path: string; message: string }>;
+        };
+        expect(response.errors.map((e) => e.path)).toContain("documentUrl");
+        expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+
+        // Body with both declared fields typed correctly + an unknown extra
+        // → succeeds (extras are permitted, same as Phase 2 Track 2)
+        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-ex");
+        const result = await controller.startRun(
+          "wf-1",
+          {
+            initialCtx: {
+              documentUrl: "https://example.com/doc.pdf",
+              priority: 1,
+              extra: true,
+            },
+          },
+          mockReq(),
+        );
+        expect(result.workflowId).toBe("graph-adhoc-ex");
+        expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+          undefined,
+          "wv-wf-1",
+          {
+            documentUrl: "https://example.com/doc.pdf",
+            priority: 1,
+            extra: true,
+          },
+          "group-1",
+        );
+      });
+
+      // ---------------------------------------------------------------------
+      // Scenario 4: workflowVersionId pins schema derivation to THAT
+      // version's config (NOT the head). The controller calls
+      // `resolveLineageAndVersion(id, body.workflowVersionId)` and then
+      // `deriveInputSchema(wf.config)` — so the schema follows whatever
+      // config the service returns for the requested version.
+      // ---------------------------------------------------------------------
+      it("Scenario 4: validates against the pinned workflowVersionId's source.api (not head)", async () => {
+        setSourceCatalog([fakeSourceApiEntry]);
+        // v1 declares a `documentUrl: string/required` source.api field.
+        // Head (v2, not exercised here) might differ — the test pins the
+        // contract that the schema comes from THIS version's config.
+        const v1 = wfWithSourceApi(
+          [{ name: "documentUrl", type: "string", required: true }],
+          { workflowVersionId: "wv-v1", version: 1 },
+        );
+        workflowService.resolveLineageAndVersion.mockResolvedValue(v1);
+        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-v1");
+
+        const result = await controller.startRun(
+          "wf-1",
+          {
+            workflowVersionId: "wv-v1",
+            initialCtx: { documentUrl: "https://example.com/v1.pdf" },
+          },
+          mockReq(),
+        );
+
+        // Service was asked for v1, NOT head
+        expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+          "wf-1",
+          "wv-v1",
+        );
+        // Temporal execution pinned to v1
+        expect(result).toEqual({
+          workflowId: "graph-adhoc-v1",
+          workflowVersionId: "wv-v1",
+          status: "started",
+        });
+        expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+          undefined,
+          "wv-v1",
+          { documentUrl: "https://example.com/v1.pdf" },
+          "group-1",
+        );
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-114 — `POST /:id/sources/:sourceNodeId/upload` multipart endpoint
+  // ---------------------------------------------------------------------------
+  describe("uploadToSource (US-114)", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    // Synthetic source.upload catalog entry — same shape as US-112/113
+    // tests; defaults match DOCUMENT_SOURCES_DESIGN.md §3.2.
+    const fakeSourceUploadEntry: SourceCatalogEntry = {
+      type: "source.upload",
+      category: "source",
+      displayName: "File upload (test)",
+      description: "Synthetic source.upload entry used in controller tests",
+      parametersSchema: z.object({
+        allowedMimeTypes: z
+          .array(z.string())
+          .default(["application/pdf", "image/*"]),
+        maxFileSizeMB: z.number().default(50),
+        ctxKey: z.string().default("documentUrl"),
+      }),
+      runtime: "manual",
+      outputKind: "Document",
+      deriveOutputSchema: (parameters) => {
+        const ctxKey =
+          typeof parameters?.ctxKey === "string"
+            ? parameters.ctxKey
+            : "documentUrl";
+        return {
+          type: "object",
+          properties: { [ctxKey]: { type: "string", format: "uri" } },
+          required: [ctxKey],
+        };
+      },
+    };
+
+    // Synthetic source.api catalog entry — used by Scenario 3 (wrong
+    // subtype) to populate a source.api node and verify the controller
+    // 400s when the URL points at it.
+    const fakeSourceApiEntry: SourceCatalogEntry = {
+      type: "source.api",
+      category: "source",
+      displayName: "API endpoint (test)",
+      description: "Synthetic source.api entry used in controller tests",
+      parametersSchema: z.object({}).passthrough(),
+      runtime: "push",
+      outputKind: "Artifact",
+      deriveOutputSchema: () => ({ type: "object", properties: {} }),
+    };
+
+    const makeFile = (
+      overrides: Partial<Express.Multer.File> = {},
+    ): Express.Multer.File =>
+      ({
+        fieldname: "file",
+        originalname: "doc.pdf",
+        encoding: "7bit",
+        mimetype: "application/pdf",
+        buffer: Buffer.from("pdf payload"),
+        size: 1024 * 1024, // 1MB
+        stream: undefined as unknown as Express.Multer.File["stream"],
+        destination: "",
+        filename: "",
+        path: "",
+        ...overrides,
+      }) as Express.Multer.File;
+
+    afterEach(() => {
+      setSourceCatalog([]);
+    });
+
+    // -------------------------------------------------------------------
+    // Scenario 1: Happy-path upload returns ctxKey-keyed response
+    // -------------------------------------------------------------------
+    it("Scenario 1: returns { [ctxKey]: <blobKey> } on a successful upload", async () => {
+      setSourceCatalog([fakeSourceUploadEntry]);
+      const wf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          nodes: {
+            ...mockGraphConfig.nodes,
+            upload: {
+              id: "upload",
+              type: "source",
+              label: "Upload",
+              sourceType: "source.upload",
+              parameters: {
+                ctxKey: "myFile",
+                allowedMimeTypes: ["application/pdf"],
+                maxFileSizeMB: 25,
+              },
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+      sourceUploadService.uploadFileForSource.mockResolvedValue(
+        "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
+      );
+
+      const file = makeFile();
+      const result = await controller.uploadToSource(
+        "wf-1",
+        "upload",
+        file,
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        myFile: "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
+      });
+      // Only the ctxKey-keyed entry — no extra properties.
+      expect(Object.keys(result)).toEqual(["myFile"]);
+
+      // SourceUploadService received the file payload, the resolved
+      // (defaults-merged) parameters, and the workflow / node ids.
+      expect(sourceUploadService.uploadFileForSource).toHaveBeenCalledWith(
+        file,
+        {
+          ctxKey: "myFile",
+          allowedMimeTypes: ["application/pdf"],
+          maxFileSizeMB: 25,
+        },
+        "group-1",
+        "wf-1",
+        "upload",
+      );
+    });
+
+    // -------------------------------------------------------------------
+    // Scenario 2: 404 on unknown workflow / source node
+    // -------------------------------------------------------------------
+    it("Scenario 2a: 404 when the workflow id does not exist", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockRejectedValue(
+        new NotFoundException("Workflow not found: missing"),
+      );
+
+      await expect(
+        controller.uploadToSource("missing", "upload", makeFile(), mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(sourceUploadService.uploadFileForSource).not.toHaveBeenCalled();
+    });
+
+    it("Scenario 2b: 404 when the sourceNodeId is not in the workflow's nodes", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      setSourceCatalog([fakeSourceUploadEntry]);
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(
+        controller.uploadToSource(
+          "wf-1",
+          "unknown-node",
+          makeFile(),
+          mockReq(),
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(sourceUploadService.uploadFileForSource).not.toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------------
+    // Scenario 3: 400 on wrong source subtype
+    // -------------------------------------------------------------------
+    it("Scenario 3: 400 when the resolved node is a source.api (not source.upload)", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      setSourceCatalog([fakeSourceUploadEntry, fakeSourceApiEntry]);
+      const wfWithApi: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          nodes: {
+            ...mockGraphConfig.nodes,
+            api: {
+              id: "api",
+              type: "source",
+              label: "API",
+              sourceType: "source.api",
+              parameters: { fields: [] },
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wfWithApi);
+
+      await expect(
+        controller.uploadToSource("wf-1", "api", makeFile(), mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.uploadToSource("wf-1", "api", makeFile(), mockReq()),
+      ).rejects.toThrow(/source\.api/);
+      expect(sourceUploadService.uploadFileForSource).not.toHaveBeenCalled();
+    });
+
+    it("Scenario 3 (regression): 400 when the resolved node is a plain activity, not a source", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      setSourceCatalog([fakeSourceUploadEntry]);
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      // The default `mockGraphConfig` has an `activity` node id `start`.
+      await expect(
+        controller.uploadToSource("wf-1", "start", makeFile(), mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      expect(sourceUploadService.uploadFileForSource).not.toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------------
+    // Scenario 4: 400 on MIME mismatch
+    //
+    // MIME validation lives inside SourceUploadService, so we exercise
+    // the controller's propagation by having the service reject with the
+    // matching exception type.
+    // -------------------------------------------------------------------
+    it("Scenario 4: 400 when SourceUploadService rejects with MIME mismatch", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      setSourceCatalog([fakeSourceUploadEntry]);
+      const wf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          nodes: {
+            ...mockGraphConfig.nodes,
+            upload: {
+              id: "upload",
+              type: "source",
+              label: "Upload",
+              sourceType: "source.upload",
+              parameters: { allowedMimeTypes: ["application/pdf"] },
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+      sourceUploadService.uploadFileForSource.mockRejectedValue(
+        new BadRequestException(
+          "File MIME type `image/png` is not permitted by this source. Allowed: [application/pdf]",
+        ),
+      );
+
+      await expect(
+        controller.uploadToSource(
+          "wf-1",
+          "upload",
+          makeFile({ mimetype: "image/png" }),
+          mockReq(),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.uploadToSource(
+          "wf-1",
+          "upload",
+          makeFile({ mimetype: "image/png" }),
+          mockReq(),
+        ),
+      ).rejects.toThrow(/image\/png/);
+    });
+
+    // -------------------------------------------------------------------
+    // Scenario 5: 413 on oversized file
+    //
+    // Project precedent (dataset.controller.ts) uses
+    // PayloadTooLargeException (413) for size limits — we mirror that.
+    // -------------------------------------------------------------------
+    it("Scenario 5: 413 when SourceUploadService rejects with PayloadTooLargeException", async () => {
+      const { PayloadTooLargeException } = await import("@nestjs/common");
+      setSourceCatalog([fakeSourceUploadEntry]);
+      const wf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          nodes: {
+            ...mockGraphConfig.nodes,
+            upload: {
+              id: "upload",
+              type: "source",
+              label: "Upload",
+              sourceType: "source.upload",
+              parameters: { maxFileSizeMB: 5 },
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+      sourceUploadService.uploadFileForSource.mockRejectedValue(
+        new PayloadTooLargeException(
+          "File `huge.pdf` (10485760 bytes) exceeds the source's maximum size of 5 MB",
+        ),
+      );
+
+      await expect(
+        controller.uploadToSource(
+          "wf-1",
+          "upload",
+          makeFile({ size: 10 * 1024 * 1024, originalname: "huge.pdf" }),
+          mockReq(),
+        ),
+      ).rejects.toThrow(PayloadTooLargeException);
+    });
+
+    // -------------------------------------------------------------------
+    // Scenario 6: Endpoint is upload-only — does NOT trigger workflow run
+    // -------------------------------------------------------------------
+    it("Scenario 6: does NOT call temporalClient.startGraphWorkflow on a successful upload", async () => {
+      setSourceCatalog([fakeSourceUploadEntry]);
+      const wf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          nodes: {
+            ...mockGraphConfig.nodes,
+            upload: {
+              id: "upload",
+              type: "source",
+              label: "Upload",
+              sourceType: "source.upload",
+              parameters: { ctxKey: "documentUrl" },
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+      sourceUploadService.uploadFileForSource.mockResolvedValue(
+        "group-1/ocr/workflow-uploads/wf-1/upload/abc-doc.pdf",
+      );
+
+      await controller.uploadToSource("wf-1", "upload", makeFile(), mockReq());
+
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------------
+    // Additional: missing file part -> 400 (covers the controller guard
+    // when the multipart body has no `file` field).
+    // -------------------------------------------------------------------
+    it("returns 400 when the request has no file part", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+
+      await expect(
+        controller.uploadToSource("wf-1", "upload", undefined, mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      expect(workflowService.resolveLineageAndVersion).not.toHaveBeenCalled();
     });
   });
 

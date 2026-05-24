@@ -1,5 +1,12 @@
+import { z } from "zod/v4";
+
 import { deriveInputSchema } from "./derive-input-schema";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
+import type {
+  GraphWorkflowConfig,
+  JsonSchema7,
+  SourceCatalogEntry,
+  SourceNode,
+} from "./graph-workflow-types";
 
 const baseConfig = (
   overrides: Partial<GraphWorkflowConfig>,
@@ -169,6 +176,267 @@ describe("deriveInputSchema", () => {
         properties: {},
         required: [],
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // US-111 — source.api precedence over library / isInput / empty
+  // -------------------------------------------------------------------------
+  describe("US-111: deriveInputSchema precedence (source.api > library > isInput > empty)", () => {
+    /**
+     * Synthetic source.api catalog entry. The real entry is registered
+     * by US-115; until then tests inject this fake via the
+     * `getSourceCatalogEntry` option (mirrors the validator's injection
+     * pattern in `ValidateGraphConfigOptions.getSourceCatalogEntry`).
+     */
+    const fakeSourceApiEntry: SourceCatalogEntry = {
+      type: "source.api",
+      category: "source",
+      displayName: "API endpoint (test)",
+      description: "Synthetic source.api entry used in unit tests",
+      parametersSchema: z.object({}).passthrough(),
+      runtime: "push",
+      outputKind: "Artifact",
+      deriveOutputSchema: (parameters) => {
+        const fields =
+          (parameters?.fields as
+            | {
+                name: string;
+                type: "string" | "number" | "boolean" | "object" | "array";
+                required?: boolean;
+                description?: string;
+                defaultValue?: unknown;
+              }[]
+            | undefined) ?? [];
+        const properties: Record<string, JsonSchema7> = {};
+        const required: string[] = [];
+        for (const f of fields) {
+          const prop: JsonSchema7 = { type: f.type };
+          if (f.description) prop.description = f.description;
+          if (f.defaultValue !== undefined) prop.default = f.defaultValue;
+          properties[f.name] = prop;
+          if (f.required) required.push(f.name);
+        }
+        return { type: "object", properties, required };
+      },
+    };
+
+    const synthLookup = (sourceType: string) =>
+      sourceType === "source.api" ? fakeSourceApiEntry : undefined;
+
+    const sourceApiNode = (
+      parameters: Record<string, unknown>,
+    ): SourceNode => ({
+      id: "src-1",
+      type: "source",
+      label: "API source",
+      sourceType: "source.api",
+      parameters,
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 1: source.api wins over isInput-flagged ctx
+    // ---------------------------------------------------------------------
+    it("Scenario 1: source.api wins over isInput-flagged ctx", () => {
+      const config = baseConfig({
+        ctx: {
+          legacyInput: {
+            type: "string",
+            isInput: true,
+            description: "Should be IGNORED when source.api is present",
+          },
+        },
+        nodes: {
+          src: sourceApiNode({
+            fields: [
+              {
+                name: "customerId",
+                type: "string",
+                required: true,
+                description: "from source.api",
+              },
+              { name: "count", type: "number", required: false },
+            ],
+          }),
+          noop: {
+            id: "noop",
+            type: "activity",
+            label: "Noop",
+            activityType: "noop.activity",
+          },
+        },
+      });
+
+      const schema = deriveInputSchema(config, {
+        getSourceCatalogEntry: synthLookup,
+      });
+
+      expect(Object.keys(schema.properties)).toEqual(["customerId", "count"]);
+      expect(schema.properties.customerId).toEqual({
+        type: "string",
+        description: "from source.api",
+      });
+      expect(schema.properties.count).toEqual({ type: "number" });
+      expect(schema.required).toEqual(["customerId"]);
+      expect(schema.properties).not.toHaveProperty("legacyInput");
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 1b: source.api wins over library inputs[] too
+    // ---------------------------------------------------------------------
+    it("Scenario 1b: source.api wins over library metadata.inputs[]", () => {
+      const config = baseConfig({
+        metadata: {
+          kind: "library",
+          inputs: [{ label: "Ignored", path: "ignored", type: "string" }],
+        },
+        nodes: {
+          src: sourceApiNode({
+            fields: [{ name: "winner", type: "string", required: true }],
+          }),
+          noop: {
+            id: "noop",
+            type: "activity",
+            label: "Noop",
+            activityType: "noop.activity",
+          },
+        },
+      });
+
+      const schema = deriveInputSchema(config, {
+        getSourceCatalogEntry: synthLookup,
+      });
+
+      expect(Object.keys(schema.properties)).toEqual(["winner"]);
+      expect(schema.required).toEqual(["winner"]);
+      expect(schema.properties).not.toHaveProperty("ignored");
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 2: library inputs[] wins when no source.api
+    // ---------------------------------------------------------------------
+    it("Scenario 2: library inputs[] wins when no source.api node is present", () => {
+      const config = baseConfig({
+        metadata: {
+          kind: "library",
+          inputs: [
+            { label: "Foo", path: "foo", type: "string" },
+            { label: "Bar", path: "bar", type: "number" },
+          ],
+        },
+        ctx: { ignoreMe: { type: "string", isInput: true } },
+      });
+
+      const schema = deriveInputSchema(config, {
+        getSourceCatalogEntry: synthLookup,
+      });
+
+      expect(schema).toEqual({
+        type: "object",
+        properties: {
+          foo: { type: "string", title: "Foo" },
+          bar: { type: "number", title: "Bar" },
+        },
+        required: ["foo", "bar"],
+      });
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3: isInput wins when no source.api + no library
+    // ---------------------------------------------------------------------
+    it("Scenario 3: isInput-flagged ctx wins when no source.api and no library", () => {
+      const config = baseConfig({
+        ctx: {
+          customerId: {
+            type: "string",
+            isInput: true,
+            description: "Customer to process",
+          },
+          internalCounter: { type: "number" },
+        },
+      });
+
+      const schema = deriveInputSchema(config, {
+        getSourceCatalogEntry: synthLookup,
+      });
+
+      expect(schema.properties.customerId).toEqual({
+        type: "string",
+        description: "Customer to process",
+      });
+      expect(schema.required).toEqual(["customerId"]);
+      expect(schema.properties).not.toHaveProperty("internalCounter");
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 4: empty schema fallback when none of the above
+    // ---------------------------------------------------------------------
+    it("Scenario 4: empty schema fallback when no source.api, no library, no isInput ctx", () => {
+      const config = baseConfig({
+        ctx: { internalOnly: { type: "string" } },
+      });
+
+      const schema = deriveInputSchema(config, {
+        getSourceCatalogEntry: synthLookup,
+      });
+
+      expect(schema).toEqual({
+        type: "object",
+        properties: {},
+        required: [],
+      });
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 5: source.api with empty fields[] → empty-object schema
+    // ---------------------------------------------------------------------
+    it("Scenario 5: source.api with empty fields[] returns empty-object schema", () => {
+      const config = baseConfig({
+        nodes: {
+          src: sourceApiNode({ fields: [] }),
+          noop: {
+            id: "noop",
+            type: "activity",
+            label: "Noop",
+            activityType: "noop.activity",
+          },
+        },
+      });
+
+      const schema = deriveInputSchema(config, {
+        getSourceCatalogEntry: synthLookup,
+      });
+
+      expect(schema).toEqual({
+        type: "object",
+        properties: {},
+        required: [],
+      });
+    });
+
+    // ---------------------------------------------------------------------
+    // Safety: an unresolved source.api (catalog empty) throws — mirrors
+    // `deriveSourceOutputSchema`. Production calls only happen once the
+    // catalog is populated (US-115); the validator gates upstream.
+    // ---------------------------------------------------------------------
+    it("throws when a source.api node is present but the catalog lookup returns undefined", () => {
+      const config = baseConfig({
+        nodes: {
+          src: sourceApiNode({ fields: [] }),
+          noop: {
+            id: "noop",
+            type: "activity",
+            label: "Noop",
+            activityType: "noop.activity",
+          },
+        },
+      });
+
+      expect(() =>
+        deriveInputSchema(config, {
+          getSourceCatalogEntry: () => undefined,
+        }),
+      ).toThrow(/Unknown source type/);
     });
   });
 });

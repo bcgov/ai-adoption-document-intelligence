@@ -1,16 +1,45 @@
+import {
+  getSourceCatalogEntry as defaultGetSourceCatalogEntry,
+  type SourceCatalogEntry,
+} from "@ai-di/graph-workflow";
 import type { Request } from "express";
 import {
   deriveInputSchema,
   type InputJsonSchema,
   type InputJsonSchemaProperty,
 } from "./derive-input-schema";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
+import type { GraphWorkflowConfig, SourceNode } from "./graph-workflow-types";
 
 export interface RunSpec {
   triggerUrl: string;
   inputSchema: InputJsonSchema;
   authNotes: string;
   sampleCurl: string;
+}
+
+/**
+ * Phase 8 — upload-source metadata surfaced by `/run-spec` when a
+ * `source.upload` node exists in the workflow. Matches
+ * DOCUMENT_SOURCES_DESIGN.md §4.3.
+ */
+export interface UploadSpec {
+  sourceNodeId: string;
+  uploadUrl: string;
+  allowedMimeTypes: string[];
+  maxFileSizeMB: number;
+  ctxKey: string;
+}
+
+/**
+ * Optional injection seam used by tests until US-116 lands the real
+ * `source.upload` catalog entry. Mirrors the same pattern used by
+ * `DeriveInputSchemaOptions.getSourceCatalogEntry` (US-111) and
+ * `ValidateGraphConfigOptions.getSourceCatalogEntry` (validator).
+ */
+export interface BuildUploadSpecOptions {
+  getSourceCatalogEntry?: (
+    sourceType: string,
+  ) => SourceCatalogEntry | undefined;
 }
 
 const DEFAULT_LOCAL_BASE = "http://localhost:3002";
@@ -23,18 +52,28 @@ const AUTH_NOTES =
 /**
  * Resolve the absolute base URL the request was made on. Derived from
  * the request's `X-Forwarded-Proto` + `Host` headers (set by every
- * reverse proxy we run behind) with a local-dev fallback. The endpoint
- * uses this to emit a copyable absolute trigger URL.
+ * reverse proxy we run behind) with a local-dev fallback.
+ *
+ * Shared by `buildTriggerUrl` and the controller's `buildUploadSpec`
+ * wiring so per-resource paths can be appended without duplicating the
+ * proxy-header logic.
  */
-export function buildTriggerUrl(req: Request, workflowId: string): string {
+export function buildBaseUrl(req: Request): string {
   const forwardedProto = req.headers["x-forwarded-proto"];
   const protoHeader = Array.isArray(forwardedProto)
     ? forwardedProto[0]
     : forwardedProto;
   const proto = protoHeader ?? req.protocol;
   const host = req.headers.host;
-  const base = host ? `${proto}://${host}` : DEFAULT_LOCAL_BASE;
-  return `${base}/api/workflows/${workflowId}/runs`;
+  return host ? `${proto}://${host}` : DEFAULT_LOCAL_BASE;
+}
+
+/**
+ * Resolve the absolute trigger URL the request was made on. The
+ * endpoint uses this to emit a copyable absolute URL.
+ */
+export function buildTriggerUrl(req: Request, workflowId: string): string {
+  return `${buildBaseUrl(req)}/api/workflows/${workflowId}/runs`;
 }
 
 /**
@@ -98,4 +137,77 @@ function stubForType(property: InputJsonSchemaProperty): unknown {
     case "array":
       return [];
   }
+}
+
+/**
+ * Shape of the parsed `source.upload` parameters after the catalog
+ * entry's `parametersSchema.parse(...)` fills in defaults. Mirrors the
+ * fields documented in DOCUMENT_SOURCES_DESIGN.md §3.2.
+ */
+interface SourceUploadParameters {
+  allowedMimeTypes?: string[];
+  maxFileSizeMB?: number;
+  ctxKey?: string;
+}
+
+const DEFAULT_ALLOWED_MIME_TYPES: readonly string[] = [
+  "application/pdf",
+  "image/*",
+];
+const DEFAULT_MAX_FILE_SIZE_MB = 50;
+const DEFAULT_CTX_KEY = "documentUrl";
+
+/**
+ * Locate the single `source.upload` node in the config. Mirrors
+ * `derive-input-schema.ts`'s inline `findSourceApiNode` pattern; kept
+ * tiny and inlined into a single call site below.
+ */
+function findSourceUploadNode(
+  config: GraphWorkflowConfig,
+): SourceNode | undefined {
+  for (const node of Object.values(config.nodes)) {
+    if (node.type === "source" && node.sourceType === "source.upload") {
+      return node;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Build the optional `uploadSpec` portion of `GET /run-spec` when a
+ * `source.upload` node exists in the config. Returns `undefined` when
+ * the workflow has no source.upload — the controller then omits the
+ * field from the response (Scenario 2).
+ *
+ * Defaults documented in DOCUMENT_SOURCES_DESIGN.md §3.2 are sourced
+ * from the catalog entry's `parametersSchema` (US-116). The `??`
+ * fallbacks are belt-and-braces in case the schema's defaults are
+ * tweaked in future revisions.
+ */
+export function buildUploadSpec(
+  config: GraphWorkflowConfig,
+  workflowId: string,
+  baseUrl: string,
+  options: BuildUploadSpecOptions = {},
+): UploadSpec | undefined {
+  const sourceNode = findSourceUploadNode(config);
+  if (!sourceNode) return undefined;
+
+  const lookup = options.getSourceCatalogEntry ?? defaultGetSourceCatalogEntry;
+  const entry = lookup(sourceNode.sourceType);
+  if (!entry) return undefined; // upstream validator (US-109) catches this
+
+  const resolvedParams = entry.parametersSchema.parse(
+    sourceNode.parameters ?? {},
+  ) as SourceUploadParameters;
+
+  return {
+    sourceNodeId: sourceNode.id,
+    uploadUrl: `${baseUrl}/api/workflows/${workflowId}/sources/${sourceNode.id}/upload`,
+    allowedMimeTypes: resolvedParams.allowedMimeTypes ?? [
+      ...DEFAULT_ALLOWED_MIME_TYPES,
+    ],
+    maxFileSizeMB: resolvedParams.maxFileSizeMB ?? DEFAULT_MAX_FILE_SIZE_MB,
+    ctxKey: resolvedParams.ctxKey ?? DEFAULT_CTX_KEY,
+  };
 }

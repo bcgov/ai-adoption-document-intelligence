@@ -1,3 +1,4 @@
+import { getSourceCatalogEntry } from "@ai-di/graph-workflow";
 import {
   BadRequestException,
   Body,
@@ -14,11 +15,15 @@ import {
   Put,
   Query,
   Req,
+  UploadedFile,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -26,6 +31,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiPayloadTooLargeResponse,
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -39,7 +45,12 @@ import {
 import { GroupRole } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
-import { buildRunSpec, buildTriggerUrl } from "./build-run-spec";
+import {
+  buildBaseUrl,
+  buildRunSpec,
+  buildTriggerUrl,
+  buildUploadSpec,
+} from "./build-run-spec";
 import { deriveInputSchema } from "./derive-input-schema";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import { RunSpecResponseDto } from "./dto/run-spec.dto";
@@ -50,6 +61,10 @@ import {
   WorkflowResponseDto,
   WorkflowVersionListResponseDto,
 } from "./dto/workflow-info.dto";
+import {
+  SourceUploadParameters,
+  SourceUploadService,
+} from "./source-upload.service";
 import { validateRunInput } from "./validate-run-input";
 import {
   WorkflowInfo,
@@ -86,6 +101,7 @@ export class WorkflowController {
     @Inject(forwardRef(() => TemporalClientService))
     private readonly temporalClient: TemporalClientService,
     private readonly logger: AppLoggerService,
+    private readonly sourceUploadService: SourceUploadService,
   ) {}
 
   @Get()
@@ -234,7 +250,7 @@ export class WorkflowController {
   })
   @ApiOkResponse({
     description:
-      "Run-trigger spec for the workflow. When `workflowVersionId` is omitted, the spec is derived from the lineage's head version. Library workflows derive their input schema from `metadata.inputs[]`; regular workflows derive it from ctx entries flagged `isInput: true`.",
+      "Run-trigger spec for the workflow. When `workflowVersionId` is omitted, the spec is derived from the lineage's head version. The input schema follows the Phase 8 precedence: source.api → library `metadata.inputs[]` → ctx entries flagged `isInput: true` → empty. When a `source.upload` node is present, the response also includes an `uploadSpec` field carrying the upload URL plus the source's MIME / size constraints.",
     type: RunSpecResponseDto,
   })
   @ApiNotFoundResponse({
@@ -257,7 +273,14 @@ export class WorkflowController {
     );
     identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
     const triggerUrl = buildTriggerUrl(req, id);
-    return buildRunSpec(wf.config, triggerUrl);
+    const runSpec = buildRunSpec(wf.config, triggerUrl);
+    const uploadSpec = buildUploadSpec(wf.config, id, buildBaseUrl(req));
+    // Omit `uploadSpec` entirely when absent (Scenario 2) — do NOT
+    // include the key with `undefined`.
+    if (uploadSpec) {
+      return { ...runSpec, uploadSpec };
+    }
+    return runSpec;
   }
 
   @Post(":id/runs")
@@ -324,6 +347,121 @@ export class WorkflowController {
       workflowVersionId: wf.workflowVersionId,
       status: "started",
     };
+  }
+
+  @Post(":id/sources/:sourceNodeId/upload")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiOperation({
+    summary:
+      "Upload a file to a `source.upload` node. Streams to blob storage " +
+      "and returns the ctxKey-keyed reference for the subsequent /runs call.",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiParam({
+    name: "sourceNodeId",
+    description: "ID of the source.upload node within the workflow's graph.",
+  })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    required: true,
+    description:
+      "Single `file` part — the file to upload. MIME type and size are " +
+      "validated against the source node's configured `allowedMimeTypes` " +
+      "and `maxFileSizeMB` parameters.",
+    schema: {
+      type: "object",
+      properties: {
+        file: { type: "string", format: "binary" },
+      },
+      required: ["file"],
+    },
+  })
+  @ApiOkResponse({
+    description:
+      "Upload succeeded. Response is a single-property object whose " +
+      "key is the source's configured `ctxKey` (default `documentUrl`) " +
+      "and whose value is the blob storage key. The frontend forwards " +
+      "this object verbatim as `initialCtx` in the subsequent " +
+      "`POST /runs` call. This endpoint is upload-only — no workflow " +
+      "run is triggered by it.",
+    schema: {
+      type: "object",
+      additionalProperties: { type: "string" },
+    },
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Node is not a `source.upload` subtype, or the file's MIME type " +
+      "does not match the source's allowlist, or the request is missing " +
+      "the `file` part.",
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Workflow not found, OR the workflow exists but the given " +
+      "`sourceNodeId` does not resolve to a node within `config.nodes`.",
+  })
+  @ApiPayloadTooLargeResponse({
+    description: "File exceeds the source's configured `maxFileSizeMB` limit.",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async uploadToSource(
+    @Param("id") workflowId: string,
+    @Param("sourceNodeId") sourceNodeId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() req: Request,
+  ): Promise<Record<string, string>> {
+    if (!file) {
+      throw new BadRequestException(
+        "Missing file part. POST a `multipart/form-data` body with a single `file` field.",
+      );
+    }
+
+    const wf = await this.workflowService.resolveLineageAndVersion(workflowId);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    const node = wf.config.nodes[sourceNodeId];
+    if (!node) {
+      throw new NotFoundException(
+        `Source node not found: \`${sourceNodeId}\` (in workflow ${workflowId})`,
+      );
+    }
+    if (node.type !== "source") {
+      throw new BadRequestException(
+        `Node \`${sourceNodeId}\` is not a source.upload (got node type \`${node.type}\`)`,
+      );
+    }
+    if (node.sourceType !== "source.upload") {
+      throw new BadRequestException(
+        `Node \`${sourceNodeId}\` is not a source.upload (got \`${node.sourceType}\`)`,
+      );
+    }
+
+    const catalogEntry = getSourceCatalogEntry("source.upload");
+    if (!catalogEntry) {
+      throw new BadRequestException(
+        "Source subtype `source.upload` is not registered in the catalog.",
+      );
+    }
+    const resolvedParameters = catalogEntry.parametersSchema.parse(
+      node.parameters ?? {},
+    ) as SourceUploadParameters;
+
+    const blobKey = await this.sourceUploadService.uploadFileForSource(
+      file,
+      resolvedParameters,
+      wf.groupId,
+      workflowId,
+      sourceNodeId,
+    );
+
+    this.logger.log(
+      `Source upload stored: workflow=${workflowId}, source=${sourceNodeId}, ctxKey=${resolvedParameters.ctxKey}, blobKey=${blobKey}`,
+    );
+
+    return { [resolvedParameters.ctxKey]: blobKey };
   }
 
   @Post(":id/revert-head")
