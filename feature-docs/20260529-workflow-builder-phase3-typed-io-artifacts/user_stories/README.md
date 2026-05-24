@@ -77,7 +77,7 @@ Phase 3 has a clear linear backbone (shared package → backend → frontend →
 - [x] **US-096** (on-selection type pill) — independent of US-095 but visually adjacent; can land in parallel
 
 ### Phase 4 — frontend picker dim (depends on Phase 1 + Phase 3 patterns)
-- [ ] **US-097** (variable picker compatible-first + dim + tooltip) — consumes `isAssignable` (US-091) + same kind-resolution helper as US-093
+- [x] **US-097** (variable picker compatible-first + dim + tooltip) — consumes `isAssignable` (US-091) + same kind-resolution helper as US-093
 
 ### Phase 5 — frontend "Kind" Select columns + signature summaries (depends on Phase 1)
 - [ ] **US-098** (`WorkflowSettingsDrawer` Kind column) — first surface; produces `kind-select-options.ts` helper

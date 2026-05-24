@@ -13,8 +13,14 @@ export {
 } from "./ConditionExpressionEditor";
 export { EdgePicker, type EdgePickerProps } from "./EdgePicker";
 export { NodePicker, type NodePickerProps } from "./NodePicker";
+export { resolveProducerKindFor } from "./resolve-producer-kind";
 export {
   buildVariableOptions,
   VariablePicker,
   type VariablePickerProps,
 } from "./VariablePicker";
+export {
+  type CompatibilityResult,
+  sortVariablesByCompatibility,
+  type VariablePickerEntry,
+} from "./variable-picker-utils";

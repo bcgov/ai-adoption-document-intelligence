@@ -20,6 +20,7 @@
 import {
   ACTIVITY_CATALOG,
   getActivityParametersJsonSchema,
+  type KindRef,
 } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
@@ -44,7 +45,7 @@ import type {
   PortBinding,
 } from "../../../types/workflow";
 import { getActivityVisualHints } from "../catalog-utils";
-import { VariablePicker } from "../graph-widgets";
+import { resolveProducerKindFor, VariablePicker } from "../graph-widgets";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
 import {
   ChildWorkflowNodeSettings,
@@ -594,6 +595,14 @@ interface PortSpec {
   name: string;
   label: string;
   required?: boolean;
+  /**
+   * Catalog-declared typed-I/O kind for this port. Undefined for ports
+   * with no declared kind (legacy / pre-Phase-3 catalog entries, and
+   * control-flow ports which never carry a typed signature). The
+   * VariablePicker treats `undefined` as "no opinion" and renders the
+   * legacy flat list (US-097 Scenario 3).
+   */
+  kind?: KindRef;
 }
 
 function portsForFooter(
@@ -608,6 +617,7 @@ function portsForFooter(
       name: p.name,
       label: p.label,
       required: p.required,
+      kind: p.kind,
     }));
   }
   // Control-flow nodes don't have a catalog-defined port list; render one
@@ -692,6 +702,10 @@ function PortBindingsEditor({
                 config={config}
                 currentNodeId={currentNodeId}
                 onChange={(v) => setBinding(port.name, v)}
+                expectedKind={port.kind}
+                resolveProducerKind={(ctxKey) =>
+                  resolveProducerKindFor(ctxKey, config)
+                }
               />
             );
           }
