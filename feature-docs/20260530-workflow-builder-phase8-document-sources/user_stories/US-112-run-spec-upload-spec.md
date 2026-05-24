@@ -6,32 +6,32 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `uploadSpec` populated when `source.upload` present
+- [x] **Scenario 1**: `uploadSpec` populated when `source.upload` present
     - **Given** a workflow with a `source.upload` node configured `{ ctxKey: "myFile", allowedMimeTypes: ["application/pdf"], maxFileSizeMB: 25 }`
     - **When** `GET /api/workflows/:id/run-spec` is called
     - **Then** the response contains `uploadSpec: { sourceNodeId: "<id>", uploadUrl: "<absolute trigger URL>/sources/<id>/upload", allowedMimeTypes: ["application/pdf"], maxFileSizeMB: 25, ctxKey: "myFile" }`
     - **And** defaults are filled in when the source omits them (`allowedMimeTypes: ["application/pdf", "image/*"]`, `maxFileSizeMB: 50`, `ctxKey: "documentUrl"`)
 
-- [ ] **Scenario 2**: `uploadSpec` absent when no `source.upload`
+- [x] **Scenario 2**: `uploadSpec` absent when no `source.upload`
     - **Given** a workflow with no source.upload node (legacy or source.api-only)
     - **When** `GET /run-spec` is called
     - **Then** the `uploadSpec` field is omitted from the response (not `null`, not present-with-undefined — absent)
     - **And** the existing Phase 2 Track 2 response shape is unchanged for clients that don't know about the new field
 
-- [ ] **Scenario 3**: Both `inputSchema` AND `uploadSpec` populated when both source nodes present
+- [x] **Scenario 3**: Both `inputSchema` AND `uploadSpec` populated when both source nodes present
     - **Given** a workflow with both a source.api AND a source.upload
     - **When** `GET /run-spec` is called
     - **Then** `inputSchema` is derived from source.api per US-111 precedence
     - **And** `uploadSpec` is populated from source.upload
     - **And** both fields coexist in the response
 
-- [ ] **Scenario 4**: `RunSpecResponseDto` extended with full Swagger decorators
+- [x] **Scenario 4**: `RunSpecResponseDto` extended with full Swagger decorators
     - **Given** the existing `RunSpecResponseDto` in `apps/backend-services/src/workflow/dto/run-spec.dto.ts`
     - **When** the DTO is read after the change
     - **Then** a new optional `uploadSpec?` field is decorated with `@ApiPropertyOptional({ type: () => UploadSpecDto })` plus class-validator `@IsOptional()` + `@ValidateNested()` + `@Type(() => UploadSpecDto)`
     - **And** a new `UploadSpecDto` class with `@ApiProperty` decorators for each field (sourceNodeId, uploadUrl, allowedMimeTypes, maxFileSizeMB, ctxKey) is added
 
-- [ ] **Scenario 5**: Integration tests cover the three cases
+- [x] **Scenario 5**: Integration tests cover the three cases
     - **Given** `apps/backend-services/src/workflow/workflow.controller.spec.ts` (or sibling test file)
     - **When** new test cases for Scenarios 1, 2, 3 are added
     - **Then** each asserts the exact response shape via supertest against the running NestJS app

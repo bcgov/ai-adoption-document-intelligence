@@ -6,34 +6,34 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Happy-path upload returns ctxKey-keyed response
+- [x] **Scenario 1**: Happy-path upload returns ctxKey-keyed response
     - **Given** a workflow with a `source.upload` node configured `{ ctxKey: "myFile", allowedMimeTypes: ["application/pdf"], maxFileSizeMB: 25 }`
     - **When** a client POSTs `multipart/form-data` with a single `file` part containing a 1MB PDF to `/api/workflows/:id/sources/:sourceNodeId/upload`
     - **Then** the backend streams the file to blob storage (reusing the existing per-org blob bucket convention) and returns 200 with body `{ "myFile": "<blob URL or signed URL>" }`
     - **And** the response shape matches the existing OCR pipeline's signed-URL / blob-key convention (same shape as `documentUrl` produced elsewhere in the system)
 
-- [ ] **Scenario 2**: 404 on unknown workflow / source node
+- [x] **Scenario 2**: 404 on unknown workflow / source node
     - **Given** the same endpoint
     - **When** the workflow id does not exist OR the sourceNodeId does not resolve to a node within the workflow's `config.nodes`
     - **Then** the backend returns 404 with a clear error message naming which lookup failed (workflow vs source node)
     - **And** the existing test patterns for "unknown workflow id" cover this
 
-- [ ] **Scenario 3**: 400 on wrong source subtype
+- [x] **Scenario 3**: 400 on wrong source subtype
     - **Given** the same endpoint
     - **When** the resolved node exists but its `sourceType` is NOT `source.upload` (e.g. `source.api`)
     - **Then** the backend returns 400 with message `"Node \`<id>\` is not a source.upload (got \`<sourceType>\`)"`
 
-- [ ] **Scenario 4**: 400 on MIME mismatch
+- [x] **Scenario 4**: 400 on MIME mismatch
     - **Given** a source.upload configured `{ allowedMimeTypes: ["application/pdf"] }`
     - **When** a client uploads an `image/png` file
     - **Then** the backend returns 400 with a clear error naming the rejected MIME and the allowlist
 
-- [ ] **Scenario 5**: 413 (or 400) on oversized file
+- [x] **Scenario 5**: 413 (or 400) on oversized file
     - **Given** a source.upload configured `{ maxFileSizeMB: 5 }`
     - **When** a client uploads a 10MB file
     - **Then** the backend returns 413 Payload Too Large (or 400 if the existing project convention prefers — pick what existing endpoints use and document the choice) with a clear error naming the limit + the received size
 
-- [ ] **Scenario 6**: Endpoint is upload-only — does NOT trigger workflow execution
+- [x] **Scenario 6**: Endpoint is upload-only — does NOT trigger workflow execution
     - **Given** a successful upload (Scenario 1)
     - **When** the response returns
     - **Then** no Temporal workflow has been started; no audit-log entry suggesting a run was triggered

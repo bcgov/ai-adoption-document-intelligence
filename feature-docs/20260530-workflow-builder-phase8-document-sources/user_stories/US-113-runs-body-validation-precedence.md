@@ -6,24 +6,24 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: source.api fields drive `/runs` validation
+- [x] **Scenario 1**: source.api fields drive `/runs` validation
     - **Given** a workflow with a `source.api` declaring `fields: [{ name: "documentUrl", type: "string", required: true }]`
     - **When** a client POSTs `{}` to `/api/workflows/:id/runs`
     - **Then** the backend returns 400 with the existing `validateRunInput` error shape indicating `documentUrl` is required
     - **And** POSTing `{ "documentUrl": "https://example.com/doc.pdf" }` succeeds and starts a Temporal execution (returns `{ workflowId: "graph-adhoc-…", status: "started", … }`)
 
-- [ ] **Scenario 2**: legacy `isInput` fallback unchanged
+- [x] **Scenario 2**: legacy `isInput` fallback unchanged
     - **Given** a workflow with NO source nodes and a `CtxDeclaration` flagged `isInput: true`
     - **When** a client POSTs to `/runs`
     - **Then** validation derives from `isInput`-flagged ctx exactly as Phase 2 Track 2 — no behaviour change
     - **And** the existing Phase 2 Track 2 controller test for this path still passes
 
-- [ ] **Scenario 3**: strict allowlist on source.api body
+- [x] **Scenario 3**: strict allowlist on source.api body
     - **Given** a workflow with a source.api declaring 2 fields (`documentUrl: string/required`, `priority: number/optional`)
     - **When** a client POSTs `{ "documentUrl": "...", "priority": 1, "extra": true }`
     - **Then** the backend returns 400 — the `extra` field is rejected by `validateRunInput`'s existing strict allowlist behaviour (same as Phase 2 Track 2)
 
-- [ ] **Scenario 4**: regression — `workflowVersionId` still works orthogonally
+- [x] **Scenario 4**: regression — `workflowVersionId` still works orthogonally
     - **Given** a workflow with a source.api and multiple versions
     - **When** a client POSTs `{ ...validBody, "workflowVersionId": "<v1.id>" }`
     - **Then** validation runs against THAT version's source.api (the version's `config` is the source of truth, NOT the head)

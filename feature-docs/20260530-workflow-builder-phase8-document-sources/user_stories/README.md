@@ -70,10 +70,10 @@ Phase 8 has a clear linear backbone (shared package → backend → catalog entr
 - [x] **US-110** (binding-walk integration for source-derived ctx producers) — depends on US-108 + Phase 3's binding-walk (US-093); independent of US-109 but shares the validator file
 
 ### Phase 2 — backend API surface (Milestone B — depends on Phase 1)
-- [ ] **US-111** (`deriveInputSchema()` precedence) — depends on US-108 (uses `getSourceCatalogEntry` + `deriveSourceOutputSchema`)
-- [ ] **US-112** (`GET /run-spec` `uploadSpec?` extension) — depends on US-111
-- [ ] **US-113** (`POST /runs` body-validation precedence) — depends on US-111
-- [ ] **US-114** (`POST /sources/:id/upload` multipart endpoint) — independent of US-111/112/113; shares the controller file though
+- [x] **US-111** (`deriveInputSchema()` precedence) — depends on US-108 (uses `getSourceCatalogEntry` + `deriveSourceOutputSchema`)
+- [x] **US-112** (`GET /run-spec` `uploadSpec?` extension) — depends on US-111
+- [x] **US-113** (`POST /runs` body-validation precedence) — depends on US-111
+- [x] **US-114** (`POST /sources/:id/upload` multipart endpoint) — independent of US-111/112/113; shares the controller file though
 
 ### Phase 3 — catalog entries (Milestone C — Vite-restart point after both stories land)
 - [ ] **US-115** (`source-api.ts` catalog entry) — depends on US-108 + US-107
