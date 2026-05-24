@@ -6,6 +6,8 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md for the full specification.
  */
 
+import type { KindRef } from "./types/artifacts";
+
 // ---------------------------------------------------------------------------
 // Top-Level Config
 // ---------------------------------------------------------------------------
@@ -59,6 +61,11 @@ export interface LibraryPortDescriptor {
   label: string;
   path: string;
   type: "string" | "number" | "boolean" | "object" | "array";
+  /**
+   * Artifact-layer annotation. Coexists with `type` — `type` is runtime-shape;
+   * `kind` is the typed-I/O kind. Omitted = `Artifact` wildcard.
+   */
+  kind?: KindRef;
 }
 
 export interface CtxDeclaration {
@@ -74,6 +81,11 @@ export interface CtxDeclaration {
    * `GraphMetadata.inputs[]` instead.
    */
   isInput?: boolean;
+  /**
+   * Artifact-layer annotation. Coexists with `type` — `type` is runtime-shape;
+   * `kind` is the typed-I/O kind. Omitted = `Artifact` wildcard.
+   */
+  kind?: KindRef;
 }
 
 export interface NodeGroup {

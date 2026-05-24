@@ -6,24 +6,24 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `ArtifactKind` string-literal union exists
+- [x] **Scenario 1**: `ArtifactKind` string-literal union exists
     - **Given** `packages/graph-workflow/src/types/artifacts.ts` (new file)
     - **When** the file is read
     - **Then** it exports a `type ArtifactKind` union containing exactly: `"Artifact"`, `"Document"`, `"MultiPageDocument"`, `"SinglePageDocument"`, `"Segment"`, `"Segment<Text>"`, `"Segment<Table>"`, `"Segment<Figure>"`, `"Segment<Form>"`, `"Segment<KeyValue>"`, `"Segment<Signature>"`, `"Segment<Header>"`, `"OcrResult"`, `"OcrFields"`, `"OcrTable"`, `"Classification"`, `"ValidationResult"`, `"Reference"`
     - **And** a top-level JSDoc explains "Flat string-literal union per TYPED_IO_DESIGN.md §1 — parameterised entries are enumerated, not structural."
 
-- [ ] **Scenario 2**: `ArrayKind` helper type for cardinality
+- [x] **Scenario 2**: `ArrayKind` helper type for cardinality
     - **Given** the same file
     - **When** read
     - **Then** it exports `type ArrayKind = ` ``` `${ArtifactKind}[]` ``` (template-literal type)
     - **And** a `type KindRef = ArtifactKind | ArrayKind` alias used everywhere `kind?` is declared
 
-- [ ] **Scenario 3**: `Segment` provenance interface exported
+- [x] **Scenario 3**: `Segment` provenance interface exported
     - **Given** the same file
     - **When** read
     - **Then** it exports `interface Segment` matching TYPED_IO_DESIGN.md §1: `parentDocId: string`, `pageRange?: { start: number; end: number }`, `polygon?: { x: number; y: number }[]`, `kind?: "Text" \| "Table" \| ...`, `confidence?: number`, `blobKey?: string`
 
-- [ ] **Scenario 4**: Barrel re-export from package root
+- [x] **Scenario 4**: Barrel re-export from package root
     - **Given** `packages/graph-workflow/src/types/index.ts` (new) and `packages/graph-workflow/src/index.ts` (existing)
     - **When** the package barrel is read
     - **Then** `ArtifactKind`, `ArrayKind`, `KindRef`, and `Segment` are all re-exported

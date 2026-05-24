@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./types/index";
 export { validateGraphConfig } from "./validator/validator";
 export type { ValidateGraphConfigOptions } from "./validator/validator";
 export {

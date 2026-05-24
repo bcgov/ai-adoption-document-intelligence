@@ -15,6 +15,8 @@
 
 import type { z } from "zod/v4";
 
+import type { KindRef } from "../types/artifacts";
+
 /**
  * High-level palette categories. Drives grouping in the node palette UI.
  * See docs-md/workflow-builder/WORKFLOW_NODE_CATALOG.md §11.
@@ -47,6 +49,8 @@ export interface PortDescriptor {
   description?: string;
   /** Whether this slot must be bound for the workflow to validate. */
   required?: boolean;
+  /** Optional. When omitted, the port is treated as `Artifact` (wildcard). */
+  kind?: KindRef;
 }
 
 /**

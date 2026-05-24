@@ -788,3 +788,123 @@ describe("US-076: ChildWorkflowNode library workflowRef accepts optional version
     expect(result.errors).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// US-092: Three schema shapes grow optional `kind?: KindRef`
+// (PortDescriptor, CtxDeclaration, LibraryPortDescriptor). The validator
+// does NOT yet inspect the `kind` field (binding-walk lands in US-093).
+// These tests assert the new field is accepted — i.e. a shape carrying
+// `kind` validates the same as a shape without it.
+// ---------------------------------------------------------------------------
+
+describe("US-092 Scenario 1: PortDescriptor.kind is accepted by the validator", () => {
+  it("accepts a catalog `PortDescriptor` literal carrying `kind` and the workflow still validates", () => {
+    // Catalog entries are not embedded in the workflow config; the
+    // validator only sees them via the `isRegisteredActivityType` /
+    // `validateActivityParameters` callbacks. To assert the optional
+    // `kind` field is part of the public surface for catalog authors,
+    // construct a `PortDescriptor` literal that uses `kind`. If `kind`
+    // weren't on the interface this would be a compile error — and
+    // the test's runtime read of `port.kind` confirms it's plain data.
+    const port: import("../catalog/types").PortDescriptor = {
+      name: "document",
+      label: "Document",
+      required: true,
+      kind: "Document",
+    };
+
+    // Workflow side: any minimal valid config that exercises the
+    // validator. The validator does not (yet) inspect `port.kind` —
+    // US-093 lands the binding-walk pass.
+    const activity: ActivityNode = {
+      id: "a1",
+      type: "activity",
+      label: "Read",
+      activityType: "noop.activity",
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Activity beside kind-annotated catalog port" },
+      entryNodeId: "a1",
+      ctx: {},
+      nodes: { a1: activity },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(port.kind).toBe("Document");
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+});
+
+describe("US-092 Scenario 2: CtxDeclaration.kind is accepted by the validator", () => {
+  it("returns valid for a config whose ctx declaration carries `kind: 'Document'`", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Ctx with typed-I/O kind" },
+      entryNodeId: "noop",
+      ctx: {
+        foo: {
+          type: "object",
+          description: "A document on the blackboard",
+          kind: "Document",
+        },
+      },
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+});
+
+describe("US-092 Scenario 3: LibraryPortDescriptor.kind is accepted by the validator", () => {
+  it("returns valid for a library config whose input descriptor carries `kind: 'Document'`", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: "Library with typed input",
+        kind: "library",
+        inputs: [
+          {
+            label: "Source Document",
+            path: "ctx.documentUrl",
+            type: "string",
+            kind: "Document",
+          },
+        ],
+        outputs: [
+          { label: "Fields", path: "ctx.fields", type: "object" },
+        ],
+      },
+      entryNodeId: "noop",
+      ctx: {},
+      nodes: {
+        noop: {
+          id: "noop",
+          type: "activity",
+          label: "Noop",
+          activityType: "noop.activity",
+        } as ActivityNode,
+      },
+      edges: [],
+    };
+
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+});

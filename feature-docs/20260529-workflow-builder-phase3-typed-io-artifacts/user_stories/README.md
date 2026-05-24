@@ -63,10 +63,10 @@ After implementing the user story check it off at the bottom of this file.
 Phase 3 has a clear linear backbone (shared package → backend → frontend → catalog fan-out → verification). Frontend stories within a milestone are independent and can land in parallel; backend stories within Milestone B are independent of each other.
 
 ### Phase 1 — shared package (Vite-restart point after Milestone A)
-- [ ] **US-089** (`artifacts.ts` — `ArtifactKind` union + provenance interfaces) — foundation; everything below depends on it
-- [ ] **US-090** (`artifact-registry.ts` + `registerArtifactKind`) — depends on US-089
-- [ ] **US-091** (`isAssignable` subtype check) — depends on US-090 (needs the registry's `baseKind` chain)
-- [ ] **US-092** (schema extensions — `PortDescriptor` + `CtxDeclaration` + `LibraryPortDescriptor`) — depends on US-089's `KindRef` alias
+- [x] **US-089** (`artifacts.ts` — `ArtifactKind` union + provenance interfaces) — foundation; everything below depends on it
+- [x] **US-090** (`artifact-registry.ts` + `registerArtifactKind`) — depends on US-089
+- [x] **US-091** (`isAssignable` subtype check) — depends on US-090 (needs the registry's `baseKind` chain)
+- [x] **US-092** (schema extensions — `PortDescriptor` + `CtxDeclaration` + `LibraryPortDescriptor`) — depends on US-089's `KindRef` alias
 
 ### Phase 2 — backend validator (depends on Phase 1)
 - [ ] **US-093** (binding-walk type-check pass) — consumes `isAssignable` from US-091 + all three `kind?` fields from US-092

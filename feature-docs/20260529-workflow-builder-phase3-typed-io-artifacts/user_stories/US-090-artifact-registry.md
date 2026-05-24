@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Registry exports a frozen map for all v1 kinds
+- [x] **Scenario 1**: Registry exports a frozen map for all v1 kinds
     - **Given** `packages/graph-workflow/src/types/artifact-registry.ts` (new file)
     - **When** the file is read
     - **Then** it exports `const ARTIFACT_REGISTRY: Readonly<Record<ArtifactKind, ArtifactKindMeta>>`
@@ -15,13 +15,13 @@
     - **And** the entries match TYPED_IO_DESIGN.md §4 palette: Document family → blue, Segment family → green, OcrResult family → violet, Classification + ValidationResult → amber, Reference → teal, Artifact → gray
     - **And** `baseKind` follows the hierarchy in TYPED_IO_DESIGN.md §1 (e.g. `MultiPageDocument.baseKind === "Document"`, `Segment<Table>.baseKind === "Segment"`, `Document.baseKind === "Artifact"`)
 
-- [ ] **Scenario 2**: `displayName` is human-readable
+- [x] **Scenario 2**: `displayName` is human-readable
     - **Given** the registry
     - **When** read
     - **Then** `"MultiPageDocument"` → displayName `"Multi-page document"`, `"Segment<Table>"` → `"Segment (Table)"`, `"OcrFields"` → `"OCR fields"`, etc.
     - **And** the casing/spacing is consistent (sentence case, no camelCase leaking into UI labels)
 
-- [ ] **Scenario 3**: `registerArtifactKind` accepts new entries with a declared base
+- [x] **Scenario 3**: `registerArtifactKind` accepts new entries with a declared base
     - **Given** an `export function registerArtifactKind(kind: string, meta: ArtifactKindMeta): void`
     - **When** called with `("CustomDocType", { displayName: "Custom doc", color: "indigo", baseKind: "Document", isArray: false })`
     - **Then** subsequent `getArtifactKindMeta("CustomDocType")` returns the new meta
@@ -29,7 +29,7 @@
     - **And** registering a kind whose `baseKind` is not already in the registry throws `Error("baseKind \"<x>\" not found in registry")`
     - **And** registering a kind whose name already exists throws `Error("kind \"<x>\" already registered")` (no silent overwrite)
 
-- [ ] **Scenario 4**: `getArtifactKindMeta` returns undefined for unknown kinds
+- [x] **Scenario 4**: `getArtifactKindMeta` returns undefined for unknown kinds
     - **Given** the registry exports `getArtifactKindMeta(kind: string): ArtifactKindMeta | undefined`
     - **When** called with `"NotARealKind"`
     - **Then** returns `undefined`

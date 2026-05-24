@@ -6,13 +6,13 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Identity returns true
+- [x] **Scenario 1**: Identity returns true
     - **Given** `isAssignable(from, to)`
     - **When** called with any `from === to`
     - **Then** returns `true`
     - **And** this holds for both base kinds (`"Document"` → `"Document"`) and arrays (`"Segment[]"` → `"Segment[]"`)
 
-- [ ] **Scenario 2**: Subtype-to-supertype works, reverse rejected
+- [x] **Scenario 2**: Subtype-to-supertype works, reverse rejected
     - **Given** the registry chain `SinglePageDocument → Document → Artifact`
     - **When** `isAssignable("SinglePageDocument", "Document")` is called
     - **Then** returns `true`
@@ -21,7 +21,7 @@
     - **And** `isAssignable("Segment<Table>", "Segment")` returns `true`
     - **And** `isAssignable("Segment", "Segment<Table>")` returns `false`
 
-- [ ] **Scenario 3**: Array cardinality is strict
+- [x] **Scenario 3**: Array cardinality is strict
     - **Given** `isAssignable("Document", "Document[]")` is called
     - **When** evaluated
     - **Then** returns `false` (no auto-wrap)
@@ -29,13 +29,13 @@
     - **And** `isAssignable("SinglePageDocument[]", "Document[]")` returns `true` (element subtype works across cardinality)
     - **And** `isAssignable("Document[]", "Artifact[]")` returns `true`
 
-- [ ] **Scenario 4**: Unknown kinds default to wildcard `Artifact`
+- [x] **Scenario 4**: Unknown kinds default to wildcard `Artifact`
     - **Given** a `kind` value not in the registry (legacy or typo)
     - **When** `isAssignable("UnknownKind", "Document")` is called
     - **Then** returns `true` (treated as `Artifact`, compatible with anything)
     - **And** `isAssignable("Document", "UnknownKind")` returns `true` (Document → Artifact)
 
-- [ ] **Scenario 5**: `Artifact` is the universal target
+- [x] **Scenario 5**: `Artifact` is the universal target
     - **Given** any kind `K` in or out of the registry
     - **When** `isAssignable(K, "Artifact")` is called
     - **Then** returns `true`
