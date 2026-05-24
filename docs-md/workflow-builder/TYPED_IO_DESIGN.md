@@ -109,6 +109,8 @@ outputs: [
 
 ## 4. How types are rendered on the canvas
 
+**Per Model A's "single in / single out" rule** ([WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md)), each activity node renders with exactly one input handle and one output handle on the canvas — regardless of how many typed ports the activity declares. We do not adopt ComfyUI-style per-port handles. Wires are execution order; data flows through ctx via per-port bindings configured in the settings panel.
+
 **Colour-coded handle dots + hover-tooltip with type name.** Mantine + Tabler:
 
 | Kind family | Colour | Shape |
@@ -118,16 +120,33 @@ outputs: [
 | `OcrResult`, `OcrFields`, `OcrTable` | violet | round dot |
 | `Classification`, `ValidationResult` | amber | round dot |
 | `Reference` | teal | round dot |
-| `Artifact` (default) | gray | round dot |
+| `Artifact` (default / wildcard) | gray | round dot |
 | Array (`T[]`) | (same as `T`) | doubled outline |
 
-Hover-tooltip text: `"Segment[]"`, `"OcrResult"`, etc. — the rendered string is the `kind` declaration verbatim.
+**Single-port-side colouring rule.** A node's single canvas handle is coloured by its port's kind **only when exactly one typed port is declared on that side**:
 
-**On selected nodes**, a small type pill renders next to the handle (`OCR RESULT` / `SEGMENT[]`) for accessibility.
+- **One typed output** → handle coloured by that port's kind (e.g. blue for a `Document`-producing activity).
+- **Zero or multiple typed outputs** → handle stays **gray** (Artifact wildcard). Gray means "click the node to see the full typed signature" — never "this output is untyped."
+- Same rule on the input side: single typed input = coloured, multi/zero = gray.
+
+The gray-for-multi-port rule keeps the handle colour honest. Picking a "primary" output port to colour the handle would mislead users into thinking it's the only output.
+
+Hover-tooltip text on a single-port-coloured handle: `"Segment[]"`, `"OcrResult"`, etc. — the rendered string is the `kind` declaration verbatim. Hover on a gray multi-port handle: `"Multiple outputs — select node to view all"`.
+
+**On selected nodes**, a type pill renders next to the handle for accessibility AND as the discovery surface for multi-port type info. For single-port nodes the pill is a one-line badge (`SEGMENT[]`). For multi-port nodes the pill expands to a small list of all declared ports with their kinds:
+
+```
+input ports:               output ports:
+  segment: Segment           classification: Classification
+  ocrResult: OcrResult       segments: Segment[]
+                             ocrPreview: OcrResult
+```
+
+The pill is the canonical place to read multi-port signatures on the canvas. The handle dot is a quick scan signal for the single-port common case (which today is ~80% of catalog entries).
 
 **Wires are NOT type-rejected at draw time.** In Model A, wires represent execution order only — data flows through the ctx blackboard via per-node `inputs[]` / `outputs[]` port bindings (`PortBinding { port, ctxKey }`), not along the wire. Drawing a wire from a typed output handle to an incompatible input handle is allowed — the wire just adds an ordering constraint. The picker is the first design-time discovery surface for kind mismatches (see §5).
 
-**Wire body colour stays unchanged from Phase 1B** — wires are coloured by edge type (switch case / error / normal), not by data kind. The kind signal lives on the handle dot.
+**Wire body colour stays unchanged from Phase 1B** — wires are coloured by edge type (switch case / error / normal), not by data kind. The kind signal lives on the handle dot + type pill.
 
 ---
 
