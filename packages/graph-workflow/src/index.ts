@@ -9,6 +9,12 @@ export {
 } from "./validator/context-utils";
 export { isValidTemporalDuration } from "./validator/duration";
 
+// Cache constants (Phase 4 — try-in-place)
+export { DEFAULT_CACHE_TTL_MS } from "./cache/constants";
+export { stableJson } from "./cache/stable-json";
+export { hashArtifact } from "./cache/hash-artifact";
+export { computeInputHash } from "./cache/compute-input-hash";
+
 // Activity & node catalog (parameter schemas + UI metadata)
 export {
   ACTIVITY_CATALOG,

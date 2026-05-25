@@ -85,4 +85,15 @@ export interface ActivityCatalogEntry {
    * `{ widget: "select", options: [...] }` to individual fields.
    */
   parametersSchema: z.ZodType;
+  /**
+   * When true, this activity is never cached. Use for non-deterministic
+   * activities (timestamped, RNG-driven, IO-stateful).
+   *
+   * Defaults to `false` when absent. The worker-side cache decorator
+   * (Phase 4) short-circuits cache lookup/write when this flag is set.
+   *
+   * See `docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md` §2.6 for the
+   * opt-out rationale and the canonical sweep list (US-133).
+   */
+  nonCacheable?: boolean;
 }

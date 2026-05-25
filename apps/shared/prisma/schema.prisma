@@ -855,3 +855,25 @@ model ReferenceTableRow {
   @@index([group_id, table_id])
   @@map("reference_table_rows")
 }
+
+// ========== ACTIVITY OUTPUT CACHE (Phase 4 — try-in-place) ==========
+
+/// Per-(workflow-lineage, node, configHash, inputHash) cache row for activity outputs.
+/// Powers the Phase 4 try-in-place cache decorator (US-132) and the preview-cache
+/// endpoint (US-140). See docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §2.2.
+model ActivityOutputCache {
+  id                String   @id @default(cuid())
+  workflowLineageId String
+  nodeId            String
+  configHash        String
+  inputHash         String
+  outputCtx         Json
+  outputKind        String?
+  createdAt         DateTime @default(now())
+  expiresAt         DateTime
+
+  @@unique([workflowLineageId, nodeId, configHash, inputHash])
+  @@index([workflowLineageId, nodeId])
+  @@index([expiresAt])
+  @@index([workflowLineageId, createdAt])
+}

@@ -11,6 +11,7 @@ import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
 import { BootstrapModule } from "./bootstrap/bootstrap.module";
+import { CacheModule } from "./cache/cache.module";
 import { ConfusionProfileModule } from "./confusion-profile/confusion-profile.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
@@ -57,6 +58,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     AuthModule,
     AuditModule,
     BenchmarkModule,
+    CacheModule,
     ConfusionProfileModule,
     DatabaseModule,
     DocumentModule,
