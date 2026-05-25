@@ -60,34 +60,66 @@ describe("DocumentController", () => {
 
   describe("getAllDocuments", () => {
     const mockReqWithIdentity = createMockReq();
+    const paginatedResult = (docs: unknown[], total = docs.length) => ({
+      documents: docs,
+      total,
+      limit: 50,
+      offset: 0,
+    });
 
-    it("should return documents for the user's groups", async () => {
-      documentService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
+    it("should return paginated documents for the user's groups", async () => {
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([{ id: "1" }]) as any,
+      );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
       );
-      expect(result).toEqual([{ id: "1" }]);
-      expect(documentService.findAllDocuments).toHaveBeenCalledWith([
-        mockGroupId,
-      ]);
+      expect(result).toEqual({
+        documents: [{ id: "1" }],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      });
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith(
+        [mockGroupId],
+        { limit: 50, offset: 0 },
+      );
     });
 
-    it("should return documents for an API key's group", async () => {
+    it("should return paginated documents for an API key's group", async () => {
       const apiKeyReq = createMockApiKeyReq();
-      documentService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([{ id: "1" }]) as any,
+      );
       const result = await controller.getAllDocuments(apiKeyReq as any);
-      expect(result).toEqual([{ id: "1" }]);
-      expect(documentService.findAllDocuments).toHaveBeenCalledWith([
-        mockGroupId,
-      ]);
+      expect(result).toEqual({
+        documents: [{ id: "1" }],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      });
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith(
+        [mockGroupId],
+        { limit: 50, offset: 0 },
+      );
     });
 
-    it("should return empty array when there is no identity", async () => {
+    it("should return empty result when there is no identity", async () => {
       const noIdentityReq = { resolvedIdentity: undefined };
-      documentService.findAllDocuments.mockResolvedValue([]);
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([]) as any,
+      );
       const result = await controller.getAllDocuments(noIdentityReq as any);
-      expect(result).toEqual([]);
-      expect(documentService.findAllDocuments).toHaveBeenCalledWith([]);
+      expect(result).toEqual({
+        documents: [],
+        total: 0,
+        limit: 50,
+        offset: 0,
+      });
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith([], {
+        limit: 50,
+        offset: 0,
+      });
     });
 
     it("should throw NotFoundException on error", async () => {
@@ -97,73 +129,56 @@ describe("DocumentController", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("should update document status to failed when workflow has failed", async () => {
-      const mockDocument = {
-        id: "1",
-        status: "ongoing_ocr",
-        workflow_execution_id: "workflow-123",
-      };
-      documentService.findAllDocuments.mockResolvedValue([mockDocument as any]);
-      documentService.updateDocument = jest.fn().mockResolvedValue({
-        ...mockDocument,
-        status: "failed",
-      });
-      temporalClientService.getWorkflowStatus = jest.fn().mockResolvedValue({
-        status: "FAILED",
-      });
-
+    it("should apply custom limit and offset from query params", async () => {
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([{ id: "1" }], 100) as any,
+      );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
+        undefined,
+        "10",
+        "20",
       );
-
-      expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
-        "workflow-123",
-      );
-      expect(documentService.updateDocument).toHaveBeenCalledWith("1", {
-        status: "failed",
+      expect(result).toEqual({
+        documents: [{ id: "1" }],
+        total: 100,
+        limit: 10,
+        offset: 20,
       });
-      expect(result).toEqual([{ ...mockDocument, status: "failed" }]);
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith(
+        [mockGroupId],
+        { limit: 10, offset: 20 },
+      );
     });
 
-    it("should check for awaiting review when workflow is running", async () => {
-      const mockDocument = {
-        id: "1",
-        status: "ongoing_ocr",
-        workflow_execution_id: "workflow-123",
-      };
-      documentService.findAllDocuments.mockResolvedValue([mockDocument as any]);
-      temporalClientService.getWorkflowStatus = jest.fn().mockResolvedValue({
-        status: "RUNNING",
-      });
-      temporalClientService.queryWorkflowStatus = jest.fn().mockResolvedValue({
-        status: "awaiting_review",
-      });
-
-      const result = await controller.getAllDocuments(
+    it("should cap limit at 200", async () => {
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([], 0) as any,
+      );
+      await controller.getAllDocuments(
         mockReqWithIdentity as any,
+        undefined,
+        "500",
       );
-
-      expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
-        "workflow-123",
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith(
+        [mockGroupId],
+        { limit: 200, offset: 0 },
       );
-      expect(temporalClientService.queryWorkflowStatus).toHaveBeenCalledWith(
-        "workflow-123",
-      );
-      expect(result).toEqual([
-        { ...mockDocument, status: "needs_validation", needsReview: true },
-      ]);
     });
 
     it("should filter documents by group_id when provided", async () => {
-      documentService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([{ id: "1" }]) as any,
+      );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
         mockGroupId,
       );
-      expect(result).toEqual([{ id: "1" }]);
-      expect(documentService.findAllDocuments).toHaveBeenCalledWith([
-        mockGroupId,
-      ]);
+      expect(result.documents).toEqual([{ id: "1" }]);
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith(
+        [mockGroupId],
+        { limit: 50, offset: 0 },
+      );
     });
 
     it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
@@ -181,18 +196,18 @@ describe("DocumentController", () => {
     });
 
     it("should return all group documents when group_id is omitted", async () => {
-      documentService.findAllDocuments.mockResolvedValue([
-        { id: "1" } as any,
-        { id: "2" } as any,
-      ]);
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([{ id: "1" }, { id: "2" }]) as any,
+      );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
         undefined,
       );
-      expect(result).toEqual([{ id: "1" }, { id: "2" }]);
-      expect(documentService.findAllDocuments).toHaveBeenCalledWith([
-        mockGroupId,
-      ]);
+      expect(result.documents).toEqual([{ id: "1" }, { id: "2" }]);
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith(
+        [mockGroupId],
+        { limit: 50, offset: 0 },
+      );
     });
   });
 

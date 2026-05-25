@@ -429,17 +429,41 @@ async function executePollUntilNode(
   throwPollTimeout(node.id, maxAttempts, "maxAttempts");
 }
 
+type StatusActivities = {
+  "document.updateStatus": (params: {
+    documentId: string;
+    status: string;
+  }) => Promise<void>;
+};
+
 /**
  * Execute a humanGate node
  *
  * US-011: HumanGate node handler
  *
  * Waits for a human signal (approved/rejected) or times out.
+ * Persists `needs_validation` to the database before waiting so the list
+ * endpoint can determine review state from the DB without querying Temporal.
  */
 async function executeHumanGateNode(
   node: HumanGateNode,
   state: ExecutionState,
 ): Promise<void> {
+  // Persist needs_validation status so the processing queue reflects the
+  // correct state without requiring a live Temporal query on every poll.
+  const documentId =
+    typeof state.ctx.documentId === "string" ? state.ctx.documentId : undefined;
+  if (documentId) {
+    const statusProxy = proxyActivities<StatusActivities>({
+      startToCloseTimeout: "30s",
+      retry: { maximumAttempts: 5 },
+    });
+    await statusProxy["document.updateStatus"]({
+      documentId,
+      status: "needs_validation",
+    });
+  }
+
   let payload: Record<string, unknown> | null = null;
 
   const signalDefinition = defineSignal<[Record<string, unknown>]>(

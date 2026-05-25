@@ -297,17 +297,19 @@ export class DocumentService {
   }
 
   /**
-   * Returns all documents, optionally filtered by group IDs.
+   * Returns documents, optionally filtered by group IDs, with pagination.
    *
    * @param groupIds - Optional list of group IDs to filter by.
+   * @param options - Pagination options: `limit` (default 50) and `offset` (default 0).
    * @param tx - Optional transaction client for atomic operations.
-   * @returns Array of matching document records.
+   * @returns Object with matching document records and total count.
    */
   async findAllDocuments(
     groupIds?: string[],
+    options?: { limit?: number; offset?: number },
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentData[]> {
-    return this.documentDb.findAllDocuments(groupIds, tx);
+  ): Promise<{ documents: DocumentData[]; total: number }> {
+    return this.documentDb.findAllDocuments(groupIds, options, tx);
   }
 
   /**

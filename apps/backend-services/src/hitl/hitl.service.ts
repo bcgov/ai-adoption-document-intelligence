@@ -24,10 +24,7 @@ import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
-import {
-  DocumentStatusFilter,
-  ReviewStatusFilter,
-} from "./dto/status-constants.dto";
+import { ReviewStatusFilter } from "./dto/status-constants.dto";
 import { ReviewDbService } from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
 
@@ -83,11 +80,6 @@ export class HitlService {
 
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    const status =
-      filters.status === DocumentStatusFilter.ALL
-        ? undefined
-        : DocumentStatus.completed_ocr;
-
     const reviewStatusFilter =
       filters.reviewStatus === ReviewStatusFilter.ALL
         ? "all"
@@ -96,7 +88,6 @@ export class HitlService {
           : "pending";
 
     const documents = (await this.reviewDb.findReviewQueue({
-      status,
       modelId: filters.modelId,
       maxConfidence: filters.maxConfidence ?? 0.9,
       limit: filters.limit ?? 50,
@@ -165,7 +156,6 @@ export class HitlService {
           : "pending";
 
     const allDocs = (await this.reviewDb.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
       limit: 1000,
       reviewStatus: reviewStatusFilter,
       groupIds,
@@ -287,7 +277,7 @@ export class HitlService {
    */
   async findReviewQueue(
     filters: {
-      status?: DocumentStatus;
+      statuses?: DocumentStatus[];
       modelId?: string;
       minConfidence?: number;
       maxConfidence?: number;
@@ -708,7 +698,6 @@ export class HitlService {
           : "pending";
 
     const documents = (await this.reviewDb.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
       modelId: filters.modelId,
       maxConfidence,
       limit: 10,

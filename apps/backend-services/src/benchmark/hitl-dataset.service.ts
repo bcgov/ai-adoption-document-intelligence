@@ -83,7 +83,7 @@ export class HitlDatasetService {
     const offset = (page - 1) * limit;
 
     const documents = (await this.reviewDbService.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
+      statuses: [DocumentStatus.completed_ocr],
       reviewStatus: "reviewed",
       limit: 1000,
       groupIds,
@@ -212,7 +212,7 @@ export class HitlDatasetService {
     // prevent cross-tenant packaging (a caller in group A cannot pull
     // documents belonging to group B into their dataset).
     const allDocuments = (await this.reviewDbService.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
+      statuses: [DocumentStatus.completed_ocr],
       reviewStatus: "reviewed",
       limit: 10000,
       groupIds: [groupId],

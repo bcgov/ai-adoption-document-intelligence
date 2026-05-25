@@ -53,3 +53,17 @@ export class DocumentDataDto {
   @ApiProperty({ type: "string" })
   group_id!: string;
 }
+
+export class PaginatedDocumentsDto {
+  @ApiProperty({ type: [DocumentDataDto], description: "Page of documents" })
+  documents!: DocumentDataDto[];
+
+  @ApiProperty({ description: "Total number of documents matching the filter" })
+  total!: number;
+
+  @ApiProperty({ description: "Maximum items returned per page" })
+  limit!: number;
+
+  @ApiProperty({ description: "Number of items skipped (0-based)" })
+  offset!: number;
+}

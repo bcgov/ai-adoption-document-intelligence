@@ -95,7 +95,7 @@ export class ReviewDbService {
    */
   async findReviewQueue(
     filters: {
-      status?: DocumentStatus;
+      statuses?: DocumentStatus[];
       modelId?: string;
       minConfidence?: number;
       maxConfidence?: number;
@@ -111,7 +111,12 @@ export class ReviewDbService {
     this.logger.debug("Finding review queue");
 
     const where: Prisma.DocumentWhereInput = {
-      status: filters.status ?? DocumentStatus.completed_ocr,
+      status: {
+        in: filters.statuses ?? [
+          DocumentStatus.completed_ocr,
+          DocumentStatus.needs_validation,
+        ],
+      },
       // Only documents ingested through the regular API/upload pipeline are
       // eligible for human review. Documents created by ground-truth dataset
       // generation (source = "ground-truth-generation") must never appear in

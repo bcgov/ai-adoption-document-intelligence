@@ -1,5 +1,5 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
-import { DocumentStatus, Prisma } from "@generated/client";
+import { Prisma } from "@generated/client";
 import {
   BadRequestException,
   Body,
@@ -41,7 +41,10 @@ import {
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
-import { DocumentDataDto } from "@/document/dto/document-data.dto";
+import {
+  DocumentDataDto,
+  PaginatedDocumentsDto,
+} from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -200,22 +203,30 @@ export class DocumentController {
     this.logger.debug("=== DocumentController.deleteDocument completed ===");
   }
 
-  // TODO: Refactor list endpoint to avoid per-request Temporal fan-out and full-table reads.
-  // Add pagination, make DB the source of truth for status/review state, move reconciliation off read path,
-  // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Get all documents" })
+  @ApiOperation({ summary: "Get documents (paginated)" })
   @ApiQuery({
     name: "group_id",
     required: false,
     description:
       "Filter documents by group ID. When provided, only documents belonging to this group are returned.",
   })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    description:
+      "Maximum number of documents to return per page (default 50, max 200).",
+  })
+  @ApiQuery({
+    name: "offset",
+    required: false,
+    description: "Number of documents to skip for pagination (default 0).",
+  })
   @ApiOkResponse({
-    description: "Returns a list of all documents",
-    type: [DocumentDataDto],
+    description: "Returns a paginated list of documents",
+    type: PaginatedDocumentsDto,
   })
   @ApiForbiddenResponse({
     description: "Access denied: not a member of the specified group",
@@ -223,7 +234,9 @@ export class DocumentController {
   async getAllDocuments(
     @Req() req: Request,
     @Query("group_id") groupId?: string,
-  ): Promise<(DocumentData & { needsReview?: boolean })[]> {
+    @Query("limit") limitStr?: string,
+    @Query("offset") offsetStr?: string,
+  ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
     let groupIds: string[] | undefined;
@@ -235,82 +248,13 @@ export class DocumentController {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
+    const limit = Math.min(parseInt(limitStr ?? "50", 10) || 50, 200);
+    const offset = Math.max(parseInt(offsetStr ?? "0", 10) || 0, 0);
+
     try {
-      const documents = await this.documentService.findAllDocuments(groupIds);
-
-      // Check workflow status for documents that have workflow_execution_id
-      const documentsWithWorkflowStatus = await Promise.all(
-        documents.map(async (doc) => {
-          // Check workflow status for documents with execution ID and status ongoing_ocr or completed_ocr
-          // (completed_ocr documents may be awaiting review if OCR results were stored before human review)
-          if (
-            doc.workflow_execution_id &&
-            (doc.status === "ongoing_ocr" || doc.status === "completed_ocr")
-          ) {
-            try {
-              // Use workflow_execution_id directly (it's the Temporal workflow execution ID)
-              const workflowId = doc.workflow_execution_id;
-
-              // First check the actual workflow execution status
-              const workflowStatus =
-                await this.temporalClientService.getWorkflowStatus(workflowId);
-
-              // If workflow has failed, terminated, timed out, or cancelled, update database status
-              if (
-                workflowStatus.status === "FAILED" ||
-                workflowStatus.status === "TERMINATED" ||
-                workflowStatus.status === "TIMED_OUT" ||
-                workflowStatus.status === "CANCELLED"
-              ) {
-                this.logger.warn(
-                  `Document ${doc.id} workflow ended with status ${workflowStatus.status}, updating database`,
-                );
-                await this.documentService.updateDocument(doc.id, {
-                  status: DocumentStatus.failed,
-                });
-                return {
-                  ...doc,
-                  status: DocumentStatus.failed,
-                };
-              }
-
-              // If workflow is still running, try to query its internal status
-              if (workflowStatus.status === "RUNNING") {
-                try {
-                  const workflowQueryStatus =
-                    await this.temporalClientService.queryWorkflowStatus(
-                      workflowId,
-                    );
-
-                  // If workflow is awaiting review, mark document as needing review
-                  if (workflowQueryStatus.status === "awaiting_review") {
-                    this.logger.debug(
-                      `Document ${doc.id} workflow is awaiting review`,
-                    );
-                    return {
-                      ...doc,
-                      // Override status for UI - needs_validation is not a valid DocumentStatus enum value but used for UI display
-                      status: "needs_validation" as DocumentStatus,
-                      needsReview: true,
-                    };
-                  }
-                } catch (queryError) {
-                  // Query failed but workflow is running - this is OK, just return current status
-                  this.logger.debug(
-                    `Could not query running workflow for document ${doc.id}: ${queryError instanceof Error ? queryError.message : String(queryError)}`,
-                  );
-                }
-              }
-            } catch (error) {
-              // If workflow status check fails, log but don't fail the entire request
-              // This can happen if Temporal is unavailable
-              this.logger.debug(
-                `Could not get workflow status for document ${doc.id}: ${getErrorMessage(error)}`,
-              );
-            }
-          }
-          return doc;
-        }),
+      const { documents, total } = await this.documentService.findAllDocuments(
+        groupIds,
+        { limit, offset },
       );
 
       if (req.resolvedIdentity) {
@@ -323,17 +267,19 @@ export class DocumentController {
           group_id: groupId,
           payload: {
             action: "metadata",
-            document_ids: documents.map((d) => d.id),
             count: documents.length,
+            total,
+            limit,
+            offset,
             group_ids: groupIds,
           },
         });
       }
 
-      this.logger.debug(`Retrieved ${documents.length} documents`);
+      this.logger.debug(`Retrieved ${documents.length} of ${total} documents`);
       this.logger.debug("=== DocumentController.getAllDocuments completed ===");
 
-      return documentsWithWorkflowStatus;
+      return { documents, total, limit, offset };
     } catch (error) {
       this.logger.error(
         `Error retrieving documents: ${getErrorMessage(error)}`,

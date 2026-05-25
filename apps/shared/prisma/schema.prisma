@@ -575,6 +575,8 @@ enum DocumentStatus {
   pre_ocr
   ongoing_ocr
   completed_ocr
+  /// OCR is done; document is paused in workflow awaiting human review.
+  needs_validation
   failed
   /// Original stored but image/PDF could not be normalized to a display/OCR PDF.
   conversion_failed

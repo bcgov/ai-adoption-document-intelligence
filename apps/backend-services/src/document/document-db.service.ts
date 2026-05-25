@@ -103,24 +103,34 @@ export class DocumentDbService {
   }
 
   /**
-   * Returns all documents, optionally filtered by group IDs.
+   * Returns documents, optionally filtered by group IDs, with pagination.
    *
    * @param groupIds - Optional list of group IDs to filter by.
-   * @returns Array of matching document records ordered by creation date descending.
+   * @param options - Pagination options: `limit` (default 50) and `offset` (default 0).
+   * @returns Object with matching document records and total count.
    */
   async findAllDocuments(
     groupIds?: string[],
+    options?: { limit?: number; offset?: number },
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentData[]> {
+  ): Promise<{ documents: DocumentData[]; total: number }> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding all documents");
+    const take = options?.limit ?? 50;
+    const skip = options?.offset ?? 0;
+    const where = groupIds ? { group_id: { in: groupIds } } : undefined;
+    this.logger.debug("Finding all documents", { take, skip });
     try {
-      const documents = await client.document.findMany({
-        where: groupIds ? { group_id: { in: groupIds } } : undefined,
-        orderBy: { created_at: "desc" },
-      });
-      this.logger.debug("Found documents", { count: documents.length });
-      return documents;
+      const [documents, total] = await Promise.all([
+        client.document.findMany({
+          where,
+          orderBy: { created_at: "desc" },
+          take,
+          skip,
+        }),
+        client.document.count({ where }),
+      ]);
+      this.logger.debug("Found documents", { count: documents.length, total });
+      return { documents, total };
     } catch (error) {
       this.logger.error("Failed to find documents", {
         error: getErrorMessage(error),
