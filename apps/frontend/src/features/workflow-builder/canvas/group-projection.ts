@@ -34,6 +34,12 @@ export interface GroupChip {
   color?: string;
   nodeCount: number;
   position: { x: number; y: number };
+  /**
+   * Original ids of the nodes folded into the chip. Used by the V2
+   * canvas's aggregate `NodeStatusBadge` (US-138 Scenario 5) — the chip
+   * surfaces the rolled-up run status of its members.
+   */
+  memberNodeIds: readonly string[];
 }
 
 export interface ProjectedConfig {
@@ -138,6 +144,7 @@ export function projectGroupedConfig(
       color: group.color,
       nodeCount: group.nodeIds.length,
       position: { x: sumX / count, y: sumY / count },
+      memberNodeIds: [...group.nodeIds],
     };
   });
 

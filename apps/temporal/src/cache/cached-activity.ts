@@ -89,11 +89,19 @@ export interface CachedActivityDeps {
 }
 
 /**
- * Return shape — `cacheHit` is consumed by US-133's status map
+ * Return shape — `cacheHit` is consumed by US-135's `nodeStatuses` map
  * (a hit flips the node status from `"running"` to `"skipped"`).
+ *
+ * `configHash` + `inputHash` are also returned so the workflow status
+ * map can surface them in the `cacheHit` field of `NodeRunStatus` —
+ * the canvas displays these so the user can see which cache row served
+ * the node's output. They are emitted on every path (hit, miss,
+ * bypass) so callers don't need to recompute them.
  */
 export interface ExecuteCachedActivityResult {
   cacheHit: boolean;
+  configHash: string;
+  inputHash: string;
 }
 
 /**
@@ -183,14 +191,20 @@ export async function executeCachedActivity(
   workflowLineageId: string,
   rawExecute: () => Promise<Record<string, unknown>>,
 ): Promise<ExecuteCachedActivityResult> {
-  // Scenario 3 — bypass for non-cacheable activities.
+  const configHash = sha256Hex(stableJson(getNodeParameters(node)));
+
+  // Scenario 3 — bypass for non-cacheable activities. We still compute
+  // hashes so the workflow status map (US-135) can surface them in the
+  // cacheHit field on the very-next replay should the catalog flip the
+  // activity to cacheable; the bypass result itself reports
+  // `cacheHit: false`.
   if (isNonCacheable(node)) {
+    const inputHash = computeInputHash(node, ctx);
     const delta = await rawExecute();
     Object.assign(ctx, delta);
-    return { cacheHit: false };
+    return { cacheHit: false, configHash, inputHash };
   }
 
-  const configHash = sha256Hex(stableJson(getNodeParameters(node)));
   const inputHash = computeInputHash(node, ctx);
 
   // Scenario 2 — cache hit short-circuit.
@@ -203,7 +217,7 @@ export async function executeCachedActivity(
 
   if (cached !== null) {
     Object.assign(ctx, cached.outputCtx);
-    return { cacheHit: true };
+    return { cacheHit: true, configHash, inputHash };
   }
 
   // Scenario 1 (miss) + Scenario 5 (failure propagation).
@@ -239,8 +253,8 @@ export async function executeCachedActivity(
     if (winner !== null) {
       Object.assign(ctx, winner.outputCtx);
     }
-    return { cacheHit: true };
+    return { cacheHit: true, configHash, inputHash };
   }
 
-  return { cacheHit: false };
+  return { cacheHit: false, configHash, inputHash };
 }

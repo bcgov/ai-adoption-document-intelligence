@@ -145,7 +145,12 @@ describe("executeCachedActivity (US-132)", () => {
       rawExecute,
     );
 
-    expect(result).toEqual({ cacheHit: false });
+    expect(result.cacheHit).toBe(false);
+    // US-135 — hashes are echoed back so the workflow's status map can
+    // populate the `cacheHit` field of `NodeRunStatus` on subsequent
+    // hits.
+    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(ctx).toEqual({
       existing: "kept",
@@ -174,6 +179,9 @@ describe("executeCachedActivity (US-132)", () => {
     };
     expect(upsertCall.configHash).toMatch(/^[0-9a-f]{64}$/);
     expect(upsertCall.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    // Hashes returned to the caller match the ones written to the cache.
+    expect(result.configHash).toBe(upsertCall.configHash);
+    expect(result.inputHash).toBe(upsertCall.inputHash);
   });
 
   it("Scenario 2 — cache-hit: assigns row.outputCtx, skips rawExecute, returns cacheHit=true", async () => {
@@ -195,7 +203,11 @@ describe("executeCachedActivity (US-132)", () => {
       rawExecute,
     );
 
-    expect(result).toEqual({ cacheHit: true });
+    expect(result.cacheHit).toBe(true);
+    // US-135 — even on a hit the hashes are echoed back so the status
+    // map can name the cache row.
+    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(rawExecute).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
     expect(ctx).toEqual({
@@ -222,7 +234,10 @@ describe("executeCachedActivity (US-132)", () => {
       rawExecute,
     );
 
-    expect(result).toEqual({ cacheHit: false });
+    expect(result.cacheHit).toBe(false);
+    // Hashes are computed even on the bypass path (US-135).
+    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(findFresh).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
@@ -246,7 +261,9 @@ describe("executeCachedActivity (US-132)", () => {
       rawExecute,
     );
 
-    expect(result).toEqual({ cacheHit: false });
+    expect(result.cacheHit).toBe(false);
+    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(findFresh).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(rawExecute).toHaveBeenCalledTimes(1);
@@ -284,7 +301,9 @@ describe("executeCachedActivity (US-132)", () => {
       rawExecute,
     );
 
-    expect(result).toEqual({ cacheHit: true });
+    expect(result.cacheHit).toBe(true);
+    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(findFresh).toHaveBeenCalledTimes(2);

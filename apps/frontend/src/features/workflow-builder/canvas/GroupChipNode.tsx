@@ -18,6 +18,7 @@ import { Badge } from "@mantine/core";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { memo } from "react";
 import { GROUP_ICONS } from "../group/group-icons";
+import { GroupAggregateStatusBadgeOverlay } from "../run/NodeStatusBadge";
 
 export interface GroupChipNodeData extends Record<string, unknown> {
   /** Underlying `nodeGroups[<id>]` key — needed so the canvas can map a
@@ -27,6 +28,11 @@ export interface GroupChipNodeData extends Record<string, unknown> {
   icon?: string;
   color?: string;
   nodeCount: number;
+  /**
+   * Original ids of the nodes folded into the chip. Powers the chip's
+   * aggregate `NodeStatusBadge` (US-138 Scenario 5).
+   */
+  memberNodeIds: readonly string[];
 }
 
 export type GroupChipFlowNode = Node<GroupChipNodeData, "group-chip">;
@@ -63,6 +69,7 @@ export const GroupChipNode = memo(function GroupChipNode({
         position: "relative",
       }}
     >
+      <GroupAggregateStatusBadgeOverlay memberIds={data.memberNodeIds} />
       <div
         style={{
           display: "flex",

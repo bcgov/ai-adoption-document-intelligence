@@ -64,6 +64,19 @@ function resolveSourceOutputKind(sourceType: string): string | null {
 }
 
 /**
+ * Hashes computed for a source-node cache row, returned to the caller
+ * so the Phase 4 workflow status map (US-135) can surface them in the
+ * `cacheHit` field of the node's `NodeRunStatus`. Source nodes are
+ * always served from cache (their "execution" is the immediate ctx-
+ * merge at workflow start), so every successful source emits these
+ * hashes for the canvas to display.
+ */
+export interface WriteSourceNodeCacheResult {
+  configHash: string;
+  inputHash: string;
+}
+
+/**
  * Write the source node's cache row at workflow start. Idempotent —
  * uses `upsert` so repeated invocations with the same `initialCtx`
  * overwrite the existing row (per the design's racetrack handling in
@@ -72,13 +85,17 @@ function resolveSourceOutputKind(sourceType: string): string | null {
  * Errors are caught and silently dropped — a failed cache write must
  * not abort the workflow. The decorator handles the same case the
  * same way (`Object.assign` first, then attempt upsert).
+ *
+ * Returns the computed `configHash` + `inputHash` so the workflow's
+ * `nodeStatuses` map (US-135) can populate the source node's
+ * `cacheHit` detail.
  */
 export async function writeSourceNodeCache(
   deps: CachedActivityDeps,
   node: SourceNode,
   initialCtx: Record<string, unknown>,
   workflowLineageId: string,
-): Promise<void> {
+): Promise<WriteSourceNodeCacheResult> {
   const configHash = sha256Hex(stableJson(node.parameters ?? {}));
   const inputHash = sha256Hex(stableJson(initialCtx));
   const outputKind = resolveSourceOutputKind(node.sourceType);
@@ -91,4 +108,6 @@ export async function writeSourceNodeCache(
     outputCtx: initialCtx,
     outputKind,
   });
+
+  return { configHash, inputHash };
 }

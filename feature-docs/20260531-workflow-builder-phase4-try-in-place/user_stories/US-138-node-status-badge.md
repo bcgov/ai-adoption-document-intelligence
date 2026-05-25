@@ -6,38 +6,38 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `NodeStatusBadge` component
+- [x] **Scenario 1**: `NodeStatusBadge` component
     - **Given** `apps/frontend/src/features/workflow-builder/run/NodeStatusBadge.tsx` (new file)
     - **When** read
     - **Then** it exports `function NodeStatusBadge({ status }: { status: NodeRunStatus["status"] | "pending" })`
     - **And** the status → (icon, color) mapping is: pending → IconCircle / gray; running → Loader / blue; succeeded → IconCircleCheck / green; failed → IconCircleX / red; skipped → IconBolt / violet
     - **And** the component renders a Mantine `<ThemeIcon size="xs" radius="xl">` with the icon + color
 
-- [ ] **Scenario 2**: Activity / source nodes mount the badge
+- [x] **Scenario 2**: Activity / source nodes mount the badge
     - **Given** the existing `ActivityNodeRenderer` (Phase 1A) AND `SourceNodeRenderer` (Phase 8)
     - **When** they're read after the change
     - **Then** each renderer subscribes to its own status via a small `useNodeRunStatus(nodeId)` lookup hook that consumes the latest `useNodeStatuses` query data via React context (US-138 creates that context)
     - **And** the badge renders absolute-positioned in the top-right corner via a `<Box pos="absolute" top={-6} right={-6}>` wrapper inside each renderer's main `<div>`
 
-- [ ] **Scenario 3**: `RunStateContext` provides the status map
+- [x] **Scenario 3**: `RunStateContext` provides the status map
     - **Given** a new `apps/frontend/src/features/workflow-builder/run/RunStateContext.tsx`
     - **When** read
     - **Then** it exports `<RunStateProvider value={{ activeRunId, nodeStatuses, isReplay }}>` and a hook `useNodeRunStatus(nodeId): NodeRunStatus | { status: "pending" }`
     - **And** the provider is mounted in `WorkflowEditorV2Page.tsx` wrapping the canvas
 
-- [ ] **Scenario 4**: Absent node ids default to "pending"
+- [x] **Scenario 4**: Absent node ids default to "pending"
     - **Given** a node id not present in `nodeStatuses` (e.g., a node that's downstream of an un-walked switch branch, or before any Try has happened)
     - **When** `useNodeRunStatus(nodeId)` is called
     - **Then** the return is `{ status: "pending" }` (the "absent ≡ pending" rule from US-135's Scenario 5)
     - **And** the badge renders the gray circle accordingly
 
-- [ ] **Scenario 5**: Control-flow nodes mount the badge too
+- [x] **Scenario 5**: Control-flow nodes mount the badge too
     - **Given** the existing `SwitchNodeRenderer`, `MapNodeRenderer`, `JoinNodeRenderer`, `ChildWorkflowNodeRenderer`, `PollUntilNodeRenderer`, `HumanGateNodeRenderer`, `GroupChipNode` (Phase 1B)
     - **When** they're read after the change
     - **Then** every node renderer mounts a `<NodeStatusBadge>` in the same absolute position
     - **And** for `GroupChipNode` (collapsed group view), the badge reflects the aggregate of the group's member statuses ("running" if any member is running, "failed" if any failed, "succeeded" if all are succeeded/skipped, else "pending")
 
-- [ ] **Scenario 6**: Frontend tests cover badge + provider integration
+- [x] **Scenario 6**: Frontend tests cover badge + provider integration
     - **Given** `apps/frontend/src/features/workflow-builder/run/NodeStatusBadge.test.tsx`
     - **When** tests run
     - **Then** at least 5 cases pass: each status → expected icon+color combination renders correctly

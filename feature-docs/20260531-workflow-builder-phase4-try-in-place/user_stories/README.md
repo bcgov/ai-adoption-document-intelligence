@@ -92,11 +92,11 @@ Phase 4 has a clear linear backbone (cache schema + helpers → worker decorator
 - [x] **US-134** (catalog `nonCacheable` sweep + GC activity + scheduling) — independent of US-131/132/133; can land in parallel; the catalog sweep IS the runtime export change that triggers Vite restart
 
 ### Phase 3 — status streaming + node badges + active-edge (Milestone C — depends on Phase 2)
-- [ ] **US-135** (`getNodeStatusesQuery` query handler + `nodeStatuses` map) — depends on US-133 (the decorator integration drives the cacheHit flag)
-- [ ] **US-136** (backend `/node-statuses` proxy endpoint) — depends on US-135
-- [ ] **US-137** (frontend `useNodeStatuses` hook) — depends on US-136
-- [ ] **US-138** (`NodeStatusBadge` component + `RunStateContext`) — depends on US-137
-- [ ] **US-139** (`computeActiveEdges` + active-edge animation) — depends on US-138 (`RunStateContext`); can land in parallel with US-138 once context is in place
+- [x] **US-135** (`getNodeStatusesQuery` query handler + `nodeStatuses` map) — depends on US-133 (the decorator integration drives the cacheHit flag)
+- [x] **US-136** (backend `/node-statuses` proxy endpoint) — depends on US-135
+- [x] **US-137** (frontend `useNodeStatuses` hook) — depends on US-136
+- [x] **US-138** (`NodeStatusBadge` component + `RunStateContext`) — depends on US-137
+- [x] **US-139** (`computeActiveEdges` + active-edge animation) — depends on US-138 (`RunStateContext`); can land in parallel with US-138 once context is in place
 
 ### Phase 4 — preview-cache endpoint + 4 widgets + dispatch shell (Milestone D — depends on Phase 1 + Phase 3 context)
 - [ ] **US-140** (backend `/preview-cache` endpoint) — depends on US-130 (repo)

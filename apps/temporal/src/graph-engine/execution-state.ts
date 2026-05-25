@@ -5,6 +5,7 @@
  */
 
 import type { CachedActivityDeps } from "../cache/cached-activity";
+import type { NodeRunStatus } from "../graph-workflow-queries";
 import type { NodeStatus } from "../graph-workflow-types";
 
 /**
@@ -14,6 +15,18 @@ export interface ExecutionState {
   currentNodes: string[];
   completedNodeIds: Set<string>;
   nodeStatuses: Map<string, NodeStatus>;
+  /**
+   * Phase 4 (US-135) per-node live run status surfaced through the
+   * `getNodeStatusesQuery` Temporal query handler. The map shares its
+   * object identity with the workflow body's `nodeStatuses` constant
+   * (passed in by `graph-workflow.ts`) so the query handler returns a
+   * live snapshot — mutations made here are visible to the next query.
+   *
+   * Distinct from `nodeStatuses` (the legacy `getStatus` map): the
+   * legacy shape uses `"completed"` and has no concept of cache-hit /
+   * skipped semantics. Both maps are maintained side-by-side.
+   */
+  nodeRunStatuses: Record<string, NodeRunStatus>;
   cancelled: () => boolean;
   cancelMode: () => "graceful" | "immediate";
   ctx: Record<string, unknown>;

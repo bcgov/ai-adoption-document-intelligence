@@ -25,6 +25,10 @@ import type { CachedActivityDeps } from "./cache/cached-activity";
 import { runGraphExecution } from "./graph-engine";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import {
+  getNodeStatusesQuery,
+  type NodeRunStatus,
+} from "./graph-workflow-queries";
+import {
   type CancelSignal,
   GRAPH_RUNNER_VERSION,
   type GraphWorkflowInput,
@@ -80,6 +84,13 @@ export async function graphWorkflow(
   const currentNodes: string[] = [];
   const completedNodeIds = new Set<string>();
   const nodeStatuses = new Map<string, NodeStatus>();
+  // Phase 4 (US-135) — per-node live run status surfaced through the
+  // `getNodeStatusesQuery` handler. Distinct from `nodeStatuses` (the
+  // legacy `getStatus` payload): the new shape carries "succeeded" /
+  // "skipped" (cache hit) / "failed" semantics + cache-row identifiers.
+  // The map's object identity is preserved across the workflow
+  // lifetime so the query handler always returns the latest state.
+  const nodeRunStatuses: Record<string, NodeRunStatus> = {};
   let overallStatus: "running" | "completed" | "failed" | "cancelled" =
     "running";
   let cancelled = false;
@@ -131,6 +142,13 @@ export async function graphWorkflow(
       progressPercentage,
     };
   });
+
+  // Phase 4 (US-135) — register the per-node run-status query handler
+  // BEFORE any node runs so the canvas's very-first poll observes a
+  // (possibly empty) map rather than a "query handler not found"
+  // error. The handler returns a live snapshot — the underlying object
+  // is mutated in place by the runner.
+  setHandler(getNodeStatusesQuery, () => nodeRunStatuses);
 
   // Set up signal handler for cancellation
   setHandler(cancelSignal, (signal: CancelSignal) => {
@@ -206,6 +224,7 @@ export async function graphWorkflow(
       currentNodes,
       completedNodeIds,
       nodeStatuses,
+      nodeRunStatuses,
       cancelled: () => cancelled,
       cancelMode: () => cancelMode,
       ctx,

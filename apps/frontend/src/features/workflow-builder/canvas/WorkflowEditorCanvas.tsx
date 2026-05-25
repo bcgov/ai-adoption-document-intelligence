@@ -65,6 +65,9 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "../palette/control-flow-skeletons";
+import { computeActiveEdges } from "../run/active-edges";
+import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
+import { useOptionalRunState } from "../run/RunStateContext";
 import {
   type SourceNodeData,
   SourceNodeRenderer,
@@ -574,6 +577,7 @@ const ActivityNodeRenderer = memo(
           warningCount={warningCount}
           onBadgeClick={data.onBadgeClick}
         />
+        <NodeStatusBadgeOverlay nodeId={id} />
         <div
           style={{
             fontSize: 11,
@@ -742,6 +746,7 @@ const ControlFlowRectangleRenderer = memo(
           warningCount={data.warningCount ?? 0}
           onBadgeClick={data.onBadgeClick}
         />
+        <NodeStatusBadgeOverlay nodeId={id} />
         {renderControlFlowHeader({ id, data, selected, hints })}
         <div style={{ fontWeight: 600 }}>{data.label}</div>
         <NodeHandles
@@ -850,6 +855,7 @@ const SwitchNodeRenderer = memo(
           warningCount={warningCount}
           onBadgeClick={data.onBadgeClick}
         />
+        <NodeStatusBadgeOverlay nodeId={id} />
         <NodeHandles
           nodeId={id}
           onSourceHandleEnter={data.onSourceHandleEnter}
@@ -1107,6 +1113,7 @@ function projectChipFlowNodes(
       icon: chip.icon,
       color: chip.color,
       nodeCount: chip.nodeCount,
+      memberNodeIds: chip.memberNodeIds,
     },
   }));
 }
@@ -1439,6 +1446,40 @@ function WorkflowEditorCanvasInner({
     lastEdgesFingerprintRef.current = edgesFingerprint;
     setInternalEdges(projectFlowEdges(visibleEdges, config));
   }, [edgesFingerprint, visibleEdges, config, setInternalEdges]);
+
+  // ---------------------------------------------------------------------------
+  // Active-edge animation (US-139)
+  //   Re-derives the set of "currently flowing" edge ids whenever the
+  //   live status map shifts (the polling hook in `RunStateContext`
+  //   pushes a new map every ~1.5s while a Try executes) and patches
+  //   each xyflow edge's `data.isActive` flag + top-level `animated`
+  //   prop accordingly. Kept separate from the structural edges effect
+  //   above so a status tick doesn't trigger a full re-projection.
+  //
+  //   Soft-fails when no `<RunStateProvider>` is mounted — e.g. legacy
+  //   unit tests that exercise the canvas in isolation get an empty
+  //   active set so every edge renders with its Phase 1B styling.
+  // ---------------------------------------------------------------------------
+  const runState = useOptionalRunState();
+  const nodeStatuses = runState?.nodeStatuses;
+  const activeEdges = useMemo(
+    () => computeActiveEdges(config, nodeStatuses ?? {}),
+    [config, nodeStatuses],
+  );
+  useEffect(() => {
+    setInternalEdges((prev) =>
+      prev.map((e): Edge => {
+        const isActive = activeEdges.has(e.id);
+        const prevData = (e.data ?? {}) as WorkflowEdgeData;
+        const prevIsActive = prevData.isActive === true;
+        if (prevIsActive === isActive && e.animated === isActive) {
+          return e;
+        }
+        const nextData: WorkflowEdgeData = { ...prevData, isActive };
+        return { ...e, data: nextData, animated: isActive };
+      }),
+    );
+  }, [activeEdges, setInternalEdges]);
 
   // Persist final positions to the outer config once the drag finishes.
   const handleNodeDragStop = useCallback(

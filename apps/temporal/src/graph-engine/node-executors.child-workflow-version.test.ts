@@ -53,6 +53,7 @@ function makeState(
     currentNodes: [],
     completedNodeIds: new Set(),
     nodeStatuses: new Map(),
+    nodeRunStatuses: {},
     cancelled: () => false,
     cancelMode: () => "graceful" as const,
     ctx: { ...(opts.ctx ?? {}) },

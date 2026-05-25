@@ -39,16 +39,29 @@ import { formatCaseLabel } from "./edge-labels";
  * `WorkflowEdge`. The renderer needs the source `SwitchNode` (only when
  * the source is a switch) so it can resolve `cases[i].edgeId` →
  * `case[i]: <label>` without holding a reference to the entire graph.
+ *
+ * Phase 4 (US-139) adds the optional `isActive` flag — when true the
+ * edge renders with the active-edge animation (blue stroke + 2.5px
+ * width); xyflow's built-in marching-ants dash animation is engaged via
+ * the edge's `animated` flag set by `WorkflowEditorCanvas`.
  */
 export interface WorkflowEdgeData {
   graphEdge: GraphEdge;
   sourceSwitch?: SwitchNode;
+  isActive?: boolean;
   [key: string]: unknown;
 }
 
 const NORMAL_STROKE = "#9ca3af";
 const ERROR_STROKE = "var(--mantine-color-red-6, #e03131)";
 const SWITCH_ACCENT = getControlFlowVisualHints("switch").color;
+/**
+ * Stroke applied to "currently flowing" edges per US-139 / §3.4. Matches
+ * `theme.colors.blue[6]` (same blue the "running" node-status badge
+ * uses — visual consistency).
+ */
+const ACTIVE_STROKE = "var(--mantine-color-blue-6, #228be6)";
+const ACTIVE_STROKE_WIDTH = 2.5;
 
 interface LabelComputation {
   text: string;
@@ -117,7 +130,14 @@ export const WorkflowEdge = memo(function WorkflowEdge(
   });
 
   const { stroke, label } = resolveStyle(data);
-  const edgeStyle: CSSProperties = { stroke, strokeWidth: 2 };
+  // Active-edge override (US-139): when the canvas projection flags this
+  // edge as the currently-flowing hop, swap in the blue stroke +
+  // wider 2.5px line. Otherwise render the existing Phase 1B
+  // per-edge-type stroke unchanged.
+  const isActive = data?.isActive === true;
+  const edgeStyle: CSSProperties = isActive
+    ? { stroke: ACTIVE_STROKE, strokeWidth: ACTIVE_STROKE_WIDTH }
+    : { stroke, strokeWidth: 2 };
 
   const labelPillStyle: CSSProperties = {
     position: "absolute",

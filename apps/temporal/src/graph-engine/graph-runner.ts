@@ -16,7 +16,11 @@ import { initializeContext } from "./context-utils";
 import { handleNodeError } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
 import { computeReadySet, computeTopologicalOrder } from "./graph-algorithms";
-import { executeNode, executeSwitchNode } from "./node-executors";
+import {
+  executeNode,
+  executeSwitchNode,
+  type NodeExecutionResult,
+} from "./node-executors";
 
 /**
  * Main graph execution function
@@ -59,6 +63,15 @@ export async function runGraphExecution(
     if (node.type !== "source") {
       continue;
     }
+    // Phase 4 (US-135) — record the source node's start timestamp BEFORE
+    // the cache write so a query mid-flight (between the upsert call and
+    // the awaited resolution) still observes the node as `"running"`.
+    const sourceStartedAt = new Date().toISOString();
+    state.nodeRunStatuses[node.id] = {
+      status: "running",
+      startedAt: sourceStartedAt,
+    };
+
     if (state.cacheDeps && state.workflowLineageId) {
       await writeSourceNodeCache(
         state.cacheDeps,
@@ -71,10 +84,20 @@ export async function runGraphExecution(
     // for execution by the main loop — its "execution" was the
     // ctx-merge that already happened.
     state.completedNodeIds.add(node.id);
+    const sourceEndedAt = new Date().toISOString();
     state.nodeStatuses.set(node.id, {
       status: "completed",
-      completedAt: new Date().toISOString(),
+      completedAt: sourceEndedAt,
     });
+    // Phase 4 (US-135) — the source node's "execution" is the
+    // ctx-merge that already happened in `initializeContext`. It is
+    // never served from a cache lookup (the cache write is a side-
+    // effect), so the canvas surfaces it as `"succeeded"`.
+    state.nodeRunStatuses[node.id] = {
+      status: "succeeded",
+      startedAt: sourceStartedAt,
+      endedAt: sourceEndedAt,
+    };
   }
 
   // Step 3: Main execution loop
@@ -111,28 +134,66 @@ export async function runGraphExecution(
           throw new Error(`Node not found: ${nodeId}`);
         }
 
-        // Mark node as running
+        // Mark node as running (legacy status map + Phase 4 run-status
+        // map — both maintained in lockstep).
+        const startedAt = new Date().toISOString();
         state.nodeStatuses.set(nodeId, {
           status: "running",
-          startedAt: new Date().toISOString(),
+          startedAt,
         });
+        state.nodeRunStatuses[nodeId] = {
+          status: "running",
+          startedAt,
+        };
 
         try {
+          let executionResult: NodeExecutionResult;
           // Handle switch nodes specially - they determine routing
           if (node.type === "switch") {
             const selectedEdgeId = executeSwitchNode(node, state.ctx);
             state.selectedEdges.set(nodeId, selectedEdgeId);
+            executionResult = { kind: "completed" };
           } else {
-            await executeNode(node, config, state);
+            executionResult = await executeNode(node, config, state);
           }
 
           // Mark node as completed
           state.completedNodeIds.add(nodeId);
+          const endedAt = new Date().toISOString();
           state.nodeStatuses.set(nodeId, {
             status: "completed",
-            completedAt: new Date().toISOString(),
+            completedAt: endedAt,
           });
+          // Phase 4 (US-135) — flip the run-status map based on whether
+          // the activity-node cache decorator short-circuited.
+          if (executionResult.kind === "skipped") {
+            state.nodeRunStatuses[nodeId] = {
+              status: "skipped",
+              startedAt,
+              endedAt,
+              cacheHit: executionResult.cacheHit,
+            };
+          } else {
+            state.nodeRunStatuses[nodeId] = {
+              status: "succeeded",
+              startedAt,
+              endedAt,
+            };
+          }
         } catch (error) {
+          // Phase 4 (US-135) — record the failure status (with the
+          // error message) BEFORE handing off to `handleNodeError`,
+          // because that helper re-throws on the default "fail" policy.
+          // We use the existing `startedAt` (no other writer touches
+          // this entry between the "running" write and here).
+          const failedAt = new Date().toISOString();
+          state.nodeRunStatuses[nodeId] = {
+            status: "failed",
+            startedAt,
+            endedAt: failedAt,
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+          };
           handleNodeError(nodeId, node, error, state, config);
         }
       }),

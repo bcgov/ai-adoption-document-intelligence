@@ -9,6 +9,7 @@ import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
 import { computeConfigHash } from "./config-hash";
 import { GRAPH_WORKFLOW_TYPE, graphWorkflow } from "./graph-workflow";
+import type { NodeRunStatus } from "./graph-workflow-queries";
 import type {
   GraphWorkflowConfig,
   GraphWorkflowInput,
@@ -1726,6 +1727,132 @@ describe("Graph Workflow", () => {
 
       expect(hashA).toBe(hashB);
       expect(hashA).toHaveLength(64);
+    });
+  });
+
+  describe("US-135: getNodeStatusesQuery and nodeStatuses map", () => {
+    it("3-node workflow — mid-execution query reports running + post-execution reports succeeded (Scenarios 2 + 4 + 5 + 6a)", async () => {
+      // Two gates: (1) wait for node A's activity to enter; (2) wait
+      // for node C's activity to enter. While node C is in-flight we
+      // can query the workflow and see node A already succeeded, node
+      // C running, and no other entries — this exercises mid-execution
+      // querying + Scenario 5 (untouched nodes absent) in a way that
+      // keeps the worker alive (queries against a completed workflow
+      // need a replay-capable worker, which `runUntil` shuts down).
+      let aStartedResolve: (() => void) | undefined;
+      let cStartedResolve: (() => void) | undefined;
+      let finishCResolve: (() => void) | undefined;
+      const aStarted = new Promise<void>((resolve) => {
+        aStartedResolve = resolve;
+      });
+      const cStarted = new Promise<void>((resolve) => {
+        cStartedResolve = resolve;
+      });
+      const finishC = new Promise<void>((resolve) => {
+        finishCResolve = resolve;
+      });
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "NodeRunStatus 3-node Test",
+          description: "Test getNodeStatusesQuery across a 3-node linear graph",
+          version: "1.0.0",
+        },
+        nodes: {
+          a: {
+            id: "a",
+            type: "activity",
+            label: "Node A",
+            activityType: "file.prepare",
+            inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+            outputs: [{ port: "preparedData", ctxKey: "preparedData" }],
+          },
+          b: {
+            id: "b",
+            type: "activity",
+            label: "Node B",
+            activityType: "document.updateStatus",
+            parameters: { status: "middle" },
+          },
+          c: {
+            id: "c",
+            type: "activity",
+            label: "Node C",
+            activityType: "azureOcr.submit",
+            outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+          },
+        },
+        edges: [
+          { id: "e1", source: "a", target: "b", type: "normal" },
+          { id: "e2", source: "b", target: "c", type: "normal" },
+        ],
+        entryNodeId: "a",
+        ctx: {
+          blobKey: { type: "string", defaultValue: "blobs/test.pdf" },
+          preparedData: { type: "object" },
+          apimRequestId: { type: "string" },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        "file.prepare": async () => {
+          aStartedResolve?.();
+          return { preparedData: { blobKey: "blobs/test.pdf" } };
+        },
+        "azureOcr.submit": async () => {
+          cStartedResolve?.();
+          await finishC;
+          return { apimRequestId: "req-final" };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        input,
+        "test-node-run-statuses-linear",
+        activitiesOverride,
+      );
+
+      const resultPromise = handle.result();
+      const runPromise = worker.runUntil(resultPromise);
+
+      // Wait until node A's activity has fired (so the workflow has
+      // started and the query handler is registered).
+      await aStarted;
+      // Wait until node C's activity is in-flight — by that point A+B
+      // have already succeeded.
+      await cStarted;
+
+      // Scenario 4 + 2 + 5 — query mid-execution: A + B are succeeded,
+      // C is running, no other nodes present.
+      const midStatuses = (await handle.query("getNodeStatuses")) as Record<
+        string,
+        NodeRunStatus
+      >;
+      expect(midStatuses.a).toBeDefined();
+      expect(midStatuses.a.status).toBe("succeeded");
+      expect(midStatuses.a.startedAt).toBeDefined();
+      expect(midStatuses.a.endedAt).toBeDefined();
+      expect(midStatuses.b).toBeDefined();
+      expect(midStatuses.b.status).toBe("succeeded");
+      expect(midStatuses.c).toBeDefined();
+      expect(midStatuses.c.status).toBe("running");
+      expect(midStatuses.c.startedAt).toBeDefined();
+      expect(midStatuses.c.endedAt).toBeUndefined();
+
+      // Release node C so the workflow can complete.
+      if (!finishCResolve) {
+        throw new Error("finishCResolve not set");
+      }
+      finishCResolve();
+
+      const result = await runPromise;
+      expect(result.status).toBe("completed");
+      expect(result.completedNodes).toEqual(
+        expect.arrayContaining(["a", "b", "c"]),
+      );
     });
   });
 });

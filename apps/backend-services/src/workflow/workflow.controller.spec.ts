@@ -1,6 +1,7 @@
 import { GroupRole } from "@generated/client";
 import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { WorkflowNotFoundError } from "@temporalio/client";
 import { Request } from "express";
 import { z } from "zod/v4";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -110,6 +111,7 @@ describe("WorkflowController", () => {
 
     temporalClient = {
       startGraphWorkflow: jest.fn(),
+      queryNodeStatuses: jest.fn(),
     } as unknown as jest.Mocked<TemporalClientService>;
 
     sourceUploadService = {
@@ -1822,6 +1824,154 @@ describe("WorkflowController", () => {
         ForbiddenException,
       );
       expect(workflowService.deleteWorkflow).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-136 — `GET /:id/runs/:runId/node-statuses` proxy endpoint
+  // ---------------------------------------------------------------------------
+  describe("getNodeStatuses (US-136)", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    // Re-create the Temporal SDK's `WorkflowNotFoundError` shape — the
+    // production controller uses `instanceof WorkflowNotFoundError` to
+    // discriminate, and Jest preserves the prototype chain when we import
+    // the real class from `@temporalio/client`.
+    const makeTemporalNotFound = (message: string): Error =>
+      new WorkflowNotFoundError(message, "graph-adhoc-xyz", undefined);
+
+    // Scenario 2: Query Temporal + return the map (happy path)
+    it("Scenario 2: returns the per-node status map from Temporal", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      const statuses = {
+        "node-1": {
+          status: "succeeded" as const,
+          startedAt: "2026-05-24T12:00:00.000Z",
+          endedAt: "2026-05-24T12:00:01.500Z",
+        },
+        "node-2": {
+          status: "running" as const,
+          startedAt: "2026-05-24T12:00:01.500Z",
+        },
+      };
+      (temporalClient.queryNodeStatuses as jest.Mock).mockResolvedValue(
+        statuses,
+      );
+
+      const result = await controller.getNodeStatuses(
+        "wf-1",
+        "graph-adhoc-xyz",
+        mockReq(),
+      );
+
+      expect(result).toEqual(statuses);
+      expect(temporalClient.queryNodeStatuses).toHaveBeenCalledWith(
+        "graph-adhoc-xyz",
+      );
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+      );
+    });
+
+    // Scenario 3: Unknown runId → 404
+    it("Scenario 3: returns 404 NotFoundException when Temporal throws WorkflowNotFoundError for an unknown run", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.queryNodeStatuses as jest.Mock).mockRejectedValue(
+        makeTemporalNotFound("workflow execution not found"),
+      );
+
+      let caught: unknown;
+      try {
+        await controller.getNodeStatuses("wf-1", "graph-adhoc-typo", mockReq());
+      } catch (err) {
+        caught = err;
+      }
+      const { NotFoundException } = await import("@nestjs/common");
+      expect(caught).toBeInstanceOf(NotFoundException);
+      const nfe = caught as InstanceType<typeof NotFoundException>;
+      const response = nfe.getResponse() as { message: string };
+      expect(response.message).toBe("Run not found");
+    });
+
+    // Scenario 4: Retention-cleaned run → 410 Gone
+    it("Scenario 4: returns 410 GoneException when Temporal reports the run history is retention-cleaned", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.queryNodeStatuses as jest.Mock).mockRejectedValue(
+        makeTemporalNotFound("workflow history not found — past retention"),
+      );
+
+      let caught: unknown;
+      try {
+        await controller.getNodeStatuses("wf-1", "graph-adhoc-old", mockReq());
+      } catch (err) {
+        caught = err;
+      }
+      const { GoneException } = await import("@nestjs/common");
+      expect(caught).toBeInstanceOf(GoneException);
+      const ge = caught as InstanceType<typeof GoneException>;
+      const response = ge.getResponse() as { message: string };
+      expect(response.message).toMatch(/Run history no longer available/);
+    });
+
+    // Scenario 1: Auth — non-member of the workflow's group → 403
+    it("Scenario 1 (auth): throws ForbiddenException when caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(
+        controller.getNodeStatuses("wf-1", "graph-adhoc-xyz", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(temporalClient.queryNodeStatuses).not.toHaveBeenCalled();
+    });
+
+    // Scenario 1 (workflow id 404): propagates NotFoundException from the service
+    it("Scenario 1 (unknown workflow id): propagates NotFoundException from resolveLineageAndVersion", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockRejectedValue(
+        new NotFoundException("Workflow not found: missing"),
+      );
+
+      await expect(
+        controller.getNodeStatuses("missing", "graph-adhoc-xyz", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(temporalClient.queryNodeStatuses).not.toHaveBeenCalled();
+    });
+
+    // Non-Temporal errors propagate unchanged (e.g. connection error) so the
+    // canvas surfaces an HTTP 500 rather than masking it as 404 / 410.
+    it("propagates non-Temporal errors unchanged", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      const unexpected = new Error("connection refused");
+      (temporalClient.queryNodeStatuses as jest.Mock).mockRejectedValue(
+        unexpected,
+      );
+
+      await expect(
+        controller.getNodeStatuses("wf-1", "graph-adhoc-xyz", mockReq()),
+      ).rejects.toThrow(unexpected);
     });
   });
 });

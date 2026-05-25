@@ -105,41 +105,52 @@ function buildActivityParams(
 }
 
 /**
- * Execute a node based on its type
+ * Outcome of executing a single non-switch node. Drives the per-node
+ * status map (US-135) — when an `activity` node short-circuits through
+ * the Phase 4 cache decorator (US-133) it is marked `"skipped"` with
+ * the cache row's hashes; otherwise the node is marked `"succeeded"`.
+ */
+export type NodeExecutionResult =
+  | { kind: "completed" }
+  | { kind: "skipped"; cacheHit: { configHash: string; inputHash: string } };
+
+/**
+ * Execute a node based on its type. Returns a `NodeExecutionResult` so
+ * the caller (graph-runner) can distinguish cache-hit skips from real
+ * completions when populating the live status map.
  */
 export async function executeNode(
   node: GraphNode,
   config: GraphWorkflowConfig,
   state: ExecutionState,
-): Promise<void> {
+): Promise<NodeExecutionResult> {
   switch (node.type) {
     case "activity":
-      await executeActivityNode(node, state);
-      break;
+      return executeActivityNode(node, state);
 
     case "switch":
       // Switch nodes don't "execute" - routing is handled by main loop
-      break;
+      return { kind: "completed" };
 
     case "map":
       await executeMapNode(node as MapNode, config, state);
-      break;
+      return { kind: "completed" };
 
     case "join":
       await executeJoinNode(node as JoinNode, state);
-      break;
+      return { kind: "completed" };
 
     case "pollUntil":
       await executePollUntilNode(node as PollUntilNode, state);
-      break;
+      return { kind: "completed" };
 
     case "humanGate":
       await executeHumanGateNode(node as HumanGateNode, state);
-      break;
+      return { kind: "completed" };
 
     case "childWorkflow":
       await executeChildWorkflowNode(node as ChildWorkflowNode, state);
-      break;
+      return { kind: "completed" };
 
     default:
       throw ApplicationFailure.create({
@@ -212,7 +223,7 @@ function snapshotCtxDelta(
 async function executeActivityNode(
   node: ActivityNode,
   state: ExecutionState,
-): Promise<void> {
+): Promise<NodeExecutionResult> {
   // Step 1: Check activity type is registered
   if (!isRegisteredActivityType(node.activityType)) {
     throw ApplicationFailure.create({
@@ -279,22 +290,33 @@ async function executeActivityNode(
   };
 
   if (state.cacheDeps && state.workflowLineageId) {
-    // Phase 4 cache path. The decorator's `{ cacheHit }` return value is
-    // intentionally discarded here — US-135 will refactor to capture it
-    // for the per-node status map (cache-hit → status "skipped").
-    await executeCachedActivity(
+    // Phase 4 cache path (US-133 + US-135). The decorator's `cacheHit`
+    // return drives the per-node status map: a hit flips `"running"` →
+    // `"skipped"` with the cache row's `(configHash, inputHash)` so the
+    // canvas can surface which inputs produced the cached output.
+    const result = await executeCachedActivity(
       state.cacheDeps,
       node,
       state.ctx,
       state.workflowLineageId,
       rawExecute,
     );
-    return;
+    if (result.cacheHit) {
+      return {
+        kind: "skipped",
+        cacheHit: {
+          configHash: result.configHash,
+          inputHash: result.inputHash,
+        },
+      };
+    }
+    return { kind: "completed" };
   }
 
   // Legacy uncached path — preserves behaviour for tests / callers that
   // do not wire the cache plumbing.
   await rawExecute();
+  return { kind: "completed" };
 }
 
 /**
@@ -675,6 +697,11 @@ export async function executeBranchSubgraph(
     currentNodes: [],
     completedNodeIds: new Set<string>(),
     nodeStatuses: new Map(),
+    // Phase 4 (US-135): share the parent's run-status map so the canvas
+    // observes per-branch nodes mid-execution. Map subgraphs nest the
+    // same node ids across iterations — the last iteration's status
+    // wins, which matches the canvas's "show me the latest" semantics.
+    nodeRunStatuses: parentState.nodeRunStatuses,
     cancelled: parentState.cancelled,
     cancelMode: parentState.cancelMode,
     ctx: branchCtx,
@@ -765,13 +792,20 @@ export async function executeBranchSubgraph(
           });
         }
 
-        // Mark node as running
+        // Mark node as running (legacy status map + Phase 4 run-status
+        // map — both maintained in lockstep, see graph-runner.ts).
+        const startedAt = new Date().toISOString();
         branchState.nodeStatuses.set(nodeId, {
           status: "running",
-          startedAt: new Date().toISOString(),
+          startedAt,
         });
+        branchState.nodeRunStatuses[nodeId] = {
+          status: "running",
+          startedAt,
+        };
 
         try {
+          let executionResult: NodeExecutionResult;
           // Handle switch nodes specially
           if (node.type === "switch") {
             const selectedEdgeId = executeSwitchNode(
@@ -779,17 +813,45 @@ export async function executeBranchSubgraph(
               branchState.ctx,
             );
             branchState.selectedEdges.set(nodeId, selectedEdgeId);
+            executionResult = { kind: "completed" };
           } else {
-            await executeNode(node, config, branchState);
+            executionResult = await executeNode(node, config, branchState);
           }
 
           // Mark node as completed
           branchState.completedNodeIds.add(nodeId);
+          const endedAt = new Date().toISOString();
           branchState.nodeStatuses.set(nodeId, {
             status: "completed",
-            completedAt: new Date().toISOString(),
+            completedAt: endedAt,
           });
+          // Phase 4 (US-135) — flip the run-status map based on whether
+          // the activity-node cache decorator short-circuited.
+          if (executionResult.kind === "skipped") {
+            branchState.nodeRunStatuses[nodeId] = {
+              status: "skipped",
+              startedAt,
+              endedAt,
+              cacheHit: executionResult.cacheHit,
+            };
+          } else {
+            branchState.nodeRunStatuses[nodeId] = {
+              status: "succeeded",
+              startedAt,
+              endedAt,
+            };
+          }
         } catch (error) {
+          // Phase 4 (US-135) — record the failure status BEFORE
+          // `handleNodeError` (which re-throws on the default policy).
+          const failedAt = new Date().toISOString();
+          branchState.nodeRunStatuses[nodeId] = {
+            status: "failed",
+            startedAt,
+            endedAt: failedAt,
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+          };
           handleNodeError(nodeId, node, error, branchState, config);
         }
       }),

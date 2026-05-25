@@ -56,6 +56,7 @@ function makeData(
     icon: "cleanup",
     color: "#5b8def",
     nodeCount: 3,
+    memberNodeIds: ["n1", "n2", "n3"],
     ...overrides,
   };
 }

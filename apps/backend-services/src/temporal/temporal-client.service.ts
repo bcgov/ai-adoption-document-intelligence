@@ -387,6 +387,38 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Query the per-node live run status map for a graph workflow run.
+   *
+   * Wraps Temporal's name-based query handle so callers don't depend on
+   * `@temporalio/workflow`'s `QueryDefinition` (a workflow-sandbox API not
+   * installed in this app). The query type string MUST match the symbol
+   * defined in `apps/temporal/src/graph-workflow-queries.ts`
+   * (`getNodeStatusesQuery = defineQuery<...>("getNodeStatuses")`).
+   *
+   * Errors are propagated unmodified (notably `WorkflowNotFoundError` from
+   * `@temporalio/client`) so the controller can map them to HTTP semantics.
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L19,
+   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §3.2.
+   *
+   * @param workflowId Temporal workflow execution id (runId in the canvas)
+   * @returns The query response — a `Record<string, NodeRunStatus>`-shaped map
+   */
+  async queryNodeStatuses<
+    NodeRunStatus = {
+      status: "pending" | "running" | "succeeded" | "failed" | "skipped";
+      startedAt?: string;
+      endedAt?: string;
+      errorMessage?: string;
+      cacheHit?: { configHash: string; inputHash: string };
+    },
+  >(workflowId: string): Promise<Record<string, NodeRunStatus>> {
+    this.ensureClientInitialized();
+    const handle = this.client!.workflow.getHandle(workflowId);
+    return await handle.query<Record<string, NodeRunStatus>>("getNodeStatuses");
+  }
+
+  /**
    * Cancel a workflow execution
    * @param workflowId Workflow execution ID
    * @param mode Cancellation mode: 'graceful' (wait for current activity) or 'immediate' (cancel immediately)

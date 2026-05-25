@@ -6,6 +6,7 @@ import {
   Delete,
   forwardRef,
   Get,
+  GoneException,
   HttpCode,
   HttpStatus,
   Inject,
@@ -25,7 +26,9 @@ import {
   ApiConflictResponse,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiForbiddenResponse,
+  ApiGoneResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -36,6 +39,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
+import { WorkflowNotFoundError } from "@temporalio/client";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import {
@@ -53,6 +57,12 @@ import {
 } from "./build-run-spec";
 import { deriveInputSchema } from "./derive-input-schema";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
+import {
+  CacheHitDto,
+  NODE_STATUSES_RESPONSE_SCHEMA,
+  NodeRunStatusDto,
+  type NodeStatusesResponseDto,
+} from "./dto/node-statuses-response.dto";
 import { RunSpecResponseDto } from "./dto/run-spec.dto";
 import { StartRunRequestDto, StartRunResponseDto } from "./dto/start-run.dto";
 import {
@@ -94,6 +104,7 @@ function parseWorkflowKindFilter(
 }
 
 @ApiTags("Workflow")
+@ApiExtraModels(NodeRunStatusDto, CacheHitDto)
 @Controller("api/workflows")
 export class WorkflowController {
   constructor(
@@ -495,6 +506,72 @@ export class WorkflowController {
       actorId,
     );
     return { workflow };
+  }
+
+  @Get(":id/runs/:runId/node-statuses")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Get the live per-node run status map for a Temporal run by proxying the `getNodeStatuses` query (Phase 4 try-in-place).",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiParam({
+    name: "runId",
+    description: "Temporal workflow execution id returned by `POST /:id/runs`",
+  })
+  // The response body is a record `Record<string, NodeRunStatusDto>` —
+  // TypeScript can't decorate an index signature with `@ApiProperty`, so
+  // we feed Swagger the raw OpenAPI schema (with `additionalProperties`
+  // pointing at the `NodeRunStatusDto` registered via `@ApiExtraModels`).
+  @ApiOkResponse({
+    description:
+      "Per-node status snapshot. Keys are `nodeId`s; absent keys are pending. Polled by the canvas at ~1.5s cadence.",
+    schema: NODE_STATUSES_RESPONSE_SCHEMA,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Workflow not found, OR the Temporal `runId` does not resolve to a known execution (never existed / typo).",
+  })
+  @ApiGoneResponse({
+    description:
+      "The run's history has been retention-cleaned by Temporal. The canvas should fall back to the cached preview endpoint.",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getNodeStatuses(
+    @Param("id") id: string,
+    @Param("runId") runId: string,
+    @Req() req: Request,
+  ): Promise<NodeStatusesResponseDto> {
+    const wf = await this.workflowService.resolveLineageAndVersion(id);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    try {
+      const statuses = await this.temporalClient.queryNodeStatuses(runId);
+      return statuses as NodeStatusesResponseDto;
+    } catch (error) {
+      // Temporal's SDK throws a single `WorkflowNotFoundError` for both
+      // "no such run" and "history past retention" — the cases are
+      // distinguished only by the gRPC `details` text the server attaches.
+      // We split via a message heuristic: messages mentioning history /
+      // retention / deleted map to 410 Gone; everything else falls back
+      // to 404. Documented gap: a future Temporal Server release could
+      // surface a typed detail (e.g. `WorkflowHistoryNotFoundFailure`)
+      // that we'd switch on instead.
+      if (error instanceof WorkflowNotFoundError) {
+        const messageLower = (error.message ?? "").toLowerCase();
+        const retentionCleaned =
+          /history|retention|deleted|reached.*retention/i.test(messageLower);
+        if (retentionCleaned) {
+          throw new GoneException({
+            message:
+              "Run history no longer available — use the cached preview endpoint instead",
+          });
+        }
+        throw new NotFoundException({ message: "Run not found" });
+      }
+      throw error;
+    }
   }
 
   @Get(":id")

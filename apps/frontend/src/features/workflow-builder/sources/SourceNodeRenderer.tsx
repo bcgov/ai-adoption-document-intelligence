@@ -30,6 +30,7 @@ import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { memo } from "react";
 
 import { NodeTypePill, type NodeTypePillEntry } from "../canvas/NodeTypePill";
+import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
 import {
   getSourceVisualHints,
   resolveSourceColor,
@@ -155,6 +156,7 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
         position: "relative",
       }}
     >
+      <NodeStatusBadgeOverlay nodeId={id} />
       <div
         data-testid={`source-node-header-${id}`}
         style={{

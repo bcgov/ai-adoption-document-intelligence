@@ -84,6 +84,7 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "./palette/control-flow-skeletons";
+import { RunStateProvider } from "./run/RunStateContext";
 import { RunWorkflowDrawer } from "./run/RunWorkflowDrawer";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
 import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
@@ -900,18 +901,20 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               </Stack>
             </Box>
           )}
-          <WorkflowEditorCanvas
-            config={config}
-            selectedNodeId={selectedNodeId}
-            onConfigChange={setConfig}
-            onSelectNode={setSelectedNodeId}
-            onSelectionChangeMany={setSelectedNodeIds}
-            errorsByNode={validation.errorsByNode}
-            onNodeBadgeClick={openValidationDrawerForNode}
-            onReactFlowReady={handleReactFlowReady}
-            simplifiedView={simplifiedView}
-            onGroupChipClick={setActiveGroupId}
-          />
+          <RunStateProvider workflowId={workflowId ?? ""}>
+            <WorkflowEditorCanvas
+              config={config}
+              selectedNodeId={selectedNodeId}
+              onConfigChange={setConfig}
+              onSelectNode={setSelectedNodeId}
+              onSelectionChangeMany={setSelectedNodeIds}
+              errorsByNode={validation.errorsByNode}
+              onNodeBadgeClick={openValidationDrawerForNode}
+              onReactFlowReady={handleReactFlowReady}
+              simplifiedView={simplifiedView}
+              onGroupChipClick={setActiveGroupId}
+            />
+          </RunStateProvider>
         </Box>
         <NodeSettingsPanel
           config={config}
