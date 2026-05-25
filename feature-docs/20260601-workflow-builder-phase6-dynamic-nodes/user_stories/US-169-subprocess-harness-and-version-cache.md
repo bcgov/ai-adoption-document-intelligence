@@ -6,32 +6,32 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `subprocess-harness.ts` exports the harness template + assembly helper
+- [x] **Scenario 1**: `subprocess-harness.ts` exports the harness template + assembly helper
     - **Given** `apps/temporal/src/dynamic-nodes/subprocess-harness.ts`
     - **When** the file is read
     - **Then** it exports `buildSubprocessScript(userScript: string): string` that returns the user's script concatenated with a fixed harness suffix
     - **And** the suffix imports the default export, reads ONE JSON line from stdin, calls the function with `(inputCtx, parameters)`, and writes the result as JSON to stdout — no other I/O
 
-- [ ] **Scenario 2**: `version-cache.ts` exports a 256-entry LRU map
+- [x] **Scenario 2**: `version-cache.ts` exports a 256-entry LRU map
     - **Given** `apps/temporal/src/dynamic-nodes/version-cache.ts`
     - **When** the file is read
     - **Then** it exports `versionCache` (a module-level singleton) with the API `get(versionId): ScriptCacheEntry | undefined`, `set(versionId, entry)`, `delete(versionId)`, `size(): number`
     - **And** the cache has a hard cap of 256 entries (LRU-evicting on `set` when full)
     - **And** `ScriptCacheEntry` is `{ tempPath: string; signature: DynamicNodeSignature; allowNet: string[]; deterministic: boolean }`
 
-- [ ] **Scenario 3**: Cache miss writes a temp file + populates the entry
+- [x] **Scenario 3**: Cache miss writes a temp file + populates the entry
     - **Given** the cache miss helper `loadVersion(versionId, prisma)`
     - **When** called for a versionId not in cache
     - **Then** it `SELECT`s the row from `dynamic_node_version`, calls `buildSubprocessScript(row.script)`, writes to `os.tmpdir()/ai-di-dyn/${versionId}.ts`, and populates the cache
     - **And** subsequent calls for the same `versionId` reuse the temp file (no re-write)
 
-- [ ] **Scenario 4**: Cache eviction deletes the orphan temp file
+- [x] **Scenario 4**: Cache eviction deletes the orphan temp file
     - **Given** the cache is at 256 entries and a 257th `set` happens
     - **When** the LRU evicts the least-recently-used entry
     - **Then** the evicted entry's `tempPath` is deleted from disk
     - **And** the cache size returns to 256
 
-- [ ] **Scenario 5**: Unit tests cover harness assembly + cache lifecycle
+- [x] **Scenario 5**: Unit tests cover harness assembly + cache lifecycle
     - **Given** `subprocess-harness.spec.ts` + `version-cache.spec.ts`
     - **When** the suites run
     - **Then** tests pass for: harness assembly produces a syntactically valid Deno script that round-trips a stdin/stdout JSON message via a synthetic user script; cache `get` after `set` returns the entry; cache eviction at 257 removes the LRU entry + its temp file; `delete(versionId)` removes both entry and file

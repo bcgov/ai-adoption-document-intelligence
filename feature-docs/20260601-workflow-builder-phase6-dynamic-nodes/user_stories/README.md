@@ -105,11 +105,11 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [x] **US-167** (`GET list` + `GET detail` + `DELETE` + Swagger DTOs) — depends on US-163; can land in parallel with US-165/166
 
 ### Phase 3 — Temporal: dyn.run activity + executor resolution (Milestone C — depends on Phase 1 + Phase 1.5 + Phase 2)
-- [ ] **US-168** (error class hierarchy — 7 typed errors) — independent of US-169/170/171; foundation for them
-- [ ] **US-169** (subprocess harness + version-cache LRU) — independent of US-168/170/171; foundation for US-170. NOTE: the subprocess-harness lives inside the deno-runner image (US-186) — this story builds the worker-side cache only
-- [ ] **US-170** (`dyn.run` activity — `deno-runner` HTTP client) — depends on US-168 + US-169 + US-162 (DB) + US-186 (deno-runner running)
-- [ ] **US-171** (executor-side version resolution in `graph-workflow.ts`) — depends on US-168 (errors) + US-162 (DB); independent of US-169/170
-- [ ] **US-172** (real `deno-runner` activity tests + README updates) — depends on US-170 + US-171; closes Milestone C
+- [x] **US-168** (error class hierarchy — 7 typed errors) — independent of US-169/170/171; foundation for them
+- [x] **US-169** (subprocess harness + version-cache LRU) — independent of US-168/170/171; foundation for US-170. NOTE: the subprocess-harness lives inside the deno-runner image (US-186) — this story builds the worker-side cache only
+- [x] **US-170** (`dyn.run` activity — `deno-runner` HTTP client) — depends on US-168 + US-169 + US-162 (DB) + US-186 (deno-runner running)
+- [x] **US-171** (executor-side version resolution in `graph-workflow.ts`) — depends on US-168 (errors) + US-162 (DB); independent of US-169/170
+- [x] **US-172** (real `deno-runner` activity tests + README updates) — depends on US-170 + US-171; closes Milestone C
 
 ### Phase 4 — Catalog merge + binding-walk (Milestone D — depends on Phase 2)
 - [ ] **US-173** (`GET /api/activity-catalog` extension — merge + group cache) — depends on US-167 (list endpoint surface); also unblocks US-175

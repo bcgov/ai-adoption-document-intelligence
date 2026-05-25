@@ -6,37 +6,37 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Test suite calls a running `deno-runner` + verifies success path
+- [x] **Scenario 1**: Test suite calls a running `deno-runner` + verifies success path
     - **Given** `apps/temporal/src/dynamic-nodes/dyn-run.activity.spec.ts` + a `deno-runner` container reachable at `DENO_RUNNER_URL` (started via `docker compose -f deployments/local/docker-compose.deno.yml up -d`)
     - **When** the test "success — uppercase URL" runs against a real DynamicNodeVersion row with a small uppercase script
     - **Then** the activity returns `{ uppercased: { url: "FOO.PDF" } }`
     - **And** the test passes WITHOUT mocking the HTTP client — the runner container actually runs Deno
 
-- [ ] **Scenario 2**: Timeout test
+- [x] **Scenario 2**: Timeout test
     - **Given** a script that sleeps 70 s and a signature `timeoutMs: 1000`
     - **When** the activity is invoked
     - **Then** it throws `DynamicNodeTimeoutError { slug, versionId, timeoutMs: 1000 }` within ~1.5 s
     - **And** the runner container has no orphan Deno processes after the test (verify via `docker exec deno-runner ps` or runner-side cleanup logging)
 
-- [ ] **Scenario 3**: Stdout-too-large test
+- [x] **Scenario 3**: Stdout-too-large test
     - **Given** a script that writes 6 MB to stdout
     - **When** the activity is invoked
     - **Then** it throws `DynamicNodeStdoutTooLargeError { slug, versionId, capBytes: 5242880 }`
     - **And** the runner enforces the cap server-side (SIGKILLs the subprocess before exhausting container memory)
 
-- [ ] **Scenario 4**: Runtime + invalid-JSON tests
+- [x] **Scenario 4**: Runtime + invalid-JSON tests
     - **Given** a script that throws inside the function body, AND a script that writes `not json` to stdout
     - **When** each is invoked
     - **Then** the thrown error throws `DynamicNodeRuntimeError { exitCode != 0, stderrTail: <text including the stack> }`
     - **And** the non-JSON-stdout case throws `DynamicNodeOutputInvalidJsonError { stdoutHead: "not json" }`
 
-- [ ] **Scenario 5**: Missing-declared-port + runner-unreachable tests
+- [x] **Scenario 5**: Missing-declared-port + runner-unreachable tests
     - **Given** a script with signature `outputs: { result: ... }` whose function returns `{}` (missing `result`), AND a separate test that points `DENO_RUNNER_URL` at a closed port
     - **When** each is invoked
     - **Then** the missing-port test throws `DynamicNodeOutputShapeError { slug, versionId, missingPorts: ["result"] }`
     - **And** the runner-unreachable test surfaces a runtime error mapped to "deno runner unavailable" in `NodeRunStatus.errorMessage` (covers the runner-down-in-prod failure mode)
 
-- [ ] **Scenario 6**: Ambient env vars assertion
+- [x] **Scenario 6**: Ambient env vars assertion
     - **Given** a script that returns `{ env: { ...Deno.env.toObject() } }` (with `outputs: { env: { kind: "Artifact" } }`)
     - **When** the activity is invoked through the runner
     - **Then** the returned `env` contains exactly `AI_DI_API_BASE_URL`, `AI_DI_API_KEY`, `AI_DI_GROUP_ID`, `AI_DI_WORKFLOW_RUN_ID` and nothing else — proving the runner is enforcing `--allow-env` restrictedly

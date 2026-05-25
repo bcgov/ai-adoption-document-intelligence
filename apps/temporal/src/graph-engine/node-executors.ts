@@ -17,6 +17,16 @@ import {
 } from "@temporalio/workflow";
 import { isRegisteredActivityType } from "../activity-types";
 import { executeCachedActivity } from "../cache/cached-activity";
+import {
+  DYN_RUN_ACTIVITY_OPTIONS,
+  type DynRunActivityInput,
+  type DynRunActivityResult,
+} from "../dynamic-nodes/dyn-run.types";
+import {
+  RESOLVE_LINEAGE_ACTIVITY_OPTIONS,
+  type ResolveLineageActivityInput,
+  type ResolveLineageActivityResult,
+} from "../dynamic-nodes/resolve-lineage.types";
 import { evaluateCondition } from "../expression-evaluator";
 import type {
   ActivityNode,
@@ -34,6 +44,29 @@ import { handleNodeError, throwPollTimeout } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
 import { computeReadySetForSubgraph } from "./graph-algorithms";
 import { executeWithConcurrencyLimit, parseDurationToMs } from "./runner-utils";
+
+/**
+ * Phase 6 Milestone C (US-171) — workflow-side proxy for the two new
+ * dynamic-node activities. Lives at module level (Temporal pattern: one
+ * proxy per (options, signature) tuple).
+ *
+ * `dynamicNode.resolveLineage` MUST be marked `nonCacheable: true` because
+ * the lineage head pointer can change between executions — caching the
+ * resolution would defeat hot-reload.
+ *
+ * `dyn.run` does NOT carry the `nonCacheable` marker — it goes through
+ * Phase 4's cache decorator (which derives caching decisions from the
+ * activity's own arguments — `versionId` is part of the input, so the
+ * cache row's `configHash` naturally varies by version).
+ */
+type DynamicNodeActivities = {
+  "dynamicNode.resolveLineage": (
+    input: ResolveLineageActivityInput,
+  ) => Promise<ResolveLineageActivityResult>;
+};
+type DynRunActivities = {
+  "dyn.run": (input: DynRunActivityInput) => Promise<DynRunActivityResult>;
+};
 
 const AZURE_OCR_CACHE_ACTIVITY_TYPES = new Set([
   "azureOcr.submit",
@@ -248,6 +281,15 @@ async function executeActivityNode(
   // without doing any of that work on a hit.
   const outputTopLevelKeys = collectOutputTopLevelKeys(node);
 
+  // Phase 6 Milestone C (US-171) — `dyn.<slug>` nodes take a different
+  // path: resolve the lineage → versionId via a nonCacheable Temporal
+  // activity, then invoke the single shared `dyn.run` activity with the
+  // resolved versionId + ambient context (groupId, workflowRunId, apiKey)
+  // baked in. The dispatched activity's input includes the versionId, so
+  // Phase 4's cache decorator naturally invalidates head-pinned consumer
+  // caches when a republish mints a new versionId.
+  const isDynamicNode = node.activityType.startsWith("dyn.");
+
   const rawExecute = async (): Promise<Record<string, unknown>> => {
     // Resolve input port bindings (deferred until miss so cache hits skip it).
     const inputs: Record<string, unknown> = {};
@@ -257,24 +299,27 @@ async function executeActivityNode(
       }
     }
 
-    // Merge static parameters with resolved inputs; inject system fields.
-    let activityParams = buildActivityParams(node, state, inputs);
-    activityParams = mergeBenchmarkOcrCacheParams(
-      node.activityType,
-      activityParams,
-      state.ctx,
-    );
+    let result: Record<string, unknown>;
 
-    // Convert params object to positional args based on activity signature.
-    const activityFn = activityProxy[node.activityType] as (
-      ...args: unknown[]
-    ) => Promise<unknown>;
+    if (isDynamicNode) {
+      result = await dispatchDynamicNode(node, state, inputs);
+    } else {
+      // Merge static parameters with resolved inputs; inject system fields.
+      let activityParams = buildActivityParams(node, state, inputs);
+      activityParams = mergeBenchmarkOcrCacheParams(
+        node.activityType,
+        activityParams,
+        state.ctx,
+      );
 
-    // Most activities take object parameters, so pass activityParams as single arg.
-    const result = (await activityFn(activityParams)) as Record<
-      string,
-      unknown
-    >;
+      // Convert params object to positional args based on activity signature.
+      const activityFn = activityProxy[node.activityType] as (
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      // Most activities take object parameters, so pass activityParams as single arg.
+      result = (await activityFn(activityParams)) as Record<string, unknown>;
+    }
 
     // Write output port bindings to ctx.
     if (node.outputs) {
@@ -317,6 +362,76 @@ async function executeActivityNode(
   // do not wire the cache plumbing.
   await rawExecute();
   return { kind: "completed" };
+}
+
+/**
+ * Phase 6 Milestone C (US-171) — dispatch a `dyn.<slug>` activity node.
+ *
+ * Two-step:
+ *   (1) `dynamicNode.resolveLineage` activity translates the slug +
+ *       optional pinned version → immutable `versionId`. Registered with
+ *       `nonCacheable: true` so head movement is picked up on the next
+ *       execution.
+ *   (2) `dyn.run` activity invokes the deno-runner sidecar with the
+ *       resolved versionId + ambient context. Phase 4's cache decorator
+ *       handles caching naturally — the cache key derives from the
+ *       activity's input which includes `versionId`.
+ *
+ * Throws if `state.groupId` or `state.workflowRunId` is unset (the
+ * workflow entry point must populate both before dispatching a dyn node).
+ */
+async function dispatchDynamicNode(
+  node: ActivityNode,
+  state: ExecutionState,
+  inputs: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const slug = node.activityType.slice("dyn.".length);
+  if (slug.length === 0) {
+    throw ApplicationFailure.create({
+      type: "DYNAMIC_NODE_INVALID_TYPE",
+      message: `Dynamic node has empty slug: ${node.activityType}`,
+      nonRetryable: true,
+    });
+  }
+  if (state.groupId == null) {
+    throw ApplicationFailure.create({
+      type: "DYNAMIC_NODE_MISSING_GROUP",
+      message: `Dynamic node '${slug}' requires a groupId on the workflow context`,
+      nonRetryable: true,
+    });
+  }
+  if (state.workflowRunId === undefined) {
+    throw ApplicationFailure.create({
+      type: "DYNAMIC_NODE_MISSING_RUN_ID",
+      message: `Dynamic node '${slug}' requires a workflowRunId on the workflow context`,
+      nonRetryable: true,
+    });
+  }
+  const apiKey = state.apiKey ?? "";
+
+  // (1) Resolve lineage → versionId.
+  const resolveProxy = proxyActivities<DynamicNodeActivities>(
+    RESOLVE_LINEAGE_ACTIVITY_OPTIONS,
+  );
+  const { versionId } = await resolveProxy["dynamicNode.resolveLineage"]({
+    groupId: state.groupId,
+    slug,
+    version: node.dynamicNodeVersion,
+  });
+
+  // (2) Invoke dyn.run with the resolved versionId.
+  const dynRunProxy = proxyActivities<DynRunActivities>(
+    DYN_RUN_ACTIVITY_OPTIONS,
+  );
+  return dynRunProxy["dyn.run"]({
+    slug,
+    versionId,
+    parameters: node.parameters ?? {},
+    inputCtx: inputs,
+    groupId: state.groupId,
+    workflowRunId: state.workflowRunId,
+    apiKey,
+  });
 }
 
 /**
@@ -664,6 +779,10 @@ async function executeChildWorkflowNode(
         // lineage. Identical activity configs across parent+child share
         // cache rows.
         workflowLineageId: state.workflowLineageId ?? null,
+        // Phase 6 Milestone C (US-170) — child workflows inherit the
+        // originating caller's API key so dynamic nodes nested in
+        // library child workflows can still call back into the platform.
+        apiKey: state.apiKey ?? null,
       },
     ],
   });
@@ -715,6 +834,11 @@ export async function executeBranchSubgraph(
     // also benefit from the cache layer.
     workflowLineageId: parentState.workflowLineageId,
     cacheDeps: parentState.cacheDeps,
+    // Phase 6 Milestone C (US-170) — propagate the dyn.run ambient context
+    // so dynamic-node branches inside map subgraphs see the same caller +
+    // workflow run.
+    apiKey: parentState.apiKey,
+    workflowRunId: parentState.workflowRunId,
     lastError: parentState.lastError,
   };
 

@@ -52,5 +52,14 @@ export const REGISTERED_ACTIVITY_TYPES = [
 export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];
 
 export function isRegisteredActivityType(type: string): boolean {
+  // Phase 6 Milestone C (US-170 / US-171) — every `dyn.<slug>` node is
+  // dispatched through the single shared `dyn.run` Temporal activity. The
+  // catalog merge surface (Milestone D) populates the user-visible list;
+  // here we just accept any well-formed `dyn.<slug>` activity type so the
+  // executor's `executeActivityNode` doesn't reject the node before the
+  // dynamic-node resolution path can take over.
+  if (type.startsWith("dyn.")) {
+    return type.length > "dyn.".length;
+  }
   return (REGISTERED_ACTIVITY_TYPES as readonly string[]).includes(type);
 }

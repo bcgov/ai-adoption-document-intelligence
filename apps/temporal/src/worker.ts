@@ -12,6 +12,8 @@ import * as http from "node:http";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { activityOutputCache } from "./activities/cache/activity-output-cache.activities";
 import { getActivityRegistry } from "./activity-registry";
+import { dynRun } from "./dynamic-nodes/dyn-run.activity";
+import { dynamicNodeResolveLineage } from "./dynamic-nodes/resolve-lineage.activity";
 import { workerLogger } from "./logger";
 import { getRegistry } from "./metrics";
 import { installTemporalRuntimeLogger } from "./temporal-runtime-logger";
@@ -85,6 +87,18 @@ async function run() {
     ...args: unknown[]
   ) => Promise<unknown>;
   activitiesMap["activityOutputCache.gc"] = activityOutputCache.gc as (
+    ...args: unknown[]
+  ) => Promise<unknown>;
+
+  // Phase 6 Milestone C (US-170 + US-171) — register the two dynamic-node
+  // activities. `dyn.run` is the single shared activity that wraps every
+  // `dyn.<slug>` node invocation via the `deno-runner` HTTP service.
+  // `dynamicNode.resolveLineage` is the short executor-side lookup that
+  // translates `(groupId, slug, version?)` → immutable `versionId` —
+  // registered as `nonCacheable: true` (the lineage head can change between
+  // executions; caching would defeat hot-reload).
+  activitiesMap["dyn.run"] = dynRun as (...args: unknown[]) => Promise<unknown>;
+  activitiesMap["dynamicNode.resolveLineage"] = dynamicNodeResolveLineage as (
     ...args: unknown[]
   ) => Promise<unknown>;
 

@@ -234,6 +234,11 @@ export async function graphWorkflow(
       runnerVersion: input.runnerVersion,
       workflowLineageId: input.workflowLineageId ?? null,
       cacheDeps,
+      // Phase 6 Milestone C (US-170) — populate workflowRunId from
+      // `workflowInfo()` here (it's a workflow-context-only API; the
+      // runner module can't reach it directly).
+      workflowRunId: workflowInfo().workflowId,
+      apiKey: input.apiKey ?? null,
       lastError,
     });
 

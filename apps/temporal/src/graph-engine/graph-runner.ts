@@ -41,6 +41,13 @@ export async function runGraphExecution(
   // worker `cacheDeps` proxy is assigned by the workflow entry point
   // (`graph-workflow.ts`) before `runGraphExecution` is invoked.
   state.workflowLineageId = input.workflowLineageId ?? null;
+  // Phase 6 Milestone C (US-170) — propagate the originating caller's API
+  // key so `dyn.run` can inject it as `AI_DI_API_KEY` into the Deno
+  // subprocess. `workflowRunId` is set by the workflow entry point
+  // (`graph-workflow.ts`) from `workflowInfo().workflowId` before
+  // `runGraphExecution` is invoked, because the runner cannot reach
+  // `workflowInfo()` itself (workflow-context API).
+  state.apiKey = input.apiKey ?? null;
 
   // Step 1: Initialize context from defaults + initialCtx
   state.ctx = initializeContext(config, input.initialCtx);

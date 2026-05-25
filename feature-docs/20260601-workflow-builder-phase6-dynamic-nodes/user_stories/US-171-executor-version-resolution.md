@@ -6,20 +6,20 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Executor detects `dyn.*` node types
+- [x] **Scenario 1**: Executor detects `dyn.*` node types
     - **Given** `apps/temporal/src/workflows/graph-workflow.ts` (the per-node execute loop)
     - **When** the loop encounters a node whose `type.startsWith("dyn.")`
     - **Then** it branches into the dynamic-node resolution path (this story) BEFORE invoking the normal activity proxy
     - **And** non-`dyn.*` nodes go through the existing path unchanged
 
-- [ ] **Scenario 2**: Lineage lookup by `(groupId, slug)` with deletion check
+- [x] **Scenario 2**: Lineage lookup by `(groupId, slug)` with deletion check
     - **Given** a node `type: "dyn.my-node"` in a workflow whose group is `groupId`
     - **When** the executor resolves the lineage
     - **Then** it queries `DynamicNode` by `(groupId, slug="my-node")` via a new Temporal activity `dynamicNode.resolveLineage` (kept short for cache-decorator independence)
     - **And** if the lineage's `deletedAt` is set, the activity throws `DynamicNodeDeletedError { slug }`
     - **And** if no row matches, the activity throws `DynamicNodeDeletedError` (same error class — "doesn't exist" and "soft-deleted" are indistinguishable to the workflow per the 404-vs-403 convention)
 
-- [ ] **Scenario 3**: Version resolution (pinned vs head)
+- [x] **Scenario 3**: Version resolution (pinned vs head)
     - **Given** the lineage exists and is not deleted
     - **When** the node has `dynamicNodeVersion: 3`
     - **Then** the activity resolves `DynamicNodeVersion.findFirst({ dynamicNodeId, versionNumber: 3 })` and returns its `id`
@@ -27,18 +27,18 @@
     - **And** when `dynamicNodeVersion` is undefined, the activity returns `DynamicNode.headVersionId`
     - **And** if head is null (shouldn't happen in 6.0 since no per-version delete), throws `DynamicNodeHeadMissingError { slug }`
 
-- [ ] **Scenario 4**: Resolved `versionId` threads through to `dyn.run`
+- [x] **Scenario 4**: Resolved `versionId` threads through to `dyn.run`
     - **Given** the lineage resolves to `versionId = "ck123..."`
     - **When** the executor invokes the activity
     - **Then** `dyn.run` is called with `{ slug, versionId, parameters: node.parameters, inputCtx: <consumed ctx slice>, groupId, workflowRunId }`
     - **And** Phase 4's cache decorator's `configHash` (over node.parameters + versionId + node id chain) naturally varies by `versionId` — republish → new versionId → cache miss → fresh execution
 
-- [ ] **Scenario 5**: Executor + activity tests
+- [x] **Scenario 5**: Executor + activity tests
     - **Given** `graph-workflow.test.ts` (or its existing equivalent)
     - **When** the suite runs
     - **Then** tests pass for: workflow with a `dyn.my-node` node executes through the resolution path; soft-deleted lineage causes a `DynamicNodeDeletedError`-flavored `NodeRunStatus.errorMessage`; pinned version threads through; head version threads through; head pointer change is picked up by the NEXT execution without restart
 
-- [ ] **Scenario 6**: New `dynamicNode.resolveLineage` activity registered
+- [x] **Scenario 6**: New `dynamicNode.resolveLineage` activity registered
     - **Given** the worker bootstrap
     - **When** activities are registered
     - **Then** the new short activity `dynamicNode.resolveLineage` is registered alongside `dyn.run`
