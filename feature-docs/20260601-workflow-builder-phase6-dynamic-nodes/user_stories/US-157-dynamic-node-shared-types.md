@@ -6,30 +6,30 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New `packages/graph-workflow/src/dynamic-nodes/` directory + `types.ts` file
+- [x] **Scenario 1**: New `packages/graph-workflow/src/dynamic-nodes/` directory + `types.ts` file
     - **Given** the shared package
     - **When** `packages/graph-workflow/src/dynamic-nodes/types.ts` is read after the change
     - **Then** it exports the interfaces `DynamicNodeSignature`, `DynamicNodeVersionRecord`, and `ParseError`
     - **And** the directory is wired into the package's `tsconfig` includes
 
-- [ ] **Scenario 2**: `DynamicNodeSignature` carries every field derivable from the JSDoc header
+- [x] **Scenario 2**: `DynamicNodeSignature` carries every field derivable from the JSDoc header
     - **Given** the type
     - **When** read
     - **Then** it contains: `name: string`, `description: string`, `category: string` (default `"Custom"`), `deterministic: boolean`, `inputs: DynamicNodePort[]`, `outputs: DynamicNodePort[]`, `paramsSchema: Record<string, unknown>` (JSON Schema 7), `allowNet: string[]`, `timeoutMs: number`, `maxMemoryMB: number`
     - **And** `DynamicNodePort` is `{ name: string; kind: string; required?: boolean; description?: string }`
 
-- [ ] **Scenario 3**: `DynamicNodeVersionRecord` matches the Prisma row shape
+- [x] **Scenario 3**: `DynamicNodeVersionRecord` matches the Prisma row shape
     - **Given** the type
     - **When** read
     - **Then** it contains: `versionNumber: number`, `script: string`, `signature: DynamicNodeSignature`, `allowNet: string[]`, `deterministic: boolean`, `publishedByUserId?: string`, `publishedAt: string` (ISO)
 
-- [ ] **Scenario 4**: `ParseError` is a discriminated union over the four publish-time stages
+- [x] **Scenario 4**: `ParseError` is a discriminated union over the four publish-time stages
     - **Given** the type
     - **When** read
     - **Then** it has `stage: "jsdoc-parse" | "signature-semantics" | "ts-check" | "allowlist"` + `message: string`
     - **And** optional fields `line?: number`, `column?: number`, `tag?: string`, `unknownKind?: string`, `rejectedHost?: string` for the relevant stages
 
-- [ ] **Scenario 5**: Types are exported from the shared-package barrel
+- [x] **Scenario 5**: Types are exported from the shared-package barrel
     - **Given** `packages/graph-workflow/src/index.ts`
     - **When** read
     - **Then** it re-exports `DynamicNodeSignature`, `DynamicNodeVersionRecord`, `ParseError`, `DynamicNodePort` from `./dynamic-nodes/types`

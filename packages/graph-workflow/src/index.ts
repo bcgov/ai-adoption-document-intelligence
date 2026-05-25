@@ -55,3 +55,16 @@ export type {
   ValidateSourceParameters,
   ValidationRule,
 } from "./catalog";
+
+// Dynamic-node signature DSL (Phase 6) — shared types for the parsed
+// signature, version-row record, and structured publish-time parse errors.
+export type {
+  AllowlistError,
+  DynamicNodePort,
+  DynamicNodeSignature,
+  DynamicNodeVersionRecord,
+  JsDocParseError,
+  ParseError,
+  SignatureSemanticsError,
+  TsCheckError,
+} from "./dynamic-nodes/types";
