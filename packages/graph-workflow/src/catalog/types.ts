@@ -96,4 +96,29 @@ export interface ActivityCatalogEntry {
    * opt-out rationale and the canonical sweep list (US-133).
    */
   nonCacheable?: boolean;
+  /**
+   * Phase 6 dynamic-node lineage slug. Set on entries produced by
+   * `parseDynamicNodeSignature` (US-159); absent on static catalog entries.
+   *
+   * Carries the script's `@name` value. Combined with `dynamicNodeVersion`,
+   * uniquely identifies the immutable `DynamicNodeVersion` row a workflow
+   * node binds to.
+   */
+  dynamicNodeSlug?: string;
+  /**
+   * Phase 6 dynamic-node version number. Set alongside `dynamicNodeSlug`.
+   *
+   * Initial value emitted by the parser is `0` — a placeholder. The publish
+   * endpoint overwrites it with the real version number after persisting
+   * (POST → 1, PUT → N+1).
+   */
+  dynamicNodeVersion?: number;
+  /**
+   * Phase 6 host allowlist declared by the script's `@allowNet` tag.
+   *
+   * Intersected against the global `DYNAMIC_NODE_ALLOW_NET` env var at
+   * publish time. Absent on static catalog entries; defaults to `[]` for
+   * dynamic nodes that omit `@allowNet`.
+   */
+  allowNet?: string[];
 }

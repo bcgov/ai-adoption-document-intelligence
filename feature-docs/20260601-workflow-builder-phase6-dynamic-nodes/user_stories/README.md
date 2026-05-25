@@ -89,7 +89,7 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 ### Phase 1 — Shared package (Milestone A — Vite-restart point after US-161)
 - [x] **US-157** (shared types + `ParseError` shape) — pure types; foundation for the parser + downstream DTOs
 - [x] **US-158** (`parseDynamicNodeSignature` JSDoc-parse stage) — depends on US-157; extracts the JSDoc block
-- [ ] **US-159** (signature semantics + derived entry assembly) — depends on US-158; closes the parser
+- [x] **US-159** (signature semantics + derived entry assembly) — depends on US-158; closes the parser
 - [ ] **US-160** (ambient `@ai-di/graph-workflow/kinds` subpath export) — independent of US-157/158/159; can land in parallel
 - [ ] **US-161** (catalog entry extension + final barrel) — depends on US-157 + US-158 + US-159 + US-160; closes Milestone A
 

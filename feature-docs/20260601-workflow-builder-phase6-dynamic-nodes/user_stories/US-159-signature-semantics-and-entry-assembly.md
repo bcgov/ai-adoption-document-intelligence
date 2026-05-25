@@ -6,37 +6,37 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Slug validation against `/^[a-z][a-z0-9-]*$/` max 64 chars
+- [x] **Scenario 1**: Slug validation against `/^[a-z][a-z0-9-]*$/` max 64 chars
     - **Given** a script whose `@name` does NOT match the regex (e.g. `My-Node`, `_my-node`, 65+ chars)
     - **When** parsed
     - **Then** the parser emits `{ stage: "signature-semantics", message: "@name must match /^[a-z][a-z0-9-]*$/ max 64 chars", tag: "@name", line }`
     - **And** `entry` is `null` in the result
 
-- [ ] **Scenario 2**: Kind registry check for every input + output port
+- [x] **Scenario 2**: Kind registry check for every input + output port
     - **Given** a script declaring `@inputs { foo: { kind: "Document" } }` and `@outputs { bar: { kind: "NotARealKind" } }`
     - **When** parsed
     - **Then** the `Document` input passes; the unknown-kind output emits `{ stage: "signature-semantics", message: "Unknown kind: NotARealKind", tag: "@outputs", unknownKind: "NotARealKind" }`
     - **And** array kinds (e.g. `"Segment[]"`) resolve via the existing Phase 3 registry helpers
 
-- [ ] **Scenario 3**: `@parameters` shape coerces to JSON Schema 7
+- [x] **Scenario 3**: `@parameters` shape coerces to JSON Schema 7
     - **Given** a script declaring `@parameters { minConfidence: { type: "number", default: 0.5, min: 0, max: 1 } }`
     - **When** parsed
     - **Then** the parser produces `paramsSchema = { type: "object", properties: { minConfidence: { type: "number", default: 0.5, minimum: 0, maximum: 1 } }, required: [], additionalProperties: false }`
     - **And** malformed parameter shapes (e.g. `type: "uuid"` — not supported) emit `{ stage: "signature-semantics", message, tag: "@parameters" }`
 
-- [ ] **Scenario 4**: Caps and defaults applied to numeric tags
+- [x] **Scenario 4**: Caps and defaults applied to numeric tags
     - **Given** a script with `@timeoutMs 999999` and no `@maxMemoryMB`
     - **When** parsed
     - **Then** the parser caps `timeoutMs` at 60000 and defaults `maxMemoryMB` to 256 (Phase 6.0 hardcoded ceilings)
     - **And** the cap event itself is NOT an error (silent clamp); explicit user-overflow gets a future story in 6.x
 
-- [ ] **Scenario 5**: Derived `ActivityCatalogEntry` assembled on success
+- [x] **Scenario 5**: Derived `ActivityCatalogEntry` assembled on success
     - **Given** a fully valid script
     - **When** parsed
     - **Then** the result is `{ entry: ActivityCatalogEntry, errors: [] }` where `entry` carries: `type: "dyn.<slug>"`, `category`, `description`, `iconHint: "code"`, `colorHint: "dyn"`, `nonCacheable: !deterministic`, `paramsSchema`, `inputs: PortDescriptor[]`, `outputs: PortDescriptor[]`, `dynamicNodeSlug: <slug>`, `dynamicNodeVersion: 0` (placeholder; backend overwrites), `allowNet`
     - **And** the entry's input/output `PortDescriptor`s carry `kind` declarations compatible with Phase 3's bulk-catalog invariant test
 
-- [ ] **Scenario 6**: Unit tests cover every semantics path
+- [x] **Scenario 6**: Unit tests cover every semantics path
     - **Given** the parser test suite
     - **When** the suite runs
     - **Then** it covers: slug-regex failures, unknown-kind failures (input + output), malformed parameters, default application, silent cap on timeouts/memory, full happy path entry shape, and integration where US-158's jsdoc-parse failure short-circuits before semantics runs
