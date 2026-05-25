@@ -6,31 +6,31 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New `src/kinds/` directory with `index.ts`
+- [x] **Scenario 1**: New `src/kinds/` directory with `index.ts`
     - **Given** the shared package
     - **When** `packages/graph-workflow/src/kinds/index.ts` is read after the change
     - **Then** it exports TS type aliases for every registered `ArtifactKind`: `Document`, `Segment`, `OcrResult`, `Classification`, `OcrTable`, `OcrFields`, `ValidationResult`, `Reference`, `Artifact`, `SinglePageDocument`, `MultiPageDocument`
     - **And** each alias is `Record<string, unknown>` with a phantom `__kind: "<KindName>"` brand for compile-time distinguishability
 
-- [ ] **Scenario 2**: Array variants exported alongside scalar kinds
+- [x] **Scenario 2**: Array variants exported alongside scalar kinds
     - **Given** the same file
     - **When** read
     - **Then** array variants (`SegmentArray`, `OcrTableArray`, etc.) are exported as `<Kind>[]` aliases for ergonomic JSDoc references like `kind: "Segment[]"`
     - **And** TypeScript syntax `Segment[]` continues to work via standard array semantics
 
-- [ ] **Scenario 3**: `package.json` exports map advertises the subpath
+- [x] **Scenario 3**: `package.json` exports map advertises the subpath
     - **Given** `packages/graph-workflow/package.json`
     - **When** read after the change
     - **Then** the `exports` map contains an entry `"./kinds": { "types": "./dist/kinds/index.d.ts", "import": "./dist/kinds/index.js", "default": "./dist/kinds/index.js" }`
     - **And** `tsconfig.json` `paths` mapping (if any) lets `@ai-di/graph-workflow/kinds` resolve in the monorepo workspace
 
-- [ ] **Scenario 4**: `npm run build` in the package produces the subpath output
+- [x] **Scenario 4**: `npm run build` in the package produces the subpath output
     - **Given** the package's build script
     - **When** `npm run build` runs
     - **Then** `dist/kinds/index.js` and `dist/kinds/index.d.ts` exist
     - **And** the `.d.ts` declares every alias the source `index.ts` declares
 
-- [ ] **Scenario 5**: A sample dynamic-node script imports the kinds successfully
+- [x] **Scenario 5**: A sample dynamic-node script imports the kinds successfully
     - **Given** a script with `import type { Document } from "@ai-di/graph-workflow/kinds"` and a function parameter typed `ctx: { document: Document }`
     - **When** `deno check` runs against the script (with the shared package's `dist/kinds/index.d.ts` available)
     - **Then** the script type-checks cleanly with zero errors

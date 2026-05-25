@@ -4,6 +4,19 @@
   "description": "Shared graph workflow types and validation logic",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./kinds": {
+      "types": "./dist/kinds/index.d.ts",
+      "import": "./dist/kinds/index.js",
+      "default": "./dist/kinds/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",

@@ -26,3 +26,15 @@ export type OcrTable = BrandedRecord<"OcrTable">;
 export type Classification = BrandedRecord<"Classification">;
 export type ValidationResult = BrandedRecord<"ValidationResult">;
 export type Reference = BrandedRecord<"Reference">;
+
+export type ArtifactArray = Artifact[];
+export type DocumentArray = Document[];
+export type SinglePageDocumentArray = SinglePageDocument[];
+export type MultiPageDocumentArray = MultiPageDocument[];
+export type SegmentArray = Segment[];
+export type OcrResultArray = OcrResult[];
+export type OcrFieldsArray = OcrFields[];
+export type OcrTableArray = OcrTable[];
+export type ClassificationArray = Classification[];
+export type ValidationResultArray = ValidationResult[];
+export type ReferenceArray = Reference[];
