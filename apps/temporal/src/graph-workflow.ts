@@ -15,6 +15,13 @@ import {
   setHandler,
   workflowInfo,
 } from "@temporalio/workflow";
+import {
+  ACTIVITY_OUTPUT_CACHE_ACTIVITY_OPTIONS,
+  type ActivityOutputCacheFindFreshInput,
+  type ActivityOutputCacheFindFreshResult,
+  type ActivityOutputCacheUpsertInput,
+} from "./activities/cache/activity-output-cache.types";
+import type { CachedActivityDeps } from "./cache/cached-activity";
 import { runGraphExecution } from "./graph-engine";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import {
@@ -26,6 +33,22 @@ import {
   type GraphWorkflowStatus,
   type NodeStatus,
 } from "./graph-workflow-types";
+
+/**
+ * Phase 4 (US-133) — cache-activity proxy typed for the workflow.
+ * Routes the two cache operations through Temporal activities so the
+ * worker decorator can run in-replay-safe workflow code while reads/
+ * writes still go to Postgres. The dot-namespaced keys match the
+ * registry entries in `apps/temporal/src/activities.ts`.
+ */
+type CacheActivities = {
+  "activityOutputCache.findFresh": (
+    input: ActivityOutputCacheFindFreshInput,
+  ) => Promise<ActivityOutputCacheFindFreshResult | null>;
+  "activityOutputCache.upsert": (
+    input: ActivityOutputCacheUpsertInput,
+  ) => Promise<void>;
+};
 
 type PreExecutionActivities = {
   "document.updateStatus": (params: {
@@ -163,6 +186,22 @@ export async function graphWorkflow(
       nodeStatuses.set(nodeId, { status: "pending" });
     }
 
+    // Phase 4 (US-133 Scenario 2): wire the cache-activity proxy once
+    // per workflow execution. The proxy lifetime is the workflow's
+    // lifetime; every per-node activity dispatch shares it. Bypassed
+    // when the caller didn't pass a `workflowLineageId` (legacy tests,
+    // pre-Phase-4 callers).
+    let cacheDeps: CachedActivityDeps | undefined;
+    if (input.workflowLineageId) {
+      const cacheProxy = proxyActivities<CacheActivities>(
+        ACTIVITY_OUTPUT_CACHE_ACTIVITY_OPTIONS,
+      );
+      cacheDeps = {
+        findFresh: (req) => cacheProxy["activityOutputCache.findFresh"](req),
+        upsert: (req) => cacheProxy["activityOutputCache.upsert"](req),
+      };
+    }
+
     const result = await runGraphExecution(input, {
       currentNodes,
       completedNodeIds,
@@ -174,6 +213,8 @@ export async function graphWorkflow(
       mapBranchResults: new Map(),
       configHash: input.configHash,
       runnerVersion: input.runnerVersion,
+      workflowLineageId: input.workflowLineageId ?? null,
+      cacheDeps,
       lastError,
     });
 

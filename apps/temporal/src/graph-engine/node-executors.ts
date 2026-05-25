@@ -16,6 +16,7 @@ import {
   workflowInfo,
 } from "@temporalio/workflow";
 import { isRegisteredActivityType } from "../activity-types";
+import { executeCachedActivity } from "../cache/cached-activity";
 import { evaluateCondition } from "../expression-evaluator";
 import type {
   ActivityNode,
@@ -154,9 +155,59 @@ export async function executeNode(
 // ---------------------------------------------------------------------------
 
 /**
+ * Compute the set of top-level ctx keys this node's `outputs[]` will write
+ * to. Used to construct the ctx delta that the Phase 4 cache decorator
+ * stores in `outputCtx` (US-133 — Scenario 1 / Scenario 3).
+ *
+ * `writeToCtx` resolves namespaced + dotted ctxKey paths; the cache layer
+ * stores top-level subtrees so a cache-hit `Object.assign(ctx, delta)`
+ * replays the same surface area regardless of nesting depth.
+ */
+function collectOutputTopLevelKeys(node: ActivityNode): string[] {
+  if (!node.outputs || node.outputs.length === 0) {
+    return [];
+  }
+  const seen = new Set<string>();
+  for (const binding of node.outputs) {
+    // First segment of the (potentially-namespaced) ctxKey path. We don't
+    // expand namespace prefixes here — writeToCtx handles that internally,
+    // and the cache only needs a stable identifier for "what changed at
+    // the top level".
+    const head = binding.ctxKey.split(".")[0];
+    if (head.length > 0) {
+      seen.add(head);
+    }
+  }
+  return Array.from(seen);
+}
+
+/**
+ * Snapshot the top-level ctx subtrees this node wrote, so the worker
+ * cache decorator can persist them as `outputCtx`. A cache-hit replay
+ * does `Object.assign(ctx, outputCtx)` which restores the same subtrees.
+ */
+function snapshotCtxDelta(
+  ctx: Record<string, unknown>,
+  topLevelKeys: string[],
+): Record<string, unknown> {
+  const delta: Record<string, unknown> = {};
+  for (const key of topLevelKeys) {
+    delta[key] = ctx[key];
+  }
+  return delta;
+}
+
+/**
  * Execute an activity node
  *
  * US-007: Activity node handler
+ * US-133 (Phase 4 try-in-place): when `state.workflowLineageId` and
+ * `state.cacheDeps` are wired, the activity dispatch is routed through
+ * the worker cache decorator (`executeCachedActivity`) so cache reads
+ * short-circuit and cache writes happen automatically. Control-flow
+ * nodes (switch / map / join / pollUntil / humanGate / childWorkflow)
+ * stay on the legacy path — only `activity` and `source` nodes route
+ * through the decorator.
  */
 async function executeActivityNode(
   node: ActivityNode,
@@ -171,23 +222,7 @@ async function executeActivityNode(
     });
   }
 
-  // Step 2: Resolve input port bindings
-  const inputs: Record<string, unknown> = {};
-  if (node.inputs) {
-    for (const binding of node.inputs) {
-      inputs[binding.port] = resolvePortBinding(binding.ctxKey, state.ctx);
-    }
-  }
-
-  // Step 3: Merge static parameters with resolved inputs; inject system fields
-  let activityParams = buildActivityParams(node, state, inputs);
-  activityParams = mergeBenchmarkOcrCacheParams(
-    node.activityType,
-    activityParams,
-    state.ctx,
-  );
-
-  // Step 4: Create activity proxy with timeout and retry configuration
+  // Step 2: Create activity proxy with timeout and retry configuration
   // Use defaults if not specified in node config
   const timeout = (node.timeout?.startToClose ?? "2m") as Duration;
   const retry = (node.retry ?? { maximumAttempts: 3 }) as RetryPolicy;
@@ -197,22 +232,69 @@ async function executeActivityNode(
     retry,
   });
 
-  // Step 5: Invoke activity
-  // Convert params object to positional args based on activity signature
-  const activityFn = activityProxy[node.activityType] as (
-    ...args: unknown[]
-  ) => Promise<unknown>;
+  // Step 3: Invoke activity. Param-resolution + port-write happen inside
+  // the rawExecute closure so the cache decorator can short-circuit
+  // without doing any of that work on a hit.
+  const outputTopLevelKeys = collectOutputTopLevelKeys(node);
 
-  // Most activities take object parameters, so pass activityParams as single arg
-  const result = (await activityFn(activityParams)) as Record<string, unknown>;
-
-  // Step 6: Write output port bindings to ctx
-  if (node.outputs) {
-    for (const binding of node.outputs) {
-      const value = result[binding.port];
-      writeToCtx(binding.ctxKey, value, state.ctx);
+  const rawExecute = async (): Promise<Record<string, unknown>> => {
+    // Resolve input port bindings (deferred until miss so cache hits skip it).
+    const inputs: Record<string, unknown> = {};
+    if (node.inputs) {
+      for (const binding of node.inputs) {
+        inputs[binding.port] = resolvePortBinding(binding.ctxKey, state.ctx);
+      }
     }
+
+    // Merge static parameters with resolved inputs; inject system fields.
+    let activityParams = buildActivityParams(node, state, inputs);
+    activityParams = mergeBenchmarkOcrCacheParams(
+      node.activityType,
+      activityParams,
+      state.ctx,
+    );
+
+    // Convert params object to positional args based on activity signature.
+    const activityFn = activityProxy[node.activityType] as (
+      ...args: unknown[]
+    ) => Promise<unknown>;
+
+    // Most activities take object parameters, so pass activityParams as single arg.
+    const result = (await activityFn(activityParams)) as Record<
+      string,
+      unknown
+    >;
+
+    // Write output port bindings to ctx.
+    if (node.outputs) {
+      for (const binding of node.outputs) {
+        const value = result[binding.port];
+        writeToCtx(binding.ctxKey, value, state.ctx);
+      }
+    }
+
+    // Return the ctx delta — the top-level subtrees this node touched —
+    // so the cache decorator can persist them as `outputCtx`.
+    return snapshotCtxDelta(state.ctx, outputTopLevelKeys);
+  };
+
+  if (state.cacheDeps && state.workflowLineageId) {
+    // Phase 4 cache path. The decorator's `{ cacheHit }` return value is
+    // intentionally discarded here — US-135 will refactor to capture it
+    // for the per-node status map (cache-hit → status "skipped").
+    await executeCachedActivity(
+      state.cacheDeps,
+      node,
+      state.ctx,
+      state.workflowLineageId,
+      rawExecute,
+    );
+    return;
   }
+
+  // Legacy uncached path — preserves behaviour for tests / callers that
+  // do not wire the cache plumbing.
+  await rawExecute();
 }
 
 /**
@@ -555,6 +637,11 @@ async function executeChildWorkflowNode(
         // state.groupId=null and any activity parameters supplied by the
         // graph author would reach the activity unchecked.
         groupId: state.groupId ?? null,
+        // Phase 4 (US-133): propagate the parent's lineage scope so the
+        // child runner's cache reads/writes are keyed under the parent
+        // lineage. Identical activity configs across parent+child share
+        // cache rows.
+        workflowLineageId: state.workflowLineageId ?? null,
       },
     ],
   });
@@ -595,6 +682,12 @@ export async function executeBranchSubgraph(
     mapBranchResults: new Map<string, unknown[]>(),
     configHash: parentState.configHash,
     runnerVersion: parentState.runnerVersion,
+    requestId: parentState.requestId,
+    groupId: parentState.groupId,
+    // Phase 4 (US-133): propagate cache plumbing so map-branch activities
+    // also benefit from the cache layer.
+    workflowLineageId: parentState.workflowLineageId,
+    cacheDeps: parentState.cacheDeps,
     lastError: parentState.lastError,
   };
 

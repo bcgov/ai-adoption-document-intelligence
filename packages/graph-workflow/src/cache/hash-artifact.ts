@@ -28,18 +28,13 @@
  * `stableJson` + sha256, matching the standard `configHash` /
  * `inputHash` path.
  *
- * Pure function — no I/O beyond the in-process sha256 from Node's
- * built-in `crypto` module. Both the worker (Node) and the backend
- * (Node) have `crypto` available.
+ * Pure function — sha256 is sourced from `@noble/hashes` (pure JS, no
+ * Node-builtin imports) so this helper is reachable from Temporal
+ * workflow code in addition to the worker and backend.
  */
 
-import { createHash } from "crypto";
-
+import { sha256Hex } from "./sha256-hex";
 import { stableJson } from "./stable-json";
-
-function sha256Hex(input: string): string {
-  return createHash("sha256").update(input).digest("hex");
-}
 
 interface DocumentShape {
   blobKey: string;

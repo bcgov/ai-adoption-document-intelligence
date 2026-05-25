@@ -10,6 +10,9 @@ export const benchmarkPersistOcrCacheCatalogEntry: ActivityCatalogEntry = {
   description: "Persist Azure OCR poll JSON for a benchmark sample.",
   iconHint: "save",
   colorHint: "green",
+  // Writes to the benchmark tables; persist activities must always run.
+  // See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     { name: "sourceRunId", label: "Source run ID", required: true, kind: "Artifact" },
     { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },

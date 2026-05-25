@@ -11,6 +11,9 @@ export const azureClassifySubmitCatalogEntry: ActivityCatalogEntry = {
     "Submits a document to Azure Document Intelligence for classifier-based page classification.",
   iconHint: "upload",
   colorHint: "blue",
+  // Non-deterministic: each call creates a new Azure classifier operation.
+  // See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     {
       name: "blobKey",

@@ -10,6 +10,9 @@ export const benchmarkCleanupCatalogEntry: ActivityCatalogEntry = {
   description: "Clean up temporary files and materialized datasets.",
   iconHint: "trash",
   colorHint: "gray",
+  // IO-stateful (file deletions); must always run. See US-134 +
+  // TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     {
       name: "materializedDatasetPaths",

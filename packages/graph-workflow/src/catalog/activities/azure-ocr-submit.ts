@@ -42,6 +42,11 @@ export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
     "Sends a prepared document to Azure Document Intelligence and returns a tracking ID.",
   iconHint: "upload",
   colorHint: "blue",
+  // Non-deterministic: each call creates a new Azure operation, so two
+  // invocations with identical inputs produce different `apimRequestId`s.
+  // Skipping the cache decorator avoids polluting the cache with values
+  // that can never be replayed safely. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     {
       name: "fileData",

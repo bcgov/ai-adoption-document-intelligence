@@ -4,6 +4,7 @@
  * Shared state for graph workflow execution.
  */
 
+import type { CachedActivityDeps } from "../cache/cached-activity";
 import type { NodeStatus } from "../graph-workflow-types";
 
 /**
@@ -26,6 +27,16 @@ export interface ExecutionState {
   // the workflow JSON. Lives outside ctx so graph-workflow authors cannot
   // forge or override it via ctx defaults.
   groupId?: string | null;
+  /**
+   * Phase 4 try-in-place cache scope. When both `workflowLineageId` and
+   * `cacheDeps` are present, the per-node activity dispatch goes through
+   * `executeCachedActivity` (US-133). When either is omitted, the
+   * decorator is bypassed and activities execute uncached — preserving
+   * the historical behaviour for tests / callers that don't wire the
+   * cache plumbing.
+   */
+  workflowLineageId?: string | null;
+  cacheDeps?: CachedActivityDeps;
   lastError: {
     current?: {
       nodeId: string;

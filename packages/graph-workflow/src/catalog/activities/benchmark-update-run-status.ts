@@ -28,6 +28,9 @@ export const benchmarkUpdateRunStatusCatalogEntry: ActivityCatalogEntry = {
   description: "Update benchmark run status in the database.",
   iconHint: "status-tag",
   colorHint: "green",
+  // Writes to the benchmark run table; must always run so the recorded
+  // status reflects the real execution. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     {
       name: "runId",

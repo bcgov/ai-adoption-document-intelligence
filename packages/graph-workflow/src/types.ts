@@ -357,6 +357,15 @@ export interface GraphWorkflowInput {
   requestId?: string;
   /** The group_id of the document/workflow owner; auto-injected into activity inputs as `groupId`. */
   groupId?: string | null;
+  /**
+   * Per-org workflow lineage id (`WorkflowLineage.id`). Used by the Phase 4
+   * activity-output cache as the tenancy / sharing scope for cached
+   * activity outputs — see `apps/temporal/src/cache/cached-activity.ts`
+   * and `feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md` L14.
+   * When omitted, the per-node cache decorator is bypassed (activities
+   * still execute, just without cache reads/writes).
+   */
+  workflowLineageId?: string | null;
 }
 
 export interface GraphWorkflowResult {

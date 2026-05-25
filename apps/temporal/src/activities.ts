@@ -59,6 +59,20 @@ export type {
   BenchmarkWritePredictionOutput,
 } from "./activities/benchmark-write-prediction";
 export { benchmarkWritePrediction } from "./activities/benchmark-write-prediction";
+// Phase 4 try-in-place cache activities (US-131). Proxy reads/writes against
+// the `ActivityOutputCache` table for the worker decorator (US-132).
+// US-134 adds `activityOutputCache.gc` for the hourly TTL sweep.
+export type {
+  ActivityOutputCacheFindFreshInput,
+  ActivityOutputCacheFindFreshResult,
+  ActivityOutputCacheGcResult,
+  ActivityOutputCacheUpsertInput,
+  CacheActivityOptions,
+} from "./activities/cache/activity-output-cache.activities";
+export {
+  ACTIVITY_OUTPUT_CACHE_ACTIVITY_OPTIONS,
+  activityOutputCache,
+} from "./activities/cache/activity-output-cache.activities";
 export { checkOcrConfidence } from "./activities/check-ocr-confidence";
 export { classifyDocument } from "./activities/classify-document";
 export { combineSegmentResult } from "./activities/combine-segment-result";

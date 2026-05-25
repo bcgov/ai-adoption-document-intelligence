@@ -28,6 +28,9 @@ export const documentUpdateStatusCatalogEntry: ActivityCatalogEntry = {
   description: "Updates a document's processing status in the database.",
   iconHint: "status-tag",
   colorHint: "gray",
+  // Writes to the documents table; idempotent in effect, but skipping
+  // would mask user-visible side effects. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     {
       name: "documentId",

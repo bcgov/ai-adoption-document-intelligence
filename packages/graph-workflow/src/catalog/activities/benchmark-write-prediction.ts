@@ -10,6 +10,9 @@ export const benchmarkWritePredictionCatalogEntry: ActivityCatalogEntry = {
   description: "Write workflow prediction data to a JSON file for evaluation.",
   iconHint: "save",
   colorHint: "green",
+  // Writes prediction JSON to disk; must always run. See US-134 +
+  // TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     { name: "predictionData", label: "Prediction data", required: true, kind: "Artifact" },
     { name: "outputDir", label: "Output directory", required: true, kind: "Artifact" },

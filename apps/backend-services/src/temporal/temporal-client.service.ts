@@ -253,6 +253,12 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             configHash,
             runnerVersion,
             groupId,
+            // Phase 4 (US-133): the per-node activity-output cache is scoped
+            // by lineage id. `workflowConfig.id` is the `WorkflowLineage.id`
+            // (per `WorkflowService.mapLineageAndVersion`). Passing it lets
+            // the worker decorator key cache rows by lineage so that
+            // identical configs across versions share cache.
+            workflowLineageId: workflowConfig.id,
             ...(requestId && { requestId }),
           },
         ],

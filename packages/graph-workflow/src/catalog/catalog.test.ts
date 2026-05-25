@@ -60,6 +60,24 @@ describe("catalog invariants", () => {
       expect(() => entry.parametersSchema.safeParse(minimal)).not.toThrow();
     },
   );
+
+  // Phase 4 (US-134) — sanity assertion for the `nonCacheable` opt-out flag.
+  // Every entry must either declare `nonCacheable: true` explicitly OR leave
+  // the field absent (defaults to `false`). Catches typos such as
+  // `noncacheable` (wrong casing) or `nonCachable` (missing `e`) which would
+  // silently appear on the entry as a stray property but fail to opt the
+  // activity out of caching. See TRY_IN_PLACE_DESIGN.md §2.6.
+  it.each(types)(
+    "entry for %s declares nonCacheable: true or leaves it undefined",
+    (activityType) => {
+      const entry = getActivityCatalogEntry(activityType);
+      expect(entry).toBeDefined();
+      if (!entry) return;
+      expect(
+        entry.nonCacheable === true || entry.nonCacheable === undefined,
+      ).toBe(true);
+    },
+  );
 });
 
 /**

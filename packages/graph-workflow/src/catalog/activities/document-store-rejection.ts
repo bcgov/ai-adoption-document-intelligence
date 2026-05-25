@@ -11,6 +11,9 @@ export const documentStoreRejectionCatalogEntry: ActivityCatalogEntry = {
     "Records rejection data when a document fails processing or human review.",
   iconHint: "no-entry",
   colorHint: "gray",
+  // Writes to the documents table; skipping would mask user-visible side
+  // effects. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
   inputs: [
     {
       name: "documentId",

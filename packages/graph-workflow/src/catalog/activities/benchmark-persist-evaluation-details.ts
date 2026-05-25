@@ -11,6 +11,9 @@ export const benchmarkPersistEvaluationDetailsCatalogEntry: ActivityCatalogEntry
     description: "Write per-sample evaluation details to blob storage.",
     iconHint: "save",
     colorHint: "green",
+    // Writes per-sample evaluation details to blob storage; persist activities
+    // must always run. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+    nonCacheable: true,
     inputs: [
       { name: "runId", label: "Run ID", required: true, kind: "Artifact" },
       { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },

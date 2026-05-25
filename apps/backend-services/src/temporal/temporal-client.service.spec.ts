@@ -266,6 +266,10 @@ describe("TemporalClientService", () => {
               configHash: expect.any(String),
               runnerVersion: "1.0.0",
               groupId: "g-test",
+              // Phase 4 (US-133): lineage id is `workflowConfig.id` from
+              // `WorkflowService.getWorkflowVersionById`, which the test
+              // fixture maps to the requested `workflowConfigId`.
+              workflowLineageId: "workflow-123",
             },
           ],
           taskQueue: "ocr-processing",
