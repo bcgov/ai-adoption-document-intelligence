@@ -71,6 +71,12 @@ interface NodeSettingsPanelProps {
   activeGroupId?: string | null;
   onConfigChange: (next: GraphWorkflowConfig) => void;
   onDeleteSelected: () => void;
+  /**
+   * Lineage id of the workflow being edited, when in edit mode.
+   * `undefined` in create mode — forwarded to type-specific bodies
+   * that need it (e.g. `SourceNodeSettings`'s "Test upload" button).
+   */
+  workflowId?: string;
 }
 
 export function NodeSettingsPanel({
@@ -79,6 +85,7 @@ export function NodeSettingsPanel({
   activeGroupId,
   onConfigChange,
   onDeleteSelected,
+  workflowId,
 }: NodeSettingsPanelProps) {
   const node = selectedNodeId ? config.nodes[selectedNodeId] : null;
 
@@ -115,6 +122,7 @@ export function NodeSettingsPanel({
       config={config}
       onConfigChange={onConfigChange}
       onDeleteSelected={onDeleteSelected}
+      workflowId={workflowId}
     />
   );
 }
@@ -129,6 +137,7 @@ interface NodeSettingsProps {
   config: GraphWorkflowConfig;
   onConfigChange: (next: GraphWorkflowConfig) => void;
   onDeleteSelected: () => void;
+  workflowId?: string;
 }
 
 function NodeSettings({
@@ -136,6 +145,7 @@ function NodeSettings({
   config,
   onConfigChange,
   onDeleteSelected,
+  workflowId,
 }: NodeSettingsProps) {
   const updateNode = (next: GraphNode) => {
     onConfigChange({
@@ -265,6 +275,7 @@ function NodeSettings({
             node={node}
             config={config}
             onConfigChange={onConfigChange}
+            workflowId={workflowId}
           />
 
           <Divider />
@@ -440,9 +451,10 @@ interface NodeBodyProps {
   node: GraphNode;
   config: GraphWorkflowConfig;
   onConfigChange: (next: GraphWorkflowConfig) => void;
+  workflowId?: string;
 }
 
-function NodeBody({ node, config, onConfigChange }: NodeBodyProps) {
+function NodeBody({ node, config, onConfigChange, workflowId }: NodeBodyProps) {
   switch (node.type) {
     case "activity":
       return (
@@ -506,6 +518,7 @@ function NodeBody({ node, config, onConfigChange }: NodeBodyProps) {
           node={node}
           config={config}
           onConfigChange={onConfigChange}
+          workflowId={workflowId}
         />
       );
   }

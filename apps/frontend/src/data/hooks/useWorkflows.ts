@@ -190,11 +190,30 @@ export interface RunSpecInputSchema {
   required: string[];
 }
 
+/**
+ * Phase 8 — upload-source metadata surfaced by `/run-spec` when the
+ * workflow contains a `source.upload` node. Mirrors backend's
+ * `UploadSpecDto` (DOCUMENT_SOURCES_DESIGN.md §4.3 / US-112).
+ */
+export interface RunSpecUploadSpec {
+  sourceNodeId: string;
+  uploadUrl: string;
+  allowedMimeTypes: string[];
+  maxFileSizeMB: number;
+  ctxKey: string;
+}
+
 export interface WorkflowRunSpec {
   triggerUrl: string;
   inputSchema: RunSpecInputSchema;
   authNotes: string;
   sampleCurl: string;
+  /**
+   * Present only when the workflow has a `source.upload` node
+   * (US-112). Absent entirely otherwise — drives the Run drawer's
+   * Upload section.
+   */
+  uploadSpec?: RunSpecUploadSpec;
 }
 
 export interface StartRunRequest {

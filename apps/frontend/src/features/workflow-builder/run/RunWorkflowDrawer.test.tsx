@@ -4,6 +4,8 @@
  * - Track 2 (US-071 + US-072): trigger URL + schema rows + run button.
  * - Track 3 (US-085): version `<Select>` + per-version run-spec refetch
  *   + workflowVersionId-in-body wiring.
+ * - Phase 8 (US-123): up-to-two source sections — API only, Upload
+ *   only, both, neither.
  */
 
 import "@testing-library/jest-dom";
@@ -32,6 +34,19 @@ vi.mock("@mantine/notifications", () => ({
   notifications: {
     show: vi.fn(),
   },
+}));
+
+// US-123 — mock `useSourceUpload` so the Upload section tests can drive
+// the upload-then-/runs chain without touching the global `fetch` (the
+// drawer's API section uses the apiService mock above; mixing two
+// transport mocks gets noisy fast).
+const sourceUploadMutateAsync = vi.fn();
+const sourceUploadState = { isPending: false };
+vi.mock("../sources/useSourceUpload", () => ({
+  useSourceUpload: () => ({
+    mutateAsync: sourceUploadMutateAsync,
+    isPending: sourceUploadState.isPending,
+  }),
 }));
 
 interface ApiServiceMock {
@@ -131,6 +146,8 @@ describe("RunWorkflowDrawer", () => {
     apiMock = apiService as unknown as ApiServiceMock;
     apiMock.get.mockReset();
     apiMock.post.mockReset();
+    sourceUploadMutateAsync.mockReset();
+    sourceUploadState.isPending = false;
   });
 
   afterEach(() => {
@@ -424,5 +441,192 @@ describe("RunWorkflowDrawer", () => {
         initialCtx: expect.any(Object),
       }),
     );
+  });
+
+  // ---------------------------------------------------------------------
+  // US-123 — up-to-two source sections (Phase 8)
+  //
+  // Each `describe` block fixes one of the four /run-spec shapes from
+  // DOCUMENT_SOURCES_DESIGN.md §7.4 and asserts which sections render.
+  // ---------------------------------------------------------------------
+
+  const uploadSpec = {
+    sourceNodeId: "src-upload-1",
+    uploadUrl:
+      "http://localhost:3002/api/workflows/wf-1/sources/src-upload-1/upload",
+    allowedMimeTypes: ["application/pdf", "image/png"],
+    maxFileSizeMB: 25,
+    ctxKey: "documentUrl",
+  };
+
+  const mockRunSpec = (apiMock: ApiServiceMock, runSpec: unknown) => {
+    apiMock.get.mockImplementation((url: string) => {
+      if (url === "/workflows/wf-1/versions") {
+        return Promise.resolve({
+          success: true,
+          data: { versions: versionsList },
+        });
+      }
+      if (url.startsWith("/workflows/wf-1/run-spec")) {
+        return Promise.resolve({ success: true, data: runSpec });
+      }
+      return Promise.resolve({ success: false, message: `unhandled: ${url}` });
+    });
+  };
+
+  it("US-123 Scenario 1: source.api only (uploadSpec absent) → API section renders, Upload section absent", async () => {
+    mockRunSpec(apiMock, sampleSpec);
+
+    renderDrawer();
+
+    await screen.findByTestId("run-drawer-api-section");
+    expect(screen.queryByTestId("run-drawer-upload-section")).toBeNull();
+    // API surface fingerprints — JsonInput + Run button live here.
+    expect(screen.getByTestId("run-workflow-button")).toBeInTheDocument();
+    expect(screen.getByText(sampleSpec.triggerUrl)).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("run-drawer-upload-dropzone"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("US-123 Scenario 2: source.upload only (empty inputSchema + uploadSpec) → Upload section renders, JsonInput absent + upload-then-run chain fires", async () => {
+    mockRunSpec(apiMock, {
+      ...sampleSpec,
+      inputSchema: { type: "object", properties: {}, required: [] },
+      uploadSpec,
+    });
+    sourceUploadMutateAsync.mockResolvedValue({
+      documentUrl: "https://blob.example/abc-123",
+    });
+    apiMock.post.mockResolvedValue({
+      success: true,
+      data: {
+        workflowId: "graph-upload-only-001",
+        workflowVersionId: HEAD_VERSION_ID,
+        status: "started",
+      },
+    });
+
+    renderDrawer();
+
+    await screen.findByTestId("run-drawer-upload-section");
+    // The API section is hidden — inputSchema has no fields AND
+    // uploadSpec is present.
+    expect(screen.queryByTestId("run-drawer-api-section")).toBeNull();
+    expect(screen.queryByTestId("run-workflow-button")).not.toBeInTheDocument();
+
+    // Run button is disabled until a file is dropped.
+    const runBtn = screen.getByTestId("run-drawer-upload-run-button");
+    expect(runBtn).toBeDisabled();
+
+    // Drop a file into the Dropzone. Mantine's Dropzone composes an
+    // internal `<input type="file">` that fires the same `onDrop`
+    // callback under the hood.
+    const file = new File(["pdf bytes"], "doc.pdf", {
+      type: "application/pdf",
+    });
+    const fileInput = document
+      .querySelector('[data-testid="run-drawer-upload-dropzone"]')
+      ?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(fileInput).not.toBeNull();
+    if (fileInput) {
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+    }
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("run-drawer-upload-run-button"),
+      ).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("run-drawer-upload-run-button"));
+    });
+
+    await waitFor(() => {
+      expect(sourceUploadMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(sourceUploadMutateAsync).toHaveBeenCalledWith(file);
+
+    await waitFor(() => {
+      expect(apiMock.post).toHaveBeenCalledWith(
+        "/workflows/wf-1/runs",
+        expect.objectContaining({
+          initialCtx: { documentUrl: "https://blob.example/abc-123" },
+        }),
+      );
+    });
+
+    expect(
+      await screen.findByTestId("run-drawer-upload-success"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("graph-upload-only-001"),
+    ).toBeInTheDocument();
+  });
+
+  it("US-123 Scenario 3: BOTH source.api + source.upload → both sections render", async () => {
+    mockRunSpec(apiMock, { ...sampleSpec, uploadSpec });
+
+    renderDrawer();
+
+    await screen.findByTestId("run-drawer-api-section");
+    expect(screen.getByTestId("run-drawer-upload-section")).toBeInTheDocument();
+    // Both Run buttons coexist — each drives its own chain.
+    expect(screen.getByTestId("run-workflow-button")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("run-drawer-upload-run-button"),
+    ).toBeInTheDocument();
+    // API surface still surfaces the trigger URL + sample curl.
+    expect(screen.getByText(sampleSpec.triggerUrl)).toBeInTheDocument();
+  });
+
+  it("US-123 Scenario 4: legacy isInput workflow (neither source node) → API section unchanged, Upload section absent", async () => {
+    // The drawer can't tell whether `inputSchema` came from a
+    // source.api or from an isInput-derived ctx — its only signal is
+    // `uploadSpec` presence. Omitting `uploadSpec` reproduces the
+    // legacy Phase 2 Track 2 shape exactly.
+    mockRunSpec(apiMock, sampleSpec);
+    apiMock.post.mockResolvedValue({
+      success: true,
+      data: {
+        workflowId: "graph-legacy-isInput-222",
+        workflowVersionId: HEAD_VERSION_ID,
+        status: "started",
+      },
+    });
+
+    renderDrawer();
+
+    // API section renders with the exact Phase 2 Track 2 surface —
+    // trigger URL, schema rows, sample curl, JsonInput, Run button.
+    await screen.findByTestId("run-drawer-api-section");
+    expect(screen.queryByTestId("run-drawer-upload-section")).toBeNull();
+    expect(screen.getByText(sampleSpec.triggerUrl)).toBeInTheDocument();
+    expect(screen.getByText("customerId")).toBeInTheDocument();
+    expect(screen.getByText("count")).toBeInTheDocument();
+
+    // The Run button still drives /runs directly with the parsed JSON
+    // body — exactly as Phase 2 Track 2 left it.
+    const runBtn = await screen.findByTestId("run-workflow-button");
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+    await waitFor(() => {
+      expect(apiMock.post).toHaveBeenCalledWith(
+        "/workflows/wf-1/runs",
+        expect.objectContaining({
+          initialCtx: expect.objectContaining({ customerId: "", count: 5 }),
+        }),
+      );
+    });
+    expect(
+      await screen.findByTestId("run-drawer-api-success"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("graph-legacy-isInput-222"),
+    ).toBeInTheDocument();
   });
 });

@@ -919,6 +919,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           activeGroupId={activeGroupId}
           onConfigChange={setConfig}
           onDeleteSelected={deleteSelected}
+          workflowId={isEditMode ? workflowId : undefined}
         />
       </Box>
     </Stack>

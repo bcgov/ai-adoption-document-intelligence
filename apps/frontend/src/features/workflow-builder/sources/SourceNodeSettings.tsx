@@ -13,7 +13,9 @@
  * the shared port-bindings footer still live in `NodeSettingsPanel`; this
  * component renders only the source-specific middle band.
  *
- * The "Test upload" button is intentionally NOT here — it lands in US-124.
+ * For `source.upload` nodes the `SourceUploadButton` (US-124) is
+ * mounted below the parameters form so authors can verify the
+ * upload constraints without opening the Run drawer.
  */
 
 import {
@@ -26,6 +28,7 @@ import { useMemo } from "react";
 
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
+import { SourceUploadButton } from "./SourceUploadButton";
 import { resolveSourceColor, resolveSourceIcon } from "./source-catalog-utils";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +46,13 @@ export interface SourceNodeSettingsProps {
    * for activity and control-flow nodes today.
    */
   onConfigChange: (next: GraphWorkflowConfig) => void;
+  /**
+   * Lineage id of the workflow being edited, when in edit mode.
+   * `undefined` in create mode — the `SourceUploadButton` (US-124)
+   * renders disabled with a "Save the workflow first" tooltip in
+   * that case.
+   */
+  workflowId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +63,7 @@ export function SourceNodeSettings({
   node,
   config,
   onConfigChange,
+  workflowId,
 }: SourceNodeSettingsProps) {
   const entry = getSourceCatalogEntry(node.sourceType);
 
@@ -75,6 +86,35 @@ export function SourceNodeSettings({
     if (!entry) return null;
     return entry.parametersSchema.safeParse(node.parameters ?? {});
   }, [entry, node.parameters]);
+
+  /**
+   * Effective `source.upload` parameters with the catalog's zod
+   * `.default(...)` values applied — used to wire the "Test upload"
+   * button's `accept` attribute to the resolved allowedMimeTypes
+   * even when the user hasn't customised the field.
+   *
+   * `source.api` (and any other future source subtype) returns
+   * `null` here; the button only renders for `source.upload`.
+   */
+  const uploadAllowedMimeTypes = useMemo<string[] | null>(() => {
+    if (node.sourceType !== "source.upload" || !entry) return null;
+    const parsed = entry.parametersSchema.safeParse(node.parameters ?? {});
+    if (!parsed.success) {
+      // Fall back to the design-doc defaults so the button stays
+      // usable even when the form is in an intermediate invalid
+      // state — the backend will re-validate per-file anyway.
+      return ["application/pdf", "image/*"];
+    }
+    const raw = (parsed.data as { allowedMimeTypes?: unknown })
+      .allowedMimeTypes;
+    if (
+      Array.isArray(raw) &&
+      raw.every((entry): entry is string => typeof entry === "string")
+    ) {
+      return raw;
+    }
+    return ["application/pdf", "image/*"];
+  }, [entry, node.parameters, node.sourceType]);
 
   const setParameters = (parameters: Record<string, unknown>) => {
     const updated: SourceNode = { ...node, parameters };
@@ -158,6 +198,14 @@ export function SourceNodeSettings({
             </Text>
           )}
         </Box>
+
+        {node.sourceType === "source.upload" && uploadAllowedMimeTypes && (
+          <SourceUploadButton
+            workflowId={workflowId}
+            sourceNodeId={node.id}
+            allowedMimeTypes={uploadAllowedMimeTypes}
+          />
+        )}
       </Stack>
     </Box>
   );

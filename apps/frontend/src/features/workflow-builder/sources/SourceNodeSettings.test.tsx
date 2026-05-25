@@ -14,6 +14,29 @@ import { describe, expect, it, vi } from "vitest";
 import type { GraphWorkflowConfig, SourceNode } from "../../../types/workflow";
 import { SourceNodeSettings } from "./SourceNodeSettings";
 
+// US-124 — `SourceUploadButton` calls `useSourceUpload`, which uses
+// TanStack's QueryClient under the hood. Mock the hook here so this
+// component-level test can render the button without spinning up a
+// QueryClientProvider; the hook + button each have their own
+// dedicated test files.
+vi.mock("./useSourceUpload", async () => {
+  const actual =
+    await vi.importActual<typeof import("./useSourceUpload")>(
+      "./useSourceUpload",
+    );
+  return {
+    ...actual,
+    useSourceUpload: () => ({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    }),
+  };
+});
+
+vi.mock("@mantine/notifications", () => ({
+  notifications: { show: vi.fn() },
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -257,5 +280,48 @@ describe("SourceNodeSettings — unknown sourceType handling", () => {
     expect(
       screen.getByTestId("source-node-settings-unknown"),
     ).toHaveTextContent("Unknown source type: source.does-not-exist");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-124 Scenario 1 — button visible only on source.upload panel
+// ---------------------------------------------------------------------------
+
+describe("SourceNodeSettings — US-124 Scenario 1: 'Test upload' button visibility", () => {
+  it("renders the SourceUploadButton when the node is source.upload", () => {
+    const node = makeSourceUploadNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    expect(screen.getByTestId("source-upload-button")).toBeInTheDocument();
+    expect(screen.getByTestId("source-upload-button")).toHaveTextContent(
+      "Test upload",
+    );
+  });
+
+  it("does NOT render the SourceUploadButton when the node is source.api", () => {
+    const node = makeSourceApiNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    expect(screen.queryByTestId("source-upload-button")).toBeNull();
   });
 });
