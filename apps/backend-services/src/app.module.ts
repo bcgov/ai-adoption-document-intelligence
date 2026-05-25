@@ -15,6 +15,7 @@ import { CacheModule } from "./cache/cache.module";
 import { ConfusionProfileModule } from "./confusion-profile/confusion-profile.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
+import { DynamicNodesModule } from "./dynamic-nodes/dynamic-nodes.module";
 import { GroupModule } from "./group/group.module";
 import { HitlModule } from "./hitl/hitl.module";
 import { LoggingModule } from "./logging/logging.module";
@@ -62,6 +63,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     ConfusionProfileModule,
     DatabaseModule,
     DocumentModule,
+    DynamicNodesModule,
     QueueModule,
     UploadModule,
     TemporalModule,

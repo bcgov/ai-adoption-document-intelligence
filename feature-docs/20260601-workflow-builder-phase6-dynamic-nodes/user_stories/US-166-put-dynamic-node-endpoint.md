@@ -6,37 +6,37 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New `PUT /api/dynamic-nodes/:slug` endpoint declared
+- [x] **Scenario 1**: New `PUT /api/dynamic-nodes/:slug` endpoint declared
     - **Given** the same controller from US-165
     - **When** the file is read after the change
     - **Then** it declares `@Put(":slug") update(@Param("slug") slug, @Body() dto: UpdateDynamicNodeRequestDto, @Req() req)` that delegates to `dynamicNodesService.publish({ groupId, slug, script: dto.script, mode: "update", actorUserId })`
 
-- [ ] **Scenario 2**: 200 on success — body carries the new version number
+- [x] **Scenario 2**: 200 on success — body carries the new version number
     - **Given** an existing lineage `my-node` at version 3, and a valid script with `@name my-node`
     - **When** the request is made
     - **Then** the response status is 200 with body `{ slug: "my-node", version: 4, signature: { ... }, errors: [] }`
     - **And** the lineage's `headVersionId` now points at v4
     - **And** v1 / v2 / v3 rows are still in `dynamic_node_version` (only the pointer moved)
 
-- [ ] **Scenario 3**: 404 on unknown or soft-deleted slug
+- [x] **Scenario 3**: 404 on unknown or soft-deleted slug
     - **Given** no lineage with slug `unknown-node` exists for this group, OR the lineage exists but is soft-deleted
     - **When** the request is made
     - **Then** the response status is 404 (`@ApiNotFoundResponse()`)
     - **And** no version is persisted
 
-- [ ] **Scenario 4**: 409 on `@name` differing from path slug
+- [x] **Scenario 4**: 409 on `@name` differing from path slug
     - **Given** `PUT /api/dynamic-nodes/my-node` with a request body whose script declares `@name different-node`
     - **When** the request is made
     - **Then** the response status is 409 with body `{ code: "NAME_MISMATCH", pathSlug: "my-node", scriptName: "different-node" }`
     - **And** no version is persisted
 
-- [ ] **Scenario 5**: 400 on validation failure — same structured `errors` as US-165
+- [x] **Scenario 5**: 400 on validation failure — same structured `errors` as US-165
     - **Given** a script with a ts-check error
     - **When** the request is made
     - **Then** the response status is 400 with body `{ errors: [{ stage: "ts-check", line, column, message }] }`
     - **And** the lineage's head pointer is unchanged
 
-- [ ] **Scenario 6**: Full Swagger decorators on the endpoint
+- [x] **Scenario 6**: Full Swagger decorators on the endpoint
     - **Given** Swagger metadata
     - **When** generated
     - **Then** the endpoint carries `@ApiOkResponse({ type: DynamicNodePublishResponseDto })`, `@ApiBadRequestResponse({ type: PublishErrorsResponseDto })`, `@ApiNotFoundResponse()`, `@ApiConflictResponse({ description: "Name mismatch between path slug and script @name" })`, `@ApiUnauthorizedResponse()`

@@ -265,7 +265,58 @@ THROTTLE_AUTH_REFRESH_LIMIT=5       # Max requests per IP per window (default: 5
 API_KEY_MAX_FAILED_ATTEMPTS=20      # Max failed API key validations per IP before 429 (default: 20)
 API_KEY_FAILED_WINDOW_MS=60000      # Tracking window in milliseconds (default: 60 000 = 1 minute)
 API_KEY_SWEEP_INTERVAL_MS=60000     # Cleanup interval for stale records in milliseconds (default: 60 000)
+
+# Phase 6 — Dynamic Nodes
+# URL of the deno-runner sidecar (POST /check at publish time, POST /execute
+# at activity time). Default `http://localhost:9099` for local dev (the
+# port mapped by deployments/local/docker-compose.deno.yml); the cluster
+# stack overrides to `http://deno-runner:9090`.
+DENO_RUNNER_URL=http://localhost:9099
+# Comma-separated allowlist of host patterns that dynamic-node scripts
+# may declare under `@allowNet`. The publish endpoint intersects each
+# script's declared hosts against this list — anything outside is
+# rejected with a `stage: "allowlist"` ParseError. Empty / unset means
+# scripts can only reach the system-managed API_BASE_URL host at runtime.
+DYNAMIC_NODE_ALLOW_NET=
 ```
+
+## Phase 6 — Dynamic Nodes
+
+Dynamic nodes are user-authored TypeScript activities published at runtime
+via the API (POST/PUT `/api/dynamic-nodes`) and executed in a sandboxed
+Deno subprocess. See `docs-md/workflow-builder/DYNAMIC_NODES_DESIGN.md` for
+the full design; the publish/CRUD endpoints live in
+`src/dynamic-nodes/`.
+
+### Ops dependency: `deno-runner` sidecar
+
+The backend NEVER spawns Deno directly. Every `deno check` (publish-time)
+and `deno run` (activity-time, Temporal worker side) call goes through the
+`deno-runner` HTTP service deployed alongside the backend:
+
+- **Local dev**: `deployments/local/docker-compose.deno.yml` runs the
+  sidecar on `http://localhost:9099`. Configure with `DENO_RUNNER_URL`.
+- **OpenShift / kustomize**: `deployments/openshift/kustomize/base/deno-runner/`
+  ships a Service + Deployment + NetworkPolicy on
+  `http://deno-runner:9090`, reachable only from backend-services + worker
+  pods.
+
+If the runner is unreachable, the publish endpoints surface a `503` with
+body `{ code: "DENO_RUNNER_UNAVAILABLE", message }` rather than failing
+silently — the Phase 7 agent (and any human operator) gets a clear retry
+signal.
+
+### Endpoints
+
+| Verb     | Path                          | Story  | Notes                                                          |
+| -------- | ----------------------------- | ------ | -------------------------------------------------------------- |
+| `POST`   | `/api/dynamic-nodes`          | US-165 | Publish v1. 201 success; 400 with `errors[]`; 409 dup slug.    |
+| `PUT`    | `/api/dynamic-nodes/:slug`    | US-166 | Publish v(N+1). 200 success; 404 unknown; 409 NAME_MISMATCH.   |
+| `GET`    | `/api/dynamic-nodes`          | US-167 | List group's non-deleted lineages with `versionCount`.         |
+| `GET`    | `/api/dynamic-nodes/:slug`    | US-167 | Full version history (newest first) + each version's script.  |
+| `DELETE` | `/api/dynamic-nodes/:slug`    | US-167 | Idempotent soft-delete; returns `usedInWorkflowCount`.         |
+
+All five inherit the existing `x-api-key` middleware + group-scoping.
 
 ### 3. Local Services (Docker Compose)
 

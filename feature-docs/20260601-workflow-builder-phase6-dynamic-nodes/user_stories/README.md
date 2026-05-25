@@ -97,12 +97,12 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [x] **US-186** (`deno-runner` HTTP sidecar service — image + docker-compose + OpenShift kustomize) — independent of Milestone A's shared-package work; can land in parallel. Required before US-164 (publish-time `deno check`) and US-170 (`dyn.run` HTTP client) can be implemented. ✅ Shipped in commit `f7395b49`.
 
 ### Phase 2 — Backend: persistence + publish endpoints (Milestone B — depends on Phase 1 + Phase 1.5)
-- [ ] **US-162** (Prisma models + migration) — foundation; everything in Milestone B depends on it
-- [ ] **US-163** (`DynamicNodeRepository`) — depends on US-162
-- [ ] **US-164** (publish-time validation pipeline service — parser + `deno-runner /check` + allowlist) — depends on US-161 (parser) + US-163 (repo) + US-186 (deno-runner running)
-- [ ] **US-165** (`POST /api/dynamic-nodes` + Swagger DTOs) — depends on US-164
-- [ ] **US-166** (`PUT /api/dynamic-nodes/:slug` + Swagger DTOs) — depends on US-164; can land in parallel with US-165
-- [ ] **US-167** (`GET list` + `GET detail` + `DELETE` + Swagger DTOs) — depends on US-163; can land in parallel with US-165/166
+- [x] **US-162** (Prisma models + migration) — foundation; everything in Milestone B depends on it
+- [x] **US-163** (`DynamicNodeRepository`) — depends on US-162
+- [x] **US-164** (publish-time validation pipeline service — parser + `deno-runner /check` + allowlist) — depends on US-161 (parser) + US-163 (repo) + US-186 (deno-runner running)
+- [x] **US-165** (`POST /api/dynamic-nodes` + Swagger DTOs) — depends on US-164
+- [x] **US-166** (`PUT /api/dynamic-nodes/:slug` + Swagger DTOs) — depends on US-164; can land in parallel with US-165
+- [x] **US-167** (`GET list` + `GET detail` + `DELETE` + Swagger DTOs) — depends on US-163; can land in parallel with US-165/166
 
 ### Phase 3 — Temporal: dyn.run activity + executor resolution (Milestone C — depends on Phase 1 + Phase 1.5 + Phase 2)
 - [ ] **US-168** (error class hierarchy — 7 typed errors) — independent of US-169/170/171; foundation for them

@@ -6,38 +6,38 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New `POST /api/dynamic-nodes` endpoint declared
+- [x] **Scenario 1**: New `POST /api/dynamic-nodes` endpoint declared
     - **Given** `apps/backend-services/src/dynamic-nodes/dynamic-nodes.controller.ts`
     - **When** the file is read after the change
     - **Then** it declares `@Post() create(@Body() dto: CreateDynamicNodeRequestDto, @Req() req)` that delegates to `dynamicNodesService.publish({ groupId: req.group.id, script: dto.script, mode: "create", actorUserId: req.user?.id })`
     - **And** the controller is `@Controller("dynamic-nodes")` + module is registered in `AppModule`
 
-- [ ] **Scenario 2**: Request DTO with full `@ApiProperty` decorators
+- [x] **Scenario 2**: Request DTO with full `@ApiProperty` decorators
     - **Given** `apps/backend-services/src/dynamic-nodes/dto/create-dynamic-node-request.dto.ts`
     - **When** read
     - **Then** `CreateDynamicNodeRequestDto` has one property `script: string` with `@ApiProperty({ description: "TypeScript source with JSDoc signature header", example: "/** @workflow-node @name my-node ... */ export default async function() {...}" })`
     - **And** the script is `@IsString()` + `@IsNotEmpty()` + `@MaxLength(100_000)`
 
-- [ ] **Scenario 3**: Response DTOs + endpoint-level Swagger decorators
+- [x] **Scenario 3**: Response DTOs + endpoint-level Swagger decorators
     - **Given** the controller method
     - **When** Swagger metadata is generated
     - **Then** the endpoint carries `@ApiOkResponse({ status: 201, type: DynamicNodePublishResponseDto })`, `@ApiBadRequestResponse({ type: PublishErrorsResponseDto })`, `@ApiConflictResponse({ description: "Slug already exists for this group" })`, `@ApiUnauthorizedResponse()`
     - **And** `DynamicNodePublishResponseDto` carries `slug: string`, `version: number`, `signature: DynamicNodeSignatureDto`, `errors: ParseErrorDto[]`
     - **And** `PublishErrorsResponseDto` carries `errors: ParseErrorDto[]`
 
-- [ ] **Scenario 4**: 201 on success — body matches success DTO
+- [x] **Scenario 4**: 201 on success — body matches success DTO
     - **Given** a valid script that passes all four stages
     - **When** the request is made
     - **Then** the response status is 201 with body `{ slug: "<from-@name>", version: 1, signature: { ... }, errors: [] }`
     - **And** subsequent `GET /api/activity-catalog` (US-173 surface) includes a `dyn.<slug>` entry
 
-- [ ] **Scenario 5**: 400 on validation failures — body carries structured errors
+- [x] **Scenario 5**: 400 on validation failures — body carries structured errors
     - **Given** a script that fails the ts-check stage
     - **When** the request is made
     - **Then** the response status is 400 with body `{ errors: [{ stage: "ts-check", line, column, message }] }`
     - **And** the lineage is NOT created (subsequent `GET /api/dynamic-nodes/:slug` returns 404)
 
-- [ ] **Scenario 6**: 409 on duplicate slug
+- [x] **Scenario 6**: 409 on duplicate slug
     - **Given** a lineage with slug `my-node` already exists for this group
     - **When** another `POST` with `@name my-node` is made
     - **Then** the response status is 409

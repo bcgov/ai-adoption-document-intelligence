@@ -877,3 +877,54 @@ model ActivityOutputCache {
   @@index([expiresAt])
   @@index([workflowLineageId, createdAt])
 }
+
+// ========== DYNAMIC NODES (Phase 6) ==========
+
+/// Lineage row for a dynamic node. Group-scoped. `headVersionId` is the
+/// movable pointer; publishing always creates a new `DynamicNodeVersion`
+/// and moves the pointer. Soft-delete sets `deletedAt`; pinned versions
+/// of soft-deleted lineages continue to resolve at runtime.
+///
+/// See feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/REQUIREMENTS.md
+/// §3.3 L20 + docs-md/workflow-builder/DYNAMIC_NODES_DESIGN.md §3.
+model DynamicNode {
+  id             String              @id @default(cuid())
+  groupId        String              @map("group_id")
+  slug           String
+  description    String?
+  ownerUserId    String?             @map("owner_user_id")
+  headVersionId  String?             @unique @map("head_version_id")
+  deletedAt      DateTime?           @map("deleted_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  headVersion    DynamicNodeVersion? @relation("HeadVersion", fields: [headVersionId], references: [id])
+  versions       DynamicNodeVersion[] @relation("Versions")
+
+  @@unique([groupId, slug])
+  @@index([groupId, deletedAt])
+  @@map("dynamic_node")
+}
+
+/// Immutable snapshot of a dynamic-node script. `versionNumber` is
+/// per-lineage starting at 1. `signature` stores the parsed
+/// `DynamicNodeSignature` JSON; `allowNet` is the post-allowlist-intersection
+/// host list (publish-time `@allowNet ∩ DYNAMIC_NODE_ALLOW_NET`).
+///
+/// See feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/REQUIREMENTS.md
+/// §3.3 L21.
+model DynamicNodeVersion {
+  id                 String      @id @default(cuid())
+  dynamicNodeId      String      @map("dynamic_node_id")
+  versionNumber      Int         @map("version_number")
+  script             String      @db.Text
+  signature          Json
+  allowNet           String[]    @map("allow_net")
+  deterministic      Boolean     @default(false)
+  publishedByUserId  String?     @map("published_by_user_id")
+  publishedAt        DateTime    @default(now()) @map("published_at")
+  dynamicNode        DynamicNode @relation("Versions", fields: [dynamicNodeId], references: [id], onDelete: Cascade)
+  headOf             DynamicNode? @relation("HeadVersion")
+
+  @@unique([dynamicNodeId, versionNumber])
+  @@map("dynamic_node_version")
+}

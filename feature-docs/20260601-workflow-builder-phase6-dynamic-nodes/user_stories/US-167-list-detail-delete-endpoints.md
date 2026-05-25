@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `GET /api/dynamic-nodes` lists non-deleted lineages for the calling group
+- [x] **Scenario 1**: `GET /api/dynamic-nodes` lists non-deleted lineages for the calling group
     - **Given** the controller from US-165/US-166
     - **When** the request is made with no query params
     - **Then** the response is 200 with body `{ items: DynamicNodeListItemDto[] }` where each item carries `{ slug, headVersion: { versionNumber, signature, publishedAt }, versionCount, usedInWorkflowCount }`
@@ -14,19 +14,19 @@
     - **And** items are sorted by `slug` ascending
     - **And** `usedInWorkflowCount` is a simple `SELECT count(*) FROM workflow WHERE config::text LIKE '%"dyn.<slug>"%'`
 
-- [ ] **Scenario 2**: `GET /api/dynamic-nodes/:slug` returns full version history
+- [x] **Scenario 2**: `GET /api/dynamic-nodes/:slug` returns full version history
     - **Given** a lineage with 3 versions
     - **When** the request is made
     - **Then** the response is 200 with body `{ slug, headVersion: { versionNumber, signature, publishedAt }, versions: DynamicNodeVersionDto[] }` where versions are sorted by `versionNumber` descending (newest first)
     - **And** each version carries `{ versionNumber, script, signature, allowNet, deterministic, publishedAt, publishedByUserId? }`
     - **And** a query param `?version=N` (optional) does NOT change the response shape but signals the caller's intent to focus on that version (used by US-179's view modal — informational only)
 
-- [ ] **Scenario 3**: `GET /api/dynamic-nodes/:slug` 404 on unknown / soft-deleted
+- [x] **Scenario 3**: `GET /api/dynamic-nodes/:slug` 404 on unknown / soft-deleted
     - **Given** no lineage with `slug` exists OR the lineage is soft-deleted
     - **When** the request is made
     - **Then** the response status is 404
 
-- [ ] **Scenario 4**: `DELETE /api/dynamic-nodes/:slug` soft-deletes idempotently
+- [x] **Scenario 4**: `DELETE /api/dynamic-nodes/:slug` soft-deletes idempotently
     - **Given** a non-deleted lineage `my-node`
     - **When** `DELETE` is called
     - **Then** the response status is 200 with body `{ slug: "my-node", deletedAt: "<ISO>", usedInWorkflowCount: N }`
@@ -35,7 +35,7 @@
     - **And** subsequent `GET /api/dynamic-nodes/my-node` returns 404
     - **And** calling `DELETE` again returns 200 with the existing `deletedAt` (idempotent)
 
-- [ ] **Scenario 5**: Full Swagger decorators on all three endpoints
+- [x] **Scenario 5**: Full Swagger decorators on all three endpoints
     - **Given** Swagger metadata
     - **When** generated
     - **Then** `@Get()` has `@ApiOkResponse({ type: DynamicNodeListResponseDto })`
@@ -43,7 +43,7 @@
     - **And** `@Delete(":slug")` has `@ApiOkResponse({ type: DynamicNodeDeletedResponseDto })` + `@ApiNotFoundResponse()`
     - **All three:** `@ApiUnauthorizedResponse()`
 
-- [ ] **Scenario 6**: Controller tests cover all three endpoints
+- [x] **Scenario 6**: Controller tests cover all three endpoints
     - **Given** the controller test suite
     - **When** the suite runs
     - **Then** tests pass for: list excludes soft-deleted; list sorts by slug; detail returns full version history; detail 404 on unknown + soft-deleted; delete is idempotent; cross-group isolation (a key from group A cannot see/delete group B's dynamic nodes — returns 404)

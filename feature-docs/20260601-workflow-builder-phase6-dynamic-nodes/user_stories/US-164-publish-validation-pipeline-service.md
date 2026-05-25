@@ -6,39 +6,39 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Service orchestrates the four stages in order
+- [x] **Scenario 1**: Service orchestrates the four stages in order
     - **Given** a `script: string` input
     - **When** `dynamicNodesService.publish({ groupId, slug?, script, mode: "create" | "update", actorUserId? })` is called
     - **Then** the service runs in strict order: (1) `parseDynamicNodeSignature(script)` from the shared package, (2) signature semantics check (already inside the parser per US-159), (3) `deno check` via subprocess (this story), (4) allowlist intersection (this story)
     - **And** the first stage producing errors short-circuits — subsequent stages do NOT run
 
-- [ ] **Scenario 2**: `deno check` via the `deno-runner` HTTP service returns structured `ParseError`s
+- [x] **Scenario 2**: `deno check` via the `deno-runner` HTTP service returns structured `ParseError`s
     - **Given** a script that parses cleanly but has a TS type error
     - **When** the service POSTs `{ script }` to `${DENO_RUNNER_URL}/check`
     - **Then** the runner returns `{ ok: false, errors: [{ line, column, message }] }`
     - **And** the service wraps each into `{ stage: "ts-check", line, column, message }`
     - **And** the backend NEVER spawns Deno directly (no `child_process.spawn("deno", ...)` anywhere in `apps/backend-services`)
 
-- [ ] **Scenario 3**: Allowlist intersection rejects out-of-allowlist hosts
+- [x] **Scenario 3**: Allowlist intersection rejects out-of-allowlist hosts
     - **Given** a script with `@allowNet ["api.landingai.com", "evil.example.com"]` and a backend env `DYNAMIC_NODE_ALLOW_NET="api.landingai.com,api.mistral.ai"`
     - **When** the allowlist stage runs
     - **Then** `evil.example.com` is rejected with `{ stage: "allowlist", rejectedHost: "evil.example.com", message: "Host not in global allowlist" }`
     - **And** `api.landingai.com` passes through to persistence
 
-- [ ] **Scenario 4**: On success, service delegates to repository
+- [x] **Scenario 4**: On success, service delegates to repository
     - **Given** all four stages passed
     - **When** the service persists
     - **Then** for `mode: "create"` it calls `repository.createWithFirstVersion(...)` with the parsed signature + script + allowNet + deterministic; for `mode: "update"` it calls `repository.publishNewVersion(...)`
     - **And** the persisted version's row contains the script verbatim and the JSON-serialized `DynamicNodeSignature` in `signature`
     - **And** the service returns `{ slug, version, signature, errors: [] }`
 
-- [ ] **Scenario 5**: `DENO_RUNNER_UNAVAILABLE` surfaced when the runner is unreachable
+- [x] **Scenario 5**: `DENO_RUNNER_UNAVAILABLE` surfaced when the runner is unreachable
     - **Given** the `deno-runner` service is down or `DENO_RUNNER_URL` is unset
     - **When** the service attempts the `/check` call
     - **Then** the publish endpoint returns 503 with `{ code: "DENO_RUNNER_UNAVAILABLE", message }`
     - **And** the README updates document the `deno-runner` service as an ops dependency (deployed via the kustomize stack per US-186)
 
-- [ ] **Scenario 6**: Unit tests cover every stage path
+- [x] **Scenario 6**: Unit tests cover every stage path
     - **Given** `dynamic-nodes.service.spec.ts`
     - **When** the suite runs
     - **Then** it covers: jsdoc-parse failure short-circuits, signature-semantics failure short-circuits, ts-check failure, allowlist rejection, full success path for create + update, and `DENO_UNAVAILABLE` detection
