@@ -328,7 +328,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       const newNode: ActivityNode = {
         id,
         type: "activity",
-        label: entry.displayName,
+        label: entry.displayName ?? entry.activityType,
         activityType,
         inputs,
         outputs,
@@ -427,6 +427,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       const newNode: SourceNode = {
         id,
         type: "source",
+        // SourceCatalogEntry has a required `displayName`; no fallback needed.
         label: entry.displayName,
         sourceType,
         parameters: defaults,

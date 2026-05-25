@@ -82,7 +82,7 @@ export function getActivityVisualHints(
     };
   }
   return {
-    displayName: entry.displayName,
+    displayName: entry.displayName ?? entry.activityType,
     category: entry.category,
     color: COLOR_TOKENS[entry.colorHint] ?? COLOR_TOKENS.gray,
     icon: ICON_FALLBACKS[entry.iconHint] ?? "●",
@@ -123,7 +123,7 @@ export function getCatalogByCategory(): Record<
     }
     grouped[entry.category].push({
       activityType: entry.activityType,
-      displayName: entry.displayName,
+      displayName: entry.displayName ?? entry.activityType,
       description: entry.description,
       iconHint: entry.iconHint,
       colorHint: entry.colorHint,

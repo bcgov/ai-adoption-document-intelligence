@@ -84,6 +84,10 @@ export function WorkflowFormPreviewPage() {
 
   const validation = useMemo(() => {
     if (!entry) return null;
+    // Phase 6 dynamic-node entries omit `parametersSchema` (they carry
+    // `paramsSchema: JSON Schema 7` instead) — skip the Zod safeParse path
+    // for those; their publish-time validation is the source of truth.
+    if (!entry.parametersSchema) return null;
     const result = entry.parametersSchema.safeParse(paramValues);
     if (result.success) {
       return { ok: true as const, parsed: result.data };

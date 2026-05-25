@@ -84,7 +84,17 @@ function buildSwappedParameters(
   // (`getActivityParametersJsonSchema`); going through the entry's Zod
   // schema directly removes a global-catalog dependency so test fixtures
   // can pass their own catalog without registering it globally.
-  const rawSchema = z.toJSONSchema(entry.parametersSchema);
+  // Phase 6 dynamic-node entries carry `paramsSchema` (JSON Schema 7) directly
+  // and omit the Zod `parametersSchema`; in that case we read the JSON Schema
+  // as-is rather than converting from Zod.
+  let rawSchema: unknown;
+  if (entry.paramsSchema) {
+    rawSchema = entry.paramsSchema;
+  } else if (entry.parametersSchema) {
+    rawSchema = z.toJSONSchema(entry.parametersSchema);
+  } else {
+    return {};
+  }
   const root = rawSchema as JsonSchemaProperty;
   let target: JsonSchemaObject | undefined = asObjectSchema(root);
   if (!target && Array.isArray(root.anyOf) && root.anyOf.length > 0) {

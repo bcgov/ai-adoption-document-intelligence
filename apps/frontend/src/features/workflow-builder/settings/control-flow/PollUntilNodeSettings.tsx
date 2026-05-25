@@ -101,10 +101,18 @@ interface GroupedActivityTypeOptions {
 
 function buildActivityTypeOptions(): GroupedActivityTypeOptions[] {
   const byCategory = new Map<CatalogCategory, ActivityTypeOption[]>();
+  // Iterating ACTIVITY_CATALOG (the static catalog), so `category` is always a
+  // narrow CatalogCategory and `displayName` is always set. Casts bridge the
+  // Phase 6 widening of ActivityCatalogEntry that admits dynamic entries with
+  // free-form `category: string` and missing `displayName`.
   for (const entry of Object.values(ACTIVITY_CATALOG)) {
-    const list = byCategory.get(entry.category) ?? [];
-    list.push({ value: entry.activityType, label: entry.displayName });
-    byCategory.set(entry.category, list);
+    const category = entry.category as CatalogCategory;
+    const list = byCategory.get(category) ?? [];
+    list.push({
+      value: entry.activityType,
+      label: entry.displayName ?? entry.activityType,
+    });
+    byCategory.set(category, list);
   }
   const groups: GroupedActivityTypeOptions[] = [];
   for (const [group, items] of byCategory.entries()) {

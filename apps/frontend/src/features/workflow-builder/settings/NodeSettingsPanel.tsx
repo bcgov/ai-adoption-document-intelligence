@@ -554,6 +554,9 @@ function ActivityNodeBody({
 
   const validation = useMemo(() => {
     if (!entry) return null;
+    // Phase 6 dynamic-node entries carry `paramsSchema` (JSON Schema 7) and
+    // own their own publish-time validation — no Zod schema to safeParse.
+    if (!entry.parametersSchema) return null;
     const parsed = entry.parametersSchema.safeParse(node.parameters ?? {});
     return parsed;
   }, [entry, node.parameters]);

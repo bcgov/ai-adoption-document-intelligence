@@ -121,7 +121,9 @@ describe("PollUntilNodeSettings — Scenario 1: activityType Select populated fr
 
     // Every catalog displayName is present in the dropdown.
     for (const entry of entries) {
-      expect(screen.getAllByText(entry.displayName).length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText(entry.displayName ?? entry.activityType).length,
+      ).toBeGreaterThan(0);
     }
 
     // Every distinct CatalogCategory appears as a group header in the
@@ -139,7 +141,7 @@ describe("PollUntilNodeSettings — Scenario 1: activityType Select populated fr
       throw new Error("Catalog must contain azureClassify.poll for this test");
     }
     const targetOption = screen.getByRole("option", {
-      name: new RegExp(targetEntry.displayName),
+      name: new RegExp(targetEntry.displayName ?? targetEntry.activityType),
     });
     fireEvent.click(targetOption);
 
