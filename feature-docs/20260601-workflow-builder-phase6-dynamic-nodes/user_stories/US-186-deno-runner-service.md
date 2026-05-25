@@ -6,39 +6,39 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New `apps/deno-runner/` directory with Dockerfile + HTTP server
+- [x] **Scenario 1**: New `apps/deno-runner/` directory with Dockerfile + HTTP server
     - **Given** the repository root
     - **When** `apps/deno-runner/` is read after the change
     - **Then** it contains: `Dockerfile`, `src/main.ts` (HTTP server), `src/execute.ts` (execute handler), `src/check.ts` (check handler), `src/kinds.d.ts` (ambient types baked in), `src/health.ts` (health handler), `README.md`
     - **And** `Dockerfile` is `FROM denoland/deno:alpine-latest`, copies `src/` to `/app/`, exposes 9090, runs as non-root user, and starts the HTTP server with the minimal permissions needed (`--allow-net`, `--allow-read=/app,/tmp`, `--allow-write=/tmp`, `--allow-run=deno`, `--allow-env`)
 
-- [ ] **Scenario 2**: `POST /execute` runs the script + returns structured response
+- [x] **Scenario 2**: `POST /execute` runs the script + returns structured response
     - **Given** the runner is running
     - **When** a client POSTs `{ script, inputCtx, parameters, allowNet, ambientEnv, timeoutMs, maxMemoryMB }` to `/execute`
     - **Then** the runner writes the script to `/tmp/<requestId>.ts`, spawns `Deno.Command("deno", { args: ["run", "--allow-net=<allowNet joined>", "--allow-env=<ambientEnv keys joined>", "--no-prompt", "--v8-flags=--max-old-space-size=<maxMemoryMB>", tempPath], env: ambientEnv, stdin: "piped", stdout: "piped", stderr: "piped" })`, writes `{ inputCtx, parameters }` to stdin, enforces `timeoutMs` via AbortSignal, and returns `{ stdout, stderr, exitCode, durationMs, timedOut }` as JSON
     - **And** stdout is capped at 5 MB — if exceeded, the runner SIGKILLs the subprocess and returns `{ stdoutTooLarge: true, ...partial }`
     - **And** the temp file is deleted after the subprocess exits (even on error)
 
-- [ ] **Scenario 3**: `POST /check` runs `deno check` + returns structured errors
+- [x] **Scenario 3**: `POST /check` runs `deno check` + returns structured errors
     - **Given** the runner is running
     - **When** a client POSTs `{ script }` to `/check`
     - **Then** the runner writes the script + the baked-in `kinds.d.ts` to `/tmp/check-<requestId>/`, spawns `deno check <tempPath>`, parses stderr into `{ line, column, message }[]` entries
     - **And** returns `{ ok: true, errors: [] }` on exit code 0
     - **And** returns `{ ok: false, errors: [...] }` on non-zero exit with parsed line-anchored errors
 
-- [ ] **Scenario 4**: `GET /health` returns runner liveness + Deno version
+- [x] **Scenario 4**: `GET /health` returns runner liveness + Deno version
     - **Given** the runner is running
     - **When** a client GETs `/health`
     - **Then** the response is 200 with `{ ok: true, denoVersion: "<deno --version output>" }`
     - **And** the response is fast (no subprocess spawn — Deno version is cached at startup)
 
-- [ ] **Scenario 5**: Local docker-compose entry at `deployments/local/docker-compose.deno.yml`
+- [x] **Scenario 5**: Local docker-compose entry at `deployments/local/docker-compose.deno.yml`
     - **Given** the file is read after the change
     - **When** the developer runs `docker compose -f deployments/local/docker-compose.deno.yml up -d`
     - **Then** a `deno-runner` service starts from the locally-built image (build context `apps/deno-runner`), binds port 9090 to localhost, has a healthcheck against `GET /health`, and has `restart: unless-stopped`
     - **And** the file follows the existing `deployments/local/docker-compose.monitoring.yml` shape (network, healthcheck, labels) for consistency
 
-- [ ] **Scenario 6**: OpenShift kustomize base at `deployments/openshift/kustomize/base/deno-runner/`
+- [x] **Scenario 6**: OpenShift kustomize base at `deployments/openshift/kustomize/base/deno-runner/`
     - **Given** the directory after the change
     - **When** read
     - **Then** it contains: `deployment.yml`, `service.yml`, `networkpolicy.yml`, `kustomization.yml` (matching the shape of `deployments/openshift/kustomize/base/backend-services/`)

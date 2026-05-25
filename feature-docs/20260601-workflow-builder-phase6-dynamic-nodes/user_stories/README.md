@@ -94,7 +94,7 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [ ] **US-161** (catalog entry extension + final barrel) — depends on US-157 + US-158 + US-159 + US-160; closes Milestone A
 
 ### Phase 1.5 — `deno-runner` infrastructure (Milestone B0 — prerequisite for Phase 2 + Phase 3)
-- [ ] **US-186** (`deno-runner` HTTP sidecar service — image + docker-compose + OpenShift kustomize) — independent of Milestone A's shared-package work; can land in parallel. Required before US-164 (publish-time `deno check`) and US-170 (`dyn.run` HTTP client) can be implemented.
+- [x] **US-186** (`deno-runner` HTTP sidecar service — image + docker-compose + OpenShift kustomize) — independent of Milestone A's shared-package work; can land in parallel. Required before US-164 (publish-time `deno check`) and US-170 (`dyn.run` HTTP client) can be implemented. ✅ Shipped in commit `f7395b49`.
 
 ### Phase 2 — Backend: persistence + publish endpoints (Milestone B — depends on Phase 1 + Phase 1.5)
 - [ ] **US-162** (Prisma models + migration) — foundation; everything in Milestone B depends on it
