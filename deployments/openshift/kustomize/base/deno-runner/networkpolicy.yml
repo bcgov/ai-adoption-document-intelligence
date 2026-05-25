@@ -1,0 +1,24 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: deno-runner-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: deno-runner
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow ingress on port 9090 ONLY from the backend-services pod
+    # (publish-time `deno check` calls) and the temporal worker pods
+    # (runtime `dyn.run` calls). Everything else is denied.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend-services
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: temporal
+      ports:
+        - protocol: TCP
+          port: 9090

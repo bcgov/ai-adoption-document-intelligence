@@ -1,0 +1,37 @@
+# Local docker-compose entry for the Phase 6 deno-runner sidecar service.
+#
+# Start with:    docker compose -f deployments/local/docker-compose.deno.yml up -d
+# Stop with:     docker compose -f deployments/local/docker-compose.deno.yml down
+# Health check:  curl http://localhost:9099/health
+#
+# The backend (apps/backend-services) and worker (apps/temporal) read
+# DENO_RUNNER_URL=http://localhost:9099 when running on the host.
+#
+# Host port 9099 avoids conflict with the local monitoring stack's Prometheus
+# (on 9090). The container itself listens on 9090; the mapping is 9099→9090.
+# In OpenShift the service is just `deno-runner:9090` so no conflict there.
+#
+# Architecture context: docs-md/workflow-builder/DYNAMIC_NODES_DESIGN.md §1.5
+
+services:
+  deno-runner:
+    build:
+      context: ../../apps/deno-runner
+      dockerfile: Dockerfile
+    image: ai-doc-intelligence-deno-runner:local
+    container_name: ai-doc-intelligence-deno-runner
+    restart: unless-stopped
+    ports:
+      - "9099:9090"
+    environment:
+      PORT: "9090"
+      HOST: "0.0.0.0"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    labels:
+      org.label-schema.name: "deno-runner"
+      org.label-schema.description: "Phase 6 dynamic-node sandbox"
