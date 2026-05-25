@@ -68,3 +68,15 @@ export type {
   SignatureSemanticsError,
   TsCheckError,
 } from "./dynamic-nodes/types";
+
+// Dynamic-node signature parser (Phase 6, US-158) — JSDoc-parse stage.
+// Exported alongside the internal block helper so the semantics layer in
+// US-159 can build on the same per-tag record without reparsing.
+export {
+  parseDynamicNodeSignature,
+  parseJsDocBlock,
+} from "./dynamic-nodes/parse-signature";
+export type {
+  JsDocTagValue,
+  ParsedJsDocBlock,
+} from "./dynamic-nodes/parse-signature";

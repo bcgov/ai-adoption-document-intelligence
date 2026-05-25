@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@noble/hashes": "1.8.0",
+    "json5": "2.2.3",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -27,7 +28,12 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "rootDir": "src",
-    "testMatch": ["**/*.test.ts"],
-    "collectCoverageFrom": ["**/*.ts", "!**/*.test.ts"]
+    "testMatch": [
+      "**/*.test.ts"
+    ],
+    "collectCoverageFrom": [
+      "**/*.ts",
+      "!**/*.test.ts"
+    ]
   }
 }
