@@ -287,7 +287,7 @@ describe("SourceNodeSettings — unknown sourceType handling", () => {
 // US-124 Scenario 1 — button visible only on source.upload panel
 // ---------------------------------------------------------------------------
 
-describe("SourceNodeSettings — US-124 Scenario 1: 'Test upload' button visibility", () => {
+describe("SourceNodeSettings — US-124 Scenario 1: 'Upload & Try' button visibility", () => {
   it("renders the SourceUploadButton when the node is source.upload", () => {
     const node = makeSourceUploadNode();
     const config = makeConfig(node);
@@ -304,7 +304,7 @@ describe("SourceNodeSettings — US-124 Scenario 1: 'Test upload' button visibil
 
     expect(screen.getByTestId("source-upload-button")).toBeInTheDocument();
     expect(screen.getByTestId("source-upload-button")).toHaveTextContent(
-      "Test upload",
+      "Upload & Try",
     );
   });
 

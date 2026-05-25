@@ -107,10 +107,10 @@ Phase 4 has a clear linear backbone (cache schema + helpers → worker decorator
 - [x] **US-145** (`ClassificationPreview` widget) — depends on US-141; independent of US-142/143/144
 
 ### Phase 5 — Try affordances (Milestone E — depends on Phase 2 + Phase 3 + Phase 4)
-- [ ] **US-146** (`cancelInFlightTriesForLineage` + extend source-upload endpoint) — depends on US-133 (caching live); the backend half of the Try trigger
-- [ ] **US-147** ("Upload & Try" SourceUploadButton extension) — depends on US-146 + US-138 (sets activeRunId in context)
-- [ ] **US-148** ("Try" top-bar button) — depends on US-138 (context); independent of US-147 (different trigger surface)
-- [ ] **US-149** (`RunWorkflowDrawer` Try tab) — depends on US-148 + US-138; closes Milestone E. CLICK-AND-PLAY MILESTONE.
+- [x] **US-146** (`cancelInFlightTriesForLineage` + extend source-upload endpoint) — depends on US-133 (caching live); the backend half of the Try trigger
+- [x] **US-147** ("Upload & Try" SourceUploadButton extension) — depends on US-146 + US-138 (sets activeRunId in context)
+- [x] **US-148** ("Try" top-bar button) — depends on US-138 (context); independent of US-147 (different trigger surface)
+- [x] **US-149** (`RunWorkflowDrawer` Try tab) — depends on US-148 + US-138; closes Milestone E. CLICK-AND-PLAY MILESTONE.
 
 ### Phase 6 — run history + replay + version badge (Milestone F — depends on Phase 5)
 - [ ] **US-150** (backend `/runs` run-history endpoint + `summariseInputCtx`) — independent of US-151/152; the backbone endpoint

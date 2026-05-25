@@ -109,12 +109,17 @@ describe("WorkflowController", () => {
       updateWorkflow: jest.fn(),
       deleteWorkflow: jest.fn(),
       revertHeadToVersion: jest.fn(),
+      cancelInFlightTriesForLineage: jest
+        .fn()
+        .mockResolvedValue({ cancelledCount: 0 }),
     } as unknown as jest.Mocked<WorkflowService>;
 
     temporalClient = {
-      startGraphWorkflow: jest.fn(),
+      startGraphWorkflow: jest.fn().mockResolvedValue("graph-adhoc-fake-run"),
       queryNodeStatuses: jest.fn(),
       getRunWindow: jest.fn(),
+      listRunningInLineage: jest.fn().mockResolvedValue([]),
+      cancelRun: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<TemporalClientService>;
 
     sourceUploadService = {
@@ -1093,6 +1098,37 @@ describe("WorkflowController", () => {
     });
 
     // -----------------------------------------------------------------------
+    // US-149 — `POST /runs` cancels in-flight Tries for the lineage before
+    // starting the new run. Mirrors US-146's upload-and-Try semantics; the
+    // helper is best-effort so cancel errors never block the new run.
+    // -----------------------------------------------------------------------
+    it("US-149: cancels in-flight Tries for the lineage BEFORE startGraphWorkflow", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-cancel");
+
+      const callOrder: string[] = [];
+      workflowService.cancelInFlightTriesForLineage.mockImplementation(
+        async () => {
+          callOrder.push("cancel");
+          return { cancelledCount: 2 };
+        },
+      );
+      temporalClient.startGraphWorkflow.mockImplementation(async () => {
+        callOrder.push("start");
+        return "graph-adhoc-cancel";
+      });
+
+      await controller.startRun("wf-1", { initialCtx: {} }, mockReq());
+
+      expect(
+        workflowService.cancelInFlightTriesForLineage,
+      ).toHaveBeenCalledWith("wf-1");
+      expect(callOrder).toEqual(["cancel", "start"]);
+    });
+
+    // -----------------------------------------------------------------------
     // US-113 — `POST /runs` body validation honors the Phase 8 precedence
     // (source.api > library > isInput > empty). The controller already calls
     // `deriveInputSchema(wf.config)` directly, and US-111 extended that
@@ -1448,7 +1484,7 @@ describe("WorkflowController", () => {
     // -------------------------------------------------------------------
     // Scenario 1: Happy-path upload returns ctxKey-keyed response
     // -------------------------------------------------------------------
-    it("Scenario 1: returns { [ctxKey]: <blobKey> } on a successful upload", async () => {
+    it("Scenario 1: returns { [ctxKey]: <blobKey>, runId, workflowVersionId } on a successful upload-and-Try", async () => {
       setSourceCatalog([fakeSourceUploadEntry]);
       const wf: WorkflowInfo = {
         ...mockWorkflowInfo,
@@ -1474,6 +1510,9 @@ describe("WorkflowController", () => {
       sourceUploadService.uploadFileForSource.mockResolvedValue(
         "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
       );
+      temporalClient.startGraphWorkflow.mockResolvedValue(
+        "graph-adhoc-the-new-run",
+      );
 
       const file = makeFile();
       const result = await controller.uploadToSource(
@@ -1483,11 +1522,16 @@ describe("WorkflowController", () => {
         mockReq(),
       );
 
-      expect(result).toEqual({
-        myFile: "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
-      });
-      // Only the ctxKey-keyed entry — no extra properties.
-      expect(Object.keys(result)).toEqual(["myFile"]);
+      // Three keys: the dynamic ctxKey-keyed entry + the two fixed
+      // US-146 fields. Use sets to ignore ordering.
+      expect(new Set(Object.keys(result))).toEqual(
+        new Set(["myFile", "runId", "workflowVersionId"]),
+      );
+      expect(result["myFile"]).toBe(
+        "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
+      );
+      expect(result.runId).toBe("graph-adhoc-the-new-run");
+      expect(result.workflowVersionId).toBe(wf.workflowVersionId);
 
       // SourceUploadService received the file payload, the resolved
       // (defaults-merged) parameters, and the workflow / node ids.
@@ -1678,9 +1722,64 @@ describe("WorkflowController", () => {
     });
 
     // -------------------------------------------------------------------
-    // Scenario 6: Endpoint is upload-only — does NOT trigger workflow run
+    // US-146 Scenario: upload-and-Try kicks off a Temporal run with the
+    // uploaded file's ctx reference as initialCtx, and the response
+    // includes runId + workflowVersionId. (Replaces the old US-114
+    // Scenario 6 "upload-only" contract — Phase 4 changes the endpoint
+    // to chain upload → run with one round-trip.)
     // -------------------------------------------------------------------
-    it("Scenario 6: does NOT call temporalClient.startGraphWorkflow on a successful upload", async () => {
+    it("US-146 Scenario 3: upload commits then kicks off a Temporal run with initialCtx = { [ctxKey]: blobKey }", async () => {
+      setSourceCatalog([fakeSourceUploadEntry]);
+      const wf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          nodes: {
+            ...mockGraphConfig.nodes,
+            upload: {
+              id: "upload",
+              type: "source",
+              label: "Upload",
+              sourceType: "source.upload",
+              parameters: { ctxKey: "documentUrl" },
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+      sourceUploadService.uploadFileForSource.mockResolvedValue(
+        "group-1/ocr/workflow-uploads/wf-1/upload/abc-doc.pdf",
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue(
+        "graph-adhoc-kicked-off-run",
+      );
+
+      const result = await controller.uploadToSource(
+        "wf-1",
+        "upload",
+        makeFile(),
+        mockReq(),
+      );
+
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledTimes(1);
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined, // no documentId — adhoc Try
+        wf.workflowVersionId, // pinned/head version id from resolveLineageAndVersion
+        {
+          documentUrl: "group-1/ocr/workflow-uploads/wf-1/upload/abc-doc.pdf",
+        },
+        wf.groupId,
+      );
+      expect(result.runId).toBe("graph-adhoc-kicked-off-run");
+      expect(result.workflowVersionId).toBe(wf.workflowVersionId);
+    });
+
+    // -------------------------------------------------------------------
+    // US-146 Scenario: cancelInFlightTriesForLineage runs BEFORE
+    // startGraphWorkflow. The order matters — the new run must NOT race
+    // with the prior Try's tail-end cache writes.
+    // -------------------------------------------------------------------
+    it("US-146 Scenario 4: cancelInFlightTriesForLineage is invoked BEFORE startGraphWorkflow", async () => {
       setSourceCatalog([fakeSourceUploadEntry]);
       const wf: WorkflowInfo = {
         ...mockWorkflowInfo,
@@ -1703,9 +1802,24 @@ describe("WorkflowController", () => {
         "group-1/ocr/workflow-uploads/wf-1/upload/abc-doc.pdf",
       );
 
+      const callOrder: string[] = [];
+      (
+        workflowService.cancelInFlightTriesForLineage as jest.Mock
+      ).mockImplementation(async () => {
+        callOrder.push("cancel");
+        return { cancelledCount: 0 };
+      });
+      temporalClient.startGraphWorkflow.mockImplementation(async () => {
+        callOrder.push("start");
+        return "graph-adhoc-new-run";
+      });
+
       await controller.uploadToSource("wf-1", "upload", makeFile(), mockReq());
 
-      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+      expect(callOrder).toEqual(["cancel", "start"]);
+      expect(
+        workflowService.cancelInFlightTriesForLineage,
+      ).toHaveBeenCalledWith("wf-1");
     });
 
     // -------------------------------------------------------------------

@@ -2,11 +2,14 @@ import { Prisma } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { validateGraphConfig } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -123,6 +126,8 @@ export class WorkflowService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly logger: AppLoggerService,
+    @Inject(forwardRef(() => TemporalClientService))
+    private readonly temporalClient: TemporalClientService,
   ) {}
 
   private get prisma() {
@@ -861,6 +866,73 @@ export class WorkflowService {
   /**
    * Moves lineage head to an existing version (defaults for new uploads; does not change benchmark pins).
    */
+  /**
+   * Cancel any in-flight Try executions for a workflow lineage.
+   *
+   * Queries Temporal visibility for running runs filtered by the
+   * `WorkflowLineageId` search attribute (set by `startGraphWorkflow`),
+   * then calls `.cancel()` on each via `TemporalClientService.cancelRun`.
+   *
+   * The cancellations run concurrently via `Promise.allSettled` so a
+   * stuck cancel on one run doesn't block the others. Errors raised
+   * because a run has already closed are swallowed inside `cancelRun`
+   * itself (race-tolerant). Genuine errors (network, gRPC) are logged
+   * here and not rethrown — the upload-and-Try caller treats cancel as
+   * best-effort and should still kick off the new Try.
+   *
+   * **Idempotent.** When no runs are in flight, returns
+   * `{ cancelledCount: 0 }` without throwing.
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L26,
+   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §1, §5.1,
+   *       feature-docs/.../user_stories/US-146-cancel-and-upload-and-try-backend.md.
+   *
+   * @param workflowLineageId The `WorkflowLineage.id` to cancel runs for.
+   * @returns `{ cancelledCount }` — the number of cancel attempts that
+   *          completed without throwing (includes race-tolerant no-ops).
+   */
+  async cancelInFlightTriesForLineage(
+    workflowLineageId: string,
+  ): Promise<{ cancelledCount: number }> {
+    const workflowIds =
+      await this.temporalClient.listRunningInLineage(workflowLineageId);
+
+    if (workflowIds.length === 0) {
+      return { cancelledCount: 0 };
+    }
+
+    const results = await Promise.allSettled(
+      workflowIds.map((workflowId) =>
+        this.temporalClient.cancelRun(workflowId),
+      ),
+    );
+
+    let cancelledCount = 0;
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === "fulfilled") {
+        cancelledCount++;
+      } else {
+        // Log + continue. We don't rethrow because the caller (the
+        // upload-and-Try handler) should still proceed to start the
+        // new run — the cancel is best-effort.
+        const reason =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason);
+        this.logger.warn(
+          `cancelInFlightTriesForLineage: cancel of ${workflowIds[i]} (lineage ${workflowLineageId}) failed: ${reason}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `cancelInFlightTriesForLineage: lineage ${workflowLineageId} — cancelled ${cancelledCount}/${workflowIds.length} in-flight Try run(s)`,
+    );
+
+    return { cancelledCount };
+  }
+
   async revertHeadToVersion(
     lineageId: string,
     workflowVersionId: string,

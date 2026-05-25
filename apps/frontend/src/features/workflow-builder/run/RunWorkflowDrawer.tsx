@@ -1,6 +1,6 @@
 /**
  * Run-this-workflow drawer (Phase 2 Track 2 — US-071, US-072;
- * Phase 8 — US-123).
+ * Phase 8 — US-123; Phase 4 — US-148, US-149).
  *
  * Right-side Mantine Drawer that documents how to trigger the workflow
  * from outside (URL + input schema + sample curl + auth notes) and
@@ -19,6 +19,17 @@
  *   - Neither effectively never happens: the API section always
  *     renders unless the workflow has a source.upload AND no
  *     source.api / no isInput-flagged ctx (i.e. empty inputSchema).
+ *
+ * US-149 (Phase 4) wraps the API section in a two-tab layout
+ * (Try / Run) backed by the same JsonInput shape. The "Run" tab is the
+ * existing Phase 2 Track 2 API-validation surface (paste body → see
+ * workflowId inline, drawer stays open). The "Try" tab uses the same
+ * JsonInput but submits with canvas-iteration semantics: cancel any
+ * in-flight Try (server-side via the existing `POST /runs` cancel
+ * extension), call `setActiveRunId` so the canvas's polling loops
+ * start, and close the drawer immediately. The Upload section (US-123)
+ * stays below the tabs and keeps its existing upload-then-run chain —
+ * Tabs are JsonInput-only.
  */
 
 import {
@@ -37,6 +48,7 @@ import {
   Select,
   Stack,
   Table,
+  Tabs,
   Text,
   Title,
   Tooltip,
@@ -44,6 +56,7 @@ import {
 import { Dropzone } from "@mantine/dropzone";
 import { notifications } from "@mantine/notifications";
 import {
+  IconBolt,
   IconCheck,
   IconCopy,
   IconFile,
@@ -63,6 +76,18 @@ import {
 } from "../../../data/hooks/useWorkflows";
 import { useSourceUpload } from "../sources/useSourceUpload";
 import { buildStubInput } from "./build-stub-input";
+import { useOptionalRunState } from "./RunStateContext";
+
+/**
+ * Controls which tab the drawer pre-selects when it opens.
+ *
+ * Phase 4 — US-148 introduces a sibling "Try" top-bar button that opens
+ * the same drawer but on a different tab. US-148 only adds the prop +
+ * trigger plumbing; the actual tab UI is implemented in US-149. Until
+ * then this prop is accepted (so the trigger surface compiles + tests
+ * cover both modes) but does not yet affect rendering.
+ */
+export type RunWorkflowDrawerOpenMode = "run" | "try";
 
 interface RunWorkflowDrawerProps {
   opened: boolean;
@@ -75,6 +100,13 @@ interface RunWorkflowDrawerProps {
    * default — body omits the field when head is selected).
    */
   headVersionId: string | undefined;
+  /**
+   * Which tab the drawer should pre-select on open. Defaults to
+   * `"run"`. The "Try" tab itself lands in US-149; this prop is the
+   * plumbing US-148 lays down so the in-canvas Try button can request
+   * the Try tab without further drawer changes once US-149 ships.
+   */
+  openMode?: RunWorkflowDrawerOpenMode;
 }
 
 export function RunWorkflowDrawer({
@@ -82,6 +114,7 @@ export function RunWorkflowDrawer({
   onClose,
   workflowId,
   headVersionId,
+  openMode = "run",
 }: RunWorkflowDrawerProps) {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
     headVersionId ?? null,
@@ -135,6 +168,8 @@ export function RunWorkflowDrawer({
       size={520}
       title={<Title order={4}>Run this workflow</Title>}
       padding="md"
+      data-testid="run-workflow-drawer"
+      data-open-mode={openMode}
     >
       {runSpecQuery.isLoading && (
         <Stack align="center" mt="xl">
@@ -156,15 +191,53 @@ export function RunWorkflowDrawer({
       {runSpec && (
         <Stack gap="lg">
           {showApiSection && (
-            <ApiSourceSection
-              runSpec={runSpec}
-              workflowId={workflowId}
-              selectedVersionId={selectedVersionId}
-              setSelectedVersionId={setSelectedVersionId}
-              versionSelectData={versionSelectData}
-              versionsLoading={versionsQuery.isLoading}
-              isHeadSelected={isHeadSelected}
-            />
+            <Tabs
+              defaultValue={openMode}
+              keepMounted={false}
+              data-testid="run-drawer-tabs"
+            >
+              <Tabs.List>
+                <Tabs.Tab
+                  value="try"
+                  leftSection={<IconBolt size={14} />}
+                  data-testid="run-drawer-tab-try"
+                >
+                  Try
+                </Tabs.Tab>
+                <Tabs.Tab
+                  value="run"
+                  leftSection={<IconPlayerPlay size={14} />}
+                  data-testid="run-drawer-tab-run"
+                >
+                  Run
+                </Tabs.Tab>
+              </Tabs.List>
+
+              <Tabs.Panel value="try" pt="md">
+                <TrySourceSection
+                  runSpec={runSpec}
+                  workflowId={workflowId}
+                  selectedVersionId={selectedVersionId}
+                  setSelectedVersionId={setSelectedVersionId}
+                  versionSelectData={versionSelectData}
+                  versionsLoading={versionsQuery.isLoading}
+                  isHeadSelected={isHeadSelected}
+                  onClose={onClose}
+                />
+              </Tabs.Panel>
+
+              <Tabs.Panel value="run" pt="md">
+                <ApiSourceSection
+                  runSpec={runSpec}
+                  workflowId={workflowId}
+                  selectedVersionId={selectedVersionId}
+                  setSelectedVersionId={setSelectedVersionId}
+                  versionSelectData={versionSelectData}
+                  versionsLoading={versionsQuery.isLoading}
+                  isHeadSelected={isHeadSelected}
+                />
+              </Tabs.Panel>
+            </Tabs>
           )}
 
           {showApiSection && uploadSpec && <Divider />}
@@ -523,6 +596,154 @@ function UploadSourceSection({
           )}
           {runError && (
             <Alert color="red" title="Run failed">
+              {runError}
+            </Alert>
+          )}
+        </Stack>
+      </Section>
+    </Stack>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Try source section (Phase 4 — US-149). Uses the same JsonInput shape as
+// the API/Run tab but submits with canvas-iteration semantics: cancel
+// in-flight Try (server-side via `POST /runs` — extended in this story),
+// set `activeRunId` so the canvas's polling loops start BEFORE the drawer
+// closes, then close the drawer. No inline workflowId result — the canvas
+// is the result surface. Errors keep the drawer open with a red Alert.
+// ---------------------------------------------------------------------------
+
+interface TrySourceSectionProps {
+  runSpec: WorkflowRunSpec;
+  workflowId: string;
+  selectedVersionId: string | null;
+  setSelectedVersionId: (value: string | null) => void;
+  versionSelectData: { value: string; label: string }[];
+  versionsLoading: boolean;
+  isHeadSelected: boolean;
+  onClose: () => void;
+}
+
+function TrySourceSection({
+  runSpec,
+  workflowId,
+  selectedVersionId,
+  setSelectedVersionId,
+  versionSelectData,
+  versionsLoading,
+  isHeadSelected,
+  onClose,
+}: TrySourceSectionProps) {
+  const startRun = useStartWorkflowRun();
+  // Soft-fail outside a `<RunStateProvider>` — keeps drawer-only unit
+  // tests (US-149 Scenario 6 + the existing Phase 2 / Phase 8 suites)
+  // rendering even though they don't mount the provider. Production
+  // callers always sit beneath the provider mounted by
+  // `WorkflowEditorV2Page`.
+  const runState = useOptionalRunState();
+  const [pasteBody, setPasteBody] = useState<string>("");
+  const [runError, setRunError] = useState<string | null>(null);
+
+  // Prefill the JsonInput whenever the schema changes (mirrors the
+  // Run tab's behaviour — same body shape, same prefill).
+  useEffect(() => {
+    const stub = buildStubInput(runSpec.inputSchema);
+    setPasteBody(JSON.stringify(stub, null, 2));
+    setRunError(null);
+  }, [runSpec]);
+
+  const parseError = useMemo(() => {
+    if (!pasteBody.trim()) return null;
+    try {
+      const parsed = JSON.parse(pasteBody);
+      if (
+        parsed === null ||
+        typeof parsed !== "object" ||
+        Array.isArray(parsed)
+      ) {
+        return "Body must be a JSON object";
+      }
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : "Invalid JSON";
+    }
+  }, [pasteBody]);
+
+  const handleTry = async () => {
+    if (parseError !== null) return;
+    setRunError(null);
+    try {
+      const initialCtx = pasteBody.trim()
+        ? (JSON.parse(pasteBody) as Record<string, unknown>)
+        : {};
+      // Omit `workflowVersionId` entirely when head is selected so the
+      // backend defaults to head (matches the Run tab's wire shape).
+      const body: StartRunRequest =
+        isHeadSelected || !selectedVersionId
+          ? { initialCtx }
+          : { initialCtx, workflowVersionId: selectedVersionId };
+      const result = await startRun.mutateAsync({
+        workflowId,
+        body,
+      });
+      // Set `activeRunId` BEFORE closing the drawer so the canvas's
+      // polling loops (US-138 hookup) start before the drawer unmounts
+      // — keeps the "canvas is the result surface" handoff visible.
+      runState?.setActiveRunId(result.workflowId);
+      notifications.show({
+        title: "Try started",
+        message: result.workflowId,
+        color: "blue",
+      });
+      onClose();
+    } catch (e) {
+      setRunError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <Stack gap="lg" data-testid="run-drawer-try-section">
+      <Section title="Initial ctx">
+        <Stack gap="xs">
+          <Select
+            label="Version"
+            data={versionSelectData}
+            value={selectedVersionId}
+            onChange={(value) => setSelectedVersionId(value)}
+            disabled={versionsLoading || versionSelectData.length === 0}
+            allowDeselect={false}
+            aria-label="Workflow version to try"
+            data-testid="try-workflow-version-select"
+          />
+          <JsonInput
+            value={pasteBody}
+            onChange={setPasteBody}
+            minRows={6}
+            autosize
+            formatOnBlur
+            placeholder='{"customerId": "..."}'
+            aria-label="Initial ctx JSON for the in-canvas Try"
+            error={parseError ?? undefined}
+          />
+          <Group justify="flex-end">
+            <Button
+              color="blue"
+              leftSection={<IconBolt size={14} />}
+              onClick={handleTry}
+              disabled={parseError !== null}
+              loading={startRun.isPending}
+              data-testid="try-workflow-button"
+            >
+              Try
+            </Button>
+          </Group>
+          {runError && (
+            <Alert
+              color="red"
+              title="Try failed"
+              data-testid="run-drawer-try-error"
+            >
               {runError}
             </Alert>
           )}

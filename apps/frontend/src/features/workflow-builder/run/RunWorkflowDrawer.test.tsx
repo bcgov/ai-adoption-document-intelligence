@@ -21,6 +21,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiService } from "../../../data/services/api.service";
+import {
+  buildRunStateContextValue,
+  RunStateTestProvider,
+} from "./RunStateContext";
 import { RunWorkflowDrawer } from "./RunWorkflowDrawer";
 
 vi.mock("../../../data/services/api.service", () => ({
@@ -628,5 +632,228 @@ describe("RunWorkflowDrawer", () => {
     expect(
       await screen.findByText("graph-legacy-isInput-222"),
     ).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------
+  // US-149 — Two-tab layout (Try / Run)
+  //
+  // - `openMode="try"` / `openMode="run"` pre-select the matching tab.
+  // - Try tab submits with canvas-iteration semantics: closes the
+  //   drawer + sets `activeRunId` BEFORE the close so the canvas's
+  //   polling loop catches the new run id (US-138).
+  // - Run tab keeps its Phase 2 Track 2 behaviour: paste body → click
+  //   Run → drawer stays open + inline workflowId Alert.
+  // - Try-submit failure keeps the drawer open with a red Alert.
+  // ---------------------------------------------------------------------
+
+  describe("US-149: Try / Run tabs", () => {
+    const renderDrawerWithRunState = (
+      props: {
+        workflowId?: string;
+        headVersionId?: string;
+        openMode?: "try" | "run";
+        onClose?: () => void;
+        setActiveRunId?: (id: string | null) => void;
+      } = {},
+    ) => {
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+      const setActiveRunId = props.setActiveRunId ?? vi.fn();
+      const onClose = props.onClose ?? vi.fn();
+      const value = buildRunStateContextValue({
+        workflowId: props.workflowId ?? "wf-1",
+        setActiveRunId,
+      });
+      const utils = render(
+        <QueryClientProvider client={queryClient}>
+          <MantineProvider>
+            <RunStateTestProvider value={value}>
+              <RunWorkflowDrawer
+                opened={true}
+                onClose={onClose}
+                workflowId={props.workflowId ?? "wf-1"}
+                headVersionId={props.headVersionId ?? HEAD_VERSION_ID}
+                openMode={props.openMode}
+              />
+            </RunStateTestProvider>
+          </MantineProvider>
+        </QueryClientProvider>,
+      );
+      return { ...utils, setActiveRunId, onClose };
+    };
+
+    it("Scenario 1: openMode='try' pre-selects the Try tab", async () => {
+      mockDefaultGets(apiMock);
+
+      renderDrawerWithRunState({ openMode: "try" });
+
+      // Try section is the visible panel; the Run tab's API panel
+      // (with the trigger URL) is not mounted (`keepMounted={false}`).
+      await screen.findByTestId("run-drawer-try-section");
+      expect(
+        screen.queryByTestId("run-drawer-api-section"),
+      ).not.toBeInTheDocument();
+      // Both tab triggers exist either way — the test pins which panel is
+      // active, not which tab buttons exist.
+      expect(screen.getByTestId("run-drawer-tab-try")).toBeInTheDocument();
+      expect(screen.getByTestId("run-drawer-tab-run")).toBeInTheDocument();
+    });
+
+    it("Scenario 1: openMode='run' pre-selects the Run tab", async () => {
+      mockDefaultGets(apiMock);
+
+      renderDrawerWithRunState({ openMode: "run" });
+
+      // Run section (Phase 2 Track 2 surface) is the visible panel.
+      await screen.findByTestId("run-drawer-api-section");
+      expect(
+        screen.queryByTestId("run-drawer-try-section"),
+      ).not.toBeInTheDocument();
+      // The Phase 2 Track 2 trigger URL still renders inside the Run
+      // panel — proves the existing content moved into the panel verbatim.
+      expect(screen.getByText(sampleSpec.triggerUrl)).toBeInTheDocument();
+    });
+
+    it("Scenario 2 + 5: Try submit POSTs /runs, sets activeRunId BEFORE onClose, and closes the drawer", async () => {
+      mockDefaultGets(apiMock);
+      apiMock.post.mockResolvedValue({
+        success: true,
+        data: {
+          workflowId: "graph-try-success-1",
+          workflowVersionId: HEAD_VERSION_ID,
+          status: "started",
+        },
+      });
+      // Track ordering: `setActiveRunId` MUST fire before `onClose` so
+      // the canvas's polling loops latch on before the drawer unmounts.
+      const callOrder: string[] = [];
+      const setActiveRunId = vi.fn((id: string | null) => {
+        callOrder.push(`setActiveRunId:${String(id)}`);
+      });
+      const onClose = vi.fn(() => {
+        callOrder.push("onClose");
+      });
+
+      renderDrawerWithRunState({
+        openMode: "try",
+        setActiveRunId,
+        onClose,
+      });
+
+      const tryBtn = await screen.findByTestId("try-workflow-button");
+      await act(async () => {
+        fireEvent.click(tryBtn);
+      });
+
+      await waitFor(() => {
+        expect(apiMock.post).toHaveBeenCalledWith(
+          "/workflows/wf-1/runs",
+          expect.objectContaining({
+            initialCtx: expect.objectContaining({ customerId: "", count: 5 }),
+          }),
+        );
+      });
+      await waitFor(() => {
+        expect(setActiveRunId).toHaveBeenCalledWith("graph-try-success-1");
+      });
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(callOrder).toEqual([
+        "setActiveRunId:graph-try-success-1",
+        "onClose",
+      ]);
+      // No inline workflowId Alert on the Try tab — the canvas is the
+      // result surface.
+      expect(
+        screen.queryByTestId("run-drawer-api-success"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("Scenario 3: Run tab submit keeps the drawer open + shows inline workflowId + does NOT set activeRunId", async () => {
+      mockDefaultGets(apiMock);
+      apiMock.post.mockResolvedValue({
+        success: true,
+        data: {
+          workflowId: "graph-run-tab-keep-open-1",
+          workflowVersionId: HEAD_VERSION_ID,
+          status: "started",
+        },
+      });
+      const setActiveRunId = vi.fn();
+      const onClose = vi.fn();
+
+      renderDrawerWithRunState({
+        openMode: "run",
+        setActiveRunId,
+        onClose,
+      });
+
+      const runBtn = await screen.findByTestId("run-workflow-button");
+      await act(async () => {
+        fireEvent.click(runBtn);
+      });
+
+      // Phase 2 Track 2 behaviour: inline workflowId Alert + drawer
+      // stays open. `setActiveRunId` is NEVER called from the Run tab.
+      expect(
+        await screen.findByTestId("run-drawer-api-success"),
+      ).toBeInTheDocument();
+      expect(
+        await screen.findByText("graph-run-tab-keep-open-1"),
+      ).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(setActiveRunId).not.toHaveBeenCalled();
+    });
+
+    it("Scenario 5: Try submit failure keeps drawer open with red Alert + does NOT set activeRunId", async () => {
+      mockDefaultGets(apiMock);
+      apiMock.post.mockResolvedValue({
+        success: false,
+        message: "Backend exploded",
+        data: null,
+      });
+      const setActiveRunId = vi.fn();
+      const onClose = vi.fn();
+
+      renderDrawerWithRunState({
+        openMode: "try",
+        setActiveRunId,
+        onClose,
+      });
+
+      const tryBtn = await screen.findByTestId("try-workflow-button");
+      await act(async () => {
+        fireEvent.click(tryBtn);
+      });
+
+      expect(
+        await screen.findByTestId("run-drawer-try-error"),
+      ).toBeInTheDocument();
+      expect(await screen.findByText("Backend exploded")).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(setActiveRunId).not.toHaveBeenCalled();
+    });
+
+    it("Scenario 4: BOTH source.api + source.upload → Tabs render above an Upload section that keeps its Run semantics", async () => {
+      mockRunSpec(apiMock, { ...sampleSpec, uploadSpec });
+
+      renderDrawerWithRunState({ openMode: "try" });
+
+      // Tabs sit at the top, the Upload section sits below them — both
+      // co-exist. Try tab is active so the Try section renders.
+      await screen.findByTestId("run-drawer-tabs");
+      expect(screen.getByTestId("run-drawer-try-section")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("run-drawer-upload-section"),
+      ).toBeInTheDocument();
+      // The Upload section's Run button (Phase 8 chain — drop → upload
+      // → /runs → inline workflowId) is unchanged.
+      expect(
+        screen.getByTestId("run-drawer-upload-run-button"),
+      ).toBeInTheDocument();
+    });
   });
 });

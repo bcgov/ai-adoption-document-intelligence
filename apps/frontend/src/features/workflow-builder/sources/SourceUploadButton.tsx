@@ -1,6 +1,7 @@
 /**
- * `SourceUploadButton` — "Test upload" affordance rendered below the
- * parameters form on the `source.upload` node-settings panel (US-124).
+ * `SourceUploadButton` — "Upload & Try" affordance rendered below the
+ * parameters form on the `source.upload` node-settings panel (Phase 8
+ * US-124, extended in Phase 4 US-147).
  *
  * Wraps a hidden `<input type="file">` whose `accept` is built from the
  * source node's resolved `allowedMimeTypes`. On click the button
@@ -8,18 +9,25 @@
  * `useSourceUpload(workflowId, sourceNodeId).mutateAsync(file)`
  * (US-122).
  *
+ * Phase 4 US-147 makes upload the Try trigger for `source.upload`
+ * workflows: on a successful upload the response (US-146) carries
+ * `runId` + `workflowVersionId`, and this button writes `runId` into
+ * `RunStateContext` (US-138) so the canvas's status polling loop kicks
+ * in. The button keeps the existing settings-panel success surface
+ * (green Alert + CopyButton) — the canvas wiring is additive.
+ *
  * Surfaces:
  *  - In-flight: `<Loader size="xs" />` swap + disabled state.
  *  - 2xx: green `<Alert>` with each `ctxKey → URL` pair shown via a
- *    `<Code>` block + a `CopyButton`, and a Mantine notification.
- *  - 4xx (400 / 413): red `<Alert>` carrying the backend's error message
- *    and the HTTP status; button re-enables for retry.
+ *    `<Code>` block + a `CopyButton`, plus a Mantine notification.
+ *    `runId` / `workflowVersionId` are NOT rendered in the Alert —
+ *    they're wiring metadata, not ctx values for the user to copy.
+ *  - 4xx (400 / 413): red `<Alert>` carrying the backend's error
+ *    message and the HTTP status; button re-enables for retry.
+ *    `activeRunId` is NOT modified on failure (US-147 Scenario 5).
  *  - Create mode (no `workflowId` yet): button is disabled inside a
  *    "Save the workflow first" tooltip — mirrors the Phase 2 Track 3
  *    History button precedent in `WorkflowEditorV2Page.tsx`.
- *
- * Per DOCUMENT_SOURCES_DESIGN.md §7.3 this is a settings-panel-side
- * test — it does NOT auto-open the Run drawer's Upload section.
  */
 
 import {
@@ -36,11 +44,23 @@ import { notifications } from "@mantine/notifications";
 import { IconCheck, IconCopy, IconUpload } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 
+import { useOptionalRunState } from "../run/RunStateContext";
+
 import {
   ApiError,
   type SourceUploadResponse,
   useSourceUpload,
 } from "./useSourceUpload";
+
+/**
+ * Wire fields the success Alert deliberately omits — `runId` and
+ * `workflowVersionId` are Phase 4 (US-146) wiring metadata fed into
+ * canvas state, not ctxKey → URL pairs for the user to copy.
+ */
+const RESERVED_RESPONSE_FIELDS: ReadonlySet<string> = new Set([
+  "runId",
+  "workflowVersionId",
+]);
 
 export interface SourceUploadButtonProps {
   /**
@@ -83,6 +103,12 @@ export function SourceUploadButton({
   // never actually used at the wire.
   const upload = useSourceUpload(workflowId ?? "", sourceNodeId);
 
+  // US-147: pull the `setActiveRunId` setter from `RunStateContext`
+  // (US-138). Soft-fail outside a provider so this button can still be
+  // exercised in isolation by SourceNodeSettings tests etc. — only the
+  // canvas wiring is skipped in that case.
+  const runState = useOptionalRunState();
+
   const isCreateMode = !workflowId;
 
   const handlePick = () => {
@@ -96,12 +122,17 @@ export function SourceUploadButton({
     try {
       const data = await upload.mutateAsync(file);
       setResult({ data });
+      // US-147 Scenario 2: feed the new run id into canvas state so
+      // `useNodeStatuses` (US-137) starts polling on it.
+      runState?.setActiveRunId(data.runId);
       notifications.show({
-        title: "Test upload succeeded",
+        title: "Upload & Try succeeded",
         message: "Workflow can now use this URL via the Run drawer.",
         color: "green",
       });
     } catch (err) {
+      // US-147 Scenario 5: `activeRunId` MUST NOT change on failure.
+      // The setter call lives in the success branch only.
       if (err instanceof ApiError) {
         setError({ status: err.status, message: err.message });
         return;
@@ -120,7 +151,7 @@ export function SourceUploadButton({
           variant="light"
           data-testid="source-upload-button"
         >
-          Test upload
+          Upload &amp; Try
         </Button>
       </Tooltip>
     );
@@ -157,7 +188,7 @@ export function SourceUploadButton({
           onClick={handlePick}
           data-testid="source-upload-button"
         >
-          Test upload
+          Upload &amp; Try
         </Button>
       </Group>
 
@@ -168,40 +199,42 @@ export function SourceUploadButton({
           data-testid="source-upload-button-success"
         >
           <Stack gap={4}>
-            {Object.entries(result.data).map(([key, url]) => (
-              <Group key={key} gap="xs" wrap="nowrap">
-                <Code>{key}</Code>
-                <Code
-                  data-testid={`source-upload-button-success-url-${key}`}
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: 220,
-                  }}
-                >
-                  {url}
-                </Code>
-                <CopyButton value={url}>
-                  {({ copied, copy }) => (
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      leftSection={
-                        copied ? (
-                          <IconCheck size={12} />
-                        ) : (
-                          <IconCopy size={12} />
-                        )
-                      }
-                      onClick={copy}
-                      data-testid={`source-upload-button-copy-${key}`}
-                    >
-                      {copied ? "Copied" : "Copy"}
-                    </Button>
-                  )}
-                </CopyButton>
-              </Group>
-            ))}
+            {Object.entries(result.data)
+              .filter(([key]) => !RESERVED_RESPONSE_FIELDS.has(key))
+              .map(([key, url]) => (
+                <Group key={key} gap="xs" wrap="nowrap">
+                  <Code>{key}</Code>
+                  <Code
+                    data-testid={`source-upload-button-success-url-${key}`}
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 220,
+                    }}
+                  >
+                    {url}
+                  </Code>
+                  <CopyButton value={url}>
+                    {({ copied, copy }) => (
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        leftSection={
+                          copied ? (
+                            <IconCheck size={12} />
+                          ) : (
+                            <IconCopy size={12} />
+                          )
+                        }
+                        onClick={copy}
+                        data-testid={`source-upload-button-copy-${key}`}
+                      >
+                        {copied ? "Copied" : "Copy"}
+                      </Button>
+                    )}
+                  </CopyButton>
+                </Group>
+              ))}
           </Stack>
         </Alert>
       )}

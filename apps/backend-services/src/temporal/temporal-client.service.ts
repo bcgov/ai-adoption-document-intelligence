@@ -1,5 +1,11 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
-import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -25,6 +31,14 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     { name: "FileName" },
     { name: "FileType" },
     { name: "Status" },
+    // Phase 4 (US-146 / US-150 / US-152). `WorkflowLineageId` keys
+    // visibility queries to a workflow lineage (one query attribute
+    // shared by the cancel-in-flight helper, the run-history endpoint,
+    // and the per-version run-count endpoint).
+    { name: "WorkflowLineageId" },
+    // Phase 4 (US-152). `WorkflowVersionId` lets the version-row badge
+    // count runs per pinned version.
+    { name: "WorkflowVersionId" },
   ] as const;
 
   /**
@@ -89,6 +103,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private configService: ConfigService,
+    @Inject(forwardRef(() => WorkflowService))
     private workflowService: WorkflowService,
     private readonly logger: AppLoggerService,
   ) {
@@ -232,9 +247,18 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             FileName: [String(initialCtx.fileName ?? "")],
             FileType: [String(initialCtx.fileType ?? "")],
             Status: ["ongoing_ocr"],
+            // Phase 4: visibility queries for the cancel-in-flight
+            // helper (US-146), the run-history endpoint (US-150), and
+            // the per-version run-count endpoint (US-152) all key on
+            // these two attributes. Set them for every start regardless
+            // of doc-mode vs adhoc-mode.
+            WorkflowLineageId: [workflowConfig.id],
+            WorkflowVersionId: [workflowConfigId],
           }
         : {
             Status: ["ongoing_adhoc"],
+            WorkflowLineageId: [workflowConfig.id],
+            WorkflowVersionId: [workflowConfigId],
           };
 
       const memo: Record<string, unknown> = {
@@ -446,6 +470,82 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       startedAt: description.startTime,
       endedAt: description.closeTime ?? null,
     };
+  }
+
+  /**
+   * List workflow execution ids that are currently `Running` for the
+   * given `WorkflowLineageId`. Used by the Phase 4 cancel-on-new-Try
+   * helper (`WorkflowService.cancelInFlightTriesForLineage`).
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L26,
+   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §5.1.
+   *
+   * Returns an empty array when no runs match — the visibility-store
+   * query is safe to issue against a lineage that's never been Tried.
+   *
+   * @param workflowLineageId The `WorkflowLineage.id` to filter on.
+   * @returns Workflow execution ids of running runs (caller passes
+   *          each through `cancelRun`).
+   */
+  async listRunningInLineage(workflowLineageId: string): Promise<string[]> {
+    this.ensureClientInitialized();
+    // The visibility query language quotes string values with `"..."` —
+    // the lineage id never contains `"` characters (it's a Prisma cuid),
+    // but we still defensively reject embedded quotes to avoid query
+    // injection in case the id source ever changes.
+    if (workflowLineageId.includes('"')) {
+      throw new Error(
+        `Invalid workflowLineageId (contains quote): ${workflowLineageId}`,
+      );
+    }
+    const query = `WorkflowLineageId = "${workflowLineageId}" AND ExecutionStatus = "Running"`;
+    const workflowIds: string[] = [];
+    for await (const execution of this.client!.workflow.list({ query })) {
+      workflowIds.push(execution.workflowId);
+    }
+    return workflowIds;
+  }
+
+  /**
+   * Request cancellation of a single workflow execution by id. Wraps
+   * `WorkflowHandle.cancel()` (the Temporal client API that maps to
+   * RequestCancelWorkflowExecution — graceful, awaits server ack).
+   *
+   * Errors raised because the run has already completed / been cancelled
+   * are intentionally swallowed: the cancel-on-new-Try semantics are
+   * race-tolerant. A race-loser (Try B beating Try A's natural close to
+   * the cancel call) is harmless.
+   *
+   * Other errors (network, gRPC) are propagated unmodified so the caller
+   * can surface them when the cancel was an explicit user action.
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L26.
+   *
+   * @param workflowId Temporal workflow execution id (runId in the canvas)
+   */
+  async cancelRun(workflowId: string): Promise<void> {
+    this.ensureClientInitialized();
+    try {
+      const handle = this.client!.workflow.getHandle(workflowId);
+      await handle.cancel();
+    } catch (error) {
+      const message = (
+        error instanceof Error ? error.message : String(error)
+      ).toLowerCase();
+      const isAlreadyClosed =
+        /already completed|already terminated|already cancelled|workflow execution already completed|not running|workflow not found/i.test(
+          message,
+        );
+      if (isAlreadyClosed) {
+        // Race-tolerant: the run finished naturally between visibility
+        // read and cancel write. Treat as a successful no-op.
+        this.logger.debug(
+          `cancelRun: workflow ${workflowId} already closed; ignoring (${message})`,
+        );
+        return;
+      }
+      throw error;
+    }
   }
 
   /**

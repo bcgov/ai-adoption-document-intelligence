@@ -38,6 +38,7 @@ const {
   capturedCanvasProps,
   capturedCreateDto,
   capturedPaletteProps,
+  capturedRunDrawerProps,
   fitViewMock,
   existingWorkflowRef,
 } = vi.hoisted(() => {
@@ -48,6 +49,12 @@ const {
     // invoke `onAddSource(...)` directly without spinning up the real
     // palette UI.
     capturedPaletteProps: { current: null as null | Record<string, unknown> },
+    // US-148 — the Run drawer stub captures its props so the trigger
+    // tests can verify `openMode` was set correctly by whichever
+    // top-bar button opened the drawer.
+    capturedRunDrawerProps: {
+      current: null as null | Record<string, unknown>,
+    },
     fitViewMock: vi.fn(),
     // US-121 Scenario 3 — let tests inject a fake existing workflow that
     // the page's `useWorkflow` mock will return, so edit-mode hydration
@@ -105,6 +112,23 @@ vi.mock("./settings/WorkflowSettingsDrawer", () => ({
 
 vi.mock("./validation/ValidationDrawer", () => ({
   ValidationDrawer: () => null,
+}));
+
+// US-148 — capture the live props the page passes so the trigger tests
+// can verify both `opened` and `openMode` for either button. The stub
+// renders nothing; the page-level assertions are about which trigger
+// requested what, not about the drawer body itself (US-149 owns the
+// tab UI).
+vi.mock("./run/RunWorkflowDrawer", () => ({
+  RunWorkflowDrawer: (props: Record<string, unknown>) => {
+    capturedRunDrawerProps.current = props;
+    return props.opened ? (
+      <div
+        data-testid="run-workflow-drawer-stub"
+        data-open-mode={String(props.openMode ?? "run")}
+      />
+    ) : null;
+  },
 }));
 
 vi.mock("./validation/useGraphValidation", () => ({
@@ -820,5 +844,244 @@ describe("WorkflowEditorV2Page — US-121: entryNodeId autoset on source drop", 
     const after = readConfigFromCanvas();
     expect(Object.keys(after.nodes)).toHaveLength(2);
     expect(after.entryNodeId).toBe("legacy_activity");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-148 — In-canvas "Try" top-bar button (Phase 4 — Milestone E)
+//   feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/
+//   US-148-in-canvas-try-button.md
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedPaletteProps.current = null;
+    capturedRunDrawerProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  /**
+   * Builds a fully-populated existing workflow record matching the
+   * shape `useWorkflow` returns to the editor. Each helper varies only
+   * in the `config.nodes` map + the `config.ctx` declarations so the
+   * tests can exercise the page's `tryButtonVisible` predicate.
+   */
+  function makeExistingWorkflow(
+    config: GraphWorkflowConfig,
+  ): Record<string, unknown> {
+    return {
+      id: "wf-test",
+      name: "Test",
+      description: "",
+      config,
+      workflowVersionId: "wf-test-v1",
+    };
+  }
+
+  function configWithSourceApi(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Source.api workflow" },
+      ctx: {
+        callerInput: { type: "string" },
+      },
+      nodes: {
+        api_source_1: {
+          id: "api_source_1",
+          type: "source",
+          label: "API source",
+          sourceType: "source.api",
+          parameters: { fields: [] },
+        },
+      },
+      edges: [],
+      entryNodeId: "api_source_1",
+    };
+  }
+
+  function configWithSourceUploadOnly(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Upload-only workflow" },
+      ctx: {},
+      nodes: {
+        upload_source_1: {
+          id: "upload_source_1",
+          type: "source",
+          label: "Upload source",
+          sourceType: "source.upload",
+          parameters: {
+            allowedMimeTypes: ["application/pdf"],
+            maxFileSizeMB: 10,
+            ctxKey: "documentUrl",
+          },
+        },
+      },
+      edges: [],
+      entryNodeId: "upload_source_1",
+    };
+  }
+
+  function configWithMixedSources(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Mixed workflow" },
+      ctx: {
+        callerInput: { type: "string" },
+      },
+      nodes: {
+        api_source_1: {
+          id: "api_source_1",
+          type: "source",
+          label: "API source",
+          sourceType: "source.api",
+          parameters: { fields: [] },
+        },
+        upload_source_1: {
+          id: "upload_source_1",
+          type: "source",
+          label: "Upload source",
+          sourceType: "source.upload",
+          parameters: {
+            allowedMimeTypes: ["application/pdf"],
+            maxFileSizeMB: 10,
+            ctxKey: "documentUrl",
+          },
+        },
+      },
+      edges: [],
+      entryNodeId: "api_source_1",
+    };
+  }
+
+  function configWithLegacyIsInputCtx(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Legacy isInput workflow" },
+      ctx: {
+        callerInput: { type: "string", isInput: true },
+      },
+      nodes: {
+        legacy_activity: {
+          id: "legacy_activity",
+          type: "activity",
+          label: "Legacy activity",
+          activityType: "data.transform",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+      },
+      edges: [],
+      entryNodeId: "legacy_activity",
+    };
+  }
+
+  it("Scenario 1: renders a Try button between Run this workflow and Save as library", () => {
+    existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
+    renderEditPage("wf-test");
+
+    const tryBtn = screen.getByTestId("try-button");
+    expect(tryBtn).toBeInTheDocument();
+    expect(tryBtn).toHaveTextContent(/^Try$/);
+
+    const runBtn = screen.getByTestId("run-this-workflow-button");
+    const saveAsLibraryBtn = screen.getByTestId("save-as-library-button");
+    expect(
+      runBtn.compareDocumentPosition(tryBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      tryBtn.compareDocumentPosition(saveAsLibraryBtn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("Scenario 2: Try button is disabled in create mode with the 'Save the workflow first' tooltip", async () => {
+    renderPage();
+    // Create mode → no source nodes yet, no isInput ctx → the predicate
+    // simplifies to "no source.upload" so the button is visible-and-disabled
+    // (the documented Phase-4 behaviour for empty / legacy workflows).
+    const tryBtn = screen.getByTestId("try-button");
+    expect(tryBtn).toBeDisabled();
+    fireEvent.mouseEnter(tryBtn);
+    await waitFor(() => {
+      expect(screen.getByText("Save the workflow first")).toBeInTheDocument();
+    });
+  });
+
+  it('Scenario 3: clicking Try opens the Run drawer with openMode="try"', async () => {
+    existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
+    renderEditPage("wf-test");
+
+    // Drawer is closed initially.
+    expect(
+      screen.queryByTestId("run-workflow-drawer-stub"),
+    ).not.toBeInTheDocument();
+
+    const tryBtn = screen.getByTestId("try-button");
+    await act(async () => {
+      fireEvent.click(tryBtn);
+    });
+
+    const drawerStub = await screen.findByTestId("run-workflow-drawer-stub");
+    expect(drawerStub.getAttribute("data-open-mode")).toBe("try");
+    // Confirm the page passed the openMode prop through to the drawer.
+    expect(capturedRunDrawerProps.current?.opened).toBe(true);
+    expect(capturedRunDrawerProps.current?.openMode).toBe("try");
+  });
+
+  it('Scenario 3 (Run vs Try): the existing Run this workflow button opens the drawer with openMode="run"', async () => {
+    existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
+    renderEditPage("wf-test");
+
+    const runBtn = screen.getByTestId("run-this-workflow-button");
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    const drawerStub = await screen.findByTestId("run-workflow-drawer-stub");
+    expect(drawerStub.getAttribute("data-open-mode")).toBe("run");
+    expect(capturedRunDrawerProps.current?.openMode).toBe("run");
+  });
+
+  it("Scenario 4: Try button is HIDDEN for source.upload-only workflows", () => {
+    existingWorkflowRef.current = makeExistingWorkflow(
+      configWithSourceUploadOnly(),
+    );
+    renderEditPage("wf-test");
+
+    expect(screen.queryByTestId("try-button")).not.toBeInTheDocument();
+    // The Run button stays visible — only the Try button is conditional.
+    expect(screen.getByTestId("run-this-workflow-button")).toBeInTheDocument();
+  });
+
+  it("Scenario 5: Try button is VISIBLE for mixed workflows (source.api + source.upload)", () => {
+    existingWorkflowRef.current = makeExistingWorkflow(
+      configWithMixedSources(),
+    );
+    renderEditPage("wf-test");
+
+    expect(screen.getByTestId("try-button")).toBeInTheDocument();
+  });
+
+  it("Scenario 5 (legacy isInput): Try button is VISIBLE when isInput-flagged ctx coexists with source.upload", () => {
+    const config = configWithSourceUploadOnly();
+    config.ctx = { callerInput: { type: "string", isInput: true } };
+    existingWorkflowRef.current = makeExistingWorkflow(config);
+    renderEditPage("wf-test");
+
+    expect(screen.getByTestId("try-button")).toBeInTheDocument();
+  });
+
+  it("Scenario 5 (legacy isInput, no source): Try button is VISIBLE for legacy isInput-only workflows", () => {
+    existingWorkflowRef.current = makeExistingWorkflow(
+      configWithLegacyIsInputCtx(),
+    );
+    renderEditPage("wf-test");
+
+    expect(screen.getByTestId("try-button")).toBeInTheDocument();
   });
 });

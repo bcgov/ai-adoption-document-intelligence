@@ -7,6 +7,7 @@ import {
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowService } from "./workflow.service";
@@ -77,6 +78,11 @@ const mockPrismaService = {
   },
 };
 
+const mockTemporalClient = {
+  listRunningInLineage: jest.fn(),
+  cancelRun: jest.fn(),
+};
+
 describe("WorkflowService", () => {
   let service: WorkflowService;
 
@@ -97,6 +103,8 @@ describe("WorkflowService", () => {
     mockVersion.create.mockResolvedValue(headVersion);
     mockLineage.update.mockResolvedValue({ ...lineageRow, headVersion });
     mockLineage.delete.mockResolvedValue(undefined);
+    mockTemporalClient.listRunningInLineage.mockResolvedValue([]);
+    mockTemporalClient.cancelRun.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -106,6 +114,7 @@ describe("WorkflowService", () => {
           useValue: mockPrismaService,
         },
         { provide: AppLoggerService, useValue: mockAppLogger },
+        { provide: TemporalClientService, useValue: mockTemporalClient },
       ],
     }).compile();
 
@@ -568,6 +577,93 @@ describe("WorkflowService", () => {
       await expect(service.deleteWorkflow("lin-1", "actor-1")).rejects.toThrow(
         ConflictException,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-146 — cancelInFlightTriesForLineage helper
+  // ---------------------------------------------------------------------------
+  describe("cancelInFlightTriesForLineage (US-146)", () => {
+    it("Scenario 1: queries Temporal visibility for in-flight runs and cancels each via cancelRun", async () => {
+      mockTemporalClient.listRunningInLineage.mockResolvedValueOnce([
+        "graph-adhoc-run-a",
+        "graph-adhoc-run-b",
+      ]);
+      mockTemporalClient.cancelRun.mockResolvedValue(undefined);
+
+      const result = await service.cancelInFlightTriesForLineage("lineage-123");
+
+      expect(mockTemporalClient.listRunningInLineage).toHaveBeenCalledWith(
+        "lineage-123",
+      );
+      expect(mockTemporalClient.cancelRun).toHaveBeenCalledTimes(2);
+      expect(mockTemporalClient.cancelRun).toHaveBeenNthCalledWith(
+        1,
+        "graph-adhoc-run-a",
+      );
+      expect(mockTemporalClient.cancelRun).toHaveBeenNthCalledWith(
+        2,
+        "graph-adhoc-run-b",
+      );
+      expect(result).toEqual({ cancelledCount: 2 });
+    });
+
+    it("Scenario 2: returns { cancelledCount: 0 } without throwing when no runs are in flight (idempotent)", async () => {
+      mockTemporalClient.listRunningInLineage.mockResolvedValueOnce([]);
+
+      const result = await service.cancelInFlightTriesForLineage("empty-lin");
+
+      expect(result).toEqual({ cancelledCount: 0 });
+      expect(mockTemporalClient.cancelRun).not.toHaveBeenCalled();
+    });
+
+    it("Scenario 2 (idempotent): subsequent calls on the same lineage are also no-ops", async () => {
+      mockTemporalClient.listRunningInLineage.mockResolvedValue([]);
+
+      const r1 = await service.cancelInFlightTriesForLineage("empty-lin");
+      const r2 = await service.cancelInFlightTriesForLineage("empty-lin");
+      const r3 = await service.cancelInFlightTriesForLineage("empty-lin");
+
+      expect(r1).toEqual({ cancelledCount: 0 });
+      expect(r2).toEqual({ cancelledCount: 0 });
+      expect(r3).toEqual({ cancelledCount: 0 });
+      expect(mockTemporalClient.cancelRun).not.toHaveBeenCalled();
+    });
+
+    it("Scenario 6: cancel errors on individual runs are isolated via Promise.allSettled (one stuck cancel does not block others)", async () => {
+      mockTemporalClient.listRunningInLineage.mockResolvedValueOnce([
+        "good-1",
+        "bad",
+        "good-2",
+      ]);
+      mockTemporalClient.cancelRun.mockImplementation(
+        async (workflowId: string) => {
+          if (workflowId === "bad") {
+            throw new Error("gRPC: failed precondition");
+          }
+        },
+      );
+
+      const result = await service.cancelInFlightTriesForLineage("mixed-lin");
+
+      // cancelRun was attempted on all three.
+      expect(mockTemporalClient.cancelRun).toHaveBeenCalledTimes(3);
+      // Only the two successful ones contribute to the count.
+      expect(result).toEqual({ cancelledCount: 2 });
+    });
+
+    it("counts a race-tolerant already-closed cancel as a success (cancelRun returns void without throwing)", async () => {
+      mockTemporalClient.listRunningInLineage.mockResolvedValueOnce([
+        "already-closed-run",
+      ]);
+      // cancelRun internally swallows already-completed errors and
+      // resolves successfully — the service helper counts the result
+      // as a cancellation.
+      mockTemporalClient.cancelRun.mockResolvedValueOnce(undefined);
+
+      const result = await service.cancelInFlightTriesForLineage("lin-race");
+
+      expect(result).toEqual({ cancelledCount: 1 });
     });
   });
 });

@@ -66,6 +66,7 @@ import {
   type NodeStatusesResponseDto,
 } from "./dto/node-statuses-response.dto";
 import { RunSpecResponseDto } from "./dto/run-spec.dto";
+import { SourceUploadResponseDto } from "./dto/source-upload.dto";
 import { StartRunRequestDto, StartRunResponseDto } from "./dto/start-run.dto";
 import {
   RevertHeadDto,
@@ -150,9 +151,8 @@ export class WorkflowController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getWorkflows(
     @Query("groupId") groupId: string | undefined,
-    @Query("includeBenchmarkCandidates") includeBenchmarkCandidates:
-      | string
-      | undefined,
+    @Query("includeBenchmarkCandidates")
+    includeBenchmarkCandidates: string | undefined,
     @Query("kind") kind: string | undefined,
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
@@ -345,6 +345,14 @@ export class WorkflowController {
       });
     }
 
+    // Phase 4 (US-149): cancel any in-flight Try for this lineage BEFORE
+    // starting the new run. Mirrors the upload-and-Try semantics added in
+    // US-146 — every new run (whether triggered from the canvas Try tab
+    // or from an external API caller) wins over a stale in-flight one.
+    // Cancel is best-effort inside the helper (errors are swallowed there),
+    // so this never blocks the new run.
+    await this.workflowService.cancelInFlightTriesForLineage(id);
+
     const workflowId = await this.temporalClient.startGraphWorkflow(
       undefined,
       wf.workflowVersionId,
@@ -394,14 +402,28 @@ export class WorkflowController {
   })
   @ApiOkResponse({
     description:
-      "Upload succeeded. Response is a single-property object whose " +
-      "key is the source's configured `ctxKey` (default `documentUrl`) " +
-      "and whose value is the blob storage key. The frontend forwards " +
-      "this object verbatim as `initialCtx` in the subsequent " +
-      "`POST /runs` call. This endpoint is upload-only — no workflow " +
-      "run is triggered by it.",
+      "Upload succeeded and a Temporal Try run was kicked off. The " +
+      "response carries a dynamic property whose key is the source's " +
+      "configured `ctxKey` (default `documentUrl`) and whose value is " +
+      "the blob storage key, alongside two fixed properties: `runId` " +
+      "(Temporal workflow execution id of the kicked-off run) and " +
+      "`workflowVersionId` (the version id used for the run — head or " +
+      "pinned, resolved via `WorkflowService.resolveLineageAndVersion`).",
     schema: {
       type: "object",
+      properties: {
+        runId: {
+          type: "string",
+          description:
+            "Temporal workflow execution id of the run kicked off " +
+            "immediately after upload commit (Phase 4 / US-146).",
+        },
+        workflowVersionId: {
+          type: "string",
+          description: "`WorkflowVersion.id` used for the kicked-off run.",
+        },
+      },
+      required: ["runId", "workflowVersionId"],
       additionalProperties: { type: "string" },
     },
   })
@@ -426,7 +448,7 @@ export class WorkflowController {
     @Param("sourceNodeId") sourceNodeId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Req() req: Request,
-  ): Promise<Record<string, string>> {
+  ): Promise<SourceUploadResponseDto> {
     if (!file) {
       throw new BadRequestException(
         "Missing file part. POST a `multipart/form-data` body with a single `file` field.",
@@ -475,7 +497,37 @@ export class WorkflowController {
       `Source upload stored: workflow=${workflowId}, source=${sourceNodeId}, ctxKey=${resolvedParameters.ctxKey}, blobKey=${blobKey}`,
     );
 
-    return { [resolvedParameters.ctxKey]: blobKey };
+    // Phase 4 (US-146): cancel any in-flight Try for this lineage
+    // BEFORE starting the new run, so the "cancel-on-new-Try" semantics
+    // are enforced server-side. Cancel errors don't block the new run
+    // (cancel is best-effort inside the helper; see the service docs).
+    await this.workflowService.cancelInFlightTriesForLineage(workflowId);
+
+    // Kick off a fresh Temporal Try with the uploaded file's ctx
+    // reference. The ctx key is the source.upload node's configured
+    // `ctxKey`; the value is the blob storage key the upload just
+    // produced. The same blob key is also returned to the caller via
+    // the dynamic ctxKey-keyed property so the frontend can chain
+    // upload → run with one round-trip.
+    const initialCtx: Record<string, unknown> = {
+      [resolvedParameters.ctxKey]: blobKey,
+    };
+    const runId = await this.temporalClient.startGraphWorkflow(
+      undefined,
+      wf.workflowVersionId,
+      initialCtx,
+      wf.groupId,
+    );
+
+    this.logger.log(
+      `Source upload-and-Try started run ${runId} (workflow=${workflowId}, version=${wf.workflowVersionId})`,
+    );
+
+    return {
+      [resolvedParameters.ctxKey]: blobKey,
+      runId,
+      workflowVersionId: wf.workflowVersionId,
+    };
   }
 
   @Post(":id/revert-head")

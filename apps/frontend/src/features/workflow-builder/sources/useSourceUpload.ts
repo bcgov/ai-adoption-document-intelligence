@@ -1,14 +1,19 @@
 /**
  * `useSourceUpload` — TanStack mutation hook wrapping the per-source
- * upload endpoint introduced in US-114.
+ * upload endpoint introduced in US-114 and extended in US-146.
  *
  *   POST /api/workflows/:workflowId/sources/:sourceNodeId/upload
  *
  * Request body is `multipart/form-data` with a single part named `"file"`.
- * The response is a `Record<string, string>` keyed by the source node's
- * configured `ctxKey` (e.g. `{ "myFile": "https://blob/.../abc" }`) — the
- * hook returns it verbatim so consumers (Run drawer, settings panel) can
- * decide how to merge it into `initialCtx` or display it.
+ * The response carries:
+ *   - one dynamic `[ctxKey]: string` entry whose key matches the source
+ *     node's configured `ctxKey` (e.g. `{ "myFile": "https://blob/.../abc" }`)
+ *   - `runId: string` — Temporal workflow execution id of the run kicked
+ *     off immediately after the upload commits (Phase 4 US-146)
+ *   - `workflowVersionId: string` — `WorkflowVersion.id` used for that run
+ *
+ * The hook returns the body verbatim so consumers can merge ctx entries
+ * and feed `runId` into canvas state (US-147's `setActiveRunId`).
  *
  * Auth + CSRF mirror `apps/frontend/src/data/services/api.service.ts`:
  *   - `credentials: "include"` matches axios `withCredentials: true`
@@ -34,11 +39,21 @@ import { type UseMutationResult, useMutation } from "@tanstack/react-query";
 import { API_BASE_URL } from "../../../shared/constants";
 
 /**
- * Wire shape of the upload endpoint's success response. The single key
- * is the source node's configured ctxKey (dynamic per source), and the
- * value is the storage URL the backend allocated for the upload.
+ * Wire shape of the upload endpoint's success response. The fixed
+ * `runId` + `workflowVersionId` fields were added in Phase 4 US-146 —
+ * the backend now starts a Temporal run immediately after the upload
+ * commits, and the frontend stores `runId` in canvas state to drive
+ * the per-node status polling loop (US-147).
+ *
+ * The dynamic ctxKey-keyed entry (e.g. `{ "myFile": "https://blob/..." }`)
+ * is modelled via an index signature; the entry key is the source
+ * node's configured `ctxKey` and is unknown at compile time.
  */
-export type SourceUploadResponse = Record<string, string>;
+export interface SourceUploadResponse {
+  runId: string;
+  workflowVersionId: string;
+  [ctxKey: string]: string;
+}
 
 /**
  * Typed error thrown when the upload endpoint returns a non-2xx

@@ -6,39 +6,39 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Two tabs inside the drawer
+- [x] **Scenario 1**: Two tabs inside the drawer
     - **Given** `apps/frontend/src/features/workflow-builder/run/RunWorkflowDrawer.tsx`
     - **When** read after the change
     - **Then** the drawer's content is wrapped in a Mantine `<Tabs defaultValue={openMode}>` with two tab panels: "Try" + "Run"
     - **And** the `openMode` prop accepts `"try" | "run"` and controls which tab is initially active
     - **And** the existing "Run" tab content is moved into its `<Tabs.Panel value="run">` verbatim
 
-- [ ] **Scenario 2**: Try tab — same JsonInput, different submit
+- [x] **Scenario 2**: Try tab — same JsonInput, different submit
     - **Given** the Try tab is active
     - **When** the user pastes a body and clicks the primary action button
     - **Then** the button label reads "Try" (vs "Run" on the Run tab)
     - **And** the click handler: (a) calls `cancelInFlightTriesForLineage` indirectly via the existing `POST /runs` endpoint behavior (handled by the server when the endpoint detects the request is via the Try path — see Technical notes), (b) POSTs to `POST /runs` with the body, (c) on success, calls `setActiveRunId(response.workflowId)`, (d) closes the drawer
     - **And** no inline workflowId result is shown (the canvas now is the result surface)
 
-- [ ] **Scenario 3**: Run tab — unchanged
+- [x] **Scenario 3**: Run tab — unchanged
     - **Given** the Run tab is active
     - **When** the user pastes a body and clicks Run
     - **Then** the existing Phase 2 Track 2 behaviour is preserved: drawer stays open, success Alert + workflowId render inline, no `activeRunId` is set
     - **And** the API-validation use case is unaffected by Phase 4
 
-- [ ] **Scenario 4**: Upload tab integration (for source.upload workflows)
+- [x] **Scenario 4**: Upload tab integration (for source.upload workflows)
     - **Given** the workflow has BOTH source.upload AND source.api (mixed scenario)
     - **When** the drawer opens
     - **Then** the layout is: Tabs at the top (Try / Run) + a separate "Upload source" section below the tabs (the existing US-123 Upload Dropzone)
     - **And** the Upload Dropzone keeps its existing "Run" submit semantics (drop file → upload-then-run chain); the new Try semantics apply ONLY to the JsonInput tabs
 
-- [ ] **Scenario 5**: Drawer closes-on-Try-success behaviour
+- [x] **Scenario 5**: Drawer closes-on-Try-success behaviour
     - **Given** a Try is submitted from the Try tab
     - **When** `POST /runs` resolves successfully
     - **Then** the drawer's onClose fires AND `setActiveRunId(workflowId)` is called BEFORE the close (so the canvas's polling loops start before the user sees the drawer disappear)
     - **And** if the POST fails, the drawer stays open with a red Alert error (mirror of the Run tab's error handling)
 
-- [ ] **Scenario 6**: Component test
+- [x] **Scenario 6**: Component test
     - **Given** `apps/frontend/src/features/workflow-builder/run/RunWorkflowDrawer.test.tsx`
     - **When** tests run
     - **Then** at least 4 cases pass: openMode="try" pre-selects Try tab, openMode="run" pre-selects Run tab, Try submit closes drawer + sets activeRunId, Run submit keeps drawer open + does not set activeRunId

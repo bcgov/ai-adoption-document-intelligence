@@ -276,13 +276,18 @@ describe("TemporalClientService", () => {
           workflowId: "graph-doc-123",
         }),
       );
-      // Doc-seeded search attributes are present
+      // Doc-seeded search attributes are present, plus the Phase 4
+      // visibility-query attributes (WorkflowLineageId / WorkflowVersionId)
+      // that drive the cancel-in-flight + run-history + version-run-count
+      // endpoints.
       const callArg = mockClient.workflow.start.mock.calls[0][1];
       expect(callArg.searchAttributes).toEqual({
         DocumentId: ["doc-123"],
         FileName: ["test.pdf"],
         FileType: ["pdf"],
         Status: ["ongoing_ocr"],
+        WorkflowLineageId: ["workflow-123"],
+        WorkflowVersionId: ["workflow-123"],
       });
       expect(callArg.memo.documentId).toBe("doc-123");
     });
@@ -306,8 +311,15 @@ describe("TemporalClientService", () => {
       expect(callArg.args[0].initialCtx).toEqual({ customerId: "cust-001" });
       expect(callArg.args[0].initialCtx).not.toHaveProperty("documentId");
       expect(callArg.args[0].initialCtx).not.toHaveProperty("blobKey");
-      // Search attributes are minimal
-      expect(callArg.searchAttributes).toEqual({ Status: ["ongoing_adhoc"] });
+      // Search attributes are minimal (no doc-seeded keys), but the
+      // Phase 4 lineage + version attributes are always present so the
+      // cancel-in-flight + run-history + version-run-count endpoints
+      // can query visibility.
+      expect(callArg.searchAttributes).toEqual({
+        Status: ["ongoing_adhoc"],
+        WorkflowLineageId: ["workflow-123"],
+        WorkflowVersionId: ["workflow-123"],
+      });
       // Memo omits the documentId key entirely
       expect(callArg.memo).not.toHaveProperty("documentId");
       expect(callArg.memo).toMatchObject({
@@ -522,6 +534,89 @@ describe("TemporalClientService", () => {
       await expect(
         service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
       ).rejects.toThrow("The Temporal worker may not be running");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-146 — listRunningInLineage + cancelRun helpers
+  // ---------------------------------------------------------------------------
+  describe("listRunningInLineage (US-146)", () => {
+    function setListResults(executions: Array<{ workflowId: string }>): void {
+      mockClient.workflow.list = jest.fn().mockImplementation(() => {
+        // @temporalio/client returns an AsyncIterable — we mirror the
+        // shape with a generator so the production `for await` loop
+        // works unmodified.
+        return {
+          // eslint-disable-next-line @typescript-eslint/require-await
+          [Symbol.asyncIterator]: async function* () {
+            for (const item of executions) {
+              yield item;
+            }
+          },
+        };
+      });
+    }
+
+    it("issues the WorkflowLineageId + ExecutionStatus visibility query and collects workflow ids", async () => {
+      setListResults([
+        { workflowId: "graph-adhoc-run-1" },
+        { workflowId: "graph-adhoc-run-2" },
+      ]);
+
+      const result = await service.listRunningInLineage("lineage-abc");
+
+      expect(mockClient.workflow.list).toHaveBeenCalledWith({
+        query:
+          'WorkflowLineageId = "lineage-abc" AND ExecutionStatus = "Running"',
+      });
+      expect(result).toEqual(["graph-adhoc-run-1", "graph-adhoc-run-2"]);
+    });
+
+    it("returns an empty array when visibility reports no running runs", async () => {
+      setListResults([]);
+
+      const result = await service.listRunningInLineage("empty-lin");
+
+      expect(result).toEqual([]);
+    });
+
+    it("rejects lineage ids containing quote characters (query-injection guard)", async () => {
+      await expect(service.listRunningInLineage('weird"id')).rejects.toThrow(
+        /Invalid workflowLineageId/,
+      );
+    });
+  });
+
+  describe("cancelRun (US-146)", () => {
+    it("calls .cancel() on the workflow handle", async () => {
+      mockWorkflowHandle.cancel = jest.fn().mockResolvedValue(undefined);
+
+      await service.cancelRun("graph-adhoc-run-x");
+
+      expect(mockClient.workflow.getHandle).toHaveBeenCalledWith(
+        "graph-adhoc-run-x",
+      );
+      expect(mockWorkflowHandle.cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("swallows already-completed errors as a race-tolerant no-op", async () => {
+      mockWorkflowHandle.cancel = jest
+        .fn()
+        .mockRejectedValue(new Error("workflow execution already completed"));
+
+      await expect(
+        service.cancelRun("graph-adhoc-already-done"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("propagates non-completion errors (e.g. network) unmodified", async () => {
+      mockWorkflowHandle.cancel = jest
+        .fn()
+        .mockRejectedValue(new Error("gRPC: connection reset"));
+
+      await expect(service.cancelRun("graph-adhoc-net-err")).rejects.toThrow(
+        /connection reset/,
+      );
     });
   });
 });
