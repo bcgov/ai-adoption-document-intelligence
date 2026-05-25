@@ -121,7 +121,7 @@ Phase 4 has a clear linear backbone (cache schema + helpers → worker decorator
 - [x] **US-155** (`CacheEvictedAlert` + Re-run button) — depends on US-141 (dispatch shell) + US-151 (input-ctx endpoint)
 
 ### Phase 7 — end-to-end verification (Milestone G)
-- [ ] **US-156** (Playwright walkthrough — Phase 4 try-in-place; screenshots in `/tmp/wb-phase4-verify/`)
+- [x] **US-156** (Playwright walkthrough — Phase 4 try-in-place; screenshots in `/tmp/wb-phase4-verify/`)
 
 > US-126 → US-130 ship first (`packages/graph-workflow` introduces new `cache/` exports + `nonCacheable?` field); after merging US-130 ask Alex to restart Vite — pre-bundle of `@ai-di/graph-workflow` goes stale otherwise.
 >

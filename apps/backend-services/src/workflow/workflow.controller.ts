@@ -460,7 +460,7 @@ export class WorkflowController {
     // or from an external API caller) wins over a stale in-flight one.
     // Cancel is best-effort inside the helper (errors are swallowed there),
     // so this never blocks the new run.
-    await this.workflowService.cancelInFlightTriesForLineage(id);
+    await this.temporalClient.cancelInFlightTriesForLineage(id);
 
     const workflowId = await this.temporalClient.startGraphWorkflow(
       undefined,
@@ -610,7 +610,7 @@ export class WorkflowController {
     // BEFORE starting the new run, so the "cancel-on-new-Try" semantics
     // are enforced server-side. Cancel errors don't block the new run
     // (cancel is best-effort inside the helper; see the service docs).
-    await this.workflowService.cancelInFlightTriesForLineage(workflowId);
+    await this.temporalClient.cancelInFlightTriesForLineage(workflowId);
 
     // Kick off a fresh Temporal Try with the uploaded file's ctx
     // reference. The ctx key is the source.upload node's configured

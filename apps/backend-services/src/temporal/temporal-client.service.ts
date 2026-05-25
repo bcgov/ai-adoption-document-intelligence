@@ -1,11 +1,5 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
-import {
-  forwardRef,
-  Inject,
-  Injectable,
-  OnModuleDestroy,
-  OnModuleInit,
-} from "@nestjs/common";
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   Client,
@@ -148,7 +142,6 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private configService: ConfigService,
-    @Inject(forwardRef(() => WorkflowService))
     private workflowService: WorkflowService,
     private readonly logger: AppLoggerService,
   ) {
@@ -838,6 +831,50 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       }
       throw error;
     }
+  }
+
+  /**
+   * Cancel all in-flight Try executions for a workflow lineage.
+   * Best-effort + race-tolerant — moved here from WorkflowService to break
+   * a NestJS circular dependency (US-146 originally landed in
+   * WorkflowService but that introduced an init-order cycle with this
+   * service's existing dep on WorkflowService.getWorkflowVersionById).
+   *
+   * Spec: feature-docs/.../REQUIREMENTS.md L26, TRY_IN_PLACE_DESIGN.md §1, §5.1.
+   */
+  async cancelInFlightTriesForLineage(
+    workflowLineageId: string,
+  ): Promise<{ cancelledCount: number }> {
+    const workflowIds = await this.listRunningInLineage(workflowLineageId);
+    if (workflowIds.length === 0) {
+      return { cancelledCount: 0 };
+    }
+
+    const results = await Promise.allSettled(
+      workflowIds.map((workflowId) => this.cancelRun(workflowId)),
+    );
+
+    let cancelledCount = 0;
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === "fulfilled") {
+        cancelledCount++;
+      } else {
+        const reason =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason);
+        this.logger.warn(
+          `cancelInFlightTriesForLineage: cancel of ${workflowIds[i]} (lineage ${workflowLineageId}) failed: ${reason}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `cancelInFlightTriesForLineage: lineage ${workflowLineageId} — cancelled ${cancelledCount}/${workflowIds.length} in-flight Try run(s)`,
+    );
+
+    return { cancelledCount };
   }
 
   /**

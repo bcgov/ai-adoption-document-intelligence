@@ -1114,7 +1114,7 @@ describe("WorkflowController", () => {
       temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-cancel");
 
       const callOrder: string[] = [];
-      workflowService.cancelInFlightTriesForLineage.mockImplementation(
+      temporalClient.cancelInFlightTriesForLineage.mockImplementation(
         async () => {
           callOrder.push("cancel");
           return { cancelledCount: 2 };
@@ -1127,9 +1127,9 @@ describe("WorkflowController", () => {
 
       await controller.startRun("wf-1", { initialCtx: {} }, mockReq());
 
-      expect(
-        workflowService.cancelInFlightTriesForLineage,
-      ).toHaveBeenCalledWith("wf-1");
+      expect(temporalClient.cancelInFlightTriesForLineage).toHaveBeenCalledWith(
+        "wf-1",
+      );
       expect(callOrder).toEqual(["cancel", "start"]);
     });
 
@@ -1809,7 +1809,7 @@ describe("WorkflowController", () => {
 
       const callOrder: string[] = [];
       (
-        workflowService.cancelInFlightTriesForLineage as jest.Mock
+        temporalClient.cancelInFlightTriesForLineage as jest.Mock
       ).mockImplementation(async () => {
         callOrder.push("cancel");
         return { cancelledCount: 0 };
@@ -1822,9 +1822,9 @@ describe("WorkflowController", () => {
       await controller.uploadToSource("wf-1", "upload", makeFile(), mockReq());
 
       expect(callOrder).toEqual(["cancel", "start"]);
-      expect(
-        workflowService.cancelInFlightTriesForLineage,
-      ).toHaveBeenCalledWith("wf-1");
+      expect(temporalClient.cancelInFlightTriesForLineage).toHaveBeenCalledWith(
+        "wf-1",
+      );
     });
 
     // -------------------------------------------------------------------
