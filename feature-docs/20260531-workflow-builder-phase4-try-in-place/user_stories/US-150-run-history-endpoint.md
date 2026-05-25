@@ -6,21 +6,21 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Endpoint route + query DTO
+- [x] **Scenario 1**: Endpoint route + query DTO
     - **Given** `apps/backend-services/src/workflows/workflow.controller.ts`
     - **When** read after the change
     - **Then** a new `@Get(":id/runs")` route accepts `@Query()` of type `ListRunsQueryDto { cursor?, limit?, status?, startedAfter?, startedBefore?, workflowVersionId? }`
     - **And** the DTO uses class-validator decorators: `@IsOptional() @IsString() cursor`, `@IsOptional() @IsInt() @Min(1) @Max(200) limit`, `@IsOptional() @IsIn(["running", "succeeded", "failed", "cancelled"]) status`, `@IsOptional() @IsDateString() startedAfter/startedBefore`, `@IsOptional() @IsString() workflowVersionId`
     - **And** `limit` defaults to 50
 
-- [ ] **Scenario 2**: Response shape + Swagger
+- [x] **Scenario 2**: Response shape + Swagger
     - **Given** the new route
     - **When** Swagger is regenerated
     - **Then** `ListRunsResponseDto { runs: RunSummaryDto[], nextCursor: string | null }` is declared with `@ApiProperty`
     - **And** `RunSummaryDto` has: `runId`, `workflowVersionId`, `versionNumber`, `status`, `startedAt`, `endedAt?`, `inputCtxSummary?` — all with `@ApiProperty` decorators
     - **And** the route declares `@ApiOkResponse({ type: ListRunsResponseDto })`, `@ApiBadRequestResponse`, `@ApiUnauthorizedResponse`, `@ApiForbiddenResponse`
 
-- [ ] **Scenario 3**: Temporal visibility query translation
+- [x] **Scenario 3**: Temporal visibility query translation
     - **Given** the handler
     - **When** it runs
     - **Then** it builds a Temporal visibility query string from the filters:
@@ -32,19 +32,19 @@
     - **And** the query is passed to `temporalClient.workflow.list({ query, pageSize: limit, nextPageToken: cursor })`
     - **And** results are mapped to `RunSummaryDto[]` + `nextCursor` from Temporal's `nextPageToken`
 
-- [ ] **Scenario 4**: `summariseInputCtx` helper
+- [x] **Scenario 4**: `summariseInputCtx` helper
     - **Given** `apps/backend-services/src/workflows/run-history/summarise-input-ctx.ts` (new file)
     - **When** read
     - **Then** it exports `function summariseInputCtx(ctx: Record<string, unknown>): Record<string, unknown>`
     - **And** the helper returns the FIRST 4 top-level keys; string values truncated to 80 chars; Document-shaped values rendered as `"Document(<storage_key tail>)"`; nested objects/arrays rendered as `"{...}"` / `"[N items]"`
     - **And** the helper is pure — no I/O
 
-- [ ] **Scenario 5**: 400 on invalid date range
+- [x] **Scenario 5**: 400 on invalid date range
     - **Given** the endpoint called with `startedAfter > startedBefore`
     - **When** the handler runs
     - **Then** the existing NestJS `ValidationPipe` does NOT catch this (the dates are individually valid); a small business-rule check in the handler returns 400 with `{ message: "startedAfter must be before startedBefore" }`
 
-- [ ] **Scenario 6**: Controller spec covers happy + filter + pagination paths
+- [x] **Scenario 6**: Controller spec covers happy + filter + pagination paths
     - **Given** the controller spec
     - **When** tests run
     - **Then** at least 5 cases pass: happy-path returns 50 most recent runs, status filter narrows results, date range narrows results, pagination cursor returns the next page, invalid date range returns 400

@@ -6,40 +6,40 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Backend endpoint + DTO
+- [x] **Scenario 1**: Backend endpoint + DTO
     - **Given** `apps/backend-services/src/workflows/workflow.controller.ts`
     - **When** read after the change
     - **Then** a new `@Get(":id/versions/:versionId/run-count")` route returns `VersionRunCountDto { runCount: number }`
     - **And** Swagger declares `@ApiOkResponse({ type: VersionRunCountDto })`, `@ApiNotFoundResponse`, `@ApiUnauthorizedResponse`
     - **And** the route inherits per-workflow auth
 
-- [ ] **Scenario 2**: Implementation queries Temporal visibility count
+- [x] **Scenario 2**: Implementation queries Temporal visibility count
     - **Given** the endpoint hit
     - **When** the handler runs
     - **Then** it calls `temporalClient.workflow.count({ query: \`WorkflowLineageId = "<lineage>" AND WorkflowVersionId = "<versionId>"\` })`
     - **And** returns the count
 
-- [ ] **Scenario 3**: Server-side 60s LRU cache
+- [x] **Scenario 3**: Server-side 60s LRU cache
     - **Given** the handler
     - **When** called repeatedly for the same `(workflowId, versionId)` within 60s
     - **Then** subsequent calls return the cached count without hitting Temporal
     - **And** the LRU is a small in-process `Map` with TTL semantics — no Redis dependency
 
-- [ ] **Scenario 4**: Frontend `useVersionRunCount` hook
+- [x] **Scenario 4**: Frontend `useVersionRunCount` hook
     - **Given** `apps/frontend/src/features/workflow-builder/versioning/useVersionRunCount.ts` (new file)
     - **When** read
     - **Then** it exports `function useVersionRunCount(workflowId: string, versionId: string): { data: { runCount: number } | null }`
     - **And** uses `queryKey: ["version-run-count", workflowId, versionId]` with `staleTime: 60_000` (matches the server-side cache TTL)
     - **And** does not poll (run counts change rarely; explicit invalidation only)
 
-- [ ] **Scenario 5**: Run-count badge in VersionHistoryDrawer
+- [x] **Scenario 5**: Run-count badge in VersionHistoryDrawer
     - **Given** the existing `apps/frontend/src/features/workflow-builder/versioning/VersionHistoryDrawer.tsx` (Phase 2 Track 3)
     - **When** read after the change
     - **Then** each row renders an additional `<Badge variant="light" color="gray">{runCount} runs</Badge>` after the version label + createdAt + head badge
     - **And** the badge reads "0 runs" when count is 0 (no special hide-for-zero behaviour — explicitness > minimalism here)
     - **And** loading state hides the badge (renders nothing); error state hides too
 
-- [ ] **Scenario 6**: Tests cover backend + hook + badge
+- [x] **Scenario 6**: Tests cover backend + hook + badge
     - **Given** the controller spec + hook test + drawer test
     - **When** tests run
     - **Then** at least 4 cases pass: endpoint returns the count, 60s LRU returns cached value, hook fetches count, drawer row renders the badge

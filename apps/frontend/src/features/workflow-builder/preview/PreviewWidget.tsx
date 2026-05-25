@@ -15,7 +15,7 @@
  *   |----------------------|-------------------------------------------|
  *   | `isLoading`          | `<Skeleton h={120} radius="sm" />`        |
  *   | `error` set          | `<Alert color="red">Preview unavailable</Alert>` |
- *   | `data === null && runId` | `<Alert color="red">Preview unavailable</Alert>` (US-155 replaces with cache-evicted UX + Re-run button) |
+ *   | `data === null && runId` | `<CacheEvictedAlert>` (US-155 — small red Alert + Re-run button that fetches historical `initialCtx` and POSTs a fresh `/runs`) |
  *   | `data === null && !runId` | `null` (silent — node hasn't run yet) |
  *
  * The maxHeight of the preview pane is constrained (200px) so the
@@ -31,6 +31,7 @@ import { Alert, Box, Skeleton } from "@mantine/core";
 import type { ReactNode } from "react";
 
 import { useOptionalRunState } from "../run/RunStateContext";
+import { CacheEvictedAlert } from "./CacheEvictedAlert";
 import { ClassificationPreview } from "./ClassificationPreview";
 import { DocumentPreview } from "./DocumentPreview";
 import { OcrResultPreview } from "./OcrResultPreview";
@@ -96,15 +97,15 @@ export function PreviewWidget({
   if (data === null) {
     // Cache row gone (404). When a `runId` was supplied the consumer
     // is in replay mode and the missing row means the TTL evicted it —
-    // US-155 owns the dedicated cache-evicted Alert + Re-run button;
-    // until that lands we show the same placeholder Alert as the
-    // error branch.
+    // surface the dedicated cache-evicted Alert + Re-run button (US-155).
     if (runId !== undefined && runId !== "") {
       return (
         <Box data-testid={`preview-widget-${nodeId}`} data-state="evicted">
-          <Alert color="red" variant="light">
-            Preview unavailable
-          </Alert>
+          <CacheEvictedAlert
+            workflowId={workflowId}
+            runId={runId}
+            nodeId={nodeId}
+          />
         </Box>
       );
     }

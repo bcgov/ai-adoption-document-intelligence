@@ -20,7 +20,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useWorkflowVersions,
   type WorkflowVersionSummary,
@@ -31,10 +31,20 @@ vi.mock("../../../../data/hooks/useWorkflows", () => ({
   useWorkflowVersions: vi.fn(),
 }));
 
+vi.mock("../useVersionRunCount", () => ({
+  useVersionRunCount: vi.fn(),
+}));
+
 type UseWorkflowVersionsReturn = {
   data: WorkflowVersionSummary[] | undefined;
   isLoading: boolean;
   isError: boolean;
+  error: unknown;
+};
+
+type UseVersionRunCountReturn = {
+  data: { runCount: number } | null;
+  isLoading: boolean;
   error: unknown;
 };
 
@@ -51,6 +61,25 @@ function mockVersionsState(state: Partial<UseWorkflowVersionsReturn>): void {
     ...state,
   };
   useWorkflowVersionsMock.mockReturnValue(merged);
+}
+
+// Default: each row's run-count query resolves to a deterministic count
+// based on the version id (so the existing badge-agnostic tests have a
+// stable shape to assert against). Individual tests can override via
+// `useVersionRunCountMock.mockImplementation(...)`.
+async function setupRunCountMock() {
+  const { useVersionRunCount } = await import("../useVersionRunCount");
+  const mock = useVersionRunCount as unknown as ReturnType<typeof vi.fn>;
+  mock.mockImplementation(
+    (_workflowId: string, versionId: string): UseVersionRunCountReturn => ({
+      data: {
+        runCount: versionId === "v3-id" ? 5 : versionId === "v2-id" ? 0 : 2,
+      },
+      isLoading: false,
+      error: null,
+    }),
+  );
+  return mock;
 }
 
 function renderDrawer(props: {
@@ -76,6 +105,10 @@ const sampleVersions: WorkflowVersionSummary[] = [
 ];
 
 describe("VersionHistoryDrawer", () => {
+  beforeEach(async () => {
+    await setupRunCountMock();
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -235,5 +268,63 @@ describe("VersionHistoryDrawer", () => {
 
     expect(screen.getByText("Failed to load versions")).toBeInTheDocument();
     expect(screen.getByText(/Boom — backend down/)).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------
+  // US-152 — Scenario 5: run-count badge on each row
+  // ---------------------------------------------------------------------
+  describe("US-152 — run-count badge", () => {
+    it("renders a '<n> runs' badge per row using useVersionRunCount", async () => {
+      mockVersionsState({ data: sampleVersions });
+      await setupRunCountMock();
+
+      renderDrawer({ headVersionId: "v3-id" });
+
+      // v3-id → 5, v2-id → 0, v1-id → 2 (per the default mock).
+      expect(
+        screen.getByTestId("history-row-run-count-v3-id"),
+      ).toHaveTextContent("5 runs");
+      // Zero must render explicitly, not be hidden.
+      expect(
+        screen.getByTestId("history-row-run-count-v2-id"),
+      ).toHaveTextContent("0 runs");
+      expect(
+        screen.getByTestId("history-row-run-count-v1-id"),
+      ).toHaveTextContent("2 runs");
+    });
+
+    it("hides the badge while the run-count query is loading", async () => {
+      mockVersionsState({ data: sampleVersions });
+      const { useVersionRunCount } = await import("../useVersionRunCount");
+      (
+        useVersionRunCount as unknown as ReturnType<typeof vi.fn>
+      ).mockReturnValue({ data: null, isLoading: true, error: null });
+
+      renderDrawer({ headVersionId: "v3-id" });
+
+      // Loading state → badge is not rendered (renders nothing).
+      expect(
+        screen.queryByTestId("history-row-run-count-v3-id"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("hides the badge when the run-count query errors", async () => {
+      mockVersionsState({ data: sampleVersions });
+      const { useVersionRunCount } = await import("../useVersionRunCount");
+      (
+        useVersionRunCount as unknown as ReturnType<typeof vi.fn>
+      ).mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: new Error("backend down"),
+      });
+
+      renderDrawer({ headVersionId: "v3-id" });
+
+      // Error state → badge is not rendered (renders nothing).
+      expect(
+        screen.queryByTestId("history-row-run-count-v3-id"),
+      ).not.toBeInTheDocument();
+    });
   });
 });

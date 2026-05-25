@@ -141,6 +141,21 @@ vi.mock("./validation/useGraphValidation", () => ({
   }),
 }));
 
+// US-153 — the Run-history drawer body calls `useWorkflowRuns`, which
+// would hit `globalThis.fetch` if left unstubbed. Surface a stable
+// empty-list shape so the drawer renders its empty-state node.
+vi.mock("./run-history/useWorkflowRuns", () => ({
+  useWorkflowRuns: () => ({
+    data: { pages: [{ runs: [], nextCursor: null }], pageParams: [undefined] },
+    isLoading: false,
+    isError: false,
+    error: null,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+  }),
+}));
+
 vi.mock("../../data/hooks/useWorkflows", () => ({
   useWorkflow: () => ({
     data: existingWorkflowRef.current ?? undefined,
@@ -698,6 +713,75 @@ describe("WorkflowEditorV2Page — US-081: History top-bar button", () => {
     fireEvent.mouseEnter(button);
     await waitFor(() => {
       expect(screen.getByText("Save the workflow first")).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-153 — "Run history" top-bar button
+//   feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/
+//   US-153-run-history-drawer-and-filters.md (Scenario 1)
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — US-153: Run history top-bar button", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    fitViewMock.mockClear();
+  });
+
+  it("Scenario 1: renders the Run history button in edit mode and clicking it opens the drawer", async () => {
+    renderEditPage("workflow-7");
+    const button = screen.getByTestId("run-history-button");
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveTextContent(/Run history/i);
+    expect(button).not.toBeDisabled();
+
+    // Drawer body is gated by `opened={runHistoryDrawerOpen}` — the
+    // `run-history-drawer` body-testid is only in the DOM after click.
+    expect(screen.queryByTestId("run-history-drawer")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    const body = await screen.findByTestId("run-history-drawer");
+    expect(body).toBeInTheDocument();
+  });
+
+  it("Scenario 1: Run history button sits between Save and Run this workflow in the DOM", () => {
+    renderEditPage("workflow-7");
+    const saveBtn = screen.getByTestId("save-button");
+    const runHistoryBtn = screen.getByTestId("run-history-button");
+    const runBtn = screen.getByTestId("run-this-workflow-button");
+
+    expect(
+      saveBtn.compareDocumentPosition(runHistoryBtn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      runHistoryBtn.compareDocumentPosition(runBtn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("Scenario 1: Run history button is disabled in create mode", () => {
+    renderPage();
+    const button = screen.getByTestId("run-history-button");
+    expect(button).toBeDisabled();
+  });
+
+  it("Scenario 1: tooltip 'Save the workflow first' surfaces on hover when the button is disabled", async () => {
+    renderPage();
+    const button = screen.getByTestId("run-history-button");
+    expect(button).toBeDisabled();
+    fireEvent.mouseEnter(button);
+    await waitFor(() => {
+      // Two buttons share the same tooltip copy (history + run-history)
+      // — `getAllByText` accepts either.
+      expect(
+        screen.getAllByText("Save the workflow first").length,
+      ).toBeGreaterThan(0);
     });
   });
 });

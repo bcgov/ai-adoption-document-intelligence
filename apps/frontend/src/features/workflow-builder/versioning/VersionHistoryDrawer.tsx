@@ -27,6 +27,7 @@ import {
   useWorkflowVersions,
   type WorkflowVersionSummary,
 } from "../../../data/hooks/useWorkflows";
+import { useVersionRunCount } from "./useVersionRunCount";
 
 interface VersionHistoryDrawerProps {
   lineageId: string;
@@ -102,6 +103,7 @@ export function VersionHistoryDrawer({
       {versions.map((version) => (
         <VersionRow
           key={version.id}
+          lineageId={lineageId}
           version={version}
           isHead={version.id === headVersionId}
           onRevert={onRevert}
@@ -113,6 +115,7 @@ export function VersionHistoryDrawer({
 }
 
 interface VersionRowProps {
+  lineageId: string;
   version: WorkflowVersionSummary;
   isHead: boolean;
   onRevert?: (
@@ -127,7 +130,13 @@ interface VersionRowProps {
   ) => void;
 }
 
-function VersionRow({ version, isHead, onRevert, onCompare }: VersionRowProps) {
+function VersionRow({
+  lineageId,
+  version,
+  isHead,
+  onRevert,
+  onCompare,
+}: VersionRowProps) {
   const handleRevert = () => {
     if (isHead) return;
     onRevert?.(version.id, version.versionNumber, version.createdAt);
@@ -137,6 +146,16 @@ function VersionRow({ version, isHead, onRevert, onCompare }: VersionRowProps) {
     if (isHead) return;
     onCompare?.(version.id, version.versionNumber, version.createdAt);
   };
+
+  // US-152 — per-row run count badge driven by `useVersionRunCount`.
+  // Loading and error states both hide the badge (renders nothing); only
+  // a resolved count surfaces "<n> runs" — including "0 runs" (no special
+  // hide-for-zero behaviour: explicitness > minimalism).
+  const runCountQuery = useVersionRunCount(lineageId, version.id);
+  const runCount =
+    runCountQuery.error === null
+      ? (runCountQuery.data?.runCount ?? null)
+      : null;
 
   return (
     <Card
@@ -154,6 +173,15 @@ function VersionRow({ version, isHead, onRevert, onCompare }: VersionRowProps) {
             {isHead && (
               <Badge color="blue" data-testid="history-row-head-badge">
                 head
+              </Badge>
+            )}
+            {runCount !== null && (
+              <Badge
+                variant="light"
+                color="gray"
+                data-testid={`history-row-run-count-${version.id}`}
+              >
+                {runCount} runs
               </Badge>
             )}
           </Group>

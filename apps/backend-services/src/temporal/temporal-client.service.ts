@@ -7,13 +7,58 @@ import {
   OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Client, Connection } from "@temporalio/client";
+import {
+  Client,
+  Connection,
+  defaultPayloadConverter,
+} from "@temporalio/client";
+import type { temporal } from "@temporalio/proto";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
 import { computeConfigHash } from "../workflow/config-hash";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
 import { WORKFLOW_TYPES } from "./workflow-types";
+
+/**
+ * Temporal `ExecutionStatus` enum names that visibility queries accept as
+ * the right-hand side of `ExecutionStatus = "..."`. Excludes
+ * `Terminated`, `TimedOut`, and `ContinuedAsNew` — none of those are
+ * reachable from a graph workflow's lifecycle (the worker doesn't issue
+ * terminate signals, run timeout is bounded above, and there is no
+ * continue-as-new path).
+ */
+export type TemporalExecutionStatusFilter =
+  | "Running"
+  | "Completed"
+  | "Failed"
+  | "Canceled";
+
+/**
+ * Decoded form of a single Temporal `WorkflowExecutionInfo` row, narrowed
+ * to the fields the run-history endpoint (US-150) consumes. Surfaced from
+ * {@link TemporalClientService.listRunsForWorkflow}.
+ *
+ * `versionNumber` is read from the start-time memo (`memo.workflowVersion`,
+ * populated by {@link TemporalClientService.startGraphWorkflow}) — no
+ * Postgres lookup is required. `null` only when an execution was started
+ * outside `startGraphWorkflow` (defensive — should not happen in
+ * production).
+ */
+export interface ListRunsExecution {
+  /** Temporal workflow execution id. */
+  runId: string;
+  /** `WorkflowVersion.id` the run executed against (from search attribute). */
+  workflowVersionId: string | null;
+  /** Human-readable version number (from `memo.workflowVersion`). */
+  versionNumber: number | null;
+  /** Lifecycle state of the execution. */
+  status: TemporalExecutionStatusFilter | "Unknown";
+  /** Execution start time (UTC). */
+  startedAt: Date;
+  /** Execution close time (UTC). `null` for in-flight runs. */
+  endedAt: Date | null;
+}
 
 @Injectable()
 export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
@@ -473,6 +518,85 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Resolve the `initialCtx` and the producing `workflowLineageId` for a
+   * Temporal run by decoding the `WorkflowExecutionStarted` event in the
+   * run's history.
+   *
+   * `startGraphWorkflow` starts every graph workflow with a single
+   * positional argument of shape `{ graph, initialCtx, configHash,
+   * runnerVersion, groupId, workflowLineageId, requestId? }` — this
+   * helper decodes that first payload via the default payload converter
+   * and pulls `initialCtx` + `workflowLineageId` off it.
+   *
+   * Returns `null` when the run's history is unavailable (retention-
+   * cleaned), when the first event is not a `WorkflowExecutionStarted`,
+   * when no input payload is present, or when the decoded payload does
+   * not carry an `initialCtx`. Callers MUST treat `null` as a signal to
+   * fall back to alternate sources of the input ctx (e.g. the cache row
+   * for the run's source node — see US-151 §6.4 in TRY_IN_PLACE_DESIGN.md).
+   *
+   * Errors from the underlying `fetchHistory()` call are propagated
+   * unmodified (notably `WorkflowNotFoundError` from `@temporalio/client`)
+   * so the controller can map them to HTTP semantics.
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L23,
+   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.4.
+   *
+   * @param workflowId Temporal workflow execution id (runId in the canvas)
+   * @returns `{ initialCtx, workflowLineageId }` decoded from the start
+   *          event, or `null` when the input is not available.
+   */
+  async getRunInput(workflowId: string): Promise<{
+    initialCtx: Record<string, unknown>;
+    workflowLineageId: string | null;
+  } | null> {
+    this.ensureClientInitialized();
+    const handle = this.client!.workflow.getHandle(workflowId);
+    const history = await handle.fetchHistory();
+    const events = history.events ?? [];
+    if (events.length === 0) {
+      return null;
+    }
+    const startedAttrs = events[0]?.workflowExecutionStartedEventAttributes;
+    if (!startedAttrs) {
+      return null;
+    }
+    const payloads = startedAttrs.input?.payloads ?? null;
+    if (!payloads || payloads.length === 0) {
+      return null;
+    }
+    // The graph workflow is started with a single positional argument
+    // (see `startGraphWorkflow`); the first payload carries the start
+    // args object. Narrow strictly: the decoded value must be a non-null
+    // object containing an `initialCtx` key whose value is an object.
+    // Anything else falls through to the fallback path.
+    const decoded = defaultPayloadConverter.fromPayload<unknown>(payloads[0]);
+    if (
+      decoded === null ||
+      typeof decoded !== "object" ||
+      Array.isArray(decoded)
+    ) {
+      return null;
+    }
+    const startArgs = decoded as Record<string, unknown>;
+    const rawInitialCtx = startArgs.initialCtx;
+    if (
+      rawInitialCtx === null ||
+      typeof rawInitialCtx !== "object" ||
+      Array.isArray(rawInitialCtx)
+    ) {
+      return null;
+    }
+    const rawLineageId = startArgs.workflowLineageId;
+    const workflowLineageId =
+      typeof rawLineageId === "string" ? rawLineageId : null;
+    return {
+      initialCtx: rawInitialCtx as Record<string, unknown>,
+      workflowLineageId,
+    };
+  }
+
+  /**
    * List workflow execution ids that are currently `Running` for the
    * given `WorkflowLineageId`. Used by the Phase 4 cancel-on-new-Try
    * helper (`WorkflowService.cancelInFlightTriesForLineage`).
@@ -504,6 +628,174 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       workflowIds.push(execution.workflowId);
     }
     return workflowIds;
+  }
+
+  /**
+   * Count Temporal workflow executions that match the
+   * `(workflowLineageId, workflowVersionId)` pair. Backs the per-version
+   * run-count badge on `VersionHistoryDrawer` (US-152).
+   *
+   * Uses the raw `WorkflowService.countWorkflowExecutions` gRPC method
+   * (the higher-level `client.workflow.count` helper isn't available in
+   * SDK 1.10.x). The visibility-store count is approximate but is the
+   * cheapest way to answer "how many runs match this query" — far less
+   * I/O than `list` + paginate-count.
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L24,
+   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.5.
+   *
+   * @param workflowLineageId The `WorkflowLineage.id` to filter on.
+   * @param workflowVersionId The `WorkflowVersion.id` to filter on.
+   * @returns Approximate count of matching executions (closed + running).
+   */
+  async countRunsForVersion(
+    workflowLineageId: string,
+    workflowVersionId: string,
+  ): Promise<number> {
+    this.ensureClientInitialized();
+    // The visibility query language quotes string values with `"..."` —
+    // both ids are Prisma cuids in practice (no embedded `"`), but reject
+    // any embedded quote defensively to keep the query-string injection
+    // surface zero.
+    if (workflowLineageId.includes('"')) {
+      throw new Error(
+        `Invalid workflowLineageId (contains quote): ${workflowLineageId}`,
+      );
+    }
+    if (workflowVersionId.includes('"')) {
+      throw new Error(
+        `Invalid workflowVersionId (contains quote): ${workflowVersionId}`,
+      );
+    }
+    const query = `WorkflowLineageId = "${workflowLineageId}" AND WorkflowVersionId = "${workflowVersionId}"`;
+    const response =
+      await this.connection!.workflowService.countWorkflowExecutions({
+        namespace: this.namespace,
+        query,
+      });
+    // `count` is a protobuf `Long` — convert to a JS `number`. Run counts
+    // never approach `Number.MAX_SAFE_INTEGER` (a workflow with 2^53
+    // executions is not a realistic Phase 4 scenario), so the narrowing
+    // is safe.
+    const count = response.count;
+    if (count === null || count === undefined) {
+      return 0;
+    }
+    return typeof count === "number" ? count : count.toNumber();
+  }
+
+  /**
+   * List historical Temporal workflow executions for a single workflow
+   * lineage, with optional filters (status, start-time range, pinned
+   * version) and cursor-based pagination. Backs `GET /api/workflows/:id/runs`
+   * — the run-history endpoint surfaced by `RunHistoryDrawer` (US-150).
+   *
+   * Uses the raw `WorkflowService.listWorkflowExecutions` gRPC method
+   * directly (rather than the higher-level `client.workflow.list` async
+   * iterator) so callers can consume Temporal's opaque page-token cursor
+   * verbatim — the public iterator auto-paginates and hides the token.
+   *
+   * `memo.workflowVersion` is decoded via `defaultPayloadConverter`; we
+   * read the version number from there rather than issuing a Postgres
+   * `findMany` on `WorkflowVersion` (the memo is populated for every
+   * start, see `startGraphWorkflow`).
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L21,
+   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.1.
+   *
+   * @param params.workflowLineageId Lineage to filter on (required).
+   * @param params.status Optional Temporal `ExecutionStatus` filter value
+   *   (`Running` | `Completed` | `Failed` | `Canceled`).
+   * @param params.startedAfter Optional ISO-8601 lower bound on `StartTime`.
+   * @param params.startedBefore Optional ISO-8601 upper bound on `StartTime`.
+   * @param params.workflowVersionId Optional pinned-version filter.
+   * @param params.pageSize Page size for the underlying gRPC call.
+   * @param params.cursor Opaque cursor (base64-encoded `nextPageToken`)
+   *   returned by a previous call. Omit for the first page.
+   * @returns Decoded executions + the `nextCursor` to fetch the next page
+   *   (or `null` when the result set is exhausted).
+   */
+  async listRunsForWorkflow(params: {
+    workflowLineageId: string;
+    status?: "Running" | "Completed" | "Failed" | "Canceled";
+    startedAfter?: string;
+    startedBefore?: string;
+    workflowVersionId?: string;
+    pageSize: number;
+    cursor?: string;
+  }): Promise<{
+    executions: ListRunsExecution[];
+    nextCursor: string | null;
+  }> {
+    this.ensureClientInitialized();
+
+    const {
+      workflowLineageId,
+      status,
+      startedAfter,
+      startedBefore,
+      workflowVersionId,
+      pageSize,
+      cursor,
+    } = params;
+
+    // Defensive: visibility query strings quote with `"..."`. Reject any
+    // embedded quote on caller-supplied filter values to keep query-string
+    // injection surface zero. (All real values are Prisma cuids / Temporal
+    // enum names / ISO-8601 timestamps — none of which contain `"`.)
+    if (workflowLineageId.includes('"')) {
+      throw new Error(
+        `Invalid workflowLineageId (contains quote): ${workflowLineageId}`,
+      );
+    }
+    if (workflowVersionId?.includes('"')) {
+      throw new Error(
+        `Invalid workflowVersionId (contains quote): ${workflowVersionId}`,
+      );
+    }
+
+    const clauses: string[] = [`WorkflowLineageId = "${workflowLineageId}"`];
+    if (status) {
+      clauses.push(`ExecutionStatus = "${status}"`);
+    }
+    if (startedAfter) {
+      clauses.push(`StartTime >= "${startedAfter}"`);
+    }
+    if (startedBefore) {
+      clauses.push(`StartTime <= "${startedBefore}"`);
+    }
+    if (workflowVersionId) {
+      clauses.push(`WorkflowVersionId = "${workflowVersionId}"`);
+    }
+    const query = clauses.join(" AND ");
+
+    // Cursor wire format: the gRPC API takes `nextPageToken` as an opaque
+    // `Uint8Array` (bytes the server hands back on each page). Encode it
+    // as base64 so it survives a JSON round-trip to the frontend.
+    const nextPageToken = cursor
+      ? Buffer.from(cursor, "base64")
+      : Buffer.alloc(0);
+
+    const response =
+      await this.connection!.workflowService.listWorkflowExecutions({
+        namespace: this.namespace,
+        query,
+        pageSize,
+        nextPageToken,
+      });
+
+    const executions: ListRunsExecution[] = (response.executions ?? []).map(
+      (raw) => decodeListRunsExecution(raw),
+    );
+
+    // Temporal signals "no more pages" with an empty/missing token.
+    const outToken = response.nextPageToken;
+    const nextCursor =
+      outToken && outToken.length > 0
+        ? Buffer.from(outToken).toString("base64")
+        : null;
+
+    return { executions, nextCursor };
   }
 
   /**
@@ -600,4 +892,143 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       );
     }
   }
+}
+
+/**
+ * Map Temporal's protobuf `WorkflowExecutionStatus` enum onto the narrow
+ * subset the run-history endpoint surfaces. Anything outside the known set
+ * (`TERMINATED`, `TIMED_OUT`, etc.) is reported as `"Unknown"` rather than
+ * silently coerced — the canvas should not pretend a terminated run is
+ * the same as a cancelled one.
+ */
+function statusFromCode(
+  code: temporal.api.enums.v1.WorkflowExecutionStatus | undefined | null,
+): TemporalExecutionStatusFilter | "Unknown" {
+  // Avoid importing the protobuf enum at runtime — match on the numeric
+  // values directly. Mapping mirrors `apps/backend-services/node_modules/
+  // @temporalio/client/lib/helpers.js#workflowStatusCodeToName`.
+  switch (code) {
+    case 1: // WORKFLOW_EXECUTION_STATUS_RUNNING
+      return "Running";
+    case 2: // WORKFLOW_EXECUTION_STATUS_COMPLETED
+      return "Completed";
+    case 3: // WORKFLOW_EXECUTION_STATUS_FAILED
+      return "Failed";
+    case 4: // WORKFLOW_EXECUTION_STATUS_CANCELED
+      return "Canceled";
+    default:
+      return "Unknown";
+  }
+}
+
+/**
+ * Convert a protobuf `ITimestamp` to a `Date`. The protobuf type holds a
+ * `Long` for `seconds` and a `number` for `nanos`; we drop sub-millisecond
+ * precision (Temporal's resolution is microsecond at best, far above
+ * what a UI cares about). Returns `null` when the timestamp is absent.
+ */
+function tsToDate(
+  ts:
+    | {
+        seconds?: { toNumber: () => number } | number | null;
+        nanos?: number | null;
+      }
+    | null
+    | undefined,
+): Date | null {
+  if (!ts) {
+    return null;
+  }
+  const seconds = ts.seconds;
+  const secondsNum =
+    typeof seconds === "number"
+      ? seconds
+      : seconds && typeof seconds.toNumber === "function"
+        ? seconds.toNumber()
+        : 0;
+  const nanos = typeof ts.nanos === "number" ? ts.nanos : 0;
+  return new Date(secondsNum * 1000 + Math.floor(nanos / 1_000_000));
+}
+
+/**
+ * Decode `memo.workflowVersion` from a Temporal execution's memo map.
+ * Returns `null` when the memo entry is absent or not a number.
+ */
+function decodeWorkflowVersion(
+  memo: temporal.api.common.v1.IMemo | null | undefined,
+): number | null {
+  const payload = memo?.fields?.workflowVersion;
+  if (!payload) {
+    return null;
+  }
+  try {
+    const value = defaultPayloadConverter.fromPayload(
+      payload as temporal.api.common.v1.IPayload & {
+        metadata: Record<string, Uint8Array>;
+        data: Uint8Array;
+      },
+    );
+    return typeof value === "number" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decode the `WorkflowVersionId` keyword search attribute. Returns `null`
+ * when the attribute is absent (defensive — `startGraphWorkflow` always
+ * sets it for graph workflows).
+ */
+function decodeWorkflowVersionId(
+  searchAttributes: temporal.api.common.v1.ISearchAttributes | null | undefined,
+): string | null {
+  const payload = searchAttributes?.indexedFields?.WorkflowVersionId;
+  if (!payload) {
+    return null;
+  }
+  try {
+    const value = defaultPayloadConverter.fromPayload(
+      payload as temporal.api.common.v1.IPayload & {
+        metadata: Record<string, Uint8Array>;
+        data: Uint8Array;
+      },
+    );
+    // Temporal keyword search attributes round-trip as either `string` or
+    // `string[]` depending on the server version; normalise to a single
+    // string (the first entry) since we only ever set one value per start.
+    if (typeof value === "string") {
+      return value;
+    }
+    if (Array.isArray(value) && typeof value[0] === "string") {
+      return value[0];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decode a raw `IWorkflowExecutionInfo` protobuf message into the narrow
+ * shape the run-history endpoint surfaces. Exported for test injection
+ * (see `workflow.controller.spec.ts`); callers MUST treat the returned
+ * object as read-only.
+ */
+export function decodeListRunsExecution(
+  raw: temporal.api.workflow.v1.IWorkflowExecutionInfo,
+): ListRunsExecution {
+  const runId = raw.execution?.workflowId ?? "";
+  const status = statusFromCode(raw.status);
+  const startedAt = tsToDate(raw.startTime) ?? new Date(0);
+  const endedAt = tsToDate(raw.closeTime);
+  const workflowVersionId = decodeWorkflowVersionId(raw.searchAttributes);
+  const versionNumber = decodeWorkflowVersion(raw.memo);
+  return {
+    runId,
+    workflowVersionId,
+    versionNumber,
+    status,
+    startedAt,
+    endedAt,
+  };
 }

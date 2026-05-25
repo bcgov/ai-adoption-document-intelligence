@@ -26,6 +26,8 @@ import {
   getSourceCatalogEntry,
 } from "@ai-di/graph-workflow";
 import {
+  ActionIcon,
+  Badge,
   Box,
   Button,
   Drawer,
@@ -45,14 +47,17 @@ import {
   IconBolt,
   IconBookmark,
   IconCircleCheck,
+  IconClipboardList,
   IconDeviceFloppy,
   IconExclamationCircle,
   IconHelp,
   IconHistory,
   IconLayoutDistributeHorizontal,
   IconPlayerPlay,
+  IconRewindBackward10,
   IconSettings,
   IconUsersGroup,
+  IconX,
 } from "@tabler/icons-react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -85,11 +90,12 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "./palette/control-flow-skeletons";
-import { RunStateProvider } from "./run/RunStateContext";
+import { RunStateProvider, useRunState } from "./run/RunStateContext";
 import {
   RunWorkflowDrawer,
   type RunWorkflowDrawerOpenMode,
 } from "./run/RunWorkflowDrawer";
+import { RunHistoryDrawer } from "./run-history/RunHistoryDrawer";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
 import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
 import type { WorkflowTemplate } from "./templates";
@@ -212,6 +218,11 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // top-bar button + state plumbing. The state is read by the inline
   // placeholder drawer below so React's exhaustive-deps stays clean.
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  // US-153 — Phase 4 run-history drawer open/close state. The drawer
+  // body (`RunHistoryDrawer`) is mounted below; the top-bar button
+  // toggles `runHistoryDrawerOpen`. Disabled in create mode (no
+  // `workflowId` yet) with a Tooltip "Save the workflow first".
+  const [runHistoryDrawerOpen, setRunHistoryDrawerOpen] = useState(false);
   // US-084: state for the compare-to-head modal. `null` = closed; an
   // object describes the selected (non-head) version being compared
   // against the editor's already-loaded head workflow.
@@ -704,6 +715,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             </Text>
           </Stack>
           <Group gap="xs" wrap="nowrap">
+            <TopBarReplayIndicator />
             <TextInput
               label="Name"
               value={name}
@@ -788,6 +800,18 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
                 disabled={!workflowId}
               >
                 History
+              </Button>
+            </Tooltip>
+            <Tooltip label="Save the workflow first" disabled={!!workflowId}>
+              <Button
+                variant="light"
+                leftSection={<IconClipboardList size={14} />}
+                onClick={() => setRunHistoryDrawerOpen(true)}
+                size="xs"
+                data-testid="run-history-button"
+                disabled={!workflowId}
+              >
+                Run history
               </Button>
             </Tooltip>
             <Button
@@ -910,6 +934,29 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           )}
         </Drawer>
 
+        {/*
+          US-153 — Phase 4 Run-history drawer. Right-side, large, mounted
+          here so the editor owns drawer-open state in one place
+          (sibling to the Version-history drawer above). Body
+          (`RunHistoryDrawer`) handles filters + infinite-scroll list.
+        */}
+        <Drawer
+          opened={runHistoryDrawerOpen}
+          onClose={() => setRunHistoryDrawerOpen(false)}
+          position="right"
+          size="lg"
+          title="Run history"
+          data-testid="run-history-drawer-wrapper"
+        >
+          {workflowId && (
+            <RunHistoryDrawerBody
+              workflowId={workflowId}
+              headVersionId={existingWorkflow?.workflowVersionId}
+              onClose={() => setRunHistoryDrawerOpen(false)}
+            />
+          )}
+        </Drawer>
+
         {compareState && existingWorkflow && workflowId && (
           <CompareToHeadModal
             opened={true}
@@ -1027,6 +1074,85 @@ function ValidationButton({
     >
       {label}
     </Button>
+  );
+}
+
+/**
+ * Top-bar "Replay mode" indicator (US-154). Renders a small blue chip
+ * with a "Clear" button when `isReplay === true`; otherwise renders
+ * nothing. Clicking Clear restores live mode by resetting both
+ * `activeRunId` and `isReplay` on `RunStateContext`.
+ *
+ * Lives next to the other top-bar buttons so the user sees at-a-glance
+ * that the canvas is displaying historical state. Must be mounted
+ * inside the `RunStateProvider` subtree.
+ */
+function TopBarReplayIndicator() {
+  const { isReplay, setActiveRunId, setIsReplay } = useRunState();
+  if (!isReplay) return null;
+  const handleClear = () => {
+    setActiveRunId(null);
+    setIsReplay(false);
+  };
+  return (
+    <Badge
+      size="md"
+      color="blue"
+      variant="filled"
+      leftSection={<IconRewindBackward10 size={12} />}
+      rightSection={
+        <Tooltip label="Clear replay mode" withArrow>
+          <ActionIcon
+            size="xs"
+            variant="transparent"
+            color="white"
+            onClick={handleClear}
+            data-testid="replay-mode-clear"
+            aria-label="Clear replay mode"
+          >
+            <IconX size={12} />
+          </ActionIcon>
+        </Tooltip>
+      }
+      data-testid="replay-mode-indicator"
+    >
+      Replay mode
+    </Badge>
+  );
+}
+
+/**
+ * Inner wrapper around `<RunHistoryDrawer>` that bridges the drawer's
+ * replay callback into `RunStateContext` and the editor's drawer-open
+ * state (US-154):
+ *
+ *   1. Sets `activeRunId = runId` + `isReplay = true` on the context.
+ *   2. Closes the drawer via the supplied `onClose` callback.
+ *
+ * Mounted inside the `RunStateProvider` subtree so `useRunState()`
+ * resolves to the same provider that wraps the canvas.
+ */
+function RunHistoryDrawerBody({
+  workflowId,
+  headVersionId,
+  onClose,
+}: {
+  workflowId: string;
+  headVersionId?: string;
+  onClose: () => void;
+}) {
+  const { setActiveRunId, setIsReplay } = useRunState();
+  const handleReplay = (runId: string) => {
+    setActiveRunId(runId);
+    setIsReplay(true);
+    onClose();
+  };
+  return (
+    <RunHistoryDrawer
+      workflowId={workflowId}
+      headVersionId={headVersionId}
+      onReplay={handleReplay}
+    />
   );
 }
 

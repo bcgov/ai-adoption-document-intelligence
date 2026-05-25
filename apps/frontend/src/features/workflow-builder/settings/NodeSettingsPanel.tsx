@@ -24,6 +24,7 @@ import {
 } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
@@ -36,7 +37,7 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconStar, IconTrash } from "@tabler/icons-react";
+import { IconInfoCircle, IconStar, IconTrash } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type {
   ActivityNode,
@@ -47,6 +48,7 @@ import type {
 import { getActivityVisualHints } from "../catalog-utils";
 import { resolveProducerKindFor, VariablePicker } from "../graph-widgets";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
+import { useOptionalRunState } from "../run/RunStateContext";
 import { SourceNodeSettings } from "../sources/SourceNodeSettings";
 import { getSourceVisualHints } from "../sources/source-catalog-utils";
 import {
@@ -351,6 +353,7 @@ function NodeHeader({
 
   return (
     <Stack gap={4}>
+      <ReplayModeWarning />
       <Group gap="xs" wrap="nowrap">
         <Text size="lg" style={{ lineHeight: 1 }}>
           {display.icon}
@@ -795,5 +798,30 @@ function PanelShell({ children }: { children: React.ReactNode }) {
     >
       {children}
     </Stack>
+  );
+}
+
+/**
+ * In-replay edit warning (US-154 Scenario 5). Renders an inline Alert at the
+ * top of the settings panel when the editor is in replay mode, so the user
+ * understands that edits will not retroactively affect the displayed
+ * historical preview.
+ */
+function ReplayModeWarning() {
+  const runState = useOptionalRunState();
+  if (!runState?.isReplay) {
+    return null;
+  }
+  return (
+    <Alert
+      color="yellow"
+      variant="light"
+      icon={<IconInfoCircle size={16} />}
+      data-testid="settings-replay-warning"
+      mb={4}
+    >
+      Editing in replay mode — changes will not affect the displayed historical
+      preview. Save + Try to see new results.
+    </Alert>
   );
 }

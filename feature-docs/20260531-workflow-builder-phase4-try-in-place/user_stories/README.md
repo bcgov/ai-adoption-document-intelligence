@@ -113,12 +113,12 @@ Phase 4 has a clear linear backbone (cache schema + helpers → worker decorator
 - [x] **US-149** (`RunWorkflowDrawer` Try tab) — depends on US-148 + US-138; closes Milestone E. CLICK-AND-PLAY MILESTONE.
 
 ### Phase 6 — run history + replay + version badge (Milestone F — depends on Phase 5)
-- [ ] **US-150** (backend `/runs` run-history endpoint + `summariseInputCtx`) — independent of US-151/152; the backbone endpoint
-- [ ] **US-151** (backend `/runs/:runId/input-ctx`) — independent of US-150/152; small endpoint for the Re-run flow
-- [ ] **US-152** (version run-count endpoint + badge on VersionHistoryDrawer) — independent of US-150/151
-- [ ] **US-153** (`useWorkflowRuns` hook + `RunHistoryDrawer` shell + filters) — depends on US-150
-- [ ] **US-154** (`RunRow` + replay flow + activeRunId management) — depends on US-153
-- [ ] **US-155** (`CacheEvictedAlert` + Re-run button) — depends on US-141 (dispatch shell) + US-151 (input-ctx endpoint)
+- [x] **US-150** (backend `/runs` run-history endpoint + `summariseInputCtx`) — independent of US-151/152; the backbone endpoint
+- [x] **US-151** (backend `/runs/:runId/input-ctx`) — independent of US-150/152; small endpoint for the Re-run flow
+- [x] **US-152** (version run-count endpoint + badge on VersionHistoryDrawer) — independent of US-150/151
+- [x] **US-153** (`useWorkflowRuns` hook + `RunHistoryDrawer` shell + filters) — depends on US-150
+- [x] **US-154** (`RunRow` + replay flow + activeRunId management) — depends on US-153
+- [x] **US-155** (`CacheEvictedAlert` + Re-run button) — depends on US-141 (dispatch shell) + US-151 (input-ctx endpoint)
 
 ### Phase 7 — end-to-end verification (Milestone G)
 - [ ] **US-156** (Playwright walkthrough — Phase 4 try-in-place; screenshots in `/tmp/wb-phase4-verify/`)

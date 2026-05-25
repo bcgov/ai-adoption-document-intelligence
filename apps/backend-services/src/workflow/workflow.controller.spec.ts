@@ -118,8 +118,13 @@ describe("WorkflowController", () => {
       startGraphWorkflow: jest.fn().mockResolvedValue("graph-adhoc-fake-run"),
       queryNodeStatuses: jest.fn(),
       getRunWindow: jest.fn(),
+      getRunInput: jest.fn(),
       listRunningInLineage: jest.fn().mockResolvedValue([]),
       cancelRun: jest.fn().mockResolvedValue(undefined),
+      countRunsForVersion: jest.fn().mockResolvedValue(0),
+      listRunsForWorkflow: jest
+        .fn()
+        .mockResolvedValue({ executions: [], nextCursor: null }),
     } as unknown as jest.Mocked<TemporalClientService>;
 
     sourceUploadService = {
@@ -2386,6 +2391,826 @@ describe("WorkflowController", () => {
           mockReq(),
         ),
       ).rejects.toThrow(unexpected);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-152 — `GET /:id/versions/:versionId/run-count` endpoint
+  // ---------------------------------------------------------------------------
+  describe("getVersionRunCount (US-152)", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    // Scenario 1 + 2: endpoint returns the count from Temporal visibility
+    it("Scenario 1 + 2: returns { runCount } sourced from temporalClient.countRunsForVersion", async () => {
+      workflowService.getWorkflowVersionById.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.countRunsForVersion as jest.Mock).mockResolvedValue(7);
+
+      const result = await controller.getVersionRunCount(
+        "wf-1",
+        "wv-wf-1",
+        mockReq(),
+      );
+
+      expect(result).toEqual({ runCount: 7 });
+      expect(temporalClient.countRunsForVersion).toHaveBeenCalledWith(
+        "wf-1",
+        "wv-wf-1",
+      );
+      expect(workflowService.getWorkflowVersionById).toHaveBeenCalledWith(
+        "wv-wf-1",
+      );
+    });
+
+    // Scenario 3: cache hit — repeated calls within TTL return cached value
+    it("Scenario 3 (LRU hit): subsequent calls within 60s return the cached count without re-hitting Temporal", async () => {
+      workflowService.getWorkflowVersionById.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.countRunsForVersion as jest.Mock).mockResolvedValue(4);
+
+      const first = await controller.getVersionRunCount(
+        "wf-1",
+        "wv-wf-1",
+        mockReq(),
+      );
+      const second = await controller.getVersionRunCount(
+        "wf-1",
+        "wv-wf-1",
+        mockReq(),
+      );
+
+      expect(first).toEqual({ runCount: 4 });
+      expect(second).toEqual({ runCount: 4 });
+      expect(temporalClient.countRunsForVersion).toHaveBeenCalledTimes(1);
+    });
+
+    // Scenario 3 (continued): cache expires after the TTL elapses
+    it("Scenario 3 (LRU expired): a call after the 60s TTL re-fetches from Temporal", async () => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-05-24T12:00:00Z"));
+      workflowService.getWorkflowVersionById.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.countRunsForVersion as jest.Mock)
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(5);
+
+      const first = await controller.getVersionRunCount(
+        "wf-1",
+        "wv-wf-1",
+        mockReq(),
+      );
+      // Advance just past the 60s TTL.
+      jest.setSystemTime(new Date("2026-05-24T12:01:01Z"));
+      const second = await controller.getVersionRunCount(
+        "wf-1",
+        "wv-wf-1",
+        mockReq(),
+      );
+
+      expect(first).toEqual({ runCount: 2 });
+      expect(second).toEqual({ runCount: 5 });
+      expect(temporalClient.countRunsForVersion).toHaveBeenCalledTimes(2);
+    });
+
+    // Scenario 1 (auth): non-member of the workflow's group → 403
+    it("Scenario 1 (auth): throws ForbiddenException when caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.getWorkflowVersionById.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(
+        controller.getVersionRunCount("wf-1", "wv-wf-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(temporalClient.countRunsForVersion).not.toHaveBeenCalled();
+    });
+
+    // Scenario 1 (404 — unknown version): missing version id → NotFoundException
+    it("Scenario 1 (404 missing version): throws NotFoundException when getWorkflowVersionById returns null", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.getWorkflowVersionById.mockResolvedValue(null);
+
+      await expect(
+        controller.getVersionRunCount("wf-1", "wv-missing", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(temporalClient.countRunsForVersion).not.toHaveBeenCalled();
+    });
+
+    // Scenario 1 (404 — version belongs to a different lineage): cross-lineage
+    // protection mirrors `getVersion`'s shape.
+    it("Scenario 1 (404 wrong lineage): throws NotFoundException when the version belongs to a different lineage", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.getWorkflowVersionById.mockResolvedValue({
+        ...mockWorkflowInfo,
+        id: "other-lineage",
+      });
+
+      await expect(
+        controller.getVersionRunCount("wf-1", "wv-wf-1", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(temporalClient.countRunsForVersion).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-151 — `GET /:id/runs/:runId/input-ctx` endpoint
+  // ---------------------------------------------------------------------------
+  describe("getInputCtx (US-151)", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    // Workflow config carrying a single source node so the fallback
+    // path has somewhere to look up the cache row against.
+    const workflowWithSource: WorkflowInfo = {
+      ...mockWorkflowInfo,
+      config: {
+        ...mockGraphConfig,
+        entryNodeId: "src",
+        nodes: {
+          src: {
+            id: "src",
+            type: "source",
+            label: "Source",
+            sourceType: "source.upload",
+            parameters: { ctxKey: "documentUrl", allowedMimeTypes: ["*/*"] },
+          },
+          start: mockGraphConfig.nodes.start,
+        },
+      },
+    };
+
+    const makeTemporalNotFound = (message: string): Error =>
+      new WorkflowNotFoundError(message, "graph-adhoc-xyz", undefined);
+
+    // ---------------------------------------------------------------------
+    // Scenario 2: happy path — returns the Temporal start args' initialCtx
+    // ---------------------------------------------------------------------
+    it("Scenario 2: returns the Temporal workflow input's initialCtx", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue({
+        initialCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
+        workflowLineageId: "wf-1",
+      });
+
+      const result = await controller.getInputCtx(
+        "wf-1",
+        "graph-adhoc-xyz",
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        initialCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
+      });
+      expect(temporalClient.getRunInput).toHaveBeenCalledWith(
+        "graph-adhoc-xyz",
+      );
+      expect(activityOutputCache.findInRunWindow).not.toHaveBeenCalled();
+      expect(activityOutputCache.findMostRecentFresh).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 2 (lineageId missing from start args): still returns input
+    // ---------------------------------------------------------------------
+    it("Scenario 2 (no lineage in args): returns initialCtx when start args carry no workflowLineageId", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue({
+        initialCtx: { hello: "world" },
+        workflowLineageId: null,
+      });
+
+      const result = await controller.getInputCtx(
+        "wf-1",
+        "graph-adhoc-legacy",
+        mockReq(),
+      );
+
+      expect(result).toEqual({ initialCtx: { hello: "world" } });
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3: Temporal input missing → fallback to cache row in run window
+    // ---------------------------------------------------------------------
+    it("Scenario 3: falls back to the source node's cache row when Temporal input is missing", async () => {
+      const startedAt = new Date("2026-05-24T12:00:00Z");
+      const endedAt = new Date("2026-05-24T12:01:00Z");
+      const cacheRow = {
+        id: "row-1",
+        workflowLineageId: "wf-1",
+        nodeId: "src",
+        configHash: "cfg-hash",
+        inputHash: "in-hash",
+        outputCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
+        outputKind: "Document",
+        createdAt: new Date("2026-05-24T12:00:30Z"),
+        expiresAt: new Date("2026-05-25T12:00:30Z"),
+      };
+
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue(null);
+      (temporalClient.getRunWindow as jest.Mock).mockResolvedValue({
+        startedAt,
+        endedAt,
+      });
+      activityOutputCache.findInRunWindow.mockResolvedValue(cacheRow);
+
+      const result = await controller.getInputCtx(
+        "wf-1",
+        "graph-adhoc-fallback",
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        initialCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
+      });
+      expect(activityOutputCache.findInRunWindow).toHaveBeenCalledWith({
+        workflowLineageId: "wf-1",
+        nodeId: "src",
+        startedAt,
+        endedAt,
+      });
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3 (history retention-cleaned): fallback uses findMostRecentFresh
+    // ---------------------------------------------------------------------
+    it("Scenario 3 (history evicted): retention-cleaned history falls back to findMostRecentFresh", async () => {
+      const cacheRow = {
+        id: "row-2",
+        workflowLineageId: "wf-1",
+        nodeId: "src",
+        configHash: "cfg-hash",
+        inputHash: "in-hash",
+        outputCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
+        outputKind: "Document",
+        createdAt: new Date("2026-05-24T12:00:30Z"),
+        expiresAt: new Date("2026-05-25T12:00:30Z"),
+      };
+
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockRejectedValue(
+        makeTemporalNotFound("workflow history reached retention period"),
+      );
+      activityOutputCache.findMostRecentFresh.mockResolvedValue(cacheRow);
+
+      const result = await controller.getInputCtx(
+        "wf-1",
+        "graph-adhoc-old",
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        initialCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
+      });
+      expect(activityOutputCache.findMostRecentFresh).toHaveBeenCalledWith({
+        workflowLineageId: "wf-1",
+        nodeId: "src",
+      });
+      // We never call getRunWindow when the history is gone — there's no
+      // window to scope to.
+      expect(temporalClient.getRunWindow).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3 (both missing): 404
+    // ---------------------------------------------------------------------
+    it("Scenario 3 (both missing): returns 404 when Temporal AND the cache row are both unavailable", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue(null);
+      (temporalClient.getRunWindow as jest.Mock).mockResolvedValue({
+        startedAt: new Date("2026-05-24T12:00:00Z"),
+        endedAt: new Date("2026-05-24T12:01:00Z"),
+      });
+      activityOutputCache.findInRunWindow.mockResolvedValue(null);
+
+      let caught: unknown;
+      try {
+        await controller.getInputCtx("wf-1", "graph-adhoc-empty", mockReq());
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(NotFoundException);
+      const nfe = caught as InstanceType<typeof NotFoundException>;
+      const response = nfe.getResponse() as { message: string };
+      expect(response.message).toBe(
+        "Input not available — run too old or never captured",
+      );
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3 (no source node + no Temporal input): 404
+    // ---------------------------------------------------------------------
+    it("Scenario 3 (no source node, no Temporal input): returns 404 without touching the cache", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue(null);
+      (temporalClient.getRunWindow as jest.Mock).mockResolvedValue({
+        startedAt: new Date("2026-05-24T12:00:00Z"),
+        endedAt: new Date("2026-05-24T12:01:00Z"),
+      });
+
+      await expect(
+        controller.getInputCtx("wf-1", "graph-adhoc-empty", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(activityOutputCache.findInRunWindow).not.toHaveBeenCalled();
+      expect(activityOutputCache.findMostRecentFresh).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 4: 403 — runId belongs to a different lineage
+    // ---------------------------------------------------------------------
+    it("Scenario 4: returns 403 ForbiddenException when runId belongs to a different lineage", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue({
+        initialCtx: { documentUrl: "blob://group-1/doc-2.pdf" },
+        workflowLineageId: "other-lineage",
+      });
+
+      let caught: unknown;
+      try {
+        await controller.getInputCtx("wf-1", "graph-adhoc-other", mockReq());
+      } catch (err) {
+        caught = err;
+      }
+      const { ForbiddenException } = await import("@nestjs/common");
+      expect(caught).toBeInstanceOf(ForbiddenException);
+      const fe = caught as InstanceType<typeof ForbiddenException>;
+      const response = fe.getResponse() as { message: string };
+      expect(response.message).toBe("Run does not belong to this workflow");
+      expect(activityOutputCache.findInRunWindow).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 4: 404 — completely-unknown runId (Temporal NotFound, non-retention)
+    // ---------------------------------------------------------------------
+    it("Scenario 4: returns 404 when Temporal reports the runId is unknown (not retention-cleaned)", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockRejectedValue(
+        makeTemporalNotFound("workflow execution not found"),
+      );
+
+      let caught: unknown;
+      try {
+        await controller.getInputCtx("wf-1", "graph-adhoc-typo", mockReq());
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(NotFoundException);
+      const nfe = caught as InstanceType<typeof NotFoundException>;
+      const response = nfe.getResponse() as { message: string };
+      expect(response.message).toBe(
+        "Input not available — run too old or never captured",
+      );
+      expect(activityOutputCache.findInRunWindow).not.toHaveBeenCalled();
+      expect(activityOutputCache.findMostRecentFresh).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 1: auth — non-member of the workflow's group → 403
+    // ---------------------------------------------------------------------
+    it("Scenario 1 (auth): throws ForbiddenException when caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+
+      await expect(
+        controller.getInputCtx("wf-1", "graph-adhoc-xyz", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(temporalClient.getRunInput).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 1 (workflow id 404): NotFoundException from the service
+    // ---------------------------------------------------------------------
+    it("Scenario 1 (unknown workflow id): propagates NotFoundException from resolveLineageAndVersion", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockRejectedValue(
+        new NotFoundException("Workflow not found: missing"),
+      );
+
+      await expect(
+        controller.getInputCtx("missing", "graph-adhoc-xyz", mockReq()),
+      ).rejects.toThrow(NotFoundException);
+      expect(temporalClient.getRunInput).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Non-Temporal errors from getRunInput propagate unchanged
+    // ---------------------------------------------------------------------
+    it("propagates non-Temporal errors from getRunInput unchanged", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      const unexpected = new Error("connection refused");
+      (temporalClient.getRunInput as jest.Mock).mockRejectedValue(unexpected);
+
+      await expect(
+        controller.getInputCtx("wf-1", "graph-adhoc-xyz", mockReq()),
+      ).rejects.toThrow(unexpected);
+      expect(activityOutputCache.findInRunWindow).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Non-Temporal errors from getRunWindow propagate unchanged (fallback path)
+    // ---------------------------------------------------------------------
+    it("propagates non-Temporal errors from getRunWindow unchanged (fallback path)", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue(null);
+      const unexpected = new Error("connection refused");
+      (temporalClient.getRunWindow as jest.Mock).mockRejectedValue(unexpected);
+
+      await expect(
+        controller.getInputCtx("wf-1", "graph-adhoc-xyz", mockReq()),
+      ).rejects.toThrow(unexpected);
+    });
+
+    // ---------------------------------------------------------------------
+    // Fallback unknown runId on the run-window call → 404
+    // ---------------------------------------------------------------------
+    it("returns 404 when the fallback getRunWindow call reports the runId is unknown", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        workflowWithSource,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue(null);
+      (temporalClient.getRunWindow as jest.Mock).mockRejectedValue(
+        new WorkflowNotFoundError(
+          "workflow execution not found",
+          "graph-adhoc-typo",
+          undefined,
+        ),
+      );
+
+      let caught: unknown;
+      try {
+        await controller.getInputCtx("wf-1", "graph-adhoc-typo", mockReq());
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(NotFoundException);
+      const nfe = caught as InstanceType<typeof NotFoundException>;
+      const response = nfe.getResponse() as { message: string };
+      expect(response.message).toBe(
+        "Input not available — run too old or never captured",
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-150 — `GET /:id/runs` — run-history endpoint
+  // ---------------------------------------------------------------------------
+  describe("listRuns (US-150)", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    const buildExecution = (overrides: {
+      runId: string;
+      versionNumber?: number;
+      status?: "Running" | "Completed" | "Failed" | "Canceled" | "Unknown";
+      workflowVersionId?: string;
+      startedAt?: Date;
+      endedAt?: Date | null;
+    }) => ({
+      runId: overrides.runId,
+      workflowVersionId: overrides.workflowVersionId ?? "wv-wf-1",
+      versionNumber: overrides.versionNumber ?? 3,
+      status: overrides.status ?? "Completed",
+      startedAt: overrides.startedAt ?? new Date("2026-05-24T12:00:00Z"),
+      endedAt:
+        overrides.endedAt === undefined
+          ? new Date("2026-05-24T12:00:42Z")
+          : overrides.endedAt,
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 6 (happy-path): first page returns the most recent runs
+    // with inputCtxSummary populated for each row.
+    // ---------------------------------------------------------------------
+    it("Scenario 6 (happy path): returns the most recent runs with inputCtxSummary on the first page", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.listRunsForWorkflow as jest.Mock).mockResolvedValue({
+        executions: [
+          buildExecution({ runId: "run-1" }),
+          buildExecution({ runId: "run-2", versionNumber: 2 }),
+        ],
+        nextCursor: null,
+      });
+      (temporalClient.getRunInput as jest.Mock).mockImplementation(
+        (id: string) =>
+          Promise.resolve({
+            initialCtx: { customerId: `cust-${id}`, modelId: "gpt-5" },
+            workflowLineageId: "wf-1",
+          }),
+      );
+
+      const result = await controller.listRuns("wf-1", {}, mockReq());
+
+      expect(result.nextCursor).toBeNull();
+      expect(result.runs).toHaveLength(2);
+      expect(result.runs[0]).toEqual({
+        runId: "run-1",
+        workflowVersionId: "wv-wf-1",
+        versionNumber: 3,
+        status: "succeeded",
+        startedAt: "2026-05-24T12:00:00.000Z",
+        endedAt: "2026-05-24T12:00:42.000Z",
+        inputCtxSummary: { customerId: "cust-run-1", modelId: "gpt-5" },
+      });
+      expect(result.runs[1].versionNumber).toBe(2);
+      expect(result.runs[1].inputCtxSummary).toEqual({
+        customerId: "cust-run-2",
+        modelId: "gpt-5",
+      });
+      // First page = limit defaults to 50.
+      expect(temporalClient.listRunsForWorkflow).toHaveBeenCalledWith({
+        workflowLineageId: "wf-1",
+        status: undefined,
+        startedAfter: undefined,
+        startedBefore: undefined,
+        workflowVersionId: undefined,
+        pageSize: 50,
+        cursor: undefined,
+      });
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3 (status filter): status narrows the visibility query
+    // ---------------------------------------------------------------------
+    it("Scenario 3 (status filter): translates DTO status to Temporal enum and passes it through", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.listRunsForWorkflow as jest.Mock).mockResolvedValue({
+        executions: [
+          buildExecution({
+            runId: "run-fail",
+            status: "Failed",
+            endedAt: new Date("2026-05-24T12:00:05Z"),
+          }),
+        ],
+        nextCursor: null,
+      });
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue({
+        initialCtx: { customerId: "cust-x" },
+        workflowLineageId: "wf-1",
+      });
+
+      const result = await controller.listRuns(
+        "wf-1",
+        { status: "failed" },
+        mockReq(),
+      );
+
+      expect(result.runs[0].status).toBe("failed");
+      expect(temporalClient.listRunsForWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "Failed",
+        }),
+      );
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3 (date-range filter): startedAfter + startedBefore both passed through
+    // ---------------------------------------------------------------------
+    it("Scenario 3 (date range): forwards startedAfter / startedBefore / workflowVersionId verbatim", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.listRunsForWorkflow as jest.Mock).mockResolvedValue({
+        executions: [],
+        nextCursor: null,
+      });
+
+      await controller.listRuns(
+        "wf-1",
+        {
+          startedAfter: "2026-05-24T00:00:00.000Z",
+          startedBefore: "2026-05-25T00:00:00.000Z",
+          workflowVersionId: "wv-pinned",
+        },
+        mockReq(),
+      );
+
+      expect(temporalClient.listRunsForWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          startedAfter: "2026-05-24T00:00:00.000Z",
+          startedBefore: "2026-05-25T00:00:00.000Z",
+          workflowVersionId: "wv-pinned",
+        }),
+      );
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 3 (pagination): passing a cursor fetches the next page AND
+    // suppresses the per-row inputCtxSummary (perf budget).
+    // ---------------------------------------------------------------------
+    it("Scenario 3 (pagination): forwards cursor + limit to the helper; subsequent pages omit inputCtxSummary", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.listRunsForWorkflow as jest.Mock).mockResolvedValue({
+        executions: [
+          buildExecution({ runId: "run-3" }),
+          buildExecution({ runId: "run-4" }),
+        ],
+        nextCursor: "next-page-token-base64",
+      });
+
+      const result = await controller.listRuns(
+        "wf-1",
+        { cursor: "page-2-token", limit: 25 },
+        mockReq(),
+      );
+
+      // Cursor + pageSize propagated.
+      expect(temporalClient.listRunsForWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cursor: "page-2-token",
+          pageSize: 25,
+        }),
+      );
+      // Response surfaces next cursor.
+      expect(result.nextCursor).toBe("next-page-token-base64");
+      // Non-first page = no inputCtxSummary on any row + no describe calls.
+      expect(temporalClient.getRunInput).not.toHaveBeenCalled();
+      for (const run of result.runs) {
+        expect(run.inputCtxSummary).toBeUndefined();
+      }
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 5: 400 on inverted date range
+    // ---------------------------------------------------------------------
+    it("Scenario 5: throws BadRequestException when startedAfter > startedBefore", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      let caught: unknown;
+      try {
+        await controller.listRuns(
+          "wf-1",
+          {
+            startedAfter: "2026-05-25T00:00:00.000Z",
+            startedBefore: "2026-05-24T00:00:00.000Z",
+          },
+          mockReq(),
+        );
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const bre = caught as InstanceType<typeof BadRequestException>;
+      const response = bre.getResponse() as { message: string };
+      expect(response.message).toBe(
+        "startedAfter must be before startedBefore",
+      );
+      expect(temporalClient.listRunsForWorkflow).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 6 (auth): non-member → 403, no Temporal call
+    // ---------------------------------------------------------------------
+    it("Scenario 6 (auth): throws ForbiddenException when caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(controller.listRuns("wf-1", {}, req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(temporalClient.listRunsForWorkflow).not.toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 6 (in-flight): running executions yield no endedAt
+    // ---------------------------------------------------------------------
+    it("Scenario 6 (running): omits endedAt when the execution is still running", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.listRunsForWorkflow as jest.Mock).mockResolvedValue({
+        executions: [
+          buildExecution({
+            runId: "run-in-flight",
+            status: "Running",
+            endedAt: null,
+          }),
+        ],
+        nextCursor: null,
+      });
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue({
+        initialCtx: { documentUrl: "blob://group-1/scan.pdf" },
+        workflowLineageId: "wf-1",
+      });
+
+      const result = await controller.listRuns("wf-1", {}, mockReq());
+
+      expect(result.runs).toHaveLength(1);
+      expect(result.runs[0].status).toBe("running");
+      expect(result.runs[0].endedAt).toBeUndefined();
+    });
+
+    // ---------------------------------------------------------------------
+    // Scenario 6 (best-effort summary): getRunInput failures drop the
+    // summary for that row but don't poison the whole page.
+    // ---------------------------------------------------------------------
+    it("Scenario 6 (best-effort summary): a getRunInput failure drops just that row's inputCtxSummary, not the page", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.listRunsForWorkflow as jest.Mock).mockResolvedValue({
+        executions: [
+          buildExecution({ runId: "run-ok" }),
+          buildExecution({ runId: "run-failed-input" }),
+        ],
+        nextCursor: null,
+      });
+      (temporalClient.getRunInput as jest.Mock).mockImplementation(
+        (id: string) => {
+          if (id === "run-failed-input") {
+            return Promise.reject(new Error("retention cleaned"));
+          }
+          return Promise.resolve({
+            initialCtx: { customerId: "cust-ok" },
+            workflowLineageId: "wf-1",
+          });
+        },
+      );
+
+      const result = await controller.listRuns("wf-1", {}, mockReq());
+
+      expect(result.runs).toHaveLength(2);
+      expect(result.runs[0].inputCtxSummary).toEqual({ customerId: "cust-ok" });
+      expect(result.runs[1].inputCtxSummary).toBeUndefined();
     });
   });
 });

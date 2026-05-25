@@ -4,6 +4,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   forwardRef,
   Get,
   GoneException,
@@ -49,7 +50,11 @@ import {
 import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
 import { GroupRole } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { TemporalClientService } from "@/temporal/temporal-client.service";
+import {
+  type ListRunsExecution,
+  TemporalClientService,
+  type TemporalExecutionStatusFilter,
+} from "@/temporal/temporal-client.service";
 import {
   buildBaseUrl,
   buildRunSpec,
@@ -59,6 +64,14 @@ import {
 import { deriveInputSchema } from "./derive-input-schema";
 import { ActivityOutputPreviewDto } from "./dto/activity-output-preview.dto";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
+import { InputCtxResponseDto } from "./dto/input-ctx-response.dto";
+import {
+  LIST_RUNS_DEFAULT_LIMIT,
+  ListRunsQueryDto,
+  ListRunsResponseDto,
+  RunSummaryDto,
+  type RunSummaryStatus,
+} from "./dto/list-runs.dto";
 import {
   CacheHitDto,
   NODE_STATUSES_RESPONSE_SCHEMA,
@@ -68,12 +81,14 @@ import {
 import { RunSpecResponseDto } from "./dto/run-spec.dto";
 import { SourceUploadResponseDto } from "./dto/source-upload.dto";
 import { StartRunRequestDto, StartRunResponseDto } from "./dto/start-run.dto";
+import { VersionRunCountDto } from "./dto/version-run-count.dto";
 import {
   RevertHeadDto,
   WorkflowListResponseDto,
   WorkflowResponseDto,
   WorkflowVersionListResponseDto,
 } from "./dto/workflow-info.dto";
+import { summariseInputCtx } from "./run-history/summarise-input-ctx";
 import {
   SourceUploadParameters,
   SourceUploadService,
@@ -91,6 +106,28 @@ const ALLOWED_WORKFLOW_KIND_FILTERS: readonly WorkflowKindFilter[] = [
   "library",
   "all",
 ];
+
+/**
+ * US-152 — per-process LRU-with-TTL cache for the per-version
+ * run-count endpoint. Keyed by `"<workflowId>::<versionId>"`. TTL is 60s
+ * — matches the frontend `useVersionRunCount` `staleTime`. Per
+ * TRY_IN_PLACE_DESIGN.md §6.5 the cache is intentionally process-local
+ * (no Redis): run-count drift between backend instances is acceptable
+ * for this UI surface.
+ */
+export const VERSION_RUN_COUNT_CACHE_TTL_MS = 60_000;
+
+interface VersionRunCountCacheEntry {
+  count: number;
+  cachedAt: number;
+}
+
+function buildVersionRunCountCacheKey(
+  workflowId: string,
+  versionId: string,
+): string {
+  return `${workflowId}::${versionId}`;
+}
 
 function parseWorkflowKindFilter(
   raw: string | undefined,
@@ -110,6 +147,18 @@ function parseWorkflowKindFilter(
 @ApiExtraModels(NodeRunStatusDto, CacheHitDto)
 @Controller("api/workflows")
 export class WorkflowController {
+  /**
+   * US-152 — in-process LRU-with-TTL cache backing the per-version
+   * run-count endpoint. Lives on the controller instance (NestJS makes
+   * the controller a singleton in our app), keyed by
+   * `"<workflowId>::<versionId>"`. Entries past
+   * `VERSION_RUN_COUNT_CACHE_TTL_MS` are recomputed on next read.
+   */
+  private readonly versionRunCountCache = new Map<
+    string,
+    VersionRunCountCacheEntry
+  >();
+
   constructor(
     private readonly workflowService: WorkflowService,
     @Inject(forwardRef(() => TemporalClientService))
@@ -247,6 +296,66 @@ export class WorkflowController {
       GroupRole.MEMBER,
     );
     return { workflow };
+  }
+
+  @Get(":id/versions/:versionId/run-count")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Get the approximate number of Temporal runs executed against a specific " +
+      "(workflowLineageId, workflowVersionId) pair. Drives the run-count badge " +
+      "on `VersionHistoryDrawer` (Phase 4 / US-152).",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiParam({
+    name: "versionId",
+    description: "WorkflowVersion.id within this lineage",
+  })
+  @ApiOkResponse({
+    description:
+      "The approximate run count for this version. The value is server-side " +
+      "cached per `(workflowId, versionId)` for 60s to bound Temporal " +
+      "visibility-store load — first call hits Temporal, subsequent calls " +
+      "within the TTL return the cached value.",
+    type: VersionRunCountDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Workflow or version not found, or version does not belong to this lineage",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getVersionRunCount(
+    @Param("id") lineageId: string,
+    @Param("versionId") versionId: string,
+    @Req() req: Request,
+  ): Promise<VersionRunCountDto> {
+    const workflow =
+      await this.workflowService.getWorkflowVersionById(versionId);
+    if (!workflow || workflow.id !== lineageId) {
+      throw new NotFoundException(
+        `Workflow version not found: ${versionId} in lineage ${lineageId}`,
+      );
+    }
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      workflow.groupId,
+      GroupRole.MEMBER,
+    );
+
+    const cacheKey = buildVersionRunCountCacheKey(lineageId, versionId);
+    const now = Date.now();
+    const cached = this.versionRunCountCache.get(cacheKey);
+    if (cached && now - cached.cachedAt < VERSION_RUN_COUNT_CACHE_TTL_MS) {
+      return { runCount: cached.count };
+    }
+
+    const runCount = await this.temporalClient.countRunsForVersion(
+      lineageId,
+      versionId,
+    );
+    this.versionRunCountCache.set(cacheKey, { count: runCount, cachedAt: now });
+    return { runCount };
   }
 
   @Get(":id/run-spec")
@@ -719,6 +828,295 @@ export class WorkflowController {
     };
   }
 
+  @Get(":id/runs/:runId/input-ctx")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Get the historical `initialCtx` for a Temporal run, used by the " +
+      'frontend "Re-run" button on an evicted-cache preview (Phase 4 ' +
+      "replay re-run support, US-151).",
+    description:
+      "Resolves the run's input in two passes: (1) decode the " +
+      "`WorkflowExecutionStarted` event's payload (the start args " +
+      "carrying `initialCtx`); (2) when Temporal's history is " +
+      "retention-cleaned or the payload is missing, fall back to the " +
+      "source-node's cache row from the run's execution window " +
+      "(source nodes write `outputCtx === initialCtx`, so the cache " +
+      "row preserves the original input). Cross-lineage `runId`s " +
+      "return 403; unknown / fully-evicted `runId`s return 404.",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiParam({
+    name: "runId",
+    description: "Temporal workflow execution id returned by `POST /:id/runs`",
+  })
+  @ApiOkResponse({
+    description:
+      "The historical `initialCtx` JSON. Re-running with the same value " +
+      "re-attaches to the same uploaded content (cache-hit on the " +
+      "source-node's row) for `source.upload` workflows.",
+    type: InputCtxResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Workflow not found, OR neither Temporal nor the cache row carry " +
+      "the run's `initialCtx` (body: `{ message: \"Input not " +
+      'available — run too old or never captured" }`).',
+  })
+  @ApiForbiddenResponse({
+    description:
+      "Caller is not a member of the workflow's group, OR the `runId` " +
+      "exists but belongs to a different workflow lineage.",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  async getInputCtx(
+    @Param("id") id: string,
+    @Param("runId") runId: string,
+    @Req() req: Request,
+  ): Promise<InputCtxResponseDto> {
+    const wf = await this.workflowService.resolveLineageAndVersion(id);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    // -------------------------------------------------------------------
+    // Primary path: pull the start args from the run's Temporal history.
+    // -------------------------------------------------------------------
+    let runInput: Awaited<ReturnType<TemporalClientService["getRunInput"]>> =
+      null;
+    let historyMissing = false;
+    try {
+      runInput = await this.temporalClient.getRunInput(runId);
+    } catch (error) {
+      // `WorkflowNotFoundError` covers both "no such run" and
+      // "history past retention" — for the unknown case we surface 404
+      // immediately (the cache-row fallback also requires the run window
+      // from Temporal to scope correctly, which we won't have).
+      // Retention-cleaned histories still warrant the cache fallback, so
+      // they're funneled through the same path as a `null` result below.
+      if (error instanceof WorkflowNotFoundError) {
+        const messageLower = (error.message ?? "").toLowerCase();
+        const retentionCleaned =
+          /history|retention|deleted|reached.*retention/i.test(messageLower);
+        if (!retentionCleaned) {
+          throw new NotFoundException({
+            message: "Input not available — run too old or never captured",
+          });
+        }
+        historyMissing = true;
+      } else {
+        throw error;
+      }
+    }
+
+    if (runInput !== null) {
+      // Cross-lineage check — the runId resolved but the start args
+      // recorded a different lineage. Mirrors the `WorkflowLineageId`
+      // search-attribute contract set by `startGraphWorkflow`.
+      if (
+        runInput.workflowLineageId !== null &&
+        runInput.workflowLineageId !== id
+      ) {
+        throw new ForbiddenException({
+          message: "Run does not belong to this workflow",
+        });
+      }
+      return { initialCtx: runInput.initialCtx };
+    }
+
+    // -------------------------------------------------------------------
+    // Fallback path: source-node cache row inside the run's window.
+    //
+    // Source nodes write `outputCtx === initialCtx` (see
+    // `apps/temporal/src/cache/source-node-cache.ts`), so the cache row
+    // is a faithful reconstruction of the start args even when Temporal
+    // no longer has them.
+    // -------------------------------------------------------------------
+    const sourceNode = Object.values(wf.config.nodes).find(
+      (node) => node.type === "source",
+    );
+
+    let row: Awaited<
+      ReturnType<ActivityOutputCacheRepository["findInRunWindow"]>
+    > = null;
+
+    if (sourceNode !== undefined) {
+      if (historyMissing) {
+        // Without the run's execution window we can't scope the cache
+        // lookup. Fall back to the most-recent fresh row for the source
+        // node — TTL filtering still bounds blast radius and the cache
+        // is per-lineage, so a stale row would have to come from the
+        // same lineage.
+        row = await this.activityOutputCache.findMostRecentFresh({
+          workflowLineageId: id,
+          nodeId: sourceNode.id,
+        });
+      } else {
+        let window: { startedAt: Date; endedAt: Date | null };
+        try {
+          window = await this.temporalClient.getRunWindow(runId);
+        } catch (error) {
+          if (error instanceof WorkflowNotFoundError) {
+            throw new NotFoundException({
+              message: "Input not available — run too old or never captured",
+            });
+          }
+          throw error;
+        }
+
+        row = await this.activityOutputCache.findInRunWindow({
+          workflowLineageId: id,
+          nodeId: sourceNode.id,
+          startedAt: window.startedAt,
+          endedAt: window.endedAt ?? new Date(),
+        });
+      }
+    }
+
+    if (row === null) {
+      throw new NotFoundException({
+        message: "Input not available — run too old or never captured",
+      });
+    }
+
+    return { initialCtx: row.outputCtx as Record<string, unknown> };
+  }
+
+  @Get(":id/runs")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "List historical Temporal executions for a workflow lineage (run history). " +
+      "Sources from Temporal's visibility store with cursor pagination + " +
+      "status / start-time / version filters (Phase 4 — US-150).",
+    description:
+      "First page (no `cursor`) includes a compact `inputCtxSummary` per " +
+      "row — built by calling `describe()` on each execution and projecting " +
+      "the start args through the `summariseInputCtx` helper. Subsequent " +
+      "pages omit `inputCtxSummary` to keep pagination cheap (the " +
+      "consumer can fetch the full ctx on demand via " +
+      "`GET /:id/runs/:runId/input-ctx`).",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiOkResponse({
+    description:
+      "Paginated list of runs newest-first. Pass `nextCursor` as the " +
+      "`cursor` query parameter on a follow-up call to fetch the next page.",
+    type: ListRunsResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Query parameters fail validation (e.g. `limit` out of range, " +
+      "`status` not in the allowed enum), OR `startedAfter > startedBefore`.",
+  })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async listRuns(
+    @Param("id") id: string,
+    @Query() query: ListRunsQueryDto,
+    @Req() req: Request,
+  ): Promise<ListRunsResponseDto> {
+    const wf = await this.workflowService.resolveLineageAndVersion(id);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    // Business-rule check: `ValidationPipe` accepts the dates individually
+    // but doesn't enforce ordering between them. Reject inverted ranges
+    // with 400 (Scenario 5).
+    if (
+      query.startedAfter !== undefined &&
+      query.startedBefore !== undefined &&
+      new Date(query.startedAfter).getTime() >
+        new Date(query.startedBefore).getTime()
+    ) {
+      throw new BadRequestException({
+        message: "startedAfter must be before startedBefore",
+      });
+    }
+
+    const limit = query.limit ?? LIST_RUNS_DEFAULT_LIMIT;
+    const temporalStatus = mapDtoStatusToTemporalStatus(query.status);
+
+    const { executions, nextCursor } =
+      await this.temporalClient.listRunsForWorkflow({
+        workflowLineageId: id,
+        status: temporalStatus,
+        startedAfter: query.startedAfter,
+        startedBefore: query.startedBefore,
+        workflowVersionId: query.workflowVersionId,
+        pageSize: limit,
+        cursor: query.cursor,
+      });
+
+    // First-page contract: enrich each execution with a compact
+    // `inputCtxSummary` by describing it and walking the start args
+    // through `summariseInputCtx`. We keep this strictly first-page (no
+    // `cursor` in the request) so that paging through a large lineage
+    // doesn't fan out N describe-RPCs per page.
+    const isFirstPage = query.cursor === undefined || query.cursor === "";
+
+    const inputCtxSummaries = isFirstPage
+      ? await this.buildInputCtxSummariesForExecutions(executions)
+      : new Map<string, Record<string, unknown> | undefined>();
+
+    const runs: RunSummaryDto[] = executions.map((execution) => {
+      const summary: RunSummaryDto = {
+        runId: execution.runId,
+        workflowVersionId: execution.workflowVersionId ?? "",
+        versionNumber: execution.versionNumber ?? 0,
+        status: mapTemporalStatusToDtoStatus(execution.status),
+        startedAt: execution.startedAt.toISOString(),
+      };
+      if (execution.endedAt !== null) {
+        summary.endedAt = execution.endedAt.toISOString();
+      }
+      if (isFirstPage) {
+        const ctxSummary = inputCtxSummaries.get(execution.runId);
+        if (ctxSummary !== undefined) {
+          summary.inputCtxSummary = ctxSummary;
+        }
+      }
+      return summary;
+    });
+
+    return { runs, nextCursor };
+  }
+
+  /**
+   * Build a `runId -> summariseInputCtx(initialCtx)` map for a batch of
+   * executions. Issues one `getRunInput` call per execution and squashes
+   * per-run errors to "no summary" — a 404 (history retention-cleaned or
+   * never captured) should not poison the whole page. Concurrency is
+   * bounded by Temporal's gRPC pool, which the SDK manages internally.
+   *
+   * Scoped to first-page consumers only; see `listRuns` for the budget
+   * rationale.
+   */
+  private async buildInputCtxSummariesForExecutions(
+    executions: ListRunsExecution[],
+  ): Promise<Map<string, Record<string, unknown> | undefined>> {
+    const results = await Promise.all(
+      executions.map(async (execution) => {
+        try {
+          const runInput = await this.temporalClient.getRunInput(
+            execution.runId,
+          );
+          if (runInput === null) {
+            return [execution.runId, undefined] as const;
+          }
+          return [
+            execution.runId,
+            summariseInputCtx(runInput.initialCtx),
+          ] as const;
+        } catch {
+          // Best-effort: drop the summary for runs whose input we can't
+          // resolve (history retention, transient gRPC errors). The row
+          // still renders — just without the chip.
+          return [execution.runId, undefined] as const;
+        }
+      }),
+    );
+    return new Map(results);
+  }
+
   @Get(":id")
   @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get a workflow by ID" })
@@ -844,5 +1242,57 @@ export class WorkflowController {
     );
 
     await this.workflowService.deleteWorkflow(id, actorId);
+  }
+}
+
+/**
+ * Translate the DTO's lowercase status filter into Temporal's enum-name
+ * spelling used in visibility queries. Returns `undefined` when no
+ * filter is set so callers can omit the `ExecutionStatus` clause.
+ *
+ * Mapping is intentionally narrow — the DTO only accepts the four
+ * statuses the canvas surfaces (`running` / `succeeded` / `failed` /
+ * `cancelled`). The DTO's `class-validator` `@IsIn` decorator gates the
+ * input before this helper runs, so an unknown value is a programmer
+ * error rather than a user-input issue.
+ */
+function mapDtoStatusToTemporalStatus(
+  status: RunSummaryStatus | undefined,
+): TemporalExecutionStatusFilter | undefined {
+  switch (status) {
+    case undefined:
+      return undefined;
+    case "running":
+      return "Running";
+    case "succeeded":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Canceled";
+  }
+}
+
+/**
+ * Inverse mapping for response rendering — Temporal's `Completed` becomes
+ * the canvas's `succeeded` etc. `Unknown` (which the decoder uses for
+ * statuses outside our narrow set, e.g. `Terminated` / `TimedOut`) is
+ * reported as `failed` so the row still renders with a sensible badge
+ * instead of being silently dropped.
+ */
+function mapTemporalStatusToDtoStatus(
+  status: TemporalExecutionStatusFilter | "Unknown",
+): RunSummaryStatus {
+  switch (status) {
+    case "Running":
+      return "running";
+    case "Completed":
+      return "succeeded";
+    case "Failed":
+      return "failed";
+    case "Canceled":
+      return "cancelled";
+    case "Unknown":
+      return "failed";
   }
 }

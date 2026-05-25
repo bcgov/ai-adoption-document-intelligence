@@ -6,20 +6,20 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Cache-evicted Alert component
+- [x] **Scenario 1**: Cache-evicted Alert component
     - **Given** `apps/frontend/src/features/workflow-builder/preview/CacheEvictedAlert.tsx` (new file)
     - **When** read
     - **Then** it exports `function CacheEvictedAlert({ workflowId, runId, onRerun }: ...)`
     - **And** renders a small `<Alert color="red" variant="light" icon={<IconAlertCircle />}>` with text "Preview unavailable — cache evicted. Re-run to repopulate."
     - **And** below the text, a `<Button size="xs" variant="filled" onClick={onRerun}>Re-run</Button>`
 
-- [ ] **Scenario 2**: Dispatch shell routes to evicted Alert when `data === null AND runId !== undefined`
+- [x] **Scenario 2**: Dispatch shell routes to evicted Alert when `data === null AND runId !== undefined`
     - **Given** `PreviewWidget` (US-141)
     - **When** `useActivityOutputPreview` returns `data: null` for a query with `runId` set (i.e., scoped query found no row)
     - **Then** `<CacheEvictedAlert workflowId={...} runId={runId} onRerun={...} />` renders
     - **And** when `runId` is undefined (default-latest mode) AND `data: null`, the dispatch shell renders nothing (the node hasn't run yet)
 
-- [ ] **Scenario 3**: Re-run button fetches historical `initialCtx` + starts fresh Try
+- [x] **Scenario 3**: Re-run button fetches historical `initialCtx` + starts fresh Try
     - **Given** the Re-run button click
     - **When** the handler fires
     - **Then** it calls `apiClient.getInputCtx(workflowId, runId)` (US-151's endpoint)
@@ -27,19 +27,19 @@
     - **And** on the new Try's `workflowId` response, sets `activeRunId` AND `setIsReplay(false)` (live mode for the new run)
     - **And** closes the replay-mode indicator in the top bar
 
-- [ ] **Scenario 4**: Loading state on Re-run
+- [x] **Scenario 4**: Loading state on Re-run
     - **Given** the user clicks Re-run
     - **When** the input-ctx fetch is in flight
     - **Then** the Re-run button shows a `<Loader size="xs" />` and is disabled
     - **And** the surrounding Alert text changes to "Re-running..."
 
-- [ ] **Scenario 5**: Error handling on Re-run
+- [x] **Scenario 5**: Error handling on Re-run
     - **Given** the input-ctx fetch returns 404 ("input not available — run too old or never captured")
     - **When** the error surfaces
     - **Then** the Alert text changes to "Re-run unavailable — historical input has been retention-cleaned" and the button is disabled
     - **And** a "Close" link clears the indicator and returns to normal evicted Alert state
 
-- [ ] **Scenario 6**: Component test
+- [x] **Scenario 6**: Component test
     - **Given** `apps/frontend/src/features/workflow-builder/preview/CacheEvictedAlert.test.tsx`
     - **When** tests run
     - **Then** at least 4 cases pass: Alert renders with Re-run button, click fetches input-ctx + POSTs /runs, loading state shows Loader, 404 path shows retention-cleaned message
