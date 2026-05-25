@@ -33,6 +33,7 @@ import {
   parseDynamicNodeSignature,
   parseJsDocBlock,
 } from "./parse-signature";
+import type { ActivityCatalogEntry } from "../catalog/types";
 import type { JsDocParseError, SignatureSemanticsError } from "./types";
 
 // Re-import via the package barrel so the test simultaneously asserts the
@@ -44,32 +45,13 @@ import {
 
 /**
  * Test-only view of the dynamic-node `ActivityCatalogEntry` that exposes the
- * Phase-6 extended fields the parser emits. The runtime cast on the parser's
- * output (US-159 — see `parse-signature.ts`) hides these from the
- * `ActivityCatalogEntry` type until US-161 fully reconciles the type.
+ * Phase-6 extension fields (`timeoutMs`, `maxMemoryMB`) the parser surfaces
+ * alongside the canonical entry. US-161 reconciled the entry shape with the
+ * shared `ActivityCatalogEntry` type — the parser's `entry` is now
+ * structurally assignable to that type without a cast.
  */
-type DynamicNodeEntryView = {
-  type: string;
-  category: string;
-  description: string;
-  iconHint: string;
-  colorHint: string;
-  nonCacheable: boolean;
+type DynamicNodeEntryView = ActivityCatalogEntry & {
   paramsSchema: Record<string, unknown>;
-  inputs: Array<{
-    name: string;
-    label: string;
-    kind: string;
-    required?: boolean;
-    description?: string;
-  }>;
-  outputs: Array<{
-    name: string;
-    label: string;
-    kind: string;
-    required?: boolean;
-    description?: string;
-  }>;
   dynamicNodeSlug: string;
   dynamicNodeVersion: number;
   allowNet: string[];
@@ -81,7 +63,7 @@ function asDyn(
   entry: ReturnType<typeof parseDynamicNodeSignature>["entry"],
 ): DynamicNodeEntryView {
   if (entry === null) throw new Error("expected entry, got null");
-  return entry as unknown as DynamicNodeEntryView;
+  return entry as DynamicNodeEntryView;
 }
 
 describe("parseDynamicNodeSignature — Scenario 1: function shape + purity", () => {
@@ -1375,9 +1357,9 @@ export default async function dynamicNode() {}
     const { entry, errors } = parseDynamicNodeSignature(script);
     expect(errors).toEqual([]);
     expect(entry).not.toBeNull();
-    const e = entry as unknown as Record<string, unknown>;
+    const e = asDyn(entry);
 
-    expect(e.type).toBe("dyn.extract-tables");
+    expect(e.activityType).toBe("dyn.extract-tables");
     expect(e.category).toBe("Custom");
     expect(e.description).toBe("Extracts tables from a PDF.");
     expect(e.iconHint).toBe("code");
@@ -1484,6 +1466,43 @@ export default async function dynamicNode() {}
 `;
     const { entry } = parseDynamicNodeSignature(script);
     expect(entry!.dynamicNodeVersion).toBe(0);
+  });
+});
+
+// =============================================================================
+// US-161 — integration smoke: parser output assignable to catalog-entry type
+// WITHOUT a cast (the reconciliation of the Phase-6 dynamic-entry shape with
+// the shared `ActivityCatalogEntry` type — see types.ts JSDoc).
+// =============================================================================
+
+describe("parseDynamicNodeSignature — US-161 Scenario 5: catalog-entry type compatibility", () => {
+  it("returns an entry assignable to ActivityCatalogEntry WITHOUT a cast", () => {
+    const validScript = `
+/**
+ * @workflow-node
+ * @name catalog-compat
+ * @description Smoke test for US-161 type reconciliation.
+ * @inputs { document: { kind: "Document", required: true } }
+ * @outputs { result: { kind: "Artifact" } }
+ */
+export default async function dynamicNode() {}
+`;
+    // The actual smoke check is the TS compile of this assignment — if the
+    // parser's `entry` shape were not assignable to `ActivityCatalogEntry`,
+    // `tsc --noEmit` would fail at this line.
+    const entry: ActivityCatalogEntry | null =
+      parseDynamicNodeSignature(validScript).entry;
+
+    expect(entry).not.toBeNull();
+    expect(entry!.activityType).toBe("dyn.catalog-compat");
+    expect(entry!.dynamicNodeSlug).toBe("catalog-compat");
+    expect(entry!.dynamicNodeVersion).toBe(0);
+    expect(entry!.colorHint).toBe("dyn");
+    // `paramsSchema` is the Phase-6 JSON-Schema-7 field; `parametersSchema`
+    // (Zod) is absent on dynamic entries.
+    expect(entry!.paramsSchema).toBeDefined();
+    expect(entry!.parametersSchema).toBeUndefined();
+    expect(entry!.displayName).toBeUndefined();
   });
 });
 

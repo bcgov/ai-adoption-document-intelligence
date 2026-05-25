@@ -705,13 +705,19 @@ function runSignatureSemanticsStage(block: ParsedJsDocBlock): {
     : MAX_MEMORY_MB_DEFAULT;
 
   // --- Step 5: assemble the derived ActivityCatalogEntry.
-  // The Phase-6 entry shape diverges slightly from the static catalog
-  // shape in field naming (`type` vs `activityType`, `paramsSchema` vs
-  // `parametersSchema`). The cast bridges to the existing type until
-  // US-161 reconciles. `paramsSchema`, `timeoutMs`, `maxMemoryMB` ride
-  // alongside the documented fields per DYNAMIC_NODES_DESIGN.md §2.2.
-  const entryShape = {
-    type: `dyn.${slug}`,
+  // US-161 reconciled the dynamic-entry shape with the existing
+  // `ActivityCatalogEntry` type: dynamic entries use the canonical
+  // `activityType` field (prefixed `dyn.`) and `paramsSchema` (JSON
+  // Schema 7) instead of the Zod `parametersSchema`. `displayName` is
+  // omitted (the type accepts it as optional). `timeoutMs` /
+  // `maxMemoryMB` ride alongside via the catalog-merge layer (US-173)
+  // — they're not part of the catalog-entry type itself but the dynamic
+  // assembly surfaces them under the matching property names.
+  const entry: ActivityCatalogEntry & {
+    timeoutMs: number;
+    maxMemoryMB: number;
+  } = {
+    activityType: `dyn.${slug}`,
     category,
     description,
     iconHint: "code",
@@ -728,7 +734,7 @@ function runSignatureSemanticsStage(block: ParsedJsDocBlock): {
   };
 
   return {
-    entry: entryShape as unknown as ActivityCatalogEntry,
+    entry,
     errors: [],
   };
 }

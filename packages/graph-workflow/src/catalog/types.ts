@@ -56,17 +56,29 @@ export interface PortDescriptor {
 /**
  * Catalog entry for an activity node.
  *
- * Each activity is a distinct entry in the palette. The `parametersSchema`
- * is the single source of truth for static-parameter validation (backend)
- * and form rendering (frontend).
+ * Each activity is a distinct entry in the palette. Every entry MUST carry at
+ * least one of `parametersSchema` (Zod, preferred for static entries) or
+ * `paramsSchema` (JSON Schema 7, used by Phase-6 dynamic entries) — the
+ * catalog's bulk invariant test enforces this. These two fields are the
+ * single source of truth for static-parameter validation (backend) and form
+ * rendering (frontend).
+ *
+ * `displayName` is OPTIONAL: dynamic entries assembled from a JSDoc signature
+ * (US-159) intentionally omit it; static entries continue to declare a
+ * non-empty display name. The bulk invariant test asserts that when
+ * `displayName` is present, it is a non-empty string.
+ *
+ * `category` is a free-form string. Static entries narrow it to the
+ * `CatalogCategory` union via assignment; dynamic entries surface the raw
+ * `@category` JSDoc value (defaulting to `"Custom"`).
  */
 export interface ActivityCatalogEntry {
   /** Matches `ActivityNode.activityType`. */
   activityType: string;
-  /** Display name in the palette and on the node. */
-  displayName: string;
-  /** Palette category. */
-  category: CatalogCategory;
+  /** Display name in the palette and on the node. Omitted on dynamic entries. */
+  displayName?: string;
+  /** Palette category. Static entries narrow to `CatalogCategory`. */
+  category: CatalogCategory | string;
   /** Short description; shown on hover in the palette and at the top of the settings panel. */
   description: string;
   /** Icon identifier (resolved by the frontend; not a component reference). */
@@ -83,8 +95,22 @@ export interface ActivityCatalogEntry {
    *
    * Use `z.globalRegistry` (or `.meta({ ... })`) to attach UI hints like
    * `{ widget: "select", options: [...] }` to individual fields.
+   *
+   * Optional: a Phase-6 dynamic entry instead carries `paramsSchema`
+   * (JSON Schema 7). Every entry must declare AT LEAST ONE of the two.
    */
-  parametersSchema: z.ZodType;
+  parametersSchema?: z.ZodType;
+  /**
+   * Phase 6 dynamic-node parameters schema, expressed as a JSON Schema 7
+   * fragment built by `parseDynamicNodeSignature` from the script's
+   * `@parameters` JSDoc declaration. Static entries omit this in favour of
+   * `parametersSchema` (Zod).
+   *
+   * `getActivityParametersJsonSchema` prefers `paramsSchema` when present;
+   * otherwise it converts `parametersSchema` via `z.toJSONSchema`. Every
+   * entry must declare AT LEAST ONE of the two.
+   */
+  paramsSchema?: Record<string, unknown>;
   /**
    * When true, this activity is never cached. Use for non-deterministic
    * activities (timestamped, RNG-driven, IO-stateful).

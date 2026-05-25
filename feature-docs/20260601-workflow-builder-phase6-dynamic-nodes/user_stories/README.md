@@ -91,7 +91,7 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [x] **US-158** (`parseDynamicNodeSignature` JSDoc-parse stage) — depends on US-157; extracts the JSDoc block
 - [x] **US-159** (signature semantics + derived entry assembly) — depends on US-158; closes the parser
 - [x] **US-160** (ambient `@ai-di/graph-workflow/kinds` subpath export) — independent of US-157/158/159; can land in parallel
-- [ ] **US-161** (catalog entry extension + final barrel) — depends on US-157 + US-158 + US-159 + US-160; closes Milestone A
+- [x] **US-161** (catalog entry extension + final barrel) — depends on US-157 + US-158 + US-159 + US-160; closes Milestone A
 
 ### Phase 1.5 — `deno-runner` infrastructure (Milestone B0 — prerequisite for Phase 2 + Phase 3)
 - [x] **US-186** (`deno-runner` HTTP sidecar service — image + docker-compose + OpenShift kustomize) — independent of Milestone A's shared-package work; can land in parallel. Required before US-164 (publish-time `deno check`) and US-170 (`dyn.run` HTTP client) can be implemented. ✅ Shipped in commit `f7395b49`.

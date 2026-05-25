@@ -40,6 +40,10 @@ export function createCatalogParameterValidator(
   return (activityType, nodeId, parameters, errors) => {
     const entry = catalog[activityType];
     if (!entry) return;
+    // Dynamic-node entries (Phase 6) carry `paramsSchema` (JSON Schema 7)
+    // instead of a Zod `parametersSchema`. Parameter validation for those
+    // entries is handled separately by the publish-time pipeline; skip here.
+    if (!entry.parametersSchema) return;
     const parsed = entry.parametersSchema.safeParse(parameters ?? {});
     if (parsed.success) return;
     for (const issue of parsed.error.issues) {

@@ -180,11 +180,21 @@ export function listActivityTypes(): string[] {
  * Convenient for the frontend form renderer (which walks JSON Schema,
  * not Zod), and for future LLM-tool-calling consumers that accept
  * JSON Schema natively.
+ *
+ * Prefers `entry.paramsSchema` when present (Phase-6 dynamic entries supply
+ * a pre-built JSON Schema 7 fragment); otherwise converts the entry's Zod
+ * `parametersSchema` via `z.toJSONSchema`. Returns `undefined` only when
+ * the activity is unregistered or the entry carries neither schema field
+ * (the catalog's bulk invariant test forbids the latter).
  */
 export function getActivityParametersJsonSchema(
   activityType: string,
-): unknown | undefined {
+): Record<string, unknown> | undefined {
   const entry = ACTIVITY_CATALOG[activityType];
   if (!entry) return undefined;
-  return z.toJSONSchema(entry.parametersSchema);
+  if (entry.paramsSchema) return entry.paramsSchema;
+  if (entry.parametersSchema) {
+    return z.toJSONSchema(entry.parametersSchema) as Record<string, unknown>;
+  }
+  return undefined;
 }

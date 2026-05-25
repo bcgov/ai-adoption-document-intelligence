@@ -34,14 +34,34 @@ describe("catalog invariants", () => {
     expect(entry).toBeDefined();
     if (!entry) return;
     expect(entry.activityType).toBe(activityType);
-    expect(typeof entry.displayName).toBe("string");
-    expect(entry.displayName.length).toBeGreaterThan(0);
+    // `displayName` is OPTIONAL per Phase 6 (US-161): dynamic entries omit it.
+    // When present, it must be a non-empty string.
+    if (entry.displayName !== undefined) {
+      expect(typeof entry.displayName).toBe("string");
+      expect(entry.displayName.length).toBeGreaterThan(0);
+    }
     expect(typeof entry.description).toBe("string");
     expect(typeof entry.iconHint).toBe("string");
     expect(typeof entry.colorHint).toBe("string");
     expect(Array.isArray(entry.inputs)).toBe(true);
     expect(Array.isArray(entry.outputs)).toBe(true);
   });
+
+  // Phase 6 (US-161) — every entry must carry AT LEAST ONE of `parametersSchema`
+  // (Zod, preferred for static entries) or `paramsSchema` (JSON Schema 7, used
+  // by dynamic entries). Both may be absent on a malformed entry — catch that
+  // case explicitly here.
+  it.each(types)(
+    "entry for %s declares at least one of parametersSchema or paramsSchema",
+    (activityType) => {
+      const entry = getActivityCatalogEntry(activityType);
+      expect(entry).toBeDefined();
+      if (!entry) return;
+      const hasZod = entry.parametersSchema !== undefined;
+      const hasJsonSchema = entry.paramsSchema !== undefined;
+      expect(hasZod || hasJsonSchema).toBe(true);
+    },
+  );
 
   it.each(types)("parameter schema for %s emits valid JSON Schema", (t) => {
     const schema = getActivityParametersJsonSchema(t);
@@ -53,11 +73,35 @@ describe("catalog invariants", () => {
     "parameter schema for %s accepts a valid empty / minimal value where applicable",
     (t) => {
       const entry = ACTIVITY_CATALOG[t];
+      // Dynamic entries (Phase 6) carry only `paramsSchema` (JSON Schema 7) —
+      // there's no Zod parser to round-trip. Skip the safeParse smoke check
+      // for those; the JSON-Schema-side validation lives in the publish-time
+      // pipeline (US-159 semantics stage).
+      if (!entry.parametersSchema) return;
       const minimal = minimalValueForSchema(entry.parametersSchema);
       // No schema should crash on safeParse, even with an empty object.
       // Some schemas will reject because of required fields — that's fine,
       // but parsing itself must not throw.
-      expect(() => entry.parametersSchema.safeParse(minimal)).not.toThrow();
+      expect(() => entry.parametersSchema!.safeParse(minimal)).not.toThrow();
+    },
+  );
+
+  // Phase 6 (US-161) — dynamic-entry sanity assertion.
+  // If an entry sets `dynamicNodeSlug`, it must also set `dynamicNodeVersion`
+  // AND declare `colorHint === "dyn"`. The catalog-merge endpoint (US-173)
+  // trusts the "DYN" colour hint to flag dynamic-flavoured entries on the
+  // canvas. Static entries pass this check vacuously (`dynamicNodeSlug` is
+  // never set on them).
+  it.each(types)(
+    "entry for %s — if dynamicNodeSlug set, dynamicNodeVersion + colorHint=dyn also set",
+    (activityType) => {
+      const entry = getActivityCatalogEntry(activityType);
+      expect(entry).toBeDefined();
+      if (!entry) return;
+      if (entry.dynamicNodeSlug !== undefined) {
+        expect(typeof entry.dynamicNodeVersion).toBe("number");
+        expect(entry.colorHint).toBe("dyn");
+      }
     },
   );
 
