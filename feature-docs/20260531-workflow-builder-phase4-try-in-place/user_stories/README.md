@@ -99,12 +99,12 @@ Phase 4 has a clear linear backbone (cache schema + helpers → worker decorator
 - [x] **US-139** (`computeActiveEdges` + active-edge animation) — depends on US-138 (`RunStateContext`); can land in parallel with US-138 once context is in place
 
 ### Phase 4 — preview-cache endpoint + 4 widgets + dispatch shell (Milestone D — depends on Phase 1 + Phase 3 context)
-- [ ] **US-140** (backend `/preview-cache` endpoint) — depends on US-130 (repo)
-- [ ] **US-141** (`useActivityOutputPreview` hook + `PreviewWidget` dispatch shell) — depends on US-140 + US-138 (context)
-- [ ] **US-142** (`DocumentPreview` widget) — depends on US-141 (dispatch shell); independent of US-143/144/145
-- [ ] **US-143** (`SegmentArrayPreview` widget) — depends on US-141; independent of US-142/144/145
-- [ ] **US-144** (`OcrResultPreview` widget) — depends on US-141; independent of US-142/143/145
-- [ ] **US-145** (`ClassificationPreview` widget) — depends on US-141; independent of US-142/143/144
+- [x] **US-140** (backend `/preview-cache` endpoint) — depends on US-130 (repo)
+- [x] **US-141** (`useActivityOutputPreview` hook + `PreviewWidget` dispatch shell) — depends on US-140 + US-138 (context)
+- [x] **US-142** (`DocumentPreview` widget) — depends on US-141 (dispatch shell); independent of US-143/144/145
+- [x] **US-143** (`SegmentArrayPreview` widget) — depends on US-141; independent of US-142/144/145
+- [x] **US-144** (`OcrResultPreview` widget) — depends on US-141; independent of US-142/143/145
+- [x] **US-145** (`ClassificationPreview` widget) — depends on US-141; independent of US-142/143/144
 
 ### Phase 5 — Try affordances (Milestone E — depends on Phase 2 + Phase 3 + Phase 4)
 - [ ] **US-146** (`cancelInFlightTriesForLineage` + extend source-upload endpoint) — depends on US-133 (caching live); the backend half of the Try trigger

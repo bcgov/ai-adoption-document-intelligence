@@ -7,6 +7,7 @@ import { ActivityOutputCacheRepository } from "./activity-output-cache.repositor
 const mockPrismaClient = {
   activityOutputCache: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     upsert: jest.fn(),
     deleteMany: jest.fn(),
   },
@@ -192,6 +193,93 @@ describe("ActivityOutputCacheRepository", () => {
           expiresAt: new Date(now.getTime() + ttlMs),
         },
       });
+    });
+  });
+
+  describe("findMostRecentFresh", () => {
+    it("returns the row with the highest createdAt where expiresAt > now (hit)", async () => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-05-24T13:00:00Z"));
+      const row = baseRow({
+        createdAt: new Date("2026-05-24T12:30:00Z"),
+        expiresAt: new Date("2026-05-25T12:30:00Z"),
+      });
+      mockPrismaClient.activityOutputCache.findFirst.mockResolvedValue(row);
+
+      const result = await repository.findMostRecentFresh({
+        workflowLineageId: SAMPLE_KEY.workflowLineageId,
+        nodeId: SAMPLE_KEY.nodeId,
+      });
+
+      expect(result).toEqual(row);
+      expect(
+        mockPrismaClient.activityOutputCache.findFirst,
+      ).toHaveBeenCalledWith({
+        where: {
+          workflowLineageId: SAMPLE_KEY.workflowLineageId,
+          nodeId: SAMPLE_KEY.nodeId,
+          expiresAt: { gt: new Date("2026-05-24T13:00:00Z") },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    });
+
+    it("returns null when no fresh row matches", async () => {
+      mockPrismaClient.activityOutputCache.findFirst.mockResolvedValue(null);
+
+      const result = await repository.findMostRecentFresh({
+        workflowLineageId: SAMPLE_KEY.workflowLineageId,
+        nodeId: SAMPLE_KEY.nodeId,
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("findInRunWindow", () => {
+    it("returns the most recent fresh row whose createdAt falls within [startedAt, endedAt + 5s slack]", async () => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-05-24T13:00:00Z"));
+      const startedAt = new Date("2026-05-24T12:00:00Z");
+      const endedAt = new Date("2026-05-24T12:00:30Z");
+      const row = baseRow({
+        createdAt: new Date("2026-05-24T12:00:31Z"), // inside slack
+      });
+      mockPrismaClient.activityOutputCache.findFirst.mockResolvedValue(row);
+
+      const result = await repository.findInRunWindow({
+        workflowLineageId: SAMPLE_KEY.workflowLineageId,
+        nodeId: SAMPLE_KEY.nodeId,
+        startedAt,
+        endedAt,
+      });
+
+      expect(result).toEqual(row);
+      expect(
+        mockPrismaClient.activityOutputCache.findFirst,
+      ).toHaveBeenCalledWith({
+        where: {
+          workflowLineageId: SAMPLE_KEY.workflowLineageId,
+          nodeId: SAMPLE_KEY.nodeId,
+          expiresAt: { gt: new Date("2026-05-24T13:00:00Z") },
+          createdAt: {
+            gte: startedAt,
+            lte: new Date(endedAt.getTime() + 5_000),
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    });
+
+    it("returns null when no row is in the window", async () => {
+      mockPrismaClient.activityOutputCache.findFirst.mockResolvedValue(null);
+
+      const result = await repository.findInRunWindow({
+        workflowLineageId: SAMPLE_KEY.workflowLineageId,
+        nodeId: SAMPLE_KEY.nodeId,
+        startedAt: new Date("2026-05-24T12:00:00Z"),
+        endedAt: new Date("2026-05-24T12:00:30Z"),
+      });
+
+      expect(result).toBeNull();
     });
   });
 

@@ -6,39 +6,39 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Component signature + base render
+- [x] **Scenario 1**: Component signature + base render
     - **Given** `apps/frontend/src/features/workflow-builder/preview/OcrResultPreview.tsx` (new file)
     - **When** read
     - **Then** it exports `function OcrResultPreview({ value }: { value: unknown })`
     - **And** when `value` is an object (typically `{ pages: [{ fields: { ... } }] }` OR a flat `{ field1: val1, ... }`), it renders the K/V table
     - **And** when `value` is `null` / undefined / non-object, it renders "No OCR data"
 
-- [ ] **Scenario 2**: Top-level keys render as table rows
+- [x] **Scenario 2**: Top-level keys render as table rows
     - **Given** an `OcrFields` value `{ invoiceNumber: "INV-001", date: "2026-05-24", total: 142.50, vendor: { name: "Acme", id: "v-7" } }`
     - **When** rendered
     - **Then** a Mantine `<Table verticalSpacing="xs" striped>` shows 4 rows: invoiceNumber / "INV-001", date / "2026-05-24", total / "142.50", vendor / "{...}"
     - **And** primitives (strings, numbers, booleans) render verbatim; nested objects show as `{...}` with a "View raw" link
 
-- [ ] **Scenario 3**: One-level nesting expands inline
+- [x] **Scenario 3**: One-level nesting expands inline
     - **Given** a nested value like `vendor: { name: "Acme", id: "v-7" }`
     - **When** rendered
     - **Then** the row's value cell shows `name: Acme · id: v-7` as a compact inline summary (when the nested object has ≤ 4 keys and all values are primitives)
     - **And** if the nested object has > 4 keys OR contains another nested object, it collapses to `{...}` with the "View raw" link
 
-- [ ] **Scenario 4**: "View raw" modal
+- [x] **Scenario 4**: "View raw" modal
     - **Given** a value cell collapsed to `{...}`
     - **When** the "View raw" link is clicked
     - **Then** a Mantine `<Modal size="md">` opens with a `<JsonInput readOnly autosize maxRows={30}>` showing the full nested JSON
     - **And** the modal title reflects the parent key (e.g., "vendor — full content")
 
-- [ ] **Scenario 5**: Long string values truncate with a tooltip
+- [x] **Scenario 5**: Long string values truncate with a tooltip
     - **Given** a string value longer than 60 characters
     - **When** rendered
     - **Then** the value cell shows the first 60 chars + ellipsis
     - **And** a Mantine `<Tooltip multiline w={400}>` on hover shows the full value
     - **And** a small "Copy" button next to the truncated value copies the full string to clipboard
 
-- [ ] **Scenario 6**: Component test
+- [x] **Scenario 6**: Component test
     - **Given** `apps/frontend/src/features/workflow-builder/preview/OcrResultPreview.test.tsx`
     - **When** tests run
     - **Then** at least 5 cases pass: flat K/V renders rows verbatim, primitives format correctly (number, boolean), one-level nesting inlines, deep nesting collapses to {...}, long string truncates with tooltip

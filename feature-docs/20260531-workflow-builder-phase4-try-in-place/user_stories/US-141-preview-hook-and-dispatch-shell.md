@@ -6,26 +6,26 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `useActivityOutputPreview` hook signature
+- [x] **Scenario 1**: `useActivityOutputPreview` hook signature
     - **Given** `apps/frontend/src/features/workflow-builder/preview/useActivityOutputPreview.ts` (new file)
     - **When** read
     - **Then** it exports `function useActivityOutputPreview(workflowId: string, nodeId: string, runId?: string): { data: ActivityOutputPreview | null, isLoading: boolean, error: ApiError | null }`
     - **And** uses `queryKey: ["preview-cache", workflowId, nodeId, runId ?? "latest"]`
     - **And** TanStack caches results — re-renders of the same triple don't refetch
 
-- [ ] **Scenario 2**: Debounced re-fetch on status transition
+- [x] **Scenario 2**: Debounced re-fetch on status transition
     - **Given** the hook consumed by a node renderer
     - **When** the node's status transitions from "running" to "succeeded"/"skipped"/"failed"
     - **Then** the hook re-fetches once (status transition triggers an `invalidateQueries` on the preview-cache key, debounced by 250ms to coalesce rapid transitions)
     - **And** the canvas-side coordinator (a small effect inside `RunStateContext`'s consumer) fires this invalidation
 
-- [ ] **Scenario 3**: 404 maps to `data: null`, not error
+- [x] **Scenario 3**: 404 maps to `data: null`, not error
     - **Given** the backend returns 404
     - **When** the hook receives the response
     - **Then** `data` is `null` AND `error` is `null` (the hook normalises 404 as "no preview yet")
     - **And** the widget consumer treats `data === null` as "render the cache-evicted-or-not-yet-run state" (US-155 owns the evicted-specific Alert; pre-execution is no-render)
 
-- [ ] **Scenario 4**: `PreviewWidget` dispatch shell
+- [x] **Scenario 4**: `PreviewWidget` dispatch shell
     - **Given** `apps/frontend/src/features/workflow-builder/preview/PreviewWidget.tsx`
     - **When** read
     - **Then** it exports `function PreviewWidget({ workflowId, nodeId, runId? }: { workflowId: string; nodeId: string; runId?: string })`
@@ -36,14 +36,14 @@
         - `"Classification"` → `<ClassificationPreview value={...} />`
         - any other → `null` (no preview pane — keeps canvas uncluttered)
 
-- [ ] **Scenario 5**: Loading + error states
+- [x] **Scenario 5**: Loading + error states
     - **Given** the dispatch shell
     - **When** `isLoading` is true → render `<Skeleton h={120} radius="sm" />`
     - **When** `error` is set → render a small `<Alert color="red" variant="light">Preview unavailable</Alert>`
     - **When** `data === null` AND `runId` was passed → render the cache-evicted state (delegated to US-155's component)
     - **When** `data === null` AND no `runId` → render `null` (silent — node hasn't run yet)
 
-- [ ] **Scenario 6**: Every node renderer mounts `<PreviewWidget>`
+- [x] **Scenario 6**: Every node renderer mounts `<PreviewWidget>`
     - **Given** the existing node renderers (Activity, Source, Switch, Map, Join, ChildWorkflow, PollUntil, HumanGate)
     - **When** they're read after the change
     - **Then** each renderer mounts `<PreviewWidget workflowId={...} nodeId={node.id} runId={activeRunId} />` below the node's main body (inside the renderer's `<div>` but below the title + handles)

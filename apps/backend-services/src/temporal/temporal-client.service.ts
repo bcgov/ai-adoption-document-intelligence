@@ -419,6 +419,36 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Resolve the `startedAt + endedAt` execution window for a Temporal
+   * workflow run by calling `WorkflowHandle.describe()`.
+   *
+   * For in-flight runs, `endedAt` is `null` — callers must substitute the
+   * current time as the upper bound when querying the cache.
+   *
+   * Errors are propagated unmodified (notably `WorkflowNotFoundError`
+   * from `@temporalio/client`) so the controller can map them to HTTP
+   * semantics in the same way `queryNodeStatuses` does.
+   *
+   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L20,
+   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §2.5.
+   *
+   * @param workflowId Temporal workflow execution id (runId in the canvas)
+   * @returns `{ startedAt, endedAt }` where `endedAt` is `null` for runs
+   *          that have not yet closed.
+   */
+  async getRunWindow(
+    workflowId: string,
+  ): Promise<{ startedAt: Date; endedAt: Date | null }> {
+    this.ensureClientInitialized();
+    const handle = this.client!.workflow.getHandle(workflowId);
+    const description = await handle.describe();
+    return {
+      startedAt: description.startTime,
+      endedAt: description.closeTime ?? null,
+    };
+  }
+
+  /**
    * Cancel a workflow execution
    * @param workflowId Workflow execution ID
    * @param mode Cancellation mode: 'graceful' (wait for current activity) or 'immediate' (cancel immediately)

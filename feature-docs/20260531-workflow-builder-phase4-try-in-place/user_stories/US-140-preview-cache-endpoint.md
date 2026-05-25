@@ -6,39 +6,39 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Endpoint route + query parameters
+- [x] **Scenario 1**: Endpoint route + query parameters
     - **Given** `apps/backend-services/src/workflows/workflow.controller.ts`
     - **When** read after the change
     - **Then** a new `@Get(":id/preview-cache")` route exists
     - **And** it accepts `@Query("nodeId") nodeId: string` (required) and `@Query("runId") runId?: string` (optional)
     - **And** the route inherits the existing per-workflow membership check
 
-- [ ] **Scenario 2**: Default (no `runId`) returns most recent fresh row
+- [x] **Scenario 2**: Default (no `runId`) returns most recent fresh row
     - **Given** the endpoint called WITHOUT `runId`
     - **When** the handler runs
     - **Then** it calls a new repo method `findMostRecentFresh({ workflowLineageId, nodeId })` that returns the row with the highest `createdAt` where `expiresAt > now()`
     - **And** the result is shaped as `ActivityOutputPreviewDto { outputCtx, outputKind, createdAt, expiresAt }`
 
-- [ ] **Scenario 3**: `runId`-scoped returns the row from that run's execution window
+- [x] **Scenario 3**: `runId`-scoped returns the row from that run's execution window
     - **Given** the endpoint called WITH `runId`
     - **When** the handler runs
     - **Then** it first fetches the run's `startedAt + endedAt` window from Temporal (via the same client used by US-136)
     - **And** queries for the cache row matching `(workflowLineageId, nodeId)` where `createdAt` is within `[startedAt, endedAt + 5s slack]`
     - **And** returns the most recent matching row (handles re-execution corner cases) as `ActivityOutputPreviewDto`
 
-- [ ] **Scenario 4**: 404 on no fresh row
+- [x] **Scenario 4**: 404 on no fresh row
     - **Given** a node with no cache row, OR rows all past `expiresAt`, OR `runId`-scoped query with no matches
     - **When** the endpoint is hit
     - **Then** HTTP 404 with `{ message: "No cached output for this node" }`
     - **And** the consumer treats 404 as "show cache-evicted state" (US-155)
 
-- [ ] **Scenario 5**: Full Swagger documentation
+- [x] **Scenario 5**: Full Swagger documentation
     - **Given** the new route
     - **When** the OpenAPI spec is regenerated
     - **Then** the endpoint declares `@ApiOperation`, `@ApiOkResponse({ type: ActivityOutputPreviewDto })`, `@ApiNotFoundResponse`, `@ApiUnauthorizedResponse`, `@ApiForbiddenResponse`, `@ApiQuery({ name: "nodeId", required: true })`, `@ApiQuery({ name: "runId", required: false })`
     - **And** the new `ActivityOutputPreviewDto` class has `@ApiProperty` on `outputCtx` (Record), `outputKind` (string-or-null), `createdAt` (string), `expiresAt` (string)
 
-- [ ] **Scenario 6**: Controller spec covers default + scoped + 404 paths
+- [x] **Scenario 6**: Controller spec covers default + scoped + 404 paths
     - **Given** the controller spec file
     - **When** tests run
     - **Then** at least 4 cases pass: default returns most recent, scoped returns row in window, scoped no-match returns 404, runId on non-existent run returns 404

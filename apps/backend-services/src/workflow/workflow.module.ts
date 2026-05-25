@@ -1,5 +1,6 @@
 import { forwardRef, Module } from "@nestjs/common";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
+import { CacheModule } from "@/cache/cache.module";
 import { DatabaseModule } from "@/database/database.module";
 import { TemporalModule } from "@/temporal/temporal.module";
 import { SourceUploadService } from "./source-upload.service";
@@ -11,6 +12,7 @@ import { WorkflowService } from "./workflow.service";
     DatabaseModule,
     forwardRef(() => TemporalModule),
     BlobStorageModule,
+    CacheModule,
   ],
   controllers: [WorkflowController],
   providers: [WorkflowService, SourceUploadService],

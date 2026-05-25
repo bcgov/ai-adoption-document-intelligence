@@ -30,6 +30,7 @@ import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { memo } from "react";
 
 import { NodeTypePill, type NodeTypePillEntry } from "../canvas/NodeTypePill";
+import { NodePreviewOverlay } from "../preview/PreviewWidget";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
 import {
   getSourceVisualHints,
@@ -192,6 +193,7 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
           {labelOverride}
         </div>
       )}
+      <NodePreviewOverlay nodeId={id} />
       {/*
         Output handle — coloured by the catalog entry's `outputKind`.
         Hover tooltip reads the kind literal verbatim ("Document" /

@@ -65,6 +65,7 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "../palette/control-flow-skeletons";
+import { NodePreviewOverlay } from "../preview/PreviewWidget";
 import { computeActiveEdges } from "../run/active-edges";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
 import { useOptionalRunState } from "../run/RunStateContext";
@@ -609,6 +610,7 @@ const ActivityNodeRenderer = memo(
           )}
         </div>
         <div style={{ fontWeight: 600 }}>{data.label}</div>
+        <NodePreviewOverlay nodeId={id} />
         <NodeHandles
           nodeId={id}
           errorPolicy={data.errorPolicy}
@@ -749,6 +751,7 @@ const ControlFlowRectangleRenderer = memo(
         <NodeStatusBadgeOverlay nodeId={id} />
         {renderControlFlowHeader({ id, data, selected, hints })}
         <div style={{ fontWeight: 600 }}>{data.label}</div>
+        <NodePreviewOverlay nodeId={id} />
         <NodeHandles
           nodeId={id}
           errorPolicy={data.errorPolicy}
@@ -856,6 +859,21 @@ const SwitchNodeRenderer = memo(
           onBadgeClick={data.onBadgeClick}
         />
         <NodeStatusBadgeOverlay nodeId={id} />
+        {/* Preview pane sits beneath the diamond's fixed-size box so it
+            doesn't clip with the rotated visual layer. */}
+        <div
+          data-testid={`switch-preview-anchor-${id}`}
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: "50%",
+            transform: "translate(-50%, 6px)",
+            minWidth: 200,
+            zIndex: 1,
+          }}
+        >
+          <NodePreviewOverlay nodeId={id} />
+        </div>
         <NodeHandles
           nodeId={id}
           onSourceHandleEnter={data.onSourceHandleEnter}

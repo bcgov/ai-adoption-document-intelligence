@@ -46,6 +46,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
 import { GroupRole } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
@@ -56,6 +57,7 @@ import {
   buildUploadSpec,
 } from "./build-run-spec";
 import { deriveInputSchema } from "./derive-input-schema";
+import { ActivityOutputPreviewDto } from "./dto/activity-output-preview.dto";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
   CacheHitDto,
@@ -113,6 +115,7 @@ export class WorkflowController {
     private readonly temporalClient: TemporalClientService,
     private readonly logger: AppLoggerService,
     private readonly sourceUploadService: SourceUploadService,
+    private readonly activityOutputCache: ActivityOutputCacheRepository,
   ) {}
 
   @Get()
@@ -572,6 +575,96 @@ export class WorkflowController {
       }
       throw error;
     }
+  }
+
+  @Get(":id/preview-cache")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Get the cached `ActivityOutputCache` row for a node within a workflow lineage (Phase 4 preview-cache read endpoint).",
+    description:
+      "Without `runId`, returns the most recent fresh (`expiresAt > now`) cache row for `(workflowLineageId, nodeId)`. With `runId`, returns the row whose `createdAt` falls within the run's execution window (with a 5s slack on the upper bound). 404 when no fresh row matches.",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiQuery({
+    name: "nodeId",
+    required: true,
+    description: "ID of the node within the workflow's graph.",
+  })
+  @ApiQuery({
+    name: "runId",
+    required: false,
+    description:
+      "Optional Temporal workflow execution id. When supplied, scopes the lookup to the row written during that run's execution window.",
+  })
+  @ApiOkResponse({
+    description:
+      "The cached output row, shaped for the preview widget. Cache rows past `expiresAt` are NOT returned even though they may still be in the database until GC — the consumer treats 404 as a cache-evicted state.",
+    type: ActivityOutputPreviewDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "No fresh cache row matches. Body: `{ message: 'No cached output for this node' }`. Also returned when `runId` points to a non-existent Temporal execution.",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getPreviewCache(
+    @Param("id") id: string,
+    @Query("nodeId") nodeId: string,
+    @Query("runId") runId: string | undefined,
+    @Req() req: Request,
+  ): Promise<ActivityOutputPreviewDto> {
+    if (!nodeId) {
+      throw new BadRequestException(
+        "`nodeId` query parameter is required for the preview-cache endpoint.",
+      );
+    }
+
+    const wf = await this.workflowService.resolveLineageAndVersion(id);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    let row: Awaited<
+      ReturnType<ActivityOutputCacheRepository["findMostRecentFresh"]>
+    > = null;
+
+    if (runId === undefined || runId === "") {
+      row = await this.activityOutputCache.findMostRecentFresh({
+        workflowLineageId: id,
+        nodeId,
+      });
+    } else {
+      let window: { startedAt: Date; endedAt: Date | null };
+      try {
+        window = await this.temporalClient.getRunWindow(runId);
+      } catch (error) {
+        if (error instanceof WorkflowNotFoundError) {
+          throw new NotFoundException({
+            message: "No cached output for this node",
+          });
+        }
+        throw error;
+      }
+
+      row = await this.activityOutputCache.findInRunWindow({
+        workflowLineageId: id,
+        nodeId,
+        startedAt: window.startedAt,
+        endedAt: window.endedAt ?? new Date(),
+      });
+    }
+
+    if (row === null) {
+      throw new NotFoundException({
+        message: "No cached output for this node",
+      });
+    }
+
+    return {
+      outputCtx: row.outputCtx as Record<string, unknown>,
+      outputKind: row.outputKind,
+      createdAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+    };
   }
 
   @Get(":id")
