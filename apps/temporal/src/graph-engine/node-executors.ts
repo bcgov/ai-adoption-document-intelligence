@@ -453,16 +453,21 @@ async function executeHumanGateNode(
   // correct state without requiring a live Temporal query on every poll.
   const documentId =
     typeof state.ctx.documentId === "string" ? state.ctx.documentId : undefined;
-  if (documentId) {
-    const statusProxy = proxyActivities<StatusActivities>({
-      startToCloseTimeout: "30s",
-      retry: { maximumAttempts: 5 },
-    });
-    await statusProxy["document.updateStatus"]({
-      documentId,
-      status: "needs_validation",
+  if (!documentId) {
+    throw ApplicationFailure.create({
+      type: "GRAPH_EXECUTION_ERROR",
+      message: `HumanGate node ${node.id} requires ctx.documentId but it is missing or not a string`,
+      nonRetryable: true,
     });
   }
+  const statusProxy = proxyActivities<StatusActivities>({
+    startToCloseTimeout: "30s",
+    retry: { maximumAttempts: 5 },
+  });
+  await statusProxy["document.updateStatus"]({
+    documentId,
+    status: "needs_validation",
+  });
 
   let payload: Record<string, unknown> | null = null;
 

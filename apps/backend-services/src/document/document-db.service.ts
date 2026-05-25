@@ -140,6 +140,55 @@ export class DocumentDbService {
   }
 
   /**
+   * Returns document counts grouped by status, plus a grand total.
+   *
+   * @param groupIds - Optional list of group IDs to scope the counts.
+   * @returns An object with a count per `DocumentStatus` value and a `total`.
+   */
+  async getDocumentStatusCounts(groupIds?: string[]): Promise<{
+    total: number;
+    pre_ocr: number;
+    ongoing_ocr: number;
+    completed_ocr: number;
+    needs_validation: number;
+    failed: number;
+    rejected_by_human: number;
+    conversion_failed: number;
+  }> {
+    const where = groupIds ? { group_id: { in: groupIds } } : undefined;
+    this.logger.debug("Getting document status counts", { groupIds });
+    try {
+      const [rows, total] = await Promise.all([
+        this.prisma.document.groupBy({
+          by: ["status"],
+          where,
+          _count: { _all: true },
+        }),
+        this.prisma.document.count({ where }),
+      ]);
+      const counts: Record<string, number> = {};
+      for (const row of rows) {
+        counts[row.status] = row._count._all;
+      }
+      return {
+        total,
+        pre_ocr: counts["pre_ocr"] ?? 0,
+        ongoing_ocr: counts["ongoing_ocr"] ?? 0,
+        completed_ocr: counts["completed_ocr"] ?? 0,
+        needs_validation: counts["needs_validation"] ?? 0,
+        failed: counts["failed"] ?? 0,
+        rejected_by_human: counts["rejected_by_human"] ?? 0,
+        conversion_failed: counts["conversion_failed"] ?? 0,
+      };
+    } catch (error) {
+      this.logger.error("Failed to get document status counts", {
+        error: getErrorMessage(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Updates a document by its ID.
    *
    * @param id - The unique identifier of the document to update.

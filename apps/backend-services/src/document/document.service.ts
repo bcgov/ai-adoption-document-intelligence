@@ -313,6 +313,16 @@ export class DocumentService {
   }
 
   /**
+   * Returns document counts grouped by status, plus a grand total.
+   *
+   * @param groupIds - Optional list of group IDs to scope the counts.
+   * @returns Per-status counts and a grand total.
+   */
+  async getDocumentStatusCounts(groupIds?: string[]) {
+    return this.documentDb.getDocumentStatusCounts(groupIds);
+  }
+
+  /**
    * Returns the most recent OCR result for a document.
    *
    * @param documentId - The document ID.

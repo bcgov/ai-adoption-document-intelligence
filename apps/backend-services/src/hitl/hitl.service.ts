@@ -24,7 +24,10 @@ import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
-import { ReviewStatusFilter } from "./dto/status-constants.dto";
+import {
+  DocumentStatusFilter,
+  ReviewStatusFilter,
+} from "./dto/status-constants.dto";
 import { ReviewDbService } from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
 
@@ -87,7 +90,15 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
+    const statusesFilter: DocumentStatus[] | undefined =
+      filters.status === DocumentStatusFilter.COMPLETED_OCR
+        ? [DocumentStatus.completed_ocr]
+        : filters.status === DocumentStatusFilter.NEEDS_VALIDATION
+          ? [DocumentStatus.needs_validation]
+          : undefined;
+
     const documents = (await this.reviewDb.findReviewQueue({
+      statuses: statusesFilter,
       modelId: filters.modelId,
       maxConfidence: filters.maxConfidence ?? 0.9,
       limit: filters.limit ?? 50,

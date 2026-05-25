@@ -192,7 +192,12 @@ describe("ReviewDbService", () => {
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            status: DocumentStatus.completed_ocr,
+            status: {
+              in: [
+                DocumentStatus.completed_ocr,
+                DocumentStatus.needs_validation,
+              ],
+            },
           }),
           take: 50,
           skip: 0,

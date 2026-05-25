@@ -67,3 +67,31 @@ export class PaginatedDocumentsDto {
   @ApiProperty({ description: "Number of items skipped (0-based)" })
   offset!: number;
 }
+
+export class DocumentStatusCountsDto {
+  @ApiProperty({ description: "Total document count across all statuses" })
+  total!: number;
+
+  @ApiProperty({ description: "Documents waiting to start OCR" })
+  pre_ocr!: number;
+
+  @ApiProperty({ description: "Documents currently being processed" })
+  ongoing_ocr!: number;
+
+  @ApiProperty({ description: "Documents that completed OCR successfully" })
+  completed_ocr!: number;
+
+  @ApiProperty({
+    description: "Documents paused awaiting human review in a workflow",
+  })
+  needs_validation!: number;
+
+  @ApiProperty({ description: "Documents that failed processing" })
+  failed!: number;
+
+  @ApiProperty({ description: "Documents rejected by a human reviewer" })
+  rejected_by_human!: number;
+
+  @ApiProperty({ description: "Documents that failed PDF conversion" })
+  conversion_failed!: number;
+}

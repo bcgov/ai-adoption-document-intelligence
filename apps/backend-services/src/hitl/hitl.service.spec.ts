@@ -180,7 +180,7 @@ describe("HitlService", () => {
       const result = await service.getQueue(filters);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        status: "completed_ocr",
+        statuses: undefined,
         modelId: undefined,
         maxConfidence: 0.9,
         limit: 50,
@@ -272,7 +272,7 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: undefined,
+          statuses: undefined,
         }),
       );
     });
@@ -297,7 +297,7 @@ describe("HitlService", () => {
       await service.getQueue({});
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        status: "completed_ocr",
+        statuses: undefined,
         modelId: undefined,
         maxConfidence: 0.9,
         limit: 50,
@@ -350,7 +350,6 @@ describe("HitlService", () => {
       });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        status: "completed_ocr",
         limit: 1000,
         reviewStatus: "pending",
         groupIds: undefined,
@@ -379,7 +378,6 @@ describe("HitlService", () => {
       await service.getQueueStats(ReviewStatusFilter.REVIEWED);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        status: "completed_ocr",
         limit: 1000,
         reviewStatus: "reviewed",
         groupIds: undefined,
@@ -1195,7 +1193,7 @@ describe("HitlService", () => {
       ]);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        status: DocumentStatus.completed_ocr,
+        statuses: undefined,
         modelId: undefined,
         maxConfidence: 0.9,
         limit: 10,

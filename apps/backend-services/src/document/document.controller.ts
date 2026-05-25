@@ -43,6 +43,7 @@ import {
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import {
   DocumentDataDto,
+  DocumentStatusCountsDto,
   PaginatedDocumentsDto,
 } from "@/document/dto/document-data.dto";
 import {
@@ -68,6 +69,36 @@ export class DocumentController {
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
   ) {}
+
+  @Get("/stats")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Get document counts grouped by status" })
+  @ApiQuery({
+    name: "group_id",
+    required: false,
+    description: "Scope counts to a specific group ID.",
+  })
+  @ApiOkResponse({
+    description: "Per-status document counts and grand total",
+    type: DocumentStatusCountsDto,
+  })
+  @ApiForbiddenResponse({
+    description: "Access denied: not a member of the specified group",
+  })
+  async getDocumentStats(
+    @Req() req: Request,
+    @Query("group_id") groupId?: string,
+  ): Promise<DocumentStatusCountsDto> {
+    let groupIds: string[] | undefined;
+    if (groupId !== undefined) {
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
+      groupIds = [groupId];
+    } else {
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
+    }
+    return this.documentService.getDocumentStatusCounts(groupIds);
+  }
 
   @Get("/:documentId")
   @HttpCode(HttpStatus.OK)

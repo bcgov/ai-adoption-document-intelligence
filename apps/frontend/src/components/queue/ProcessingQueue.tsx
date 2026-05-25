@@ -26,6 +26,7 @@ import {
 } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useDeleteDocument } from "../../data/hooks/useDeleteDocument";
+import { useDocumentStats } from "../../data/hooks/useDocumentStats";
 import { useDocuments } from "../../data/hooks/useDocuments";
 import type { Document, DocumentStatus } from "../../shared/types";
 import { formatDate, formatFileSize } from "../../shared/utils";
@@ -109,6 +110,8 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
     });
   };
 
+  const { data: statsData } = useDocumentStats();
+
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];
     const needle = search.toLowerCase();
@@ -126,23 +129,6 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
       return matchesSearch && matchesStatus;
     });
   }, [documents, search, statusFilter]);
-
-  const stats = useMemo(() => {
-    const base = {
-      total,
-      completed: 0,
-      processing: 0,
-      needsValidation: 0,
-      failed: 0,
-    };
-    documents?.forEach((doc) => {
-      if (doc.status === "completed_ocr") base.completed += 1;
-      if (doc.status === "ongoing_ocr") base.processing += 1;
-      if (doc.status === "needs_validation") base.needsValidation += 1;
-      if (doc.status === "failed") base.failed += 1;
-    });
-    return base;
-  }, [documents, total]);
 
   return (
     <Paper shadow="sm" radius="md" p="lg" withBorder>
@@ -171,7 +157,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               Total
             </Text>
             <Text fw={600} size="lg">
-              {stats.total}
+              {statsData?.total ?? total}
             </Text>
           </Paper>
           <Paper radius="md" p="md" withBorder>
@@ -179,7 +165,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               Completed
             </Text>
             <Text fw={600} size="lg" c="green">
-              {stats.completed}
+              {statsData?.completed_ocr ?? 0}
             </Text>
           </Paper>
           <Paper radius="md" p="md" withBorder>
@@ -187,7 +173,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               Needs Review
             </Text>
             <Text fw={600} size="lg" c="orange">
-              {stats.needsValidation}
+              {statsData?.needs_validation ?? 0}
             </Text>
           </Paper>
           <Paper radius="md" p="md" withBorder>
@@ -195,7 +181,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               Processing / Failed
             </Text>
             <Text fw={600} size="lg">
-              {stats.processing} / {stats.failed}
+              {statsData?.ongoing_ocr ?? 0} / {statsData?.failed ?? 0}
             </Text>
           </Paper>
         </SimpleGrid>
@@ -337,22 +323,6 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               })}
             </Table.Tbody>
           </Table>
-        )}
-
-        {totalPages > 1 && (
-          <Group justify="center" mt="md">
-            <Pagination
-              value={page}
-              onChange={(p) => {
-                setPage(p);
-                setSearch("");
-                setStatusFilter("all");
-              }}
-              total={totalPages}
-              siblings={1}
-              boundaries={1}
-            />
-          </Group>
         )}
 
         {totalPages > 1 && (
