@@ -32,6 +32,13 @@ const mockDocuments = [
   { id: "doc-2", title: "Document 2", source: "api" },
 ];
 
+const mockPaginatedResponse = {
+  documents: mockDocuments,
+  total: 2,
+  limit: 50,
+  offset: 0,
+};
+
 /**
  * Creates a fresh QueryClient and returns a wrapper for renderHook.
  */
@@ -64,7 +71,7 @@ describe("useDocuments", () => {
       mockUseGroup.mockReturnValue({ activeGroup });
       vi.mocked(apiService.get).mockResolvedValue({
         success: true,
-        data: mockDocuments,
+        data: mockPaginatedResponse,
         message: undefined,
       });
 
@@ -77,21 +84,19 @@ describe("useDocuments", () => {
       });
 
       expect(apiService.get).toHaveBeenCalledWith(
-        `/documents?group_id=${activeGroup.id}`,
+        `/documents?group_id=${activeGroup.id}&limit=50&offset=0`,
       );
-      expect(result.current.data).toEqual(mockDocuments);
+      expect(result.current.data?.documents).toEqual(mockDocuments);
+      expect(result.current.data?.total).toBe(2);
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Scenario 2: Query key includes activeGroup.id for automatic refetch
-  // -------------------------------------------------------------------------
   describe("Scenario 2 – query key includes activeGroup.id", () => {
     it("uses activeGroup.id in the query key so switching groups triggers a refetch", async () => {
       mockUseGroup.mockReturnValue({ activeGroup });
       vi.mocked(apiService.get).mockResolvedValue({
         success: true,
-        data: mockDocuments,
+        data: mockPaginatedResponse,
         message: undefined,
       });
 
@@ -103,24 +108,19 @@ describe("useDocuments", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      // The React Query key must contain the group id so a group change
-      // invalidates the cache and triggers a new fetch.
-      expect(result.current.data).toEqual(mockDocuments);
+      expect(result.current.data?.documents).toEqual(mockDocuments);
       expect(apiService.get).toHaveBeenCalledWith(
-        `/documents?group_id=${activeGroup.id}`,
+        `/documents?group_id=${activeGroup.id}&limit=50&offset=0`,
       );
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Scenario 4: Fallback behaviour when no active group
-  // -------------------------------------------------------------------------
   describe("Scenario 4 – no group_id when activeGroup is null", () => {
     it("omits group_id from the API request when activeGroup is null", async () => {
       mockUseGroup.mockReturnValue({ activeGroup: null });
       vi.mocked(apiService.get).mockResolvedValue({
         success: true,
-        data: mockDocuments,
+        data: { ...mockPaginatedResponse, documents: mockDocuments },
         message: undefined,
       });
 
@@ -132,19 +132,18 @@ describe("useDocuments", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(apiService.get).toHaveBeenCalledWith("/documents");
+      expect(apiService.get).toHaveBeenCalledWith(
+        "/documents?limit=50&offset=0",
+      );
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Scenario 5: Empty list when active group has no documents
-  // -------------------------------------------------------------------------
   describe("Scenario 5 – empty list when active group has no documents", () => {
-    it("returns an empty array without error when the API returns no documents", async () => {
+    it("returns empty documents array without error when the API returns none", async () => {
       mockUseGroup.mockReturnValue({ activeGroup });
       vi.mocked(apiService.get).mockResolvedValue({
         success: true,
-        data: [],
+        data: { documents: [], total: 0, limit: 50, offset: 0 },
         message: undefined,
       });
 
@@ -156,24 +155,27 @@ describe("useDocuments", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data).toEqual([]);
+      expect(result.current.data?.documents).toEqual([]);
+      expect(result.current.data?.total).toBe(0);
       expect(result.current.isError).toBe(false);
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Source filtering
-  // -------------------------------------------------------------------------
   describe("Source filtering – excludes ground-truth-generation documents", () => {
     it("filters out documents whose source is not 'api'", async () => {
       mockUseGroup.mockReturnValue({ activeGroup });
       vi.mocked(apiService.get).mockResolvedValue({
         success: true,
-        data: [
-          { id: "doc-1", title: "Regular", source: "api" },
-          { id: "doc-2", title: "GT", source: "ground-truth-generation" },
-          { id: "doc-3", title: "Regular 2", source: "api" },
-        ],
+        data: {
+          documents: [
+            { id: "doc-1", title: "Regular", source: "api" },
+            { id: "doc-2", title: "GT", source: "ground-truth-generation" },
+            { id: "doc-3", title: "Regular 2", source: "api" },
+          ],
+          total: 3,
+          limit: 50,
+          offset: 0,
+        },
         message: undefined,
       });
 
@@ -185,16 +187,13 @@ describe("useDocuments", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data).toEqual([
+      expect(result.current.data?.documents).toEqual([
         { id: "doc-1", title: "Regular", source: "api" },
         { id: "doc-3", title: "Regular 2", source: "api" },
       ]);
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Error handling
-  // -------------------------------------------------------------------------
   describe("Error handling", () => {
     it("throws an error when the API response is not successful", async () => {
       mockUseGroup.mockReturnValue({ activeGroup });

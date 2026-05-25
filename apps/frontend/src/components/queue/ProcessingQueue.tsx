@@ -6,6 +6,7 @@ import {
   Group,
   Loader,
   Modal,
+  Pagination,
   Paper,
   Select,
   SimpleGrid,
@@ -52,17 +53,29 @@ const statusStyles: Record<string, { color: string; label: string }> = {
   rejected_by_human: { color: "red", label: "Rejected by Human" },
 };
 
+const PAGE_SIZE = 50;
+
 export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">(
     "all",
   );
-  const {
-    data: documents,
-    isLoading,
-    isFetching,
-    refetch,
-  } = useDocuments({ refetchInterval: 10000 });
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isFetching, refetch } = useDocuments({
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
+    refetchInterval: (query) => {
+      const docs = query.state.data?.documents;
+      return docs?.some(
+        (d) => d.status === "pre_ocr" || d.status === "ongoing_ocr",
+      )
+        ? 10_000
+        : 60_000;
+    },
+  });
+  const documents = data?.documents ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
   const deleteDocument = useDeleteDocument();
   const [docPendingDelete, setDocPendingDelete] = useState<Document | null>(
     null,
@@ -116,7 +129,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
 
   const stats = useMemo(() => {
     const base = {
-      total: documents?.length ?? 0,
+      total,
       completed: 0,
       processing: 0,
       needsValidation: 0,
@@ -129,7 +142,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
       if (doc.status === "failed") base.failed += 1;
     });
     return base;
-  }, [documents]);
+  }, [documents, total]);
 
   return (
     <Paper shadow="sm" radius="md" p="lg" withBorder>
@@ -324,6 +337,38 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               })}
             </Table.Tbody>
           </Table>
+        )}
+
+        {totalPages > 1 && (
+          <Group justify="center" mt="md">
+            <Pagination
+              value={page}
+              onChange={(p) => {
+                setPage(p);
+                setSearch("");
+                setStatusFilter("all");
+              }}
+              total={totalPages}
+              siblings={1}
+              boundaries={1}
+            />
+          </Group>
+        )}
+
+        {totalPages > 1 && (
+          <Group justify="center" mt="md">
+            <Pagination
+              value={page}
+              onChange={(p) => {
+                setPage(p);
+                setSearch("");
+                setStatusFilter("all");
+              }}
+              total={totalPages}
+              siblings={1}
+              boundaries={1}
+            />
+          </Group>
         )}
       </Stack>
 
