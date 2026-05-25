@@ -6,35 +6,35 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Document → `blob.storage_key` normalisation
+- [x] **Scenario 1**: Document → `blob.storage_key` normalisation
     - **Given** `packages/graph-workflow/src/cache/hash-artifact.ts`
     - **When** the new file is read
     - **Then** it exports `function hashArtifact(value: unknown): string`
     - **And** for a Document-shaped object `{ url: "https://...?token=A", blobKey: "abc/def.pdf", ... }`, `hashArtifact(v)` returns `sha256("Document:abc/def.pdf")` — URL ignored, blobKey is the content identifier
 
-- [ ] **Scenario 2**: Segment → `parentDocId + pageRange + polygon` normalisation
+- [x] **Scenario 2**: Segment → `parentDocId + pageRange + polygon` normalisation
     - **Given** the helper
     - **When** called with a Segment-shaped object `{ parentDocId: "doc-7", pageRange: { start: 2, end: 5 }, polygon: [{ x: 0, y: 0 }, ...], kind: "Text" }`
     - **Then** it returns `sha256("Segment:doc-7:2-5:" + stableJson(polygon))` — region identifiers replace URL-style identity
     - **And** the `kind` and `confidence` fields are NOT part of the hash (they're metadata, not identity)
 
-- [ ] **Scenario 3**: Arrays of artifacts hash element-wise
+- [x] **Scenario 3**: Arrays of artifacts hash element-wise
     - **Given** an array of Segments
     - **When** `hashArtifact([seg1, seg2])` is called
     - **Then** the result is `sha256("[" + hashArtifact(seg1) + "," + hashArtifact(seg2) + "]")` — order preserved
 
-- [ ] **Scenario 4**: Non-artifact values fall through to `stableJson` + sha256
+- [x] **Scenario 4**: Non-artifact values fall through to `stableJson` + sha256
     - **Given** the helper
     - **When** called with a primitive (string, number, boolean) or a plain object lacking artifact shape markers
     - **Then** it returns `sha256(stableJson(value))` — i.e., the standard hash path
 
-- [ ] **Scenario 5**: Artifact shape detection is strict
+- [x] **Scenario 5**: Artifact shape detection is strict
     - **Given** the helper
     - **When** called with an object that has `blobKey` but is missing other Document markers (e.g., just `{ blobKey: "x" }`)
     - **Then** it falls through to `stableJson` — the ambiguous case is not silently re-coerced to a Document hash
     - **And** the same applies for partial Segment shapes (missing `parentDocId` OR `polygon`)
 
-- [ ] **Scenario 6**: Unit tests + barrel re-export
+- [x] **Scenario 6**: Unit tests + barrel re-export
     - **Given** `packages/graph-workflow/src/cache/hash-artifact.test.ts`
     - **When** tests run
     - **Then** at least 10 cases pass covering the Document path, the Segment path, the array path, the primitive path, partial-shape rejection, and the empty-array edge case

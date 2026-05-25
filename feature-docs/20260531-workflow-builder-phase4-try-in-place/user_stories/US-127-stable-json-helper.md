@@ -6,37 +6,37 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Sorted-key serialisation for objects
+- [x] **Scenario 1**: Sorted-key serialisation for objects
     - **Given** `packages/graph-workflow/src/cache/stable-json.ts`
     - **When** the new file is read
     - **Then** it exports `function stableJson(value: unknown): string`
     - **And** `stableJson({ b: 2, a: 1 })` returns `'{"a":1,"b":2}'` regardless of insertion order
     - **And** nested objects sort recursively — `stableJson({ outer: { z: 1, a: 2 } })` returns `'{"outer":{"a":2,"z":1}}'`
 
-- [ ] **Scenario 2**: Arrays preserve order (not sorted)
+- [x] **Scenario 2**: Arrays preserve order (not sorted)
     - **Given** the helper
     - **When** called with an array
     - **Then** array element order is preserved verbatim — `stableJson([3, 1, 2])` returns `'[3,1,2]'`
     - **And** array elements are themselves canonicalised — `stableJson([{ b: 1, a: 2 }])` returns `'[{"a":2,"b":1}]'`
 
-- [ ] **Scenario 3**: Primitives + null + undefined
+- [x] **Scenario 3**: Primitives + null + undefined
     - **Given** the helper
     - **When** called with primitives
     - **Then** strings, numbers, booleans, and null serialise verbatim
     - **And** `undefined` at the top level returns `'null'` (matches `JSON.stringify` behaviour for parity)
     - **And** `undefined` as an object property is omitted (parity with `JSON.stringify`)
 
-- [ ] **Scenario 4**: No insignificant whitespace
+- [x] **Scenario 4**: No insignificant whitespace
     - **Given** the helper
     - **When** called with any value
     - **Then** output contains no extra whitespace (no spaces after `:` or `,`, no newlines)
 
-- [ ] **Scenario 5**: Unit tests cover the contract
+- [x] **Scenario 5**: Unit tests cover the contract
     - **Given** `packages/graph-workflow/src/cache/stable-json.test.ts`
     - **When** tests run via `npm test` in `packages/graph-workflow`
     - **Then** at least 8 cases pass covering: nested objects, mixed arrays/objects, deep nesting (≥3 levels), unicode keys, numeric keys (stringified), empty object, empty array, sentinel value (Symbol → omitted)
 
-- [ ] **Scenario 6**: Re-exported from package barrel
+- [x] **Scenario 6**: Re-exported from package barrel
     - **Given** `packages/graph-workflow/src/index.ts`
     - **When** read after the change
     - **Then** `stableJson` is exported from the barrel

@@ -6,40 +6,40 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `ActivityCatalogEntry.nonCacheable?` schema addition
+- [x] **Scenario 1**: `ActivityCatalogEntry.nonCacheable?` schema addition
     - **Given** `packages/graph-workflow/src/catalog/types.ts`
     - **When** the file is read after the change
     - **Then** `ActivityCatalogEntry` declares an optional `nonCacheable?: boolean` field
     - **And** JSDoc on the field cross-references TRY_IN_PLACE_DESIGN.md §2.6 with the rationale: "When true, this activity is never cached. Use for non-deterministic activities (timestamped, RNG-driven, IO-stateful)."
     - **And** existing catalog entries are unchanged (the field is absent and defaults to `false`)
 
-- [ ] **Scenario 2**: `ActivityOutputCacheRepository.findFresh()` reads the unique key
+- [x] **Scenario 2**: `ActivityOutputCacheRepository.findFresh()` reads the unique key
     - **Given** `apps/backend-services/src/cache/activity-output-cache.repository.ts`
     - **When** the new repo is read
     - **Then** it exposes `async findFresh({ workflowLineageId, nodeId, configHash, inputHash }): Promise<ActivityOutputCache | null>` that queries the unique index AND filters `expiresAt > now()`
     - **And** rows past their `expiresAt` are filtered out (return `null`) even though they may not yet have been GC'd
 
-- [ ] **Scenario 3**: `upsert()` writes or overwrites the row + sets expiresAt
+- [x] **Scenario 3**: `upsert()` writes or overwrites the row + sets expiresAt
     - **Given** the repo
     - **When** `upsert({ ..., outputCtx, outputKind, ttlMs })` is called
     - **Then** Prisma's `upsert` lands a new row OR overwrites the existing row matching the unique key
     - **And** `expiresAt = new Date(Date.now() + (ttlMs ?? DEFAULT_CACHE_TTL_MS))` (defaults to the 24h constant from US-126)
     - **And** the returned row reflects the persisted shape
 
-- [ ] **Scenario 4**: `deleteExpired()` for GC
+- [x] **Scenario 4**: `deleteExpired()` for GC
     - **Given** the repo
     - **When** `deleteExpired()` is called
     - **Then** Prisma `deleteMany` removes all rows where `expiresAt < now()`
     - **And** the returned count matches the number of deleted rows
     - **And** the operation uses the `(expiresAt)` index for efficiency
 
-- [ ] **Scenario 5**: Repo registered in a NestJS module + injectable
+- [x] **Scenario 5**: Repo registered in a NestJS module + injectable
     - **Given** the controller hosting the new Phase 4 endpoints (`WorkflowController`)
     - **When** the module is wired
     - **Then** `ActivityOutputCacheRepository` is provided by a new `CacheModule` (or co-located with `WorkflowsModule` — implementer choice) and injectable into the controller
     - **And** the existing `PrismaService` is reused (no new connection / pool)
 
-- [ ] **Scenario 6**: Unit tests cover repo paths
+- [x] **Scenario 6**: Unit tests cover repo paths
     - **Given** `apps/backend-services/src/cache/activity-output-cache.repository.spec.ts`
     - **When** tests run via `npm test`
     - **Then** at least 6 cases pass: findFresh-hit, findFresh-miss-expired, findFresh-miss-no-row, upsert-insert, upsert-overwrite, deleteExpired-counts-correctly

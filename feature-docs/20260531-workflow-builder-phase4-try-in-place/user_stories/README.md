@@ -79,11 +79,11 @@ After implementing the user story check it off at the bottom of this file.
 Phase 4 has a clear linear backbone (cache schema + helpers → worker decorator + wiring → status streaming → preview widgets → Try affordances → run history → verification). The dependency chain is mostly sequential across milestones; within most milestones, stories can land in parallel after their shared foundation lands. After Milestone A (US-127 → US-129 introduce new runtime exports from `@ai-di/graph-workflow`) and after Milestone B (US-134 sweeps the catalog), **ask Alex to restart Vite** — the package pre-bundle goes stale otherwise.
 
 ### Phase 1 — cache schema + shared hash helpers (Milestone A — Vite-restart point after US-130)
-- [ ] **US-126** (`ActivityOutputCache` Prisma model + migration) — DB schema; foundation for the repo + worker decorator
-- [ ] **US-127** (`stable-json.ts` canonical JSON helper) — pure shared helper; foundation for `configHash` + `inputHash`
-- [ ] **US-128** (`hash-artifact.ts` content-addressable artifact hash) — consumed by `computeInputHash`
-- [ ] **US-129** (`compute-input-hash.ts`) — depends on US-127 + US-128
-- [ ] **US-130** (`nonCacheable?` catalog field + `ActivityOutputCacheRepository`) — depends on US-126 (table) + sets up the consumer surface for Milestone B
+- [x] **US-126** (`ActivityOutputCache` Prisma model + migration) — DB schema; foundation for the repo + worker decorator
+- [x] **US-127** (`stable-json.ts` canonical JSON helper) — pure shared helper; foundation for `configHash` + `inputHash`
+- [x] **US-128** (`hash-artifact.ts` content-addressable artifact hash) — consumed by `computeInputHash`
+- [x] **US-129** (`compute-input-hash.ts`) — depends on US-127 + US-128
+- [x] **US-130** (`nonCacheable?` catalog field + `ActivityOutputCacheRepository`) — depends on US-126 (table) + sets up the consumer surface for Milestone B
 
 ### Phase 2 — worker decorator + catalog sweep + GC (Milestone B — depends on Phase 1; Vite-restart point after US-134)
 - [ ] **US-131** (cache proxy Temporal activities `findFresh` + `upsert`) — depends on US-130 (repo)

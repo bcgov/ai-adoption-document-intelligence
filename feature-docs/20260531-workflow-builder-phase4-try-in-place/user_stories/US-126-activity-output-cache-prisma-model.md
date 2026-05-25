@@ -6,31 +6,31 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New Prisma model with the required columns
+- [x] **Scenario 1**: New Prisma model with the required columns
     - **Given** `apps/backend-services/prisma/schema.prisma`
     - **When** the file is read after the change
     - **Then** it declares a new `ActivityOutputCache` model with columns: `id String @id @default(cuid())`, `workflowLineageId String`, `nodeId String`, `configHash String`, `inputHash String`, `outputCtx Json`, `outputKind String?`, `createdAt DateTime @default(now())`, `expiresAt DateTime`
     - **And** a `@@unique([workflowLineageId, nodeId, configHash, inputHash])` constraint guards key uniqueness
 
-- [ ] **Scenario 2**: Required indexes for read paths + GC
+- [x] **Scenario 2**: Required indexes for read paths + GC
     - **Given** the same model
     - **When** read
     - **Then** it carries three additional indexes: `@@index([workflowLineageId, nodeId])` (preview-cache reads), `@@index([expiresAt])` (GC sweep), `@@index([workflowLineageId, createdAt])` (run-history replay range queries)
 
-- [ ] **Scenario 3**: Migration generated and applied via `npm run db:generate`
+- [x] **Scenario 3**: Migration generated and applied via `npm run db:generate`
     - **Given** the schema change
     - **When** the developer runs `npm run db:generate` from `apps/backend-services`
     - **Then** a new Prisma migration is generated under `apps/backend-services/prisma/migrations/<timestamp>_add_activity_output_cache/` with `migration.sql` creating the table + indexes
     - **And** the Prisma client is regenerated for both `apps/backend-services/src/` and `apps/temporal/src/` (per `npm run db:generate`'s convention from CLAUDE.md)
     - **And** the migration applies cleanly against the dev DB
 
-- [ ] **Scenario 4**: Default TTL constant in shared package
+- [x] **Scenario 4**: Default TTL constant in shared package
     - **Given** `packages/graph-workflow/src/cache/`
     - **When** the new `constants.ts` is read
     - **Then** it exports `DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000` (24 hours)
     - **And** the value is re-exported from the package barrel
 
-- [ ] **Scenario 5**: Backend builds + tests green after migration
+- [x] **Scenario 5**: Backend builds + tests green after migration
     - **Given** the new model + migration
     - **When** `npm test` runs in `apps/backend-services`
     - **Then** existing tests pass unchanged (no regressions from schema change)
