@@ -6,8 +6,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
+import { DynamicNodeRepository } from "@/dynamic-nodes/dynamic-node.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { validateGraphConfig } from "./graph-schema-validator";
+import { validateGraphConfigWithDynamicNodes } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS = 3;
@@ -123,6 +124,7 @@ export class WorkflowService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly logger: AppLoggerService,
+    private readonly dynamicNodeRepository: DynamicNodeRepository,
   ) {}
 
   private get prisma() {
@@ -503,7 +505,11 @@ export class WorkflowService {
     actorId: string,
     dto: CreateWorkflowDto,
   ): Promise<WorkflowInfo> {
-    const validation = validateGraphConfig(dto.config);
+    const validation = await validateGraphConfigWithDynamicNodes(
+      dto.config,
+      dto.groupId,
+      this.dynamicNodeRepository,
+    );
     if (!validation.valid) {
       throw new BadRequestException({
         message: "Invalid workflow configuration",
@@ -587,7 +593,11 @@ export class WorkflowService {
     }
 
     if (dto.config) {
-      const validation = validateGraphConfig(dto.config);
+      const validation = await validateGraphConfigWithDynamicNodes(
+        dto.config,
+        existing.group_id,
+        this.dynamicNodeRepository,
+      );
       if (!validation.valid) {
         throw new BadRequestException({
           message: "Invalid workflow configuration",
@@ -747,7 +757,11 @@ export class WorkflowService {
     const baseLineageId = source.lineage.id;
     const candidateNameSuffix = source.lineage.headVersion.version_number + 1;
 
-    const validation = validateGraphConfig(candidateConfig);
+    const validation = await validateGraphConfigWithDynamicNodes(
+      candidateConfig,
+      source.lineage.group_id,
+      this.dynamicNodeRepository,
+    );
     if (!validation.valid) {
       throw new BadRequestException({
         message: "Invalid candidate workflow configuration",

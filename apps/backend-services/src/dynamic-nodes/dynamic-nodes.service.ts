@@ -1,12 +1,19 @@
 import {
+  ACTIVITY_CATALOG,
   type ActivityCatalogEntry,
   type DynamicNodePort,
   type DynamicNodeSignature,
+  type KindRef,
   type ParseError,
   parseDynamicNodeSignature,
   type TsCheckError,
 } from "@ai-di/graph-workflow";
 import { Injectable } from "@nestjs/common";
+import {
+  CATALOG_CACHE_MAX_ENTRIES,
+  CATALOG_CACHE_TTL_MS,
+  CatalogCache,
+} from "./catalog-cache";
 import { DenoRunnerClient } from "./deno-runner.client";
 import { DynamicNodeRepository } from "./dynamic-node.repository";
 
@@ -103,6 +110,15 @@ export class DynamicNodesService {
    */
   private readonly globalAllowlist: ReadonlySet<string>;
 
+  /**
+   * Per-group server-side cache of the merged activity catalog
+   * (US-173 Scenario 4). Keyed by `groupId`, TTL = 30 s, LRU-bounded.
+   * Read by `getMergedCatalogForGroup`; cleared by
+   * `invalidateGroupCatalogCache` (called from the controller's
+   * POST/PUT/DELETE handlers after the DB write commits).
+   */
+  private readonly catalogCache: CatalogCache;
+
   constructor(
     private readonly repository: DynamicNodeRepository,
     private readonly denoRunnerClient: DenoRunnerClient,
@@ -110,6 +126,69 @@ export class DynamicNodesService {
     this.globalAllowlist = parseGlobalAllowlist(
       process.env.DYNAMIC_NODE_ALLOW_NET,
     );
+    this.catalogCache = new CatalogCache(
+      CATALOG_CACHE_TTL_MS,
+      CATALOG_CACHE_MAX_ENTRIES,
+    );
+  }
+
+  /**
+   * Build the merged activity catalog for the calling group:
+   *  - All static catalog entries from `ACTIVITY_CATALOG`, in their
+   *    registered order.
+   *  - Followed by the group's non-deleted dynamic-node head versions,
+   *    sorted by `signature.name` ascending. Each dynamic entry carries
+   *    `activityType: "dyn.<slug>"`, `dynamicNodeSlug`,
+   *    `dynamicNodeVersion`, and `colorHint: "dyn"`.
+   *
+   * Caches the dynamic-entry list per group for 30 s (US-173 Scenario 4).
+   * The static-entry list is composed in every call — it's an
+   * in-memory `Record` lookup, so the marginal cost is negligible.
+   */
+  async getMergedCatalogForGroup(
+    groupId: string,
+  ): Promise<ActivityCatalogEntry[]> {
+    const staticEntries = Object.values(ACTIVITY_CATALOG);
+
+    const cached = this.catalogCache.get(groupId);
+    if (cached !== undefined) {
+      return [...staticEntries, ...cached];
+    }
+
+    const lineages = await this.repository.listForGroup(groupId);
+    const dynamicEntries: ActivityCatalogEntry[] = [];
+    for (const lineage of lineages) {
+      if (lineage.headVersion === null) {
+        // A non-deleted lineage with no head version shouldn't happen
+        // (the `createWithFirstVersion` transaction guarantees a head).
+        // Skip silently here — the lineage list endpoint already
+        // surfaces these as 500s in the management page.
+        continue;
+      }
+      const signature = lineage.headVersion
+        .signature as unknown as DynamicNodeSignature;
+      dynamicEntries.push(
+        signatureToCatalogEntry(signature, lineage.headVersion.versionNumber),
+      );
+    }
+    dynamicEntries.sort((a, b) => {
+      const aName = a.dynamicNodeSlug ?? "";
+      const bName = b.dynamicNodeSlug ?? "";
+      return aName.localeCompare(bName);
+    });
+
+    this.catalogCache.set(groupId, dynamicEntries);
+    return [...staticEntries, ...dynamicEntries];
+  }
+
+  /**
+   * Drop the catalog cache entry for the group. Called by the
+   * dynamic-nodes controller after every successful POST/PUT/DELETE so
+   * the next `getMergedCatalogForGroup` call re-reads the lineage
+   * table (US-173 Scenario 4).
+   */
+  invalidateGroupCatalogCache(groupId: string): void {
+    this.catalogCache.invalidate(groupId);
   }
 
   async publish(input: PublishInput): Promise<PublishResult> {
@@ -259,6 +338,57 @@ function portToDynamicPort(port: {
     kind: port.kind ?? "Artifact",
     required: port.required,
     description: port.description,
+  };
+}
+
+/**
+ * Build an `ActivityCatalogEntry` from a stored `DynamicNodeSignature` +
+ * the lineage's head version number. The inverse of `entryToSignature`.
+ *
+ * Surfaces:
+ *  - `activityType: "dyn.<slug>"` so the frontend's catalog lookup hits
+ *    the same key the workflow graph stores.
+ *  - `dynamicNodeSlug` + `dynamicNodeVersion` for the DYN pill,
+ *    settings panel, and binding-walk version-pin path.
+ *  - `colorHint: "dyn"` so the palette/canvas render dynamic entries
+ *    distinctly without inspecting the slug.
+ *
+ * Ports default `kind` to `"Artifact"` defensively (mirrors the
+ * dynamic-node parser's default — every published port has an explicit
+ * kind, but the type allows undefined for forward compatibility).
+ */
+export function signatureToCatalogEntry(
+  signature: DynamicNodeSignature,
+  versionNumber: number,
+): ActivityCatalogEntry {
+  return {
+    activityType: `dyn.${signature.name}`,
+    category: signature.category,
+    description: signature.description,
+    iconHint: "dyn",
+    colorHint: "dyn",
+    inputs: signature.inputs.map((port) => ({
+      name: port.name,
+      label: port.name,
+      description: port.description,
+      required: port.required,
+      // The signature's `kind` is a raw string validated against the
+      // ArtifactKind registry at publish time (US-159). It is safe to
+      // narrow to `KindRef` here.
+      kind: port.kind as KindRef,
+    })),
+    outputs: signature.outputs.map((port) => ({
+      name: port.name,
+      label: port.name,
+      description: port.description,
+      required: port.required,
+      kind: port.kind as KindRef,
+    })),
+    paramsSchema: signature.paramsSchema,
+    nonCacheable: !signature.deterministic,
+    dynamicNodeSlug: signature.name,
+    dynamicNodeVersion: versionNumber,
+    allowNet: signature.allowNet,
   };
 }
 

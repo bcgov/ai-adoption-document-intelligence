@@ -288,6 +288,30 @@ export class DynamicNodeRepository {
   }
 
   /**
+   * Fetch a specific `DynamicNodeVersion` row by `(dynamicNodeId,
+   * versionNumber)`. Used by the Phase 6 US-174 validator wrapper to
+   * resolve version-pinned `dyn.<slug>` references at workflow save
+   * time without paging the whole version history.
+   *
+   * Returns `null` when no row matches; the caller treats that as
+   * "version pin unresolved" and falls back to head's signature for
+   * validation purposes.
+   */
+  async findVersionByNumber(
+    dynamicNodeId: string,
+    versionNumber: number,
+  ): Promise<DynamicNodeVersion | null> {
+    return this.prismaService.prisma.dynamicNodeVersion.findUnique({
+      where: {
+        dynamicNodeId_versionNumber: {
+          dynamicNodeId,
+          versionNumber,
+        },
+      },
+    });
+  }
+
+  /**
    * Cheap aggregate: number of workflows referencing this slug via a
    * `dyn.<slug>` activity type. Implemented as a simple `LIKE` against
    * the JSON-stringified `workflow_versions.config` column per L25.

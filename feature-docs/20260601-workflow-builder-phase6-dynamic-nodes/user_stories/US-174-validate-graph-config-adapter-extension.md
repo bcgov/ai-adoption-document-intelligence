@@ -6,30 +6,30 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Adapter loads group dynamic nodes asynchronously
+- [x] **Scenario 1**: Adapter loads group dynamic nodes asynchronously
     - **Given** the existing `validateGraphConfig` entrypoint (from Phase 1B catalog adoption)
     - **When** validation runs for a workflow with `groupId`
     - **Then** before the binding-walk pass starts, the adapter loads the group's non-deleted dynamic nodes (head versions) via the same path US-173 uses
     - **And** the adapter exposes a unified `getEntry(type)` that resolves both `static-catalog` types and `dyn.*` types
 
-- [ ] **Scenario 2**: Binding-walk error wording unchanged for dynamic nodes
+- [x] **Scenario 2**: Binding-walk error wording unchanged for dynamic nodes
     - **Given** a workflow with a `dyn.uppercase-doc` node (outputs Document) feeding a `dyn.classify-segment` consumer (expects Segment)
     - **When** the workflow is saved (or `validateGraphConfig` is called directly)
     - **Then** the error is `"Input port \`segment\` (Segment) on node \`classify1\` reads from ctx key \`docOut\`, written by node \`uppercase1\` (Document) — Document not assignable to Segment"`
     - **And** the exact wording from Phase 3 US-093 is preserved — same `validateBindings` walker, just resolved through the merged catalog
 
-- [ ] **Scenario 3**: Cross-mix mismatches detected
+- [x] **Scenario 3**: Cross-mix mismatches detected
     - **Given** a workflow wiring a static `document.split` (outputs Segment[]) to a `dyn.process-segments` consumer (expects Document)
     - **When** validation runs
     - **Then** the error surfaces with the standard Phase 3 wording — proving the merge resolves both flavors uniformly
 
-- [ ] **Scenario 4**: Version-pin honored in validation
+- [x] **Scenario 4**: Version-pin honored in validation
     - **Given** a workflow with a node pinned to `dyn.my-node` `dynamicNodeVersion: 3` whose v3 declares Segment in/out, AND head (v5) declares Document in/out
     - **When** validation runs at save time
     - **Then** the adapter uses v3's signature (the pinned version) for the kind lookup, NOT head's
     - **And** if the consumer's port expects Segment, validation passes (head's change is irrelevant to the pinned node)
 
-- [ ] **Scenario 5**: Unit + integration tests
+- [x] **Scenario 5**: Unit + integration tests
     - **Given** `validateGraphConfig`'s test suite + a new `dynamic-node-binding-walk.spec.ts`
     - **When** the suites run
     - **Then** tests pass for: dynamic→dynamic mismatch, static→dynamic mismatch, dynamic→static mismatch, version-pin uses the pinned signature, soft-deleted lineage causes a validator error `"Workflow references deleted dynamic node 'dyn.<slug>'"`

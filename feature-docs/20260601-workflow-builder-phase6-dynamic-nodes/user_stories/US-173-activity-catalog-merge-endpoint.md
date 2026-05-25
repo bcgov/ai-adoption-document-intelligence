@@ -6,35 +6,35 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Endpoint extended to load + merge group dynamic nodes
+- [x] **Scenario 1**: Endpoint extended to load + merge group dynamic nodes
     - **Given** the existing `ActivityCatalogController` (or wherever `GET /api/activity-catalog` lives today)
     - **When** a request is made by a group with two non-deleted dynamic-node lineages
     - **Then** the response's `entries` array contains the 41 static entries followed by 2 entries with `dynamicNodeSlug` + `dynamicNodeVersion` + `colorHint: "dyn"` set
     - **And** static entries are first; dynamic entries follow, sorted by `signature.name` ascending
 
-- [ ] **Scenario 2**: Soft-deleted lineages are excluded
+- [x] **Scenario 2**: Soft-deleted lineages are excluded
     - **Given** a group with one soft-deleted lineage and one non-deleted lineage
     - **When** the request is made
     - **Then** only the non-deleted lineage appears in the response
 
-- [ ] **Scenario 3**: Cross-group isolation
+- [x] **Scenario 3**: Cross-group isolation
     - **Given** group A has two dynamic-node lineages, group B has zero
     - **When** a key scoped to group B requests the catalog
     - **Then** the response contains only static entries — no dynamic entries leak from group A
 
-- [ ] **Scenario 4**: Server-side 30 s cache per group
+- [x] **Scenario 4**: Server-side 30 s cache per group
     - **Given** a fresh server start
     - **When** the same group makes 100 catalog requests in 1 s
     - **Then** the DB is queried at most once for dynamic nodes during that burst (LRU-keyed by groupId)
     - **And** after a `POST` / `PUT` / `DELETE` to `/api/dynamic-nodes` for this group, the cache entry for the group is invalidated immediately (so the next read sees the latest)
 
-- [ ] **Scenario 5**: Response carries the existing shape — no breaking change
+- [x] **Scenario 5**: Response carries the existing shape — no breaking change
     - **Given** an existing frontend consumer that reads `entries[i].type` + `entries[i].inputs` + `entries[i].outputs` + `entries[i].paramsSchema`
     - **When** the new merged response is received
     - **Then** every static entry's shape is identical to before
     - **And** dynamic entries also expose `inputs`, `outputs`, `paramsSchema`, etc. — just with the three new optional fields populated
 
-- [ ] **Scenario 6**: Tests cover merge + isolation + cache invalidation
+- [x] **Scenario 6**: Tests cover merge + isolation + cache invalidation
     - **Given** the controller test suite
     - **When** the suite runs
     - **Then** tests pass for: merged response contains static + dynamic, soft-deleted lineages excluded, cross-group isolation, 30 s cache hit, cache busted on publish + delete

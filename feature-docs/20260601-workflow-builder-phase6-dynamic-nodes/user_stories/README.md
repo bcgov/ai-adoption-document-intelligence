@@ -112,9 +112,9 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [x] **US-172** (real `deno-runner` activity tests + README updates) — depends on US-170 + US-171; closes Milestone C
 
 ### Phase 4 — Catalog merge + binding-walk (Milestone D — depends on Phase 2)
-- [ ] **US-173** (`GET /api/activity-catalog` extension — merge + group cache) — depends on US-167 (list endpoint surface); also unblocks US-175
-- [ ] **US-174** (`validateGraphConfig` adapter extension for binding-walk) — depends on US-167 + US-161 (types); can land in parallel with US-173
-- [ ] **US-175** (`useActivityCatalog` hook hot-reload + invalidation) — depends on US-173
+- [x] **US-173** (`GET /api/activity-catalog` extension — merge + group cache) — depends on US-167 (list endpoint surface); also unblocks US-175
+- [x] **US-174** (`validateGraphConfig` adapter extension for binding-walk) — depends on US-167 + US-161 (types); can land in parallel with US-173
+- [x] **US-175** (`useActivityCatalog` hook hot-reload + invalidation) — depends on US-173
 
 ### Phase 5 — Frontend: DynamicNodeEditor component (Milestone E — depends on Phase 1 + Phase 2 + Phase 4)
 - [ ] **US-176** (`DynamicNodeEditor` shell + 4 TanStack hooks) — foundation for the pane stories

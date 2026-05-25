@@ -123,6 +123,9 @@ export class DynamicNodesController {
         mode: "create",
         actorUserId: req.resolvedIdentity?.userId,
       });
+      // US-173 Scenario 4 — bust the per-group catalog cache so the next
+      // `GET /api/activity-catalog` re-reads the lineage list.
+      this.dynamicNodesService.invalidateGroupCatalogCache(groupId);
       return {
         slug: result.slug,
         version: result.version,
@@ -184,6 +187,9 @@ export class DynamicNodesController {
         mode: "update",
         actorUserId: req.resolvedIdentity?.userId,
       });
+      // US-173 Scenario 4 — bust the per-group catalog cache so the next
+      // `GET /api/activity-catalog` re-reads the lineage list.
+      this.dynamicNodesService.invalidateGroupCatalogCache(groupId);
       return {
         slug: result.slug,
         version: result.version,
@@ -348,6 +354,9 @@ export class DynamicNodesController {
           `softDelete returned a row with null deletedAt for slug '${slug}'`,
         );
       }
+      // US-173 Scenario 4 — bust the per-group catalog cache so the next
+      // `GET /api/activity-catalog` re-reads the lineage list.
+      this.dynamicNodesService.invalidateGroupCatalogCache(groupId);
       return {
         slug,
         deletedAt: deletedAt.toISOString(),

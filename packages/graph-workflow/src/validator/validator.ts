@@ -14,6 +14,13 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md
  */
 
+import { getActivityCatalogEntry as defaultGetActivityCatalogEntry } from "../catalog";
+import { getSourceCatalogEntry as defaultGetSourceCatalogEntry } from "../catalog/source-catalog";
+import type {
+  FieldDescriptor,
+  SourceCatalogEntry,
+} from "../catalog/source-types";
+import type { ActivityCatalogEntry } from "../catalog/types";
 import type {
   ActivityNode,
   ConditionExpression,
@@ -29,14 +36,6 @@ import type {
   SwitchNode,
   ValueRef,
 } from "../types";
-import { getActivityCatalogEntry } from "../catalog";
-import {
-  getSourceCatalogEntry as defaultGetSourceCatalogEntry,
-} from "../catalog/source-catalog";
-import type {
-  FieldDescriptor,
-  SourceCatalogEntry,
-} from "../catalog/source-types";
 import type { KindRef } from "../types/artifacts";
 import { isAssignable } from "../types/subtype-check";
 import { getCtxRootKey, getRefCtxRootKey } from "./context-utils";
@@ -93,7 +92,32 @@ export interface ValidateGraphConfigOptions {
    * custom lookup function (mirrors the activity validator pattern
    * without requiring `jest.doMock` on the frozen catalog).
    */
-  getSourceCatalogEntry?: (sourceType: string) => SourceCatalogEntry | undefined;
+  getSourceCatalogEntry?: (
+    sourceType: string,
+  ) => SourceCatalogEntry | undefined;
+  /**
+   * Optional lookup for activity catalog entries. Defaults to the
+   * imported `getActivityCatalogEntry` against the package-level
+   * `ACTIVITY_CATALOG` (static catalog only).
+   *
+   * Phase 6 US-174: the backend wraps this to merge static catalog
+   * lookups with the workflow's group dynamic-node lineages so the
+   * binding-walk pass resolves `dyn.<slug>` port kinds the same way
+   * it resolves static activity port kinds. When the lookup returns
+   * `undefined`, the binding-walk leaves the port kind as
+   * unresolved (`Artifact` wildcard) — which is the current behaviour
+   * for static activities the static catalog doesn't know about.
+   *
+   * For `dyn.<slug>` lookups specifically, the backend wrapper also
+   * accepts an `ActivityNode` so it can honour the node's
+   * `dynamicNodeVersion?: number` pin (US-174 Scenario 4). The
+   * lookup falls back to the head version when no pin is set; the
+   * shared validator never needs to know which version was used.
+   */
+  getActivityCatalogEntry?: (
+    activityType: string,
+    node?: ActivityNode | PollUntilNode,
+  ) => ActivityCatalogEntry | undefined;
 }
 
 /**
@@ -139,6 +163,7 @@ export function validateGraphConfig(
   validateDagStructure(config, errors);
   validateReachability(config, errors);
   validateNodeGroups(config, errors);
+  validateDynamicNodeReferences(config, errors, options);
   walkCtxKeyBindings(config, errors, options);
   walkLibraryPaths(config, errors);
 
@@ -858,7 +883,12 @@ function validateReachability(
       const mapNode = node as MapNode;
       if (visited.has(node.id)) {
         if (mapNode.bodyEntryNodeId in config.nodes) {
-          markBodyNodesReachable(mapNode.bodyEntryNodeId, adjacency, visited, config);
+          markBodyNodesReachable(
+            mapNode.bodyEntryNodeId,
+            adjacency,
+            visited,
+            config,
+          );
         }
       }
     }
@@ -900,7 +930,12 @@ function markBodyNodesReachable(
         mapNode.bodyEntryNodeId in config.nodes &&
         !visited.has(mapNode.bodyEntryNodeId)
       ) {
-        markBodyNodesReachable(mapNode.bodyEntryNodeId, adjacency, visited, config);
+        markBodyNodesReachable(
+          mapNode.bodyEntryNodeId,
+          adjacency,
+          visited,
+          config,
+        );
       }
     }
   }
@@ -975,6 +1010,58 @@ function validateNodeGroups(
 }
 
 // ---------------------------------------------------------------------------
+// US-174: Dynamic-node reference resolution check
+//
+// Any node whose `activityType` starts with `dyn.` MUST resolve through
+// the injected `getActivityCatalogEntry` lookup. The backend wrapper
+// pre-loads the calling group's non-deleted dynamic-node lineages and
+// any version-pinned older snapshots before invoking the validator.
+// Failing to resolve a `dyn.<slug>` reference therefore means one of:
+//   - the lineage was soft-deleted (most common case after a publish/
+//     delete round-trip), or
+//   - the lineage never existed in this group (a workflow imported
+//     across groups, or a typo in the slug).
+//
+// Either way, the workflow can't run as-is. Surface the standard error
+// wording the design doc locks in (§7.2): `"Workflow references deleted
+// dynamic node 'dyn.<slug>'"`.
+// ---------------------------------------------------------------------------
+
+function validateDynamicNodeReferences(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+  options: ValidateGraphConfigOptions,
+): void {
+  // No injected catalog → no group context → static-only validation
+  // surface (tests + non-group call paths). Skip the check.
+  if (options.getActivityCatalogEntry === undefined) return;
+  const lookup = options.getActivityCatalogEntry;
+
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    let activityType: string | undefined;
+    let nodeForLookup: ActivityNode | PollUntilNode | undefined;
+    if (node.type === "activity") {
+      const activityNode = node as ActivityNode;
+      activityType = activityNode.activityType;
+      nodeForLookup = activityNode;
+    } else if (node.type === "pollUntil") {
+      const pollNode = node as PollUntilNode;
+      activityType = pollNode.activityType;
+      nodeForLookup = pollNode;
+    }
+    if (activityType === undefined) continue;
+    if (!activityType.startsWith("dyn.")) continue;
+    if (lookup(activityType, nodeForLookup) !== undefined) continue;
+
+    errors.push({
+      path: `nodes.${nodeId}.activityType`,
+      message: `Workflow references deleted dynamic node '${activityType}'`,
+      severity: "error",
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // US-093: Binding-walk type-check pass
 // ---------------------------------------------------------------------------
 
@@ -1011,14 +1098,17 @@ function resolvePortKind(
   direction: PortDirection,
   ctxKey: string,
   config: GraphWorkflowConfig,
+  lookupActivityEntry: (
+    activityType: string,
+    node?: ActivityNode | PollUntilNode,
+  ) => ActivityCatalogEntry | undefined,
 ): KindRef | undefined {
   // 1. Activity / pollUntil catalog PortDescriptor.kind
   if (node.type === "activity") {
     const activityNode = node as ActivityNode;
-    const entry = getActivityCatalogEntry(activityNode.activityType);
+    const entry = lookupActivityEntry(activityNode.activityType, activityNode);
     if (entry) {
-      const descriptors =
-        direction === "input" ? entry.inputs : entry.outputs;
+      const descriptors = direction === "input" ? entry.inputs : entry.outputs;
       const portDescriptor = descriptors.find((p) => p.name === portName);
       if (portDescriptor?.kind !== undefined) {
         return portDescriptor.kind;
@@ -1026,10 +1116,9 @@ function resolvePortKind(
     }
   } else if (node.type === "pollUntil") {
     const pollNode = node as PollUntilNode;
-    const entry = getActivityCatalogEntry(pollNode.activityType);
+    const entry = lookupActivityEntry(pollNode.activityType, pollNode);
     if (entry) {
-      const descriptors =
-        direction === "input" ? entry.inputs : entry.outputs;
+      const descriptors = direction === "input" ? entry.inputs : entry.outputs;
       const portDescriptor = descriptors.find((p) => p.name === portName);
       if (portDescriptor?.kind !== undefined) {
         return portDescriptor.kind;
@@ -1052,9 +1141,7 @@ function resolvePortKind(
   // the picker / runtime path resolution surface).
   if (config.metadata?.kind === "library") {
     const descriptors =
-      direction === "output"
-        ? config.metadata.inputs
-        : config.metadata.outputs;
+      direction === "output" ? config.metadata.inputs : config.metadata.outputs;
     // direction === "output" on a node means the node WRITES the ctx key,
     // which is itself READ from the library's declared INPUT surface (the
     // library's input feeds the graph). Symmetrically, an output port of
@@ -1065,8 +1152,8 @@ function resolvePortKind(
     // kind was found and we're looking at the producer side; similarly
     // `metadata.outputs[]` for the consumer side.
     if (descriptors) {
-      const match = descriptors.find(
-        (descriptor) => libraryPortPathMatchesCtxKey(descriptor.path, ctxKey),
+      const match = descriptors.find((descriptor) =>
+        libraryPortPathMatchesCtxKey(descriptor.path, ctxKey),
       );
       if (match?.kind !== undefined) {
         return match.kind;
@@ -1087,7 +1174,9 @@ function libraryPortPathMatchesCtxKey(path: string, ctxKey: string): boolean {
   // Compare on root keys too — the picker resolves `doc.X` / `segment.X`
   // through the same `getCtxRootKey` helper, so a path of `ctx.documentMetadata`
   // matches a port binding of `doc.something`.
-  const pathRoot = path.startsWith("ctx.") ? path.slice(4).split(".")[0] : path.split(".")[0];
+  const pathRoot = path.startsWith("ctx.")
+    ? path.slice(4).split(".")[0]
+    : path.split(".")[0];
   const ctxRoot = getCtxRootKey(ctxKey);
   return pathRoot === ctxRoot;
 }
@@ -1114,8 +1203,9 @@ function enumerateSourceProducers(
   ensureEntry: (ctxKey: string) => CtxKeyParticipants,
 ): void {
   if (sourceNode.sourceType === "source.api") {
-    const rawFields = (sourceNode.parameters as { fields?: unknown } | undefined)
-      ?.fields;
+    const rawFields = (
+      sourceNode.parameters as { fields?: unknown } | undefined
+    )?.fields;
     if (!Array.isArray(rawFields)) return;
     for (const raw of rawFields) {
       const field = raw as FieldDescriptor;
@@ -1131,9 +1221,7 @@ function enumerateSourceProducers(
   }
 
   if (sourceNode.sourceType === "source.upload") {
-    const params = sourceNode.parameters as
-      | { ctxKey?: unknown }
-      | undefined;
+    const params = sourceNode.parameters as { ctxKey?: unknown } | undefined;
     const ctxKey =
       typeof params?.ctxKey === "string" && params.ctxKey.length > 0
         ? params.ctxKey
@@ -1171,6 +1259,9 @@ function walkCtxKeyBindings(
 ): void {
   const lookupSourceEntry =
     options.getSourceCatalogEntry ?? defaultGetSourceCatalogEntry;
+  const lookupActivityEntry =
+    options.getActivityCatalogEntry ??
+    ((activityType: string) => defaultGetActivityCatalogEntry(activityType));
 
   const byCtxKey = new Map<string, CtxKeyParticipants>();
 
@@ -1192,6 +1283,7 @@ function walkCtxKeyBindings(
           "input",
           binding.ctxKey,
           config,
+          lookupActivityEntry,
         );
         ensureEntry(binding.ctxKey).consumers.push({
           node,
@@ -1209,6 +1301,7 @@ function walkCtxKeyBindings(
           "output",
           binding.ctxKey,
           config,
+          lookupActivityEntry,
         );
         ensureEntry(binding.ctxKey).producers.push({
           node,
@@ -1321,7 +1414,8 @@ function walkLibraryPaths(
     direction: LibraryPortDirection,
   ): void => {
     if (!descriptors) return;
-    const labelPrefix = direction === "inputs" ? "Library input" : "Library output";
+    const labelPrefix =
+      direction === "inputs" ? "Library input" : "Library output";
     for (let i = 0; i < descriptors.length; i++) {
       const descriptor = descriptors[i];
       if (libraryPathResolves(descriptor.path, config)) continue;

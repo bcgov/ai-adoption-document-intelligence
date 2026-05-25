@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
+import { DynamicNodeRepository } from "@/dynamic-nodes/dynamic-node.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -115,6 +116,13 @@ describe("WorkflowService", () => {
         },
         { provide: AppLoggerService, useValue: mockAppLogger },
         { provide: TemporalClientService, useValue: mockTemporalClient },
+        {
+          provide: DynamicNodeRepository,
+          useValue: {
+            listForGroup: jest.fn().mockResolvedValue([]),
+            findVersionByNumber: jest.fn().mockResolvedValue(null),
+          },
+        },
       ],
     }).compile();
 

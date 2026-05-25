@@ -1,3 +1,7 @@
+import {
+  ACTIVITY_CATALOG,
+  type DynamicNodeSignature,
+} from "@ai-di/graph-workflow";
 import { Test, TestingModule } from "@nestjs/testing";
 import {
   DenoRunnerClient,
@@ -43,6 +47,7 @@ describe("DynamicNodesService", () => {
   let repository: {
     createWithFirstVersion: jest.Mock;
     publishNewVersion: jest.Mock;
+    listForGroup: jest.Mock;
   };
   let denoClient: { check: jest.Mock };
 
@@ -66,6 +71,7 @@ describe("DynamicNodesService", () => {
     repository = {
       createWithFirstVersion: jest.fn(),
       publishNewVersion: jest.fn(),
+      listForGroup: jest.fn().mockResolvedValue([]),
     };
     denoClient = {
       check: jest.fn().mockResolvedValue({ ok: true, errors: [] }),
@@ -355,6 +361,179 @@ export default async function dynamicNode() {}
           mode: "update",
         }),
       ).rejects.toBeInstanceOf(DynamicNodeNotFoundError);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // US-173 — merged catalog + per-group cache + invalidation
+  // ---------------------------------------------------------------------
+  describe("getMergedCatalogForGroup", () => {
+    beforeEach(async () => {
+      await buildService();
+    });
+
+    function fakeLineage(slug: string, version: number) {
+      const signature: DynamicNodeSignature = {
+        name: slug,
+        description: `description for ${slug}`,
+        category: "Custom",
+        deterministic: false,
+        inputs: [{ name: "document", kind: "Document", required: true }],
+        outputs: [{ name: "result", kind: "Artifact" }],
+        paramsSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false,
+        },
+        allowNet: [],
+        timeoutMs: 60_000,
+        maxMemoryMB: 256,
+      };
+      return {
+        slug,
+        deletedAt: null,
+        headVersion: {
+          versionNumber: version,
+          signature,
+        },
+        _count: { versions: version },
+      };
+    }
+
+    it("Scenario 1 — merges static + dynamic; statics first, dynamic sorted by slug", async () => {
+      repository.listForGroup.mockResolvedValue([
+        fakeLineage("zeta-node", 2),
+        fakeLineage("alpha-node", 1),
+      ]);
+
+      const entries = await service.getMergedCatalogForGroup("g-1");
+
+      const staticCount = Object.keys(ACTIVITY_CATALOG).length;
+      expect(entries.length).toBe(staticCount + 2);
+      // Last two are the dynamic entries, alphabetically sorted.
+      const dynamicTail = entries.slice(staticCount);
+      expect(dynamicTail.map((e) => e.dynamicNodeSlug)).toEqual([
+        "alpha-node",
+        "zeta-node",
+      ]);
+      // Static entries come first and match the package's catalog values.
+      const staticHead = entries.slice(0, staticCount);
+      for (const entry of staticHead) {
+        expect(entry.dynamicNodeSlug).toBeUndefined();
+      }
+      // Each dynamic entry carries the Phase 6 fields.
+      for (const dyn of dynamicTail) {
+        expect(dyn.activityType.startsWith("dyn.")).toBe(true);
+        expect(dyn.colorHint).toBe("dyn");
+        expect(dyn.dynamicNodeVersion).toBeGreaterThan(0);
+      }
+    });
+
+    it("Scenario 5 — preserves the existing entry shape (inputs/outputs/paramsSchema)", async () => {
+      repository.listForGroup.mockResolvedValue([fakeLineage("alpha-node", 1)]);
+      const entries = await service.getMergedCatalogForGroup("g-1");
+      const alpha = entries.find((e) => e.dynamicNodeSlug === "alpha-node");
+      expect(alpha).toBeDefined();
+      expect(alpha?.inputs[0]).toMatchObject({
+        name: "document",
+        kind: "Document",
+      });
+      expect(alpha?.outputs[0]).toMatchObject({
+        name: "result",
+        kind: "Artifact",
+      });
+      expect(alpha?.paramsSchema).toEqual({
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      });
+    });
+
+    it("Scenario 2 — soft-deleted lineages are excluded (listForGroup default)", async () => {
+      // The repo's listForGroup already excludes soft-deleted lineages
+      // by default. Assert the service propagates that: only the
+      // non-deleted lineage shows up.
+      repository.listForGroup.mockResolvedValue([fakeLineage("kept", 1)]);
+      const entries = await service.getMergedCatalogForGroup("g-1");
+      const slugs = entries
+        .map((e) => e.dynamicNodeSlug)
+        .filter((s): s is string => s !== undefined);
+      expect(slugs).toEqual(["kept"]);
+    });
+
+    it("Scenario 3 — cross-group isolation: g-2 sees only its own lineages", async () => {
+      repository.listForGroup.mockImplementation((groupId: string) => {
+        if (groupId === "g-1") {
+          return Promise.resolve([
+            fakeLineage("only-in-g1-a", 1),
+            fakeLineage("only-in-g1-b", 1),
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const g1 = await service.getMergedCatalogForGroup("g-1");
+      const g2 = await service.getMergedCatalogForGroup("g-2");
+
+      const g1Dyn = g1.filter((e) => e.dynamicNodeSlug !== undefined);
+      const g2Dyn = g2.filter((e) => e.dynamicNodeSlug !== undefined);
+      expect(g1Dyn.length).toBe(2);
+      expect(g2Dyn.length).toBe(0);
+    });
+
+    it("Scenario 4 — 100 reads in a row consult the DB at most once (TTL cache)", async () => {
+      repository.listForGroup.mockResolvedValue([fakeLineage("alpha", 1)]);
+
+      for (let i = 0; i < 100; i++) {
+        await service.getMergedCatalogForGroup("g-1");
+      }
+      expect(repository.listForGroup).toHaveBeenCalledTimes(1);
+    });
+
+    it("Scenario 4 — invalidateGroupCatalogCache forces the next read to re-query", async () => {
+      repository.listForGroup.mockResolvedValue([fakeLineage("alpha", 1)]);
+
+      await service.getMergedCatalogForGroup("g-1");
+      await service.getMergedCatalogForGroup("g-1");
+      expect(repository.listForGroup).toHaveBeenCalledTimes(1);
+
+      service.invalidateGroupCatalogCache("g-1");
+
+      await service.getMergedCatalogForGroup("g-1");
+      expect(repository.listForGroup).toHaveBeenCalledTimes(2);
+    });
+
+    it("Scenario 4 — invalidating g-1 does not affect g-2's cached entry", async () => {
+      repository.listForGroup.mockImplementation((groupId: string) =>
+        Promise.resolve([fakeLineage(`only-in-${groupId}`, 1)]),
+      );
+
+      await service.getMergedCatalogForGroup("g-1");
+      await service.getMergedCatalogForGroup("g-2");
+      expect(repository.listForGroup).toHaveBeenCalledTimes(2);
+
+      service.invalidateGroupCatalogCache("g-1");
+
+      await service.getMergedCatalogForGroup("g-2"); // still cached
+      await service.getMergedCatalogForGroup("g-1"); // cache busted
+      expect(repository.listForGroup).toHaveBeenCalledTimes(3);
+    });
+
+    it("skips lineages missing a head version defensively", async () => {
+      repository.listForGroup.mockResolvedValue([
+        {
+          slug: "broken",
+          deletedAt: null,
+          headVersion: null,
+          _count: { versions: 0 },
+        },
+        fakeLineage("kept", 1),
+      ]);
+      const entries = await service.getMergedCatalogForGroup("g-1");
+      const slugs = entries
+        .map((e) => e.dynamicNodeSlug)
+        .filter((s): s is string => s !== undefined);
+      expect(slugs).toEqual(["kept"]);
     });
   });
 });

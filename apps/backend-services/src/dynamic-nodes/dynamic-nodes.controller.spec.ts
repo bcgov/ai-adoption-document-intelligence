@@ -49,7 +49,10 @@ function makeReq(groupId: string | null, userId?: string): Request {
 
 describe("DynamicNodesController", () => {
   let controller: DynamicNodesController;
-  let service: { publish: jest.Mock };
+  let service: {
+    publish: jest.Mock;
+    invalidateGroupCatalogCache: jest.Mock;
+  };
   let repository: {
     findBySlugForGroup: jest.Mock;
     listForGroup: jest.Mock;
@@ -58,7 +61,10 @@ describe("DynamicNodesController", () => {
   };
 
   beforeEach(async () => {
-    service = { publish: jest.fn() };
+    service = {
+      publish: jest.fn(),
+      invalidateGroupCatalogCache: jest.fn(),
+    };
     repository = {
       findBySlugForGroup: jest.fn(),
       listForGroup: jest.fn(),
@@ -355,6 +361,74 @@ describe("DynamicNodesController", () => {
       await expect(
         controller.create({ script: "/* */" }, req),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // US-173 Scenario 4 — POST/PUT/DELETE invalidate the per-group cache
+  // ---------------------------------------------------------------------
+  describe("catalog cache invalidation (US-173 Scenario 4)", () => {
+    it("POST success invalidates the calling group's catalog cache", async () => {
+      service.publish.mockResolvedValue({
+        slug: "my-node",
+        version: 1,
+        signature: SAMPLE_SIGNATURE,
+      });
+      await controller.create({ script: "/* */" }, makeReq("g-1"));
+      expect(service.invalidateGroupCatalogCache).toHaveBeenCalledWith("g-1");
+    });
+
+    it("POST failure does NOT invalidate the cache", async () => {
+      service.publish.mockRejectedValue(
+        new PublishValidationError([
+          { stage: "ts-check", line: 1, column: 1, message: "boom" },
+        ]),
+      );
+      await expect(
+        controller.create({ script: "/* */" }, makeReq("g-1")),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(service.invalidateGroupCatalogCache).not.toHaveBeenCalled();
+    });
+
+    it("PUT success invalidates the calling group's catalog cache", async () => {
+      service.publish.mockResolvedValue({
+        slug: "my-node",
+        version: 4,
+        signature: SAMPLE_SIGNATURE,
+      });
+      await controller.update("my-node", { script: "/* */" }, makeReq("g-7"));
+      expect(service.invalidateGroupCatalogCache).toHaveBeenCalledWith("g-7");
+    });
+
+    it("PUT failure does NOT invalidate the cache", async () => {
+      service.publish.mockRejectedValue(
+        new DynamicNodeNotFoundError("missing"),
+      );
+      await expect(
+        controller.update("missing", { script: "/* */" }, makeReq("g-1")),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(service.invalidateGroupCatalogCache).not.toHaveBeenCalled();
+    });
+
+    it("DELETE success invalidates the calling group's catalog cache", async () => {
+      const deletedAt = new Date("2026-05-25T12:00:00Z");
+      repository.softDelete.mockResolvedValue({
+        id: "dn-1",
+        slug: "my-node",
+        deletedAt,
+      });
+      await controller.delete("my-node", makeReq("g-9"));
+      expect(service.invalidateGroupCatalogCache).toHaveBeenCalledWith("g-9");
+    });
+
+    it("DELETE failure does NOT invalidate the cache", async () => {
+      repository.softDelete.mockRejectedValue(
+        new DynamicNodeNotFoundError("missing"),
+      );
+      await expect(
+        controller.delete("missing", makeReq("g-1")),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(service.invalidateGroupCatalogCache).not.toHaveBeenCalled();
     });
   });
 });

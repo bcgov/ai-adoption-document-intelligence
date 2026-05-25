@@ -6,38 +6,38 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Hook sees `dyn.*` entries with zero hook signature change
+- [x] **Scenario 1**: Hook sees `dyn.*` entries with zero hook signature change
     - **Given** the existing `useActivityCatalog` hook (Phase 1B closeout)
     - **When** the merged endpoint from US-173 returns `entries: [...static, ...dynamic]`
     - **Then** the hook's return value contains the merged list — no new hook signature, no new return field
     - **And** consumers (`ActivityPalette`, `NodeSettingsPanel`, canvas's `getEntry` lookup) see `dyn.*` entries automatically
 
-- [ ] **Scenario 2**: Invalidation on `POST /api/dynamic-nodes` success
+- [x] **Scenario 2**: Invalidation on `POST /api/dynamic-nodes` success
     - **Given** `useDynamicNodePublish` mutation (defined in US-176)
     - **When** a publish succeeds via `POST`
     - **Then** the mutation's `onSuccess` calls `queryClient.invalidateQueries(['activity-catalog'])` (using the existing query key the hook subscribes to)
     - **And** the hook refetches automatically; consumers re-render with the new dynamic entry
 
-- [ ] **Scenario 3**: Invalidation on `PUT /api/dynamic-nodes/:slug` success
+- [x] **Scenario 3**: Invalidation on `PUT /api/dynamic-nodes/:slug` success
     - **Given** the same mutation in update mode
     - **When** a publish succeeds via `PUT`
     - **Then** the catalog hook is invalidated
     - **And** the canvas's dynamic-node settings panel re-renders with the new signature (port kinds may have changed; the canvas DYN pill stays unchanged but ports may rewire visually)
 
-- [ ] **Scenario 4**: Invalidation on `DELETE /api/dynamic-nodes/:slug` success
+- [x] **Scenario 4**: Invalidation on `DELETE /api/dynamic-nodes/:slug` success
     - **Given** `useDynamicNodeDelete` mutation
     - **When** a soft-delete succeeds
     - **Then** the catalog hook is invalidated
     - **And** the palette's "Custom" section removes the entry
     - **And** any canvas instances of `dyn.<deleted-slug>` now resolve to "missing from catalog" → US-183's "Deleted" badge path
 
-- [ ] **Scenario 5**: No new query keys; no parallel fetch
+- [x] **Scenario 5**: No new query keys; no parallel fetch
     - **Given** the hook ecosystem
     - **When** the page loads
     - **Then** there is exactly ONE `/api/activity-catalog` fetch per page load (the merged endpoint replaces any parallel `/api/dynamic-nodes` fetch the catalog would otherwise need)
     - **And** the existing query key `['activity-catalog']` is reused
 
-- [ ] **Scenario 6**: Hook tests + integration test
+- [x] **Scenario 6**: Hook tests + integration test
     - **Given** the frontend test suite
     - **When** `useActivityCatalog.spec.tsx` runs (or its existing equivalent)
     - **Then** tests pass for: hook returns merged entries; mutation success invalidates the hook; subsequent refetch surfaces updated entries; cross-group isolation (the catalog hook scopes to the calling key automatically — no per-group query key needed)
