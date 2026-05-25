@@ -92,7 +92,7 @@ Phase 8 has a clear linear backbone (shared package → backend → catalog entr
 - [x] **US-124** (`SourceUploadButton` on source.upload settings panel) — depends on US-119 (the settings panel) + US-122 (the upload hook); can land in parallel with US-123
 
 ### Phase 6 — end-to-end verification (Milestone F)
-- [ ] **US-125** (Playwright walkthrough — Phase 8 document sources; screenshots in `/tmp/wb-phase8-verify/`)
+- [x] **US-125** (Playwright walkthrough — Phase 8 document sources; screenshots in `/tmp/wb-phase8-verify/`)
 
 > US-106 → US-108 ship first (`packages/graph-workflow` change); after merging US-108 ask Alex to restart Vite — pre-bundle of `@ai-di/graph-workflow` goes stale otherwise. Phase 8 introduces NEW runtime exports (`SOURCE_CATALOG` + helpers), so the restart is real (not types-only).
 >

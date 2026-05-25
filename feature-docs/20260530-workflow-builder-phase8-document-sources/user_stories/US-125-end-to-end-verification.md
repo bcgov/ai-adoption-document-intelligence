@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `source.api` happy path — drop → fields → persist → Run
+- [x] **Scenario 1**: `source.api` happy path — drop → fields → persist → Run
     - **Given** the dev server running with the latest package build and a fresh V2-editor session
     - **When** the test creates a new workflow, drops a `source.api` node onto the empty canvas (verifying entryNodeId autoset per US-121), adds 3 fields via `FieldListEditor` (`documentUrl: string/Document/required`, `priority: number/—/optional`, `metadata: object/—/optional`), saves, reloads
     - **Then** the saved fields persist with their kinds (verified via a `GET /api/workflows/:id` curl assertion in-test + a UI re-render check)
@@ -14,35 +14,35 @@
     - **And** pasting a valid body + clicking Run starts a Temporal execution (response includes `workflowId: "graph-adhoc-…"`)
     - **And** screenshots `01-source-api-fields-saved.png` + `02-source-api-run-drawer.png` + `03-source-api-temporal-started.png` are saved to `/tmp/wb-phase8-verify/`
 
-- [ ] **Scenario 2**: `source.upload` happy path — drop → handle blue → Dropzone → upload chain → Temporal
+- [x] **Scenario 2**: `source.upload` happy path — drop → handle blue → Dropzone → upload chain → Temporal
     - **Given** a workflow with a fresh `source.upload` node configured `{ ctxKey: "myFile", allowedMimeTypes: ["application/pdf"], maxFileSizeMB: 25 }`
     - **When** the test inspects the canvas handle, opens the Run drawer, drops a test PDF onto the Dropzone, clicks Run
     - **Then** the canvas handle is blue with hover tooltip "Document"
     - **And** the upload chain runs to completion: `POST /sources/:id/upload` returns `{ myFile: "<blob URL>" }`, then `POST /runs` is called with `initialCtx = { myFile: <url> }`, and a Temporal execution starts
     - **And** screenshots `04-source-upload-handle-blue.png` + `05-source-upload-dropzone.png` + `06-source-upload-chain-success.png` are saved
 
-- [ ] **Scenario 3**: Both `source.api` AND `source.upload` in same workflow → two sections render
+- [x] **Scenario 3**: Both `source.api` AND `source.upload` in same workflow → two sections render
     - **Given** a workflow with BOTH source nodes configured
     - **When** the test opens the Run drawer
     - **Then** both an API section and an Upload section render (per US-123)
     - **And** triggering EITHER path independently starts a Temporal execution
     - **And** screenshot `07-dual-source-run-drawer.png` is saved
 
-- [ ] **Scenario 4**: Validator rejects multi-source.api with L17 error
+- [x] **Scenario 4**: Validator rejects multi-source.api with L17 error
     - **Given** a workflow already containing one `source.api`
     - **When** the test attempts to drop a SECOND source.api and save
     - **Then** the backend returns 400 with `GraphValidationError` matching `"Phase 8.0 supports at most one source of subtype \`source.api\` per workflow — multi-source.source.api is deferred to Phase 8.x"`
     - **And** the editor's error drawer surfaces the message verbatim
     - **And** screenshot `08-multi-source-rejected.png` is saved
 
-- [ ] **Scenario 5**: `source.api` + `isInput` coexistence → L16 warning, source.api wins
+- [x] **Scenario 5**: `source.api` + `isInput` coexistence → L16 warning, source.api wins
     - **Given** a workflow with a `source.api` declaring `fields: [{ name: "alpha", type: "string", required: true }]` AND a `CtxDeclaration` `beta` flagged `isInput: true`
     - **When** the test saves the workflow
     - **Then** the save succeeds (warnings don't block) AND the save response carries one validation warning `"Workflow has a source.api node — isInput flags on ctx declarations are ignored. Remove isInput flags or remove the source.api to clarify intent."`
     - **And** the Run drawer's `inputSchema` shows ONLY `alpha` (from source.api) — `beta` is absent
     - **And** screenshot `09-source-api-wins-warning.png` is saved
 
-- [ ] **Scenario 6**: Legacy isInput-only workflow unchanged + Phase 3 binding-walk on source.api fields
+- [x] **Scenario 6**: Legacy isInput-only workflow unchanged + Phase 3 binding-walk on source.api fields
     - **Given** (a) a legacy workflow with no source nodes and a `documentUrl` ctx flagged `isInput: true`, AND (b) a NEW workflow with a `source.api` whose field `pages` declares `kind: "Segment[]"` wired downstream to a `document.classify`'s `segment` input port (`kind: "Segment"`)
     - **When** the test verifies (a) the legacy workflow's Run drawer renders exactly as Phase 2 Track 2, and (b) the new workflow's save returns the binding-walk error
     - **Then** (a) the legacy workflow Run drawer shows the isInput-derived `documentUrl` REQUIRED row — no warning, no source-related UI — Phase 2 Track 2 behaviour is verbatim

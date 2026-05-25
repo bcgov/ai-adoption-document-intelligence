@@ -1,8 +1,84 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-24 (**Phase 3 typed I/O artifacts — CLOSED. All 7 milestones (A → G) shipped + Phase 3.x bulk catalog fan-out completed. US-105 end-to-end walkthrough passed all 8 scenarios with zero `pageerror` events**). Phase 2 closed at 2026-05-23.
+**Last updated:** 2026-05-24 (**Phase 8 document sources as nodes — CLOSED. All 6 milestones (A → F) shipped end-to-end with one design doc + one requirements doc + 20 user stories. US-125 end-to-end walkthrough confirmed 0 `pageerror` events; 7/7 backend assertions pass via curl; 3 frontend visual scenarios pass via Playwright.**). Phase 3 closed at 2026-05-24 earlier in the day; Phase 2 closed at 2026-05-23.
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
+
+---
+
+## Phase 8 — Document Sources as Nodes (DONE, 2026-05-24)
+
+**Closes the "Phase 8 — Sources" milestone from IMPLEMENTATION_PLAN.md §5.** The full source-as-node primitive is now in the schema, validator, backend API surface, frontend palette + canvas + settings panel + Run drawer, and end-to-end verification.
+
+### TL;DR — what shipped
+
+Phase 8.0 makes document intake first-class: a new `"source"` NodeType variant in `@ai-di/graph-workflow` joins the `GraphNode` discriminated union, with subtypes resolved against a NEW `SOURCE_CATALOG` sibling to the activity catalog. Two 8.0 entries: `source.api` (push runtime, Artifact outputKind, user-authored fields[] driving the workflow's input schema) + `source.upload` (manual runtime, Document outputKind, MIME/size/ctxKey-configurable upload via a new POST /sources/:id/upload multipart endpoint). The L12 derivation precedence (source.api > library inputs > isInput > empty) wires the new abstraction into the existing /run-spec + /runs surface transparently. Phase 3 typed I/O composes — source-node outputs participate in the binding-walk validator with full kind enforcement.
+
+### Locked scope decisions (from blocking-question rounds before kickoff)
+
+1. **8.0 ships source.api + source.upload only.** Cron / SharePoint / email / S3 deferred to Phase 8.x.
+2. **Credentials storage table deferred to Phase 8.x.**
+3. **Reusable source library deferred to Phase 8.x.**
+4. **No auto-migration of existing workflows.** isInput-flagged ctx keeps working; new workflows author source nodes instead.
+5. **At most one source.api + one source.upload per workflow in 8.0.** Multi-source.api with URL routing deferred to 8.x.
+6. **Flat-merge ctx semantics.** Source's deriveOutputSchema produces JSON Schema 7; body keys become ctx keys flat — same mental model as Phase 2 Track 2 isInput.
+
+### Milestone one-liners
+
+- **Milestone A — `778e0b80`** (US-106 → US-110): Shared schema + catalog scaffold + validator rules. SourceNode variant; SOURCE_CATALOG + getSourceCatalogEntry / listSourceTypes / createSourceParameterValidator / deriveSourceOutputSchema; SourceCatalogEntry / SourceRuntimePattern / FieldDescriptor types; structural validator (5 L17 rules + L16 dual-source.api+isInput warning) + binding-walk integration for source-derived ctx producers (L23). Package tests 379 → 430 (+51).
+- **Milestone B — `92ff26be`** (US-111 → US-114): Backend API surface. deriveInputSchema precedence (L12); GET /run-spec uploadSpec? extension (L13) with new UploadSpecDto; POST /runs body-validation inherits precedence (call-site already correct, regression tests added); new POST /sources/:sourceNodeId/upload multipart endpoint with MIME glob + size validation, reusing existing BLOB_STORAGE token + per-org bucket convention. Full Swagger decorators per CLAUDE.md. Backend tests 2188 → 2228 (+40).
+- **Milestone C — `44935075`** (US-115 + US-116): Catalog entries. source.api (push runtime, Artifact outputKind, fields[] field-list-editor x-widget + optional authNotes, deriveOutputSchema walks fields). source.upload (manual runtime, Document outputKind, MIME/size/ctxKey params with defaults, fixed-shape deriveOutputSchema). Bulk source-catalog invariant test extended. Package tests 430 → 472 (+42).
+- **Milestone D — `1a60d28a`** (US-117 → US-121): Frontend palette + renderer + settings + FieldListEditor + entryNodeId autoset. New `apps/frontend/src/features/workflow-builder/sources/` directory: SourceNodeRenderer (xyflow custom-node, no input handle, single output handle coloured per outputKind, Phase 3 type pill on selection), source-catalog-utils (resolveSourceIcon / resolveSourceColor / getSourceVisualHints), SourceNodeSettings (header + JsonSchemaForm body), FieldListEditor (6-column row editor registered as field-list-editor x-widget reusing KindSelect from Phase 3). ActivityPalette grows a "Sources" section above Flow Control. WorkflowEditorCanvas projection emits SourceFlowNode payloads. WorkflowEditorV2Page.addSource sets entryNodeId on empty canvas. All 9 union-exhaustiveness TS errors from US-106's union extension cleared. Frontend tests 896 → 950 (+54); package gained getSourceParametersJsonSchema helper (+4 = 476) because zod v4 .meta() lives in a per-instance registry that Vite's optimizeDeps can't bridge.
+- **Milestone E — `94a336f7`** (US-122 → US-124): Run drawer source sections + Test Upload button + useSourceUpload hook. useSourceUpload TanStack mutation hook (multipart POST, ApiError on 4xx/413). RunWorkflowDrawer renders up to two source sections (API + Upload Dropzone), driven entirely by `/run-spec` response shape (uploadSpec presence). SourceUploadButton on source.upload settings panel (hidden file-input + green success Alert with CopyButton + red error Alert + create-mode-disabled Tooltip mirroring Phase 2 Track 3's History button). Frontend tests 950 → 972 (+22).
+- **Milestone F — US-125 (verification-only commits)**: End-to-end verification confirmed on 2026-05-24. Backend assertions (curl): multi-source.api rejection, source.api wins over isInput in /run-spec, /run-spec inputSchema unchanged for legacy isInput, binding-walk on source.api fields surfaces standard Phase 3 error verbatim — all pass. Frontend Playwright walkthrough: source.api node renders on canvas with gray Artifact handle + SourceNodeSettings panel + 3 persisted FieldListEditor rows; source.upload renders with blue Document handle + parameters form; both-sources canvas renders simultaneously with distinct typed handles. Zero pageerror events; 12 console-level 401s (background polling noise, same as Phase 3 — tolerated). Screenshots in `/tmp/wb-phase8-verify/`.
+
+### Test count deltas (Phase 8)
+
+| Suite | Phase 3 close | Phase 8 close | Delta |
+|-------|---------------|---------------|-------|
+| `packages/graph-workflow` | 379 | **476** | +97 |
+| `apps/backend-services` | 2188 | **2227** (+ 1 pre-existing template-validation failure unchanged) | +39 effective |
+| `apps/frontend` | 896 | **972** | +76 |
+
+### Phase 8 commits (most recent first, on `feature/visual-workflow-builder`)
+
+```
+ca0fd5fc docs(workflow-builder): tick Milestone E scenarios + README progress (Phase 8 — US-122 → US-124)
+94a336f7 feat(workflow-builder): Run drawer source sections + Test Upload button + useSourceUpload hook (Phase 8 — Milestone E — US-122 + US-123 + US-124)
+0498bd95 docs(workflow-builder): tick Milestone D scenarios + README progress (Phase 8 — US-117 → US-121)
+1a60d28a feat(workflow-builder): source palette + renderer + settings + FieldListEditor + entryNodeId autoset (Phase 8 — Milestone D — US-117 + US-118 + US-119 + US-120 + US-121)
+eb0242b8 docs(workflow-builder): tick Milestone C scenarios + README progress (Phase 8 — US-115 + US-116)
+44935075 feat(graph-workflow): source.api + source.upload catalog entries (Phase 8 — Milestone C — US-115 + US-116)
+2f2fa232 docs(workflow-builder): tick Milestone B scenarios + README progress (Phase 8 — US-111 → US-114)
+92ff26be feat(workflow-builder): backend API surface — run-spec precedence + uploadSpec + /sources/:id/upload (Phase 8 — Milestone B — US-111 + US-112 + US-113 + US-114)
+07617e0f docs(workflow-builder): tick Milestone A scenarios + README progress (Phase 8 — US-106 → US-110)
+778e0b80 feat(graph-workflow): source node + catalog scaffold + validator rules (Phase 8 — Milestone A — US-106 + US-107 + US-108 + US-109 + US-110)
+20687ae4 docs(workflow-builder): user stories US-106 → US-125 for Phase 8
+a72146cb docs(workflow-builder): REQUIREMENTS.md for Phase 8 — Document Sources as Nodes
+cc41fe51 docs(workflow-builder): DOCUMENT_SOURCES_DESIGN.md — Phase 8 kickoff brainstorm
+```
+
+### Phase 8 verification artefacts
+
+- Fixture setup script: `/tmp/wb-phase8-verify/setup-fixtures.sh`
+- Backend assertions: `/tmp/wb-phase8-verify/curl-assertions.sh`
+- Playwright walkthrough: `/tmp/wb-phase8-verify/walkthrough.mjs`
+- Fixture IDs (still in dev DB at close — safe to leave or delete):
+  - `WF_S2_ID` (source.api with 3 fields): `cmpkglyof0008osdu9ybnf50u`
+  - `WF_S3_ID` (source.upload): `cmpkglyqs000aosdu81e1jr6w`
+  - `WF_S4_ID` (both sources): `cmpkglysx000cosdu3u1ewr2x`
+  - `WF_S5_ID` (source.api + isInput coexistence): `cmpkglyv5000eosdue8mwedks`
+  - `WF_S6_ID` (legacy isInput-only): `cmpkglyxa000gosdupjqsihw7`
+- Plus one transient workflow created by the binding-walk assertion (deleted only by re-running the script with a fresh DB)
+- Screenshots: `/tmp/wb-phase8-verify/01-source-api-canvas-loaded.png` → `/tmp/wb-phase8-verify/08-both-sources-canvas-loaded.png`
+
+### Open follow-ups (intentionally deferred — NOT in scope for Phase 8.0)
+
+- **Phase 8.x — full source taxonomy.** `source.cron`, `source.sharepoint`, `source.email`, `source.s3`. Adds the pull runtime pattern. Brings the deferred Credentials storage table + reusable source library + multi-source.api URL path-slug routing. SourceNode.path? field is the future extension point.
+- **Webhook signatures (HMAC verification on source.api).** Out of scope today; extension point reserved.
+- **Per-source run history.** Filed for Phase 4 alongside the existing run-history gap.
+- **AI agent integration (Phase 7).** Reads SOURCE_CATALOG + deriveOutputSchema the same way it reads ACTIVITY_CATALOG. No Phase 8.0 work required.
+- **Pre-existing backend `graph-schema-validator` template-validation failure.** 1 test (validates the multi-page report template) was already failing before Phase 8 started; the diff did not touch templates. Worth a separate triage commit at some point.
 
 ---
 
