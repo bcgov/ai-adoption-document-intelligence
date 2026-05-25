@@ -6,12 +6,12 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Workflow with `source.api` only → API section rendered
+- [x] **Scenario 1**: Workflow with `source.api` only → API section rendered
     - **Given** `apps/frontend/src/features/workflow-builder/run/RunWorkflowDrawer.tsx`
     - **When** the drawer opens for a workflow whose `/run-spec` response has `inputSchema` (derived from source.api via US-111) and NO `uploadSpec`
     - **Then** the drawer renders the existing Phase 2 Track 2 API surface: trigger URL with copy, schema field table (using the source.api `fields[]`-derived schema), sample curl with copy, auth notes, JsonInput (prefilled from the schema's defaults), Run button — same as Phase 2 Track 2 verbatim
 
-- [ ] **Scenario 2**: Workflow with `source.upload` only → Upload section rendered
+- [x] **Scenario 2**: Workflow with `source.upload` only → Upload section rendered
     - **Given** the same component
     - **When** the drawer opens for a workflow whose `/run-spec` response has `uploadSpec` but NO `inputSchema` (or an empty `inputSchema`)
     - **Then** the drawer renders an Upload section: a Mantine `<Dropzone>` configured with `accept={uploadSpec.allowedMimeTypes}` + `maxSize={uploadSpec.maxFileSizeMB * 1024 * 1024}`, a `<Text>` surfacing the constraints inline ("Accepts PDF, max 25MB"), and a Run button
@@ -19,19 +19,19 @@
     - **And** clicking Run calls `useSourceUpload` (US-122), waits for the upload to resolve, then POSTs the returned ctxKey-keyed object as `initialCtx` to `/runs`
     - **And** success shows the returned Temporal workflowId in the same Alert style the Phase 2 Track 2 API path uses
 
-- [ ] **Scenario 3**: Workflow with BOTH → both sections render
+- [x] **Scenario 3**: Workflow with BOTH → both sections render
     - **Given** the same component
     - **When** the drawer opens for a workflow with both a source.api and a source.upload
     - **Then** the drawer renders BOTH sections (API on top, Upload below — or whichever order the design specs)
     - **And** the user can exercise either; each Run button triggers an independent run
 
-- [ ] **Scenario 4**: Workflow with NEITHER source node → legacy isInput-derived behaviour unchanged
+- [x] **Scenario 4**: Workflow with NEITHER source node → legacy isInput-derived behaviour unchanged
     - **Given** the same component
     - **When** the drawer opens for a legacy workflow (no source nodes, just `isInput`-flagged ctx)
     - **Then** the drawer renders EXACTLY as Phase 2 Track 2 left it — the `isInput`-flagged ctx drives `inputSchema`, JsonInput renders, Run goes through `/runs` directly
     - **And** the existing Phase 2 Track 2 Playwright walkthrough (`/tmp/wb-phase2-track2-verify/`) would still pass without changes
 
-- [ ] **Scenario 5**: Frontend vitest coverage for each state
+- [x] **Scenario 5**: Frontend vitest coverage for each state
     - **Given** new tests in `RunWorkflowDrawer.test.tsx`
     - **When** the suite runs with fixtures for each of the four states (api-only, upload-only, both, neither)
     - **Then** each fixture renders the expected sections and only the expected sections

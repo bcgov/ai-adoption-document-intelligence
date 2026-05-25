@@ -87,9 +87,9 @@ Phase 8 has a clear linear backbone (shared package → backend → catalog entr
 - [x] **US-121** (`entryNodeId` autoset on source-first drop) — independent of US-117/118/119/120; depends only on US-115/116 for the palette catalog lookup
 
 ### Phase 5 — Run drawer + SourceUploadButton (Milestone E — depends on Phase 2 + Phase 4)
-- [ ] **US-122** (`useSourceUpload` TanStack hook) — depends on US-114 (the endpoint)
-- [ ] **US-123** (`RunWorkflowDrawer` up-to-two sections) — depends on US-112 (new `/run-spec` shape) + US-122 (the upload hook for the Dropzone path)
-- [ ] **US-124** (`SourceUploadButton` on source.upload settings panel) — depends on US-119 (the settings panel) + US-122 (the upload hook); can land in parallel with US-123
+- [x] **US-122** (`useSourceUpload` TanStack hook) — depends on US-114 (the endpoint)
+- [x] **US-123** (`RunWorkflowDrawer` up-to-two sections) — depends on US-112 (new `/run-spec` shape) + US-122 (the upload hook for the Dropzone path)
+- [x] **US-124** (`SourceUploadButton` on source.upload settings panel) — depends on US-119 (the settings panel) + US-122 (the upload hook); can land in parallel with US-123
 
 ### Phase 6 — end-to-end verification (Milestone F)
 - [ ] **US-125** (Playwright walkthrough — Phase 8 document sources; screenshots in `/tmp/wb-phase8-verify/`)

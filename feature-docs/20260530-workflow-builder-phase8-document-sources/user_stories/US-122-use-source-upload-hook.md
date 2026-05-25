@@ -6,25 +6,25 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Hook signature + invocation contract
+- [x] **Scenario 1**: Hook signature + invocation contract
     - **Given** `apps/frontend/src/features/workflow-builder/sources/useSourceUpload.ts` (new)
     - **When** read
     - **Then** it exports `useSourceUpload(workflowId: string, sourceNodeId: string): UseMutationResult<SourceUploadResponse, ApiError, File>` (TanStack v5 shape consistent with sibling hooks)
     - **And** invoking `mutateAsync(file)` performs a `POST` to `/api/workflows/${workflowId}/sources/${sourceNodeId}/upload` with `multipart/form-data` body containing the file under the part name `"file"`
 
-- [ ] **Scenario 2**: Response shape — ctxKey-keyed dict
+- [x] **Scenario 2**: Response shape — ctxKey-keyed dict
     - **Given** the same hook
     - **When** the backend returns `{ "myFile": "https://blob/.../abc" }`
     - **Then** the hook's `data` state is `{ "myFile": "https://blob/.../abc" }` (a `Record<string, string>` — the response key is dynamic per the source's configured ctxKey)
     - **And** a type alias `SourceUploadResponse = Record<string, string>` is exported alongside the hook
 
-- [ ] **Scenario 3**: 4xx surfaces as a typed `ApiError`
+- [x] **Scenario 3**: 4xx surfaces as a typed `ApiError`
     - **Given** the hook
     - **When** the backend returns 400 (e.g. MIME mismatch from US-114 Scenario 4) or 413 (oversized — US-114 Scenario 5)
     - **Then** the hook's `error` state holds an `ApiError` with `status` and `message` populated from the response body (matching the existing apps/frontend error-handling convention; reuse the existing api-client wrapper)
     - **And** `onError` callbacks on the mutation fire with the typed error
 
-- [ ] **Scenario 4**: Frontend vitest coverage with MSW
+- [x] **Scenario 4**: Frontend vitest coverage with MSW
     - **Given** `apps/frontend/src/features/workflow-builder/sources/useSourceUpload.test.ts` (new)
     - **When** the test runs with MSW intercepting the upload endpoint
     - **Then** happy-path returns the ctxKey-keyed shape and resolves the mutation

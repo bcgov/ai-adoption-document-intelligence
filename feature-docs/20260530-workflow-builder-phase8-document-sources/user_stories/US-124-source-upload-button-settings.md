@@ -6,39 +6,39 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Button visible only on `source.upload` panel
+- [x] **Scenario 1**: Button visible only on `source.upload` panel
     - **Given** `apps/frontend/src/features/workflow-builder/sources/SourceUploadButton.tsx` (new) and `SourceNodeSettings.tsx` (US-119)
     - **When** the settings panel renders for a `source.upload` node
     - **Then** a "Test upload" button appears below the parameters form
     - **And** for `source.api` (or any other source subtype future-shipped), the button is NOT rendered
 
-- [ ] **Scenario 2**: Clicking opens OS file picker + POSTs via `useSourceUpload`
+- [x] **Scenario 2**: Clicking opens OS file picker + POSTs via `useSourceUpload`
     - **Given** the button rendered for a saved source.upload node
     - **When** the user clicks the button
     - **Then** an OS file picker opens (`<input type="file" accept={parameters.allowedMimeTypes.join(",")} />` programmatically clicked)
     - **And** selecting a file calls `useSourceUpload(workflowId, sourceNodeId).mutateAsync(file)` from US-122
     - **And** while in-flight, the button shows a `<Loader size="xs" />` + is disabled
 
-- [ ] **Scenario 3**: Success surface
+- [x] **Scenario 3**: Success surface
     - **Given** the upload returns `{ "documentUrl": "<blob URL>" }` (or whichever ctxKey is configured)
     - **When** the mutation resolves
     - **Then** the button section shows a green `<Alert>` displaying the ctxKey + URL in a `<Code>` block + a copy button
     - **And** a Mantine notification fires: "Test upload succeeded — workflow can now use this URL via the Run drawer"
     - **And** the Run drawer's Upload section (US-123) does NOT auto-open; this is a settings-panel-side test only
 
-- [ ] **Scenario 4**: 4xx surface
+- [x] **Scenario 4**: 4xx surface
     - **Given** the upload returns 400 (e.g. MIME mismatch) or 413 (oversized)
     - **When** the mutation errors out
     - **Then** the button section shows a red `<Alert>` with the backend's error message + status code
     - **And** the button re-enables for retry
 
-- [ ] **Scenario 5**: Button disabled when source.upload node is unsaved
+- [x] **Scenario 5**: Button disabled when source.upload node is unsaved
     - **Given** the user drops a NEW source.upload node and opens its settings panel before saving
     - **When** the button renders
     - **Then** it's disabled with tooltip "Save the workflow first" (mirrors the existing pattern for Phase 2 Track 3's History button in create mode)
     - **And** once the workflow is saved (the source has a stable id known to the backend), the button enables
 
-- [ ] **Scenario 6**: Frontend vitest coverage
+- [x] **Scenario 6**: Frontend vitest coverage
     - **Given** `apps/frontend/src/features/workflow-builder/sources/SourceUploadButton.test.tsx` (new)
     - **When** the test runs
     - **Then** Scenarios 1–5 are asserted (visibility, picker open, mutation invocation, success Alert + notification, error Alert, disabled state)
