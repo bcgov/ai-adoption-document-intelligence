@@ -15,7 +15,8 @@ Engine semantics are unchanged from [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLO
 This design covers two implementation tiers:
 
 - **Phase 6.0 (this milestone):**
-  - Single shared `dyn.run` Temporal activity wrapping a Deno subprocess sandbox
+  - Single shared `dyn.run` Temporal activity that delegates to a new **`deno-runner` HTTP sidecar service** (its own Docker image + OpenShift deployment) — NOT a host-installed Deno binary
+  - `deno-runner` exposes `POST /execute` + `POST /check` + `GET /health` on a private cluster network; the backend's publish-time validation pipeline calls `/check`, the worker's `dyn.run` calls `/execute`
   - **TypeScript-only** publish surface. `deno check` at publish time against ambient `ArtifactKind` types
   - **HTTPS module imports allowed**, gated by a global allowlist of `--allow-net` hosts
   - **No user-supplied secret injection** (LandingAI / OpenAI / etc. keys deferred to 6.x)
@@ -48,7 +49,7 @@ Every section below calls out which tier it applies to. Hooks for 6.x land in 6.
 
 ## 1. The dynamic-node execution model
 
-A Deno subprocess sandbox, invoked from a single shared `dyn.run` Temporal activity:
+A **`deno-runner` HTTP sidecar service** (own Docker image, own OpenShift deployment, own network policy) executes every dynamic node. The Temporal worker's `dyn.run` activity is a thin HTTP client; it does NOT spawn Deno subprocesses on the worker host.
 
 ```
 Workflow executor encounters a node whose `type` starts with "dyn."
@@ -66,32 +67,64 @@ Phase 4 cache decorator computes configHash including versionId → cache hit/mi
 On cache miss:
   - Worker loads { script, signature, allowNet, deterministic } from DB,
     keyed in-process by versionId
-  - Worker writes script to a temp file (one per versionId, reused across invocations)
-  - Worker spawns deno: deno run --allow-net=<intersected hosts> --no-prompt
-    --v8-flags=--max-old-space-size=256 <tempPath>
-  - Worker injects system-managed ambient env vars (§3)
-  - Worker pipes { inputCtx, parameters } as one JSON line on stdin
-  - Worker reads one JSON line from stdout; collects stderr in parallel
+  - Worker POSTs to deno-runner:9090/execute with
+    { script, inputCtx, parameters, allowNet, ambientEnv, timeoutMs, maxMemoryMB }
+  - deno-runner writes the script to a temp file, spawns
+    `deno run --allow-net=<intersected hosts> --no-prompt
+     --v8-flags=--max-old-space-size=<cap> <tempPath>` inside the container,
+    pipes the input on stdin, reads stdout/stderr
+  - deno-runner returns { stdout, stderr, exitCode, durationMs, timedOut }
   ↓
-On script throw / non-zero exit:
+On script throw / non-zero exit / timed-out:
+  - Worker maps the runner response to a typed DynamicNode*Error
   - stderr (last 2KB) + exit code flow into NodeRunStatus.errorMessage (Phase 4)
   - Cache row NOT written
   ↓
-On script success + output shape matches signature.outputs:
-  - Stdout JSON returned as activity output
+On runner success + output shape matches signature.outputs:
+  - Worker parses runner's stdout as JSON, validates port shape
+  - Result returned as activity output
   - Cache row written (unless nonCacheable=true)
   - Phase 4 preview-cache surfaces the output under the node on canvas
 ```
 
-**Why one shared Temporal activity, not one per dynamic node.** Temporal activities are typed by string name. Registering a new activity per dynamic node would require a worker restart on every publish — production-unstable. A single `dyn.run` activity dispatches on `(slug, versionId)` arguments; workers stay running across publishes. Worker-side "hot reload" is purely about an in-process script cache, not Temporal registration.
+**Why a sidecar HTTP service, not host-installed Deno.** Three reasons:
+1. **Isolation.** The worker process never has Deno on its filesystem or PATH; a script that escaped the sandbox could not pivot to the worker's resources because they're in a different container.
+2. **Operations.** No ops dependency on host Deno binary — the runner ships as a versioned Docker image alongside backend/temporal in the same kustomize stack. Updates are a deployment, not a host upgrade.
+3. **Resource boundary.** The runner container has its own cgroup memory/CPU limits — a runaway script can be killed at the container boundary, not just the subprocess.
 
-**Subprocess lifecycle.** One subprocess per invocation. Deno cold start ≈ 30–50 ms; fast enough that 6.0 does not need subprocess pooling. The activity does not keep long-lived processes around.
+**Why one shared Temporal activity, not one per dynamic node.** Temporal activities are typed by string name. Registering a new activity per dynamic node would require a worker restart on every publish — production-unstable. A single `dyn.run` activity dispatches on `(slug, versionId)` arguments; workers stay running across publishes. Worker-side "hot reload" is purely about an in-process script cache + the runner's per-versionId temp file.
 
-**Resource ceilings.** Per-invocation hard caps in 6.0: 60 s wall clock, 256 MB v8 heap (`--v8-flags=--max-old-space-size=256`), 5 MB max stdout. Signature DSL can request `timeoutMs` or `maxMemoryMB` within these ceilings (cannot raise them). Per-group ceilings are 6.x.
+**Subprocess lifecycle.** One subprocess per invocation INSIDE the runner container. Deno cold start ≈ 30–50 ms; fast enough that 6.0 does not need subprocess pooling. The runner stays up across invocations.
 
-**Permission flags.** Backend derives Deno flags from `(globalAllowlist) ∩ (signature.allowNet)`. A host listed in `signature.allowNet` but not in `globalAllowlist` is rejected at publish time. `--allow-read`, `--allow-write`, `--allow-env`, `--allow-run`, `--allow-ffi`, `--allow-sys` are NEVER granted in 6.0. `--allow-env` is the one exception — the activity grants `--allow-env=AI_DI_API_BASE_URL,AI_DI_API_KEY,AI_DI_GROUP_ID,AI_DI_WORKFLOW_RUN_ID` (the four ambient vars from §3, and only those) so scripts can read them.
+**Resource ceilings.** Per-invocation hard caps in 6.0: 60 s wall clock, 256 MB v8 heap (`--v8-flags=--max-old-space-size=256`), 5 MB max stdout. Signature DSL can request `timeoutMs` or `maxMemoryMB` within these ceilings (cannot raise them). The runner container has its own broader memory cap (e.g. 512 MB) so multiple in-flight invocations don't compete catastrophically. Per-group ceilings are 6.x.
 
-**Why temp files, not in-process eval.** Deno's `--allow-*` flags only apply to spawned subprocesses; in-process script evaluation bypasses the permission model. Temp-file invocation is the supported pattern.
+**Permission flags.** The backend derives Deno flags from `(globalAllowlist) ∩ (signature.allowNet)` and passes the resolved list to the runner. A host listed in `signature.allowNet` but not in `globalAllowlist` is rejected at publish time. `--allow-read`, `--allow-write`, `--allow-env`, `--allow-run`, `--allow-ffi`, `--allow-sys` are NEVER granted in 6.0. `--allow-env` is the one exception — the runner grants `--allow-env=AI_DI_API_BASE_URL,AI_DI_API_KEY,AI_DI_GROUP_ID,AI_DI_WORKFLOW_RUN_ID` (the four ambient vars from §3, and only those) so scripts can read them.
+
+**Why temp files inside the runner, not in-process eval.** Deno's `--allow-*` flags only apply to spawned subprocesses; in-process script evaluation bypasses the permission model. The runner uses temp files under its own ephemeral filesystem.
+
+## 1.5 The `deno-runner` sidecar service
+
+A new service in the kustomize stack at `deployments/openshift/kustomize/base/deno-runner/` (deployment + service + networkpolicy + kustomization) + a local equivalent in `deployments/local/docker-compose.deno.yml`.
+
+**Image.** Custom image built from `denoland/deno:alpine-latest` with a small Deno-authored HTTP server at `apps/deno-runner/src/main.ts`. Exposed on port 9090. Non-root user.
+
+**HTTP API:**
+
+| Verb + Path | Purpose | Body | Response |
+|---|---|---|---|
+| `POST /execute` | Run a script against an input ctx | `{ script, inputCtx, parameters, allowNet, ambientEnv, timeoutMs, maxMemoryMB }` | `{ stdout: string, stderr: string, exitCode: number, durationMs: number, timedOut: boolean }` |
+| `POST /check` | Type-check a script via `deno check` | `{ script }` | `{ ok: boolean, errors: { line, column, message }[] }` |
+| `GET /health` | Liveness probe | — | `{ ok: true, denoVersion: string }` |
+
+**Auth.** None in 6.0. The service is bound to the internal cluster network (`networkpolicy.yml` permits ingress only from `backend-services` and `temporal-worker` pods). Locally in docker-compose the service exposes port 9090 to `localhost` only.
+
+**Container-level resource caps.** `resources.limits.memory: 512Mi`, `resources.limits.cpu: 500m` — enough headroom for ~2 concurrent invocations at the 256 MB per-invocation cap. Horizontal scaling deferred (6.x).
+
+**Hot path.** `POST /execute` writes the script to `/tmp/<requestId>.ts`, spawns `Deno.Command("deno", { args: ["run", ...permFlags, tempPath], env: ambientEnv, stdin: "piped", stdout: "piped", stderr: "piped" })`, pipes `{ inputCtx, parameters }` to stdin, reads stdout (cap 5 MB), reads stderr, enforces timeout via `AbortController`. Returns the structured response. Deletes the temp file after the subprocess exits.
+
+**No persistent state.** The runner is stateless across requests. The Temporal worker's in-process `versionCache` (US-169) caches `{ versionId → script }` on the worker side, sending the script body in every `/execute` call. (Alternative: cache scripts in the runner. Defer to 6.x — the worker-side cache plus stateless runner is simpler and works fine at current scale.)
+
+**Image pinning.** The runner image is tagged per-release alongside backend + temporal. Same tag-promotion flow.
 
 ---
 

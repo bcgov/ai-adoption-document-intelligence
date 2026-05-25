@@ -6,10 +6,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Setup — env var, base fixture, walkthrough script live at `/tmp/wb-phase6-verify/`
-    - **Given** the running dev backend has `DYNAMIC_NODE_ALLOW_NET` set to include any test hosts needed (empty allowlist is OK for the URL-uppercase smoke)
+- [ ] **Scenario 1**: Setup — env vars, `deno-runner` container, fixture, walkthrough script live at `/tmp/wb-phase6-verify/`
+    - **Given** the running dev backend has `DYNAMIC_NODE_ALLOW_NET` set to include any test hosts needed (empty allowlist is OK for the URL-uppercase smoke) AND `DENO_RUNNER_URL` set to `http://localhost:9090`
     - **When** the developer runs the setup script (`/tmp/wb-phase6-verify/setup.sh`)
-    - **Then** the script confirms Deno is on PATH locally, the backend is responding, and the dev DB has no leftover Phase-6 fixtures from prior runs
+    - **Then** the script starts `deno-runner` via `docker compose -f deployments/local/docker-compose.deno.yml up -d`, verifies `GET /health` returns 200 + a denoVersion, confirms the backend is responding, and the dev DB has no leftover Phase-6 fixtures from prior runs
     - **And** the walkthrough script `/tmp/wb-phase6-verify/walkthrough.mjs` exists with the 7 scenarios below
 
 - [ ] **Scenario 2**: Publish v1 + canvas comes alive via Try

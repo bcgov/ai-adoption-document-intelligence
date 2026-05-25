@@ -18,6 +18,12 @@ After implementing the user story check it off at the bottom of this file.
 | [US-160-ambient-kinds-subpath-export.md](./US-160-ambient-kinds-subpath-export.md) | Ambient `@ai-di/graph-workflow/kinds` subpath export |
 | [US-161-catalog-entry-extension-and-barrel.md](./US-161-catalog-entry-extension-and-barrel.md) | `ActivityCatalogEntry` Phase-6 extension fields + final shared-package barrel |
 
+## Milestone B0 — `deno-runner` HTTP sidecar service (prerequisite for Milestones B + C) (US-186) -- HIGH priority
+
+| File | Title |
+|---|---|
+| [US-186-deno-runner-service.md](./US-186-deno-runner-service.md) | `deno-runner` HTTP sidecar service — image + docker-compose + OpenShift kustomize |
+
 ## Milestone B — Backend: Prisma model + repository + publish endpoints (US-162 to US-167) -- HIGH priority
 
 | File | Title |
@@ -87,20 +93,23 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [ ] **US-160** (ambient `@ai-di/graph-workflow/kinds` subpath export) — independent of US-157/158/159; can land in parallel
 - [ ] **US-161** (catalog entry extension + final barrel) — depends on US-157 + US-158 + US-159 + US-160; closes Milestone A
 
-### Phase 2 — Backend: persistence + publish endpoints (Milestone B — depends on Phase 1)
+### Phase 1.5 — `deno-runner` infrastructure (Milestone B0 — prerequisite for Phase 2 + Phase 3)
+- [ ] **US-186** (`deno-runner` HTTP sidecar service — image + docker-compose + OpenShift kustomize) — independent of Milestone A's shared-package work; can land in parallel. Required before US-164 (publish-time `deno check`) and US-170 (`dyn.run` HTTP client) can be implemented.
+
+### Phase 2 — Backend: persistence + publish endpoints (Milestone B — depends on Phase 1 + Phase 1.5)
 - [ ] **US-162** (Prisma models + migration) — foundation; everything in Milestone B depends on it
 - [ ] **US-163** (`DynamicNodeRepository`) — depends on US-162
-- [ ] **US-164** (publish-time validation pipeline service — parser + `deno check` + allowlist) — depends on US-161 (parser) + US-163 (repo)
+- [ ] **US-164** (publish-time validation pipeline service — parser + `deno-runner /check` + allowlist) — depends on US-161 (parser) + US-163 (repo) + US-186 (deno-runner running)
 - [ ] **US-165** (`POST /api/dynamic-nodes` + Swagger DTOs) — depends on US-164
 - [ ] **US-166** (`PUT /api/dynamic-nodes/:slug` + Swagger DTOs) — depends on US-164; can land in parallel with US-165
 - [ ] **US-167** (`GET list` + `GET detail` + `DELETE` + Swagger DTOs) — depends on US-163; can land in parallel with US-165/166
 
-### Phase 3 — Temporal: dyn.run activity + executor resolution (Milestone C — depends on Phase 1 + Phase 2)
+### Phase 3 — Temporal: dyn.run activity + executor resolution (Milestone C — depends on Phase 1 + Phase 1.5 + Phase 2)
 - [ ] **US-168** (error class hierarchy — 7 typed errors) — independent of US-169/170/171; foundation for them
-- [ ] **US-169** (subprocess harness + version-cache LRU) — independent of US-168/170/171; foundation for US-170
-- [ ] **US-170** (`dyn.run` activity — Deno subprocess runner) — depends on US-168 + US-169 + US-162 (DB)
+- [ ] **US-169** (subprocess harness + version-cache LRU) — independent of US-168/170/171; foundation for US-170. NOTE: the subprocess-harness lives inside the deno-runner image (US-186) — this story builds the worker-side cache only
+- [ ] **US-170** (`dyn.run` activity — `deno-runner` HTTP client) — depends on US-168 + US-169 + US-162 (DB) + US-186 (deno-runner running)
 - [ ] **US-171** (executor-side version resolution in `graph-workflow.ts`) — depends on US-168 (errors) + US-162 (DB); independent of US-169/170
-- [ ] **US-172** (real-Deno activity tests + README updates) — depends on US-170 + US-171; closes Milestone C
+- [ ] **US-172** (real `deno-runner` activity tests + README updates) — depends on US-170 + US-171; closes Milestone C
 
 ### Phase 4 — Catalog merge + binding-walk (Milestone D — depends on Phase 2)
 - [ ] **US-173** (`GET /api/activity-catalog` extension — merge + group cache) — depends on US-167 (list endpoint surface); also unblocks US-175
