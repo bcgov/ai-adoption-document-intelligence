@@ -6,33 +6,33 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Two activities registered in the activities barrel
+- [x] **Scenario 1**: Two activities registered in the activities barrel
     - **Given** `apps/temporal/src/activities/cache/activity-output-cache.activities.ts` (new file)
     - **When** the file is read
     - **Then** it exports `activityOutputCache.findFresh` and `activityOutputCache.upsert` as activity functions
     - **And** both are registered in the worker's activities barrel (`apps/temporal/src/activities/index.ts`)
     - **And** both carry the activity-options annotation `nonCacheable: true` (the decorator MUST NOT recurse into caching its own cache operations)
 
-- [ ] **Scenario 2**: `findFresh` signature + behaviour
+- [x] **Scenario 2**: `findFresh` signature + behaviour
     - **Given** the registered activity
     - **When** called with `{ workflowLineageId, nodeId, configHash, inputHash }`
     - **Then** it calls the backend `ActivityOutputCacheRepository.findFresh` via the existing Prisma boundary and returns `{ outputCtx, outputKind } | null`
     - **And** expired rows return `null` (the repo already filters them — verified by integration test)
 
-- [ ] **Scenario 3**: `upsert` signature + behaviour
+- [x] **Scenario 3**: `upsert` signature + behaviour
     - **Given** the registered activity
     - **When** called with `{ workflowLineageId, nodeId, configHash, inputHash, outputCtx, outputKind, ttlMs? }`
     - **Then** it calls the repo's `upsert` and returns void on success
     - **And** the row's `expiresAt` reflects the passed `ttlMs` or the default 24h
     - **And** concurrent upserts (same unique key) resolve to the latest-wins write without throwing
 
-- [ ] **Scenario 4**: Activity-level retry policy matches a transient-fault profile
+- [x] **Scenario 4**: Activity-level retry policy matches a transient-fault profile
     - **Given** the activity registration
     - **When** Temporal worker options are inspected
     - **Then** these two activities use a short retry policy (3 attempts, 100ms initial interval, 2x backoff) — they're DB calls, not long-running OCR work
     - **And** the `startToCloseTimeout` is 10 seconds (short, since these are simple DB reads/writes)
 
-- [ ] **Scenario 5**: Temporal-side unit tests
+- [x] **Scenario 5**: Temporal-side unit tests
     - **Given** `apps/temporal/src/activities/cache/activity-output-cache.activities.spec.ts`
     - **When** tests run
     - **Then** at least 4 cases pass: findFresh-hit, findFresh-miss, upsert-insert, upsert-overwrite

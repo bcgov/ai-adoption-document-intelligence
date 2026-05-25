@@ -6,36 +6,36 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Nine catalog entries set `nonCacheable: true`
+- [x] **Scenario 1**: Nine catalog entries set `nonCacheable: true`
     - **Given** `packages/graph-workflow/src/catalog/activities/`
     - **When** the directory is read after the sweep
     - **Then** each of these entries declares `nonCacheable: true` on its `ActivityCatalogEntry`: `azureOcr.submit`, `azureClassify.submit`, `document.updateStatus`, `document.storeRejection`, `benchmark.persistOcrCache`, `benchmark.persistEvaluationDetails`, `benchmark.writePrediction`, `benchmark.updateRunStatus`, `benchmark.cleanup`
     - **And** every OTHER catalog entry leaves the field absent (defaults to `false`)
 
-- [ ] **Scenario 2**: Bulk catalog invariant test extended
+- [x] **Scenario 2**: Bulk catalog invariant test extended
     - **Given** `packages/graph-workflow/src/catalog/catalog.test.ts` (US-103, Phase 3 Milestone F)
     - **When** the test is read after the change
     - **Then** a new assertion iterates every catalog entry and verifies `entry.nonCacheable === true || entry.nonCacheable === undefined` — catches typos like `noncacheable` (lowercase) or `nonCachable` (typo)
     - **And** existing assertions remain unchanged
 
-- [ ] **Scenario 3**: `activityOutputCache.gc` Temporal activity
+- [x] **Scenario 3**: `activityOutputCache.gc` Temporal activity
     - **Given** `apps/temporal/src/activities/cache/activity-output-cache.activities.ts` (extends US-131)
     - **When** the file is read after the change
     - **Then** it exports a new `activityOutputCache.gc` activity that calls `ActivityOutputCacheRepository.deleteExpired()` and returns `{ deletedCount: number }`
     - **And** the activity is registered with the same `nonCacheable: true` annotation as the other two cache activities
 
-- [ ] **Scenario 4**: Hourly GC schedule
+- [x] **Scenario 4**: Hourly GC schedule
     - **Given** Temporal's scheduling support (existing in `apps/temporal/`)
     - **When** the worker registers schedules
     - **Then** a new schedule `cache-gc` runs `activityOutputCache.gc` once per hour
     - **And** if a Temporal schedule isn't already used elsewhere in this codebase, the implementer uses a small periodic workflow as a fallback (`gcWorkflow` that runs `gc` then `sleep(1h)` in a loop) — the simpler of the two
 
-- [ ] **Scenario 5**: Tests cover the GC path
+- [x] **Scenario 5**: Tests cover the GC path
     - **Given** the new GC activity test
     - **When** tests run
     - **Then** at least 2 cases pass: (a) calls `deleteExpired` and returns the count, (b) survives a no-rows-to-delete case (returns `{ deletedCount: 0 }`)
 
-- [ ] **Scenario 6**: Backend + temporal + package suites green
+- [x] **Scenario 6**: Backend + temporal + package suites green
     - **Given** the catalog sweep + GC activity + schedule
     - **When** all three test-suites run
     - **Then** every existing test still passes AND the new tests above pass
@@ -65,3 +65,10 @@
 - Run-history reconstruction (US-150) relies on cache rows existing for completed runs — GC at 1h interval is fine because cache TTL is 24h. There's a 23h window where runs can be replayed.
 - Lazy GC also works as a fallback: `findFresh` filters by `expiresAt > now()` so expired rows are invisible to consumers even when the daemon hasn't run.
 - After landing: **ask Alex to restart Vite** — catalog entries are runtime exports. The frontend's palette + settings panel + canvas renderer all consume `ACTIVITY_CATALOG` at module load.
+
+## Implementation notes
+
+- **Scheduling choice (§2.7 + L17 implementer's call)**: chose the simpler periodic-workflow path over a Temporal Schedule because no Schedule usage exists in the codebase today. `apps/temporal/src/cache-gc-workflow.ts` runs `gc()` then `sleep(1h)` in a loop, calls `continueAsNew` every 24 iterations (1 calendar day) so workflow history stays bounded.
+- **Worker bundle reorganization**: the OCR worker previously pointed `workflowsPath` at `./graph-workflow` directly (single-module). Added `apps/temporal/src/workflows.ts` as a barrel that re-exports both `graphWorkflow` and `cacheGcWorkflow`, mirroring the pre-existing `benchmark-workflows.ts` pattern. The worker now resolves `./workflows`.
+- **Manual start required**: the periodic workflow is NOT auto-started by the worker. Start it once with a stable workflow ID (e.g. `cache-gc-singleton`) via the Temporal CLI or SDK client — `continueAsNew` self-perpetuates afterwards. Re-deployments do not need to re-start it as long as the workflow is still running. (Not auto-starting is intentional: it avoids spawning duplicate copies during worker restarts and keeps the worker boot path side-effect-free.)
+- **Type re-export**: `ActivityOutputCacheGcResult` lives in the workflow-safe `activity-output-cache.types.ts` (not the Prisma-bound activities file) so `cacheGcWorkflow` can import it without dragging Prisma into the workflow bundle. The activities file re-exports it for backend/test convenience.

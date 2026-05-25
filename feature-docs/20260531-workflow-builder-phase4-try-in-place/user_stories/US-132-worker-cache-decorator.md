@@ -6,37 +6,37 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Decorator function signature + happy path
+- [x] **Scenario 1**: Decorator function signature + happy path
     - **Given** `apps/temporal/src/cache/cached-activity.ts` (new file)
     - **When** read
     - **Then** it exports `async function executeCachedActivity(node: GraphNode, ctx: Record<string, unknown>, workflowLineageId: string, rawExecute: () => Promise<Record<string, unknown>>): Promise<{ cacheHit: boolean }>`
     - **And** on cache miss it calls `rawExecute`, assigns the returned delta into `ctx` (`Object.assign(ctx, delta)`), writes the cache row via `activityOutputCache.upsert`, and returns `{ cacheHit: false }`
 
-- [ ] **Scenario 2**: Cache hit path skips the underlying activity
+- [x] **Scenario 2**: Cache hit path skips the underlying activity
     - **Given** a node whose `(workflowLineageId, nodeId, configHash, inputHash)` has a fresh cache row
     - **When** `executeCachedActivity` is called
     - **Then** `findFresh` returns the row, the decorator assigns `row.outputCtx` into `ctx`, and `rawExecute` is NEVER called
     - **And** the return value is `{ cacheHit: true }`
 
-- [ ] **Scenario 3**: `nonCacheable` activities bypass the cache entirely
+- [x] **Scenario 3**: `nonCacheable` activities bypass the cache entirely
     - **Given** a node whose `ACTIVITY_CATALOG[node.activityType].nonCacheable === true`
     - **When** the decorator runs
     - **Then** it skips `findFresh` AND `upsert`, calls `rawExecute` directly, and returns `{ cacheHit: false }`
     - **And** for source nodes (no `activityType` field), the decorator looks up the source catalog instead — source nodes ARE cached (per L16); the bypass only applies to non-cacheable activities
 
-- [ ] **Scenario 4**: Concurrent-write race resolves to "use the existing row"
+- [x] **Scenario 4**: Concurrent-write race resolves to "use the existing row"
     - **Given** two parallel executions of the same node landing simultaneously
     - **When** both miss the cache and both attempt `upsert`
     - **Then** Prisma's unique constraint causes one to "lose" the race; the decorator catches the constraint-violation error, falls back to a re-`findFresh`, assigns that row's outputCtx into ctx, and returns `{ cacheHit: true }`
     - **And** the activity's body is not double-executed for the user-visible result (worst case: it was executed twice, but the second result is discarded — acceptable for now; the cache is best-effort)
 
-- [ ] **Scenario 5**: Activity failure bypasses `upsert`
+- [x] **Scenario 5**: Activity failure bypasses `upsert`
     - **Given** a node whose `rawExecute` throws (Temporal activity failure)
     - **When** the decorator runs
     - **Then** the error propagates up to the workflow without `upsert` being called
     - **And** no partial cache row is written — re-running the workflow re-executes the activity from scratch
 
-- [ ] **Scenario 6**: Unit tests cover hit / miss / nonCacheable / race / failure paths
+- [x] **Scenario 6**: Unit tests cover hit / miss / nonCacheable / race / failure paths
     - **Given** `apps/temporal/src/cache/cached-activity.spec.ts`
     - **When** tests run
     - **Then** at least 5 cases pass: cache-hit, cache-miss, nonCacheable bypass, race-then-re-findFresh, activity-failure-no-upsert

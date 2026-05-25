@@ -86,10 +86,10 @@ Phase 4 has a clear linear backbone (cache schema + helpers → worker decorator
 - [x] **US-130** (`nonCacheable?` catalog field + `ActivityOutputCacheRepository`) — depends on US-126 (table) + sets up the consumer surface for Milestone B
 
 ### Phase 2 — worker decorator + catalog sweep + GC (Milestone B — depends on Phase 1; Vite-restart point after US-134)
-- [ ] **US-131** (cache proxy Temporal activities `findFresh` + `upsert`) — depends on US-130 (repo)
-- [ ] **US-132** (`executeCachedActivity` worker decorator) — depends on US-127 + US-129 + US-131
-- [ ] **US-133** (wire decorator into `graph-workflow.ts`) — depends on US-132; THIS IS WHEN CACHING GOES LIVE
-- [ ] **US-134** (catalog `nonCacheable` sweep + GC activity + scheduling) — independent of US-131/132/133; can land in parallel; the catalog sweep IS the runtime export change that triggers Vite restart
+- [x] **US-131** (cache proxy Temporal activities `findFresh` + `upsert`) — depends on US-130 (repo)
+- [x] **US-132** (`executeCachedActivity` worker decorator) — depends on US-127 + US-129 + US-131
+- [x] **US-133** (wire decorator into `graph-workflow.ts`) — depends on US-132; THIS IS WHEN CACHING GOES LIVE
+- [x] **US-134** (catalog `nonCacheable` sweep + GC activity + scheduling) — independent of US-131/132/133; can land in parallel; the catalog sweep IS the runtime export change that triggers Vite restart
 
 ### Phase 3 — status streaming + node badges + active-edge (Milestone C — depends on Phase 2)
 - [ ] **US-135** (`getNodeStatusesQuery` query handler + `nodeStatuses` map) — depends on US-133 (the decorator integration drives the cacheHit flag)

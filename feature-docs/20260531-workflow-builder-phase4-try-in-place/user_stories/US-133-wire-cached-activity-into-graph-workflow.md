@@ -6,31 +6,31 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Activity dispatch swap
+- [x] **Scenario 1**: Activity dispatch swap
     - **Given** the current `graph-workflow.ts` per-node activity-dispatch helper (the existing function that maps `node.activityType` → activity proxy + calls it)
     - **When** the file is read after the change
     - **Then** the call site is wrapped: `const { cacheHit } = await executeCachedActivity(node, ctx, workflowLineageId, () => activityProxy[activityType](node, ctx))`
     - **And** the workflow's `nodeStatuses` map (US-135 lands the map; this story coordinates with it via a small status-update callback OR a sentinel passed via the `cacheHit` return)
 
-- [ ] **Scenario 2**: `workflowLineageId` plumbed through from workflow input
+- [x] **Scenario 2**: `workflowLineageId` plumbed through from workflow input
     - **Given** the workflow's input arguments (which already include `workflowId` and `version`)
     - **When** the workflow starts
     - **Then** `workflowLineageId` is read from the start-of-workflow `getWorkflowGraphConfig` call (which already resolves lineage and version per Phase 2 Track 3) and held in workflow-local state for the duration
     - **And** every `executeCachedActivity` call passes the same value
 
-- [ ] **Scenario 3**: Source-node ctx-merge writes its own cache row at workflow start
+- [x] **Scenario 3**: Source-node ctx-merge writes its own cache row at workflow start
     - **Given** a workflow starting with a source node (Phase 8)
     - **When** the worker performs the ctx-merge step (capturing the inbound API body or upload result into `initialCtx`)
     - **Then** the worker writes a cache row for the source node: `(workflowLineageId, sourceNodeId, configHash=sha256(stableJson(sourceNode.parameters ?? {})), inputHash=sha256(stableJson(initialCtx)), outputCtx=initialCtx, outputKind=sourceCatalogEntry.outputKind)`
     - **And** downstream nodes then see the source's "output" in ctx the same way they would a regular activity's output
 
-- [ ] **Scenario 4**: Non-activity node types are unchanged
+- [x] **Scenario 4**: Non-activity node types are unchanged
     - **Given** control-flow node types (`switch`, `map`, `join`, `childWorkflow`, `pollUntil`, `humanGate`)
     - **When** the workflow executes them
     - **Then** their existing execution path is unchanged — `executeCachedActivity` only wraps the `activity` and `source` node types
     - **And** TS exhaustiveness on the node-type discriminator is preserved (no missing case)
 
-- [ ] **Scenario 5**: Temporal + backend test-suites green
+- [x] **Scenario 5**: Temporal + backend test-suites green
     - **Given** the workflow change
     - **When** `npm test` runs in `apps/temporal` AND `apps/backend-services`
     - **Then** existing Phase 1A → Phase 8 tests pass unchanged
