@@ -265,6 +265,7 @@ export function DocumentViewerModal({
                 onClick={handleDownload}
                 disabled={!imageUrl || !document}
                 size="lg"
+                mr="md"
                 aria-label="Download document"
               >
                 <IconFileDownload size={20} />
