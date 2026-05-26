@@ -150,7 +150,8 @@ export class DocumentDbService {
     pre_ocr: number;
     ongoing_ocr: number;
     completed_ocr: number;
-    needs_validation: number;
+    awaiting_review: number;
+    ready: number;
     failed: number;
     rejected_by_human: number;
     conversion_failed: number;
@@ -158,14 +159,16 @@ export class DocumentDbService {
     const where = groupIds ? { group_id: { in: groupIds } } : undefined;
     this.logger.debug("Getting document status counts", { groupIds });
     try {
-      const [rows, total] = await Promise.all([
-        this.prisma.document.groupBy({
-          by: ["status"],
-          where,
-          _count: { _all: true },
-        }),
-        this.prisma.document.count({ where }),
-      ]);
+      const [rows, total] = await this.prisma.$transaction(async (tx) => {
+        return Promise.all([
+          tx.document.groupBy({
+            by: ["status"],
+            where,
+            _count: { _all: true },
+          }),
+          tx.document.count({ where }),
+        ]);
+      });
       const counts: Record<string, number> = {};
       for (const row of rows) {
         counts[row.status] = row._count._all;
@@ -175,7 +178,8 @@ export class DocumentDbService {
         pre_ocr: counts["pre_ocr"] ?? 0,
         ongoing_ocr: counts["ongoing_ocr"] ?? 0,
         completed_ocr: counts["completed_ocr"] ?? 0,
-        needs_validation: counts["needs_validation"] ?? 0,
+        awaiting_review: counts["awaiting_review"] ?? 0,
+        ready: counts["ready"] ?? 0,
         failed: counts["failed"] ?? 0,
         rejected_by_human: counts["rejected_by_human"] ?? 0,
         conversion_failed: counts["conversion_failed"] ?? 0,

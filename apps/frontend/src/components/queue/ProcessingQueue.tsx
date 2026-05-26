@@ -151,7 +151,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
           </Tooltip>
         </Group>
 
-        <SimpleGrid cols={{ base: 1, sm: 4 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 5 }}>
           <Paper radius="md" p="md" withBorder>
             <Text size="xs" c="dimmed">
               Total
@@ -170,10 +170,18 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
           </Paper>
           <Paper radius="md" p="md" withBorder>
             <Text size="xs" c="dimmed">
-              Needs Review
+              Awaiting Review
             </Text>
             <Text fw={600} size="lg" c="orange">
-              {statsData?.needs_validation ?? 0}
+              {statsData?.awaiting_review ?? 0}
+            </Text>
+          </Paper>
+          <Paper radius="md" p="md" withBorder>
+            <Text size="xs" c="dimmed">
+              Ready
+            </Text>
+            <Text fw={600} size="lg" c="blue">
+              {statsData?.ready ?? 0}
             </Text>
           </Paper>
           <Paper radius="md" p="md" withBorder>
@@ -329,11 +337,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
           <Group justify="center" mt="md">
             <Pagination
               value={page}
-              onChange={(p) => {
-                setPage(p);
-                setSearch("");
-                setStatusFilter("all");
-              }}
+              onChange={setPage}
               total={totalPages}
               siblings={1}
               boundaries={1}

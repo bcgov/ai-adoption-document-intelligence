@@ -81,10 +81,14 @@ export class DocumentStatusCountsDto {
   @ApiProperty({ description: "Documents that completed OCR successfully" })
   completed_ocr!: number;
 
+  @ApiProperty({ description: "Documents awaiting human review" })
+  awaiting_review!: number;
+
   @ApiProperty({
-    description: "Documents paused awaiting human review in a workflow",
+    description:
+      "Documents that completed entire process (OCR + optional HITL)",
   })
-  needs_validation!: number;
+  ready!: number;
 
   @ApiProperty({ description: "Documents that failed processing" })
   failed!: number;

@@ -33,6 +33,9 @@ type PreExecutionActivities = {
     status: string;
     apimRequestId?: string;
   }) => Promise<void>;
+  "document.getStatus": (params: { documentId: string }) => Promise<{
+    status: string;
+  }>;
 };
 
 // Workflow type constant
@@ -180,6 +183,54 @@ export async function graphWorkflow(
     // Update final state
     overallStatus = result.status;
     ctx = result.ctx;
+
+    // Post-execution hook: If workflow completed successfully, transition documents
+    // from completed_ocr to ready (documents that didn't go through HITL).
+    // Documents at awaiting_review (went through HumanGate) are left alone - HITL
+    // approval will transition them to ready.
+    if (
+      result.status === "completed" &&
+      input.initialCtx.documentId &&
+      typeof input.initialCtx.documentId === "string"
+    ) {
+      const activityProxy = proxyActivities<PreExecutionActivities>({
+        startToCloseTimeout: "30s",
+        retry: { maximumAttempts: 5 },
+      });
+
+      try {
+        // Check current document status
+        const getStatusActivity = activityProxy["document.getStatus"];
+        if (getStatusActivity) {
+          const { status: currentStatus } = await getStatusActivity({
+            documentId: input.initialCtx.documentId,
+          });
+
+          // Only transition from completed_ocr to ready
+          // Leave awaiting_review alone (HITL handles that transition)
+          if (currentStatus === "completed_ocr") {
+            const updateStatusActivity = activityProxy["document.updateStatus"];
+            await updateStatusActivity({
+              documentId: input.initialCtx.documentId,
+              status: "ready",
+            });
+
+            console.log(
+              `[GraphWorkflow] Post-execution: Updated document ${input.initialCtx.documentId} from completed_ocr to ready`,
+            );
+          } else {
+            console.log(
+              `[GraphWorkflow] Post-execution: Document ${input.initialCtx.documentId} at status ${currentStatus}, skipping transition to ready`,
+            );
+          }
+        }
+      } catch (error) {
+        // Don't fail the workflow if post-execution hook fails
+        console.warn(
+          `[GraphWorkflow] Post-execution hook failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     return result;
   } catch (error) {

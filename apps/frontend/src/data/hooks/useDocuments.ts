@@ -46,7 +46,8 @@ export function useDocuments(
       if (activeGroup?.id) params.set("group_id", activeGroup.id);
       params.set("limit", String(limit));
       params.set("offset", String(offset));
-      const endpoint = `/documents?${params.toString()}`;
+      const qs = params.toString();
+      const endpoint = `/documents${qs ? `?${qs}` : ""}`;
       const response = await apiService.get<PaginatedDocuments>(endpoint);
       if (response.success && response.data) {
         // Exclude documents created by ground-truth dataset generation. They

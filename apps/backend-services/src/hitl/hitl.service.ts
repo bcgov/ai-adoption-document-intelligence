@@ -90,15 +90,15 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
-    const statusesFilter: DocumentStatus[] | undefined =
+    const statuses: DocumentStatus[] =
       filters.status === DocumentStatusFilter.COMPLETED_OCR
         ? [DocumentStatus.completed_ocr]
-        : filters.status === DocumentStatusFilter.NEEDS_VALIDATION
-          ? [DocumentStatus.needs_validation]
-          : undefined;
+        : filters.status === DocumentStatusFilter.ALL
+          ? [DocumentStatus.completed_ocr, DocumentStatus.awaiting_review]
+          : [DocumentStatus.awaiting_review];
 
     const documents = (await this.reviewDb.findReviewQueue({
-      statuses: statusesFilter,
+      statuses,
       modelId: filters.modelId,
       maxConfidence: filters.maxConfidence ?? 0.9,
       limit: filters.limit ?? 50,
@@ -167,6 +167,7 @@ export class HitlService {
           : "pending";
 
     const allDocs = (await this.reviewDb.findReviewQueue({
+      statuses: [DocumentStatus.awaiting_review],
       limit: 1000,
       reviewStatus: reviewStatusFilter,
       groupIds,
@@ -288,7 +289,7 @@ export class HitlService {
    */
   async findReviewQueue(
     filters: {
-      statuses?: DocumentStatus[];
+      statuses: DocumentStatus[];
       modelId?: string;
       minConfidence?: number;
       maxConfidence?: number;
@@ -400,6 +401,11 @@ export class HitlService {
     const updated = await this.reviewDb.updateReviewSession(sessionId, {
       status: ReviewStatus.approved,
       completed_at: new Date(),
+    });
+
+    // Transition document to 'ready' status after HITL approval
+    await this.documentService.updateDocument(session.document_id, {
+      status: DocumentStatus.ready,
     });
 
     await this.reviewDb.releaseDocumentLock(sessionId);
@@ -709,11 +715,13 @@ export class HitlService {
           : "pending";
 
     const documents = (await this.reviewDb.findReviewQueue({
+      statuses: [DocumentStatus.awaiting_review],
       modelId: filters.modelId,
       maxConfidence,
       limit: 10,
       reviewStatus: reviewStatusFilter,
       groupIds,
+      currentReviewerId: reviewerId,
     })) as DocumentWithOcrResult[];
 
     // Filter by confidence — same logic as getQueue

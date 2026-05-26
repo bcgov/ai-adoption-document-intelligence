@@ -115,6 +115,7 @@ describe("HitlService", () => {
   beforeEach(async () => {
     const mockDb = {
       findDocument: jest.fn(),
+      updateDocument: jest.fn().mockResolvedValue(undefined),
     };
 
     const mockReviewDb = {
@@ -180,12 +181,14 @@ describe("HitlService", () => {
       const result = await service.getQueue(filters);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        statuses: undefined,
+        statuses: [DocumentStatus.awaiting_review],
         modelId: undefined,
         maxConfidence: 0.9,
         limit: 50,
         offset: 0,
         reviewStatus: "pending",
+        groupIds: undefined,
+        currentReviewerId: undefined,
       });
 
       expect(result.documents).toHaveLength(1);
@@ -272,7 +275,10 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
-          statuses: undefined,
+          statuses: [
+            DocumentStatus.completed_ocr,
+            DocumentStatus.awaiting_review,
+          ],
         }),
       );
     });
@@ -297,13 +303,14 @@ describe("HitlService", () => {
       await service.getQueue({});
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        statuses: undefined,
+        statuses: [DocumentStatus.awaiting_review],
         modelId: undefined,
         maxConfidence: 0.9,
         limit: 50,
         offset: 0,
         reviewStatus: "pending",
         groupIds: undefined,
+        currentReviewerId: undefined,
       });
     });
   });
@@ -350,6 +357,7 @@ describe("HitlService", () => {
       });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
+        statuses: [DocumentStatus.awaiting_review],
         limit: 1000,
         reviewStatus: "pending",
         groupIds: undefined,
@@ -378,6 +386,7 @@ describe("HitlService", () => {
       await service.getQueueStats(ReviewStatusFilter.REVIEWED);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
+        statuses: [DocumentStatus.awaiting_review],
         limit: 1000,
         reviewStatus: "reviewed",
         groupIds: undefined,
@@ -1193,12 +1202,13 @@ describe("HitlService", () => {
       ]);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        statuses: undefined,
+        statuses: [DocumentStatus.awaiting_review],
         modelId: undefined,
         maxConfidence: 0.9,
         limit: 10,
         reviewStatus: "pending",
         groupIds: ["group-1"],
+        currentReviewerId: "reviewer-1",
       });
       expect(result).not.toBeNull();
       expect(result?.id).toBe("session-1");

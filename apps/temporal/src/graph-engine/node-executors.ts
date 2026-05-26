@@ -429,45 +429,38 @@ async function executePollUntilNode(
   throwPollTimeout(node.id, maxAttempts, "maxAttempts");
 }
 
-type StatusActivities = {
-  "document.updateStatus": (params: {
-    documentId: string;
-    status: string;
-  }) => Promise<void>;
-};
-
 /**
  * Execute a humanGate node
  *
  * US-011: HumanGate node handler
  *
  * Waits for a human signal (approved/rejected) or times out.
- * Persists `needs_validation` to the database before waiting so the list
- * endpoint can determine review state from the DB without querying Temporal.
+ * Sets document status to `awaiting_review` before waiting so the HITL queue
+ * can show documents that need human review without querying Temporal.
  */
 async function executeHumanGateNode(
   node: HumanGateNode,
   state: ExecutionState,
 ): Promise<void> {
-  // Persist needs_validation status so the processing queue reflects the
-  // correct state without requiring a live Temporal query on every poll.
-  const documentId =
-    typeof state.ctx.documentId === "string" ? state.ctx.documentId : undefined;
-  if (!documentId) {
-    throw ApplicationFailure.create({
-      type: "GRAPH_EXECUTION_ERROR",
-      message: `HumanGate node ${node.id} requires ctx.documentId but it is missing or not a string`,
-      nonRetryable: true,
+  // Update document status to awaiting_review if documentId is in context
+  const documentId = state.ctx.documentId;
+  if (documentId && typeof documentId === "string") {
+    const activityProxy = proxyActivities({
+      startToCloseTimeout: "30s" as Duration,
+      retry: { maximumAttempts: 3 } as RetryPolicy,
     });
+
+    const updateStatusActivity = activityProxy[
+      "document.updateStatus"
+    ] as (params: { documentId: string; status: string }) => Promise<void>;
+
+    if (updateStatusActivity) {
+      await updateStatusActivity({
+        documentId,
+        status: "awaiting_review",
+      });
+    }
   }
-  const statusProxy = proxyActivities<StatusActivities>({
-    startToCloseTimeout: "30s",
-    retry: { maximumAttempts: 5 },
-  });
-  await statusProxy["document.updateStatus"]({
-    documentId,
-    status: "needs_validation",
-  });
 
   let payload: Record<string, unknown> | null = null;
 

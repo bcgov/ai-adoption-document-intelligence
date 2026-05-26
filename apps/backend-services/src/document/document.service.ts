@@ -318,7 +318,17 @@ export class DocumentService {
    * @param groupIds - Optional list of group IDs to scope the counts.
    * @returns Per-status counts and a grand total.
    */
-  async getDocumentStatusCounts(groupIds?: string[]) {
+  async getDocumentStatusCounts(groupIds?: string[]): Promise<{
+    total: number;
+    pre_ocr: number;
+    ongoing_ocr: number;
+    completed_ocr: number;
+    awaiting_review: number;
+    ready: number;
+    failed: number;
+    rejected_by_human: number;
+    conversion_failed: number;
+  }> {
     return this.documentDb.getDocumentStatusCounts(groupIds);
   }
 
