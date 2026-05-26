@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `AgentService.runChat()` orchestrates one chat turn
+- [x] **Scenario 1**: `AgentService.runChat()` orchestrates one chat turn
     - **Given** `apps/backend-services/src/agent/agent.service.ts`
     - **When** read after the change
     - **Then** it exposes `runChat({ conversationId, workflowId, message, userId, groupId }): Observable<SseEvent>`
@@ -14,7 +14,7 @@
     - **And** streams the SDK's events through `EventTranslator` to the Observable
     - **And** on `agent-done` writes the assistant `ChatMessage` row with merged text + usage
 
-- [ ] **Scenario 2**: `POST /api/agent/chat` controller endpoint exists
+- [x] **Scenario 2**: `POST /api/agent/chat` controller endpoint exists
     - **Given** `apps/backend-services/src/agent/agent.controller.ts`
     - **When** read after the change
     - **Then** the controller defines `POST /api/agent/chat` with `@Sse()`
@@ -22,14 +22,14 @@
     - **And** the controller pipes `AgentService.runChat(...)` through to the SSE stream
     - **And** each Observable emission becomes one `event: <type>\ndata: <json>\n\n` SSE frame
 
-- [ ] **Scenario 3**: `AgentChatRequestDto` defined with full Swagger
+- [x] **Scenario 3**: `AgentChatRequestDto` defined with full Swagger
     - **Given** `apps/backend-services/src/agent/dto/agent-chat-request.dto.ts`
     - **When** read after the change
     - **Then** the DTO carries `conversationId?: string`, `workflowId?: string`, `message: string` (min length 1), and `attachments?: AgentChatRequestAttachmentDto[]`
     - **And** each field has `@ApiProperty()` decorators with type, nullability, and example values
     - **And** the controller uses `@ApiOperation()` describing the SSE event shape per L11 (text-delta / agent-done / agent-error events for this story; tool-call events added in US-203)
 
-- [ ] **Scenario 4**: Read-only end-to-end smoke
+- [x] **Scenario 4**: Read-only end-to-end smoke
     - **Given** a backend running locally with `ANTHROPIC_API_KEY` set + a workflow seeded in the DB
     - **When** `curl -N -H "x-api-key: <key>" -X POST http://localhost:3002/api/agent/chat -d '{"message": "list activity catalog"}'`
     - **Then** the response is `text/event-stream`
@@ -37,7 +37,7 @@
     - **And** at least one `tool-call-complete`-shaped raw SDK event fires the `listActivityCatalog` handler (verifiable in service logs) — though the translator returns `[]` for tool calls in this story per US-195
     - **And** one `agent-done` event arrives carrying usage
 
-- [ ] **Scenario 5**: Service unit tests with a mocked SDK
+- [x] **Scenario 5**: Service unit tests with a mocked SDK
     - **Given** `agent.service.spec.ts`
     - **When** run via `npm test`
     - **Then** tests cover: conversation creation when `conversationId` omitted, conversation reuse when `conversationId` provided, user message persisted before SDK call, assistant message persisted on `agent-done`, error event when SDK throws

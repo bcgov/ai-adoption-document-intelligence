@@ -6,34 +6,34 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `sse-stream-parser.ts` decodes one event per frame
+- [x] **Scenario 1**: `sse-stream-parser.ts` decodes one event per frame
     - **Given** `apps/frontend/src/features/workflow-builder/agent-chat/runtime/sse-stream-parser.ts`
     - **When** read after the change
     - **Then** it exports `parseSseStream(response: Response, signal: AbortSignal): AsyncIterable<SseEvent>`
     - **And** the parser reads the response body chunk-by-chunk, splits on `\n\n`, decodes `event: <type>\ndata: <json>\n\n` frames, yields typed `SseEvent` objects
     - **And** the parser respects `signal.aborted` — closes the underlying reader cleanly when aborted
 
-- [ ] **Scenario 2**: `SseEvent` discriminated union types defined
+- [x] **Scenario 2**: `SseEvent` discriminated union types defined
     - **Given** `runtime/sse-event.types.ts`
     - **When** read after the change
     - **Then** it exports `type SseEvent = TextDeltaEvent | ToolCallStartEvent | ToolCallCompleteEvent | ToolCallErrorEvent | AgentDoneEvent | AgentErrorEvent` matching backend L11 shapes verbatim
     - **And** every event has a literal-typed `type` discriminant
 
-- [ ] **Scenario 3**: `ClaudeAgentSDKRuntime` builds assistant-ui's `ThreadMessage[]` state
+- [x] **Scenario 3**: `ClaudeAgentSDKRuntime` builds assistant-ui's `ThreadMessage[]` state
     - **Given** `runtime/ClaudeAgentSDKRuntime.ts`
     - **When** read after the change
     - **Then** it exports a `useClaudeAgentSDKRuntime()` hook returning the shape assistant-ui's `AssistantRuntimeProvider` accepts (per assistant-ui's `useExternalStoreRuntime` API or equivalent custom-runtime hook)
     - **And** the runtime exposes: `messages: ThreadMessage[]`, `isRunning: boolean`, `onNew(message)`, `onCancel()`
     - **And** `messages` is a reducer-driven array that grows on each SSE event (text-deltas append to the last assistant text part; tool-call events become custom `tool-call` parts)
 
-- [ ] **Scenario 4**: Tool-call parts carry the full input + output for `AgentToolCallCard` rendering
+- [x] **Scenario 4**: Tool-call parts carry the full input + output for `AgentToolCallCard` rendering
     - **Given** the adapter
     - **When** a `tool-call-complete` event arrives
     - **Then** the corresponding `ThreadMessage` part is `{ type: 'tool-call', toolCallId, toolName, args: input, result: output }`
     - **And** if the tool errored, the part is `{ type: 'tool-call', toolCallId, toolName, args: input, error }` (no `result`)
     - **And** the adapter prefers the most recent `tool-call-complete` for a given `toolCallId` when there's an in-flight `tool-call-start` followed by `tool-call-complete`
 
-- [ ] **Scenario 5**: Unit tests cover parser + runtime
+- [x] **Scenario 5**: Unit tests cover parser + runtime
     - **Given** `sse-stream-parser.spec.ts` + `ClaudeAgentSDKRuntime.spec.ts`
     - **When** run via `npm test`
     - **Then** parser tests cover: single-event frame, multi-event frame (one fetch chunk with two events), partial-event frame (split across chunks), abort cancels the read

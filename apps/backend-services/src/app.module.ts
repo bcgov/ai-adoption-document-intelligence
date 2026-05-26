@@ -8,6 +8,7 @@ import { AuditModule } from "@/audit/audit.module";
 import { AzureModule } from "@/azure/azure.module";
 import { ActivityCatalogModule } from "./activity-catalog/activity-catalog.module";
 import { ActorModule } from "./actor/actor.module";
+import { AgentModule } from "./agent/agent.module";
 import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
@@ -80,6 +81,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     GroupModule,
     MetricsModule,
     TablesModule,
+    AgentModule,
   ],
   providers: [
     {

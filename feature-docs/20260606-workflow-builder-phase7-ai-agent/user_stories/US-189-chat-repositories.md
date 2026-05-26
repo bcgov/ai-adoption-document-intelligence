@@ -6,30 +6,30 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `ChatConversationRepository` exposes the expected method surface
+- [x] **Scenario 1**: `ChatConversationRepository` exposes the expected method surface
     - **Given** `apps/backend-services/src/agent/chat-conversation.repository.ts`
     - **When** read after the change
     - **Then** the class exposes: `create({ workflowId?, groupId, createdBy, model })`, `findById(id)`, `findByIdForUser(id, createdBy)`, `listForUser({ groupId, createdBy, workflowId? })`, `updateClaudeSessionId(id, claudeSessionId)`, `updateTitle(id, title)`, `touchLastMessageAt(id)`, `hardDelete(id)`
     - **And** every method returns a Promise of a typed `ChatConversation` (or `null` / `void` where appropriate)
 
-- [ ] **Scenario 2**: `ChatMessageRepository` exposes the expected method surface
+- [x] **Scenario 2**: `ChatMessageRepository` exposes the expected method surface
     - **Given** `apps/backend-services/src/agent/chat-message.repository.ts`
     - **When** read after the change
     - **Then** the class exposes: `create({ conversationId, role, content, inputTokens?, outputTokens? })`, `listForConversation(conversationId)` (sorted by `createdAt ASC`), `countForConversation(conversationId)`
 
-- [ ] **Scenario 3**: Real-DB unit tests for both repositories
+- [x] **Scenario 3**: Real-DB unit tests for both repositories
     - **Given** new spec files `chat-conversation.repository.spec.ts` + `chat-message.repository.spec.ts`
     - **When** run via `npm test` against the dev DB
     - **Then** they cover: create + roundtrip, `findByIdForUser` filters by `createdBy`, `listForUser` filters by `groupId` + optional `workflowId`, `updateClaudeSessionId` is idempotent on re-call, `hardDelete` cascades to messages, `touchLastMessageAt` updates the column
     - **And** tests follow CLAUDE.md — real DB, not mocked Prisma
 
-- [ ] **Scenario 4**: `findByIdForUser` returns null for cross-user lookups
+- [x] **Scenario 4**: `findByIdForUser` returns null for cross-user lookups
     - **Given** two conversations, one created by user A and one by user B
     - **When** user A calls `findByIdForUser(conversationB.id, userA.id)`
     - **Then** the result is `null`
     - **And** the test asserts the row is NOT returned even though it exists in the table (enforces per-user-private visibility per L10)
 
-- [ ] **Scenario 5**: Repositories are exported from `agent.module.ts` for DI
+- [x] **Scenario 5**: Repositories are exported from `agent.module.ts` for DI
     - **Given** `agent.module.ts`
     - **When** read after the change
     - **Then** both repositories are listed under `providers` and `exports`

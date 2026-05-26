@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `@assistant-ui/react` added to frontend dependencies
+- [x] **Scenario 1**: `@assistant-ui/react` added to frontend dependencies
     - **Given** `apps/frontend/package.json`
     - **When** read after the change
     - **Then** `dependencies` includes `@assistant-ui/react` at the latest stable version
@@ -14,26 +14,26 @@
     - **And** `import { Thread, Composer } from '@assistant-ui/react'` typechecks at the call site
     - **And** NO style packs (e.g. `@assistant-ui/styles`) are installed — primitives stay unstyled per L22
 
-- [ ] **Scenario 2**: New `features/workflow-builder/agent-chat/` directory scaffolded
+- [x] **Scenario 2**: New `features/workflow-builder/agent-chat/` directory scaffolded
     - **Given** `apps/frontend/src/features/workflow-builder/`
     - **When** read after the change
     - **Then** there's a new `agent-chat/` subdirectory with `index.ts` (barrel — empty exports for now), `runtime/`, `messages/`, `composer/`, `header/` subdirectories
     - **And** the `index.ts` exports the public surface (initially empty; later stories populate it)
 
-- [ ] **Scenario 3**: Vite + TS path resolution validates the new directory
+- [x] **Scenario 3**: Vite + TS path resolution validates the new directory
     - **Given** a temporary placeholder `agent-chat/placeholder.ts` exporting a const
     - **When** another file imports `import { placeholder } from '@/features/workflow-builder/agent-chat'`
     - **Then** the import resolves and Vite serves the dev bundle without errors
     - **And** TypeScript compiles cleanly (`tsc --noEmit`)
     - **And** the placeholder is deleted at the end of this story (no leftover dead code)
 
-- [ ] **Scenario 4**: Vite restart required + documented
+- [x] **Scenario 4**: Vite restart required + documented
     - **Given** the new npm dep
     - **When** `npm install` lands
     - **Then** `apps/frontend/` Vite needs a restart so `optimizeDeps` picks up `@assistant-ui/react`
     - **And** the story closeout notes "Vite restart required after this story" so the orchestrator pings Alex per cadence
 
-- [ ] **Scenario 5**: Frontend test suite still green
+- [x] **Scenario 5**: Frontend test suite still green
     - **Given** the test runner in `apps/frontend`
     - **When** `npm test` runs after the change
     - **Then** all existing tests pass (no regressions)

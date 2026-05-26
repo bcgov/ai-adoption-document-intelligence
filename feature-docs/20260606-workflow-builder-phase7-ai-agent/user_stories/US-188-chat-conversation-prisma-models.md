@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `ChatConversation` model added to `prisma/schema.prisma`
+- [x] **Scenario 1**: `ChatConversation` model added to `prisma/schema.prisma`
     - **Given** `apps/backend-services/prisma/schema.prisma`
     - **When** read after the change
     - **Then** it declares a `ChatConversation` model with columns `id (cuid)`, `workflowId (String?)`, `groupId (String)`, `createdBy (String)`, `claudeSessionId (String?)`, `model (String)`, `title (String?)`, `createdAt (DateTime @default(now()))`, `lastMessageAt (DateTime @default(now()))`
@@ -14,7 +14,7 @@
     - **And** indexes: `@@index([workflowId])`, `@@index([groupId, createdBy])`
     - **And** maps to `chat_conversation` table via `@@map`
 
-- [ ] **Scenario 2**: `ChatMessage` model added to `prisma/schema.prisma`
+- [x] **Scenario 2**: `ChatMessage` model added to `prisma/schema.prisma`
     - **Given** the schema
     - **When** read after the change
     - **Then** it declares a `ChatMessage` model with columns `id (cuid)`, `conversationId (String)`, `role (String)`, `content (Json)`, `inputTokens (Int?)`, `outputTokens (Int?)`, `createdAt (DateTime @default(now()))`
@@ -22,20 +22,20 @@
     - **And** index `@@index([conversationId, createdAt])`
     - **And** maps to `chat_message` table
 
-- [ ] **Scenario 3**: Migration generated + applied via `npm run db:generate`
+- [x] **Scenario 3**: Migration generated + applied via `npm run db:generate`
     - **Given** the schema change
     - **When** `npm run db:generate` runs from `apps/backend-services`
     - **Then** a new migration directory under `prisma/migrations/<timestamp>_add_chat_conversation_and_chat_message/` exists
     - **And** the generated Prisma client copies into `apps/backend-services/src/` and `apps/temporal/src/` per the project convention
     - **And** `npx prisma migrate dev` applies cleanly to the local dev DB
 
-- [ ] **Scenario 4**: `Workflow` model gains the inverse relation
+- [x] **Scenario 4**: `Workflow` model gains the inverse relation
     - **Given** the schema
     - **When** read after the change
     - **Then** `Workflow` has `chatConversations ChatConversation[]` added
     - **And** the inverse relation typechecks (no circular reference errors)
 
-- [ ] **Scenario 5**: Cascade-delete behaviour verified at the schema level
+- [x] **Scenario 5**: Cascade-delete behaviour verified at the schema level
     - **Given** the schema
     - **When** running `npx prisma format` and reading the result
     - **Then** `ChatMessage.conversation` declares `onDelete: Cascade`

@@ -6,32 +6,32 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `ToolDefinition` type declared
+- [x] **Scenario 1**: `ToolDefinition` type declared
     - **Given** `apps/backend-services/src/agent/tool-registry.ts`
     - **When** read after the change
     - **Then** it exports a `ToolDefinition<TInput = unknown>` interface with `{ name: string, description: string, inputSchema: ZodObject<...>, handler: (input: TInput, ctx: McpContext) => Promise<ToolResult> }`
     - **And** it exports `type ToolResult = { ok: true, data: unknown } | { ok: false, error: { code: string, message: string, body?: unknown } }`
     - **And** it exports `interface McpContext { groupId: string, userId: string, workflowId?: string, prisma: PrismaClient, services: { workflows: WorkflowsService, dynamicNodes: DynamicNodesService, activityCatalog: ActivityCatalogService, runs: RunsService, sourceUpload: SourceUploadService } }`
 
-- [ ] **Scenario 2**: `ToolRegistry` class with `register()` + `getAll()` + `clear()` for tests
+- [x] **Scenario 2**: `ToolRegistry` class with `register()` + `getAll()` + `clear()` for tests
     - **Given** the same file
     - **When** read after the change
     - **Then** it exports `ToolRegistry` (Injectable singleton) with `register(def: ToolDefinition): void`, `getAll(): ToolDefinition[]`, and `clear(): void` (test-only)
     - **And** `register()` throws if a tool with the same name is already registered (prevents accidental double-register)
     - **And** `getAll()` returns the registry's tools in insertion order
 
-- [ ] **Scenario 3**: Registry is registered as a Nest provider in `AgentModule`
+- [x] **Scenario 3**: Registry is registered as a Nest provider in `AgentModule`
     - **Given** `agent.module.ts`
     - **When** read after the change
     - **Then** `ToolRegistry` is in `providers` AND `exports`
     - **And** `AgentModule` implements `OnModuleInit` (empty body for now — tool-self-register hooks land in subsequent stories)
 
-- [ ] **Scenario 4**: Unit tests for `ToolRegistry`
+- [x] **Scenario 4**: Unit tests for `ToolRegistry`
     - **Given** `tool-registry.spec.ts`
     - **When** run via `npm test`
     - **Then** tests cover: register one tool + getAll returns it, register two tools with the same name throws, clear empties the registry, getAll returns insertion order
 
-- [ ] **Scenario 5**: No tools registered yet
+- [x] **Scenario 5**: No tools registered yet
     - **Given** the backend after this story
     - **When** the backend boots
     - **Then** `ToolRegistry.getAll().length === 0`

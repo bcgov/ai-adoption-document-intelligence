@@ -6,34 +6,34 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Capture `sessionId` from the SDK's first turn
+- [x] **Scenario 1**: Capture `sessionId` from the SDK's first turn
     - **Given** `AgentService.runChat()`
     - **When** an initial `SDK.query()` call returns its `sessionId` (either via an event or the return value)
     - **Then** the translator emits a `session-bound` event AND `ChatConversationRepository.updateClaudeSessionId(id, claudeSessionId)` persists the value
     - **And** the value is set once per conversation — subsequent updates are no-ops
 
-- [ ] **Scenario 2**: Resume on subsequent turns
+- [x] **Scenario 2**: Resume on subsequent turns
     - **Given** a conversation with `claudeSessionId` populated
     - **When** the next user message arrives
     - **Then** `AgentService.runChat()` calls `SDK.query({ ..., options: { resume: conversation.claudeSessionId } })`
     - **And** the SDK does NOT re-send the conversation history (the SDK reads it from its own session store)
     - **And** the new user message's text is the only thing passed in `prompt`
 
-- [ ] **Scenario 3**: Replay-fallback on session-not-found
+- [x] **Scenario 3**: Replay-fallback on session-not-found
     - **Given** a conversation with a stale `claudeSessionId`
     - **When** the SDK rejects the resume with a "session not found" error
     - **Then** the service catches the error, builds a single priming `system` prompt that summarises the conversation's prior `ChatMessage` rows, and re-invokes `SDK.query({ prompt: newUserMessage, options: { systemPrompt: priming, ... — NO resume } })`
     - **And** the new session's id replaces the stale one
     - **And** the user observes no failure — the next turn proceeds normally
 
-- [ ] **Scenario 4**: Priming summary is bounded
+- [x] **Scenario 4**: Priming summary is bounded
     - **Given** a very long conversation (e.g. 80 messages)
     - **When** the replay-fallback fires
     - **Then** the priming text is at most ~4 KB (truncated with "[... earlier turns truncated ...]" if needed)
     - **And** the most recent N turns are preserved verbatim (N = whatever fits in the budget)
     - **And** unit tests cover the truncation logic explicitly
 
-- [ ] **Scenario 5**: Tests cover all three states
+- [x] **Scenario 5**: Tests cover all three states
     - **Given** extended `agent.service.spec.ts`
     - **When** run via `npm test`
     - **Then** tests cover: first turn captures sessionId + persists, second turn passes resume, fallback fires on session-not-found + builds priming + retries, fallback handles truncation correctly, no infinite loop on repeated session-not-found errors (max 1 retry)

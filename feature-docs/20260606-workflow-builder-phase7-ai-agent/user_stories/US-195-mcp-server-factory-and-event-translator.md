@@ -6,21 +6,21 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `WorkflowMcpServer` factory wires the registry into the SDK shape
+- [x] **Scenario 1**: `WorkflowMcpServer` factory wires the registry into the SDK shape
     - **Given** `apps/backend-services/src/agent/mcp-server.ts`
     - **When** read after the change
     - **Then** it exports `createWorkflowMcpServer(registry: ToolRegistry, ctx: McpContext): SdkMcpServer`
     - **And** internally it calls `createSdkMcpServer({ name: 'workflow', tools })` from `@anthropic-ai/claude-agent-sdk` where `tools` is built by mapping `registry.getAll()` to the SDK's expected `{ name, description, inputSchema: zodSchema, handler: (input) => registry handler bound with ctx }` shape
     - **And** the SDK-exposed name becomes `mcp__workflow__<toolName>` automatically (per the SDK's MCP server naming rules)
 
-- [ ] **Scenario 2**: Tool handler binding captures `ctx` correctly
+- [x] **Scenario 2**: Tool handler binding captures `ctx` correctly
     - **Given** the factory
     - **When** the SDK calls a tool through the returned MCP server
     - **Then** the handler receives the original `input` (validated against `inputSchema`)
     - **And** the `ctx` parameter is the one passed when the factory was invoked (per-request context)
     - **And** handler errors are caught + converted to `{ ok: false, error: { code: 'handler-error', message } }` so the SDK sees a valid tool result not a thrown exception
 
-- [ ] **Scenario 3**: `EventTranslator` decodes text-delta + agent-done + agent-error
+- [x] **Scenario 3**: `EventTranslator` decodes text-delta + agent-done + agent-error
     - **Given** `apps/backend-services/src/agent/event-translator.ts`
     - **When** read after the change
     - **Then** it exports `EventTranslator` with `translate(sdkEvent): SseEvent[]` mapping:
@@ -30,13 +30,13 @@
     - **And** tool-call events are stubbed (return `[]` for now — full handling in US-203)
     - **And** unit tests cover each shape
 
-- [ ] **Scenario 4**: Translator buffers text-deltas for DB persistence
+- [x] **Scenario 4**: Translator buffers text-deltas for DB persistence
     - **Given** the translator
     - **When** multiple text-delta events fire within one assistant turn
     - **Then** the translator exposes `flushTurnText(): string` returning the merged text since the last flush
     - **And** the controller (US-196) calls `flushTurnText()` once per `agent-done` event to write the merged text into a single `ChatMessage.content`
 
-- [ ] **Scenario 5**: Factory + translator unit tests pass
+- [x] **Scenario 5**: Factory + translator unit tests pass
     - **Given** `mcp-server.spec.ts` + `event-translator.spec.ts`
     - **When** run via `npm test`
     - **Then** factory tests cover: empty registry produces an MCP server with zero tools, registry with N tools produces an MCP server with N tools, handler errors are caught, ctx is correctly bound

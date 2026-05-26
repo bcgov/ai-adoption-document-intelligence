@@ -35,6 +35,8 @@ import { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { GroupSelector } from "../components/group/GroupSelector";
+import { AgentChatDrawer } from "../features/agent-chat/AgentChatDrawer";
+import { AgentChatIcon } from "../features/agent-chat/AgentChatIcon";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
@@ -147,6 +149,7 @@ export function RootLayout() {
             </Badge>
           </Group>
           <Group>
+            <AgentChatIcon />
             <GroupSelector />
             <Stack gap={0}>
               <Text size="sm" fw={600}>
@@ -335,6 +338,7 @@ export function RootLayout() {
           <Outlet />
         </Stack>
       </AppShell.Main>
+      <AgentChatDrawer />
     </AppShell>
   );
 }

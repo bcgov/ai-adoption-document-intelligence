@@ -6,35 +6,35 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `getRunSpec` tool registered
+- [x] **Scenario 1**: `getRunSpec` tool registered
     - **Given** `apps/backend-services/src/agent/tools/run.tools.ts`
     - **When** read after the change
     - **Then** it registers `getRunSpec` with `inputSchema: z.object({ workflowId: z.string() })`
     - **And** the handler resolves `ctx.services.runs.getRunSpec(input.workflowId)` and returns the shape produced by the existing `GET /api/workflows/:id/run-spec` endpoint (Phase 8 Milestone B)
     - **And** the response includes `inputSchema`, `uploadSpec?`, and any source-derived spec entries — verbatim from the existing service
 
-- [ ] **Scenario 2**: `getNodeStatuses` tool registered
+- [x] **Scenario 2**: `getNodeStatuses` tool registered
     - **Given** the same file
     - **When** read after the change
     - **Then** it registers `getNodeStatuses` with `inputSchema: z.object({ workflowId: z.string(), runId: z.string() })`
     - **And** the handler returns the array of `NodeRunStatus` records for the given run (matches Phase 4's existing status endpoint)
     - **And** each record includes `nodeId`, `status` (`pending` / `running` / `succeeded` / `failed`), `errorMessage?` (2 KB truncation already applied upstream), `startedAt?`, `completedAt?`
 
-- [ ] **Scenario 3**: `getPreviewCache` tool registered
+- [x] **Scenario 3**: `getPreviewCache` tool registered
     - **Given** the same file
     - **When** read after the change
     - **Then** it registers `getPreviewCache` with `inputSchema: z.object({ workflowId: z.string(), runId: z.string(), nodeId: z.string() })`
     - **And** the handler returns the cached output JSON for the given node + run
     - **And** returns `{ ok: false, error: { code: 'not-found', message: 'No preview cached for this node yet' } }` if the run hasn't reached that node OR caching is disabled for that node
 
-- [ ] **Scenario 4**: `listRunHistory` tool registered
+- [x] **Scenario 4**: `listRunHistory` tool registered
     - **Given** the same file
     - **When** read after the change
     - **Then** it registers `listRunHistory` with `inputSchema: z.object({ workflowId: z.string(), limit: z.number().optional() })`
     - **And** the handler resolves `ctx.services.runs.listForWorkflow({ workflowId, limit: input.limit ?? 20 })` returning `[{ runId, status, startedAt, completedAt?, initialCtx? }]`
     - **And** sorted by `startedAt` descending
 
-- [ ] **Scenario 5**: Tools self-register + unit tests
+- [x] **Scenario 5**: Tools self-register + unit tests
     - **Given** `agent.module.ts` + `run.tools.spec.ts`
     - **When** read / run after the change
     - **Then** the tool file is imported in `OnModuleInit` (side-effect)

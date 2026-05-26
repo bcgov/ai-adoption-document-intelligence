@@ -6,21 +6,21 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `AgentChatThread` mounts assistant-ui's `Thread`
+- [x] **Scenario 1**: `AgentChatThread` mounts assistant-ui's `Thread`
     - **Given** `apps/frontend/src/features/workflow-builder/agent-chat/AgentChatThread.tsx`
     - **When** read after the change
     - **Then** the component wraps an `<AssistantRuntimeProvider runtime={runtime}>` around assistant-ui's `<Thread>` primitive
     - **And** `runtime` comes from `useClaudeAgentSDKRuntime()` (US-206)
     - **And** the Thread renders inside the drawer body in place of the placeholder from US-207
 
-- [ ] **Scenario 2**: `AgentTextMessage` renders user + assistant text
+- [x] **Scenario 2**: `AgentTextMessage` renders user + assistant text
     - **Given** `messages/AgentTextMessage.tsx`
     - **When** read after the change
     - **Then** it renders a Mantine `<Box>` styled per role: user (right-aligned, primary tint), assistant (left-aligned, neutral tint)
     - **And** markdown is rendered via the existing project's markdown component (or `react-markdown` with safe defaults — confirm which is already in use)
     - **And** assistant text supports streaming (renders progressively as `text-delta` events arrive)
 
-- [ ] **Scenario 3**: `AgentToolCallCard` renders collapsed + expanded states
+- [x] **Scenario 3**: `AgentToolCallCard` renders collapsed + expanded states
     - **Given** `messages/AgentToolCallCard.tsx`
     - **When** read after the change
     - **Then** the card shows: tool icon + tool name + status pill + chevron toggle in the header
@@ -28,14 +28,14 @@
     - **And** expanded body: two `<Monaco editor readOnly>` blocks side-by-side — input JSON / output JSON (or "running…" if no output yet)
     - **And** status pill colors: green for ok, red for error, gray + spinner for running
 
-- [ ] **Scenario 4**: `AgentErrorMessage` renders fatal agent errors
+- [x] **Scenario 4**: `AgentErrorMessage` renders fatal agent errors
     - **Given** `messages/AgentErrorMessage.tsx`
     - **When** read after the change
     - **Then** the component renders a red Mantine `<Alert>` showing the error message
     - **And** if `code === 'aborted-by-user'`, the alert text reads "Aborted" with a distinct neutral color (not red)
     - **And** the runtime adapter renders this for any `agent-error` event
 
-- [ ] **Scenario 5**: Component tests cover all three renderers
+- [x] **Scenario 5**: Component tests cover all three renderers
     - **Given** spec files alongside each component
     - **When** run via `npm test`
     - **Then** tests cover: text message renders for both roles, streaming text appends, tool-call card collapse/expand toggles work, tool-call card color reflects status, tool-call card error state expanded by default, error message renders for code 'aborted-by-user' differently

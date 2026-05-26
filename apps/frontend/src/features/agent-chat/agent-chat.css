@@ -1,0 +1,17 @@
+.agent-chat-composer-input {
+  flex: 1;
+  min-height: 38px;
+  max-height: 160px;
+  resize: none;
+  padding: 8px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.agent-chat-composer-input:focus {
+  border-color: #845ef7;
+  box-shadow: 0 0 0 1px #845ef7;
+}

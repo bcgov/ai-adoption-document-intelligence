@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `BindingWalkErrorList` sub-component
+- [x] **Scenario 1**: `BindingWalkErrorList` sub-component
     - **Given** `messages/error-renderers/BindingWalkErrorList.tsx`
     - **When** read after the change
     - **Then** it renders each error in a red-bordered Mantine `<Card>` with a structured layout:
@@ -15,26 +15,26 @@
         - Bottom row: "from ctx key `<ctxKey>` written by node `<producerId>`"
     - **And** kinds + ctx key + node ids are rendered as Mantine `<Code>` so they stand out
 
-- [ ] **Scenario 2**: Detect binding-walk errors from the message format
+- [x] **Scenario 2**: Detect binding-walk errors from the message format
     - **Given** an error with `code === 'validation'` AND `body.errors` containing strings matching the Phase 3 binding-walk format ("Input port `...` (<Kind>) on node `...` reads from ctx key `...` written by node `...` (<Kind>) — <Kind> not assignable to <Kind>")
     - **When** the card renders
     - **Then** the card dispatches to `<BindingWalkErrorList />` with the parsed errors
     - **And** errors that don't match the binding-walk format fall back to the generic renderer
 
-- [ ] **Scenario 3**: Parser extracts the structured fields from the Phase 3 string
+- [x] **Scenario 3**: Parser extracts the structured fields from the Phase 3 string
     - **Given** `messages/error-renderers/parseBindingWalkError.ts`
     - **When** called with the Phase 3 error string
     - **Then** it returns `{ port, consumerKind, nodeId, ctxKey, producerNodeId, producerKind } | null`
     - **And** returns null for non-matching strings
     - **And** unit tests cover the exact Phase 3 wording (positive + negative cases)
 
-- [ ] **Scenario 4**: Auto-revise indicator
+- [x] **Scenario 4**: Auto-revise indicator
     - **Given** a binding-walk error card in expanded state
     - **When** the agent's NEXT tool call within the same turn is `setCtxKind`, `connectNodes`, or `addNode`
     - **Then** a "Agent is adjusting bindings…" footer renders
     - **And** the indicator clears on success of the next bind / connect / addNode
 
-- [ ] **Scenario 5**: Component + parser tests
+- [x] **Scenario 5**: Component + parser tests
     - **Given** spec files for the parser + the list
     - **When** run via `npm test`
     - **Then** tests cover: parser extracts fields for the exact Phase 3 string, parser returns null for malformed strings, list renders structured layout, multiple errors render as separate cards, the auto-revise indicator behaviour

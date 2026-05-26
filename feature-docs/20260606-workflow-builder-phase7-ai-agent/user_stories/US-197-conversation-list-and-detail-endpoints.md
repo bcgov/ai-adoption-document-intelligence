@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `GET /api/agent/conversations` lists per-user-private conversations
+- [x] **Scenario 1**: `GET /api/agent/conversations` lists per-user-private conversations
     - **Given** `agent.controller.ts`
     - **When** read after the change
     - **Then** the controller defines `GET /api/agent/conversations` with optional query param `workflowId?: string`
@@ -15,7 +15,7 @@
     - **And** each item carries `{ id, workflowId, model, title, messageCount, lastMessageAt, createdAt }`
     - **And** another user's conversations are NOT returned (per-user-private per L10)
 
-- [ ] **Scenario 2**: `GET /api/agent/conversations/:id` returns full message history
+- [x] **Scenario 2**: `GET /api/agent/conversations/:id` returns full message history
     - **Given** the controller
     - **When** the endpoint is hit with a valid id
     - **Then** the handler calls `findByIdForUser(id, userId)` — returns 404 if not owned by the caller
@@ -23,20 +23,20 @@
     - **And** `messages` is sorted by `createdAt` ascending
     - **And** `AgentMessageDto.content` carries the hydrated JSON event log (text + tool-call entries) — the same shape the runtime adapter consumes on reopen
 
-- [ ] **Scenario 3**: Full Swagger DTOs defined
+- [x] **Scenario 3**: Full Swagger DTOs defined
     - **Given** `apps/backend-services/src/agent/dto/`
     - **When** read after the change
     - **Then** the new DTOs `AgentConversationListResponseDto`, `AgentConversationListItemDto`, `AgentConversationDetailResponseDto`, `AgentConversationDto`, `AgentMessageDto`, `AgentToolCallDto`, `AgentToolErrorDto` all exist
     - **And** every field has `@ApiProperty()` decorators per CLAUDE.md
     - **And** the list endpoint uses `@ApiOkResponse({ type: AgentConversationListResponseDto })` (per CLAUDE.md guidance against generic `@ApiResponse`)
 
-- [ ] **Scenario 4**: Cross-user access returns 404
+- [x] **Scenario 4**: Cross-user access returns 404
     - **Given** two users (A and B) each with one conversation, both in the same group
     - **When** user A calls `GET /api/agent/conversations/<B's id>`
     - **Then** the response is 404 (NOT 403 — leaks less info)
     - **And** the test asserts the 404 even though the conversation exists in the DB
 
-- [ ] **Scenario 5**: Empty-state behaviour
+- [x] **Scenario 5**: Empty-state behaviour
     - **Given** a user with no conversations
     - **When** they call `GET /api/agent/conversations`
     - **Then** the response is 200 with `{ items: [] }` (not 404, not empty body)

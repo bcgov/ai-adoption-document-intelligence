@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `AgentChatIcon` component exists
+- [x] **Scenario 1**: `AgentChatIcon` component exists
     - **Given** `apps/frontend/src/components/nav/AgentChatIcon.tsx`
     - **When** read after the change
     - **Then** it renders a Mantine `<ActionIcon>` with a chat-bubble glyph (use whichever icon set the existing nav uses — likely tabler or lucide)
     - **And** the icon has an `aria-label="Open workflow agent chat"` for accessibility
     - **And** clicking the icon calls `useAgentChatStore().toggle()`
 
-- [ ] **Scenario 2**: Icon mounted in the existing top-bar nav
+- [x] **Scenario 2**: Icon mounted in the existing top-bar nav
     - **Given** the existing top-bar nav file (likely `components/nav/TopBarNav.tsx` based on Phase 6's L44 reference, OR the actual file confirmed via Read first)
     - **When** read after the change
     - **Then** the `<AgentChatIcon />` is rendered in the right-side icon cluster (next to the existing notification / user-menu icons)
     - **And** the icon is visible on every authenticated route (whatever the existing nav's mounting strategy is — the icon ships wherever the nav ships)
 
-- [ ] **Scenario 3**: Streaming-indicator badge dot
+- [x] **Scenario 3**: Streaming-indicator badge dot
     - **Given** the icon
     - **When** an agent stream is in-flight in any conversation
     - **Then** a small Mantine `<Indicator color="green" processing>` dot renders on the icon
     - **And** the dot disappears when no stream is active
     - **And** the streaming-status state lives in `agentChatStore` (extend the store with `isStreaming: boolean` + `setStreaming(v)`)
 
-- [ ] **Scenario 4**: Drawer toggle on click round-trips correctly
+- [x] **Scenario 4**: Drawer toggle on click round-trips correctly
     - **Given** the drawer closed
     - **When** the user clicks `AgentChatIcon`
     - **Then** the drawer opens
@@ -34,7 +34,7 @@
     - **Then** the drawer closes
     - **And** the close-button-in-header → icon click → reopen cycle also works (state stays consistent)
 
-- [ ] **Scenario 5**: Component tests + smoke
+- [x] **Scenario 5**: Component tests + smoke
     - **Given** `AgentChatIcon.spec.tsx`
     - **When** run via `npm test`
     - **Then** tests cover: click toggles store, streaming indicator visible when `isStreaming: true`, aria-label present, icon renders without errors when no auth context

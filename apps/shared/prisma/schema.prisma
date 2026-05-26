@@ -172,6 +172,7 @@ model WorkflowLineage {
   updated_at           DateTime          @updatedAt
   versions             WorkflowVersion[] @relation("LineageVersions")
   benchmarkCandidateLineages WorkflowLineage[] @relation("LineageSource")
+  chatConversations    ChatConversation[]
 
   @@unique([group_id, slug])
   @@index([group_id])
@@ -387,6 +388,7 @@ model Group {
   benchmark_projects  BenchmarkProject[]
   confusionProfiles   ConfusionProfile[]
   reference_tables    ReferenceTable[]
+  chatConversations   ChatConversation[]
 
   @@map("group")
 }
@@ -927,4 +929,45 @@ model DynamicNodeVersion {
 
   @@unique([dynamicNodeId, versionNumber])
   @@map("dynamic_node_version")
+}
+
+// ========== AGENT CHAT (Phase 7) ==========
+
+/// Per-user chat conversation with the workflow-builder agent. Optionally
+/// bound to a workflow lineage. Per-user-private (visible only to creator).
+///
+/// See docs-md/workflow-builder/AI_AGENT_DESIGN.md (Phase 7) §4.1.
+model ChatConversation {
+  id             String          @id @default(cuid())
+  workflowId     String?         @map("workflow_id")
+  workflow       WorkflowLineage? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  groupId        String          @map("group_id")
+  group          Group           @relation(fields: [groupId], references: [id])
+  createdBy      String          @map("created_by")
+  provider       String          @default("anthropic")
+  model          String
+  title          String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  lastMessageAt  DateTime        @default(now()) @map("last_message_at")
+  messages       ChatMessage[]
+
+  @@index([workflowId])
+  @@index([groupId, createdBy])
+  @@map("chat_conversation")
+}
+
+/// One row per user turn + one row per assistant turn. Tool calls and
+/// results are embedded as JSON parts inside `content`.
+model ChatMessage {
+  id              String           @id @default(cuid())
+  conversationId  String           @map("conversation_id")
+  conversation    ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            String
+  content         Json
+  inputTokens     Int?             @map("input_tokens")
+  outputTokens    Int?             @map("output_tokens")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("chat_message")
 }

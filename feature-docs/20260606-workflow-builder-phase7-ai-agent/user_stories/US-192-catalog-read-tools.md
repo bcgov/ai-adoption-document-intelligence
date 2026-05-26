@@ -6,34 +6,34 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `listActivityCatalog` tool registered
+- [x] **Scenario 1**: `listActivityCatalog` tool registered
     - **Given** `apps/backend-services/src/agent/tools/catalog.tools.ts`
     - **When** read after the change
     - **Then** it self-registers a `listActivityCatalog` tool with empty `inputSchema: z.object({})`
     - **And** description names what it returns ("merged static + group-scoped dynamic-node entries from `GET /api/activity-catalog`")
     - **And** the handler resolves `ctx.services.activityCatalog.listForGroup(ctx.groupId)` and returns `{ ok: true, data: { items: ActivityCatalogEntry[] } }`
 
-- [ ] **Scenario 2**: `listSourceCatalog` tool registered
+- [x] **Scenario 2**: `listSourceCatalog` tool registered
     - **Given** the same file
     - **When** read after the change
     - **Then** it registers `listSourceCatalog` with empty input schema
     - **And** the handler returns the static `SOURCE_CATALOG` export from `@ai-di/graph-workflow` as `{ ok: true, data: { items: SourceCatalogEntry[] } }`
     - **And** no DB call — the source catalog is in-package
 
-- [ ] **Scenario 3**: `listLibraryWorkflows` tool registered
+- [x] **Scenario 3**: `listLibraryWorkflows` tool registered
     - **Given** the same file
     - **When** read after the change
     - **Then** it registers `listLibraryWorkflows` with empty input schema
     - **And** the handler resolves `ctx.services.workflows.listForGroup({ groupId: ctx.groupId, isLibrary: true })` and returns `{ ok: true, data: { items: LibraryWorkflowSummaryDto[] } }`
     - **And** the response items include enough info for the agent (id, name, description, inputs, outputs, version) — pulled from the existing list endpoint's response shape
 
-- [ ] **Scenario 4**: Tool-self-registration wired into `AgentModule`
+- [x] **Scenario 4**: Tool-self-registration wired into `AgentModule`
     - **Given** `agent.module.ts`
     - **When** read after the change
     - **Then** `OnModuleInit` imports `catalog.tools.ts` (side-effect import) so the three tools land in `ToolRegistry` at startup
     - **And** the registry contains exactly 3 entries after module init
 
-- [ ] **Scenario 5**: Unit tests for handlers
+- [x] **Scenario 5**: Unit tests for handlers
     - **Given** `catalog.tools.spec.ts`
     - **When** run via `npm test`
     - **Then** tests cover: each handler returns the expected service call result, group-scoping is enforced (calling with `groupId: A` does NOT return group B's data), source catalog returns the in-package static array verbatim

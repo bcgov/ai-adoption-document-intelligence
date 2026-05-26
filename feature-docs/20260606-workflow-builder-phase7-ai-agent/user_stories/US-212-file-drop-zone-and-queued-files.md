@@ -6,34 +6,34 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `FileDropZone` overlays the composer on dragenter
+- [x] **Scenario 1**: `FileDropZone` overlays the composer on dragenter
     - **Given** `agent-chat/composer/FileDropZone.tsx`
     - **When** a user drags a file over the composer
     - **Then** an overlay (Mantine `<Paper>` with a dashed border) appears with "Drop files to attach"
     - **And** the overlay disappears on dragleave or drop
     - **And** the overlay does NOT trigger on dragenter over child elements (use `dragcounter` pattern to avoid flicker)
 
-- [ ] **Scenario 2**: `useQueuedFiles` exposes queue state
+- [x] **Scenario 2**: `useQueuedFiles` exposes queue state
     - **Given** `agent-chat/composer/useQueuedFiles.ts`
     - **When** read after the change
     - **Then** it exports `useQueuedFiles()` returning `{ queue: QueuedFile[], enqueue(file: File), drain(): QueuedFile[], clear() }`
     - **And** `QueuedFile = { id: string, filename: string, mimeType: string, sizeBytes: number, blob: File }`
     - **And** the queue is conversation-scoped (cleared when conversation changes) — stored in the Zustand store from US-207
 
-- [ ] **Scenario 3**: Drop event enqueues files
+- [x] **Scenario 3**: Drop event enqueues files
     - **Given** the FileDropZone mounted in the composer
     - **When** the user drops one or more files
     - **Then** each file is enqueued via `useQueuedFiles().enqueue(file)`
     - **And** a file-pill (small Mantine `<Badge>`) appears in the composer showing filename + size for each queued file
     - **And** clicking the pill's X removes that single file from the queue
 
-- [ ] **Scenario 4**: Send-with-attachments includes queue metadata in the request
+- [x] **Scenario 4**: Send-with-attachments includes queue metadata in the request
     - **Given** the user types a message + has queued files + clicks send
     - **When** `useAgentChatSend.send(message)` fires
     - **Then** the request body's `attachments` array carries `[{ filename, mimeType, size }]` for each queued file (NOT the bytes — bytes upload separately per US-213/214)
     - **And** the queue is NOT drained yet — drain happens only after upload succeeds
 
-- [ ] **Scenario 5**: Component + hook tests
+- [x] **Scenario 5**: Component + hook tests
     - **Given** `FileDropZone.spec.tsx` + `useQueuedFiles.spec.ts`
     - **When** run via `npm test`
     - **Then** tests cover: drag over shows overlay, drop enqueues, multiple files enqueue independently, pill click removes single file, send-time `attachments` metadata included, drain returns + leaves empty queue, clear empties

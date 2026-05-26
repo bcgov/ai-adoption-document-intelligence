@@ -6,34 +6,34 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: `AgentChatDrawer` Mantine component renders
+- [x] **Scenario 1**: `AgentChatDrawer` Mantine component renders
     - **Given** `apps/frontend/src/features/workflow-builder/agent-chat/AgentChatDrawer.tsx`
     - **When** read after the change
     - **Then** the component renders Mantine `<Drawer position="right" size="480px">`
     - **And** the body is `<AgentChatHeader>` + a placeholder `<div data-testid="agent-chat-body" />` (`AgentChatThread` lands in US-209)
     - **And** the drawer reads its open state from a Zustand store at `agent-chat/state/agentChatStore.ts` (so the trigger icon in US-208 can toggle it)
 
-- [ ] **Scenario 2**: `AgentChatHeader` renders a title + close button
+- [x] **Scenario 2**: `AgentChatHeader` renders a title + close button
     - **Given** `agent-chat/header/AgentChatHeader.tsx`
     - **When** read after the change
     - **Then** it renders a title (default "Workflow Agent") + a Mantine close button
     - **And** the close button calls `agentChatStore.close()`
     - **And** abort + new-conversation buttons land in US-211 (placeholder slots present here)
 
-- [ ] **Scenario 3**: Drawer mounts at the app layout root
+- [x] **Scenario 3**: Drawer mounts at the app layout root
     - **Given** the existing app layout file (likely `apps/frontend/src/App.tsx` or `apps/frontend/src/layouts/AppLayout.tsx`)
     - **When** read after the change
     - **Then** `<AgentChatDrawer />` is rendered as a sibling of the route outlet (NOT inside a route component)
     - **And** the drawer's open state survives route changes (Cypress / Playwright smoke: open drawer on `/workflows`, navigate to `/workflows/create-v2?id=<X>`, drawer stays open)
 
-- [ ] **Scenario 4**: Zustand `agentChatStore` provides minimal state
+- [x] **Scenario 4**: Zustand `agentChatStore` provides minimal state
     - **Given** `agent-chat/state/agentChatStore.ts`
     - **When** read after the change
     - **Then** it exports a Zustand-based hook `useAgentChatStore()` with `{ isOpen, open(), close(), toggle() }`
     - **And** initial `isOpen` is `false`
     - **And** unit tests cover open / close / toggle
 
-- [ ] **Scenario 5**: Component tests pass
+- [x] **Scenario 5**: Component tests pass
     - **Given** `AgentChatDrawer.spec.tsx` + `AgentChatHeader.spec.tsx` + `agentChatStore.spec.ts`
     - **When** run via `npm test`
     - **Then** the drawer renders the title + close, closing fires `agentChatStore.close()`, drawer is hidden when `isOpen: false`, drawer is visible when `isOpen: true`

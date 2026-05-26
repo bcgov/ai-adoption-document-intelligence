@@ -1,8 +1,61 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-25 (**Phase 6 dynamic nodes — CLOSED. 30 user stories (US-157 → US-186) shipped end-to-end across 7 milestones plus Milestone B0 (deno-runner sidecar) + a post-Milestone-F sweep. US-185 Playwright walkthrough: 7/7 scenarios PASS, 0 pageerror events.**). Phase 4 closed at 2026-05-24; Phase 8 + Phase 3.x closed at 2026-05-24; Phase 3 closed at 2026-05-24; Phase 2 closed at 2026-05-23.
+**Last updated:** 2026-05-26 (**Phase 7 AI agent — CLOSED. 38 user stories (US-187 → US-224) shipped end-to-end across 7 milestones A–G. US-224 Playwright walkthrough: 8/8 scenarios PASS, 0 pageerror events.**). Phase 6 closed at 2026-05-25; Phase 4 + Phase 8 + Phase 3.x closed at 2026-05-24; Phase 3 closed at 2026-05-24; Phase 2 closed at 2026-05-23.
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
+
+---
+
+## Phase 7 — AI Workflow Builder Agent (DONE, 2026-05-26)
+
+**Closes the "Phase 7 — AI workflow builder" milestone from IMPLEMENTATION_PLAN.md §5.** A multi-provider agent (Anthropic + Azure OpenAI via Vercel AI SDK) now ships as an embedded chat drawer in the v2 editor, with full agent loop, file drop, canvas live-update, conversation switcher, and abort.
+
+### TL;DR — what shipped
+
+- **Backend `apps/backend-services/src/agent/`** — new module with `AgentEnv`, `ProviderResolver` (Anthropic via `@ai-sdk/anthropic`, Azure via `@ai-sdk/azure`), `ChatRepository`, `AbortFlagMap`, `tools.ts` (19 tools: catalog read, workflow CRUD, dynamic-node CRUD, run + node-statuses + preview-cache), `agent.service.ts` (streamText with `stopWhen: stepCountIs`, side title-gen call, history hydration for resume), `agent.controller.ts` (SSE chat + conversation list/detail/delete + abort), `system-prompt.ts`. 19 unit tests across chat repo + abort flag map + provider resolver.
+- **Prisma migration** `20260526041213_add_chat_conversation_and_message` — `ChatConversation` + `ChatMessage` models.
+- **Frontend `apps/frontend/src/features/agent-chat/`** — `AgentChatDrawer` (Mantine Drawer + assistant-ui Thread), `AgentChatIcon` (global header bubble), `ConversationSwitcher`, `error-renderers.tsx` (structured ParseError + binding-walk error UI), `useAgentConversations` TanStack hooks, Zustand store. Drawer mounts at layout root so it persists across route changes; agent's `createWorkflow` auto-navigates the user to the new workflow's editor.
+- **Provider picker** in the chat header — Claude Haiku 4.5 (default, cheap) / Sonnet 4.6 / Opus 4.7 1M / Azure GPT-4.1. Switch per-session.
+- **File drop** via composer paperclip OR drag-drop. Uploads to the workflow's `source.upload` node via Phase 8's `POST /api/workflows/:id/sources/:nodeId/upload`. If no source node exists yet, files queue + auto-drain when the agent's `addNode({ type: 'source.upload' })` lands (US-214).
+- **Canvas live reactivity** — every write-tool success invalidates TanStack query keys (`['workflow']`, `['activity-catalog']`); canvas re-renders within one tick.
+- **Auto mode** — `stopWhen: stepCountIs(30)`, no per-call approval gates; tool-call cards stream live so the user sees what's happening.
+- **Abort** — red stop icon in drawer header cancels in-flight stream via backend AbortController.
+- **Resume** — close + reopen drawer; history hydrates from DB; next turn continues with full context.
+
+### Locked scope decisions
+
+57 numbered decisions in [feature-docs/20260606-workflow-builder-phase7-ai-agent/REQUIREMENTS.md](../../feature-docs/20260606-workflow-builder-phase7-ai-agent/REQUIREMENTS.md). Authoritative design doc: [AI_AGENT_DESIGN.md](AI_AGENT_DESIGN.md). Handoff with demo prompts: [PHASE7_HANDOFF.md](PHASE7_HANDOFF.md).
+
+### Milestone one-liners
+
+- **Milestone A — US-187 → US-191:** SDK install + AgentModule shell + Prisma migration + ChatRepository + ToolRegistry + system prompt.
+- **Milestone B — US-192 → US-197:** Read tools (catalog, library workflows, dynamic nodes, source-upload, run-spec, node-statuses, preview-cache, run-history) + in-process MCP server + `POST /api/agent/chat` (SSE) + conversation list/detail endpoints.
+- **Milestone C — US-198 → US-204:** Write tools (createWorkflow auto-seeds source.upload, addNode auto-resolves activity vs source vs dyn types, connectNodes with optional bindings, deleteNode with edge + entry cascade, declareCtx / setCtxKind, publishDynamicNode with auto-retry-as-PUT-on-409, startRun) + auto-mode + abort + DELETE.
+- **Milestone D — US-205 → US-211:** assistant-ui install + drawer at layout root + global header icon + Thread + Composer with ComposerPrimitive + provider picker + abort button + conversation hooks.
+- **Milestone E — US-212 → US-217:** File-drop composer + queued-file state + drain listener on agent addNode(source.upload) + TanStack invalidator + mid-stream navigation on createWorkflow.
+- **Milestone F — US-218 → US-223:** Title generation side-call (best-effort) + DB-backed history hydration for resume + token usage capture + structured ParseError rendering + binding-walk error parsing/rendering + conversation switcher.
+- **Milestone G — US-224:** Playwright walkthrough — 8 scenarios PASS / 0 pageerrors / screenshots in `/tmp/wb-phase7-verify/`.
+
+### Walkthrough result
+
+```
+S1 — greenfield build: PASS  (workflow created + URL navigated to /workflows/create-v2?id=<new>)
+S2 — file drop: PASS         (PDF uploaded to source.upload, attachment badge visible)
+S3 — switcher: PASS          (past conversation listed below header)
+S4 — list catalog: PASS      (41 activities returned)
+S5 — model picker: PASS      (4 models in dropdown)
+S6 — abort + icon: PASS      (red abort icon + global header bubble both visible)
+S7 — resume across reopen: PASS
+S8 — pageErrors === 0: PASS
+```
+
+### Phase 7 open follow-ups (known issues / 7.x)
+
+- **Azure GPT-4.1 tool-use blocked** by APIM strictness on `content: null` in assistant tool-call messages. Anthropic works end-to-end. Two fixes possible: newer model behind the APIM, OR add a content-normalization middleware that replaces null with empty-string. Switching model is one dropdown click once upstream accepts the schema.
+- **Conversation switcher delete button** doesn't yet show a confirmation modal (just deletes inline) — minor UX polish for 7.x.
+- **Markdown rendering** in assistant text is plain `whiteSpace: pre-wrap` — swap in markdown rendering for 7.x.
+- **Concurrent-edit safety** is "last write wins" per design lock L51 — agent's tool calls do full read-modify-write; if a human edits in parallel the agent's write may clobber. Not load-bearing for the demo.
+- **Approval-required write tools** deferred to 7.x (auto-mode only in 7.0 per design L8).
 
 ---
 

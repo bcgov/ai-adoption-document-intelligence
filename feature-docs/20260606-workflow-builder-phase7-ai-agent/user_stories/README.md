@@ -94,56 +94,56 @@ Phase 7 has a clear front-to-back backbone: backend module shell (Milestone A) �
 - After US-187 (env-var loading): restart so `ANTHROPIC_API_KEY` is picked up.
 
 ### Phase 1 — Backend module shell (Milestone A — Backend-restart point after US-187 + US-191)
-- [ ] **US-187** (SDK install + AgentModule shell + env-var validation) — foundation; everything in Milestone A depends on it
-- [ ] **US-188** (Prisma models + migration) — independent of US-187; can land in parallel
-- [ ] **US-189** (chat repositories) — depends on US-188
-- [ ] **US-190** (ToolRegistry singleton) — depends on US-187
-- [ ] **US-191** (system prompt + pointer) — depends on US-187; closes Milestone A
+- [x] **US-187** (SDK install + AgentModule shell + env-var validation) — foundation; everything in Milestone A depends on it
+- [x] **US-188** (Prisma models + migration) — independent of US-187; can land in parallel
+- [x] **US-189** (chat repositories) — depends on US-188
+- [x] **US-190** (ToolRegistry singleton) — depends on US-187
+- [x] **US-191** (system prompt + pointer) — depends on US-187; closes Milestone A
 
 ### Phase 2 — Backend tools + read-only chat (Milestone B — depends on Phase 1)
-- [ ] **US-192** (catalog read tools) — depends on US-190
-- [ ] **US-193** (workflow + dynamic-node + source read tools + new `listAttachments` service method) — depends on US-190
-- [ ] **US-194** (run read tools) — depends on US-190
-- [ ] **US-195** (MCP server factory + minimal translator) — depends on US-187, US-190, US-192/193/194
-- [ ] **US-196** (AgentService + POST /api/agent/chat SSE) — depends on US-189, US-191, US-195
-- [ ] **US-197** (list + detail endpoints) — depends on US-189; closes Milestone B
+- [x] **US-192** (catalog read tools) — depends on US-190
+- [x] **US-193** (workflow + dynamic-node + source read tools + new `listAttachments` service method) — depends on US-190
+- [x] **US-194** (run read tools) — depends on US-190
+- [x] **US-195** (MCP server factory + minimal translator) — depends on US-187, US-190, US-192/193/194
+- [x] **US-196** (AgentService + POST /api/agent/chat SSE) — depends on US-189, US-191, US-195
+- [x] **US-197** (list + detail endpoints) — depends on US-189; closes Milestone B
 
 ### Phase 3 — Backend write tools + auto-mode + abort (Milestone C — depends on Phase 2)
-- [ ] **US-198** (workflow CRUD write tools) — depends on Milestone B
-- [ ] **US-199** (graph-editing write tools) — depends on US-198
-- [ ] **US-200** (ctx write tools) — depends on US-199
-- [ ] **US-201** (dynamic-node write tools) — depends on Milestone B; can land in parallel with US-199/200
-- [ ] **US-202** (run write tool — startRun) — depends on Milestone B
-- [ ] **US-203** (auto-mode wiring + full tool-call events) — depends on US-198 → US-202
-- [ ] **US-204** (abort + DELETE endpoints + flag map) — depends on US-196 + US-203; closes Milestone C
+- [x] **US-198** (workflow CRUD write tools) — depends on Milestone B
+- [x] **US-199** (graph-editing write tools) — depends on US-198
+- [x] **US-200** (ctx write tools) — depends on US-199
+- [x] **US-201** (dynamic-node write tools) — depends on Milestone B; can land in parallel with US-199/200
+- [x] **US-202** (run write tool — startRun) — depends on Milestone B
+- [x] **US-203** (auto-mode wiring + full tool-call events) — depends on US-198 → US-202
+- [x] **US-204** (abort + DELETE endpoints + flag map) — depends on US-196 + US-203; closes Milestone C
 
 ### Phase 4 — Frontend chat drawer + runtime adapter (Milestone D — Vite-restart point after US-205 — depends on Phase 3)
-- [ ] **US-205** (assistant-ui install + feature dir) — foundation; Vite restart after this
-- [ ] **US-206** (runtime adapter + SSE parser) — depends on US-205
-- [ ] **US-207** (drawer + header shell + drawer-at-layout-root mount) — depends on US-205
-- [ ] **US-208** (AgentChatIcon in global header) — depends on US-207
-- [ ] **US-209** (Thread + text / tool-call / error message components) — depends on US-206 + US-207
-- [ ] **US-210** (composer + useAgentChatSend SSE mutation) — depends on US-206 + US-207 + US-209
-- [ ] **US-211** (abort button + conversation hooks + history reload) — depends on US-210; closes Milestone D
+- [x] **US-205** (assistant-ui install + feature dir) — foundation; Vite restart after this
+- [x] **US-206** (runtime adapter + SSE parser) — depends on US-205
+- [x] **US-207** (drawer + header shell + drawer-at-layout-root mount) — depends on US-205
+- [x] **US-208** (AgentChatIcon in global header) — depends on US-207
+- [x] **US-209** (Thread + text / tool-call / error message components) — depends on US-206 + US-207
+- [x] **US-210** (composer + useAgentChatSend SSE mutation) — depends on US-206 + US-207 + US-209
+- [x] **US-211** (abort button + conversation hooks + history reload) — depends on US-210; closes Milestone D
 
 ### Phase 5 — File drop + canvas reactivity + mid-stream nav (Milestone E — depends on Phase 4)
-- [ ] **US-212** (FileDropZone + useQueuedFiles queue) — depends on Milestone D
-- [ ] **US-213** (useSourceUploadForChat + target resolution) — depends on US-212
-- [ ] **US-214** (drain queue on agent addNode) — depends on US-213
-- [ ] **US-215** (TanStack invalidator table + runtime subscription) — depends on US-206
-- [ ] **US-216** (mid-stream navigation on createWorkflow) — depends on US-215
-- [ ] **US-217** (Milestone E end-to-end smoke) — depends on US-212 → US-216; closes Milestone E
+- [x] **US-212** (FileDropZone + useQueuedFiles queue) — depends on Milestone D
+- [x] **US-213** (useSourceUploadForChat + target resolution) — depends on US-212
+- [x] **US-214** (drain queue on agent addNode) — depends on US-213
+- [x] **US-215** (TanStack invalidator table + runtime subscription) — depends on US-206
+- [x] **US-216** (mid-stream navigation on createWorkflow) — depends on US-215
+- [x] **US-217** (Milestone E end-to-end smoke) — depends on US-212 → US-216; closes Milestone E
 
 ### Phase 6 — Iteration-loop polish + structured errors + switcher (Milestone F — depends on Phase 5)
-- [ ] **US-218** (conversation title generation) — depends on Milestone C
-- [ ] **US-219** (claudeSessionId lifecycle — capture + resume + replay-fallback) — depends on Milestone C
-- [ ] **US-220** (token-usage capture) — depends on Milestone C
-- [ ] **US-221** (ParseError[] rendering in tool-call card) — depends on US-209 + US-201
-- [ ] **US-222** (binding-walk error rendering) — depends on US-209 + US-199/US-200
-- [ ] **US-223** (conversation switcher panel) — depends on US-211; closes Milestone F
+- [x] **US-218** (conversation title generation) — depends on Milestone C
+- [x] **US-219** (claudeSessionId lifecycle — capture + resume + replay-fallback) — depends on Milestone C
+- [x] **US-220** (token-usage capture) — depends on Milestone C
+- [x] **US-221** (ParseError[] rendering in tool-call card) — depends on US-209 + US-201
+- [x] **US-222** (binding-walk error rendering) — depends on US-209 + US-199/US-200
+- [x] **US-223** (conversation switcher panel) — depends on US-211; closes Milestone F
 
 ### Phase 7 — End-to-end Playwright verification (Milestone G — depends on Phase 6)
-- [ ] **US-224** (Playwright walkthrough — 8 scenarios + SESSION_HANDOFF closeout) — depends on all prior phases
+- [x] **US-224** (Playwright walkthrough — 8 scenarios + SESSION_HANDOFF closeout) — depends on all prior phases
 
 > Stories are ordered by dependency chain for automated implementation.
 > Each story should be implementable after all stories in previous phases are complete.
