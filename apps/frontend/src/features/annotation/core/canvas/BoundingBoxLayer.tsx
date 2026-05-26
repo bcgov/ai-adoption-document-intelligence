@@ -114,6 +114,11 @@ interface BoundingBoxLayerProps {
   onBoxClick?: (id: string) => void;
   onBoxMouseEnter?: (id: string) => void;
   onBoxMouseLeave?: (id: string) => void;
+  rotation?: number;
+  offsetX?: number;
+  offsetY?: number;
+  x?: number;
+  y?: number;
 }
 
 export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
@@ -123,9 +128,14 @@ export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
   onBoxClick,
   onBoxMouseEnter,
   onBoxMouseLeave,
+  rotation,
+  offsetX,
+  offsetY,
+  x,
+  y,
 }) => {
   return (
-    <Layer>
+    <Layer rotation={rotation} offsetX={offsetX} offsetY={offsetY} x={x} y={y}>
       {boxes.map((item) => (
         <BoundingBoxShape
           key={item.id}

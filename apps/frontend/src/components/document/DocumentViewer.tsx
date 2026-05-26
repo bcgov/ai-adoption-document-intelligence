@@ -11,6 +11,7 @@ interface DocumentViewerProps {
   pageNumber?: number;
   showOverlays?: boolean;
   onToggleOverlays?: () => void;
+  rotation?: number;
 }
 
 const PIXELS_PER_INCH = 144;
@@ -38,6 +39,7 @@ export function DocumentViewer({
   extractedFields,
   pageNumber = 1,
   showOverlays = true,
+  rotation = 0,
 }: DocumentViewerProps) {
   /** API may send null; default `{}` does not apply when null is passed explicitly. */
   const fields = extractedFields ?? {};
@@ -134,6 +136,7 @@ export function DocumentViewer({
           height={canvasHeight}
           boxes={boxes}
           onBoxHover={handleBoxHover}
+          rotation={rotation}
         />
       )}
 

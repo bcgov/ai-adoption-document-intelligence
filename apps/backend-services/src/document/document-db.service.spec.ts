@@ -134,44 +134,77 @@ describe("DocumentDbService", () => {
   describe("findAllDocuments", () => {
     it("should return all documents with total when no groupIds provided", async () => {
       const docs = [
-        makeDocument({ id: "doc-1" }),
-        makeDocument({ id: "doc-2" }),
+        { ...makeDocument({ id: "doc-1" }), workflowVersion: null },
+        { ...makeDocument({ id: "doc-2" }), workflowVersion: null },
       ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(2);
 
       const result = await service.findAllDocuments();
 
-      expect(result).toEqual({ documents: docs, total: 2 });
+      expect(result).toEqual({
+        documents: [
+          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+          { ...docs[1], workflow_name: null, workflowVersion: undefined },
+        ],
+        total: 2,
+      });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
-        where: undefined,
+        where: {},
         orderBy: { created_at: "desc" },
         take: 50,
         skip: 0,
+        include: {
+          workflowVersion: {
+            select: {
+              lineage: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
       expect(mockPrismaDocument.count).toHaveBeenCalledWith({
-        where: undefined,
+        where: {},
       });
     });
 
     it("should filter by groupIds when provided", async () => {
-      const docs = [makeDocument()];
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(1);
 
       const result = await service.findAllDocuments(["group-1"]);
 
-      expect(result).toEqual({ documents: docs, total: 1 });
+      expect(result).toEqual({
+        documents: [
+          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+        ],
+        total: 1,
+      });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: { group_id: { in: ["group-1"] } },
         orderBy: { created_at: "desc" },
         take: 50,
         skip: 0,
+        include: {
+          workflowVersion: {
+            select: {
+              lineage: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
     });
 
     it("should apply limit and offset from options", async () => {
-      const docs = [makeDocument()];
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(100);
 
@@ -180,12 +213,28 @@ describe("DocumentDbService", () => {
         offset: 20,
       });
 
-      expect(result).toEqual({ documents: docs, total: 100 });
+      expect(result).toEqual({
+        documents: [
+          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+        ],
+        total: 100,
+      });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
-        where: undefined,
+        where: {},
         orderBy: { created_at: "desc" },
         take: 10,
         skip: 20,
+        include: {
+          workflowVersion: {
+            select: {
+              lineage: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
     });
 

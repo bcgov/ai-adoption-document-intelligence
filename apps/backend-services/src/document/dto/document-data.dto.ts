@@ -52,6 +52,9 @@ export class DocumentDataDto {
 
   @ApiProperty({ type: "string" })
   group_id!: string;
+
+  @ApiProperty({ required: false, nullable: true, type: "string" })
+  workflow_name?: string | null;
 }
 
 export class PaginatedDocumentsDto {

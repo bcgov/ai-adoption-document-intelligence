@@ -111,26 +111,113 @@ export class DocumentDbService {
    */
   async findAllDocuments(
     groupIds?: string[],
-    options?: { limit?: number; offset?: number },
+    options?: {
+      limit?: number;
+      offset?: number;
+      search?: string;
+      status?: DocumentStatus | "all";
+      sortBy?: string;
+      sortDir?: "asc" | "desc";
+    },
     tx?: Prisma.TransactionClient,
-  ): Promise<{ documents: DocumentData[]; total: number }> {
+  ): Promise<{
+    documents: (DocumentData & { workflow_name?: string | null })[];
+    total: number;
+  }> {
     const client = tx ?? this.prisma;
     const take = options?.limit ?? 50;
     const skip = options?.offset ?? 0;
-    const where = groupIds ? { group_id: { in: groupIds } } : undefined;
-    this.logger.debug("Finding all documents", { take, skip });
+    const sortBy = options?.sortBy ?? "created_at";
+    const sortDir = options?.sortDir ?? "desc";
+
+    // Build where clause
+    const where: Prisma.DocumentWhereInput = {};
+
+    // Group filter (required)
+    if (groupIds) {
+      where.group_id = { in: groupIds };
+    }
+
+    // Status filter
+    if (options?.status && options.status !== "all") {
+      where.status = options.status;
+    }
+
+    // Search filter (title or filename)
+    if (options?.search?.trim()) {
+      where.OR = [
+        { title: { contains: options.search, mode: "insensitive" } },
+        {
+          original_filename: { contains: options.search, mode: "insensitive" },
+        },
+      ];
+    }
+
+    // Build orderBy
+    const orderBy: Prisma.DocumentOrderByWithRelationInput = {};
+    switch (sortBy) {
+      case "title":
+        orderBy.title = sortDir;
+        break;
+      case "status":
+        orderBy.status = sortDir;
+        break;
+      case "size":
+        orderBy.file_size = sortDir;
+        break;
+      case "source":
+        orderBy.source = sortDir;
+        break;
+      case "workflow":
+        orderBy.workflowVersion = { lineage: { name: sortDir } };
+        break;
+      case "created_at":
+      default:
+        orderBy.created_at = sortDir;
+        break;
+    }
+
+    this.logger.debug("Finding all documents", {
+      take,
+      skip,
+      sortBy,
+      sortDir,
+      status: options?.status,
+      search: options?.search,
+    });
+
     try {
       const [documents, total] = await Promise.all([
         client.document.findMany({
           where,
-          orderBy: { created_at: "desc" },
+          orderBy,
           take,
           skip,
+          include: {
+            workflowVersion: {
+              select: {
+                lineage: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
         }),
         client.document.count({ where }),
       ]);
+
       this.logger.debug("Found documents", { count: documents.length, total });
-      return { documents, total };
+
+      // Map to include workflow_name at top level
+      const documentsWithWorkflow = documents.map((doc) => ({
+        ...doc,
+        workflow_name: doc.workflowVersion?.lineage?.name ?? null,
+        workflowVersion: undefined, // Remove the nested object
+      }));
+
+      return { documents: documentsWithWorkflow, total };
     } catch (error) {
       this.logger.error("Failed to find documents", {
         error: getErrorMessage(error),

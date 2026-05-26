@@ -39,8 +39,9 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
   { value: "pre_ocr", label: "Waiting" },
   { value: "ongoing_ocr", label: "Processing" },
-  { value: "needs_validation", label: "Needs Review" },
   { value: "completed_ocr", label: "Completed" },
+  { value: "awaiting_review", label: "Awaiting Review" },
+  { value: "ready", label: "Ready" },
   { value: "failed", label: "Failed" },
   { value: "rejected_by_human", label: "Rejected" },
 ];
@@ -48,8 +49,9 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
 const statusStyles: Record<string, { color: string; label: string }> = {
   pre_ocr: { color: "gray", label: "Queued" },
   ongoing_ocr: { color: "yellow", label: "Processing" },
-  needs_validation: { color: "orange", label: "Needs Review" },
-  completed_ocr: { color: "green", label: "Complete" },
+  completed_ocr: { color: "blue", label: "Complete" },
+  awaiting_review: { color: "orange", label: "Awaiting Review" },
+  ready: { color: "green", label: "Ready" },
   failed: { color: "red", label: "Failed" },
   rejected_by_human: { color: "red", label: "Rejected by Human" },
 };
@@ -164,7 +166,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
             <Text size="xs" c="dimmed">
               Completed
             </Text>
-            <Text fw={600} size="lg" c="green">
+            <Text fw={600} size="lg" c="blue">
               {statsData?.completed_ocr ?? 0}
             </Text>
           </Paper>
@@ -180,7 +182,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
             <Text size="xs" c="dimmed">
               Ready
             </Text>
-            <Text fw={600} size="lg" c="blue">
+            <Text fw={600} size="lg" c="green">
               {statsData?.ready ?? 0}
             </Text>
           </Paper>
@@ -253,13 +255,15 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                     key={doc.id}
                     onClick={() =>
                       (doc.status === "completed_ocr" ||
-                        doc.status === "needs_validation") &&
+                        doc.status === "awaiting_review" ||
+                        doc.status === "ready") &&
                       onSelectDocument?.(doc)
                     }
                     style={{
                       cursor:
                         doc.status === "completed_ocr" ||
-                        doc.status === "needs_validation"
+                        doc.status === "awaiting_review" ||
+                        doc.status === "ready"
                           ? "pointer"
                           : "default",
                     }}
@@ -288,13 +292,15 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                             color="blue"
                             disabled={
                               doc.status !== "completed_ocr" &&
-                              doc.status !== "needs_validation"
+                              doc.status !== "awaiting_review" &&
+                              doc.status !== "ready"
                             }
                             onClick={(event) => {
                               event.stopPropagation();
                               if (
                                 doc.status === "completed_ocr" ||
-                                doc.status === "needs_validation"
+                                doc.status === "awaiting_review" ||
+                                doc.status === "ready"
                               ) {
                                 onSelectDocument?.(doc);
                               }

@@ -1,5 +1,5 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
-import { Prisma } from "@generated/client";
+import { DocumentStatus, Prisma } from "@generated/client";
 import {
   BadRequestException,
   Body,
@@ -255,6 +255,27 @@ export class DocumentController {
     required: false,
     description: "Number of documents to skip for pagination (default 0).",
   })
+  @ApiQuery({
+    name: "search",
+    required: false,
+    description: "Search documents by title or original filename.",
+  })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    description:
+      'Filter by document status (e.g., "pre_ocr", "completed_ocr", "all").',
+  })
+  @ApiQuery({
+    name: "sort_by",
+    required: false,
+    description: "Field to sort by (title, status, size, source, created_at).",
+  })
+  @ApiQuery({
+    name: "sort_dir",
+    required: false,
+    description: 'Sort direction: "asc" or "desc".',
+  })
   @ApiOkResponse({
     description: "Returns a paginated list of documents",
     type: PaginatedDocumentsDto,
@@ -267,6 +288,10 @@ export class DocumentController {
     @Query("group_id") groupId?: string,
     @Query("limit") limitStr?: string,
     @Query("offset") offsetStr?: string,
+    @Query("search") search?: string,
+    @Query("status") status?: string,
+    @Query("sort_by") sortBy?: string,
+    @Query("sort_dir") sortDir?: string,
   ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
@@ -285,7 +310,14 @@ export class DocumentController {
     try {
       const { documents, total } = await this.documentService.findAllDocuments(
         groupIds,
-        { limit, offset },
+        {
+          limit,
+          offset,
+          search: search?.trim() || undefined,
+          status: (status as DocumentStatus | "all") || "all",
+          sortBy: sortBy || "created_at",
+          sortDir: sortDir === "asc" || sortDir === "desc" ? sortDir : "desc",
+        },
       );
 
       if (req.resolvedIdentity) {

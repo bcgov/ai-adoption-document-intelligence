@@ -1,23 +1,41 @@
 import {
+  ActionIcon,
   Alert,
   Badge,
-  Button,
+  Group,
   Loader,
   Modal,
+  Stack,
   Table,
   Tabs,
   Text,
+  Title,
+  Tooltip,
 } from "@mantine/core";
 import {
   IconAlertCircle,
   IconChecklist,
   IconFileDownload,
+  IconInfoCircle,
+  IconRotateClockwise,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
 import { Document, DocumentField, ExtractedFields } from "../../shared/types";
 import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    // Less than 1 MB
+    return `${(bytes / 1024).toFixed(2)} KB`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    // Less than 1 GB
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 interface DocumentViewerModalProps {
   document: Document | null;
@@ -107,6 +125,7 @@ export function DocumentViewerModal({
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const [rotation, setRotation] = useState(0);
   const showOverlays = true;
 
   useEffect(() => {
@@ -195,24 +214,77 @@ export function DocumentViewerModal({
     }
     setImageUrl("");
     setError("");
+    setRotation(0);
     onClose();
+  };
+
+  const handleRotate = () => {
+    setRotation((prev) => (prev + 90) % 360);
   };
 
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={`Document Viewer - ${document?.title || "Document"}`}
+      title={
+        <Group
+          justify="space-between"
+          style={{ width: "100%", flex: 1 }}
+          wrap="nowrap"
+        >
+          <Text size="lg" fw={600}>
+            {document?.title || "Document"}
+          </Text>
+          <Group gap="xs">
+            <Tooltip
+              label="Rotate 90°"
+              position="bottom"
+              withArrow
+              withinPortal
+              zIndex={10000}
+            >
+              <ActionIcon
+                variant="subtle"
+                onClick={handleRotate}
+                disabled={!imageUrl}
+                size="lg"
+                aria-label="Rotate document"
+              >
+                <IconRotateClockwise size={20} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip
+              label="Download document"
+              position="bottom"
+              withArrow
+              withinPortal
+              zIndex={10000}
+            >
+              <ActionIcon
+                variant="subtle"
+                onClick={handleDownload}
+                disabled={!imageUrl || !document}
+                size="lg"
+                aria-label="Download document"
+              >
+                <IconFileDownload size={20} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Group>
+      }
       size="90vw"
       styles={{
         body: { height: "90vh", display: "flex", flexDirection: "column" },
         content: { height: "90vh" },
         overlay: { backgroundColor: "rgba(0, 0, 0, 0.8)" },
+        header: { paddingRight: "1rem" },
+        title: { flex: 1, width: "100%" },
       }}
       withinPortal
       zIndex={9999}
-      closeOnClickOutside={false}
-      closeOnEscape={false}
+      closeOnClickOutside={true}
+      closeOnEscape={true}
     >
       {!document ? (
         <div className="flex items-center justify-center h-full">
@@ -240,30 +312,9 @@ export function DocumentViewerModal({
             minHeight: 0,
           }}
         >
-          <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
-            <div>
-              <h3 className="font-semibold text-lg">{document.title}</h3>
-              <p className="text-sm text-gray-600">
-                {document.original_filename}
-                {document.model_id && (
-                  <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                    Model: {document.model_id}
-                  </span>
-                )}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              leftSection={<IconFileDownload size={16} />}
-              onClick={handleDownload}
-              disabled={!imageUrl}
-            >
-              Download
-            </Button>
-          </div>
           <Tabs
             defaultValue={
-              document.status === "needs_validation" || document.needsReview
+              document.status === "awaiting_review" || document.needsReview
                 ? "review"
                 : "viewer"
             }
@@ -290,7 +341,7 @@ export function DocumentViewerModal({
                   OCR Results
                 </Tabs.Tab>
               )}
-              {(document?.status === "needs_validation" ||
+              {(document?.status === "awaiting_review" ||
                 document?.needsReview) && (
                 <Tabs.Tab
                   value="review"
@@ -299,6 +350,12 @@ export function DocumentViewerModal({
                   Review & Approve
                 </Tabs.Tab>
               )}
+              <Tabs.Tab
+                value="details"
+                leftSection={<IconInfoCircle size={16} />}
+              >
+                Details
+              </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel
@@ -316,6 +373,7 @@ export function DocumentViewerModal({
                   extractedFields={ocrResult?.ocr_result?.keyValuePairs}
                   pageNumber={1}
                   showOverlays={showOverlays}
+                  rotation={rotation}
                 />
               ) : null}
             </Tabs.Panel>
@@ -330,7 +388,7 @@ export function DocumentViewerModal({
                 />
               </Tabs.Panel>
             )}
-            {(document?.status === "needs_validation" ||
+            {(document?.status === "awaiting_review" ||
               document?.needsReview) && (
               <Tabs.Panel
                 value="review"
@@ -355,6 +413,100 @@ export function DocumentViewerModal({
                 )}
               </Tabs.Panel>
             )}
+            <Tabs.Panel
+              value="details"
+              className="flex-1 min-h-0 overflow-auto p-4"
+            >
+              <Stack gap="md">
+                <div>
+                  <Title order={4} mb="xs">
+                    File Information
+                  </Title>
+                  <Table withTableBorder withColumnBorders>
+                    <Table.Tbody>
+                      <Table.Tr>
+                        <Table.Td fw={600} w="30%">
+                          Document Name
+                        </Table.Td>
+                        <Table.Td>{document.title}</Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td fw={600}>Original Filename</Table.Td>
+                        <Table.Td>{document.original_filename}</Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td fw={600}>Original File Type</Table.Td>
+                        <Table.Td>{document.file_type}</Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td fw={600}>File Size</Table.Td>
+                        <Table.Td>
+                          {formatFileSize(document.file_size)}
+                        </Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td fw={600}>Source</Table.Td>
+                        <Table.Td>
+                          <Badge variant="light">{document.source}</Badge>
+                        </Table.Td>
+                      </Table.Tr>
+                    </Table.Tbody>
+                  </Table>
+                </div>
+
+                <div>
+                  <Title order={4} mb="xs">
+                    Processing Information
+                  </Title>
+                  <Table withTableBorder withColumnBorders>
+                    <Table.Tbody>
+                      <Table.Tr>
+                        <Table.Td fw={600} w="30%">
+                          Status
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge
+                            color={
+                              document.status === "ready"
+                                ? "green"
+                                : document.status === "failed"
+                                  ? "red"
+                                  : document.status === "awaiting_review"
+                                    ? "yellow"
+                                    : "blue"
+                            }
+                          >
+                            {document.status}
+                          </Badge>
+                        </Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td fw={600}>Model</Table.Td>
+                        <Table.Td>{document.model_id}</Table.Td>
+                      </Table.Tr>
+                      {document.workflow_name && (
+                        <Table.Tr>
+                          <Table.Td fw={600}>Workflow</Table.Td>
+                          <Table.Td>{document.workflow_name}</Table.Td>
+                        </Table.Tr>
+                      )}
+                      <Table.Tr>
+                        <Table.Td fw={600}>Upload Date</Table.Td>
+                        <Table.Td>
+                          {new Date(document.created_at).toLocaleString()}
+                        </Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td fw={600}>Last Updated</Table.Td>
+                        <Table.Td>
+                          {new Date(document.updated_at).toLocaleString()}
+                        </Table.Td>
+                      </Table.Tr>
+                    </Table.Tbody>
+                  </Table>
+                </div>
+              </Stack>
+            </Tabs.Panel>
           </Tabs>
         </div>
       )}
