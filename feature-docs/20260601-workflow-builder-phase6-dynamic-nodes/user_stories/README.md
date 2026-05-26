@@ -123,11 +123,11 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [x] **US-179** (`VersionHistoryPane` — list + view + revert) — depends on US-176; can land in parallel with US-177/178; closes Milestone E
 
 ### Phase 6 — Frontend mounts + canvas integration (Milestone F — depends on Phase 5)
-- [ ] **US-180** (`/dynamic-nodes` management page list view) — depends on US-176 (hooks); independent of US-181-184
-- [ ] **US-181** (`/dynamic-nodes/new` + `/dynamic-nodes/:slug` pages + top-bar nav) — depends on US-176-179 (editor + panes complete) + US-180 (list page exists to navigate back to)
-- [ ] **US-182** (palette "Custom" section + "+ New custom node" button) — depends on US-175 (catalog hook sees dynamic) + US-176 (modal mount target)
-- [ ] **US-183** (canvas DYN pill + Deleted badge + right-click Edit script) — depends on US-175 (catalog hook) + US-176 (modal mount); can land in parallel with US-182
-- [ ] **US-184** (`NodeSettingsPanel` dispatch + `DynamicNodeSettings` body) — depends on US-175 (catalog) + US-176-179 (editor); CLICK-AND-PLAY MILESTONE after this closes
+- [x] **US-180** (`/dynamic-nodes` management page list view) — depends on US-176 (hooks); independent of US-181-184
+- [x] **US-181** (`/dynamic-nodes/new` + `/dynamic-nodes/:slug` pages + top-bar nav) — depends on US-176-179 (editor + panes complete) + US-180 (list page exists to navigate back to)
+- [x] **US-182** (palette "Custom" section + "+ New custom node" button) — depends on US-175 (catalog hook sees dynamic) + US-176 (modal mount target)
+- [x] **US-183** (canvas DYN pill + Deleted badge + right-click Edit script) — depends on US-175 (catalog hook) + US-176 (modal mount); can land in parallel with US-182
+- [x] **US-184** (`NodeSettingsPanel` dispatch + `DynamicNodeSettings` body) — depends on US-175 (catalog) + US-176-179 (editor); CLICK-AND-PLAY MILESTONE after this closes
 
 ### Phase 7 — End-to-end verification (Milestone G)
 - [ ] **US-185** (Playwright walkthrough — Phase 6 dynamic nodes; screenshots in `/tmp/wb-phase6-verify/`)

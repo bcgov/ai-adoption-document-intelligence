@@ -8,8 +8,19 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { ModalsProvider } from "@mantine/modals";
+import { Notifications } from "@mantine/notifications";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from "vitest";
 import { ActivityPalette } from "./ActivityPalette";
 import { CONTROL_FLOW_PALETTE_ENTRIES } from "./control-flow-palette-entries";
 import {
@@ -17,22 +28,79 @@ import {
   type ControlFlowNodeType,
 } from "./control-flow-skeletons";
 
+// Stub CodeMirror (the editor mounted inside the "+ New custom node"
+// modal relies on browser primitives jsdom doesn't implement).
+vi.mock("@uiw/react-codemirror", () => ({
+  default: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange?: (next: string) => void;
+  }) => (
+    <textarea
+      data-testid="codemirror-stub"
+      value={value}
+      onChange={(e) => onChange?.(e.target.value)}
+    />
+  ),
+}));
+
+function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+  });
+}
+
+let fetchSpy: MockInstance<typeof globalThis.fetch>;
+
+beforeEach(() => {
+  fetchSpy = vi.spyOn(globalThis, "fetch");
+  // Default: catalog returns no entries (no dyn entries).
+  fetchSpy.mockResolvedValue(jsonResponse({ entries: [] }));
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
+
 function renderPalette(
   overrides: Partial<React.ComponentProps<typeof ActivityPalette>> = {},
 ) {
   const onAddActivity = overrides.onAddActivity ?? vi.fn();
   const onAddControlFlowNode = overrides.onAddControlFlowNode ?? vi.fn();
   const onAddSource = overrides.onAddSource ?? vi.fn();
+  const onAddDynamicNode = overrides.onAddDynamicNode ?? vi.fn();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
   const utils = render(
-    <MantineProvider>
-      <ActivityPalette
-        onAddActivity={onAddActivity}
-        onAddControlFlowNode={onAddControlFlowNode}
-        onAddSource={onAddSource}
-      />
-    </MantineProvider>,
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <ModalsProvider>
+          <Notifications />
+          <ActivityPalette
+            onAddActivity={onAddActivity}
+            onAddControlFlowNode={onAddControlFlowNode}
+            onAddSource={onAddSource}
+            onAddDynamicNode={onAddDynamicNode}
+          />
+        </ModalsProvider>
+      </MantineProvider>
+    </QueryClientProvider>,
   );
-  return { ...utils, onAddActivity, onAddControlFlowNode, onAddSource };
+  return {
+    ...utils,
+    onAddActivity,
+    onAddControlFlowNode,
+    onAddSource,
+    onAddDynamicNode,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -275,5 +343,102 @@ describe('ActivityPalette — US-118: "Sources" section', () => {
     screen.getByTestId("source-palette-entry-source.upload").click();
     expect(onAddSource).toHaveBeenCalledTimes(2);
     expect(onAddSource).toHaveBeenLastCalledWith("source.upload");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-182: Custom palette section + "+ New custom node" button
+// ---------------------------------------------------------------------------
+
+describe('ActivityPalette — US-182: Custom section + "+ New custom node"', () => {
+  it("Scenario 3: renders the Custom section + + New custom node button even when the group has zero dynamic entries", async () => {
+    renderPalette();
+    await waitFor(() => {
+      expect(screen.getByText("Custom")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("palette-custom-new-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("custom-empty-placeholder")).toBeInTheDocument();
+  });
+
+  it("Scenario 1 + 2: lists dynamic entries with DYN pill", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        entries: [
+          {
+            activityType: "dyn.my-node",
+            displayName: "my-node",
+            category: "Custom",
+            description: "A test custom node",
+            iconHint: "sparkles",
+            colorHint: "violet",
+            inputs: [],
+            outputs: [],
+            paramsSchema: { type: "object", properties: {} },
+            dynamicNodeSlug: "my-node",
+            dynamicNodeVersion: 1,
+            allowNet: [],
+          },
+        ],
+      }),
+    );
+    renderPalette();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("dynamic-palette-entry-my-node"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("dynamic-palette-entry-pill-my-node"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("dynamic-palette-entry-pill-my-node"),
+    ).toHaveTextContent("DYN");
+  });
+
+  it("Scenario 5: clicking an existing entry calls onAddDynamicNode with the slug", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        entries: [
+          {
+            activityType: "dyn.alpha",
+            displayName: "alpha",
+            category: "Custom",
+            description: "alpha description",
+            iconHint: "sparkles",
+            colorHint: "violet",
+            inputs: [],
+            outputs: [],
+            paramsSchema: { type: "object", properties: {} },
+            dynamicNodeSlug: "alpha",
+            dynamicNodeVersion: 1,
+            allowNet: [],
+          },
+        ],
+      }),
+    );
+    const onAddDynamicNode = vi.fn<(slug: string) => void>();
+    renderPalette({ onAddDynamicNode });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("dynamic-palette-entry-alpha"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("dynamic-palette-entry-alpha"));
+    expect(onAddDynamicNode).toHaveBeenCalledTimes(1);
+    expect(onAddDynamicNode).toHaveBeenCalledWith("alpha");
+  });
+
+  it("Scenario 3: clicking + New custom node opens the editor modal", async () => {
+    renderPalette();
+    await waitFor(() => {
+      expect(screen.getByTestId("palette-custom-new-btn")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("palette-custom-new-btn"));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("palette-custom-new-modal"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("dynamic-node-editor")).toBeInTheDocument();
   });
 });

@@ -59,6 +59,7 @@ import {
   PollUntilNodeSettings,
   SwitchNodeSettings,
 } from "./control-flow";
+import { DynamicNodeSettings } from "./dynamic-node/DynamicNodeSettings";
 import { GroupNodeSettings } from "./group/GroupNodeSettings";
 
 interface NodeSettingsPanelProps {
@@ -460,6 +461,19 @@ interface NodeBodyProps {
 function NodeBody({ node, config, onConfigChange, workflowId }: NodeBodyProps) {
   switch (node.type) {
     case "activity":
+      // Phase 6 (US-184): dyn.* activities get the dedicated dynamic-node
+      // settings body — version pin + Edit script modal + JsonSchemaForm
+      // sourced from the merged catalog (not ACTIVITY_CATALOG which only
+      // has the 41 static entries).
+      if (node.activityType.startsWith("dyn.")) {
+        return (
+          <DynamicNodeSettings
+            node={node}
+            config={config}
+            onConfigChange={onConfigChange}
+          />
+        );
+      }
       return (
         <ActivityNodeBody
           node={node}

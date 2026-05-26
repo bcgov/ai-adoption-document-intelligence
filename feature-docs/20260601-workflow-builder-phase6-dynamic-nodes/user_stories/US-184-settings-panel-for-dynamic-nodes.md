@@ -6,38 +6,38 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Settings panel dispatches to `DynamicNodeSettings` for `dyn.*` nodes
+- [x] **Scenario 1**: Settings panel dispatches to `DynamicNodeSettings` for `dyn.*` nodes
     - **Given** `apps/frontend/src/features/workflow-builder/settings/NodeSettingsPanel.tsx`
     - **When** a `dyn.*` node is selected
     - **Then** the panel renders `<DynamicNodeSettings node={selectedNode} />` body (new in this story)
     - **And** non-`dyn.*` nodes go through the existing per-type dispatch unchanged
 
-- [ ] **Scenario 2**: Header — slug + description + DYN pill
+- [x] **Scenario 2**: Header — slug + description + DYN pill
     - **Given** `DynamicNodeSettings` rendering for a `dyn.my-node` selection
     - **When** the panel renders
     - **Then** the header shows the slug, the description from the catalog entry's signature, and the grape DYN pill
     - **And** if the catalog entry is missing (deleted lineage), the header instead shows the slug + a red "Deleted dynamic node" Alert with copy "Restore from the management page to use this node, or delete the node from this workflow." Try is disabled.
 
-- [ ] **Scenario 3**: Version-pin UI (mirrors Phase 2 Track 3 library pattern)
+- [x] **Scenario 3**: Version-pin UI (mirrors Phase 2 Track 3 library pattern)
     - **Given** the node has `dynamicNodeVersion: 3`
     - **When** the panel renders
     - **Then** it shows a blue `<Badge>v3</Badge>` next to a "Change version" `<Button variant="subtle">` (matches Phase 2 Track 3's library version pin)
     - **And** if `dynamicNodeVersion` is undefined, the badge shows a gray "head" instead
     - **And** clicking "Change version" opens a small Mantine `<Select>` of available versions (sourced from `useDynamicNode(slug).versions`) + on selection updates the workflow config
 
-- [ ] **Scenario 4**: "Edit script" button opens the in-situ modal
+- [x] **Scenario 4**: "Edit script" button opens the in-situ modal
     - **Given** the panel
     - **When** rendered (non-deleted lineage)
     - **Then** an "Edit script" button is visible next to the version pin
     - **And** clicking it opens the same `<DynamicNodeEditor layout="modal">` from US-183 — they're the same affordance, two entry points
 
-- [ ] **Scenario 5**: Parameters body uses `JsonSchemaForm` against `signature.paramsSchema`
+- [x] **Scenario 5**: Parameters body uses `JsonSchemaForm` against `signature.paramsSchema`
     - **Given** the selected version's signature
     - **When** the panel renders the parameters body
     - **Then** `<JsonSchemaForm schema={signature.paramsSchema} value={node.parameters} onChange={...} />` renders — same as static activities
     - **And** changing a parameter updates the workflow config + invalidates Phase 4 cache for this node naturally (via the existing configHash chain)
 
-- [ ] **Scenario 6**: Tests cover dispatch + version pin + Edit script + parameters + deleted state
+- [x] **Scenario 6**: Tests cover dispatch + version pin + Edit script + parameters + deleted state
     - **Given** `DynamicNodeSettings.spec.tsx`
     - **When** the suite runs
     - **Then** tests pass for: panel dispatches correctly on `dyn.*`; version badge tracks `dynamicNodeVersion`; Change version updates the node config; Edit script opens the modal; JsonSchemaForm round-trips parameter changes; deleted state shows the Alert + disables Try

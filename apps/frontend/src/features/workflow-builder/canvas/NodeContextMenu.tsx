@@ -46,6 +46,19 @@ export interface NodeContextMenuProps {
    * delete key share the same removal path.
    */
   onDelete: () => void;
+  /**
+   * Phase 6 (US-183): the node's activity-type string. Used to detect
+   * Phase 6 dynamic-node instances (`type.startsWith("dyn.")`) so the
+   * menu can offer an "Edit script" entry that opens the in-situ editor.
+   * Optional so non-activity nodes (switch/map/etc.) still work unchanged.
+   */
+  activityType?: string;
+  /**
+   * Phase 6 (US-183): edit-script callback. Fires when the user clicks
+   * "Edit script" on a `dyn.*` node — the canvas wires this to open the
+   * DynamicNodeEditor modal scoped to the node's slug.
+   */
+  onEditScript?: () => void;
 }
 
 const CONTROL_FLOW_TYPE_SWAP_TOOLTIP =
@@ -62,8 +75,12 @@ export function NodeContextMenu({
   onClose,
   onChangeActivityType,
   onDelete,
+  activityType,
+  onEditScript,
 }: NodeContextMenuProps) {
   const canChangeActivityType = isActivityType(nodeType);
+  const isDynamicNode =
+    canChangeActivityType && activityType?.startsWith("dyn.");
 
   const handleChangeActivityType = () => {
     onChangeActivityType();
@@ -72,6 +89,11 @@ export function NodeContextMenu({
 
   const handleDelete = () => {
     onDelete();
+    onClose();
+  };
+
+  const handleEditScript = () => {
+    if (onEditScript) onEditScript();
     onClose();
   };
 
@@ -133,6 +155,14 @@ export function NodeContextMenu({
               </Menu.Item>
             </span>
           </Tooltip>
+        )}
+        {isDynamicNode && onEditScript && (
+          <Menu.Item
+            data-testid="context-menu-edit-script"
+            onClick={handleEditScript}
+          >
+            Edit script
+          </Menu.Item>
         )}
         <Menu.Item
           data-testid="context-menu-delete-node"

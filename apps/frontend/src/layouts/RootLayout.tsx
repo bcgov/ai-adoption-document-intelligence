@@ -18,6 +18,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClipboardCheck,
+  IconCode,
   IconDatabase,
   IconFlagQuestion,
   IconFlask,
@@ -83,6 +84,12 @@ export function RootLayout() {
         label: "Workflows",
         description: "Manage workflows",
         icon: IconFlask,
+      },
+      {
+        path: "/dynamic-nodes",
+        label: "Dynamic nodes",
+        description: "Custom activities (TypeScript)",
+        icon: IconCode,
       },
       {
         path: "/classify",

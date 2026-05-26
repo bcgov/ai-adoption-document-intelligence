@@ -25,7 +25,7 @@
 import "@xyflow/react/dist/style.css";
 
 import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
-import { Tooltip } from "@mantine/core";
+import { Badge, Modal, Tooltip } from "@mantine/core";
 import {
   Background,
   type Connection,
@@ -61,6 +61,7 @@ import {
   type ControlFlowVisualHints,
   getControlFlowVisualHints,
 } from "../control-flow-visual-hints";
+import { DynamicNodeEditor, useActivityCatalog } from "../dynamic-nodes";
 import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
@@ -545,6 +546,15 @@ const ActivityNodeRenderer = memo(
     const accent = hints.color;
     const errorCount = data.errorCount ?? 0;
     const warningCount = data.warningCount ?? 0;
+    // Phase 6 (US-183): mark dynamic-node instances with a "DYN" pill, and
+    // when the referenced slug is absent from the merged catalog (because the
+    // lineage was soft-deleted) render a red "Deleted" pill instead.
+    const isDynamic = data.activityType.startsWith("dyn.");
+    const catalog = useActivityCatalog();
+    const isMissingFromCatalog =
+      isDynamic &&
+      !catalog.isLoading &&
+      !catalog.entries.some((e) => e.activityType === data.activityType);
     return (
       <div
         data-testid={`canvas-node-${id}`}
@@ -593,23 +603,52 @@ const ActivityNodeRenderer = memo(
           <span style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
             {hints.displayName}
           </span>
-          {data.isEntry && (
-            <span
-              style={{
-                marginLeft: "auto",
-                fontSize: 9,
-                padding: "1px 5px",
-                borderRadius: 3,
-                background: accent,
-                color: "#fff",
-                fontWeight: 600,
-              }}
-            >
-              ENTRY
+          {(isDynamic || data.isEntry) && (
+            <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+              {isDynamic && (
+                <Badge
+                  size="xs"
+                  variant="filled"
+                  color={isMissingFromCatalog ? "red" : "grape"}
+                  data-testid={
+                    isMissingFromCatalog
+                      ? `canvas-node-${id}-deleted-pill`
+                      : `canvas-node-${id}-dyn-pill`
+                  }
+                >
+                  {isMissingFromCatalog ? "Deleted" : "DYN"}
+                </Badge>
+              )}
+              {data.isEntry && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    padding: "1px 5px",
+                    borderRadius: 3,
+                    background: accent,
+                    color: "#fff",
+                    fontWeight: 600,
+                  }}
+                >
+                  ENTRY
+                </span>
+              )}
             </span>
           )}
         </div>
         <div style={{ fontWeight: 600 }}>{data.label}</div>
+        {isMissingFromCatalog && (
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--mantine-color-dimmed, #9ca3af)",
+              fontStyle: "italic",
+              marginTop: 2,
+            }}
+          >
+            (deleted dynamic node)
+          </div>
+        )}
         <NodePreviewOverlay nodeId={id} />
         <NodeHandles
           nodeId={id}
@@ -1646,9 +1685,16 @@ function WorkflowEditorCanvasInner({
   const [contextMenu, setContextMenu] = useState<{
     nodeId: string;
     nodeType: GraphNode["type"];
+    activityType?: string;
     x: number;
     y: number;
   } | null>(null);
+
+  // Phase 6 (US-183): the in-situ Edit-script modal — opened by right-clicking
+  // a dyn.* node on the canvas; mounts the DynamicNodeEditor scoped to that
+  // node's slug. The same editor component is used at /dynamic-nodes/:slug
+  // full-page (US-181).
+  const [editScriptSlug, setEditScriptSlug] = useState<string | null>(null);
 
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
@@ -1660,6 +1706,10 @@ function WorkflowEditorCanvasInner({
       setContextMenu({
         nodeId: node.id,
         nodeType: graphNode.type,
+        activityType:
+          graphNode.type === "activity"
+            ? (graphNode as ActivityNode).activityType
+            : undefined,
         x: event.clientX,
         y: event.clientY,
       });
@@ -1905,11 +1955,36 @@ function WorkflowEditorCanvasInner({
         <NodeContextMenu
           nodeId={contextMenu.nodeId}
           nodeType={contextMenu.nodeType}
+          activityType={contextMenu.activityType}
           position={{ x: contextMenu.x, y: contextMenu.y }}
           onClose={closeContextMenu}
           onChangeActivityType={changeActivityTypeFromContextMenu}
           onDelete={deleteNodeFromContextMenu}
+          onEditScript={
+            contextMenu.activityType?.startsWith("dyn.")
+              ? () => {
+                  const slug = contextMenu.activityType!.replace(/^dyn\./, "");
+                  setEditScriptSlug(slug);
+                }
+              : undefined
+          }
         />
+      )}
+      {editScriptSlug && (
+        <Modal
+          opened
+          onClose={() => setEditScriptSlug(null)}
+          size="80%"
+          title="Edit dynamic node"
+          centered
+        >
+          <DynamicNodeEditor
+            slug={editScriptSlug}
+            layout="modal"
+            onAfterPublish={() => setEditScriptSlug(null)}
+            onClose={() => setEditScriptSlug(null)}
+          />
+        </Modal>
       )}
       {swapState && swapCurrentActivityType !== null && (
         <NodeTypeSwapModal

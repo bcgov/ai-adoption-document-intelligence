@@ -25,6 +25,9 @@ import { TablesListPage } from "./features/tables/pages/TablesListPage";
 import { WorkflowEditorV2Page } from "./features/workflow-builder/WorkflowEditorV2Page";
 import { RootLayout } from "./layouts/RootLayout";
 import ClassifierPage from "./pages/ClassifierPage";
+import DynamicNodeEditPage from "./pages/dynamic-nodes/DynamicNodeEditPage";
+import DynamicNodeNewPage from "./pages/dynamic-nodes/DynamicNodeNewPage";
+import DynamicNodesListPage from "./pages/dynamic-nodes/DynamicNodesListPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { QueuePage } from "./pages/QueuePage";
@@ -81,6 +84,11 @@ const router = createBrowserRouter([
         path: "workflows/dev-form-preview",
         element: <WorkflowFormPreviewPage />,
       },
+
+      // Dynamic nodes (Phase 6 Milestone F — US-180 + US-181)
+      { path: "dynamic-nodes", element: <DynamicNodesListPage /> },
+      { path: "dynamic-nodes/new", element: <DynamicNodeNewPage /> },
+      { path: "dynamic-nodes/:slug", element: <DynamicNodeEditPage /> },
 
       // Tables
       { path: "tables", element: <TablesListPage /> },

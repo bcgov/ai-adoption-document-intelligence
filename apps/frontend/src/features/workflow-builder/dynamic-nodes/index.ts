@@ -15,6 +15,7 @@ export type {
   DynamicNodeHeadVersionSummary,
   DynamicNodeVersionDetail,
 } from "./dynamic-node-api";
+export { materialiseParamDefaults } from "./dynamic-node-defaults";
 export {
   SignaturePreviewPane,
   type SignaturePreviewPaneProps,

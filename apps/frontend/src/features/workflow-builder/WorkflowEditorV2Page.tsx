@@ -80,6 +80,7 @@ import {
   layoutGraphIfMissingPositions,
 } from "./canvas/auto-layout";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
+import { materialiseParamDefaults, useActivityCatalog } from "./dynamic-nodes";
 import { createGroupFromSelection } from "./group/create-group";
 import {
   SaveAsLibraryModal,
@@ -456,6 +457,69 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       setSelectedNodeId(id);
     },
     [config],
+  );
+
+  /**
+   * Adds a fresh dynamic-node activity to the canvas (Phase 6 US-182).
+   * Resolves the merged catalog entry by `dyn.<slug>` activityType,
+   * materialises `parameters` defaults from the entry's `paramsSchema`,
+   * and inserts an `ActivityNode` at the next free position. Matches
+   * the static activity add path's behaviour (id generation, ctx-key
+   * seeding for declared ports, entryNodeId autoset on empty canvas).
+   */
+  const mergedCatalog = useActivityCatalog();
+  const addDynamicNode = useCallback(
+    (slug: string) => {
+      const activityType = `dyn.${slug}`;
+      const entry = mergedCatalog.entries.find(
+        (e) => e.activityType === activityType,
+      );
+      if (!entry) return;
+      const id = makeNodeId(config, activityType);
+      const offsetIndex = Object.keys(config.nodes).length;
+      const inputs = entry.inputs.map((p) => ({
+        port: p.name,
+        ctxKey: p.name,
+      }));
+      const outputs = entry.outputs.map((p) => ({
+        port: p.name,
+        ctxKey: p.name,
+      }));
+      const parameters = materialiseParamDefaults(entry.paramsSchema);
+      const newNode: ActivityNode = {
+        id,
+        type: "activity",
+        label: entry.displayName ?? slug,
+        activityType,
+        inputs,
+        outputs,
+        parameters,
+        metadata: {
+          position: {
+            x: 80 + offsetIndex * 240,
+            y: 100 + (offsetIndex % 3) * 140,
+          },
+        },
+      };
+      setConfig((prev) => {
+        const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
+        const nextNodes = { ...prev.nodes, [id]: newNode };
+        const nextCtx = { ...prev.ctx };
+        for (const binding of [...inputs, ...outputs]) {
+          if (!nextCtx[binding.ctxKey]) {
+            nextCtx[binding.ctxKey] = { type: "string" };
+          }
+        }
+        return {
+          ...prev,
+          nodes: nextNodes,
+          ctx: nextCtx,
+          entryNodeId: nextEntryNodeId,
+        };
+      });
+      setSelectedNodeId(id);
+    },
+    [config, mergedCatalog.entries, setSelectedNodeId],
   );
 
   const deleteSelected = useCallback(() => {
@@ -981,6 +1045,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             onAddActivity={addActivity}
             onAddControlFlowNode={addControlFlowNode}
             onAddSource={addSource}
+            onAddDynamicNode={addDynamicNode}
           />
           <Box style={{ flex: 1, minWidth: 0, position: "relative" }}>
             {nodeCount === 0 && (
