@@ -387,21 +387,50 @@ function resolveCallingGroupId(req: Request): string {
   if (!identity) {
     throw new UnauthorizedException("Authentication required");
   }
+  // Accept an explicit groupId hint from query (`?groupId=...`), header
+  // (`x-group-id`), or request body. Required for system-admin callers;
+  // used as a tie-breaker for non-admin users that belong to multiple groups.
+  const bodyMap =
+    req.body && typeof req.body === "object"
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const headerGroup =
+    typeof req.headers["x-group-id"] === "string"
+      ? (req.headers["x-group-id"] as string)
+      : null;
+  const queryGroup =
+    typeof req.query["groupId"] === "string"
+      ? (req.query["groupId"] as string)
+      : null;
+  const bodyGroup =
+    typeof bodyMap["groupId"] === "string"
+      ? (bodyMap["groupId"] as string)
+      : null;
+  const requestedGroup = bodyGroup ?? queryGroup ?? headerGroup ?? null;
+
   const groupIds = getIdentityGroupIds(identity);
-  // `getIdentityGroupIds` returns `undefined` for system-admin (unrestricted).
-  // System-admin requests MUST supply a group context explicitly — not in
-  // scope for Phase 6.0; surface as a 400.
   if (groupIds === undefined) {
-    throw new BadRequestException(
-      "System-admin requests must supply a group context (not supported in Phase 6.0)",
-    );
+    if (requestedGroup === null) {
+      throw new BadRequestException(
+        "System-admin callers must include a `groupId` in the request body, query (`?groupId=...`), or `x-group-id` header.",
+      );
+    }
+    return requestedGroup;
   }
   if (groupIds.length === 0) {
     throw new BadRequestException("Caller has no group membership");
   }
+  if (requestedGroup !== null) {
+    if (!groupIds.includes(requestedGroup)) {
+      throw new BadRequestException(
+        `Caller is not a member of group '${requestedGroup}'.`,
+      );
+    }
+    return requestedGroup;
+  }
   if (groupIds.length > 1) {
     throw new BadRequestException(
-      "Caller belongs to multiple groups — group disambiguation is not yet supported on dynamic-node endpoints",
+      "Caller belongs to multiple groups — include `groupId` in the request to disambiguate.",
     );
   }
   return groupIds[0];

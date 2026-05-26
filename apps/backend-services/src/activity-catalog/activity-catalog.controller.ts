@@ -79,18 +79,42 @@ function resolveCallingGroupId(req: Request): string {
   if (!identity) {
     throw new UnauthorizedException("Authentication required");
   }
+  // Accept an explicit groupId hint from query (`?groupId=...`) or
+  // header (`x-group-id`). Required for system-admin callers; used as
+  // a tie-breaker for non-admin users that belong to multiple groups.
+  const headerGroup =
+    typeof req.headers["x-group-id"] === "string"
+      ? (req.headers["x-group-id"] as string)
+      : null;
+  const queryGroup =
+    typeof req.query["groupId"] === "string"
+      ? (req.query["groupId"] as string)
+      : null;
+  const requestedGroup = queryGroup ?? headerGroup ?? null;
+
   const groupIds = getIdentityGroupIds(identity);
   if (groupIds === undefined) {
-    throw new BadRequestException(
-      "System-admin requests must supply a group context (not supported in Phase 6.0)",
-    );
+    if (requestedGroup === null) {
+      throw new BadRequestException(
+        "System-admin callers must include a `groupId` query param or `x-group-id` header.",
+      );
+    }
+    return requestedGroup;
   }
   if (groupIds.length === 0) {
     throw new BadRequestException("Caller has no group membership");
   }
+  if (requestedGroup !== null) {
+    if (!groupIds.includes(requestedGroup)) {
+      throw new BadRequestException(
+        `Caller is not a member of group '${requestedGroup}'.`,
+      );
+    }
+    return requestedGroup;
+  }
   if (groupIds.length > 1) {
     throw new BadRequestException(
-      "Caller belongs to multiple groups — group disambiguation is not yet supported on the activity-catalog endpoint",
+      "Caller belongs to multiple groups — include `groupId` in the query or `x-group-id` header to disambiguate.",
     );
   }
   return groupIds[0];

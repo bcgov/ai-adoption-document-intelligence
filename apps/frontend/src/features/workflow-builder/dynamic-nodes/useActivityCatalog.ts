@@ -24,6 +24,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useGroup } from "../../../auth/GroupContext";
 import { API_BASE_URL } from "../../../shared/constants";
 import { ApiError } from "../sources/useSourceUpload";
 import {
@@ -52,7 +53,7 @@ function readCsrfToken(): string | undefined {
   return match?.split("=")[1];
 }
 
-function buildAuthHeaders(): HeadersInit {
+function buildAuthHeaders(activeGroupId?: string | null): HeadersInit {
   const headers: Record<string, string> = {};
   const testApiKey = import.meta.env.VITE_TEST_API_KEY;
   if (typeof testApiKey === "string" && testApiKey.length > 0) {
@@ -62,6 +63,9 @@ function buildAuthHeaders(): HeadersInit {
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
   }
+  if (activeGroupId !== undefined && activeGroupId !== null) {
+    headers["x-group-id"] = activeGroupId;
+  }
   return headers;
 }
 
@@ -70,11 +74,17 @@ function buildAuthHeaders(): HeadersInit {
  * Exported so the mutation hooks' tests can stub it via
  * `vi.mock`/`jest.mock` without standing up a `fetch` polyfill.
  */
-export async function fetchActivityCatalog(): Promise<ActivityCatalogResponse> {
-  const response = await fetch(`${API_BASE_URL}/activity-catalog`, {
+export async function fetchActivityCatalog(
+  activeGroupId?: string | null,
+): Promise<ActivityCatalogResponse> {
+  const url =
+    activeGroupId !== undefined && activeGroupId !== null
+      ? `${API_BASE_URL}/activity-catalog?groupId=${encodeURIComponent(activeGroupId)}`
+      : `${API_BASE_URL}/activity-catalog`;
+  const response = await fetch(url, {
     method: "GET",
     credentials: "include",
-    headers: buildAuthHeaders(),
+    headers: buildAuthHeaders(activeGroupId),
   });
 
   if (!response.ok) {
@@ -113,9 +123,11 @@ export interface UseActivityCatalogResult {
  * publish / update / delete success to drive hot-reload.
  */
 export function useActivityCatalog(): UseActivityCatalogResult {
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id ?? null;
   const query = useQuery<ActivityCatalogResponse, ApiError>({
-    queryKey: ACTIVITY_CATALOG_QUERY_KEY,
-    queryFn: () => fetchActivityCatalog(),
+    queryKey: [...ACTIVITY_CATALOG_QUERY_KEY, activeGroupId ?? "no-group"],
+    queryFn: () => fetchActivityCatalog(activeGroupId),
     retry: false,
   });
 
