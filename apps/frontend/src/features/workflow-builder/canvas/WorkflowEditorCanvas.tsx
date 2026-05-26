@@ -83,7 +83,8 @@ import {
 import { HoverExtendPopover } from "./HoverExtendPopover";
 import { computeHandleStyle, type HandleStyle } from "./handle-style";
 import { NodeContextMenu } from "./NodeContextMenu";
-import { NodeTypePill, type NodeTypePillEntry } from "./NodeTypePill";
+import type { NodeTypePillEntry } from "./NodeTypePill";
+import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
 import { nextNodePosition } from "./place-extended-node";
 import { swapActivityType } from "./swap-node-type";
@@ -453,32 +454,6 @@ const NodeHandles = memo(function NodeHandles({
           />
         </span>
       </Tooltip>
-      {/*
-        On-selection type pill — input side (US-096). Anchored to the
-        node's left edge (where xyflow pins the input handle) and
-        offset further left by 14px so the badge sits outside the
-        node body. `translateX(-100%)` flips the badge's own width to
-        the left so it doesn't overlap the handle dot. The wrapper
-        uses `pointerEvents: 'none'` so the pill never steals
-        pointer interactions from the handle or the node body.
-      */}
-      <div
-        data-pill-anchor="input"
-        style={{
-          position: "absolute",
-          left: -14,
-          top: "50%",
-          transform: "translate(-100%, -50%)",
-          pointerEvents: "none",
-          zIndex: 10,
-        }}
-      >
-        <NodeTypePill
-          entries={inputPillEntries}
-          direction="input"
-          hidden={!selected}
-        />
-      </div>
       <Tooltip label={outputHandleStyle.tooltipText} withArrow position="right">
         <span
           data-testid={`port-tooltip-output-${nodeId}`}
@@ -501,29 +476,6 @@ const NodeHandles = memo(function NodeHandles({
           />
         </span>
       </Tooltip>
-      {/*
-        On-selection type pill — output side (US-096). Mirrors the
-        input-side anchor: pinned to the node's right edge with a 14px
-        gutter. No `translateX(-100%)` here because the pill grows to
-        the right of its anchor.
-      */}
-      <div
-        data-pill-anchor="output"
-        style={{
-          position: "absolute",
-          right: -14,
-          top: "50%",
-          transform: "translate(100%, -50%)",
-          pointerEvents: "none",
-          zIndex: 10,
-        }}
-      >
-        <NodeTypePill
-          entries={outputPillEntries}
-          direction="output"
-          hidden={!selected}
-        />
-      </div>
       {showErrorHandle && (
         <Handle
           id="error"
@@ -532,6 +484,24 @@ const NodeHandles = memo(function NodeHandles({
           style={{ background: ERROR_HANDLE_BACKGROUND }}
         />
       )}
+      {selected ? (
+        <div
+          data-pill-anchor="under"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            pointerEvents: "none",
+            zIndex: 10,
+          }}
+        >
+          <NodeTypePillRow
+            inputs={inputPillEntries}
+            outputs={outputPillEntries}
+          />
+        </div>
+      ) : null}
     </>
   );
 });

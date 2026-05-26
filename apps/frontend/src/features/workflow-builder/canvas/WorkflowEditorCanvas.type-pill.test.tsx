@@ -25,6 +25,22 @@ import type {
   GraphWorkflowConfig,
 } from "../../../types/workflow";
 
+// `useActivityCatalog` depends on `GroupProvider` (via `useGroup`). The
+// integration test doesn't exercise auth state, so stub the hook with an
+// empty catalog so the canvas renderers proceed past their dynamic-node
+// branch unchanged.
+vi.mock("../dynamic-nodes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../dynamic-nodes")>();
+  return {
+    ...actual,
+    useActivityCatalog: () => ({
+      isLoading: false,
+      entries: [],
+      error: null,
+    }),
+  };
+});
+
 vi.mock("@ai-di/graph-workflow", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@ai-di/graph-workflow")>();
 
@@ -221,48 +237,63 @@ function renderCanvas(
   );
 }
 
-describe("WorkflowEditorCanvas — US-096 Scenario 1: single-port pill renders next to its handle", () => {
-  it("renders a single-port output pill with uppercase `SEGMENT[]` for test.split when selected", () => {
-    renderCanvas(makeConfigWith("test.split"), "activity_1");
-    const outputPill = screen.getByTestId("node-type-pill-output");
-    expect(outputPill).toHaveTextContent("SEGMENT[]");
-    expect(outputPill.getAttribute("data-pill-color")).toBe("green");
+describe("WorkflowEditorCanvas — US-096 Scenario 1: single-port pill renders under the node", () => {
+  it("renders a single-port arrow row with uppercase MULTIPAGEDOCUMENT → SEGMENT[] for test.split when selected", () => {
+    const { container } = renderCanvas(
+      makeConfigWith("test.split"),
+      "activity_1",
+    );
+    expect(
+      container.querySelector('[data-pill-anchor="under"]'),
+    ).toBeInTheDocument();
+    const pillRow = screen.getByTestId("node-type-pill-row");
+    expect(pillRow.getAttribute("data-shape")).toBe("arrow");
 
-    const inputPill = screen.getByTestId("node-type-pill-input");
-    expect(inputPill).toHaveTextContent("MULTIPAGEDOCUMENT");
-    expect(inputPill.getAttribute("data-pill-color")).toBe("blue");
+    const inputBadge = pillRow.querySelector("[data-pill-direction='input']");
+    expect(inputBadge).toHaveTextContent("MULTIPAGEDOCUMENT");
+    expect(inputBadge?.getAttribute("data-pill-color")).toBe("blue");
+
+    const outputBadge = pillRow.querySelector("[data-pill-direction='output']");
+    expect(outputBadge).toHaveTextContent("SEGMENT[]");
+    expect(outputBadge?.getAttribute("data-pill-color")).toBe("green");
+
+    expect(screen.getByTestId("pill-row-arrow")).toHaveTextContent("→");
   });
 });
 
-describe("WorkflowEditorCanvas — US-096 Scenario 2: multi-port pill expands with per-row colour", () => {
-  it("renders a stacked pill with one row per output port and per-row colour coding", () => {
+describe("WorkflowEditorCanvas — US-096 Scenario 2: multi-port pill stacks inputs + outputs under the node", () => {
+  it("renders a stacked pill row with one row per port and per-row colour coding", () => {
     renderCanvas(makeConfigWith("test.classify-multi"), "activity_1");
-    const outputPill = screen.getByTestId("node-type-pill-output");
+    const pillRow = screen.getByTestId("node-type-pill-row");
+    expect(pillRow.getAttribute("data-shape")).toBe("stacked");
 
-    const segmentType = outputPill.querySelector(
-      "[data-pill-port='segmentType']",
+    const segmentType = pillRow.querySelector(
+      "[data-pill-direction='output'][data-pill-port='segmentType']",
     );
-    const confidence = outputPill.querySelector(
-      "[data-pill-port='confidence']",
+    const confidence = pillRow.querySelector(
+      "[data-pill-direction='output'][data-pill-port='confidence']",
     );
-    const matchedRule = outputPill.querySelector(
-      "[data-pill-port='matchedRule']",
+    const matchedRule = pillRow.querySelector(
+      "[data-pill-direction='output'][data-pill-port='matchedRule']",
     );
 
-    expect(segmentType).toHaveTextContent("segmentType: Classification");
-    expect(confidence).toHaveTextContent("confidence: Artifact");
-    expect(matchedRule).toHaveTextContent("matchedRule: Artifact");
+    expect(segmentType).toHaveTextContent("out:segmentType: Classification");
+    expect(confidence).toHaveTextContent("out:confidence: Artifact");
+    expect(matchedRule).toHaveTextContent("out:matchedRule: Artifact");
 
     // Classification → yellow; Artifact wildcards → gray.
     expect(segmentType?.getAttribute("data-pill-color")).toBe("yellow");
     expect(confidence?.getAttribute("data-pill-color")).toBe("gray");
     expect(matchedRule?.getAttribute("data-pill-color")).toBe("gray");
 
-    const inputPill = screen.getByTestId("node-type-pill-input");
-    const ocrRow = inputPill.querySelector("[data-pill-port='ocrResult']");
-    const segmentRow = inputPill.querySelector("[data-pill-port='segment']");
-    expect(ocrRow).toHaveTextContent("ocrResult: OcrResult");
-    expect(segmentRow).toHaveTextContent("segment: Segment");
+    const ocrRow = pillRow.querySelector(
+      "[data-pill-direction='input'][data-pill-port='ocrResult']",
+    );
+    const segmentRow = pillRow.querySelector(
+      "[data-pill-direction='input'][data-pill-port='segment']",
+    );
+    expect(ocrRow).toHaveTextContent("in:ocrResult: OcrResult");
+    expect(segmentRow).toHaveTextContent("in:segment: Segment");
     expect(ocrRow?.getAttribute("data-pill-color")).toBe("violet");
     expect(segmentRow?.getAttribute("data-pill-color")).toBe("green");
   });
@@ -270,41 +301,43 @@ describe("WorkflowEditorCanvas — US-096 Scenario 2: multi-port pill expands wi
 
 describe("WorkflowEditorCanvas — US-096 Scenario 3: pill hides when node is deselected", () => {
   it("does not render the pill when no node is selected", () => {
-    renderCanvas(makeConfigWith("test.split"), null);
+    const { container } = renderCanvas(makeConfigWith("test.split"), null);
     expect(
-      screen.queryByTestId("node-type-pill-output"),
+      container.querySelector('[data-pill-anchor="under"]'),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("node-type-pill-input"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("node-type-pill-row")).not.toBeInTheDocument();
   });
 });
 
 describe("WorkflowEditorCanvas — US-102: document.classify selection pill expands to the full signature (real catalog entry)", () => {
-  it("input pill lists ocrResult: OcrResult (violet) + segment: Segment (green); output pill lists segmentType: Classification (yellow) + confidence/matchedRule: Artifact (gray)", () => {
+  it("stacked pill lists in:ocrResult: OcrResult (violet) + in:segment: Segment (green); out:segmentType: Classification (yellow) + out:confidence/out:matchedRule: Artifact (gray)", () => {
     renderCanvas(makeConfigWith("document.classify"), "activity_1");
+    const pillRow = screen.getByTestId("node-type-pill-row");
+    expect(pillRow.getAttribute("data-shape")).toBe("stacked");
 
-    const inputPill = screen.getByTestId("node-type-pill-input");
-    const ocrRow = inputPill.querySelector("[data-pill-port='ocrResult']");
-    const segmentRow = inputPill.querySelector("[data-pill-port='segment']");
-    expect(ocrRow).toHaveTextContent("ocrResult: OcrResult");
-    expect(segmentRow).toHaveTextContent("segment: Segment");
+    const ocrRow = pillRow.querySelector(
+      "[data-pill-direction='input'][data-pill-port='ocrResult']",
+    );
+    const segmentRow = pillRow.querySelector(
+      "[data-pill-direction='input'][data-pill-port='segment']",
+    );
+    expect(ocrRow).toHaveTextContent("in:ocrResult: OcrResult");
+    expect(segmentRow).toHaveTextContent("in:segment: Segment");
     expect(ocrRow?.getAttribute("data-pill-color")).toBe("violet");
     expect(segmentRow?.getAttribute("data-pill-color")).toBe("green");
 
-    const outputPill = screen.getByTestId("node-type-pill-output");
-    const segmentType = outputPill.querySelector(
-      "[data-pill-port='segmentType']",
+    const segmentType = pillRow.querySelector(
+      "[data-pill-direction='output'][data-pill-port='segmentType']",
     );
-    const confidence = outputPill.querySelector(
-      "[data-pill-port='confidence']",
+    const confidence = pillRow.querySelector(
+      "[data-pill-direction='output'][data-pill-port='confidence']",
     );
-    const matchedRule = outputPill.querySelector(
-      "[data-pill-port='matchedRule']",
+    const matchedRule = pillRow.querySelector(
+      "[data-pill-direction='output'][data-pill-port='matchedRule']",
     );
-    expect(segmentType).toHaveTextContent("segmentType: Classification");
-    expect(confidence).toHaveTextContent("confidence: Artifact");
-    expect(matchedRule).toHaveTextContent("matchedRule: Artifact");
+    expect(segmentType).toHaveTextContent("out:segmentType: Classification");
+    expect(confidence).toHaveTextContent("out:confidence: Artifact");
+    expect(matchedRule).toHaveTextContent("out:matchedRule: Artifact");
     // Classification → yellow (Mantine's amber substitute); Artifact wildcards → gray.
     expect(segmentType?.getAttribute("data-pill-color")).toBe("yellow");
     expect(confidence?.getAttribute("data-pill-color")).toBe("gray");
@@ -313,14 +346,17 @@ describe("WorkflowEditorCanvas — US-102: document.classify selection pill expa
 });
 
 describe("WorkflowEditorCanvas — US-096 Scenario 4: pill renders nothing when no ports declare a kind", () => {
-  it("renders no pill for an un-typed activity (legacy descriptors) even when selected", () => {
-    renderCanvas(makeConfigWith("test.untyped"), "activity_1");
-    expect(
-      screen.queryByTestId("node-type-pill-output"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("node-type-pill-input"),
-    ).not.toBeInTheDocument();
+  it("renders no pill row for an un-typed activity (legacy descriptors) even when selected", () => {
+    const { container } = renderCanvas(
+      makeConfigWith("test.untyped"),
+      "activity_1",
+    );
+    // The under-anchor wrapper is still rendered (selected === true), but the
+    // child `NodeTypePillRow` returns null so the testid does not appear.
+    expect(screen.queryByTestId("node-type-pill-row")).not.toBeInTheDocument();
+    const underAnchor = container.querySelector('[data-pill-anchor="under"]');
+    expect(underAnchor).toBeInTheDocument();
+    expect(underAnchor?.firstChild).toBeNull();
 
     // US-095's gray handle + multi-port tooltip stays the only signal.
     const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
