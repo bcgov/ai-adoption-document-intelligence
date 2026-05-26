@@ -2,7 +2,10 @@ import { Paper, Text } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnnotationCanvas } from "../../features/annotation/core/canvas/AnnotationCanvas";
-import { usePdfPageImage } from "../../features/annotation/core/canvas/hooks/usePdfPageImage";
+import {
+  RENDER_SCALE,
+  usePdfPageImage,
+} from "../../features/annotation/core/canvas/hooks/usePdfPageImage";
 import type { ExtractedFields } from "../../shared/types";
 
 interface DocumentViewerProps {
@@ -14,7 +17,9 @@ interface DocumentViewerProps {
   rotation?: number;
 }
 
-const PIXELS_PER_INCH = 144;
+// PDF coordinate scale: Azure OCR coordinates are in inches
+// Multiply by (RENDER_SCALE * 72 DPI) to convert to rendered pixels
+const PIXELS_PER_INCH = RENDER_SCALE * 72;
 
 function getFieldDisplayValue(field: ExtractedFields[string]): string {
   if (field.valueSelectionMark !== undefined) {
