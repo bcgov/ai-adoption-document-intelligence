@@ -53,6 +53,7 @@ import type {
   GraphNode,
   GraphValidationError,
   GraphWorkflowConfig,
+  NodeGroup,
   SourceNode,
   SwitchNode,
 } from "../../../types/workflow";
@@ -82,6 +83,11 @@ import {
 } from "./group-projection";
 import { HoverExtendPopover } from "./HoverExtendPopover";
 import { computeHandleStyle, type HandleStyle } from "./handle-style";
+import {
+  MapBodyContainer,
+  type MapBodyContainerFlowNode,
+} from "./MapBodyContainer";
+import { isSyntheticMapBodyGroupId } from "./map-body-groups";
 import { NodeContextMenu } from "./NodeContextMenu";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypePillRow } from "./NodeTypePillRow";
@@ -189,7 +195,8 @@ type FlowNode =
   | ActivityFlowNode
   | ControlFlowFlowNode
   | SourceFlowNode
-  | GroupChipFlowNode;
+  | GroupChipFlowNode
+  | MapBodyContainerFlowNode;
 
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
@@ -908,6 +915,7 @@ const NODE_TYPES = {
   humanGate: ControlFlowRectangleRenderer,
   source: SourceNodeRenderer,
   "group-chip": GroupChipNode,
+  "map-body-container": MapBodyContainer,
 };
 
 // ---------------------------------------------------------------------------
@@ -1142,6 +1150,60 @@ function projectChipFlowNodes(
       memberNodeIds: chip.memberNodeIds,
     },
   }));
+}
+
+/**
+ * Project one `MapBodyContainerFlowNode` per synthetic map-body group. Size
+ * is the bounding box of the member nodes' positions (padded). Clicks call
+ * `onGroupChipClick(groupId)` so the host's right-rail focuses the group.
+ */
+function projectMapBodyContainerNodes(
+  syntheticGroups: Record<string, NodeGroup>,
+  config: GraphWorkflowConfig,
+  onGroupChipClick?: (groupId: string) => void,
+): MapBodyContainerFlowNode[] {
+  const out: MapBodyContainerFlowNode[] = [];
+  for (const [groupId, group] of Object.entries(syntheticGroups)) {
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    let any = false;
+    for (const nodeId of group.nodeIds) {
+      const meta = config.nodes[nodeId]?.metadata as
+        | { position?: { x: number; y: number } }
+        | undefined;
+      const pos = meta?.position;
+      if (!pos) continue;
+      any = true;
+      if (pos.x < minX) minX = pos.x;
+      if (pos.y < minY) minY = pos.y;
+      if (pos.x > maxX) maxX = pos.x;
+      if (pos.y > maxY) maxY = pos.y;
+    }
+    if (!any) continue;
+    const pad = 40;
+    const nodeFootprintW = 220;
+    const nodeFootprintH = 100;
+    out.push({
+      id: `container-${groupId}`,
+      type: "map-body-container",
+      position: { x: minX - pad, y: minY - pad },
+      data: {
+        groupId,
+        label: group.label,
+        color: group.color,
+        width: maxX - minX + nodeFootprintW + pad * 2,
+        height: maxY - minY + nodeFootprintH + pad * 2,
+        onClick: () => onGroupChipClick?.(groupId),
+      },
+      // Render BEHIND member nodes so clicks on member nodes still hit them.
+      zIndex: -1,
+      selectable: false,
+      draggable: false,
+    });
+  }
+  return out;
 }
 
 function buildStructuralFingerprint(
@@ -1384,9 +1446,22 @@ function WorkflowEditorCanvasInner({
       const chipNodes = projectChipFlowNodes(projected.chips, selectedNodeId);
       setInternalNodes([...normalNodes, ...chipNodes]);
     } else {
-      setInternalNodes(
-        projectFlowNodes(config, selectedNodeId, projectionCallbacks),
+      const userGroups = config.nodeGroups ?? {};
+      const syntheticGroups: Record<string, NodeGroup> = {};
+      for (const [k, v] of Object.entries(userGroups)) {
+        if (isSyntheticMapBodyGroupId(k)) syntheticGroups[k] = v;
+      }
+      const containerNodes = projectMapBodyContainerNodes(
+        syntheticGroups,
+        config,
+        onGroupChipClick,
       );
+      const normalNodes = projectFlowNodes(
+        config,
+        selectedNodeId,
+        projectionCallbacks,
+      );
+      setInternalNodes([...containerNodes, ...normalNodes]);
     }
     // Note: `selectedNodeId` participates in the projection on
     // structural changes (e.g., when a freshly added node should start
@@ -1401,6 +1476,7 @@ function WorkflowEditorCanvasInner({
     projectionCallbacks,
     setInternalNodes,
     simplifiedView,
+    onGroupChipClick,
   ]);
 
   // Validation badge sync — patches data.errorCount / data.warningCount
@@ -1414,6 +1490,9 @@ function WorkflowEditorCanvasInner({
         // Chips don't render a validation badge — they're a pure visual
         // collapse, so they have no per-node counts to sync.
         if (n.type === "group-chip") return n;
+        // Synthetic map-body containers are background-only decor — no
+        // validation counts to sync.
+        if (n.type === "map-body-container") return n;
         // Source nodes don't surface a validation badge in US-117 (no
         // `errorCount` / `warningCount` fields on `SourceNodeData`).
         // Skip the patch to avoid stamping undefined → 0 mutations and

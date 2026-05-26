@@ -81,6 +81,11 @@ import {
   layoutGraph,
   layoutGraphIfMissingPositions,
 } from "./canvas/auto-layout";
+import {
+  mergeNodeGroups,
+  stripSyntheticMapBodyGroups,
+  synthesizeMapBodyGroups,
+} from "./canvas/map-body-groups";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { materialiseParamDefaults, useActivityCatalog } from "./dynamic-nodes";
 import { createGroupFromSelection } from "./group/create-group";
@@ -238,6 +243,29 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     string | null
   >(null);
   const validation = useGraphValidation(config);
+
+  // Render-time synthesis of map-body groups (Spec §6).
+  // Synthetic entries are NEVER persisted; they're stripped from any config
+  // update the canvas dispatches back through `onConfigChange`.
+  const displayConfig = useMemo<GraphWorkflowConfig>(() => {
+    const synthetic = synthesizeMapBodyGroups(config);
+    if (Object.keys(synthetic).length === 0) return config;
+    return {
+      ...config,
+      nodeGroups: mergeNodeGroups(config.nodeGroups ?? {}, synthetic),
+    };
+  }, [config]);
+
+  const handleCanvasConfigChange = useCallback((next: GraphWorkflowConfig) => {
+    if (next.nodeGroups) {
+      setConfig({
+        ...next,
+        nodeGroups: stripSyntheticMapBodyGroups(next.nodeGroups),
+      });
+      return;
+    }
+    setConfig(next);
+  }, []);
 
   // Live xyflow instance from the inner canvas — populated by
   // `onReactFlowReady`. Used by the "Auto-arrange" top-bar button to
@@ -1108,9 +1136,9 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               </Box>
             )}
             <WorkflowEditorCanvas
-              config={config}
+              config={displayConfig}
               selectedNodeId={selectedNodeId}
-              onConfigChange={setConfig}
+              onConfigChange={handleCanvasConfigChange}
               onSelectNode={setSelectedNodeId}
               onSelectionChangeMany={setSelectedNodeIds}
               errorsByNode={validation.errorsByNode}
@@ -1121,7 +1149,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             />
           </Box>
           <NodeSettingsPanel
-            config={config}
+            config={displayConfig}
             selectedNodeId={selectedNodeId}
             activeGroupId={activeGroupId}
             onConfigChange={setConfig}
