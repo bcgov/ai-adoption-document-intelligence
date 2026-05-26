@@ -353,13 +353,13 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // node-selected flag from a later effect deadlocked against xyflow's
   // StoreUpdater.)
   const addActivity = useCallback(
-    (activityType: string) => {
+    (activityType: string, position?: { x: number; y: number }) => {
       const entry = ACTIVITY_CATALOG[activityType] as
         | ActivityCatalogEntry
         | undefined;
       if (!entry) return;
       const id = makeNodeId(config, activityType);
-      const offsetIndex = Object.keys(config.nodes).length;
+      const pos = position ?? defaultStaggerPosition(config);
       const inputs = entry.inputs.map((p) => ({
         port: p.name,
         ctxKey: p.name,
@@ -377,10 +377,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         outputs,
         parameters: {},
         metadata: {
-          position: {
-            x: 80 + offsetIndex * 240,
-            y: 100 + (offsetIndex % 3) * 140,
-          },
+          position: pos,
         },
       };
       setConfig((prev) => {
@@ -405,9 +402,9 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   );
 
   const addControlFlowNode = useCallback(
-    (type: ControlFlowNodeType) => {
+    (type: ControlFlowNodeType, position?: { x: number; y: number }) => {
       const id = makeNodeId(config, type);
-      const offsetIndex = Object.keys(config.nodes).length;
+      const pos = position ?? defaultStaggerPosition(config);
       const skeleton = buildControlFlowSkeleton(type, id);
       // Mutate the freshly-built skeleton's metadata in place — this is
       // safe because the skeleton was just constructed and is not yet
@@ -416,10 +413,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       const newNode: GraphNode = skeleton;
       newNode.metadata = {
         ...(newNode.metadata ?? {}),
-        position: {
-          x: 80 + offsetIndex * 240,
-          y: 100 + (offsetIndex % 3) * 140,
-        },
+        position: pos,
       };
       setConfig((prev) => {
         const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
@@ -454,11 +448,11 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
    * DOCUMENT_SOURCES_DESIGN.md §5).
    */
   const addSource = useCallback(
-    (sourceType: string) => {
+    (sourceType: string, position?: { x: number; y: number }) => {
       const entry = getSourceCatalogEntry(sourceType);
       if (!entry) return;
       const id = makeNodeId(config, sourceType);
-      const offsetIndex = Object.keys(config.nodes).length;
+      const pos = position ?? defaultStaggerPosition(config);
       // `.parse({})` is the documented way to materialise the catalog
       // defaults — the schema is the single source of truth for
       // save-time validation, so the dropped node is guaranteed
@@ -475,10 +469,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         sourceType,
         parameters: defaults,
         metadata: {
-          position: {
-            x: 80 + offsetIndex * 240,
-            y: 100 + (offsetIndex % 3) * 140,
-          },
+          position: pos,
         },
       };
       setConfig((prev) => {
@@ -511,14 +502,14 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
    */
   const mergedCatalog = useActivityCatalog();
   const addDynamicNode = useCallback(
-    (slug: string) => {
+    (slug: string, position?: { x: number; y: number }) => {
       const activityType = `dyn.${slug}`;
       const entry = mergedCatalog.entries.find(
         (e) => e.activityType === activityType,
       );
       if (!entry) return;
       const id = makeNodeId(config, activityType);
-      const offsetIndex = Object.keys(config.nodes).length;
+      const pos = position ?? defaultStaggerPosition(config);
       const inputs = entry.inputs.map((p) => ({
         port: p.name,
         ctxKey: p.name,
@@ -537,10 +528,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         outputs,
         parameters,
         metadata: {
-          position: {
-            x: 80 + offsetIndex * 240,
-            y: 100 + (offsetIndex % 3) * 140,
-          },
+          position: pos,
         },
       };
       setConfig((prev) => {
@@ -1118,7 +1106,60 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             onAddSource={addSource}
             onAddDynamicNode={addDynamicNode}
           />
-          <Box style={{ flex: 1, minWidth: 0, position: "relative" }}>
+          <Box
+            style={{ flex: 1, minWidth: 0, position: "relative" }}
+            data-testid="workflow-editor-canvas-drop"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              const raw = e.dataTransfer.getData(
+                "application/x-workflow-palette",
+              );
+              if (!raw) return;
+              e.preventDefault();
+              let payload: unknown;
+              try {
+                payload = JSON.parse(raw);
+              } catch {
+                return;
+              }
+              if (!payload || typeof payload !== "object") return;
+              const p = payload as {
+                kind?: string;
+                activityType?: string;
+                type?: string;
+                sourceType?: string;
+                slug?: string;
+              };
+              const instance = reactFlowRef.current;
+              const position =
+                instance && typeof instance.screenToFlowPosition === "function"
+                  ? instance.screenToFlowPosition({
+                      x: e.clientX,
+                      y: e.clientY,
+                    })
+                  : undefined;
+              switch (p.kind) {
+                case "activity":
+                  if (p.activityType) addActivity(p.activityType, position);
+                  break;
+                case "controlFlow":
+                  if (p.type)
+                    addControlFlowNode(p.type as ControlFlowNodeType, position);
+                  break;
+                case "source":
+                  if (p.sourceType) addSource(p.sourceType, position);
+                  break;
+                case "dynamic":
+                  if (p.slug) addDynamicNode(p.slug, position);
+                  break;
+                default:
+                  break;
+              }
+            }}
+          >
             {nodeCount === 0 && (
               <Box
                 style={{
@@ -1302,4 +1343,22 @@ function makeNodeId(config: GraphWorkflowConfig, activityType: string): string {
     id = `${base}_${suffix}`;
   }
   return id;
+}
+
+/**
+ * Default stagger position used by every add-* handler when the caller does
+ * not supply an explicit `position`. Matches the formula the click-to-add
+ * paths have shipped with since the palette landed; extracted so the
+ * drop-from-palette path can fall back to the same behaviour for callers
+ * that don't pass coords.
+ */
+function defaultStaggerPosition(config: GraphWorkflowConfig): {
+  x: number;
+  y: number;
+} {
+  const offsetIndex = Object.keys(config.nodes).length;
+  return {
+    x: 80 + offsetIndex * 240,
+    y: 100 + (offsetIndex % 3) * 140,
+  };
 }

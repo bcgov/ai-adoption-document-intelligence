@@ -335,8 +335,20 @@ export function ActivityPalette({
                         gap="xs"
                         wrap="nowrap"
                         onClick={() => onAddActivity(entry.activityType)}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(
+                            "application/x-workflow-palette",
+                            JSON.stringify({
+                              kind: "activity",
+                              activityType: entry.activityType,
+                            }),
+                          );
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        data-testid={`activity-palette-entry-${entry.activityType}`}
                         style={{
-                          cursor: "pointer",
+                          cursor: "grab",
                           padding: "6px 8px",
                           borderRadius: 6,
                           borderLeftWidth: 3,
@@ -559,6 +571,13 @@ interface ControlFlowPaletteRowProps {
 
 function ControlFlowPaletteRow({ entry, onClick }: ControlFlowPaletteRowProps) {
   const Icon = CONTROL_FLOW_ICONS[entry.type];
+  const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData(
+      "application/x-workflow-palette",
+      JSON.stringify({ kind: "controlFlow", type: entry.type }),
+    );
+    e.dataTransfer.effectAllowed = "copy";
+  };
   return (
     <Tooltip
       label={entry.description}
@@ -572,9 +591,11 @@ function ControlFlowPaletteRow({ entry, onClick }: ControlFlowPaletteRowProps) {
         gap="xs"
         wrap="nowrap"
         onClick={onClick}
+        draggable
+        onDragStart={onDragStart}
         data-testid={`control-flow-palette-entry-${entry.type}`}
         style={{
-          cursor: "pointer",
+          cursor: "grab",
           padding: "6px 8px",
           borderRadius: 6,
           borderLeftWidth: 3,

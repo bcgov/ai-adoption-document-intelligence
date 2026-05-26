@@ -1332,3 +1332,119 @@ describe("WorkflowEditorV2Page — top bar (Task 6)", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 5: drag-from-palette → canvas drop handler
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — drag-and-drop from palette", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedPaletteProps.current = null;
+    capturedRunDrawerProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  /**
+   * jsdom doesn't implement `DragEvent` / `DataTransfer`. Build a minimal
+   * stand-in that satisfies the page's drop handler (which only calls
+   * `getData(...)` + reads `clientX/Y`) and dispatch as a regular Event
+   * with the dataTransfer property attached.
+   */
+  function dispatchDrop(
+    target: HTMLElement,
+    payload: unknown,
+    clientX = 400,
+    clientY = 300,
+  ) {
+    const store = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => {
+        store.set(type, value);
+      },
+      getData: (type: string) => store.get(type) ?? "",
+      dropEffect: "",
+      effectAllowed: "",
+    };
+    dataTransfer.setData(
+      "application/x-workflow-palette",
+      JSON.stringify(payload),
+    );
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    Object.defineProperty(event, "clientX", { value: clientX });
+    Object.defineProperty(event, "clientY", { value: clientY });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+  }
+
+  function readConfig(): GraphWorkflowConfig {
+    const config = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!config) throw new Error("Canvas stub did not capture config");
+    return config;
+  }
+
+  it("dropping a control-flow payload on the canvas adds a switch node", async () => {
+    renderPage();
+    const dropTarget = await screen.findByTestId("workflow-editor-canvas-drop");
+    expect(Object.keys(readConfig().nodes)).toHaveLength(0);
+
+    dispatchDrop(dropTarget, { kind: "controlFlow", type: "switch" });
+
+    const after = readConfig();
+    expect(after.nodes.switch_1).toBeDefined();
+    expect(after.nodes.switch_1.type).toBe("switch");
+  });
+
+  it("dropping an activity payload on the canvas adds an activity node", async () => {
+    renderPage();
+    const dropTarget = await screen.findByTestId("workflow-editor-canvas-drop");
+
+    dispatchDrop(dropTarget, {
+      kind: "activity",
+      activityType: "data.transform",
+    });
+
+    const after = readConfig();
+    const ids = Object.keys(after.nodes);
+    expect(ids).toHaveLength(1);
+    const node = after.nodes[ids[0]] as ActivityNode;
+    expect(node.type).toBe("activity");
+    expect(node.activityType).toBe("data.transform");
+  });
+
+  it("dropping a source payload on the canvas adds a source node", async () => {
+    renderPage();
+    const dropTarget = await screen.findByTestId("workflow-editor-canvas-drop");
+
+    dispatchDrop(dropTarget, { kind: "source", sourceType: "source.api" });
+
+    const after = readConfig();
+    const ids = Object.keys(after.nodes);
+    expect(ids).toHaveLength(1);
+    expect(after.nodes[ids[0]].type).toBe("source");
+  });
+
+  it("ignores drops without an x-workflow-palette payload", async () => {
+    renderPage();
+    const dropTarget = await screen.findByTestId("workflow-editor-canvas-drop");
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: {
+        getData: () => "",
+        setData: () => undefined,
+      },
+    });
+    Object.defineProperty(event, "clientX", { value: 100 });
+    Object.defineProperty(event, "clientY", { value: 100 });
+    act(() => {
+      dropTarget.dispatchEvent(event);
+    });
+    expect(Object.keys(readConfig().nodes)).toHaveLength(0);
+  });
+});

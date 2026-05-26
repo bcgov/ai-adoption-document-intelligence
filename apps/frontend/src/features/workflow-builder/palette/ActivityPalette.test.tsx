@@ -466,3 +466,70 @@ describe('ActivityPalette — US-182: Custom section + "+ New custom node"', () 
     ).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 5: drag-from-palette payloads on activity + control-flow rows
+// ---------------------------------------------------------------------------
+
+/**
+ * jsdom does not implement `DragEvent` or `DataTransfer`. Provide minimal
+ * stand-ins that record the data the palette's `onDragStart` handler
+ * writes so the test can assert the payload roundtrips through the
+ * `application/x-workflow-palette` mime type.
+ */
+class MockDataTransfer {
+  private store = new Map<string, string>();
+  public effectAllowed = "";
+  public dropEffect = "";
+  setData(type: string, value: string) {
+    this.store.set(type, value);
+  }
+  getData(type: string) {
+    return this.store.get(type) ?? "";
+  }
+}
+
+function dispatchDragStart(target: HTMLElement): MockDataTransfer {
+  const dataTransfer = new MockDataTransfer();
+  const event = new Event("dragstart", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+  target.dispatchEvent(event);
+  return dataTransfer;
+}
+
+describe("ActivityPalette — drag-from-palette payloads (Task 5)", () => {
+  it("activity rows expose a JSON drag payload with kind 'activity'", () => {
+    renderPalette();
+    // Pick the first activity row by its data-testid — every activity row
+    // emitted by the entries.map(...) loop is tagged with the activityType.
+    const row = document.querySelector(
+      '[data-testid^="activity-palette-entry-"]',
+    ) as HTMLElement | null;
+    expect(row).not.toBeNull();
+    expect(row!.getAttribute("draggable")).toBe("true");
+    const activityType = row!
+      .getAttribute("data-testid")!
+      .replace(/^activity-palette-entry-/, "");
+
+    const dataTransfer = dispatchDragStart(row!);
+    const raw = dataTransfer.getData("application/x-workflow-palette");
+    expect(raw).not.toBe("");
+    const payload = JSON.parse(raw) as { kind: string; activityType: string };
+    expect(payload.kind).toBe("activity");
+    expect(payload.activityType).toBe(activityType);
+    expect(dataTransfer.effectAllowed).toBe("copy");
+  });
+
+  it("control-flow rows expose a JSON drag payload with kind 'controlFlow'", () => {
+    renderPalette();
+    const row = screen.getByTestId("control-flow-palette-entry-switch");
+    expect(row.getAttribute("draggable")).toBe("true");
+
+    const dataTransfer = dispatchDragStart(row);
+    const raw = dataTransfer.getData("application/x-workflow-palette");
+    expect(raw).not.toBe("");
+    const payload = JSON.parse(raw);
+    expect(payload).toEqual({ kind: "controlFlow", type: "switch" });
+    expect(dataTransfer.effectAllowed).toBe("copy");
+  });
+});
