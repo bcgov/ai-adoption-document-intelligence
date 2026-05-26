@@ -183,6 +183,7 @@ export function HoverExtendPopover({
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         p="xs"
+        mah="calc(100vh - 120px)"
       >
         <Stack gap="xs">
           <TextInput
@@ -194,7 +195,7 @@ export function HoverExtendPopover({
             data-testid="hover-extend-search"
             autoFocus
           />
-          <ScrollArea style={{ maxHeight: 360 }} type="auto">
+          <ScrollArea h={360} type="auto">
             <Stack gap="md">
               {filteredControlFlowEntries.length > 0 && (
                 <Stack key={CONTROL_FLOW_SECTION_LABEL} gap={4}>

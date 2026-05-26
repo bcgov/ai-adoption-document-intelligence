@@ -86,7 +86,7 @@ import { NodeContextMenu } from "./NodeContextMenu";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
-import { nextNodePosition } from "./place-extended-node";
+import { findNextFreePosition } from "./place-extended-node";
 import { swapActivityType } from "./swap-node-type";
 import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
 
@@ -1816,12 +1816,8 @@ function WorkflowEditorCanvasInner({
    */
   const extendFromSource = useCallback(
     (sourceNodeId: string, newNode: GraphNode) => {
-      const sourceGraphNode = config.nodes[sourceNodeId];
-      if (!sourceGraphNode) return;
-      const sourcePos = (
-        sourceGraphNode.metadata as { position?: { x: number; y: number } }
-      )?.position ?? { x: 0, y: 0 };
-      const position = nextNodePosition(sourcePos);
+      if (!config.nodes[sourceNodeId]) return;
+      const position = findNextFreePosition(config, sourceNodeId);
       const newNodeWithPosition: GraphNode = {
         ...newNode,
         metadata: {
