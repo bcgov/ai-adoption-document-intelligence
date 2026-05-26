@@ -25,9 +25,9 @@ export const AGENT_MODEL_OPTIONS: AgentModelOption[] = [
     model: "claude-opus-4-7",
   },
   {
-    label: "Azure GPT-4.1 (cheap, multi-provider verification)",
+    label: "Azure GPT-4o (multi-provider verification)",
     provider: "azure",
-    model: "gpt-4.1",
+    model: "gpt-4o",
   },
 ];
 

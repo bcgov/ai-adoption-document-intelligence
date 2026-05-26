@@ -34,7 +34,7 @@ export class AgentEnv {
     this.azureApiKey = config.get<string>("AZURE_OPENAI_API_KEY") ?? null;
     this.azureEndpoint = config.get<string>("AZURE_OPENAI_ENDPOINT") ?? null;
     this.azureDefaultDeployment =
-      config.get<string>("AZURE_OPENAI_DEPLOYMENT") ?? "gpt-4.1";
+      config.get<string>("AZURE_OPENAI_DEPLOYMENT") ?? "gpt-4o";
     this.azureApiVersion =
       config.get<string>("AZURE_OPENAI_API_VERSION") ?? "2024-10-21";
 
