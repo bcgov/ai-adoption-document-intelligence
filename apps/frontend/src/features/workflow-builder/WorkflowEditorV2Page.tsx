@@ -88,7 +88,10 @@ import {
 } from "./canvas/map-body-groups";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { materialiseParamDefaults, useActivityCatalog } from "./dynamic-nodes";
-import { createGroupFromSelection } from "./group/create-group";
+import {
+  createGroupFromSelection,
+  filterOutSyntheticBodyMembers,
+} from "./group/create-group";
 import {
   SaveAsLibraryModal,
   type SaveAsLibrarySubmission,
@@ -298,10 +301,19 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
    * tick (React batches both updates into one render).
    */
   const handleGroupSelected = useCallback(() => {
-    if (selectedNodeIds.length < 2) return;
+    const eligibleIds = filterOutSyntheticBodyMembers(config, selectedNodeIds);
+    if (eligibleIds.length < 2) {
+      notifications.show({
+        color: "yellow",
+        title: "Group selected",
+        message:
+          "Need 2+ selectable nodes. Map body members are grouped automatically.",
+      });
+      return;
+    }
     const { config: nextConfig, newGroupId } = createGroupFromSelection(
       config,
-      selectedNodeIds,
+      eligibleIds,
     );
     setConfig(nextConfig);
     setSelectedNodeIdState(null);

@@ -29,6 +29,7 @@
  */
 
 import type { GraphWorkflowConfig, NodeGroup } from "../../../types/workflow";
+import { synthesizeMapBodyGroups } from "../canvas/map-body-groups";
 
 export interface CreateGroupOptions {
   /**
@@ -150,4 +151,22 @@ export function createGroupFromSelection(
     },
     newGroupId,
   };
+}
+
+/**
+ * Returns a subset of `selectedNodeIds` excluding any node that belongs to a
+ * synthetic map-body group. Used by the "Group selected" top-bar action so
+ * the user can't merge body nodes into a manual group — those are managed
+ * automatically by the map node.
+ */
+export function filterOutSyntheticBodyMembers(
+  config: GraphWorkflowConfig,
+  selectedNodeIds: string[],
+): string[] {
+  const synthetic = synthesizeMapBodyGroups(config);
+  const blocked = new Set<string>();
+  for (const group of Object.values(synthetic)) {
+    for (const id of group.nodeIds) blocked.add(id);
+  }
+  return selectedNodeIds.filter((id) => !blocked.has(id));
 }

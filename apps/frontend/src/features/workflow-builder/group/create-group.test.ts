@@ -16,7 +16,10 @@ import type {
   GraphWorkflowConfig,
   NodeGroup,
 } from "../../../types/workflow";
-import { createGroupFromSelection } from "./create-group";
+import {
+  createGroupFromSelection,
+  filterOutSyntheticBodyMembers,
+} from "./create-group";
 
 function makeActivity(id: string): ActivityNode {
   return {
@@ -231,5 +234,83 @@ describe("createGroupFromSelection — input validation", () => {
       createGroupFromSelection(config, ["n1", "n_missing"]),
     ).toThrow();
     expect(config.nodeGroups?.group_1?.nodeIds).toEqual(["n1"]);
+  });
+});
+
+describe("filterOutSyntheticBodyMembers", () => {
+  it("returns the selection unchanged when no map bodies are present", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        a: {
+          id: "a",
+          type: "activity",
+          label: "a",
+          activityType: "noop",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+        b: {
+          id: "b",
+          type: "activity",
+          label: "b",
+          activityType: "noop",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+      },
+      edges: [],
+      entryNodeId: "a",
+    };
+    expect(filterOutSyntheticBodyMembers(config, ["a", "b"])).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  it("drops node ids that belong to a synthetic map-body group", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        outer: {
+          id: "outer",
+          type: "activity",
+          label: "outer",
+          activityType: "noop",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+        mapNode: {
+          id: "mapNode",
+          type: "map",
+          label: "m",
+          collectionCtxKey: "x",
+          itemCtxKey: "y",
+          bodyEntryNodeId: "bodyA",
+          bodyExitNodeId: "bodyA",
+        },
+        bodyA: {
+          id: "bodyA",
+          type: "activity",
+          label: "bodyA",
+          activityType: "noop",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+      },
+      edges: [],
+      entryNodeId: "outer",
+    };
+    expect(
+      filterOutSyntheticBodyMembers(config, ["outer", "bodyA", "mapNode"]),
+    ).toEqual(["outer", "mapNode"]);
   });
 });
