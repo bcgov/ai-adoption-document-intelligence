@@ -40,6 +40,7 @@ const {
   capturedCreateDto,
   capturedPaletteProps,
   capturedRunDrawerProps,
+  capturedSettingsPanelProps,
   fitViewMock,
   existingWorkflowRef,
 } = vi.hoisted(() => {
@@ -54,6 +55,12 @@ const {
     // tests can verify `openMode` was set correctly by whichever
     // top-bar button opened the drawer.
     capturedRunDrawerProps: {
+      current: null as null | Record<string, unknown>,
+    },
+    // Regression test — capture the settings panel's onConfigChange so
+    // we can verify the page routes its writes through the synthetic
+    // strip helper (handleCanvasConfigChange) just like the canvas does.
+    capturedSettingsPanelProps: {
       current: null as null | Record<string, unknown>,
     },
     fitViewMock: vi.fn(),
@@ -90,6 +97,7 @@ vi.mock("./palette/ActivityPalette", () => ({
 
 vi.mock("./settings/NodeSettingsPanel", () => ({
   NodeSettingsPanel: (props: Record<string, unknown>) => {
+    capturedSettingsPanelProps.current = props;
     const activeGroupId = props.activeGroupId as string | null | undefined;
     return (
       <div
@@ -1513,5 +1521,157 @@ describe("WorkflowEditorV2Page — Multi-Page Report template integration (Task 
       expect(group.nodeIds).toContain(id);
     }
     expect(group.nodeIds).toHaveLength(expectedBodyNodes.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression — NodeSettingsPanel writes must be stripped of synthetic
+//   map-body groups before they hit persisted config state.
+//
+//   Bug: the page passed `displayConfig` (synthetic groups merged in) to
+//   `NodeSettingsPanel` but bound its `onConfigChange` to `setConfig`
+//   directly — bypassing `handleCanvasConfigChange`'s strip. Editing any
+//   real group via the right rail while a map node with body endpoints
+//   existed would have persisted `__map_body_*` entries into the saved
+//   config.
+//
+//   Fix: route the panel's onConfigChange through `handleCanvasConfigChange`,
+//   the same helper the canvas uses. This test invokes the captured prop
+//   directly with a payload containing a synthetic group and asserts that
+//   the resulting canvas config has no `__map_body_*` keys.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — NodeSettingsPanel synthetic-group strip", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedSettingsPanelProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  function buildMapWithGroupConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "regression-map-body-strip" },
+      ctx: {},
+      nodes: {
+        entry: makeActivity("entry", { x: 0, y: 0 }),
+        mapNode: {
+          id: "mapNode",
+          type: "map",
+          label: "Process Each",
+          collectionCtxKey: "items",
+          itemCtxKey: "item",
+          bodyEntryNodeId: "bodyHead",
+          bodyExitNodeId: "bodyTail",
+        },
+        bodyHead: makeActivity("bodyHead", { x: 200, y: 100 }),
+        bodyTail: makeActivity("bodyTail", { x: 400, y: 100 }),
+        tail: makeActivity("tail", { x: 600, y: 0 }),
+      },
+      edges: [
+        { id: "e1", source: "entry", target: "mapNode", type: "normal" },
+        { id: "e2", source: "bodyHead", target: "bodyTail", type: "normal" },
+        { id: "e3", source: "mapNode", target: "tail", type: "normal" },
+      ],
+      entryNodeId: "entry",
+      nodeGroups: {
+        g_real: {
+          label: "Real Group",
+          nodeIds: ["entry", "tail"],
+          exposedParams: [],
+        },
+      },
+    };
+  }
+
+  it("strips __map_body_* entries from any config the settings panel dispatches", () => {
+    const template = makeTemplate(buildMapWithGroupConfig());
+    renderPage(template);
+
+    // The page's displayConfig should expose the synthetic group to the
+    // canvas (and, by extension, to NodeSettingsPanel — which is exactly
+    // the bug surface this regression test guards).
+    const canvasConfigBefore = capturedCanvasProps.current
+      ?.config as GraphWorkflowConfig;
+    const groupsBefore = canvasConfigBefore.nodeGroups ?? {};
+    const syntheticId = "__map_body_mapNode";
+    expect(groupsBefore[syntheticId]).toBeDefined();
+    expect(groupsBefore.g_real).toBeDefined();
+
+    // The panel stub captured the live props. The page must have wired
+    // onConfigChange to the strip-on-emit helper, not to setConfig
+    // directly.
+    const onConfigChange = capturedSettingsPanelProps.current?.onConfigChange as
+      | ((next: GraphWorkflowConfig) => void)
+      | undefined;
+    if (!onConfigChange) {
+      throw new Error(
+        "NodeSettingsPanel stub did not capture onConfigChange prop",
+      );
+    }
+
+    // Simulate what GroupNodeSettings does when the user renames a real
+    // group: it spreads `config.nodeGroups` (which includes the synthetic
+    // entries it was rendered with) and dispatches the merged record.
+    const renamed: GraphWorkflowConfig = {
+      ...canvasConfigBefore,
+      nodeGroups: {
+        ...(canvasConfigBefore.nodeGroups ?? {}),
+        g_real: {
+          ...(canvasConfigBefore.nodeGroups?.g_real ?? {
+            label: "",
+            nodeIds: [],
+            exposedParams: [],
+          }),
+          label: "Renamed Group",
+        },
+      },
+    };
+
+    act(() => {
+      onConfigChange(renamed);
+    });
+
+    // After the dispatch, the canvas re-renders with the page's
+    // `displayConfig`, which re-synthesises the map-body group on every
+    // render. The displayConfig surface will therefore still contain
+    // exactly one `__map_body_*` key (the freshly-synthesised one) —
+    // that's correct. What MUST be true is that the underlying
+    // persisted state has been stripped of synthetic entries: any
+    // `__map_body_*` key in `displayConfig` after the dispatch must
+    // have come from the synthesis pass, not from the dispatched
+    // payload. Verify by counting: exactly one synthetic key (re-
+    // synthesised from the unchanged map node), and the real group
+    // carries the new label.
+    const canvasConfigAfter = capturedCanvasProps.current
+      ?.config as GraphWorkflowConfig;
+    const groupsAfter = canvasConfigAfter.nodeGroups ?? {};
+    expect(groupsAfter.g_real?.label).toBe("Renamed Group");
+    const syntheticKeysAfter = Object.keys(groupsAfter).filter((id) =>
+      id.startsWith("__map_body_"),
+    );
+    // Only the freshly re-synthesised entry should be present. If the
+    // strip had been bypassed, the dispatched payload's synthetic entry
+    // would have been merged with the re-synthesised one (same id),
+    // still producing one key — but the source of truth is the save
+    // payload below.
+    expect(syntheticKeysAfter).toEqual(["__map_body_mapNode"]);
+
+    // The save payload is the source of truth — it serialises the
+    // underlying `config` state, NOT `displayConfig`. If the strip
+    // worked, the DTO must contain no `__map_body_*` keys.
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    });
+    expect(capturedCreateDto.current).toBeTruthy();
+    const dtoConfig = (
+      capturedCreateDto.current as { config: GraphWorkflowConfig }
+    ).config;
+    for (const id of Object.keys(dtoConfig.nodeGroups ?? {})) {
+      expect(id.startsWith("__map_body_")).toBe(false);
+    }
+    expect(dtoConfig.nodeGroups?.g_real?.label).toBe("Renamed Group");
   });
 });

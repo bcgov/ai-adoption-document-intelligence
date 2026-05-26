@@ -1205,7 +1205,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             config={displayConfig}
             selectedNodeId={selectedNodeId}
             activeGroupId={activeGroupId}
-            onConfigChange={setConfig}
+            onConfigChange={handleCanvasConfigChange}
             onDeleteSelected={deleteSelected}
             workflowId={isEditMode ? workflowId : undefined}
           />
