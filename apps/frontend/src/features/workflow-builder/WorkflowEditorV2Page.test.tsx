@@ -1448,3 +1448,70 @@ describe("WorkflowEditorV2Page — drag-and-drop from palette", () => {
     expect(Object.keys(readConfig().nodes)).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 7 — Multi-Page Report template integration (map-body synthesis)
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — Multi-Page Report template integration (Task 7)", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedPaletteProps.current = null;
+    capturedRunDrawerProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  it("synthesises a map-body group around the processSegments body when the template loads", async () => {
+    // Load the canonical template fixture from docs-md. Vite resolves
+    // JSON via its native loader; the page-test's canvas mock captures
+    // the merged `displayConfig` so we can read the synthesised
+    // `nodeGroups` entry directly from `capturedCanvasProps.current`.
+    const templateConfig = (
+      await import(
+        "../../../../../docs-md/graph-workflows/templates/multi-page-report-workflow.json"
+      )
+    ).default as unknown as GraphWorkflowConfig;
+
+    const template: WorkflowTemplate = {
+      id: "multi-page-report-workflow",
+      name: templateConfig.metadata?.name ?? "Multi-Page Report Workflow",
+      description: templateConfig.metadata?.description ?? "",
+      tags: templateConfig.metadata?.tags ?? [],
+      nodeCount: Object.keys(templateConfig.nodes).length,
+      config: templateConfig,
+    };
+
+    renderPage(template);
+
+    // The page wraps the user's `config.nodeGroups` with synthesised
+    // map-body entries inside its `displayConfig` memo before handing
+    // it to the canvas. Inspect the captured config to verify the
+    // synthesis flowed through end-to-end.
+    const canvasConfig = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    expect(canvasConfig).toBeDefined();
+    const groups = canvasConfig?.nodeGroups ?? {};
+    const syntheticGroupId = "__map_body_processSegments";
+    expect(groups[syntheticGroupId]).toBeDefined();
+
+    const group = groups[syntheticGroupId];
+    // synthesizeMapBodyGroups produces `${mapNode.label} · body`.
+    expect(group.label).toBe("Process Each Segment · body");
+    // BFS from `segmentRouter` → `passthrough` collects all six body nodes.
+    const expectedBodyNodes = [
+      "segmentRouter",
+      "monthlyReportOcr",
+      "payStubOcr",
+      "bankRecordOcr",
+      "unknownDocOcr",
+      "passthrough",
+    ];
+    for (const id of expectedBodyNodes) {
+      expect(group.nodeIds).toContain(id);
+    }
+    expect(group.nodeIds).toHaveLength(expectedBodyNodes.length);
+  });
+});
