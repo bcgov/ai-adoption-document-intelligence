@@ -448,3 +448,61 @@ describe("GroupNodeSettings — US-044 Scenario 5: prunes exposedParams on membe
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Scenario: Synthetic map-body groups render in read-only mode
+// ---------------------------------------------------------------------------
+
+describe("GroupNodeSettings — synthetic map-body group", () => {
+  it("renders a read-only banner and no inputs / delete button", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        body1: {
+          id: "body1",
+          type: "activity",
+          label: "body1",
+          activityType: "noop",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+      },
+      edges: [],
+      entryNodeId: "body1",
+      nodeGroups: {
+        __map_body_mapNode: {
+          label: "Process Each · body",
+          nodeIds: ["body1"],
+          exposedParams: [],
+        },
+      },
+    };
+    render(
+      <MantineProvider>
+        <GroupNodeSettings
+          groupId="__map_body_mapNode"
+          config={config}
+          onConfigChange={() => {
+            // no-op for read-only assertion
+          }}
+        />
+      </MantineProvider>,
+    );
+    expect(
+      screen.getByTestId("group-settings-synthetic-banner"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("group-settings-delete"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("group-settings-label"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("group-settings-icon")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("group-settings-color"),
+    ).not.toBeInTheDocument();
+  });
+});

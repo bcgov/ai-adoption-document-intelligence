@@ -40,6 +40,7 @@ import type {
   GraphWorkflowConfig,
   NodeGroup,
 } from "../../../../types/workflow";
+import { isSyntheticMapBodyGroupId } from "../../canvas/map-body-groups";
 import { GROUP_ICON_KEYS, GROUP_ICONS } from "../../group/group-icons";
 import { ExposedParamsEditor } from "./ExposedParamsEditor";
 
@@ -84,6 +85,54 @@ export function GroupNodeSettings({
         <Text size="sm" c="dimmed">
           Group not found. It may have been deleted or renamed.
         </Text>
+      </Stack>
+    );
+  }
+
+  if (isSyntheticMapBodyGroupId(groupId)) {
+    return (
+      <Stack
+        gap="md"
+        data-testid="group-node-settings"
+        data-group-id={groupId}
+        p="md"
+      >
+        <Stack gap={4}>
+          <Title order={5} m={0}>
+            {group.label}
+          </Title>
+          <Text
+            size="xs"
+            c="dimmed"
+            data-testid="group-settings-synthetic-banner"
+          >
+            This group reflects the body of a map node and updates
+            automatically. It cannot be renamed or deleted.
+          </Text>
+        </Stack>
+        <Divider />
+        <Box data-testid="group-settings-node-list">
+          <Text size="xs" fw={600} mb={4}>
+            Members ({group.nodeIds.length})
+          </Text>
+          {group.nodeIds.length === 0 ? (
+            <Text size="10px" c="dimmed">
+              No nodes.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {group.nodeIds.map((nodeId) => {
+                const member = config.nodes[nodeId];
+                const display = member?.label ?? nodeId;
+                return (
+                  <Text key={nodeId} size="xs">
+                    {display}
+                  </Text>
+                );
+              })}
+            </Stack>
+          )}
+        </Box>
       </Stack>
     );
   }
