@@ -2,9 +2,6 @@
  * Position helpers for placing a node added via the hover-to-extend popover
  * (US-045) or programmatic equivalents.
  *
- * `nextNodePosition` is the legacy helper that returns `sourcePos + {dx, dy}`
- * without checking for collisions. Retained as a thin convenience wrapper.
- *
  * `findNextFreePosition` reads the workflow config and avoids placing the
  * new node on top of any existing node. For switch sources with existing
  * outgoing edges, it places the new node below the lowest existing target.
@@ -19,19 +16,13 @@ export interface NextNodePositionOptions {
   dy?: number;
 }
 
+const DEFAULT_DX = 280;
+const DEFAULT_DY = 0;
+/** Approximate node footprint used for the AABB collision test (rectangle, px). */
 const COLLISION_W = 200;
 const COLLISION_H = 100;
 const STEP_Y = 140;
 const MAX_STEPS = 8;
-
-export function nextNodePosition(
-  sourcePos: { x: number; y: number },
-  options: NextNodePositionOptions = {},
-): { x: number; y: number } {
-  const dx = options.dx ?? 280;
-  const dy = options.dy ?? 0;
-  return { x: sourcePos.x + dx, y: sourcePos.y + dy };
-}
 
 function readPosition(
   config: GraphWorkflowConfig,
@@ -82,11 +73,11 @@ export function findNextFreePosition(
 ): { x: number; y: number } {
   const sourcePos = readPosition(config, sourceNodeId);
   if (!sourcePos) {
-    return { x: (options.dx ?? 280) + 80, y: options.dy ?? 100 };
+    return { x: options.dx ?? DEFAULT_DX, y: options.dy ?? DEFAULT_DY };
   }
 
-  const dx = options.dx ?? 280;
-  let dy = options.dy ?? 0;
+  const dx = options.dx ?? DEFAULT_DX;
+  let dy = options.dy ?? DEFAULT_DY;
 
   // Switch-specific: start below the lowest existing outgoing-edge target.
   const sourceNode = config.nodes[sourceNodeId];
