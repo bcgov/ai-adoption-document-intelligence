@@ -62,6 +62,11 @@ export class ProviderResolver {
         baseURL,
         useDeploymentBasedUrls: true,
         apiVersion: this.env.azureApiVersion,
+        // APIM proxies in front of Azure OpenAI sometimes reject
+        // `content: null` on assistant tool-call messages (the standard
+        // OpenAI shape). Wrap the SDK's fetch to coerce null/undefined
+        // content to an empty string before forwarding the request.
+        fetch: normalizeNullContentFetch,
       });
       // Use the legacy chat/completions endpoint rather than the
       // Responses API — APIM proxies often only forward the former.
@@ -70,3 +75,36 @@ export class ProviderResolver {
     throw new Error(`Unknown provider: ${selection.provider as string}`);
   }
 }
+
+/**
+ * Some Azure OpenAI APIM proxies are stricter than the upstream API and
+ * reject `content: null` on assistant messages (which the OpenAI chat
+ * schema permits when `tool_calls` is present). This wrapper intercepts
+ * the SDK's outgoing request, parses the JSON body, replaces null /
+ * undefined content with an empty string on each message, and forwards.
+ */
+const normalizeNullContentFetch: typeof fetch = async (input, init) => {
+  if (!init || init.method !== "POST" || typeof init.body !== "string") {
+    return fetch(input, init);
+  }
+  try {
+    const parsed = JSON.parse(init.body) as {
+      messages?: Array<{ role?: string; content?: unknown }>;
+    };
+    if (Array.isArray(parsed.messages)) {
+      let mutated = false;
+      for (const msg of parsed.messages) {
+        if (msg.content === null || msg.content === undefined) {
+          msg.content = "";
+          mutated = true;
+        }
+      }
+      if (mutated) {
+        return fetch(input, { ...init, body: JSON.stringify(parsed) });
+      }
+    }
+  } catch {
+    // Not JSON or unexpected shape — fall through to the original request.
+  }
+  return fetch(input, init);
+};
