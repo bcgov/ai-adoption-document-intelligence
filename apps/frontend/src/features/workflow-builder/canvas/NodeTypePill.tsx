@@ -23,9 +23,10 @@
  * is needed.
  */
 
-import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
+import type { KindRef } from "@ai-di/graph-workflow";
 import { Badge, Stack } from "@mantine/core";
 import type React from "react";
+import { colorForKind } from "./artifact-kind-colour";
 
 export interface NodeTypePillEntry {
   /** Port name as declared in the activity catalog (e.g. `"segments"`). */
@@ -46,26 +47,6 @@ export interface NodeTypePillProps {
   direction: "input" | "output";
   /** When true the pill renders nothing (e.g. node deselected — Scenario 3). */
   hidden?: boolean;
-}
-
-/**
- * Strip a `T[]` suffix from a `KindRef`, returning the element kind so the
- * registry lookup resolves through the family root. `Segment[]` →
- * `Segment`. Non-array kinds pass through unchanged.
- */
-function elementKindOf(kind: KindRef): string {
-  return kind.endsWith("[]") ? kind.slice(0, -2) : kind;
-}
-
-/**
- * Resolve the Mantine palette colour for a kind via the live registry.
- * Falls back to gray for `Artifact` (the wildcard root) and for unknown
- * kinds.
- */
-function colorForKind(kind: KindRef | undefined): string {
-  if (kind === undefined) return "gray";
-  const meta = getArtifactKindMeta(elementKindOf(kind));
-  return meta?.color ?? "gray";
 }
 
 export function NodeTypePill({

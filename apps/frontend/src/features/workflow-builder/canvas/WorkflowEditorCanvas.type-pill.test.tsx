@@ -351,12 +351,13 @@ describe("WorkflowEditorCanvas — US-096 Scenario 4: pill renders nothing when 
       makeConfigWith("test.untyped"),
       "activity_1",
     );
-    // The under-anchor wrapper is still rendered (selected === true), but the
-    // child `NodeTypePillRow` returns null so the testid does not appear.
+    // `NodeTypePillRow` owns its under-anchor wrapper and returns null when
+    // every port is untyped, so neither the wrapper nor the row testid
+    // should appear in the DOM.
     expect(screen.queryByTestId("node-type-pill-row")).not.toBeInTheDocument();
-    const underAnchor = container.querySelector('[data-pill-anchor="under"]');
-    expect(underAnchor).toBeInTheDocument();
-    expect(underAnchor?.firstChild).toBeNull();
+    expect(
+      container.querySelector('[data-pill-anchor="under"]'),
+    ).not.toBeInTheDocument();
 
     // US-095's gray handle + multi-port tooltip stays the only signal.
     const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");

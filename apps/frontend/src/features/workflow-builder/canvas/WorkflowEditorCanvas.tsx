@@ -485,22 +485,10 @@ const NodeHandles = memo(function NodeHandles({
         />
       )}
       {selected ? (
-        <div
-          data-pill-anchor="under"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            pointerEvents: "none",
-            zIndex: 10,
-          }}
-        >
-          <NodeTypePillRow
-            inputs={inputPillEntries}
-            outputs={outputPillEntries}
-          />
-        </div>
+        <NodeTypePillRow
+          inputs={inputPillEntries}
+          outputs={outputPillEntries}
+        />
       ) : null}
     </>
   );

@@ -6,13 +6,16 @@
  *   `out:portName: KIND`.
  * - All ports untyped → renders nothing.
  *
- * Kind colours reuse `ARTIFACT_REGISTRY` via the same helpers `NodeTypePill`
- * already used, so the visual treatment is consistent with prior pills.
+ * The component owns its absolutely-positioned under-node wrapper so
+ * callers don't leak an empty wrapper `<div>` when every port is
+ * untyped. Kind colours reuse `ARTIFACT_REGISTRY` via the shared
+ * helpers in `artifact-kind-colour.ts`.
  */
 
-import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
+import type { KindRef } from "@ai-di/graph-workflow";
 import { Badge, Group, Stack } from "@mantine/core";
 import type React from "react";
+import { colorForKind } from "./artifact-kind-colour";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 
 export interface NodeTypePillRowProps {
@@ -20,14 +23,28 @@ export interface NodeTypePillRowProps {
   outputs: NodeTypePillEntry[];
 }
 
-function elementKindOf(kind: KindRef): string {
-  return kind.endsWith("[]") ? kind.slice(0, -2) : kind;
-}
-
-function colorForKind(kind: KindRef | undefined): string {
-  if (kind === undefined) return "gray";
-  const meta = getArtifactKindMeta(elementKindOf(kind));
-  return meta?.color ?? "gray";
+/**
+ * Wrap a shape (stacked or arrow) in the absolutely-positioned
+ * under-anchor container. Centralising the wrapper here means the
+ * `data-pill-anchor="under"` marker only exists when the row has
+ * something to render.
+ */
+function wrap(child: React.ReactElement): React.ReactElement {
+  return (
+    <div
+      data-pill-anchor="under"
+      style={{
+        position: "absolute",
+        top: "calc(100% + 4px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        pointerEvents: "none",
+        zIndex: 10,
+      }}
+    >
+      {child}
+    </div>
+  );
 }
 
 export function NodeTypePillRow({
@@ -41,13 +58,8 @@ export function NodeTypePillRow({
   const useStacked = inputs.length > 1 || outputs.length > 1;
 
   if (useStacked) {
-    return (
-      <Stack
-        gap={2}
-        data-testid="node-type-pill-row"
-        data-shape="stacked"
-        data-pill-anchor="under"
-      >
+    return wrap(
+      <Stack gap={2} data-testid="node-type-pill-row" data-shape="stacked">
         {inputs.map((entry) => {
           const labelKind: KindRef = entry.kind ?? "Artifact";
           const color = colorForKind(entry.kind);
@@ -84,7 +96,7 @@ export function NodeTypePillRow({
             </Badge>
           );
         })}
-      </Stack>
+      </Stack>,
     );
   }
 
@@ -126,13 +138,12 @@ export function NodeTypePillRow({
 
   const showArrow = inputBadge !== null && outputBadge !== null;
 
-  return (
+  return wrap(
     <Group
       gap={6}
       wrap="nowrap"
       data-testid="node-type-pill-row"
       data-shape="arrow"
-      data-pill-anchor="under"
     >
       {inputBadge}
       {showArrow ? (
@@ -148,6 +159,6 @@ export function NodeTypePillRow({
         </span>
       ) : null}
       {outputBadge}
-    </Group>
+    </Group>,
   );
 }
