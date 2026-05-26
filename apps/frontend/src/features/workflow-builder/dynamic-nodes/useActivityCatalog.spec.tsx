@@ -14,11 +14,32 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Group } from "../../../auth/AuthContext";
 import { API_BASE_URL } from "../../../shared/constants";
 import type { ActivityCatalogEntry } from "./activity-catalog.types";
 import { useActivityCatalog } from "./useActivityCatalog";
 import { useDynamicNodeDelete } from "./useDynamicNodeDelete";
 import { useDynamicNodePublish } from "./useDynamicNodePublish";
+
+// `useActivityCatalog` calls `useGroup()` to scope its cache key per
+// active group. These tests focus on fetch + cache behaviour and don't
+// care about group switching, so we mock the hook directly instead of
+// dragging in `GroupProvider` (which transitively pulls in
+// `AuthProvider`). A stable `activeGroup.id` keeps the React Query
+// cache key deterministic across renders.
+vi.mock("../../../auth/GroupContext", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../../auth/GroupContext")
+  >("../../../auth/GroupContext");
+  return {
+    ...actual,
+    useGroup: () => ({
+      availableGroups: [] as Group[],
+      activeGroup: { id: "test-group-id", name: "Test Group" } as Group,
+      setActiveGroup: vi.fn(),
+    }),
+  };
+});
 
 function createWrapper(): {
   Wrapper: (props: { children: ReactNode }) => ReturnType<typeof createElement>;
@@ -113,9 +134,13 @@ describe("useActivityCatalog (US-175)", () => {
     expect(result.current.isLoading).toBe(false);
 
     // Scenario 5 — exactly one fetch to /api/activity-catalog
+    // (the hook appends `?groupId=...` when an active group is mocked,
+    // so we assert the path/prefix rather than the full URL).
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [calledUrl] = fetchSpy.mock.calls[0];
-    expect(calledUrl).toBe(`${API_BASE_URL}/activity-catalog`);
+    expect(
+      String(calledUrl).startsWith(`${API_BASE_URL}/activity-catalog`),
+    ).toBe(true);
   });
 
   it("returns an empty list while the query is in flight", async () => {

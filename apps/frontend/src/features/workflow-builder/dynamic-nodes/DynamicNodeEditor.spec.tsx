@@ -22,22 +22,42 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Group } from "../../../auth/AuthContext";
 import { API_BASE_URL } from "../../../shared/constants";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
 import { DynamicNodeEditor } from "./DynamicNodeEditor";
 
-// Mantine's `<CodeMirror>` mount relies on browser primitives we can
-// stub cheaply (jsdom doesn't implement `IntersectionObserver` or the
-// `getBoundingClientRect` behaviour the editor's gutter depends on).
-// Stubbing the heavy editor lets the shell-level tests assert prop
-// wiring + button state without rendering 30 KB of editor markup.
-vi.mock("@uiw/react-codemirror", () => ({
+// `DynamicNodeEditor` transitively renders `useActivityCatalog`, which
+// calls `useGroup()` to scope its cache key per active group. We mock
+// the hook directly so the shell tests don't need to wrap with
+// `GroupProvider` (and pull in `AuthProvider`).
+vi.mock("../../../auth/GroupContext", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../../auth/GroupContext")
+  >("../../../auth/GroupContext");
+  return {
+    ...actual,
+    useGroup: () => ({
+      availableGroups: [] as Group[],
+      activeGroup: { id: "test-group-id", name: "Test Group" } as Group,
+      setActiveGroup: vi.fn(),
+    }),
+  };
+});
+
+// `CodePane` mounts Monaco via `@monaco-editor/react`. Monaco's mount
+// relies on browser primitives jsdom doesn't implement (workers,
+// `IntersectionObserver`, `ResizeObserver`, `getBoundingClientRect`),
+// so we stub the editor with a plain <textarea>. The shell tests just
+// need to read `value` + drive `onChange`. The `codemirror-stub`
+// testid name is preserved so older test assertions keep working.
+vi.mock("@monaco-editor/react", () => ({
   default: ({
     value,
     onChange,
   }: {
     value: string;
-    onChange?: (next: string) => void;
+    onChange?: (next: string | undefined) => void;
   }) => (
     <textarea
       data-testid="codemirror-stub"
