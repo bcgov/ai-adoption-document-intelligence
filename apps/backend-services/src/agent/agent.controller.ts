@@ -25,6 +25,8 @@ import { AgentService } from "./agent.service";
 interface AgentChatRequestBody {
   conversationId?: string | null;
   workflowId?: string | null;
+  /** Active group ID — required for system-admin callers; otherwise inferred from membership. */
+  groupId?: string | null;
   provider?: AgentProvider;
   model?: string;
   /** UI messages forwarded from assistant-ui's composer. */
@@ -130,15 +132,70 @@ function resolveCallerOrThrow(req: Request): ResolvedCaller {
   if (!actorId) {
     throw new UnauthorizedException("Caller has no resolved actor");
   }
+
+  // Pull an explicit groupId hint from the request body (POST), query
+  // (`?groupId=`), or `x-group-id` header. Required for system-admin
+  // callers; tie-breaker for non-admin users in multiple groups.
+  const bodyMap =
+    req.body && typeof req.body === "object"
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const headerGroup =
+    typeof req.headers["x-group-id"] === "string"
+      ? (req.headers["x-group-id"] as string)
+      : null;
+  const queryGroup =
+    typeof req.query["groupId"] === "string"
+      ? (req.query["groupId"] as string)
+      : null;
+  const bodyGroup =
+    typeof bodyMap["groupId"] === "string"
+      ? (bodyMap["groupId"] as string)
+      : null;
+  const requestedGroup = bodyGroup ?? queryGroup ?? headerGroup ?? null;
+
   const groupIds = getIdentityGroupIds(identity);
-  if (!groupIds || groupIds.length !== 1) {
+
+  // System-admin path: groupIds === undefined. They MUST pass a groupId
+  // explicitly (system-admin sees all groups but must choose one for
+  // any per-group write).
+  if (groupIds === undefined) {
+    if (requestedGroup === null) {
+      throw new UnauthorizedException(
+        "System-admin callers must include a `groupId` in the request body, query (`?groupId=...`), or `x-group-id` header.",
+      );
+    }
+    return {
+      actorId,
+      groupId: requestedGroup,
+      apiKey: extractApiKey(req),
+    };
+  }
+
+  // Non-admin path: must be a member of at least one group. Prefer the
+  // requested group if they're a member; otherwise fall back to their
+  // sole group (when there's exactly one).
+  if (groupIds.length === 0) {
+    throw new UnauthorizedException("Caller has no group membership.");
+  }
+  if (requestedGroup !== null) {
+    if (!groupIds.includes(requestedGroup)) {
+      throw new UnauthorizedException(
+        `Caller is not a member of group '${requestedGroup}'.`,
+      );
+    }
+    return { actorId, groupId: requestedGroup, apiKey: extractApiKey(req) };
+  }
+  if (groupIds.length !== 1) {
     throw new UnauthorizedException(
-      "Caller must belong to exactly one group for Phase 7 chat",
+      "Caller belongs to multiple groups — include `groupId` in the request to disambiguate.",
     );
   }
-  const apiKey =
-    typeof req.headers["x-api-key"] === "string"
-      ? (req.headers["x-api-key"] as string)
-      : null;
-  return { actorId, groupId: groupIds[0], apiKey };
+  return { actorId, groupId: groupIds[0], apiKey: extractApiKey(req) };
+}
+
+function extractApiKey(req: Request): string | null {
+  return typeof req.headers["x-api-key"] === "string"
+    ? (req.headers["x-api-key"] as string)
+    : null;
 }
