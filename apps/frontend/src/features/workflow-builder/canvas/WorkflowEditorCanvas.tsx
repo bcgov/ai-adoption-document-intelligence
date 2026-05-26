@@ -827,8 +827,8 @@ const SwitchNodeRenderer = memo(
         data-shape="diamond"
         data-node-type="switch"
         style={{
-          width: 140,
-          height: 140,
+          width: 180,
+          height: 180,
           position: "relative",
           display: "flex",
           alignItems: "center",
@@ -852,7 +852,7 @@ const SwitchNodeRenderer = memo(
             transformOrigin: "50% 50%",
           }}
         />
-        {/* Content layer (upright). */}
+        {/* Content layer (upright). Constrained to the inscribed square. */}
         <div
           style={{
             position: "relative",
@@ -860,9 +860,12 @@ const SwitchNodeRenderer = memo(
             display: "flex",
             flexDirection: "column",
             gap: 4,
+            alignItems: "center",
             textAlign: "center",
             fontSize: 12,
             color: "var(--mantine-color-text, #f3f4f6)",
+            maxWidth: 127,
+            maxHeight: 127,
           }}
         >
           <div
@@ -877,19 +880,29 @@ const SwitchNodeRenderer = memo(
             <span style={{ color: accent, display: "inline-flex" }}>
               <Icon size={16} />
             </span>
-            <span>{data.label}</span>
+            <span
+              data-testid={`switch-label-${id}`}
+              style={{
+                wordBreak: "break-word",
+                textAlign: "center",
+                maxWidth: 127,
+              }}
+            >
+              {data.label}
+            </span>
           </div>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--mantine-color-dimmed, #9ca3af)",
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-            }}
-          >
-            {hints.displayName}
-            {data.isEntry ? " · entry" : ""}
-          </div>
+          {data.isEntry ? (
+            <div
+              style={{
+                fontSize: 10,
+                color: "var(--mantine-color-dimmed, #9ca3af)",
+                textTransform: "uppercase",
+                letterSpacing: 0.4,
+              }}
+            >
+              entry
+            </div>
+          ) : null}
         </div>
         <ValidationBadge
           nodeId={id}
@@ -898,8 +911,6 @@ const SwitchNodeRenderer = memo(
           onBadgeClick={data.onBadgeClick}
         />
         <NodeStatusBadgeOverlay nodeId={id} />
-        {/* Preview pane sits beneath the diamond's fixed-size box so it
-            doesn't clip with the rotated visual layer. */}
         <div
           data-testid={`switch-preview-anchor-${id}`}
           style={{

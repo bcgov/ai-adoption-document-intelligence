@@ -31,6 +31,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DefaultChatTransport } from "ai";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useGroup } from "../../auth/GroupContext";
 import { ConversationSwitcher } from "./ConversationSwitcher";
 import { ErrorBodyRenderer } from "./error-renderers";
 import {
@@ -38,21 +39,10 @@ import {
   type AgentModelOption,
   useAgentChatStore,
 } from "./store";
+import { getAgentAuthHeaders } from "./useAgentConversations";
 import "./agent-chat.css";
 
 const DRAWER_SIZE = 540;
-
-function getApiKeyHeader(): Record<string, string> {
-  // Note: Content-Type is set by Vercel AI SDK's DefaultChatTransport;
-  // setting it here would produce a duplicate header that breaks NestJS's
-  // JSON body parser.
-  const headers: Record<string, string> = {};
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY as string | undefined;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  return headers;
-}
 
 /**
  * Resolve the currently-displayed workflow id from the route. Phase 7
@@ -79,18 +69,25 @@ export function AgentChatDrawer() {
   const [resetKey, bumpResetKey] = useResetKey();
 
   const currentWorkflowId = useCurrentWorkflowId();
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id ?? null;
   const queryClient = useQueryClient();
   const conversationIdRef = useRef<string | null>(conversationId);
   conversationIdRef.current = conversationId;
+  const activeGroupIdRef = useRef<string | null>(activeGroupId);
+  activeGroupIdRef.current = activeGroupId;
 
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/agent/chat",
-        headers: getApiKeyHeader(),
+        // Headers must be a function so the CSRF cookie + active group
+        // are re-read on every send.
+        headers: () => getAgentAuthHeaders(activeGroupIdRef.current),
         body: () => ({
           conversationId: conversationIdRef.current,
           workflowId: currentWorkflowId,
+          groupId: activeGroupIdRef.current,
           provider: selectedModel.provider,
           model: selectedModel.model,
         }),
@@ -149,7 +146,7 @@ export function AgentChatDrawer() {
               if (cid === null) return;
               await fetch(`/api/agent/conversations/${cid}/abort`, {
                 method: "POST",
-                headers: getApiKeyHeader(),
+                headers: getAgentAuthHeaders(activeGroupIdRef.current),
               }).catch(() => undefined);
             }}
             workflowId={currentWorkflowId}
@@ -157,13 +154,17 @@ export function AgentChatDrawer() {
           <ConversationSwitcher
             workflowId={currentWorkflowId}
             activeConversationId={conversationId}
+            activeGroupId={activeGroupId}
             onSelect={(id) => {
               setConversationId(id);
               bumpResetKey();
             }}
           />
           <MessageList />
-          <Composer workflowId={currentWorkflowId} />
+          <Composer
+            workflowId={currentWorkflowId}
+            activeGroupId={activeGroupId}
+          />
           <ToolCallNavigator />
         </Stack>
       </AssistantRuntimeProvider>
@@ -482,7 +483,13 @@ function AgentToolCallCard(props: unknown) {
   );
 }
 
-function Composer({ workflowId }: { workflowId: string | null }) {
+function Composer({
+  workflowId,
+  activeGroupId,
+}: {
+  workflowId: string | null;
+  activeGroupId: string | null;
+}) {
   const [attached, setAttached] = useState<
     Array<{
       filename: string;
@@ -516,7 +523,7 @@ function Composer({ workflowId }: { workflowId: string | null }) {
         {
           method: "POST",
           headers: Object.fromEntries(
-            Object.entries(getApiKeyHeader()).filter(
+            Object.entries(getAgentAuthHeaders(activeGroupId)).filter(
               ([k]) => k.toLowerCase() !== "content-type",
             ),
           ),
@@ -604,7 +611,7 @@ function Composer({ workflowId }: { workflowId: string | null }) {
     let sourceNodeId: string | null = null;
     try {
       const wfRes = await fetch(`/api/workflows/${workflowId}`, {
-        headers: getApiKeyHeader(),
+        headers: getAgentAuthHeaders(activeGroupId),
       });
       if (wfRes.ok) {
         const wf = (await wfRes.json()) as {

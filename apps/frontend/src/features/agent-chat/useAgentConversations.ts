@@ -31,28 +31,47 @@ export interface AgentConversationMessage {
   createdAt: string;
 }
 
-function getApiKeyHeader(): Record<string, string> {
+function readCsrfToken(): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("csrf_token="));
+  return match?.split("=")[1];
+}
+
+export function getAgentAuthHeaders(
+  activeGroupId?: string | null,
+): Record<string, string> {
   const headers: Record<string, string> = {};
   const testApiKey = import.meta.env.VITE_TEST_API_KEY as string | undefined;
   if (typeof testApiKey === "string" && testApiKey.length > 0) {
     headers["x-api-key"] = testApiKey;
   }
+  const csrf = readCsrfToken();
+  if (csrf !== undefined) headers["X-CSRF-Token"] = csrf;
+  if (activeGroupId !== undefined && activeGroupId !== null) {
+    headers["x-group-id"] = activeGroupId;
+  }
   return headers;
 }
 
-export function useAgentConversations(opts?: { workflowId?: string | null }) {
+export function useAgentConversations(opts?: {
+  workflowId?: string | null;
+  activeGroupId?: string | null;
+}) {
   const wfId = opts?.workflowId ?? null;
+  const groupId = opts?.activeGroupId ?? null;
   return useQuery({
-    queryKey: ["agent", "conversations", wfId ?? "all"],
+    queryKey: ["agent", "conversations", wfId ?? "all", groupId ?? "no-group"],
     queryFn: async (): Promise<AgentConversationListItem[]> => {
-      const url = new URL("/api/agent/conversations", window.location.origin);
-      if (wfId !== null) url.searchParams.set("workflowId", wfId);
-      const res = await fetch(
-        url.toString().replace(window.location.origin, ""),
-        {
-          headers: getApiKeyHeader(),
-        },
-      );
+      const qs = new URLSearchParams();
+      if (wfId !== null) qs.set("workflowId", wfId);
+      if (groupId !== null) qs.set("groupId", groupId);
+      const url =
+        qs.toString().length > 0
+          ? `/api/agent/conversations?${qs}`
+          : "/api/agent/conversations";
+      const res = await fetch(url, { headers: getAgentAuthHeaders(groupId) });
       if (!res.ok)
         throw new Error(`Failed to list conversations: ${res.status}`);
       const body = (await res.json()) as ListResponse;
@@ -61,13 +80,21 @@ export function useAgentConversations(opts?: { workflowId?: string | null }) {
   });
 }
 
-export function useAgentConversation(id: string | null) {
+export function useAgentConversation(
+  id: string | null,
+  activeGroupId?: string | null,
+) {
   return useQuery({
     queryKey: ["agent", "conversation", id ?? "none"],
     queryFn: async (): Promise<DetailResponse | null> => {
       if (id === null) return null;
-      const res = await fetch(`/api/agent/conversations/${id}`, {
-        headers: getApiKeyHeader(),
+      const path = `/api/agent/conversations/${id}`;
+      const url =
+        activeGroupId !== undefined && activeGroupId !== null
+          ? `${path}?groupId=${encodeURIComponent(activeGroupId)}`
+          : path;
+      const res = await fetch(url, {
+        headers: getAgentAuthHeaders(activeGroupId),
       });
       if (!res.ok)
         throw new Error(`Failed to load conversation: ${res.status}`);

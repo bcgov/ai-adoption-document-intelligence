@@ -18,8 +18,10 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { Connection, Edge, Node as FlowNode } from "@xyflow/react";
+import { ReactFlowProvider } from "@xyflow/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -351,6 +353,111 @@ describe("WorkflowEditorCanvas — Scenario 1: switch renders as a diamond", () 
     const visualLayer = screen.getByTestId("switch-diamond-visual-switch_1");
     expect(visualLayer).toBeInTheDocument();
     expect(visualLayer.style.transform).toContain("rotate(45deg)");
+  });
+});
+
+describe("WorkflowEditorCanvas — switch diamond polish (Task 1)", () => {
+  it("does not render the duplicated dimmed displayName subtitle", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        switch_1: {
+          id: "switch_1",
+          type: "switch",
+          label: "Branch by condition",
+          cases: [],
+        },
+      },
+      edges: [],
+      entryNodeId: "switch_1",
+    };
+    render(
+      <MantineProvider>
+        <ReactFlowProvider>
+          <WorkflowEditorCanvas
+            config={config}
+            selectedNodeId={null}
+            onConfigChange={vi.fn()}
+            onSelectNode={vi.fn()}
+            onSelectionChangeMany={vi.fn()}
+          />
+        </ReactFlowProvider>
+      </MantineProvider>,
+    );
+    const node = screen.getByTestId("canvas-node-switch_1");
+    const matches = within(node).getAllByText("Branch by condition");
+    expect(matches).toHaveLength(1);
+  });
+
+  it("uses a 180x180 diamond bounding box", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        switch_1: {
+          id: "switch_1",
+          type: "switch",
+          label: "Branch by condition",
+          cases: [],
+        },
+      },
+      edges: [],
+      entryNodeId: "switch_1",
+    };
+    render(
+      <MantineProvider>
+        <ReactFlowProvider>
+          <WorkflowEditorCanvas
+            config={config}
+            selectedNodeId={null}
+            onConfigChange={vi.fn()}
+            onSelectNode={vi.fn()}
+            onSelectionChangeMany={vi.fn()}
+          />
+        </ReactFlowProvider>
+      </MantineProvider>,
+    );
+    const node = screen.getByTestId("canvas-node-switch_1");
+    expect(node).toHaveStyle({ width: "180px", height: "180px" });
+  });
+
+  it("wraps a long label inside the inscribed square", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        switch_1: {
+          id: "switch_1",
+          type: "switch",
+          label: "Branch by condition",
+          cases: [],
+        },
+      },
+      edges: [],
+      entryNodeId: "switch_1",
+    };
+    render(
+      <MantineProvider>
+        <ReactFlowProvider>
+          <WorkflowEditorCanvas
+            config={config}
+            selectedNodeId={null}
+            onConfigChange={vi.fn()}
+            onSelectNode={vi.fn()}
+            onSelectionChangeMany={vi.fn()}
+          />
+        </ReactFlowProvider>
+      </MantineProvider>,
+    );
+    const labelEl = screen.getByTestId("switch-label-switch_1");
+    const style = window.getComputedStyle(labelEl);
+    expect(style.wordBreak).toBe("break-word");
+    // Bounded so the text stays inside the inscribed square (180 / sqrt(2) ≈ 127).
+    expect(labelEl).toHaveStyle({ maxWidth: "127px" });
   });
 });
 

@@ -10,31 +10,30 @@ import {
 import { IconChevronDown, IconChevronUp, IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useAgentConversations } from "./useAgentConversations";
+import {
+  getAgentAuthHeaders,
+  useAgentConversations,
+} from "./useAgentConversations";
 
 interface Props {
   workflowId: string | null;
   activeConversationId: string | null;
+  activeGroupId: string | null;
   onSelect: (conversationId: string | null) => void;
-}
-
-function getApiKeyHeader(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY as string | undefined;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  return headers;
 }
 
 export function ConversationSwitcher({
   workflowId,
   activeConversationId,
+  activeGroupId,
   onSelect,
 }: Props) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
-  const { data, isFetching } = useAgentConversations({ workflowId });
+  const { data, isFetching } = useAgentConversations({
+    workflowId,
+    activeGroupId,
+  });
   const items = useMemo(() => data ?? [], [data]);
 
   return (
@@ -107,9 +106,13 @@ export function ConversationSwitcher({
                     color="red"
                     onClick={async (e) => {
                       e.stopPropagation();
-                      await fetch(`/api/agent/conversations/${c.id}`, {
+                      const url =
+                        activeGroupId !== null
+                          ? `/api/agent/conversations/${c.id}?groupId=${encodeURIComponent(activeGroupId)}`
+                          : `/api/agent/conversations/${c.id}`;
+                      await fetch(url, {
                         method: "DELETE",
-                        headers: getApiKeyHeader(),
+                        headers: getAgentAuthHeaders(activeGroupId),
                       });
                       await queryClient.invalidateQueries({
                         queryKey: ["agent", "conversations"],
