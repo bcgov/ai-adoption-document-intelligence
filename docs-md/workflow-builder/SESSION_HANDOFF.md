@@ -1,8 +1,80 @@
 # Session Handoff — Visual Workflow Builder
 
-**Last updated:** 2026-05-24 (**Phase 8 document sources as nodes — CLOSED. All 6 milestones (A → F) shipped end-to-end with one design doc + one requirements doc + 20 user stories. US-125 end-to-end walkthrough confirmed 0 `pageerror` events; 7/7 backend assertions pass via curl; 3 frontend visual scenarios pass via Playwright.**). Phase 3 closed at 2026-05-24 earlier in the day; Phase 2 closed at 2026-05-23.
+**Last updated:** 2026-05-25 (**Phase 6 dynamic nodes — CLOSED. 30 user stories (US-157 → US-186) shipped end-to-end across 7 milestones plus Milestone B0 (deno-runner sidecar) + a post-Milestone-F sweep. US-185 Playwright walkthrough: 7/7 scenarios PASS, 0 pageerror events.**). Phase 4 closed at 2026-05-24; Phase 8 + Phase 3.x closed at 2026-05-24; Phase 3 closed at 2026-05-24; Phase 2 closed at 2026-05-23.
 **For:** the next Claude Code session picking up this work.
 **Purpose:** explain everything that's been decided, what's been built, what's running, what's next.
+
+---
+
+## Phase 6 — Dynamic Nodes (DONE, 2026-05-25)
+
+**Closes the "Phase 6 — Dynamic nodes (Windmill-style)" milestone from IMPLEMENTATION_PLAN.md §5.** Custom user-authored TypeScript activity nodes now ship through a Deno-sandboxed HTTP service, mounted into a Monaco editor that's reachable both at `/dynamic-nodes` (full-page mgmt) and via right-click "Edit script" on any canvas `dyn.*` node.
+
+### TL;DR — what shipped
+
+- **`deno-runner` HTTP sidecar service** at `apps/deno-runner/` — Deno-authored HTTP server exposing `POST /execute` (run a user script with intersected `--allow-net` + four ambient env vars) + `POST /check` (typecheck via `deno check`) + `GET /health`. Ships via `deployments/local/docker-compose.deno.yml` (host port 9099) and `deployments/openshift/kustomize/base/deno-runner/` (Deployment + Service + NetworkPolicy gating ingress to backend-services + temporal worker pods only).
+- **Shared package** gained the `parseDynamicNodeSignature` JSDoc parser (with json5), the `@ai-di/graph-workflow/kinds` subpath (11 branded Phase 3 artifact-kind aliases), `ActivityCatalogEntry` extension fields (`dynamicNodeSlug` / `dynamicNodeVersion` / `allowNet` / optional `paramsSchema`), the `ParseError` discriminated union, and the `DynamicNodeSignature` + `DynamicNodeVersionRecord` types. Package tests 604 → 765.
+- **Backend** new module at `apps/backend-services/src/dynamic-nodes/` — `DynamicNode` + `DynamicNodeVersion` Prisma models, repository, publish-time validation service (parser → POST /check → allowlist intersection → repo), 5 endpoints (POST + PUT + GET list + GET detail + DELETE) all with full Swagger. New `apps/backend-services/src/activity-catalog/` module exposes `GET /api/activity-catalog` (merged static + group-scoped dynamic, per-group 30s LRU cache invalidated on publish/PUT/DELETE). Backend tests +45 effective.
+- **Temporal worker** new `apps/temporal/src/dynamic-nodes/` — 7 typed error classes (`DynamicNodeDeletedError`, `DynamicNodeTimeoutError`, etc.), 256-entry LRU version cache, `dyn.run` HTTP-client activity, `dynamicNode.resolveLineage` activity (registered `nonCacheable: true`), and executor-side dispatch in `graph-engine/node-executors.ts`. The executor pre-resolves `(slug, version) → versionId` BEFORE entering the Phase 4 cache decorator, then synthesises an enriched node carrying `__dynamicNodeResolvedVersionId` in parameters so configHash mixes in the resolved version — republishing a head-pinned lineage produces a fresh cache miss; pinned consumers cache-hit normally. Temporal tests 992 → 1052.
+- **Frontend** new `apps/frontend/src/features/workflow-builder/dynamic-nodes/` — `DynamicNodeEditor` shell with `layout="modal" | "full-page"` + `CodePane` (Monaco TS editor; `@monaco-editor/react` 4.7.0 installed; live signature parse strip; gutter markers via `monaco.editor.setModelMarkers`) + `SignaturePreviewPane` (kind dots + `JsonSchemaForm readOnly` + DYN pill) + `VersionHistoryPane` (newest-first list + view modal + revert). New routes `/dynamic-nodes` (list) + `/dynamic-nodes/new` + `/dynamic-nodes/:slug` (full-page editor). Palette grows a "Custom" section + "+ New custom node" button. Canvas grows DYN pill / Deleted pill on dynamic-node instances + right-click "Edit script" entry → modal. NodeSettingsPanel dispatches `DynamicNodeSettings` body for dyn.* (slug + DYN pill + version-pin Select + Edit script button + JsonSchemaForm parameters + deleted-Alert state). Frontend tests 1159 → 1205.
+
+### Locked scope decisions
+
+50 numbered decisions in [feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/REQUIREMENTS.md](../../feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/REQUIREMENTS.md) — every architectural choice from the brainstorm round (Deno-as-service vs host binary; JSDoc DSL; group-scoped lineage with `@@unique([groupId, slug])`; `nonCacheable: true` default with `@deterministic true` opt-in; system-managed ambient env vars `AI_DI_API_BASE_URL` / `_API_KEY` / `_GROUP_ID` / `_WORKFLOW_RUN_ID`) is enumerated there. Design doc: [DYNAMIC_NODES_DESIGN.md](DYNAMIC_NODES_DESIGN.md).
+
+### Milestone one-liners (commit order)
+
+- **Milestone B0 — `f7395b49`** (US-186): `deno-runner` sidecar — image + docker-compose + OpenShift kustomize. Verified end-to-end via curl: `/health` returns `{ok:true, denoVersion:"2.1.4"}`, `/execute` runs uppercase script in ~26ms, `/check` parses TS errors with line+column, timeout sets `timedOut:true`, ambient env vars flow to scripts via `Deno.env`.
+- **Milestone A — `2d535ff1` → `203a3976`** (US-157 → US-161): shared types + parser + ambient kinds subpath + ActivityCatalogEntry extension. Package tests 604 → 765 (+161 across the parser, semantics, kinds, and bulk-invariant assertions).
+- **Milestone A follow-on — `11ffadef`**: 5 frontend null-guards for now-optional `displayName` + `parametersSchema` on the widened `ActivityCatalogEntry`.
+- **Milestone B — `2662e8fc`** (US-162 → US-167): backend Prisma + repository + 5 publish endpoints + `DenoRunnerClient`. Migration `20260525220843_add_dynamic_nodes`. 60 new tests; full Swagger.
+- **Milestone C — `440f8f0d`** (US-168 → US-172): Temporal `dyn.run` activity + executor version resolution + 8 live integration tests against the running deno-runner.
+- **Milestone D — `accab2aa`** (US-173 → US-175): `GET /api/activity-catalog` merge endpoint + `validateGraphConfig` async adapter for binding-walk + `useActivityCatalog` hook hot-reload + mutation invalidations.
+- **Milestone E — `100c4ece`** (US-176 → US-179): `DynamicNodeEditor` component (shell + CodePane + SignaturePreviewPane + VersionHistoryPane); 38 new tests.
+- **Milestone F — `2b8970a1`** (US-180 → US-184): `/dynamic-nodes` pages + palette "Custom" section + canvas DYN/Deleted pills + in-situ Edit-script modal + `DynamicNodeSettings`. Click-and-play complete.
+- **Post-F sweep — `b6a60528`**: DI factory provider for `DenoRunnerClient` (constructor's options object was tripping Nest's reflection), `api/` route prefix added to dynamic-nodes + activity-catalog controllers, Monaco swap from CodeMirror, and the 3 sweep follow-ons: (1) `x-api-key` propagation from `/api/workflows/:id/runs` → `GraphWorkflowInput.apiKey` → `AI_DI_API_KEY`; (2) `dyn.run` dispatch through Phase 4's cache decorator with pre-resolved `versionId` baked into configHash; (3) structured publish errors lifted through `ApiError.body` → Monaco gutter markers.
+
+### Milestone G — End-to-end Playwright walkthrough (US-185) ✓ PASS
+
+Run on 2026-05-25 against the live stack (backend on :3002, frontend on :3000, deno-runner on :9099, temporal worker hot-reloading via ts-node-dev):
+
+```
+S1 — runner OK — { ok: true, denoVersion: "2.1.4" }
+S2 — v1 published — { slug, version: 1 }
+S2 — catalog has the entry — { activityType: "dyn.<slug>", version: 1 }
+S3 — v2 published — { version: 2 }
+S3 — version count correct — { count: 2 }
+S4 — structured ts-check error received — { stage: "ts-check", line: 14, column: 9, message: "Type 'string' is not assignable to type 'number'." }
+S4 — head pointer unchanged (still v2) after rejection
+S5 — list excludes soft-deleted entry
+S5 — detail returns 404 for soft-deleted slug
+S6 — merged catalog excludes deleted entry
+S7 — final pageerror count: 0
+PASS — 7/7 scenarios green
+```
+
+Walkthrough script: `/tmp/wb-phase6-verify/walkthrough.mjs`. Summary: `/tmp/wb-phase6-verify/summary.json`. Screenshots `01-list-with-entry.png` → `04-list-after-delete.png` at `/tmp/wb-phase6-verify/`.
+
+### Phase 6 test count deltas
+
+| Suite | Phase 4 close | Phase 6 close | Delta |
+|-------|---------------|---------------|-------|
+| `packages/graph-workflow` | 604 | **765** | +161 |
+| `apps/backend-services` | 2300 (+1 pre-existing failure) | **2388 (+13 pre-existing failures unchanged)** | +45 effective |
+| `apps/temporal` | 992 | **1052** | +60 |
+| `apps/frontend` | 1159 | **1205+** | +46+ |
+
+### Phase 6 open follow-ups (deferred to 6.x)
+
+- **Python / Pyodide runtime.** Engine abstraction designed-around but not built.
+- **User-supplied secrets.** No `GroupSecret` table — scripts can only use the four ambient env vars + public HTTP per the global `DYNAMIC_NODE_ALLOW_NET` allowlist.
+- **Per-group allowlist policy.** 6.0 uses one global env var; per-group is 6.x.
+- **Streaming stderr endpoint.** 6.0 captures stderr at process exit only.
+- **Per-role permissions.** Any group member can publish in 6.0.
+- **Hard-delete + cascade.** Soft-delete only; existing references continue to resolve.
+- **Cost / usage telemetry.** No per-script counters in 6.0.
+- **Workflow auto-migration on signature change.** User must rewire manually when a head-pinned dynamic node's port kinds change.
+- **Try-button-disabled-when-deleted predicate.** Runs fail loudly via `DynamicNodeDeletedError`; the canvas Try button could pre-disable as a UX polish.
 
 ---
 

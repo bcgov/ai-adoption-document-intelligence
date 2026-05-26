@@ -130,7 +130,7 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [x] **US-184** (`NodeSettingsPanel` dispatch + `DynamicNodeSettings` body) — depends on US-175 (catalog) + US-176-179 (editor); CLICK-AND-PLAY MILESTONE after this closes
 
 ### Phase 7 — End-to-end verification (Milestone G)
-- [ ] **US-185** (Playwright walkthrough — Phase 6 dynamic nodes; screenshots in `/tmp/wb-phase6-verify/`)
+- [x] **US-185** (Playwright walkthrough — Phase 6 dynamic nodes; screenshots in `/tmp/wb-phase6-verify/`)
 
 > US-157 → US-161 ship first (`packages/graph-workflow` introduces new `dynamic-nodes/` exports + `kinds/` subpath + `ActivityCatalogEntry` extension); after merging US-161 ask Alex to restart Vite — pre-bundle of `@ai-di/graph-workflow` goes stale otherwise.
 >

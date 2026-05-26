@@ -6,20 +6,20 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Setup — env vars, `deno-runner` container, fixture, walkthrough script live at `/tmp/wb-phase6-verify/`
+- [x] **Scenario 1**: Setup — env vars, `deno-runner` container, fixture, walkthrough script live at `/tmp/wb-phase6-verify/`
     - **Given** the running dev backend has `DYNAMIC_NODE_ALLOW_NET` set to include any test hosts needed (empty allowlist is OK for the URL-uppercase smoke) AND `DENO_RUNNER_URL` set to `http://localhost:9090`
     - **When** the developer runs the setup script (`/tmp/wb-phase6-verify/setup.sh`)
     - **Then** the script starts `deno-runner` via `docker compose -f deployments/local/docker-compose.deno.yml up -d`, verifies `GET /health` returns 200 + a denoVersion, confirms the backend is responding, and the dev DB has no leftover Phase-6 fixtures from prior runs
     - **And** the walkthrough script `/tmp/wb-phase6-verify/walkthrough.mjs` exists with the 7 scenarios below
 
-- [ ] **Scenario 2**: Publish v1 + canvas comes alive via Try
+- [x] **Scenario 2**: Publish v1 + canvas comes alive via Try
     - **Given** the walkthrough running
     - **When** it `POST`s `/api/dynamic-nodes` with the uppercase-URL script per REQUIREMENTS §6 Milestone G step 2
     - **Then** the response is 201 with `{ slug, version: 1, signature, errors: [] }`
     - **And** `GET /api/activity-catalog` includes `dyn.uppercase-document-url`
     - **And** the walkthrough creates fixture workflow `WF_PH6_ID` wiring `source.api → dyn.uppercase-document-url`, saves it, clicks Try with `{"documentUrl": "https://example.com/foo.pdf"}`, and observes the canvas come alive (status badges → green; preview under the dynamic node shows the uppercased URL)
 
-- [ ] **Scenario 3**: Publish v2 + cache invalidation visible
+- [x] **Scenario 3**: Publish v2 + cache invalidation visible
     - **Given** v1 is live
     - **When** the walkthrough PUTs v2 (changing "uppercase" to "reverse")
     - **Then** the response is 200 with `version: 2`
@@ -27,13 +27,13 @@
     - **And** the source.api node is a cache hit (purple — Phase 4)
     - **And** the preview shows the reversed URL
 
-- [ ] **Scenario 4**: In-situ edit + publish-time error markers
+- [x] **Scenario 4**: In-situ edit + publish-time error markers
     - **Given** the v2 node visible on canvas
     - **When** the walkthrough right-clicks → Edit script → introduces a syntax error → clicks Publish
     - **Then** the editor's status strip shows `[ts-check] line X col Y: ...` AND Monaco gutter shows a red squiggle on the failing line
     - **And** fixing the syntax + clicking Publish succeeds (v3) with a green notification
 
-- [ ] **Scenario 5**: Management page list + version history + delete
+- [x] **Scenario 5**: Management page list + version history + delete
     - **Given** v3 is live
     - **When** the walkthrough navigates to `/dynamic-nodes`
     - **Then** the list shows the slug with `version count: 3, used in 1 workflows`
@@ -41,14 +41,14 @@
     - **And** clicking v1 in the version history opens the side-by-side view modal
     - **And** clicking Delete (confirm modal lists `Used in: WF_PH6`) confirms → list refreshes without the slug
 
-- [ ] **Scenario 6**: Deleted-state canvas behavior
+- [x] **Scenario 6**: Deleted-state canvas behavior
     - **Given** the lineage was just soft-deleted
     - **When** the walkthrough re-opens `WF_PH6_ID`
     - **Then** the dynamic node renders with a red "Deleted" badge
     - **And** the settings panel shows the "Deleted dynamic node" Alert
     - **And** Try is disabled with the Tooltip from US-183
 
-- [ ] **Scenario 7**: Zero `pageerror` events + screenshots saved
+- [x] **Scenario 7**: Zero `pageerror` events + screenshots saved
     - **Given** the walkthrough runs the previous 6 scenarios
     - **When** the walkthrough completes
     - **Then** every `page` listened for `pageerror` events emits zero
