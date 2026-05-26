@@ -28,6 +28,26 @@ import {
   type ControlFlowNodeType,
 } from "./control-flow-skeletons";
 
+// `useActivityCatalog` (and other dynamic-node hooks) call `useGroup()` so
+// they can scope catalog fetches by active group. The palette tests don't
+// wrap in a `GroupProvider`, so stub `useGroup` with a minimal active group
+// — this keeps the real `useActivityCatalog` query going through fetchSpy
+// (US-182 scenarios assert dynamic entries flow through the network mock).
+vi.mock("../../../auth/GroupContext", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../../auth/GroupContext")>();
+  return {
+    ...actual,
+    useGroup: () => ({
+      availableGroups: [],
+      activeGroup: { id: "test-group", name: "Test Group" },
+      setActiveGroup: () => {
+        // No-op for tests — the palette never invokes setActiveGroup.
+      },
+    }),
+  };
+});
+
 // Stub CodeMirror (the editor mounted inside the "+ New custom node"
 // modal relies on browser primitives jsdom doesn't implement).
 vi.mock("@uiw/react-codemirror", () => ({
@@ -439,6 +459,10 @@ describe('ActivityPalette — US-182: Custom section + "+ New custom node"', () 
         screen.getByTestId("palette-custom-new-modal"),
       ).toBeInTheDocument();
     });
-    expect(screen.getByTestId("dynamic-node-editor")).toBeInTheDocument();
+    // Mantine's Modal portals its body asynchronously after the root mounts,
+    // so wait for the editor to land in the portal before asserting.
+    expect(
+      await screen.findByTestId("dynamic-node-editor"),
+    ).toBeInTheDocument();
   });
 });

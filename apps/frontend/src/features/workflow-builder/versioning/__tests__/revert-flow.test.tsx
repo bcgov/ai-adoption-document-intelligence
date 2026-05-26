@@ -52,6 +52,22 @@ const { revertMutateAsyncMock, notificationsShowMock, capturedCanvasProps } =
     };
   });
 
+// `useActivityCatalog` (transitively used by the page) calls `useGroup()`.
+// The test fixture doesn't wrap in a `GroupProvider`, so stub the catalog
+// hook with an empty list. Mirrors the shim used in
+// `WorkflowEditorCanvas.type-pill.test.tsx` and `WorkflowEditorV2Page.test.tsx`.
+vi.mock("../../dynamic-nodes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../dynamic-nodes")>();
+  return {
+    ...actual,
+    useActivityCatalog: () => ({
+      isLoading: false,
+      entries: [],
+      error: null,
+    }),
+  };
+});
+
 vi.mock("@mantine/notifications", async (importOriginal) => {
   const original =
     await importOriginal<typeof import("@mantine/notifications")>();
@@ -187,9 +203,15 @@ function renderEditor() {
 /**
  * Opens the History drawer and clicks the Revert button on the
  * non-head v2 row. Returns once the confirm modal has rendered.
+ *
+ * Task 6 moved the History entry into the More menu, so the drawer is
+ * opened via `topbar-more-button` → `topbar-menu-history` rather than
+ * the previous standalone `history-button`.
  */
 async function openRevertConfirm() {
-  fireEvent.click(screen.getByTestId("history-button"));
+  fireEvent.click(screen.getByTestId("topbar-more-button"));
+  const historyItem = await screen.findByTestId("topbar-menu-history");
+  fireEvent.click(historyItem);
   // Drawer body renders the row asynchronously after the drawer opens
   // (Mantine's Drawer mounts its children on open). Wait for the row.
   const revertButton = await screen.findByTestId("history-row-revert-v2-id");

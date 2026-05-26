@@ -43,6 +43,23 @@ import { WorkflowEditorCanvas } from "./WorkflowEditorCanvas";
 // Mocks
 // ---------------------------------------------------------------------------
 
+// `useActivityCatalog` depends on `GroupProvider` (via `useGroup`). The
+// integration tests here don't exercise auth state, so stub the hook with an
+// empty catalog so the canvas renderers proceed past their dynamic-node
+// branch unchanged. Mirrors the shim used in
+// `WorkflowEditorCanvas.type-pill.test.tsx` and `WorkflowEditorV2Page.test.tsx`.
+vi.mock("../dynamic-nodes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../dynamic-nodes")>();
+  return {
+    ...actual,
+    useActivityCatalog: () => ({
+      isLoading: false,
+      entries: [],
+      error: null,
+    }),
+  };
+});
+
 interface MockNodeProps {
   id: string;
   type: string;
