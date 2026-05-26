@@ -14,6 +14,7 @@ interface BoundingBoxProps {
   onClick?: (id: string) => void;
   onMouseEnter?: (id: string) => void;
   onMouseLeave?: (id: string) => void;
+  rotation?: number;
 }
 
 const BoundingBoxShape: FC<BoundingBoxProps> = ({
@@ -28,6 +29,7 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   onClick,
   onMouseEnter,
   onMouseLeave,
+  rotation = 0,
 }) => {
   const points: number[] = [];
   for (const point of box.polygon) {
@@ -83,7 +85,12 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
 
       {/* 3) Label text */}
       {(label || confidence !== undefined) && (
-        <Group x={firstPoint.x} y={firstPoint.y - 20} listening={false}>
+        <Group
+          x={firstPoint.x}
+          y={firstPoint.y - 20}
+          listening={false}
+          rotation={-rotation}
+        >
           <KonvaText
             text={
               label
@@ -150,6 +157,7 @@ export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
           onClick={onBoxClick}
           onMouseEnter={onBoxMouseEnter}
           onMouseLeave={onBoxMouseLeave}
+          rotation={rotation}
         />
       ))}
     </Layer>
