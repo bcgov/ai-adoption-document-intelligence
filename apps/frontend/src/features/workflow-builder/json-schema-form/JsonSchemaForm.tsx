@@ -54,23 +54,43 @@ import {
 
 interface JsonSchemaFormProps {
   schema: JsonSchemaProperty | undefined;
-  value: Record<string, unknown>;
-  onChange: (next: Record<string, unknown>) => void;
+  /**
+   * Form values. Optional when `readOnly` is true and the renderer should
+   * just preview a schema's shape with no concrete data — common for the
+   * dynamic-node signature-preview pane (US-178).
+   */
+  value?: Record<string, unknown>;
+  /** Required when `readOnly` is false; not used in read-only mode. */
+  onChange?: (next: Record<string, unknown>) => void;
+  /**
+   * When true, every widget renders disabled (read-only). Used by the
+   * dynamic-node SignaturePreviewPane (Phase 6 US-178) so callers can
+   * preview the parsed `paramsSchema` exactly as it'd render in the
+   * settings panel without making it editable.
+   */
+  readOnly?: boolean;
 }
+
+const NOOP_ONCHANGE: (next: Record<string, unknown>) => void = () => undefined;
 
 export function JsonSchemaForm({
   schema,
   value,
   onChange,
+  readOnly,
 }: JsonSchemaFormProps) {
+  const safeValue = value ?? {};
+  const safeOnChange = onChange ?? NOOP_ONCHANGE;
+
   // Top-level discriminated union (Zod's z.discriminatedUnion → anyOf)
   const discriminatedUnion = detectDiscriminatedUnion(schema);
   if (discriminatedUnion) {
     return (
       <DiscriminatedUnionRenderer
         union={discriminatedUnion}
-        value={value}
-        onChange={onChange}
+        value={safeValue}
+        onChange={safeOnChange}
+        readOnly={readOnly}
       />
     );
   }
@@ -84,7 +104,12 @@ export function JsonSchemaForm({
   }
 
   return (
-    <ObjectFieldsRenderer schema={schema} value={value} onChange={onChange} />
+    <ObjectFieldsRenderer
+      schema={schema}
+      value={safeValue}
+      onChange={safeOnChange}
+      readOnly={readOnly}
+    />
   );
 }
 
@@ -94,6 +119,7 @@ interface ObjectFieldsRendererProps {
   onChange: (next: Record<string, unknown>) => void;
   /** Fields to skip — used by the discriminated-union renderer to omit the discriminator. */
   skipFields?: ReadonlySet<string>;
+  readOnly?: boolean;
 }
 
 function ObjectFieldsRenderer({
@@ -101,6 +127,7 @@ function ObjectFieldsRenderer({
   value,
   onChange,
   skipFields,
+  readOnly,
 }: ObjectFieldsRendererProps) {
   const required = new Set(schema.required ?? []);
   const entries = Object.entries(schema.properties).filter(
@@ -124,6 +151,7 @@ function ObjectFieldsRenderer({
           fieldSchema={fieldSchema}
           required={required.has(fieldName)}
           value={value[fieldName]}
+          readOnly={readOnly}
           onChange={(v) => {
             const next = { ...value };
             if (v === undefined) {
@@ -143,12 +171,14 @@ interface DiscriminatedUnionRendererProps {
   union: ReturnType<typeof detectDiscriminatedUnion> & object;
   value: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
+  readOnly?: boolean;
 }
 
 function DiscriminatedUnionRenderer({
   union,
   value,
   onChange,
+  readOnly,
 }: DiscriminatedUnionRendererProps) {
   const discriminatorValue = value[union.discriminator];
   const activeVariant = union.variants.find(
@@ -183,6 +213,7 @@ function DiscriminatedUnionRenderer({
         }}
         withAsterisk
         allowDeselect={false}
+        disabled={readOnly}
       />
 
       {activeVariant && (
@@ -191,6 +222,7 @@ function DiscriminatedUnionRenderer({
           value={value}
           onChange={onChange}
           skipFields={new Set([union.discriminator])}
+          readOnly={readOnly}
         />
       )}
     </Stack>
@@ -203,6 +235,7 @@ interface FieldRendererProps {
   required: boolean;
   value: unknown;
   onChange: (next: unknown) => void;
+  readOnly?: boolean;
 }
 
 function FieldRenderer({
@@ -211,6 +244,7 @@ function FieldRenderer({
   required,
   value,
   onChange,
+  readOnly,
 }: FieldRendererProps) {
   const label = fieldSchema.title ?? fieldName;
   const description = fieldSchema.description;
@@ -234,6 +268,7 @@ function FieldRenderer({
         value={(value as string | undefined) ?? ""}
         onChange={(v) => onChange(v === "" ? undefined : v)}
         withAsterisk={required}
+        disabled={readOnly}
       />
     );
   }
@@ -250,6 +285,7 @@ function FieldRenderer({
         onChange={(v) => onChange(v ?? undefined)}
         withAsterisk={required}
         clearable={!required}
+        disabled={readOnly}
       />
     );
   }
@@ -267,6 +303,7 @@ function FieldRenderer({
           onChange(v === "" ? undefined : v);
         }}
         withAsterisk={required}
+        disabled={readOnly}
       />
     );
   }
@@ -285,6 +322,7 @@ function FieldRenderer({
         decimalScale={fieldSchema.type === "integer" ? 0 : undefined}
         onChange={(v) => onChange(typeof v === "number" ? v : undefined)}
         withAsterisk={required}
+        disabled={readOnly}
       />
     );
   }
@@ -297,6 +335,7 @@ function FieldRenderer({
         description={description}
         checked={Boolean(value)}
         onChange={(e) => onChange(e.currentTarget.checked)}
+        disabled={readOnly}
       />
     );
   }
@@ -497,6 +536,7 @@ function FieldRenderer({
         minItems={fieldSchema.minItems}
         value={Array.isArray(value) ? value : []}
         onChange={onChange}
+        readOnly={readOnly}
       />
     );
   }
@@ -516,6 +556,7 @@ interface ArrayFieldRendererProps {
   minItems?: number;
   value: unknown[];
   onChange: (next: unknown) => void;
+  readOnly?: boolean;
 }
 
 function ArrayFieldRenderer({
@@ -526,6 +567,7 @@ function ArrayFieldRenderer({
   minItems,
   value,
   onChange,
+  readOnly,
 }: ArrayFieldRendererProps) {
   const items = value;
   const min = minItems ?? 0;
@@ -580,6 +622,7 @@ function ArrayFieldRenderer({
                     schema={itemSchema}
                     value={(item ?? {}) as Record<string, unknown>}
                     onChange={(next) => updateItem(idx, next)}
+                    readOnly={readOnly}
                   />
                 ) : (
                   <FieldRenderer
@@ -588,33 +631,38 @@ function ArrayFieldRenderer({
                     required={true}
                     value={item}
                     onChange={(next) => updateItem(idx, next)}
+                    readOnly={readOnly}
                   />
                 )}
               </Box>
-              <ActionIcon
-                variant="subtle"
-                color="red"
-                onClick={() => removeItem(idx)}
-                disabled={items.length <= min}
-                aria-label={`Remove ${singularize(label)} ${idx + 1}`}
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
+              {!readOnly && (
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  onClick={() => removeItem(idx)}
+                  disabled={items.length <= min}
+                  aria-label={`Remove ${singularize(label)} ${idx + 1}`}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              )}
             </Group>
           </Paper>
         ))}
       </Stack>
 
-      <Group>
-        <Button
-          variant="light"
-          size="xs"
-          leftSection={<IconPlus size={14} />}
-          onClick={addItem}
-        >
-          Add {singularize(label)}
-        </Button>
-      </Group>
+      {!readOnly && (
+        <Group>
+          <Button
+            variant="light"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={addItem}
+          >
+            Add {singularize(label)}
+          </Button>
+        </Group>
+      )}
     </Stack>
   );
 }

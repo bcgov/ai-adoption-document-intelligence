@@ -24,6 +24,8 @@ import {
   publishDynamicNode,
   updateDynamicNode,
 } from "./dynamic-node-api";
+import { dynamicNodeQueryKey } from "./useDynamicNode";
+import { DYNAMIC_NODE_LIST_QUERY_KEY } from "./useDynamicNodeList";
 
 export type { DynamicNodePublishResult } from "./dynamic-node-api";
 
@@ -38,8 +40,12 @@ export interface PublishDynamicNodeInput {
  *  - `{ script }` — POST a new lineage (v1)
  *  - `{ slug, script }` — PUT a new version on the existing lineage
  *
- * On success: invalidates the catalog query so the palette / canvas
- * / settings panel re-render with the latest entry.
+ * On success: invalidates the merged catalog query so the palette /
+ * canvas / settings panel re-render with the latest entry, plus the
+ * per-lineage detail query (`['dynamic-node', slug]`) and the list
+ * query (`['dynamic-node-list']`) so the editor's version-history
+ * pane (US-179) and the management page's table (US-180) refetch
+ * automatically after a publish — closing the loop end-to-end.
  */
 export function useDynamicNodePublish() {
   const queryClient = useQueryClient();
@@ -54,12 +60,21 @@ export function useDynamicNodePublish() {
       }
       return updateDynamicNode(input.slug, input.script);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       // US-175 Scenarios 2 + 3 — invalidate the merged catalog key so
       // `useActivityCatalog` refetches and consumers re-render with
       // the new dynamic entry.
       queryClient.invalidateQueries({
         queryKey: ACTIVITY_CATALOG_QUERY_KEY,
+      });
+      // US-176 Scenario 4 — invalidate the per-lineage detail + the
+      // list so the editor's version-history pane + the management
+      // page table refetch with the new version row.
+      queryClient.invalidateQueries({
+        queryKey: dynamicNodeQueryKey(result.slug),
+      });
+      queryClient.invalidateQueries({
+        queryKey: DYNAMIC_NODE_LIST_QUERY_KEY,
       });
     },
   });

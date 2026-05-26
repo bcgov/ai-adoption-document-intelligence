@@ -6,40 +6,40 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New `VersionHistoryPane.tsx` lists versions newest-first
+- [x] **Scenario 1**: New `VersionHistoryPane.tsx` lists versions newest-first
     - **Given** edit mode (`slug` is set), and `useDynamicNode(slug)` returns `{ versions: [{ versionNumber: 3, ... }, { versionNumber: 2, ... }, { versionNumber: 1, ... }] }`
     - **When** the pane renders
     - **Then** the rows render in order v3, v2, v1 (newest-first)
     - **And** each row shows: `v{n}` indigo badge + relative publish timestamp + optional blue "head" badge + "View" + "Revert" buttons
 
-- [ ] **Scenario 2**: Empty / loading / error states
+- [x] **Scenario 2**: Empty / loading / error states
     - **Given** create mode (no slug yet)
     - **When** the pane renders
     - **Then** it shows a gray "No versions yet — publish to create v1" placeholder
     - **And** while `useDynamicNode` is loading (edit mode) it shows 3 Skeleton rows
     - **And** on error it shows a red `<Alert>` with the error message
 
-- [ ] **Scenario 3**: View modal opens with side-by-side script blocks
+- [x] **Scenario 3**: View modal opens with side-by-side script blocks
     - **Given** a non-head version row
     - **When** the user clicks "View"
     - **Then** a Mantine `<Modal size="80%">` opens with two `<JsonInput readOnly>` panels side-by-side: selected version on the left, head on the right
     - **And** NO diff library is used — same shape as Phase 2 Track 3's compare modal
     - **And** for the head row, the "View" button is disabled with tooltip "This is the head"
 
-- [ ] **Scenario 4**: Revert flow uses a confirm modal + PUT
+- [x] **Scenario 4**: Revert flow uses a confirm modal + PUT
     - **Given** a non-head version row
     - **When** the user clicks "Revert"
     - **Then** Mantine `modals.openConfirmModal` opens "Reverting will publish v{n}'s script as the new head (v{N+1}). Continue?"
     - **And** confirming calls `useDynamicNodePublish(slug)` with the v{n} script as the body — this creates a new version (mirroring how PUT always creates rather than mutating)
     - **And** on success: green "Reverted to v{n} as v{N+1}" notification + the version history refetches via the standard invalidation chain
 
-- [ ] **Scenario 5**: "Head" badge tracks the lineage's `headVersionId`
+- [x] **Scenario 5**: "Head" badge tracks the lineage's `headVersionId`
     - **Given** the lineage's head is v3
     - **When** the pane renders
     - **Then** only v3's row has the blue "head" badge
     - **And** after a revert that makes v4 the new head, the badge moves to v4 on the next render
 
-- [ ] **Scenario 6**: Tests cover render + view + revert + invalidation
+- [x] **Scenario 6**: Tests cover render + view + revert + invalidation
     - **Given** `VersionHistoryPane.spec.tsx`
     - **When** the test runs
     - **Then** tests pass for: empty state in create mode; populated list in edit mode; click View opens the modal with the right two scripts; head's View is disabled; Revert calls the publish mutation with the old script; head badge moves after revert

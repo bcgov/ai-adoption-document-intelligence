@@ -20,24 +20,37 @@ import {
   type DynamicNodeDeletedResult,
   deleteDynamicNode,
 } from "./dynamic-node-api";
+import { dynamicNodeQueryKey } from "./useDynamicNode";
+import { DYNAMIC_NODE_LIST_QUERY_KEY } from "./useDynamicNodeList";
 
 export type { DynamicNodeDeletedResult } from "./dynamic-node-api";
 
 /**
  * Mutation hook. The mutation function takes the lineage slug.
- * On success: invalidates the catalog query so the palette /
- * settings panel / canvas re-render without the deleted entry.
+ * On success: invalidates the merged catalog query so the palette /
+ * settings panel / canvas re-render without the deleted entry; also
+ * busts the per-lineage detail query + the list query so the editor
+ * + management page reflect the deletion immediately (US-176
+ * Scenario 4).
  */
 export function useDynamicNodeDelete() {
   const queryClient = useQueryClient();
   return useMutation<DynamicNodeDeletedResult, ApiError, string>({
     mutationFn: (slug) => deleteDynamicNode(slug),
-    onSuccess: () => {
+    onSuccess: (result) => {
       // US-175 Scenario 4 — invalidate the merged catalog key so
       // `useActivityCatalog` refetches and the deleted entry
       // disappears from every consumer in lock-step.
       queryClient.invalidateQueries({
         queryKey: ACTIVITY_CATALOG_QUERY_KEY,
+      });
+      // US-176 Scenario 4 — drop the lineage's detail cache + refetch
+      // the management list so the post-delete state is consistent.
+      queryClient.invalidateQueries({
+        queryKey: dynamicNodeQueryKey(result.slug),
+      });
+      queryClient.invalidateQueries({
+        queryKey: DYNAMIC_NODE_LIST_QUERY_KEY,
       });
     },
   });

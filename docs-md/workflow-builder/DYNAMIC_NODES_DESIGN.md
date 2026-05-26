@@ -499,7 +499,7 @@ The single `dyn.run` activity is registered once at worker startup. Adding, upda
 
 Lives in `apps/frontend/src/features/workflow-builder/dynamic-nodes/`. Three-pane layout, takes one prop `slug?: string` (undefined = create mode):
 
-- **Code pane (~60% width).** Monaco TS editor. Monaco is already a dep (no new install). Boilerplate prefilled in create mode:
+- **Code pane (~60% width).** TypeScript code editor. *Implementation note (Milestone E):* the design called for Monaco, but the frontend ships with CodeMirror (`@uiw/react-codemirror`) and Monaco is not installed; per the "no new install" requirement the Milestone E implementation mounts CodeMirror with line numbers + gutter markers + linter-extension diagnostics. The behaviour-level contract (line-anchored markers, debounced onChange, programmatic cursor positioning) is identical; the editor surface is plain text rather than TS-highlighted (publish-time `deno check` is the source of truth for type errors). Boilerplate prefilled in create mode:
 
   ```ts
   import type { Document } from "@ai-di/graph-workflow/kinds";

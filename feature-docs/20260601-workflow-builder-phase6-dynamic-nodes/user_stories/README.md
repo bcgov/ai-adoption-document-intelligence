@@ -117,10 +117,10 @@ Phase 6 has a clear linear backbone (shared package parser + types → backend p
 - [x] **US-175** (`useActivityCatalog` hook hot-reload + invalidation) — depends on US-173
 
 ### Phase 5 — Frontend: DynamicNodeEditor component (Milestone E — depends on Phase 1 + Phase 2 + Phase 4)
-- [ ] **US-176** (`DynamicNodeEditor` shell + 4 TanStack hooks) — foundation for the pane stories
-- [ ] **US-177** (`CodePane` — Monaco + boilerplate + live parse + markers) — depends on US-176 + US-161 (shared parser via package)
-- [ ] **US-178** (`SignaturePreviewPane` — derived signature card) — depends on US-176; can land in parallel with US-177/179
-- [ ] **US-179** (`VersionHistoryPane` — list + view + revert) — depends on US-176; can land in parallel with US-177/178; closes Milestone E
+- [x] **US-176** (`DynamicNodeEditor` shell + 4 TanStack hooks) — foundation for the pane stories
+- [x] **US-177** (`CodePane` — Monaco + boilerplate + live parse + markers) — depends on US-176 + US-161 (shared parser via package)
+- [x] **US-178** (`SignaturePreviewPane` — derived signature card) — depends on US-176; can land in parallel with US-177/179
+- [x] **US-179** (`VersionHistoryPane` — list + view + revert) — depends on US-176; can land in parallel with US-177/178; closes Milestone E
 
 ### Phase 6 — Frontend mounts + canvas integration (Milestone F — depends on Phase 5)
 - [ ] **US-180** (`/dynamic-nodes` management page list view) — depends on US-176 (hooks); independent of US-181-184

@@ -6,38 +6,38 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: New `dynamic-nodes/` feature directory with the shell component
+- [x] **Scenario 1**: New `dynamic-nodes/` feature directory with the shell component
     - **Given** `apps/frontend/src/features/workflow-builder/dynamic-nodes/`
     - **When** read after the change
     - **Then** the directory contains `DynamicNodeEditor.tsx` exporting a default `DynamicNodeEditor` component that accepts `{ slug?: string; onAfterPublish?: (publishedSlug: string) => void; onClose?: () => void }`
     - **And** when `slug` is undefined the component is in create mode (boilerplate script, POST on publish); when `slug` is set the component is in edit mode (load script, PUT on publish)
 
-- [ ] **Scenario 2**: Three-pane Mantine layout
+- [x] **Scenario 2**: Three-pane Mantine layout
     - **Given** the shell component
     - **When** rendered
     - **Then** it uses Mantine `<Grid>` (or `<SimpleGrid>`) with three columns sized ~60% / ~25% / ~15%
     - **And** the panes are placeholder components for now (`<CodePane>`, `<SignaturePreviewPane>`, `<VersionHistoryPane>`) — bodies land in US-177/US-178/US-179
     - **And** a top bar above the grid contains "Publish" + "Delete" buttons (disabled in create mode until the script parses; Delete disabled in create mode entirely)
 
-- [ ] **Scenario 3**: Four TanStack hooks declared
+- [x] **Scenario 3**: Four TanStack hooks declared
     - **Given** the directory after the change
     - **When** read
     - **Then** it exports: `useDynamicNode(slug)` (GET /api/dynamic-nodes/:slug), `useDynamicNodeList()` (GET /api/dynamic-nodes), `useDynamicNodePublish(slug?)` (POST when slug is null, PUT otherwise), `useDynamicNodeDelete(slug)` (DELETE)
     - **And** each hook uses the standard project conventions (TanStack v5 query/mutation, `apiClient` from the existing wrapper)
 
-- [ ] **Scenario 4**: Hook invalidations wired correctly
+- [x] **Scenario 4**: Hook invalidations wired correctly
     - **Given** the mutations
     - **When** any of POST / PUT / DELETE succeeds
     - **Then** the mutation's `onSuccess` invalidates: `['activity-catalog']` (for the palette), `['dynamic-node', slug]` (the single-lineage detail hook), `['dynamic-node-list']` (the list hook)
     - **And** the catalog hot-reload from US-175 then closes the loop on the canvas
 
-- [ ] **Scenario 5**: Top bar errors surface via Mantine notifications
+- [x] **Scenario 5**: Top bar errors surface via Mantine notifications
     - **Given** the Publish button is clicked and the backend returns 400 with `errors: [...]`
     - **When** the mutation rejects
     - **Then** the shell renders a red Mantine notification "Publish failed — see error markers" without unmounting the editor
     - **And** the structured errors are passed to the `CodePane` (US-177) for inline rendering — this story sets up the error-passing prop, US-177 consumes it
 
-- [ ] **Scenario 6**: Tests cover the shell shape + mutation routing
+- [x] **Scenario 6**: Tests cover the shell shape + mutation routing
     - **Given** `DynamicNodeEditor.spec.tsx`
     - **When** the test runs
     - **Then** it asserts: shell renders three panes in create mode + boilerplate is passed to CodePane; in edit mode, useDynamicNode is fetched and the script is wired into CodePane; Publish in create mode calls POST; Publish in edit mode calls PUT; Delete only renders in edit mode

@@ -84,6 +84,61 @@ export interface DynamicNodeDeletedResult {
   usedInWorkflowCount: number;
 }
 
+/**
+ * Lightweight head-version summary (mirrors backend's
+ * `DynamicNodeVersionSummaryDto` — no `script`).
+ */
+export interface DynamicNodeHeadVersionSummary {
+  versionNumber: number;
+  signature: DynamicNodeSignatureWire;
+  publishedAt: string;
+}
+
+/**
+ * Full per-version row used by the detail endpoint's `versions[]`
+ * (mirrors backend's `DynamicNodeVersionDto` — includes `script` so the
+ * version-history pane (US-179) can mount the view modal without an
+ * additional round-trip).
+ */
+export interface DynamicNodeVersionDetail {
+  versionNumber: number;
+  script: string;
+  signature: DynamicNodeSignatureWire;
+  allowNet: string[];
+  deterministic: boolean;
+  publishedAt: string;
+  publishedByUserId?: string;
+}
+
+/**
+ * `GET /api/dynamic-nodes/:slug` response (mirrors backend's
+ * `DynamicNodeDetailResponseDto`). `versions` is newest-first.
+ */
+export interface DynamicNodeDetail {
+  slug: string;
+  headVersion: DynamicNodeHeadVersionSummary;
+  versions: DynamicNodeVersionDetail[];
+}
+
+/**
+ * One row in the list response (mirrors backend's
+ * `DynamicNodeListItemDto`).
+ */
+export interface DynamicNodeListItem {
+  slug: string;
+  headVersion: DynamicNodeHeadVersionSummary;
+  versionCount: number;
+  usedInWorkflowCount: number;
+}
+
+/**
+ * `GET /api/dynamic-nodes` response (mirrors backend's
+ * `DynamicNodeListResponseDto`).
+ */
+export interface DynamicNodeListResponse {
+  items: DynamicNodeListItem[];
+}
+
 async function parseErrorResponse(response: Response): Promise<never> {
   let message = response.statusText || "Dynamic-node request failed";
   try {
@@ -140,4 +195,37 @@ export async function deleteDynamicNode(
   );
   if (!response.ok) await parseErrorResponse(response);
   return (await response.json()) as DynamicNodeDeletedResult;
+}
+
+/**
+ * `GET /api/dynamic-nodes/:slug` — full version history (newest first).
+ * Backs the `useDynamicNode` hook (Phase 6 US-176).
+ */
+export async function fetchDynamicNode(
+  slug: string,
+): Promise<DynamicNodeDetail> {
+  const response = await fetch(
+    `${API_BASE_URL}/dynamic-nodes/${encodeURIComponent(slug)}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: buildAuthHeaders(),
+    },
+  );
+  if (!response.ok) await parseErrorResponse(response);
+  return (await response.json()) as DynamicNodeDetail;
+}
+
+/**
+ * `GET /api/dynamic-nodes` — list the calling group's non-deleted
+ * lineages. Backs the `useDynamicNodeList` hook (Phase 6 US-176).
+ */
+export async function fetchDynamicNodeList(): Promise<DynamicNodeListResponse> {
+  const response = await fetch(`${API_BASE_URL}/dynamic-nodes`, {
+    method: "GET",
+    credentials: "include",
+    headers: buildAuthHeaders(),
+  });
+  if (!response.ok) await parseErrorResponse(response);
+  return (await response.json()) as DynamicNodeListResponse;
 }
