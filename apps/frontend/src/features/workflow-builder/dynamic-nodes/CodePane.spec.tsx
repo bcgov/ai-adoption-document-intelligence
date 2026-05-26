@@ -22,20 +22,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
 import { CodePane } from "./CodePane";
 
-// Mock the CodeMirror surface with a plain <textarea>. The component
-// passes through `value` / `onChange` / `ref`; the linter / gutter
-// extensions don't fire in this stub but the parse-strip behaviour is
-// driven by the editor's text, not the gutter.
-vi.mock("@uiw/react-codemirror", () => ({
+// Mock the Monaco surface with a plain <textarea>. The component passes
+// through `value` / `onChange`; Monaco's marker decorations + the deno-
+// runner-style language services don't fire in this stub, but the
+// parse-strip behaviour is driven by the editor's text, not the gutter.
+vi.mock("@monaco-editor/react", () => ({
   default: ({
     value,
     onChange,
   }: {
     value: string;
-    onChange?: (next: string) => void;
+    onChange?: (next: string | undefined) => void;
   }) => (
     <textarea
-      data-testid="codemirror-stub"
+      data-testid="monaco-stub"
       value={value}
       onChange={(e) => onChange?.(e.target.value)}
     />
@@ -69,7 +69,7 @@ describe("CodePane (US-177)", () => {
   // -----------------------------------------------------------------------
   it("seeds the editor with the boilerplate when `script` is empty", () => {
     renderPane({ script: "" });
-    const editor = screen.getByTestId("codemirror-stub") as HTMLTextAreaElement;
+    const editor = screen.getByTestId("monaco-stub") as HTMLTextAreaElement;
     expect(editor.value).toBe(DYNAMIC_NODE_BOILERPLATE);
   });
 
@@ -79,7 +79,7 @@ describe("CodePane (US-177)", () => {
   it("hydrates the editor from the `script` prop in edit mode", () => {
     const script = `/** @workflow-node @name foo */ export default async () => ({});`;
     renderPane({ script });
-    const editor = screen.getByTestId("codemirror-stub") as HTMLTextAreaElement;
+    const editor = screen.getByTestId("monaco-stub") as HTMLTextAreaElement;
     expect(editor.value).toBe(script);
   });
 
@@ -124,7 +124,7 @@ describe("CodePane (US-177)", () => {
     });
     expect(onChange).toHaveBeenCalledWith(DYNAMIC_NODE_BOILERPLATE);
 
-    const editor = screen.getByTestId("codemirror-stub") as HTMLTextAreaElement;
+    const editor = screen.getByTestId("monaco-stub") as HTMLTextAreaElement;
     onChange.mockClear();
     await act(async () => {
       fireEvent.change(editor, { target: { value: "// new text" } });

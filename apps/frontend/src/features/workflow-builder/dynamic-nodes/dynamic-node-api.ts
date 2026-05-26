@@ -141,15 +141,29 @@ export interface DynamicNodeListResponse {
 
 async function parseErrorResponse(response: Response): Promise<never> {
   let message = response.statusText || "Dynamic-node request failed";
+  let body: unknown;
   try {
-    const body = (await response.json()) as ErrorResponseBody;
-    const raw = body?.message;
+    body = await response.json();
+    const typed = body as ErrorResponseBody;
+    const raw = typed?.message;
     if (typeof raw === "string" && raw.length > 0) message = raw;
     else if (Array.isArray(raw)) message = raw.join(", ");
+    // Phase 6 (sweep): the publish endpoints return 400 with
+    // `{ errors: ParseError[] }`; lift `errors` into the message so callers
+    // that only read `error.message` still see something useful while
+    // structured consumers read `error.body.errors`.
+    const errors = (body as { errors?: unknown })?.errors;
+    if (
+      Array.isArray(errors) &&
+      errors.length > 0 &&
+      message === (response.statusText || "Dynamic-node request failed")
+    ) {
+      message = `Publish failed (${errors.length} error${errors.length === 1 ? "" : "s"})`;
+    }
   } catch {
     // Body wasn't JSON.
   }
-  throw new ApiError(response.status, message);
+  throw new ApiError(response.status, message, body);
 }
 
 export async function publishDynamicNode(

@@ -462,11 +462,24 @@ export class WorkflowController {
     // so this never blocks the new run.
     await this.temporalClient.cancelInFlightTriesForLineage(id);
 
+    // Phase 6 (sweep follow-on #1): forward the caller's x-api-key so the
+    // worker's dyn.run activity can inject it as AI_DI_API_KEY for scripts
+    // that call back into the platform.
+    const rawApiKey = req.headers["x-api-key"];
+    const apiKey =
+      typeof rawApiKey === "string"
+        ? rawApiKey
+        : Array.isArray(rawApiKey)
+          ? rawApiKey[0]
+          : undefined;
+
     const workflowId = await this.temporalClient.startGraphWorkflow(
       undefined,
       wf.workflowVersionId,
       initialCtx,
       wf.groupId,
+      undefined,
+      apiKey,
     );
 
     this.logger.log(

@@ -76,7 +76,7 @@ import {
  *  - `DenoRunnerUnavailableError`    → 503 `{ code: 'DENO_RUNNER_UNAVAILABLE', message }`
  */
 @ApiTags("dynamic-nodes")
-@Controller("dynamic-nodes")
+@Controller("api/dynamic-nodes")
 export class DynamicNodesController {
   constructor(
     private readonly dynamicNodesService: DynamicNodesService,

@@ -252,6 +252,18 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     initialCtx: Record<string, unknown>,
     groupId: string | null,
     graphOverride?: GraphWorkflowConfig,
+    /**
+     * Phase 6 (sweep, follow-on #1): the calling client's `x-api-key`
+     * header value, propagated into `GraphWorkflowInput.apiKey` so the
+     * Temporal worker's `dyn.run` activity can inject it as the
+     * `AI_DI_API_KEY` ambient env var when invoking the deno-runner.
+     * Dynamic-node scripts can then `fetch(AI_DI_API_BASE_URL, { headers: {
+     * "x-api-key": AI_DI_API_KEY } })` back into the platform.
+     *
+     * Undefined for callers that don't propagate it (e.g. internal triggers);
+     * the worker treats absent / null as "no callback auth available".
+     */
+    apiKey?: string | null,
   ): Promise<string> {
     this.ensureClientInitialized();
 
@@ -321,6 +333,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             // the worker decorator key cache rows by lineage so that
             // identical configs across versions share cache.
             workflowLineageId: workflowConfig.id,
+            // Phase 6 (sweep follow-on #1): apiKey threads through to
+            // dyn.run's ambient AI_DI_API_KEY env var.
+            ...(apiKey !== undefined && { apiKey }),
             ...(requestId && { requestId }),
           },
         ],

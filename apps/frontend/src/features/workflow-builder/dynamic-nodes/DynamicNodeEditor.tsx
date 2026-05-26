@@ -106,6 +106,37 @@ const PANE_SPANS: Record<DynamicNodeEditorLayout, PaneSpan> = {
   "full-page": { code: 8, preview: 3, history: 1 }, // ~67 / 25 / 8
 };
 
+/**
+ * Phase 6 sweep: pull structured `ParseError[]` out of a publish 400's
+ * response body. The wire layer (`dynamic-node-api.ts#parseErrorResponse`)
+ * stashes the JSON body on `ApiError.body`; we shape-check it here so the
+ * editor's gutter markers see ts-check + allowlist failures (which only
+ * fire server-side) alongside the client-side jsdoc-parse + semantics
+ * failures the live strip already covers.
+ */
+function extractServerParseErrors(err: unknown): ParseError[] {
+  const body = (err as { body?: unknown })?.body;
+  if (typeof body !== "object" || body === null) return [];
+  const errors = (body as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return [];
+  const out: ParseError[] = [];
+  for (const e of errors) {
+    if (typeof e !== "object" || e === null) continue;
+    const stage = (e as { stage?: unknown }).stage;
+    const message = (e as { message?: unknown }).message;
+    if (typeof stage !== "string" || typeof message !== "string") continue;
+    if (
+      stage !== "jsdoc-parse" &&
+      stage !== "signature-semantics" &&
+      stage !== "ts-check" &&
+      stage !== "allowlist"
+    )
+      continue;
+    out.push(e as ParseError);
+  }
+  return out;
+}
+
 export function DynamicNodeEditor({
   slug,
   onAfterPublish,
@@ -178,31 +209,28 @@ export function DynamicNodeEditor({
       });
       onAfterPublish?.(result.slug);
     } catch (err) {
-      // The backend's 400 carries `{ errors: ParseError[] }`. The
-      // mutation's `ApiError` doesn't expose the parsed body directly
-      // — we already surface the human-readable message on the
-      // notification. Re-fetching the structured `errors[]` would
-      // require either: (a) walking the response in the wire layer,
-      // or (b) re-parsing. We pick (a): augment the publish wire path
-      // to surface the structured errors as a typed sub-field. For
-      // now: the notification carries the message; the CodePane's
-      // live parse strip surfaces the parse stage errors immediately
-      // (since the same parser runs client-side). `publishErrors` is
-      // wired so the next augmentation (a) drops straight in.
+      // Phase 6 sweep: ApiError.body now carries the server's 400 response
+      // verbatim — `{ errors: ParseError[] }` from the publish endpoints.
+      // Lift those structured errors into the editor markers so ts-check
+      // and allowlist failures (which only fire server-side) render as
+      // gutter squiggles + clickable strip lines, not just notification
+      // text.
       const message = err instanceof Error ? err.message : String(err);
       notifications.show({
         title: "Publish failed",
         message: `${message} — see error markers`,
         color: "red",
       });
-      // We re-derive the structured errors on the client by parsing
-      // again. This catches jsdoc-parse + signature-semantics errors;
-      // ts-check / allowlist errors only fire server-side, so we'd
-      // need the server response body to surface them as markers —
-      // pending the wire augmentation, the user sees them in the
-      // notification's message body.
-      const reparse = parseDynamicNodeSignature(currentText);
-      setPublishErrors(reparse.errors);
+      const serverErrors = extractServerParseErrors(err);
+      if (serverErrors.length > 0) {
+        setPublishErrors(serverErrors);
+      } else {
+        // Server didn't return structured errors (e.g. 5xx, network) —
+        // fall back to a client-side reparse so the user still sees
+        // jsdoc-parse + signature-semantics issues in the strip.
+        const reparse = parseDynamicNodeSignature(currentText);
+        setPublishErrors(reparse.errors);
+      }
     }
   };
 

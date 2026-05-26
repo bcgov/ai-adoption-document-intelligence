@@ -35,7 +35,7 @@ import { ActivityCatalogResponseDto } from "./dto/activity-catalog-response.dto"
  * (US-173 Scenario 4); the controller is stateless.
  */
 @ApiTags("activity-catalog")
-@Controller("activity-catalog")
+@Controller("api/activity-catalog")
 export class ActivityCatalogController {
   constructor(private readonly dynamicNodesService: DynamicNodesService) {}
 

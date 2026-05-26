@@ -62,11 +62,20 @@ export interface SourceUploadResponse {
  */
 export class ApiError extends Error {
   readonly status: number;
+  /**
+   * Phase 6 (post-Milestone-F sweep): the raw response body, when present
+   * and JSON-parseable. Lifted through so consumers can read structured
+   * fields (e.g. dynamic-node publish endpoints return
+   * `{ errors: ParseError[] }` on 400 — the editor's gutter markers consume
+   * this without falling back to free-text re-parsing).
+   */
+  readonly body?: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.body = body;
   }
 }
 

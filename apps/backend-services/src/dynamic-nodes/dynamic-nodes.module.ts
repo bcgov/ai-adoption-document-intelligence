@@ -20,7 +20,18 @@ import { DynamicNodesService } from "./dynamic-nodes.service";
 @Module({
   imports: [DatabaseModule],
   controllers: [DynamicNodesController],
-  providers: [DynamicNodeRepository, DenoRunnerClient, DynamicNodesService],
+  providers: [
+    DynamicNodeRepository,
+    {
+      // Factory provider so Nest doesn't try to DI-resolve the constructor's
+      // `options` object — the client picks up `DENO_RUNNER_URL` from env on
+      // construction; tests instantiate `new DenoRunnerClient({ baseUrl, fetchImpl })`
+      // directly without going through DI.
+      provide: DenoRunnerClient,
+      useFactory: () => new DenoRunnerClient(),
+    },
+    DynamicNodesService,
+  ],
   exports: [DynamicNodeRepository, DynamicNodesService],
 })
 export class DynamicNodesModule {}

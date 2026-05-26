@@ -290,6 +290,40 @@ async function executeActivityNode(
   // caches when a republish mints a new versionId.
   const isDynamicNode = node.activityType.startsWith("dyn.");
 
+  // Phase 6 (sweep follow-on #2): for dyn.* nodes, pre-resolve the lineage
+  // to an immutable versionId BEFORE entering the cache decorator. We then
+  // pass a synthetic node carrying `__dynamicNodeResolvedVersionId` in
+  // `parameters` so Phase 4's configHash mixes in the resolved version
+  // naturally — republishing a head-pinned lineage mints a new versionId,
+  // configHash changes, cache misses, fresh execution. Pinned consumers
+  // resolve the same versionId every time → cache hits work as expected.
+  //
+  // For @deterministic-true scripts this is the load-bearing piece that
+  // makes Phase 4 caching meaningful for dynamic nodes.
+  let nodeForCache = node;
+  let resolvedVersionId: string | undefined;
+  if (isDynamicNode) {
+    const slug = node.activityType.slice("dyn.".length);
+    if (slug.length > 0 && state.groupId != null) {
+      const resolveProxy = proxyActivities<DynamicNodeActivities>(
+        RESOLVE_LINEAGE_ACTIVITY_OPTIONS,
+      );
+      const resolved = await resolveProxy["dynamicNode.resolveLineage"]({
+        groupId: state.groupId,
+        slug,
+        version: node.dynamicNodeVersion,
+      });
+      resolvedVersionId = resolved.versionId;
+      nodeForCache = {
+        ...node,
+        parameters: {
+          ...(node.parameters ?? {}),
+          __dynamicNodeResolvedVersionId: resolved.versionId,
+        },
+      };
+    }
+  }
+
   const rawExecute = async (): Promise<Record<string, unknown>> => {
     // Resolve input port bindings (deferred until miss so cache hits skip it).
     const inputs: Record<string, unknown> = {};
@@ -302,7 +336,12 @@ async function executeActivityNode(
     let result: Record<string, unknown>;
 
     if (isDynamicNode) {
-      result = await dispatchDynamicNode(node, state, inputs);
+      result = await dispatchDynamicNode(
+        node,
+        state,
+        inputs,
+        resolvedVersionId,
+      );
     } else {
       // Merge static parameters with resolved inputs; inject system fields.
       let activityParams = buildActivityParams(node, state, inputs);
@@ -341,7 +380,7 @@ async function executeActivityNode(
     // canvas can surface which inputs produced the cached output.
     const result = await executeCachedActivity(
       state.cacheDeps,
-      node,
+      nodeForCache,
       state.ctx,
       state.workflowLineageId,
       rawExecute,
@@ -384,6 +423,13 @@ async function dispatchDynamicNode(
   node: ActivityNode,
   state: ExecutionState,
   inputs: Record<string, unknown>,
+  /**
+   * Phase 6 (sweep follow-on #2): when the executor pre-resolved the
+   * versionId before entering the cache decorator (so configHash mixes it
+   * in), pass it here to avoid a redundant resolveLineage round-trip.
+   * Falls back to inline resolution for legacy / uncached callers.
+   */
+  preResolvedVersionId?: string,
 ): Promise<Record<string, unknown>> {
   const slug = node.activityType.slice("dyn.".length);
   if (slug.length === 0) {
@@ -409,15 +455,22 @@ async function dispatchDynamicNode(
   }
   const apiKey = state.apiKey ?? "";
 
-  // (1) Resolve lineage → versionId.
-  const resolveProxy = proxyActivities<DynamicNodeActivities>(
-    RESOLVE_LINEAGE_ACTIVITY_OPTIONS,
-  );
-  const { versionId } = await resolveProxy["dynamicNode.resolveLineage"]({
-    groupId: state.groupId,
-    slug,
-    version: node.dynamicNodeVersion,
-  });
+  // (1) Resolve lineage → versionId — skipped when the executor already did
+  // it above the cache decorator (sweep follow-on #2).
+  let versionId: string;
+  if (preResolvedVersionId !== undefined) {
+    versionId = preResolvedVersionId;
+  } else {
+    const resolveProxy = proxyActivities<DynamicNodeActivities>(
+      RESOLVE_LINEAGE_ACTIVITY_OPTIONS,
+    );
+    const resolved = await resolveProxy["dynamicNode.resolveLineage"]({
+      groupId: state.groupId,
+      slug,
+      version: node.dynamicNodeVersion,
+    });
+    versionId = resolved.versionId;
+  }
 
   // (2) Invoke dyn.run with the resolved versionId.
   const dynRunProxy = proxyActivities<DynRunActivities>(
