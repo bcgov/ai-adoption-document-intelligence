@@ -17,7 +17,6 @@ import { RowDto, RowListDto } from "./dto/row.dto";
 import {
   CreateTableDto,
   TableDetailDto,
-  TableSummaryDto,
   UpdateTableMetadataDto,
 } from "./dto/table.dto";
 import { TablesController } from "./tables.controller";
@@ -29,6 +28,7 @@ describe("TablesController", () => {
 
   const mockTablesService = {
     listTables: jest.fn(),
+    getRowCountsForGroup: jest.fn(),
     getTable: jest.fn(),
     createTable: jest.fn(),
     updateTableMetadata: jest.fn(),
@@ -89,12 +89,14 @@ describe("TablesController", () => {
   // 1. listTables — happy path
   // -------------------------------------------------------------------------
   describe("GET /api/tables (listTables)", () => {
-    it("returns TableSummaryDto[] with row_count 0 on happy path", async () => {
+    it("returns TableSummaryDto[] with actual row counts", async () => {
       const dbRows = [
         { ...baseTable, table_id: "tbl_a", label: "A" },
         { ...baseTable, table_id: "tbl_b", label: "B" },
       ];
+      const rowCounts = { tbl_a: 5, tbl_b: 3 };
       mockTablesService.listTables.mockResolvedValue(dbRows);
+      mockTablesService.getRowCountsForGroup.mockResolvedValue(rowCounts);
 
       const result = await controller.listTables(mockReq, "group-1");
 
@@ -106,10 +108,12 @@ describe("TablesController", () => {
         "group-1",
       );
       expect(service.listTables).toHaveBeenCalledWith("group-1");
+      expect(service.getRowCountsForGroup).toHaveBeenCalledWith("group-1");
       expect(result).toHaveLength(2);
-      const summary = result[0] as TableSummaryDto;
-      expect(summary.row_count).toBe(0);
-      expect(summary.table_id).toBe("tbl_a");
+      expect(result[0].row_count).toBe(5);
+      expect(result[0].table_id).toBe("tbl_a");
+      expect(result[1].row_count).toBe(3);
+      expect(result[1].table_id).toBe("tbl_b");
     });
 
     // 2. listTables — forbidden

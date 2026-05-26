@@ -44,6 +44,22 @@ export class TablesDbService {
     });
   }
 
+  async getRowCountsForGroup(
+    group_id: string,
+  ): Promise<Record<string, number>> {
+    const counts = await this.prisma.$queryRaw<
+      Array<{ table_id: string; count: bigint }>
+    >`
+      SELECT table_id, COUNT(*) as count
+      FROM reference_table_rows
+      WHERE group_id = ${group_id}
+      GROUP BY table_id
+    `;
+    return Object.fromEntries(
+      counts.map((row) => [row.table_id, Number(row.count)]),
+    );
+  }
+
   async updateTableMetadata(
     group_id: string,
     table_id: string,

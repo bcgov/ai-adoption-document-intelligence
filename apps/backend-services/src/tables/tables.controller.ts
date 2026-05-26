@@ -60,14 +60,17 @@ export class TablesController {
     @Query("group_id") group_id: string,
   ): Promise<TableSummaryDto[]> {
     identityCanAccessGroup(req.resolvedIdentity, group_id);
-    const tables = await this.svc.listTables(group_id);
+    const [tables, rowCounts] = await Promise.all([
+      this.svc.listTables(group_id),
+      this.svc.getRowCountsForGroup(group_id),
+    ]);
     return tables.map((t) => ({
       id: t.id,
       group_id: t.group_id,
       table_id: t.table_id,
       label: t.label,
       description: t.description,
-      row_count: 0,
+      row_count: rowCounts[t.table_id] ?? 0,
       updated_at: t.updated_at,
     }));
   }

@@ -82,6 +82,10 @@ export class TablesService {
     return this.db.listTables(group_id);
   }
 
+  async getRowCountsForGroup(group_id: string) {
+    return this.db.getRowCountsForGroup(group_id);
+  }
+
   async getTable(group_id: string, table_id: string) {
     return this.db.findTable(group_id, table_id);
   }
