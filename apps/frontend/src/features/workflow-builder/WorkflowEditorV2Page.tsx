@@ -33,6 +33,7 @@ import {
   Drawer,
   Group,
   Loader,
+  Menu,
   Stack,
   Switch,
   Text,
@@ -49,6 +50,7 @@ import {
   IconCircleCheck,
   IconClipboardList,
   IconDeviceFloppy,
+  IconDots,
   IconExclamationCircle,
   IconHelp,
   IconHistory,
@@ -760,7 +762,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         <Group
           justify="space-between"
           wrap="nowrap"
-          gap="sm"
+          gap="md"
           p="sm"
           style={{
             borderBottom:
@@ -768,7 +770,11 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             background: "var(--mantine-color-body, #1a1b1e)",
           }}
         >
-          <Stack gap={2} style={{ minWidth: 0 }}>
+          <Stack
+            gap={2}
+            style={{ minWidth: 0, flexShrink: 0 }}
+            data-testid="topbar-zone-left"
+          >
             <Title order={5} m={0}>
               Workflow editor (visual)
             </Title>
@@ -779,22 +785,31 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               {isEditMode ? " · editing" : " · creating"}
             </Text>
           </Stack>
-          <Group gap="xs" wrap="nowrap">
-            <TopBarReplayIndicator />
+
+          <Group
+            gap="xs"
+            wrap="nowrap"
+            style={{ flex: 1, minWidth: 0 }}
+            data-testid="topbar-zone-center"
+          >
             <TextInput
               label="Name"
               value={name}
               onChange={(e) => setName(e.currentTarget.value)}
               size="xs"
-              style={{ minWidth: 200 }}
+              style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
             />
             <TextInput
               label="Description"
               value={description}
               onChange={(e) => setDescription(e.currentTarget.value)}
               size="xs"
-              style={{ minWidth: 200 }}
+              style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
             />
+          </Group>
+
+          <Group gap="xs" wrap="nowrap" data-testid="topbar-zone-right">
+            <TopBarReplayIndicator />
             <ValidationButton
               errorCount={validation.errorCount}
               warningCount={validation.warningCount}
@@ -805,48 +820,6 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               }}
             />
             <Button
-              variant="light"
-              leftSection={<IconLayoutDistributeHorizontal size={14} />}
-              onClick={handleAutoArrange}
-              size="xs"
-              data-testid="auto-arrange-button"
-              disabled={nodeCount === 0}
-            >
-              Auto-arrange
-            </Button>
-            <Switch
-              label="Simplified view"
-              size="xs"
-              checked={simplifiedView}
-              onChange={(e) =>
-                handleSimplifiedViewChange(e.currentTarget.checked)
-              }
-              data-testid="simplified-view-toggle"
-            />
-            <Button
-              variant="light"
-              leftSection={<IconUsersGroup size={14} />}
-              onClick={handleGroupSelected}
-              size="xs"
-              data-testid="group-selected-btn"
-              disabled={selectedNodeIds.length < 2}
-              title={
-                selectedNodeIds.length < 2
-                  ? "Select 2+ nodes to group them"
-                  : "Group selected nodes"
-              }
-            >
-              Group selected
-            </Button>
-            <Button
-              variant="light"
-              leftSection={<IconSettings size={14} />}
-              onClick={() => setSettingsOpen(true)}
-              size="xs"
-            >
-              Settings
-            </Button>
-            <Button
               leftSection={<IconDeviceFloppy size={14} />}
               onClick={handleSave}
               loading={isSaving}
@@ -854,45 +827,6 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               data-testid="save-button"
             >
               Save
-            </Button>
-            <Tooltip label="Save the workflow first" disabled={!!workflowId}>
-              <Button
-                variant="light"
-                leftSection={<IconHistory size={14} />}
-                onClick={() => setHistoryDrawerOpen(true)}
-                size="xs"
-                data-testid="history-button"
-                disabled={!workflowId}
-              >
-                History
-              </Button>
-            </Tooltip>
-            <Tooltip label="Save the workflow first" disabled={!!workflowId}>
-              <Button
-                variant="light"
-                leftSection={<IconClipboardList size={14} />}
-                onClick={() => setRunHistoryDrawerOpen(true)}
-                size="xs"
-                data-testid="run-history-button"
-                disabled={!workflowId}
-              >
-                Run history
-              </Button>
-            </Tooltip>
-            <Button
-              variant="light"
-              leftSection={<IconPlayerPlay size={14} />}
-              onClick={() => setRunDrawerMode("run")}
-              size="xs"
-              data-testid="run-this-workflow-button"
-              disabled={!isEditMode || !workflowId}
-              title={
-                !isEditMode || !workflowId
-                  ? "Save the workflow first to enable Run."
-                  : "Open the run-trigger panel for this workflow"
-              }
-            >
-              Run this workflow
             </Button>
             {tryButtonVisible && (
               <Tooltip
@@ -914,29 +848,126 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             )}
             <Button
               variant="light"
-              leftSection={<IconBookmark size={14} />}
-              onClick={() => setSaveAsLibraryOpen(true)}
+              leftSection={<IconPlayerPlay size={14} />}
+              onClick={() => setRunDrawerMode("run")}
               size="xs"
-              data-testid="save-as-library-button"
-              disabled={nodeCount === 0}
+              data-testid="run-this-workflow-button"
+              disabled={!isEditMode || !workflowId}
               title={
-                nodeCount === 0
-                  ? "Add at least one node before saving as a library"
-                  : "Save the current workflow as a reusable library"
+                !isEditMode || !workflowId
+                  ? "Save the workflow first to enable Run."
+                  : "Open the run-trigger panel for this workflow"
               }
             >
-              Save as library
+              Run this workflow
             </Button>
-            <Button
-              variant="subtle"
-              leftSection={<IconHelp size={14} />}
-              component="a"
-              href="/workflows/dev-form-preview"
-              target="_blank"
-              size="xs"
-            >
-              Form preview
-            </Button>
+            <Menu position="bottom-end" withArrow shadow="md">
+              <Menu.Target>
+                <Button
+                  variant="light"
+                  leftSection={<IconDots size={14} />}
+                  size="xs"
+                  data-testid="topbar-more-button"
+                >
+                  More
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconHistory size={14} />}
+                  disabled={!workflowId}
+                  onClick={() => setHistoryDrawerOpen(true)}
+                  data-testid="topbar-menu-history"
+                  data-disabled={!workflowId}
+                  title={!workflowId ? "Save the workflow first" : undefined}
+                >
+                  History
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconClipboardList size={14} />}
+                  disabled={!workflowId}
+                  onClick={() => setRunHistoryDrawerOpen(true)}
+                  data-testid="topbar-menu-run-history"
+                  data-disabled={!workflowId}
+                  title={!workflowId ? "Save the workflow first" : undefined}
+                >
+                  Run history
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconBookmark size={14} />}
+                  disabled={nodeCount === 0}
+                  onClick={() => setSaveAsLibraryOpen(true)}
+                  data-testid="topbar-menu-save-as-library"
+                  data-disabled={nodeCount === 0}
+                  title={
+                    nodeCount === 0
+                      ? "Add at least one node before saving as a library"
+                      : undefined
+                  }
+                >
+                  Save as library
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
+                  leftSection={<IconLayoutDistributeHorizontal size={14} />}
+                  disabled={nodeCount === 0}
+                  onClick={handleAutoArrange}
+                  data-testid="topbar-menu-auto-arrange"
+                  data-disabled={nodeCount === 0}
+                >
+                  Auto-arrange
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconUsersGroup size={14} />}
+                  disabled={selectedNodeIds.length < 2}
+                  onClick={handleGroupSelected}
+                  data-testid="topbar-menu-group-selected"
+                  data-disabled={selectedNodeIds.length < 2}
+                  title={
+                    selectedNodeIds.length < 2
+                      ? "Select 2+ nodes to group them"
+                      : undefined
+                  }
+                >
+                  Group selected
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={
+                    <Switch
+                      size="xs"
+                      checked={simplifiedView}
+                      onChange={(e) =>
+                        handleSimplifiedViewChange(e.currentTarget.checked)
+                      }
+                      aria-label="Toggle simplified view"
+                      data-testid="simplified-view-toggle"
+                      styles={{ track: { cursor: "pointer" } }}
+                    />
+                  }
+                  closeMenuOnClick={false}
+                  data-testid="topbar-menu-simplified-view"
+                >
+                  Simplified view
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
+                  leftSection={<IconSettings size={14} />}
+                  onClick={() => setSettingsOpen(true)}
+                  data-testid="topbar-menu-workflow-settings"
+                >
+                  Workflow settings
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconHelp size={14} />}
+                  component="a"
+                  href="/workflows/dev-form-preview"
+                  target="_blank"
+                  data-testid="topbar-menu-form-preview"
+                >
+                  Form preview
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Group>
 

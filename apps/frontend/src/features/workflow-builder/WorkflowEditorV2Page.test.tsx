@@ -21,6 +21,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -129,6 +130,14 @@ vi.mock("./run/RunWorkflowDrawer", () => ({
       />
     ) : null;
   },
+}));
+
+// Dynamic-node merged catalog hook calls `useGroup()`, which requires the
+// app-level `GroupProvider` upstream. Tests don't mount that provider, so
+// stub the hook + the helper the page imports alongside it.
+vi.mock("./dynamic-nodes", () => ({
+  useActivityCatalog: () => ({ entries: [], isLoading: false, error: null }),
+  materialiseParamDefaults: () => ({}),
 }));
 
 vi.mock("./validation/useGraphValidation", () => ({
@@ -415,40 +424,68 @@ describe("WorkflowEditorV2Page — US-041: Group selected button", () => {
     return makeTemplate(buildTemplateConfig({ positions: "all" }));
   }
 
-  it("Scenario 1: button is enabled once 2 nodes are selected", () => {
+  /**
+   * Task 6 moved the secondary actions (including "Group selected")
+   * into a Mantine `<Menu>` opened by the `topbar-more-button`. The
+   * Menu's dropdown body is lazy-mounted; this helper clicks the
+   * trigger inside an `act(...)` so React's microtask queue flushes
+   * before tests read menu items.
+   */
+  async function openMoreMenu() {
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+  }
+
+  it("Scenario 1: button is enabled once 2 nodes are selected", async () => {
     renderPage(makeTwoNodeTemplate());
-    const button = screen.getByTestId("group-selected-btn");
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-group-selected");
     // Starts disabled — no selection yet.
-    expect(button).toBeDisabled();
+    expect(item).toHaveAttribute("data-disabled", "true");
     dispatchSelection(["a", "b"]);
-    expect(button).not.toBeDisabled();
+    // Menu re-renders synchronously on parent state change.
+    expect(
+      screen.getByTestId("topbar-menu-group-selected"),
+    ).not.toHaveAttribute("data-disabled", "true");
   });
 
-  it("Scenario 2: button is disabled when 0 or 1 nodes are selected", () => {
+  it("Scenario 2: button is disabled when 0 or 1 nodes are selected", async () => {
     renderPage(makeTwoNodeTemplate());
-    const button = screen.getByTestId("group-selected-btn");
-    expect(button).toBeDisabled();
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-group-selected");
+    expect(item).toHaveAttribute("data-disabled", "true");
     // One node selected → still disabled.
     dispatchSelection(["a"]);
-    expect(button).toBeDisabled();
-    // Tooltip on disabled button surfaces the hint.
-    expect(button).toHaveAttribute("title", "Select 2+ nodes to group them");
+    expect(screen.getByTestId("topbar-menu-group-selected")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
+    // Tooltip/title on disabled menu item surfaces the hint.
+    expect(screen.getByTestId("topbar-menu-group-selected")).toHaveAttribute(
+      "title",
+      "Select 2+ nodes to group them",
+    );
     // Clearing the selection keeps the button disabled.
     dispatchSelection([]);
-    expect(button).toBeDisabled();
+    expect(screen.getByTestId("topbar-menu-group-selected")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
   });
 
-  it("Scenario 3: clicking adds a nodeGroups[<id>] entry to the next config", () => {
+  it("Scenario 3: clicking adds a nodeGroups[<id>] entry to the next config", async () => {
     renderPage(makeTwoNodeTemplate());
     dispatchSelection(["a", "b"]);
-    const button = screen.getByTestId("group-selected-btn");
-    expect(button).not.toBeDisabled();
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-group-selected");
+    expect(item).not.toHaveAttribute("data-disabled", "true");
     // Capture the config the canvas was being fed BEFORE the click so
     // we can prove the new group was added by the click handler.
     const before = capturedCanvasProps.current?.config as GraphWorkflowConfig;
     expect(before.nodeGroups ?? {}).toEqual({});
     act(() => {
-      fireEvent.click(button);
+      fireEvent.click(item);
     });
     const after = capturedCanvasProps.current?.config as GraphWorkflowConfig;
     expect(after.nodeGroups).toBeDefined();
@@ -488,9 +525,14 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
     const positionsBefore = readPositionsFromCanvas();
     expect(positionsBefore.a).toEqual({ x: 10, y: 20 });
 
-    const button = screen.getByTestId("auto-arrange-button");
+    // Task 6 moved Auto-arrange into the More menu. Open the menu, then
+    // click the menu item.
     await act(async () => {
-      fireEvent.click(button);
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+    const item = await screen.findByTestId("topbar-menu-auto-arrange");
+    await act(async () => {
+      fireEvent.click(item);
       // The handler defers fitView one macrotask via setTimeout.
       await new Promise((resolve) => setTimeout(resolve, 5));
     });
@@ -510,10 +552,13 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
     expect(fitViewMock).toHaveBeenCalled();
   });
 
-  it("is disabled when the editor has no nodes", () => {
+  it("is disabled when the editor has no nodes", async () => {
     renderPage();
-    const button = screen.getByTestId("auto-arrange-button");
-    expect(button).toBeDisabled();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+    const item = await screen.findByTestId("topbar-menu-auto-arrange");
+    expect(item).toHaveAttribute("data-disabled", "true");
   });
 });
 
@@ -529,17 +574,29 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
     fitViewMock.mockClear();
   });
 
-  it("Scenario 1: a 'Simplified view' Switch is present in the top bar", () => {
+  /**
+   * Task 6 moved the simplified-view Switch into the More menu. Tests
+   * open the menu before reaching for the Switch input.
+   */
+  async function openMoreMenu() {
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+  }
+
+  it("Scenario 1: a 'Simplified view' Switch is present in the top bar", async () => {
     renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
-    const toggle = screen.getByTestId("simplified-view-toggle");
+    await openMoreMenu();
+    const toggle = await screen.findByTestId("simplified-view-toggle");
     expect(toggle).toBeInTheDocument();
   });
 
-  it("passes the toggle state through to the canvas (false → true → false)", () => {
+  it("passes the toggle state through to the canvas (false → true → false)", async () => {
     renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
     // Starts OFF — canvas receives `simplifiedView: false`.
     expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
-    const toggle = screen.getByTestId("simplified-view-toggle");
+    await openMoreMenu();
+    const toggle = await screen.findByTestId("simplified-view-toggle");
     act(() => {
       fireEvent.click(toggle);
     });
@@ -570,9 +627,10 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
     expect(screen.getByTestId("group-node-settings")).toBeInTheDocument();
   });
 
-  it("clears any activeGroupId when the simplified-view toggle flips OFF", () => {
+  it("clears any activeGroupId when the simplified-view toggle flips OFF", async () => {
     renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
-    const toggle = screen.getByTestId("simplified-view-toggle");
+    await openMoreMenu();
+    const toggle = await screen.findByTestId("simplified-view-toggle");
     // Flip ON, then click a chip to set activeGroupId.
     act(() => {
       fireEvent.click(toggle);
@@ -652,12 +710,24 @@ describe("WorkflowEditorV2Page — US-081: History top-bar button", () => {
     fitViewMock.mockClear();
   });
 
-  it("Scenario 1: renders the History button in edit mode and clicking it opens the drawer", async () => {
+  /**
+   * Task 6 moved the History action from a top-level button into the
+   * More menu. Each test opens the menu before interacting with the
+   * `topbar-menu-history` item.
+   */
+  async function openMoreMenu() {
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+  }
+
+  it("Scenario 1: renders the History menu item in edit mode and clicking it opens the drawer", async () => {
     renderEditPage("workflow-7");
-    const button = screen.getByTestId("history-button");
-    expect(button).toBeInTheDocument();
-    expect(button).toHaveTextContent(/History/i);
-    expect(button).not.toBeDisabled();
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-history");
+    expect(item).toBeInTheDocument();
+    expect(item).toHaveTextContent(/History/i);
+    expect(item).not.toHaveAttribute("data-disabled", "true");
 
     // Mantine only renders the Drawer body when `opened=true`. The
     // `useWorkflowVersions` mock in this file returns an empty list, so
@@ -668,7 +738,7 @@ describe("WorkflowEditorV2Page — US-081: History top-bar button", () => {
     ).not.toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(button);
+      fireEvent.click(item);
     });
 
     // The Drawer body mounts inside a Mantine portal — `findByTestId`
@@ -678,42 +748,43 @@ describe("WorkflowEditorV2Page — US-081: History top-bar button", () => {
     expect(emptyState).toBeInTheDocument();
   });
 
-  it("Scenario 1: History button sits between Save and Run this workflow in the DOM", () => {
+  it("Scenario 1: More menu trigger sits after Save and Run this workflow in the DOM", () => {
+    // Task 6 placed History inside the More menu (a portaled dropdown),
+    // so the original "between Save and Run" ordering no longer applies.
+    // The right-zone primary cluster keeps Save → Run → More, and the
+    // History menu item lives inside More.
     renderEditPage("workflow-7");
     const saveBtn = screen.getByTestId("save-button");
-    const historyBtn = screen.getByTestId("history-button");
     const runBtn = screen.getByTestId("run-this-workflow-button");
+    const moreBtn = screen.getByTestId("topbar-more-button");
 
-    // `compareDocumentPosition` returns a bitmask. The bit `DOCUMENT_POSITION_FOLLOWING`
-    // (4) is set when the argument node follows the receiver in
-    // document order.
     expect(
-      saveBtn.compareDocumentPosition(historyBtn) &
+      saveBtn.compareDocumentPosition(runBtn) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      historyBtn.compareDocumentPosition(runBtn) &
+      runBtn.compareDocumentPosition(moreBtn) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  it("Scenario 2: History button is disabled in create mode", () => {
+  it("Scenario 2: History menu item is disabled in create mode", async () => {
     renderPage();
-    const button = screen.getByTestId("history-button");
-    expect(button).toBeDisabled();
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-history");
+    expect(item).toHaveAttribute("data-disabled", "true");
   });
 
-  it("Scenario 2: tooltip 'Save the workflow first' surfaces on hover when the button is disabled", async () => {
+  it("Scenario 2: History menu item surfaces 'Save the workflow first' via its title attribute when disabled", async () => {
     renderPage();
-    const button = screen.getByTestId("history-button");
-    expect(button).toBeDisabled();
-    // Same pattern as DocumentUploadPanel's tooltip test — Mantine's
-    // Tooltip relays hover from a disabled child via its wrapper, so
-    // `mouseEnter` on the button surfaces the floating label.
-    fireEvent.mouseEnter(button);
-    await waitFor(() => {
-      expect(screen.getByText("Save the workflow first")).toBeInTheDocument();
-    });
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-history");
+    expect(item).toHaveAttribute("data-disabled", "true");
+    // Menu items inside Mantine's Menu don't have a Tooltip wrapper here
+    // (Mantine's Menu.Item ignores Tooltip wrapping cleanly). The page
+    // sets `title="Save the workflow first"` on the disabled item so the
+    // hint still surfaces natively on hover.
+    expect(item).toHaveAttribute("title", "Save the workflow first");
   });
 });
 
@@ -730,59 +801,67 @@ describe("WorkflowEditorV2Page — US-153: Run history top-bar button", () => {
     fitViewMock.mockClear();
   });
 
-  it("Scenario 1: renders the Run history button in edit mode and clicking it opens the drawer", async () => {
+  /**
+   * Task 6 moved Run history into the More menu. Open the menu before
+   * interacting with the `topbar-menu-run-history` item.
+   */
+  async function openMoreMenu() {
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+  }
+
+  it("Scenario 1: renders the Run history menu item in edit mode and clicking it opens the drawer", async () => {
     renderEditPage("workflow-7");
-    const button = screen.getByTestId("run-history-button");
-    expect(button).toBeInTheDocument();
-    expect(button).toHaveTextContent(/Run history/i);
-    expect(button).not.toBeDisabled();
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-run-history");
+    expect(item).toBeInTheDocument();
+    expect(item).toHaveTextContent(/Run history/i);
+    expect(item).not.toHaveAttribute("data-disabled", "true");
 
     // Drawer body is gated by `opened={runHistoryDrawerOpen}` — the
     // `run-history-drawer` body-testid is only in the DOM after click.
     expect(screen.queryByTestId("run-history-drawer")).not.toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(button);
+      fireEvent.click(item);
     });
 
     const body = await screen.findByTestId("run-history-drawer");
     expect(body).toBeInTheDocument();
   });
 
-  it("Scenario 1: Run history button sits between Save and Run this workflow in the DOM", () => {
+  it("Scenario 1: More menu trigger sits after Save and Run this workflow in the DOM", () => {
+    // Task 6 placed Run history inside the More menu; the right-zone
+    // primary cluster keeps Save → Run → More with secondaries inside.
     renderEditPage("workflow-7");
     const saveBtn = screen.getByTestId("save-button");
-    const runHistoryBtn = screen.getByTestId("run-history-button");
     const runBtn = screen.getByTestId("run-this-workflow-button");
+    const moreBtn = screen.getByTestId("topbar-more-button");
 
     expect(
-      saveBtn.compareDocumentPosition(runHistoryBtn) &
+      saveBtn.compareDocumentPosition(runBtn) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      runHistoryBtn.compareDocumentPosition(runBtn) &
+      runBtn.compareDocumentPosition(moreBtn) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  it("Scenario 1: Run history button is disabled in create mode", () => {
+  it("Scenario 1: Run history menu item is disabled in create mode", async () => {
     renderPage();
-    const button = screen.getByTestId("run-history-button");
-    expect(button).toBeDisabled();
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-run-history");
+    expect(item).toHaveAttribute("data-disabled", "true");
   });
 
-  it("Scenario 1: tooltip 'Save the workflow first' surfaces on hover when the button is disabled", async () => {
+  it("Scenario 1: Run history menu item surfaces 'Save the workflow first' via its title attribute when disabled", async () => {
     renderPage();
-    const button = screen.getByTestId("run-history-button");
-    expect(button).toBeDisabled();
-    fireEvent.mouseEnter(button);
-    await waitFor(() => {
-      // Two buttons share the same tooltip copy (history + run-history)
-      // — `getAllByText` accepts either.
-      expect(
-        screen.getAllByText("Save the workflow first").length,
-      ).toBeGreaterThan(0);
-    });
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-run-history");
+    expect(item).toHaveAttribute("data-disabled", "true");
+    expect(item).toHaveAttribute("title", "Save the workflow first");
   });
 });
 
@@ -1064,7 +1143,9 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
     };
   }
 
-  it("Scenario 1: renders a Try button between Run this workflow and Save as library", () => {
+  it("Scenario 1: renders a Try button between Save and Run this workflow", async () => {
+    // Task 6 reordered the right-zone cluster to Save → Try → Run →
+    // More, and "Save as library" moved into the More menu.
     existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
     renderEditPage("wf-test");
 
@@ -1072,15 +1153,24 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
     expect(tryBtn).toBeInTheDocument();
     expect(tryBtn).toHaveTextContent(/^Try$/);
 
+    const saveBtn = screen.getByTestId("save-button");
     const runBtn = screen.getByTestId("run-this-workflow-button");
-    const saveAsLibraryBtn = screen.getByTestId("save-as-library-button");
     expect(
-      runBtn.compareDocumentPosition(tryBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      tryBtn.compareDocumentPosition(saveAsLibraryBtn) &
+      saveBtn.compareDocumentPosition(tryBtn) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(
+      tryBtn.compareDocumentPosition(runBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // Save as library moved into the More menu — confirm it's available
+    // via the new testid.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+    expect(
+      await screen.findByTestId("topbar-menu-save-as-library"),
+    ).toBeInTheDocument();
   });
 
   it("Scenario 2: Try button is disabled in create mode with the 'Save the workflow first' tooltip", async () => {
@@ -1167,5 +1257,78 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
     renderEditPage("wf-test");
 
     expect(screen.getByTestId("try-button")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 6 — three-zone top bar with Mantine Menu overflow
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — top bar (Task 6)", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedPaletteProps.current = null;
+    capturedRunDrawerProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  function renderEditor() {
+    return renderPage();
+  }
+
+  it("renders the title in the left zone with counts beneath", () => {
+    renderEditor();
+    expect(screen.getByTestId("topbar-zone-left")).toHaveTextContent(
+      /Workflow editor/,
+    );
+    expect(screen.getByTestId("topbar-zone-left")).toHaveTextContent(/node/);
+  });
+
+  it("renders the primary cluster in the right zone with Save and Run", () => {
+    renderEditor();
+    const right = screen.getByTestId("topbar-zone-right");
+    expect(within(right).getByTestId("save-button")).toBeInTheDocument();
+    expect(
+      within(right).getByTestId("run-this-workflow-button"),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the overflow Menu and lists the secondary actions", async () => {
+    renderEditor();
+    const more = screen.getByTestId("topbar-more-button");
+    more.click();
+    expect(
+      await screen.findByTestId("topbar-menu-history"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-menu-run-history")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("topbar-menu-save-as-library"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-menu-auto-arrange")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("topbar-menu-group-selected"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("topbar-menu-simplified-view"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("topbar-menu-workflow-settings"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-menu-form-preview")).toBeInTheDocument();
+  });
+
+  it("disables History and Run history menu items in create mode", async () => {
+    renderEditor();
+    screen.getByTestId("topbar-more-button").click();
+    expect(await screen.findByTestId("topbar-menu-history")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
+    expect(screen.getByTestId("topbar-menu-run-history")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
   });
 });
