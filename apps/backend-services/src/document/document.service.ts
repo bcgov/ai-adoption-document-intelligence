@@ -151,6 +151,26 @@ export class DocumentService {
           fileType,
         );
         await this.blobStorage.write(normalizedKey, pdfBuffer);
+
+        const thumbnailKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.OCR,
+          [documentId],
+          "thumbnail.webp",
+        );
+        try {
+          const thumbnailBuffer =
+            await this.pdfNormalization.generateThumbnailWebp(
+              fileBuffer,
+              fileType,
+            );
+          await this.blobStorage.write(thumbnailKey, thumbnailBuffer);
+          this.logger.debug(`Thumbnail saved: ${thumbnailKey}`);
+        } catch (thumbErr) {
+          this.logger.warn(
+            `Thumbnail generation skipped for ${documentId}: ${thumbErr instanceof Error ? thumbErr.message : String(thumbErr)}`,
+          );
+        }
       } catch (e) {
         if (e instanceof BadRequestException) {
           throw e;
