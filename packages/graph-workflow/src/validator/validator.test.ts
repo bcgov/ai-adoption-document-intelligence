@@ -1811,3 +1811,44 @@ describe("US-094 Scenario 4: regression-safe for non-library and empty-inputs ca
     expect(result.valid).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Auto-wire: validator must accept __auto. ctx keys produced by resolveBindings
+// ---------------------------------------------------------------------------
+
+import { resolveBindings } from "../auto-wire";
+
+describe("validateGraphConfig + resolveBindings: __auto. ctx keys are accepted", () => {
+  it("emits zero errors after resolveBindings auto-wires a two-node activity chain", () => {
+    // file.prepare (outputs preparedData: Document)
+    //   → azureOcr.submit (inputs fileData: Document)
+    // After resolveBindings, both nodes carry __auto. ctx keys that must not
+    // trip the "undeclared ctx key" validator check.
+    const base: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "A",
+      ctx: {},
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare",
+        } as ActivityNode,
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Submit",
+        } as ActivityNode,
+      },
+      edges: [{ id: "e1", source: "A", target: "B", type: "normal" }],
+    };
+
+    const resolved = resolveBindings(base);
+    const result = validateGraphConfig(resolved, ALWAYS_REGISTERED_OPTIONS);
+
+    expect(result.errors).toEqual([]);
+  });
+});

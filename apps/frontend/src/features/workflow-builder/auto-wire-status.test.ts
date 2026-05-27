@@ -86,4 +86,25 @@ describe("computeNodeStatus", () => {
     });
     expect(computeNodeStatus(cfg, "Z")).toBe("unsatisfied");
   });
+
+  it("returns 'ok' when every input port has kind 'Artifact' (identifier-style — invisible to status)", () => {
+    // file.prepare has multiple Artifact-kinded identifier inputs (documentId,
+    // fileName, fileType, contentType) plus one Document-kinded input (blobKey).
+    // This test exercises a node where we supply `blobKey` as locked so the
+    // only remaining ports for status computation are the Artifact-kinded ones,
+    // which should be completely invisible — status must be "ok".
+    const cfg = makeConfig({
+      A: {
+        id: "A",
+        type: "activity",
+        activityType: "file.prepare",
+        label: "A",
+        inputs: [{ port: "blobKey", ctxKey: "myBlobKey" }],
+        metadata: { lockedInputPorts: ["blobKey"] },
+      },
+    });
+    // With blobKey locked and all remaining inputs being Artifact-kinded,
+    // computeNodeStatus should return "ok" (not "unsatisfied").
+    expect(computeNodeStatus(cfg, "A")).toBe("ok");
+  });
 });

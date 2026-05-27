@@ -6,6 +6,7 @@ import {
   type KindRef,
   type PortResolution,
   resolveInputPort,
+  shouldAutoWirePort,
   synthesiseCtxKey,
 } from "@ai-di/graph-workflow";
 import { Badge, Button, Group, Modal, Stack, Text } from "@mantine/core";
@@ -148,12 +149,12 @@ export function InputsSection({
       <Text size="xs" fw={600}>
         Inputs
       </Text>
-      {entry.inputs.length === 0 && (
+      {entry.inputs.filter(shouldAutoWirePort).length === 0 && (
         <Text size="10px" c="dimmed">
           None.
         </Text>
       )}
-      {entry.inputs.map((port) => {
+      {entry.inputs.filter(shouldAutoWirePort).map((port) => {
         const portKind = port.kind as KindRef | undefined;
         const rawResolution = resolveInputPort(config, nodeId, {
           name: port.name,

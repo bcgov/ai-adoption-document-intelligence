@@ -133,4 +133,32 @@ describe("resolveBindings", () => {
     expect(twice).toEqual(once);
   });
 
+  it("does NOT auto-stamp Artifact-kinded ports even when a compatible upstream exists", () => {
+    // file.prepare has `documentId` and `blobKey` inputs. `documentId` has
+    // kind "Artifact" (identifier-style, should be skipped). `blobKey` has
+    // kind "Document" (typed, eligible). Supply an upstream Document producer
+    // and confirm the Artifact port stays unbound while the Document port
+    // gets bound normally.
+    //
+    // We use `azureOcr.submit` as the upstream producer (outputs `requestId`
+    // of kind Reference and nothing Document-typed), so `blobKey` stays
+    // unsatisfied too — meaning neither input binding should be stamped.
+    // The goal: zero inputs stamped on B (no Artifact port picked up spuriously).
+    const cfg = makeConfig(
+      {
+        A: activity("A", "azureOcr.submit"),
+        B: activity("B", "file.prepare"),
+      },
+      [{ source: "A", target: "B" }],
+    );
+
+    const out = resolveBindings(cfg);
+
+    // No input bindings should be auto-stamped on B — the only eligible port
+    // is `blobKey: Document` but A produces no Document output. The
+    // `documentId: Artifact` port must be invisible to the resolver.
+    expect(out.nodes.B.inputs ?? []).toEqual([]);
+    // A should carry no output bindings either.
+    expect(out.nodes.A.outputs ?? []).toEqual([]);
+  });
 });

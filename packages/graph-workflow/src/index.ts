@@ -93,6 +93,7 @@ export {
   type PortResolution,
   resolveBindings,
   resolveInputPort,
+  shouldAutoWirePort,
   stripRedundantLocks,
   synthesiseCtxKey,
   upstreamNodesWithDistance,

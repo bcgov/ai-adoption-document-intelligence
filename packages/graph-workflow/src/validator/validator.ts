@@ -37,6 +37,7 @@ import type {
   ValueRef,
 } from "../types";
 import type { KindRef } from "../types/artifacts";
+import { isAutoCtxKey } from "../auto-wire";
 import { isAssignable } from "../types/subtype-check";
 import { getCtxRootKey, getRefCtxRootKey } from "./context-utils";
 import { isValidTemporalDuration } from "./duration";
@@ -610,6 +611,10 @@ function validatePortBindings(
     if (node.inputs) {
       for (let i = 0; i < node.inputs.length; i++) {
         const binding = node.inputs[i];
+        // Auto-synthesised keys are resolver-internal — they are produced by
+        // the resolver and consumed only by the resolver / engine; they never
+        // need a `config.ctx` row.
+        if (isAutoCtxKey(binding.ctxKey)) continue;
         const rootKey = getCtxRootKey(binding.ctxKey);
         if (!declaredCtxKeys.has(rootKey)) {
           errors.push({
@@ -624,6 +629,8 @@ function validatePortBindings(
     if (node.outputs) {
       for (let i = 0; i < node.outputs.length; i++) {
         const binding = node.outputs[i];
+        // Auto-synthesised keys are resolver-internal — skip ctx declaration check.
+        if (isAutoCtxKey(binding.ctxKey)) continue;
         const rootKey = getCtxRootKey(binding.ctxKey);
         if (!declaredCtxKeys.has(rootKey)) {
           errors.push({

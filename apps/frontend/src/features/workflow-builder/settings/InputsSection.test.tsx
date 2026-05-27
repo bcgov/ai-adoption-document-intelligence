@@ -157,6 +157,40 @@ describe("InputsSection", () => {
     });
   });
 
+  it("does not render a row for Artifact-kinded identifier ports", () => {
+    // file.prepare has `documentId`, `fileName`, `fileType`, `contentType`
+    // (kind "Artifact") and `blobKey` (kind "Document"). The Artifact-kinded
+    // ports should be invisible; only the Document-kinded `blobKey` row (if any)
+    // should appear. Since `blobKey` is unsatisfied here, the panel should
+    // show at most one row (Needs source for blobKey) and NOT show rows for
+    // the four identifier ports.
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: {},
+    };
+    mount(
+      <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
+    );
+    // Identifier-port labels that must NOT appear
+    expect(screen.queryByText("Document ID")).not.toBeInTheDocument();
+    expect(screen.queryByText("File name")).not.toBeInTheDocument();
+    expect(screen.queryByText("File type")).not.toBeInTheDocument();
+    expect(screen.queryByText("Content type (MIME)")).not.toBeInTheDocument();
+    // The Document-kinded port blobKey should be visible (unsatisfied)
+    expect(screen.getByText("File reference (blob key)")).toBeInTheDocument();
+  });
+
   it("clicking 'Revert to auto' removes the port from lockedInputPorts", async () => {
     const user = userEvent.setup();
     const onConfigChange = vi.fn();

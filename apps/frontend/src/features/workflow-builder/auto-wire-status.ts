@@ -1,6 +1,7 @@
 import {
   getActivityCatalogEntry,
   resolveInputPort,
+  shouldAutoWirePort,
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../types/workflow";
 
@@ -19,6 +20,9 @@ export function computeNodeStatus(
   if (!entry) return "ok";
   let sawUnsatisfied = false;
   for (const port of entry.inputs) {
+    // Ports with no kind or the base Artifact kind are identifier-style ports
+    // that should not participate in auto-wire status computation.
+    if (!shouldAutoWirePort(port)) continue;
     const result = resolveInputPort(config, nodeId, {
       name: port.name,
       kind: port.kind,

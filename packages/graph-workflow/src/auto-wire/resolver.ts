@@ -9,6 +9,7 @@ import { resolveInputPort } from "./resolve-input-port";
 import { synthesiseCtxKey } from "./synthesise-ctx-key";
 import { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 import { upstreamNodesWithDistance } from "./upstream-walk";
+import { shouldAutoWirePort } from "./should-auto-wire";
 
 /**
  * Walks every typed input port on every consumer node, fills unlocked
@@ -99,13 +100,10 @@ export function resolveBindings(
     let inputsChanged = false;
 
     for (const port of entry.inputs) {
-      // Skip kindless ports and base-Artifact ports. `kind: "Artifact"` is
-      // the catalog's "non-taxonomy" marker per the all-or-nothing invariant
-      // (US-103). It is too broad to auto-wire: any Artifact subtype is
-      // assignable to it, which would spuriously bind identifier / config
-      // ports (groupId, documentId, apimRequestId, enrichmentSummary, …) to
-      // unrelated upstream producers. See AUTO_WIRE_DESIGN.md §2.
-      if (!port.kind || port.kind === "Artifact") continue;
+      // Skip kindless ports and base-Artifact ports — see shouldAutoWirePort
+      // for the full rationale. Using a shared helper keeps resolver,
+      // computeNodeStatus, and InputsSection in sync.
+      if (!shouldAutoWirePort(port)) continue;
       const result = resolveInputPort(
         { ...config, nodes: nextNodes },
         consumerId,

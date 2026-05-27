@@ -12,3 +12,4 @@ export { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 export { normaliseLocks } from "./normalise-locks";
 export { stripRedundantLocks } from "./strip-redundant-locks";
 export { resolveBindings } from "./resolver";
+export { shouldAutoWirePort } from "./should-auto-wire";
