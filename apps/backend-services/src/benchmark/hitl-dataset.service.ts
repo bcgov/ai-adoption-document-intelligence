@@ -72,7 +72,8 @@ export class HitlDatasetService {
 
   /**
    * List documents eligible for dataset creation:
-   * completed_ocr status + at least one approved review session.
+   * ready status (approved documents only).
+   * Documents transition to ready status after HITL approval.
    */
   async listEligibleDocuments(
     filters: EligibleDocumentsFilterDto,
@@ -83,7 +84,7 @@ export class HitlDatasetService {
     const offset = (page - 1) * limit;
 
     const documents = (await this.reviewDbService.findReviewQueue({
-      statuses: [DocumentStatus.completed_ocr],
+      statuses: [DocumentStatus.ready],
       reviewStatus: "reviewed",
       limit: 1000,
       groupIds,
@@ -212,7 +213,7 @@ export class HitlDatasetService {
     // prevent cross-tenant packaging (a caller in group A cannot pull
     // documents belonging to group B into their dataset).
     const allDocuments = (await this.reviewDbService.findReviewQueue({
-      statuses: [DocumentStatus.completed_ocr],
+      statuses: [DocumentStatus.ready],
       reviewStatus: "reviewed",
       limit: 10000,
       groupIds: [groupId],
