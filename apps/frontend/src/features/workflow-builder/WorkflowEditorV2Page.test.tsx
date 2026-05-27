@@ -1675,3 +1675,151 @@ describe("WorkflowEditorV2Page — NodeSettingsPanel synthetic-group strip", () 
     expect(dtoConfig.nodeGroups?.g_real?.label).toBe("Renamed Group");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 7 (auto-wire) — resolveBindings + stripRedundantLocks integration
+// ---------------------------------------------------------------------------
+
+describe("auto-wire integration", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedPaletteProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  it("auto-binds inputs when a new edge is drawn between typed activities", async () => {
+    // Start with two unconnected typed-port nodes (file.prepare produces
+    // preparedData:Document; azureOcr.submit consumes fileData:Document).
+    // Simulate the canvas firing onConfigChange with an edge connecting A->B.
+    // After handleCanvasConfigChange, the canvas should receive a config
+    // where B.inputs includes fileData bound to __auto.A.preparedData.
+    const initialConfig: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "auto-wire test" },
+      ctx: {},
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          label: "A",
+          activityType: "file.prepare",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          label: "B",
+          activityType: "azureOcr.submit",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+    };
+
+    const template = makeTemplate(initialConfig);
+    renderPage(template);
+
+    // Simulate the canvas calling onConfigChange after the user draws an edge
+    // from A to B (the canvas stub captures the onConfigChange callback).
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as
+      | ((next: GraphWorkflowConfig) => void)
+      | undefined;
+    if (!onConfigChange) {
+      throw new Error("Canvas stub did not capture onConfigChange");
+    }
+
+    const configWithEdge: GraphWorkflowConfig = {
+      ...initialConfig,
+      edges: [{ id: "e1", source: "A", target: "B", type: "normal" }],
+    };
+
+    act(() => {
+      onConfigChange(configWithEdge);
+    });
+
+    // After resolveBindings runs, B's fileData input should be bound to
+    // __auto.A.preparedData (the synthesised ctx key for A's preparedData output).
+    const canvasConfig = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    expect(canvasConfig).toBeDefined();
+    const nodeB = canvasConfig?.nodes.B;
+    expect(nodeB).toBeDefined();
+    const fileDataBinding = (
+      nodeB as { inputs?: { port: string; ctxKey: string }[] }
+    )?.inputs?.find((b) => b.port === "fileData");
+    expect(fileDataBinding).toBeDefined();
+    expect(fileDataBinding?.ctxKey).toBe("__auto.A.preparedData");
+
+    // Producer A's output row should also be stamped.
+    const nodeA = canvasConfig?.nodes.A;
+    const preparedDataBinding = (
+      nodeA as { outputs?: { port: string; ctxKey: string }[] }
+    )?.outputs?.find((b) => b.port === "preparedData");
+    expect(preparedDataBinding).toBeDefined();
+    expect(preparedDataBinding?.ctxKey).toBe("__auto.A.preparedData");
+  });
+
+  it("strips redundant lock metadata before invoking save", async () => {
+    // A node with metadata.lockedInputPorts = ["fileData"] AND an input
+    // binding with a non-__auto. ctxKey is "implicitly" locked via the
+    // prefix convention. On save, the lockedInputPorts entry should be
+    // dropped — the save mutation receives the config without it.
+    const configWithRedundantLock: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "strip-locks test" },
+      ctx: {},
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          label: "A",
+          activityType: "file.prepare",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          label: "B",
+          activityType: "azureOcr.submit",
+          // Explicit (non-__auto.) binding — this lock is "implicit" and
+          // should be stripped before save because normaliseLocks can re-derive it.
+          inputs: [{ port: "fileData", ctxKey: "preparedData" }],
+          outputs: [],
+          parameters: {},
+          metadata: {
+            lockedInputPorts: ["fileData"],
+          },
+        },
+      },
+      edges: [{ id: "e1", source: "A", target: "B", type: "normal" }],
+      entryNodeId: "A",
+    };
+
+    const template = makeTemplate(configWithRedundantLock);
+    renderPage(template);
+
+    // Click save; the DTO should not contain lockedInputPorts for node B.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    });
+
+    expect(capturedCreateDto.current).toBeTruthy();
+    const dtoConfig = (
+      capturedCreateDto.current as { config: GraphWorkflowConfig }
+    ).config;
+    const nodeBInDto = dtoConfig.nodes.B as {
+      metadata?: { lockedInputPorts?: string[] };
+    };
+    expect(nodeBInDto?.metadata?.lockedInputPorts).toBeUndefined();
+  });
+});

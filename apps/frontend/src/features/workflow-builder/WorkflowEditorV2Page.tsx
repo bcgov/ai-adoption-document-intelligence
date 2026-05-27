@@ -24,6 +24,9 @@ import {
   ACTIVITY_CATALOG,
   type ActivityCatalogEntry,
   getSourceCatalogEntry,
+  normaliseLocks,
+  resolveBindings,
+  stripRedundantLocks,
 } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
@@ -168,7 +171,11 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // are passed through unchanged (Scenarios 2 + 3).
   const [config, setConfig] = useState<GraphWorkflowConfig>(() =>
     incomingTemplate
-      ? layoutGraphIfMissingPositions(incomingTemplate.config)
+      ? resolveBindings(
+          normaliseLocks(
+            layoutGraphIfMissingPositions(incomingTemplate.config),
+          ),
+        )
       : EMPTY_CONFIG,
   );
   const [selectedNodeId, setSelectedNodeIdState] = useState<string | null>(
@@ -260,14 +267,10 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   }, [config]);
 
   const handleCanvasConfigChange = useCallback((next: GraphWorkflowConfig) => {
-    if (next.nodeGroups) {
-      setConfig({
-        ...next,
-        nodeGroups: stripSyntheticMapBodyGroups(next.nodeGroups),
-      });
-      return;
-    }
-    setConfig(next);
+    const stripped = next.nodeGroups
+      ? { ...next, nodeGroups: stripSyntheticMapBodyGroups(next.nodeGroups) }
+      : next;
+    setConfig(resolveBindings(stripped));
   }, []);
 
   // Live xyflow instance from the inner canvas — populated by
@@ -340,7 +343,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     if (!isEditMode || !existingWorkflow) return;
     setName(existingWorkflow.name);
     setDescription(existingWorkflow.description ?? "");
-    setConfig(existingWorkflow.config);
+    setConfig(resolveBindings(normaliseLocks(existingWorkflow.config)));
   }, [existingWorkflow, isEditMode]);
 
   // Both add handlers compute the new id from the current `config`
@@ -577,13 +580,14 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const handleSave = useCallback(async () => {
     const cleanedName = name.trim() || "Untitled workflow";
     const cleanedDescription = description.trim();
+    const persisted = stripRedundantLocks(config);
     const dto: CreateWorkflowDto = {
       name: cleanedName,
       description: cleanedDescription || undefined,
       config: {
-        ...config,
+        ...persisted,
         metadata: {
-          ...config.metadata,
+          ...persisted.metadata,
           name: cleanedName,
           description: cleanedDescription || undefined,
         },
@@ -628,14 +632,15 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     async (submission: SaveAsLibrarySubmission): Promise<void> => {
       const cleanedName = submission.name.trim() || "Untitled library";
       const cleanedDescription = submission.description.trim();
+      const persisted = stripRedundantLocks(config);
       const dto: CreateWorkflowDto = {
         name: cleanedName,
         description: cleanedDescription || undefined,
         kind: "library",
         config: {
-          ...config,
+          ...persisted,
           metadata: {
-            ...config.metadata,
+            ...persisted.metadata,
             name: cleanedName,
             description: cleanedDescription || undefined,
             kind: "library",
