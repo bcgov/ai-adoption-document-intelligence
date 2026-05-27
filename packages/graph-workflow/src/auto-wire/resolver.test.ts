@@ -132,4 +132,51 @@ describe("resolveBindings", () => {
     const twice = resolveBindings(once);
     expect(twice).toEqual(once);
   });
+
+  it("does NOT auto-wire optional ports (required: false) that have no existing binding", () => {
+    // azureOcr.extract produces ocrResult (OcrResult) — a compatible upstream
+    // for ocr.storeResults.enrichmentSummary (Artifact, required: false).
+    // The resolver must leave enrichmentSummary unbound because the port has
+    // no existing binding and is not required.
+    const cfg = makeConfig(
+      {
+        A: activity("A", "azureOcr.extract"),
+        B: activity("B", "ocr.storeResults"),
+      },
+      [{ source: "A", target: "B" }],
+    );
+
+    const out = resolveBindings(cfg);
+
+    // enrichmentSummary must remain absent — optional unbound port is preserved.
+    expect(
+      out.nodes.B.inputs?.find(
+        (b: { port: string }) => b.port === "enrichmentSummary",
+      ),
+    ).toBeUndefined();
+  });
+
+  it("DOES auto-wire optional ports (required: false) that already have a binding", () => {
+    // When an optional port already has a binding (e.g., a stale auto key),
+    // the resolver updates it to the closest upstream producer — this is the
+    // re-wire path for existing optional bindings.
+    const cfg = makeConfig(
+      {
+        A: activity("A", "azureOcr.extract"),
+        B: activity("B", "ocr.storeResults", {
+          inputs: [{ port: "enrichmentSummary", ctxKey: "__auto.stale.key" }],
+        }),
+      },
+      [{ source: "A", target: "B" }],
+    );
+
+    const out = resolveBindings(cfg);
+
+    // enrichmentSummary had an existing binding, so the resolver updates it.
+    expect(
+      out.nodes.B.inputs?.find(
+        (b: { port: string }) => b.port === "enrichmentSummary",
+      ),
+    ).toBeDefined();
+  });
 });
