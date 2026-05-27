@@ -7,7 +7,10 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: backend-services
@@ -16,6 +19,12 @@ spec:
       labels:
         app: backend-services
     spec:
+      # IMPORTANT: When scaling this deployment, use gradual scaling or update the
+      # deployment's replicas field (which triggers rolling updates). Do NOT use
+      # `kubectl scale --replicas=N` to jump from 1->N replicas instantly, as this
+      # would cause N pods to start simultaneously and race to run migrations.
+      # With RollingUpdate strategy (maxSurge: 1), new pods start sequentially during
+      # normal deployments, so the migrate-db initContainer runs safely one at a time.
       initContainers:
       - name: migrate-db
         # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
