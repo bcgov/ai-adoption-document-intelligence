@@ -1,0 +1,13 @@
+{{- if eq .Values.alertmanager.notificationChannel "ches" }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "plg.chesAdapter.fullname" . }}
+  labels:
+    {{- include "plg.chesAdapter.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "plg.chesAdapter.selectorLabels" . | nindent 6 }}
+{{- end }}

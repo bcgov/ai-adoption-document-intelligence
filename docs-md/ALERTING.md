@@ -38,9 +38,18 @@ This command runs automatically in CI before the PLG Helm deploy step.
 
 Deployed as a StatefulSet with a 2 Gi PVC for silence/notification state. Configuration is templated via the Helm `alertmanager-configmap.yaml` template and controlled by the values below.
 
+**High Availability**: Alertmanager runs with a single replica (not clustered). This is an acceptable trade-off for an internal monitoring tool:
+
+- During pod restarts (~30s), Prometheus queues alerts in memory
+- No alerts are lost, only slightly delayed
+- Clustering requires significant additional complexity (gossip protocol, headless Service, 3+ replicas)
+- We will revisit clustering if evidence shows that single-replica causes missed or delayed critical alerts
+
 ### ches-adapter
 
-A small standalone Node.js service (`apps/ches-adapter/`) deployed alongside Alertmanager when `notificationChannel=ches`. It:
+A small standalone Node.js service (`apps/ches-adapter/`) deployed alongside Alertmanager when `notificationChannel=ches`. It runs with 2 replicas for high availability and includes a PodDisruptionBudget to ensure at least one replica remains available during rolling updates.
+
+The service:
 
 1. Receives the Alertmanager webhook POST payload.
 2. Authenticates the request using a shared Bearer token (`CHES_ADAPTER_SECRET`).
@@ -96,9 +105,11 @@ Any backend-services or Temporal worker code can raise an alert condition by log
 
 The shared logger (`@ai-di/shared-logging`) accepts an optional `MetricsHook` callback. When `MetricsService.getMetricsHook()` is passed during logger creation, every log line that includes `{ alertType: "..." }` in its context is inspected:
 
-- `warn` → increments `app_error_total{type, severity="warning"}` and marks the type as active.
-- `error` → increments `app_error_total{type, severity="critical"}` and marks the type as active.
-- `info` / `debug` → if the type was previously in error state, increments `app_recovery_total{type}` and clears the state. Also increments `app_success_total{type}` (used as denominator in error-rate rules).
+- `warn` → increments `app_error_total{type, severity="warning"}`
+- `error` → increments `app_error_total{type, severity="critical"}`
+- `info` / `debug` → if the type was previously in error state, increments `app_recovery_total{type}` (first success after error). Also increments `app_success_total{type}` (used as denominator in error-rate rules).
+
+**Alert state** is determined at query-time by Prometheus aggregating counters across all pod replicas, not tracked in application memory. This design scales horizontally without state synchronization issues.
 
 ### Example usage
 
@@ -129,6 +140,43 @@ logger.info("Classifier training succeeded", {
 | `error` | `critical` | Complete failure, requires immediate attention |
 
 The `type` string must match a rule defined in `alert-thresholds.ts`. Unmapped types still increment counters and will match the catch-all `AnyBackendServicesError` / `AnyTemporalWorkerError` rules.
+
+---
+
+## Horizontal Scaling
+
+The alerting system is designed to work correctly when `backend-services` or `temporal-worker` run with multiple pod replicas.
+
+### Prometheus pod service discovery
+
+In production (OpenShift), Prometheus uses Kubernetes pod service discovery to scrape each pod directly:
+
+```yaml
+kubernetes_sd_configs:
+  - role: pod
+    namespaces:
+      names: [<namespace>]
+relabel_configs:
+  - source_labels: [__meta_kubernetes_pod_label_app]
+    regex: backend-services
+    action: keep
+```
+
+This ensures that counters (`app_error_total`, `app_success_total`, `app_recovery_total`) are collected from all pods and aggregated correctly at query time via `sum(rate(...))`.
+
+In local development, static service endpoints are used since Kubernetes SD is not available.
+
+### Query-time aggregation
+
+Alert rules aggregate counters across pods using Prometheus query operators:
+
+```yaml
+expr: increase(app_error_total{type="blob_storage"}[5m]) > 0
+```
+
+Prometheus automatically sums the `increase()` across all scraped pods, so the rule fires when **any** pod logs an error of the specified type.
+
+This approach is stateless and requires no synchronization between pods.
 
 ---
 

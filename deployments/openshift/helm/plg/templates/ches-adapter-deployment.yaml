@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "plg.chesAdapter.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       {{- include "plg.chesAdapter.selectorLabels" . | nindent 6 }}

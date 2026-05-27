@@ -23,13 +23,47 @@ data:
       - job_name: "backend-services"
         metrics_path: "/metrics"
         scrape_interval: {{ .Values.prometheus.scrapeInterval }}
-        static_configs:
-          - targets:
-              - "{{ .Values.prometheus.scrapeTargets.backendServices.host }}:{{ .Values.prometheus.scrapeTargets.backendServices.port }}"
+        # Use Kubernetes pod service discovery to scrape each pod directly.
+        # This ensures correct counter aggregation when multiple replicas are running.
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - {{ .Release.Namespace }}
+        relabel_configs:
+          # Keep only pods with app=backend-services label
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: backend-services
+            action: keep
+          # Set pod label to pod name for series identification
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          # Set instance label to pod IP:port
+          - source_labels: [__meta_kubernetes_pod_ip]
+            regex: (.*)
+            target_label: __address__
+            replacement: $1:{{ .Values.prometheus.scrapeTargets.backendServices.port }}
 
       - job_name: "temporal-worker"
         metrics_path: "/metrics"
         scrape_interval: {{ .Values.prometheus.scrapeInterval }}
-        static_configs:
-          - targets:
-              - "{{ .Values.prometheus.scrapeTargets.temporalWorker.host }}:{{ .Values.prometheus.scrapeTargets.temporalWorker.port }}"
+        # Use Kubernetes pod service discovery to scrape each pod directly.
+        # This ensures correct counter aggregation when multiple replicas are running.
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - {{ .Release.Namespace }}
+        relabel_configs:
+          # Keep only pods with app=temporal-worker label
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: temporal-worker
+            action: keep
+          # Set pod label to pod name for series identification
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          # Set instance label to pod IP:port
+          - source_labels: [__meta_kubernetes_pod_ip]
+            regex: (.*)
+            target_label: __address__
+            replacement: $1:{{ .Values.prometheus.scrapeTargets.temporalWorker.port }}
