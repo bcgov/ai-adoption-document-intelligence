@@ -596,7 +596,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
                 <Paper withBorder>
                   <CodeMirror
                     value={jsonValue}
-                    theme="dark"
+                    // theme="dark"
                     height="520px"
                     extensions={[
                       json(),

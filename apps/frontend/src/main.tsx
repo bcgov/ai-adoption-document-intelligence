@@ -16,7 +16,8 @@ createRoot(document.getElementById("root")!).render(
     <AuthProvider>
       <GroupProvider>
         <QueryClientProvider client={queryClient}>
-          <MantineProvider defaultColorScheme="dark">
+          <MantineProvider>
+            {/* defaultColorScheme="dark" */}
             <ModalsProvider>
               <Notifications position="top-right" />
               <App />
