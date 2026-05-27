@@ -80,3 +80,20 @@ export type {
   JsDocTagValue,
   ParsedJsDocBlock,
 } from "./dynamic-nodes/parse-signature";
+
+// Auto-wire — resolves typed input ports to nearest compatible upstream
+// producers, hiding ctx key bindings from the visual editor's default UX.
+// See docs-md/workflow-builder/AUTO_WIRE_DESIGN.md.
+export {
+  AUTO_CTX_KEY_PREFIX,
+  getLockedInputPorts,
+  getLockedOutputPorts,
+  isAutoCtxKey,
+  normaliseLocks,
+  type PortResolution,
+  resolveBindings,
+  resolveInputPort,
+  stripRedundantLocks,
+  synthesiseCtxKey,
+  upstreamNodesWithDistance,
+} from "./auto-wire";
