@@ -271,7 +271,13 @@ Implementation order:
 - [ ] Fan out `kind` declarations across the 41 catalog entries — framework + 4–6 exemplars in Phase 3 (split / classify / OCR / validate); full fan-out as Phase 3.x. Bulk catalog test asserts "every entry that DOES declare `kind` declares it for every port."
 - [ ] Provider catalog skeleton + 1-2 example providers (Phase 3 → Phase 5 hand-off)
 
-**Phase 3.5 — auto-bind-on-wire-draw (filed; not in Phase 3).** Make wires semantically meaningful: drawing a wire between two typed handles auto-creates a ctx key + the matching input/output bindings on both sides. Restores draw-time UX (rejection on kind mismatch becomes consistent because the wire IS the binding). Bigger lift; deferred to keep Phase 3 focused on the typing foundation.
+**Phase 3.5 — auto-wire (DESIGNED 2026-05-26; IMPLEMENTED).** Hide
+port bindings behind the wire. A reachability-based resolver fills
+typed input ports automatically; the settings panel exposes a friendly
+"Inputs" list instead of raw `port → ctxKey` rows. Design:
+[AUTO_WIRE_DESIGN.md](AUTO_WIRE_DESIGN.md). Plan:
+[../../docs/superpowers/plans/2026-05-26-auto-wire.md](../../docs/superpowers/plans/2026-05-26-auto-wire.md).
+Engine + on-disk JSON unchanged.
 
 ### Phase 4 — Try-in-place + caching + per-node previews
 
