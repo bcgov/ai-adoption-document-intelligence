@@ -27,6 +27,8 @@
 
 import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
 
+import { splitKindRef } from "./artifact-kind-colour";
+
 export interface HandleStyle {
   /** Mantine colour name (`"blue"`, `"green"`, …). `"gray"` for wildcard. */
   color: string;
@@ -55,18 +57,6 @@ export interface ComputeHandleStyleOpts {
    */
   portKinds: ReadonlyArray<KindRef | undefined>;
   direction: "input" | "output";
-}
-
-/**
- * Splits a `KindRef` into its base kind + array-cardinality flag.
- * `"Segment[]"` → `{ baseKind: "Segment", isArray: true }`.
- * `"Document"` → `{ baseKind: "Document", isArray: false }`.
- */
-function splitKindRef(kind: KindRef): { baseKind: string; isArray: boolean } {
-  if (kind.endsWith("[]")) {
-    return { baseKind: kind.slice(0, -2), isArray: true };
-  }
-  return { baseKind: kind, isArray: false };
 }
 
 const GRAY_COLOR = "gray";

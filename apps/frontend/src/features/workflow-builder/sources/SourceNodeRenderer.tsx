@@ -20,7 +20,6 @@
  */
 
 import {
-  getArtifactKindMeta,
   getSourceCatalogEntry,
   type KindRef,
   type SourceNode,
@@ -29,6 +28,7 @@ import { Text, Tooltip } from "@mantine/core";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { memo } from "react";
 
+import { colorForKind } from "../canvas/artifact-kind-colour";
 import { NodeTypePill, type NodeTypePillEntry } from "../canvas/NodeTypePill";
 import { NodePreviewOverlay } from "../preview/PreviewWidget";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
@@ -36,26 +36,6 @@ import {
   getSourceVisualHints,
   resolveSourceColor,
 } from "./source-catalog-utils";
-
-/**
- * Strip a `T[]` suffix from a `KindRef` so the registry lookup resolves
- * through the family root. `Document[]` → `Document`. Mirrors the helper
- * in `NodeTypePill.tsx` — kept local to avoid an export surface that
- * would have to be deprecated once US-118 lands.
- */
-function elementKindOf(kind: KindRef): string {
-  return kind.endsWith("[]") ? kind.slice(0, -2) : kind;
-}
-
-/**
- * Resolve a Mantine palette colour for a `KindRef` via the live artifact
- * registry. Falls back to gray for the `Artifact` wildcard root and for
- * unknown kinds — same behaviour as the canvas handle-style helper.
- */
-function colorForKind(kind: KindRef): string {
-  const meta = getArtifactKindMeta(elementKindOf(kind));
-  return meta?.color ?? "gray";
-}
 
 /**
  * Translate a Mantine colour name into the matching theme CSS variable

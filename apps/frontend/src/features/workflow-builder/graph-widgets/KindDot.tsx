@@ -12,9 +12,11 @@
  * matching Scenario 3.
  */
 
-import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
+import type { KindRef } from "@ai-di/graph-workflow";
 import { Box } from "@mantine/core";
 import type { ReactElement } from "react";
+
+import { colorForKind } from "../canvas/artifact-kind-colour";
 
 export interface KindDotProps {
   kind: KindRef | undefined;
@@ -24,11 +26,7 @@ export interface KindDotProps {
 
 export function KindDot({ kind, size = 8 }: KindDotProps): ReactElement | null {
   if (kind === undefined) return null;
-  // Strip the `[]` cardinality marker so the registry lookup hits the base
-  // kind. Array kinds share their element's colour by design.
-  const elementKind = kind.endsWith("[]") ? kind.slice(0, -2) : kind;
-  const meta = getArtifactKindMeta(elementKind);
-  const color = meta?.color ?? "gray";
+  const color = colorForKind(kind);
   return (
     <Box
       component="span"

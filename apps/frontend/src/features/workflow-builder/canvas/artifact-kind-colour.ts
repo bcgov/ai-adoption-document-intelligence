@@ -1,7 +1,7 @@
 /**
- * Shared helpers for resolving a Mantine palette colour from an
- * `ARTIFACT_REGISTRY` kind. Reused by `NodeTypePill` and `NodeTypePillRow`
- * so the two surfaces never drift.
+ * Shared helpers for working with `ARTIFACT_REGISTRY` kinds. Reused by the
+ * canvas pills, source renderer, handle-style helper, and KindDot widget so
+ * those surfaces never drift on either element extraction or colour mapping.
  */
 
 import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
@@ -13,6 +13,21 @@ import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
  */
 export function elementKindOf(kind: KindRef): string {
   return kind.endsWith("[]") ? kind.slice(0, -2) : kind;
+}
+
+/**
+ * Split a `KindRef` into its base kind + array-cardinality flag.
+ * `"Segment[]"` → `{ baseKind: "Segment", isArray: true }`.
+ * `"Document"`  → `{ baseKind: "Document", isArray: false }`.
+ */
+export function splitKindRef(kind: KindRef): {
+  baseKind: string;
+  isArray: boolean;
+} {
+  if (kind.endsWith("[]")) {
+    return { baseKind: kind.slice(0, -2), isArray: true };
+  }
+  return { baseKind: kind, isArray: false };
 }
 
 /**
