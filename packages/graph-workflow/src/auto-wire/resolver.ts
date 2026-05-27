@@ -7,6 +7,8 @@ import type {
 } from "../types";
 import { resolveInputPort } from "./resolve-input-port";
 import { synthesiseCtxKey } from "./synthesise-ctx-key";
+import { getLockedInputPorts } from "./lock-list";
+import { upstreamNodesWithDistance } from "./upstream-walk";
 
 /**
  * Walks every typed input port on every consumer node, fills unlocked
@@ -19,7 +21,61 @@ export function resolveBindings(
   // Start from a shallow node copy so per-node mutations don't escape.
   const nextNodes: Record<string, GraphNode> = { ...config.nodes };
 
-  for (const [consumerId, consumer] of Object.entries(config.nodes)) {
+  // Per-map pass: auto-bind map.collectionCtxKey to the nearest upstream T[]
+  // producer when collectionCtxKey is empty and the port is not locked.
+  // This MUST run before the activity input port resolution loop so that the
+  // synthetic-producer pass in resolve-input-port.ts can find the element kind.
+  for (const [mapId, mapNode] of Object.entries(nextNodes)) {
+    if (mapNode.type !== "map") continue;
+    const lockList = getLockedInputPorts(mapNode);
+    if (lockList.includes("collection")) continue;
+    if (mapNode.collectionCtxKey) continue;
+    const distances = upstreamNodesWithDistance(
+      { ...config, nodes: nextNodes },
+      mapId,
+    );
+    const candidates: {
+      producerNodeId: string;
+      producerPort: string;
+      distance: number;
+    }[] = [];
+    for (const [producerNodeId, distance] of distances) {
+      const producer = nextNodes[producerNodeId];
+      if (
+        !producer ||
+        (producer.type !== "activity" && producer.type !== "pollUntil")
+      ) {
+        continue;
+      }
+      const activityType = producer.activityType;
+      const entry = getActivityCatalogEntry(activityType);
+      if (!entry) continue;
+      for (const out of entry.outputs) {
+        if (!out.kind?.endsWith("[]")) continue;
+        candidates.push({
+          producerNodeId,
+          producerPort: out.name,
+          distance,
+        });
+      }
+    }
+    if (candidates.length === 0) continue;
+    const minDistance = Math.min(...candidates.map((c) => c.distance));
+    const closest = candidates.filter((c) => c.distance === minDistance);
+    if (closest.length !== 1) continue; // ambiguous — leave for user
+    const winner = closest[0];
+    const ctxKey = ensureProducerOutputBinding(
+      nextNodes,
+      winner.producerNodeId,
+      winner.producerPort,
+    );
+    nextNodes[mapId] = { ...mapNode, collectionCtxKey: ctxKey };
+  }
+
+  // Activity / pollUntil input port resolution — runs after the map pass so
+  // that map.collectionCtxKey is already populated and the synthetic-producer
+  // element-kind lookup in resolve-input-port.ts can succeed.
+  for (const [consumerId, consumer] of Object.entries(nextNodes)) {
     if (consumer.type !== "activity" && consumer.type !== "pollUntil") {
       continue;
     }
@@ -39,11 +95,17 @@ export function resolveBindings(
       );
       if (result.status !== "auto-bound") continue;
 
-      const producerCtxKey = ensureProducerOutputBinding(
-        nextNodes,
-        result.producerNodeId,
-        result.producerPort,
-      );
+      const producerNode = nextNodes[result.producerNodeId];
+      let producerCtxKey: string;
+      if (producerNode?.type === "map") {
+        producerCtxKey = producerNode.itemCtxKey;
+      } else {
+        producerCtxKey = ensureProducerOutputBinding(
+          nextNodes,
+          result.producerNodeId,
+          result.producerPort,
+        );
+      }
 
       const existing = nextInputs.find((b) => b.port === port.name);
       if (existing && existing.ctxKey === producerCtxKey) continue;

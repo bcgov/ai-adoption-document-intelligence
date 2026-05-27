@@ -68,6 +68,23 @@ export function resolveInputPort(
     }
   }
 
+  // Map synthetic-producer pass: any reachable `map` node contributes one
+  // synthetic producer of element type T, where T is derived by stripping
+  // `[]` from the kind of the producer feeding the map's collection.
+  for (const [producerNodeId, distance] of distances) {
+    const producer = config.nodes[producerNodeId];
+    if (!producer || producer.type !== "map") continue;
+    const elementKind = resolveMapElementKind(config, producerNodeId);
+    if (!elementKind) continue;
+    if (isAssignable(elementKind, port.kind)) {
+      candidates.push({
+        producerNodeId,
+        producerPort: producer.itemCtxKey,
+        distance,
+      });
+    }
+  }
+
   if (candidates.length === 0) {
     return { status: "unsatisfied" };
   }
@@ -107,4 +124,33 @@ function outputPortsFor(
   // resolver — `map`/`join`/`switch` get special-case treatment in later
   // tasks (Tasks 13–15). For now they contribute no producer candidates.
   return [];
+}
+
+/**
+ * Resolves the element kind T for a map node whose collection has kind T[].
+ * Walks every activity/pollUntil node to find the one whose output ctxKey
+ * matches the map's collectionCtxKey, then strips the `[]` suffix from its
+ * kind. Returns `undefined` when the element kind cannot be determined.
+ */
+function resolveMapElementKind(
+  config: GraphWorkflowConfig,
+  mapNodeId: string,
+): string | undefined {
+  const map = config.nodes[mapNodeId];
+  if (!map || map.type !== "map") return undefined;
+  const collectionKey = map.collectionCtxKey;
+  if (!collectionKey) return undefined;
+  for (const node of Object.values(config.nodes)) {
+    if (node.type !== "activity" && node.type !== "pollUntil") continue;
+    const output = node.outputs?.find((b) => b.ctxKey === collectionKey);
+    if (!output) continue;
+    const activityType = node.activityType;
+    const entry = getActivityCatalogEntry(activityType);
+    if (!entry) continue;
+    const portDescriptor = entry.outputs.find((p) => p.name === output.port);
+    const kind = portDescriptor?.kind;
+    if (!kind) continue;
+    if (kind.endsWith("[]")) return kind.slice(0, -2);
+  }
+  return undefined;
 }
