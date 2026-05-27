@@ -164,7 +164,7 @@ export class DocumentController {
       return {};
     }
 
-    const results: Record<string, string | null> = {};
+    const results: Record<string, string | null> = Object.create(null);
     await Promise.all(
       ids.map(async (documentId) => {
         const thumbnailKey = buildBlobFilePath(
