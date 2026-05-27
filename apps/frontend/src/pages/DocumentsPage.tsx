@@ -121,6 +121,14 @@ export function DocumentsPage() {
     status: statusFilter,
     sortBy: sortField || "created_at",
     sortDir,
+    refetchInterval: (query) => {
+      const docs = query.state.data?.documents;
+      return docs?.some(
+        (d) => d.status === "pre_ocr" || d.status === "ongoing_ocr",
+      )
+        ? 10_000
+        : 60_000;
+    },
   });
 
   const documents = data?.documents ?? [];
