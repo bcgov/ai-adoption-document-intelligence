@@ -40,7 +40,11 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
 import {
   DocumentDataDto,
   DocumentStatusCountsDto,
@@ -98,6 +102,87 @@ export class DocumentController {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
     return this.documentService.getDocumentStatusCounts(groupIds);
+  }
+
+  @Get("/thumbnails")
+  @HttpCode(HttpStatus.OK)
+  @Identity()
+  @ApiOperation({
+    summary: "Get thumbnails for multiple documents",
+    description:
+      "Returns base64 WebP data URLs for up to 200 documents in a single request. Null entries indicate that no thumbnail is available for that document.",
+  })
+  @ApiQuery({
+    name: "group_id",
+    required: true,
+    description: "Group ID that owns the documents.",
+  })
+  @ApiQuery({
+    name: "ids",
+    required: true,
+    description: "Comma-separated list of document IDs (max 200).",
+  })
+  @ApiOkResponse({
+    description:
+      "Object mapping each requested document ID to its base64 WebP data URL, or null when unavailable.",
+    schema: {
+      type: "object",
+      additionalProperties: { type: "string", nullable: true },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: "Missing required query parameters or too many IDs requested.",
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  async getBulkThumbnails(
+    @Query("group_id") groupId: string | undefined,
+    @Query("ids") idsParam: string | undefined,
+    @Req() req: Request,
+  ): Promise<Record<string, string | null>> {
+    if (!groupId) {
+      throw new BadRequestException("group_id query parameter is required");
+    }
+    if (!idsParam) {
+      throw new BadRequestException("ids query parameter is required");
+    }
+
+    identityCanAccessGroup(req.resolvedIdentity, groupId);
+
+    const ids = idsParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (ids.length > 200) {
+      throw new BadRequestException(
+        "Too many IDs requested; maximum is 200 per call",
+      );
+    }
+
+    if (ids.length === 0) {
+      return {};
+    }
+
+    const results: Record<string, string | null> = {};
+    await Promise.all(
+      ids.map(async (documentId) => {
+        const thumbnailKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.OCR,
+          [documentId],
+          "thumbnail.webp",
+        );
+        try {
+          const buffer = await this.blobStorage.read(thumbnailKey);
+          results[documentId] =
+            `data:image/webp;base64,${buffer.toString("base64")}`;
+        } catch {
+          results[documentId] = null;
+        }
+      }),
+    );
+    return results;
   }
 
   @Get("/:documentId")
@@ -510,6 +595,58 @@ export class DocumentController {
     res.send(fileBuffer);
 
     this.logger.debug("=== DocumentController.viewDocument completed ===");
+  }
+
+  @Get("/:documentId/thumbnail")
+  @HttpCode(HttpStatus.OK)
+  @Identity()
+  @ApiOperation({
+    summary: "Get document thumbnail",
+    description:
+      "Returns the WebP thumbnail of the document's first page generated during upload. Returns 404 if no thumbnail is available.",
+  })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiProduces("image/webp")
+  @ApiOkResponse({
+    description: "WebP thumbnail (≤200 px wide) of the document's first page",
+  })
+  @ApiNotFoundResponse({
+    description: "Document not found or thumbnail not available",
+  })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getDocumentThumbnail(
+    @Param("documentId") documentId: string,
+    @Res() res: Response,
+    @Req() req: Request,
+  ): Promise<void> {
+    const document = await this.documentService.findDocument(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+
+    const thumbnailKey = buildBlobFilePath(
+      document.group_id ?? "",
+      OperationCategory.OCR,
+      [documentId],
+      "thumbnail.webp",
+    );
+
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = await this.blobStorage.read(thumbnailKey);
+    } catch {
+      throw new NotFoundException(
+        `Thumbnail not available for document: ${documentId}`,
+      );
+    }
+
+    res.setHeader("Content-Type", "image/webp");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Content-Length", fileBuffer.length);
+    res.send(fileBuffer);
   }
 
   @Get("/:documentId/download")

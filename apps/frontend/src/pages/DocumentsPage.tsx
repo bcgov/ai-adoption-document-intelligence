@@ -4,6 +4,7 @@ import {
   Button,
   Collapse,
   Group,
+  Image,
   Loader,
   Modal,
   Pagination,
@@ -35,6 +36,7 @@ import { DocumentViewerModal } from "../components/document/DocumentViewerModal"
 import { useDeleteDocument } from "../data/hooks/useDeleteDocument";
 import { useDocumentStats } from "../data/hooks/useDocumentStats";
 import { useDocuments } from "../data/hooks/useDocuments";
+import { useDocumentThumbnails } from "../data/hooks/useDocumentThumbnails";
 import type { Document, DocumentStatus } from "../shared/types";
 import { formatDate, formatFileSize } from "../shared/utils";
 
@@ -136,6 +138,9 @@ export function DocumentsPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const { data: statsData } = useDocumentStats();
+  const { data: thumbnails } = useDocumentThumbnails(
+    documents.map((d) => d.id),
+  );
 
   const deleteDocument = useDeleteDocument();
   const [docPendingDelete, setDocPendingDelete] = useState<Document | null>(
@@ -301,6 +306,7 @@ export function DocumentsPage() {
                 <Table highlightOnHover verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
+                      <Table.Th w={56} />
                       <Table.Th>
                         <UnstyledButton
                           onClick={() => toggleSort("title")}
@@ -310,7 +316,7 @@ export function DocumentsPage() {
                             gap: 4,
                           }}
                         >
-                          Document
+                          Name
                           <SortIcon
                             field="title"
                             sortField={sortField}
@@ -418,6 +424,16 @@ export function DocumentsPage() {
                           onClick={() => setSelectedDocument(doc)}
                           style={{ cursor: "pointer" }}
                         >
+                          <Table.Td>
+                            <Image
+                              src={thumbnails?.[doc.id] ?? undefined}
+                              w={40}
+                              h={50}
+                              radius="sm"
+                              fit="cover"
+                              fallbackSrc="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='50'%3E%3Crect width='40' height='50' fill='%23dee2e6' rx='4'/%3E%3C/svg%3E"
+                            />
+                          </Table.Td>
                           <Table.Td>
                             <Stack gap={2}>
                               <Text fw={600}>{doc.title}</Text>

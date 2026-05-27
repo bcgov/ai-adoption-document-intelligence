@@ -1,5 +1,9 @@
 import { GroupRole } from "@generated/client";
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { BlobStorageInterface } from "../blob-storage/blob-storage.interface";
 import { TemporalClientService } from "../temporal/temporal-client.service";
@@ -699,6 +703,154 @@ describe("DocumentController", () => {
       await expect(
         controller.deleteDocument("1", notMemberReq as any),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe("getDocumentThumbnail", () => {
+    const mockReq = createMockReq();
+    const mockDoc = { id: "doc-1", group_id: mockGroupId };
+
+    it("sends WebP thumbnail with correct headers", async () => {
+      documentService.findDocument.mockResolvedValue(mockDoc as any);
+      const thumbBuffer = Buffer.from("webp-bytes");
+      blobStorage.read.mockResolvedValue(thumbBuffer);
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+
+      await controller.getDocumentThumbnail("doc-1", res, mockReq as any);
+
+      expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "image/webp");
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "Cache-Control",
+        "public, max-age=3600",
+      );
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "Content-Length",
+        thumbBuffer.length,
+      );
+      expect(res.send).toHaveBeenCalledWith(thumbBuffer);
+    });
+
+    it("throws NotFoundException when document does not exist", async () => {
+      documentService.findDocument.mockResolvedValue(null);
+      await expect(
+        controller.getDocumentThumbnail("doc-1", {} as any, mockReq as any),
+      ).rejects.toThrow(NotFoundException);
+      expect(blobStorage.read).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
+      documentService.findDocument.mockResolvedValue(mockDoc as any);
+      await expect(
+        controller.getDocumentThumbnail(
+          "doc-1",
+          {} as any,
+          notMemberReq as any,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("throws NotFoundException when thumbnail blob is not in storage", async () => {
+      documentService.findDocument.mockResolvedValue(mockDoc as any);
+      blobStorage.read.mockRejectedValue(new Error("blob not found"));
+      await expect(
+        controller.getDocumentThumbnail("doc-1", {} as any, mockReq as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("getBulkThumbnails", () => {
+    const mockReq = createMockReq();
+
+    it("returns base64 data URLs for available thumbnails", async () => {
+      const buf = Buffer.from("webp");
+      blobStorage.read.mockResolvedValue(buf);
+
+      const result = await controller.getBulkThumbnails(
+        mockGroupId,
+        "doc-1,doc-2",
+        mockReq as any,
+      );
+
+      const expected = `data:image/webp;base64,${buf.toString("base64")}`;
+      expect(result).toEqual({ "doc-1": expected, "doc-2": expected });
+    });
+
+    it("returns null for documents without a thumbnail", async () => {
+      blobStorage.read.mockRejectedValue(new Error("not found"));
+
+      const result = await controller.getBulkThumbnails(
+        mockGroupId,
+        "doc-1",
+        mockReq as any,
+      );
+
+      expect(result).toEqual({ "doc-1": null });
+    });
+
+    it("mixes data URLs and nulls for mixed availability", async () => {
+      const buf = Buffer.from("webp");
+      blobStorage.read
+        .mockResolvedValueOnce(buf)
+        .mockRejectedValueOnce(new Error("missing"));
+
+      const result = await controller.getBulkThumbnails(
+        mockGroupId,
+        "doc-1,doc-2",
+        mockReq as any,
+      );
+
+      expect(result["doc-1"]).toBe(
+        `data:image/webp;base64,${buf.toString("base64")}`,
+      );
+      expect(result["doc-2"]).toBeNull();
+    });
+
+    it("throws BadRequestException when ids is an empty string", async () => {
+      await expect(
+        controller.getBulkThumbnails(mockGroupId, "", mockReq as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(blobStorage.read).not.toHaveBeenCalled();
+    });
+
+    it("throws BadRequestException when group_id is missing", async () => {
+      await expect(
+        controller.getBulkThumbnails(undefined, "doc-1", mockReq as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws BadRequestException when ids param is missing", async () => {
+      await expect(
+        controller.getBulkThumbnails(mockGroupId, undefined, mockReq as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws BadRequestException when more than 200 IDs are requested", async () => {
+      const ids = Array.from({ length: 201 }, (_, i) => `doc-${i}`).join(",");
+      await expect(
+        controller.getBulkThumbnails(mockGroupId, ids, mockReq as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(blobStorage.read).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
+      await expect(
+        controller.getBulkThumbnails(mockGroupId, "doc-1", notMemberReq as any),
+      ).rejects.toThrow(ForbiddenException);
+      expect(blobStorage.read).not.toHaveBeenCalled();
     });
   });
 });
