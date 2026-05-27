@@ -10,6 +10,7 @@ import "@testing-library/jest-dom";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -327,10 +328,18 @@ describe("NodeSettingsPanel — Scenario 2: shared header is present for every n
 // ---------------------------------------------------------------------------
 
 describe("NodeSettingsPanel — Scenario 3: shared footer (port bindings) is present for every node type", () => {
-  it("renders input + output port-binding sections for an activity node", () => {
+  it("renders input + output port-binding sections for an activity node (behind advanced toggle)", async () => {
+    const user = userEvent.setup();
     const node = activityNode("a1", "Act");
     const config = makeConfig([node]);
     mountWithSpy(config, "a1");
+
+    // Raw bindings are hidden behind the advanced toggle by default.
+    expect(
+      screen.queryByTestId("node-settings-input-bindings"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /show advanced/i }));
 
     expect(
       screen.getByTestId("node-settings-input-bindings"),
@@ -340,7 +349,8 @@ describe("NodeSettingsPanel — Scenario 3: shared footer (port bindings) is pre
     ).toBeInTheDocument();
   });
 
-  it("renders input + output port-binding sections for a control-flow node with existing bindings", () => {
+  it("renders input + output port-binding sections for a control-flow node with existing bindings (behind advanced toggle)", async () => {
+    const user = userEvent.setup();
     const node: SwitchNode = {
       ...switchNode("sw1", "Branch"),
       inputs: [{ port: "value", ctxKey: "ctx.value" }],
@@ -348,6 +358,8 @@ describe("NodeSettingsPanel — Scenario 3: shared footer (port bindings) is pre
     };
     const config = makeConfig([node]);
     mountWithSpy(config, "sw1");
+
+    await user.click(screen.getByRole("button", { name: /show advanced/i }));
 
     const inputs = screen.getByTestId("node-settings-input-bindings");
     const outputs = screen.getByTestId("node-settings-output-bindings");
@@ -360,10 +372,13 @@ describe("NodeSettingsPanel — Scenario 3: shared footer (port bindings) is pre
     expect(within(outputs).getByText("result")).toBeInTheDocument();
   });
 
-  it("renders the footer with 'None.' placeholder for a control-flow node without bindings", () => {
+  it("renders the footer with 'None.' placeholder for a control-flow node without bindings (behind advanced toggle)", async () => {
+    const user = userEvent.setup();
     const node = switchNode("sw1", "Branch");
     const config = makeConfig([node]);
     mountWithSpy(config, "sw1");
+
+    await user.click(screen.getByRole("button", { name: /show advanced/i }));
 
     const inputs = screen.getByTestId("node-settings-input-bindings");
     const outputs = screen.getByTestId("node-settings-output-bindings");
@@ -471,5 +486,56 @@ describe("NodeSettingsPanel — US-119 Scenario 1: source dispatch", () => {
     selectNode("src1");
     expect(screen.getByTestId("source-node-settings")).toBeInTheDocument();
     expect(screen.queryByTestId("switch-node-settings")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auto-wire UX: InputsSection as default footer + advanced toggle
+// ---------------------------------------------------------------------------
+
+describe("NodeSettingsPanel — auto-wire UX", () => {
+  it("renders the InputsSection in the default panel", () => {
+    // azureOcr.submit has declared input ports, so InputsSection renders the
+    // "Inputs" header and per-port rows.
+    const node: ActivityNode = {
+      id: "ocr1",
+      type: "activity",
+      label: "OCR",
+      activityType: "azureOcr.submit",
+      inputs: [],
+    };
+    const config = makeConfig([node]);
+    mountWithSpy(config, "ocr1");
+
+    // The "Inputs" heading rendered by InputsSection is present by default.
+    expect(screen.getByText("Inputs")).toBeInTheDocument();
+    // The raw bindings editor is NOT shown until the toggle is clicked.
+    expect(
+      screen.queryByTestId("node-settings-input-bindings"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides raw ctxKey port-binding editor behind 'Show advanced'", async () => {
+    const user = userEvent.setup();
+    const node: ActivityNode = {
+      id: "ocr1",
+      type: "activity",
+      label: "OCR",
+      activityType: "azureOcr.submit",
+      inputs: [],
+    };
+    const config = makeConfig([node]);
+    mountWithSpy(config, "ocr1");
+
+    // By default the raw editor is not in the DOM.
+    expect(
+      screen.queryByTestId("node-settings-input-bindings"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /show advanced/i }));
+
+    expect(
+      screen.getByTestId("node-settings-input-bindings"),
+    ).toBeInTheDocument();
   });
 });

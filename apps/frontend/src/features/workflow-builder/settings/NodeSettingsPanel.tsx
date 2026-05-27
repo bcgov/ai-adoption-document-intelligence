@@ -38,7 +38,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconInfoCircle, IconStar, IconTrash } from "@tabler/icons-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type {
   ActivityNode,
   GraphNode,
@@ -61,6 +61,7 @@ import {
 } from "./control-flow";
 import { DynamicNodeSettings } from "./dynamic-node/DynamicNodeSettings";
 import { GroupNodeSettings } from "./group/GroupNodeSettings";
+import { InputsSection } from "./InputsSection";
 
 interface NodeSettingsPanelProps {
   config: GraphWorkflowConfig;
@@ -282,8 +283,13 @@ function NodeSettings({
           />
 
           <Divider />
-
-          <PortBindingsFooter
+          <InputsSection
+            config={config}
+            nodeId={node.id}
+            onConfigChange={onConfigChange}
+          />
+          <Divider />
+          <AdvancedBindingsToggle
             node={node}
             config={config}
             onInputsChange={setInputBindings}
@@ -598,6 +604,47 @@ function ActivityNodeBody({
         </Text>
       )}
     </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Advanced bindings toggle — wraps PortBindingsFooter behind a "Show advanced"
+// button so the raw port → ctxKey editor is hidden by default.
+// ---------------------------------------------------------------------------
+
+interface AdvancedBindingsToggleProps {
+  node: GraphNode;
+  config: GraphWorkflowConfig;
+  onInputsChange: (next: PortBinding[]) => void;
+  onOutputsChange: (next: PortBinding[]) => void;
+}
+
+function AdvancedBindingsToggle({
+  node,
+  config,
+  onInputsChange,
+  onOutputsChange,
+}: AdvancedBindingsToggleProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Stack gap={4}>
+      <Button
+        variant="subtle"
+        size="compact-xs"
+        onClick={() => setOpen((v) => !v)}
+        data-testid="node-settings-advanced-toggle"
+      >
+        {open ? "Hide advanced" : "Show advanced"}
+      </Button>
+      {open && (
+        <PortBindingsFooter
+          node={node}
+          config={config}
+          onInputsChange={onInputsChange}
+          onOutputsChange={onOutputsChange}
+        />
+      )}
+    </Stack>
   );
 }
 
