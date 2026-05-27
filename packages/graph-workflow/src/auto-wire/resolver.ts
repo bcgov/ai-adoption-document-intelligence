@@ -99,17 +99,13 @@ export function resolveBindings(
     let inputsChanged = false;
 
     for (const port of entry.inputs) {
-      if (!port.kind) continue;
-      // Optional ports with no existing binding are left alone. Absence of a
-      // binding on an optional port is treated as user intent to leave it
-      // unbound. Auto-wire only fills / updates bindings that already exist
-      // (locked ports, handled via the lock list in resolveInputPort) or that
-      // are required (port.required !== false). This preserves template
-      // round-trip stability for workflows that intentionally omit optional ports.
-      if (port.required === false) {
-        const alreadyBound = nextInputs.some((b) => b.port === port.name);
-        if (!alreadyBound) continue;
-      }
+      // Skip kindless ports and base-Artifact ports. `kind: "Artifact"` is
+      // the catalog's "non-taxonomy" marker per the all-or-nothing invariant
+      // (US-103). It is too broad to auto-wire: any Artifact subtype is
+      // assignable to it, which would spuriously bind identifier / config
+      // ports (groupId, documentId, apimRequestId, enrichmentSummary, …) to
+      // unrelated upstream producers. See AUTO_WIRE_DESIGN.md §2.
+      if (!port.kind || port.kind === "Artifact") continue;
       const result = resolveInputPort(
         { ...config, nodes: nextNodes },
         consumerId,
