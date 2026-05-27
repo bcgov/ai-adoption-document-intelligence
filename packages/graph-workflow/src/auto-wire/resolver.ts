@@ -7,7 +7,7 @@ import type {
 } from "../types";
 import { resolveInputPort } from "./resolve-input-port";
 import { synthesiseCtxKey } from "./synthesise-ctx-key";
-import { getLockedInputPorts } from "./lock-list";
+import { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 import { upstreamNodesWithDistance } from "./upstream-walk";
 
 /**
@@ -70,6 +70,18 @@ export function resolveBindings(
       winner.producerPort,
     );
     nextNodes[mapId] = { ...mapNode, collectionCtxKey: ctxKey };
+  }
+
+  // Per-join pass: auto-fill join.resultsCtxKey when absent and not locked.
+  for (const [joinId, joinNode] of Object.entries(nextNodes)) {
+    if (joinNode.type !== "join") continue;
+    const lockList = getLockedOutputPorts(joinNode);
+    if (lockList.includes("results")) continue;
+    if (joinNode.resultsCtxKey) continue;
+    nextNodes[joinId] = {
+      ...joinNode,
+      resultsCtxKey: synthesiseCtxKey(joinId, "results"),
+    };
   }
 
   // Activity / pollUntil input port resolution — runs after the map pass so
