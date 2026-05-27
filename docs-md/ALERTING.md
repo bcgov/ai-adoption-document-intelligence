@@ -107,7 +107,7 @@ The shared logger (`@ai-di/shared-logging`) accepts an optional `MetricsHook` ca
 
 - `warn` → increments `app_error_total{type, severity="warning"}`
 - `error` → increments `app_error_total{type, severity="critical"}`
-- `info` / `debug` → if the type was previously in error state, increments `app_recovery_total{type}` (first success after error). Also increments `app_success_total{type}` (used as denominator in error-rate rules).
+- `info` / `debug` → increments `app_success_total{type}` (used as denominator in error-rate rules)
 
 **Alert state** is determined at query-time by Prometheus aggregating counters across all pod replicas, not tracked in application memory. This design scales horizontally without state synchronization issues.
 
@@ -162,7 +162,7 @@ relabel_configs:
     action: keep
 ```
 
-This ensures that counters (`app_error_total`, `app_success_total`, `app_recovery_total`) are collected from all pods and aggregated correctly at query time via `sum(rate(...))`.
+This ensures that counters (`app_error_total`, `app_success_total`) are collected from all pods and aggregated correctly at query time via `sum(rate(...))`.
 
 In local development, static service endpoints are used since Kubernetes SD is not available.
 
