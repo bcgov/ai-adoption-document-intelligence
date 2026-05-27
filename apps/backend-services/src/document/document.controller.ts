@@ -110,7 +110,7 @@ export class DocumentController {
   @ApiOperation({
     summary: "Get thumbnails for multiple documents",
     description:
-      "Returns base64 WebP data URLs for up to 200 documents in a single request. Null entries indicate that no thumbnail is available for that document.",
+      "Returns base64 WebP data URLs for up to 200 documents in a single request. Null thumbnailData indicates that no thumbnail is available for that document.",
   })
   @ApiQuery({
     name: "group_id",
@@ -124,10 +124,17 @@ export class DocumentController {
   })
   @ApiOkResponse({
     description:
-      "Object mapping each requested document ID to its base64 WebP data URL, or null when unavailable.",
+      "Array of thumbnail results, each containing documentId and thumbnailData (base64 WebP data URL or null).",
     schema: {
-      type: "object",
-      additionalProperties: { type: "string", nullable: true },
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          documentId: { type: "string" },
+          thumbnailData: { type: "string", nullable: true },
+        },
+        required: ["documentId", "thumbnailData"],
+      },
     },
   })
   @ApiBadRequestResponse({
@@ -139,7 +146,7 @@ export class DocumentController {
     @Query("group_id") groupId: string | undefined,
     @Query("ids") idsParam: string | undefined,
     @Req() req: Request,
-  ): Promise<Record<string, string | null>> {
+  ): Promise<Array<{ documentId: string; thumbnailData: string | null }>> {
     if (!groupId) {
       throw new BadRequestException("group_id query parameter is required");
     }
@@ -161,11 +168,10 @@ export class DocumentController {
     }
 
     if (ids.length === 0) {
-      return {};
+      return [];
     }
 
-    const results: Record<string, string | null> = Object.create(null);
-    await Promise.all(
+    const results = await Promise.all(
       ids.map(async (documentId) => {
         const thumbnailKey = buildBlobFilePath(
           groupId,
@@ -175,10 +181,15 @@ export class DocumentController {
         );
         try {
           const buffer = await this.blobStorage.read(thumbnailKey);
-          results[documentId] =
-            `data:image/webp;base64,${buffer.toString("base64")}`;
+          return {
+            documentId,
+            thumbnailData: `data:image/webp;base64,${buffer.toString("base64")}`,
+          };
         } catch {
-          results[documentId] = null;
+          return {
+            documentId,
+            thumbnailData: null,
+          };
         }
       }),
     );

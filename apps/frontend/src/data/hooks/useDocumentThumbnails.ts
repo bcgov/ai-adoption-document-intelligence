@@ -27,11 +27,14 @@ export function useDocumentThumbnails(
       const params = new URLSearchParams();
       params.set("group_id", activeGroup.id);
       params.set("ids", documentIds.join(","));
-      const response = await apiService.get<Record<string, string | null>>(
-        `/documents/thumbnails?${params.toString()}`,
-      );
+      const response = await apiService.get<
+        Array<{ documentId: string; thumbnailData: string | null }>
+      >(`/documents/thumbnails?${params.toString()}`);
       if (response.success && response.data) {
-        return response.data;
+        // Convert array to object for convenient lookup
+        return Object.fromEntries(
+          response.data.map((item) => [item.documentId, item.thumbnailData]),
+        );
       }
       throw new Error(response.message ?? "Failed to fetch thumbnails");
     },

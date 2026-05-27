@@ -779,7 +779,10 @@ describe("DocumentController", () => {
       );
 
       const expected = `data:image/webp;base64,${buf.toString("base64")}`;
-      expect(result).toEqual({ "doc-1": expected, "doc-2": expected });
+      expect(result).toEqual([
+        { documentId: "doc-1", thumbnailData: expected },
+        { documentId: "doc-2", thumbnailData: expected },
+      ]);
     });
 
     it("returns null for documents without a thumbnail", async () => {
@@ -791,7 +794,7 @@ describe("DocumentController", () => {
         mockReq as any,
       );
 
-      expect(result).toEqual({ "doc-1": null });
+      expect(result).toEqual([{ documentId: "doc-1", thumbnailData: null }]);
     });
 
     it("mixes data URLs and nulls for mixed availability", async () => {
@@ -806,10 +809,13 @@ describe("DocumentController", () => {
         mockReq as any,
       );
 
-      expect(result["doc-1"]).toBe(
-        `data:image/webp;base64,${buf.toString("base64")}`,
-      );
-      expect(result["doc-2"]).toBeNull();
+      expect(result).toEqual([
+        {
+          documentId: "doc-1",
+          thumbnailData: `data:image/webp;base64,${buf.toString("base64")}`,
+        },
+        { documentId: "doc-2", thumbnailData: null },
+      ]);
     });
 
     it("throws BadRequestException when ids is an empty string", async () => {
