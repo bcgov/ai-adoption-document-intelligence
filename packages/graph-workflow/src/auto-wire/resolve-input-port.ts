@@ -4,6 +4,7 @@ import { isAssignable } from "../types/subtype-check";
 import type { KindRef } from "../types/artifacts";
 import type { GraphWorkflowConfig } from "../types";
 import { upstreamNodesWithDistance } from "./upstream-walk";
+import { getLockedInputPorts } from "./lock-list";
 
 export type PortResolution =
   | { status: "auto-bound"; producerNodeId: string; producerPort: string }
@@ -32,12 +33,7 @@ export function resolveInputPort(
   const consumer = config.nodes[consumerNodeId];
   if (!consumer) return { status: "unsatisfied" };
 
-  const lockList = Array.isArray(
-    (consumer.metadata as { lockedInputPorts?: unknown } | undefined)
-      ?.lockedInputPorts,
-  )
-    ? ((consumer.metadata as { lockedInputPorts: string[] }).lockedInputPorts)
-    : [];
+  const lockList = getLockedInputPorts(consumer);
 
   if (lockList.includes(port.name)) {
     const existing = consumer.inputs?.find((b) => b.port === port.name);
