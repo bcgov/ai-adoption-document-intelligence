@@ -82,7 +82,14 @@ describe("DocumentController", () => {
       });
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
         [mockGroupId],
-        { limit: 50, offset: 0 },
+        {
+          limit: 50,
+          offset: 0,
+          search: undefined,
+          status: "all",
+          sortBy: "created_at",
+          sortDir: "desc",
+        },
       );
     });
 
@@ -100,7 +107,14 @@ describe("DocumentController", () => {
       });
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
         [mockGroupId],
-        { limit: 50, offset: 0 },
+        {
+          limit: 50,
+          offset: 0,
+          search: undefined,
+          status: "all",
+          sortBy: "created_at",
+          sortDir: "desc",
+        },
       );
     });
 
@@ -119,6 +133,10 @@ describe("DocumentController", () => {
       expect(documentService.findAllDocuments).toHaveBeenCalledWith([], {
         limit: 50,
         offset: 0,
+        search: undefined,
+        status: "all",
+        sortBy: "created_at",
+        sortDir: "desc",
       });
     });
 
@@ -147,7 +165,14 @@ describe("DocumentController", () => {
       });
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
         [mockGroupId],
-        { limit: 10, offset: 20 },
+        {
+          limit: 10,
+          offset: 20,
+          search: undefined,
+          status: "all",
+          sortBy: "created_at",
+          sortDir: "desc",
+        },
       );
     });
 
@@ -162,7 +187,14 @@ describe("DocumentController", () => {
       );
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
         [mockGroupId],
-        { limit: 200, offset: 0 },
+        {
+          limit: 200,
+          offset: 0,
+          search: undefined,
+          status: "all",
+          sortBy: "created_at",
+          sortDir: "desc",
+        },
       );
     });
 
@@ -177,7 +209,14 @@ describe("DocumentController", () => {
       expect(result.documents).toEqual([{ id: "1" }]);
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
         [mockGroupId],
-        { limit: 50, offset: 0 },
+        {
+          limit: 50,
+          offset: 0,
+          search: undefined,
+          status: "all",
+          sortBy: "created_at",
+          sortDir: "desc",
+        },
       );
     });
 
@@ -206,7 +245,14 @@ describe("DocumentController", () => {
       expect(result.documents).toEqual([{ id: "1" }, { id: "2" }]);
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
         [mockGroupId],
-        { limit: 50, offset: 0 },
+        {
+          limit: 50,
+          offset: 0,
+          search: undefined,
+          status: "all",
+          sortBy: "created_at",
+          sortDir: "desc",
+        },
       );
     });
   });

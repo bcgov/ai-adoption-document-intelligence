@@ -84,7 +84,7 @@ describe("useDocuments", () => {
       });
 
       expect(apiService.get).toHaveBeenCalledWith(
-        `/documents?group_id=${activeGroup.id}&limit=50&offset=0`,
+        `/documents?group_id=${activeGroup.id}&limit=50&offset=0&sort_by=created_at&sort_dir=desc`,
       );
       expect(result.current.data?.documents).toEqual(mockDocuments);
       expect(result.current.data?.total).toBe(2);
@@ -110,7 +110,7 @@ describe("useDocuments", () => {
 
       expect(result.current.data?.documents).toEqual(mockDocuments);
       expect(apiService.get).toHaveBeenCalledWith(
-        `/documents?group_id=${activeGroup.id}&limit=50&offset=0`,
+        `/documents?group_id=${activeGroup.id}&limit=50&offset=0&sort_by=created_at&sort_dir=desc`,
       );
     });
   });
@@ -133,7 +133,7 @@ describe("useDocuments", () => {
       });
 
       expect(apiService.get).toHaveBeenCalledWith(
-        "/documents?limit=50&offset=0",
+        "/documents?limit=50&offset=0&sort_by=created_at&sort_dir=desc",
       );
     });
   });
