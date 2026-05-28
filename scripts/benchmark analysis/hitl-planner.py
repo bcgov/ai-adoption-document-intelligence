@@ -111,6 +111,7 @@ class Prediction:
     predicted_is_empty: bool      # the model returned null / empty for this cell
     expected_is_empty: bool       # ground truth is null / empty for this cell
     predicted_is_trivial: bool    # predicted is empty or "looks like 0" — see _predicted_looks_trivial
+    sample_index: int = 0         # ordinal index of the source sample (no PII)
 
 
 TARGET_RECALLS = [0.50, 0.70, 0.80, 0.90, 0.95, 0.99]
@@ -161,7 +162,7 @@ def _predicted_looks_trivial(value: Any) -> bool:
 def load_predictions(path: Path) -> list[Prediction]:
     raw = json.loads(path.read_text("utf-8"))
     out: list[Prediction] = []
-    for sample in raw.get("perSampleResults") or []:
+    for sample_idx, sample in enumerate(raw.get("perSampleResults") or []):
         for det in sample.get("evaluationDetails") or []:
             field = det.get("field")
             conf = det.get("confidence")
@@ -179,6 +180,7 @@ def load_predictions(path: Path) -> list[Prediction]:
                 predicted_is_empty=pred_empty,
                 expected_is_empty=exp_empty,
                 predicted_is_trivial=pred_trivial,
+                sample_index=sample_idx,
             ))
     return out
 
@@ -509,6 +511,93 @@ def plot_hitl_curves(
 
 
 # ---------------------------------------------------------------------------
+# Per-document pass-through analysis
+# ---------------------------------------------------------------------------
+
+
+def compute_passthrough(
+    by_cat_preds: dict[str, list[Prediction]],
+    by_category_sweep: dict[str, list[dict]],
+    targets: list[float],
+    docs_count: int,
+    exclude_missing: set[str],
+    skip_trivial: set[str],
+) -> list[dict]:
+    """For each target recall, compute the fraction of documents that have
+    zero reviewable flagged predictions across ALL HITL-scoped categories.
+    A document passes through only if none of its in-scope predictions are
+    flagged at the combined per-category thresholds for that recall level.
+    """
+    cats_present = [c for c in CATEGORY_ORDER if c in by_category_sweep]
+
+    per_cat_filtered: dict[str, list[Prediction]] = {}
+    for cat in cats_present:
+        cat_preds = by_cat_preds.get(cat, [])
+        per_cat_filtered[cat] = filter_predictions_for_category(
+            cat_preds, cat, cat in exclude_missing
+        )
+
+    rows: list[dict] = []
+    for idx, target in enumerate(targets):
+        per_cat_thresholds: dict[str, float] = {}
+        for cat in cats_present:
+            sweep_row = by_category_sweep[cat][idx]
+            t = sweep_row["threshold"]
+            per_cat_thresholds[cat] = t if t is not None else 0.0
+
+        doc_flags: dict[int, int] = {i: 0 for i in range(docs_count)}
+        for cat in cats_present:
+            t = per_cat_thresholds[cat]
+            use_skip_trivial = cat in skip_trivial
+            reviewable_fn = _reviewable_skip_trivial if use_skip_trivial else _reviewable_default
+            for p in per_cat_filtered[cat]:
+                if p.confidence < t and reviewable_fn(p):
+                    doc_flags[p.sample_index] = doc_flags.get(p.sample_index, 0) + 1
+
+        flag_counts = list(doc_flags.values())
+        zero_flag_docs = sum(1 for c in flag_counts if c == 0)
+        one_flag_docs = sum(1 for c in flag_counts if c == 1)
+        two_flag_docs = sum(1 for c in flag_counts if c == 2)
+        three_plus_docs = sum(1 for c in flag_counts if c >= 3)
+
+        rows.append({
+            "target_recall": target,
+            "docs_total": docs_count,
+            "docs_zero_flags": zero_flag_docs,
+            "docs_one_flag": one_flag_docs,
+            "docs_two_flags": two_flag_docs,
+            "docs_three_plus_flags": three_plus_docs,
+            "passthrough_pct": zero_flag_docs * 100 / docs_count if docs_count else 0.0,
+            "avg_flags_per_doc": sum(flag_counts) / docs_count if docs_count else 0.0,
+            "max_flags": max(flag_counts) if flag_counts else 0,
+        })
+    return rows
+
+
+def write_passthrough_csv(rows: list[dict], out_path: Path) -> None:
+    header = [
+        "target_recall", "docs_total",
+        "docs_zero_flags", "docs_one_flag", "docs_two_flags", "docs_three_plus_flags",
+        "passthrough_pct", "avg_flags_per_doc", "max_flags",
+    ]
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        for r in rows:
+            w.writerow([
+                f"{r['target_recall']:.2f}",
+                r["docs_total"],
+                r["docs_zero_flags"],
+                r["docs_one_flag"],
+                r["docs_two_flags"],
+                r["docs_three_plus_flags"],
+                f"{r['passthrough_pct']:.1f}",
+                f"{r['avg_flags_per_doc']:.2f}",
+                r["max_flags"],
+            ])
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 
@@ -610,8 +699,14 @@ def main(argv: list[str]) -> int:
         args.out_dir / "hitl-curves.png", args.engine_label,
     )
 
+    passthrough_rows = compute_passthrough(
+        by_cat_preds, by_category_sweep, TARGET_RECALLS,
+        args.docs_count, exclude_missing, skip_trivial,
+    )
+    write_passthrough_csv(passthrough_rows, args.out_dir / "hitl-passthrough.csv")
+
     print(f"\nWrote outputs to {args.out_dir}/", file=sys.stderr)
-    print("  CSVs:  hitl-per-category.csv, hitl-combined.csv", file=sys.stderr)
+    print("  CSVs:  hitl-per-category.csv, hitl-combined.csv, hitl-passthrough.csv", file=sys.stderr)
     print("  PNG:   hitl-curves.png", file=sys.stderr)
     # Summary line
     last = by_category_sweep
