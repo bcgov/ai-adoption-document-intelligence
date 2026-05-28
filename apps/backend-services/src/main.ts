@@ -18,6 +18,11 @@ const logger = createLogger("backend-services");
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
+  // Enable graceful shutdown: allows NestJS to call onModuleDestroy hooks
+  // when receiving SIGTERM (Kubernetes pod termination signal).
+  // This ensures database connections and other resources are closed cleanly.
+  app.enableShutdownHooks();
+
   // Cookie parser must be registered before routes are mounted
   app.use(cookieParser());
 
@@ -111,6 +116,13 @@ async function bootstrap(): Promise<void> {
   await app.listen(port, "0.0.0.0");
   logger.info(`Backend services is running on: http://localhost:${port}`);
   logger.info(`Upload endpoint: http://localhost:${port}/api/upload`);
+
+  // Handle SIGTERM gracefully (sent by Kubernetes during pod shutdown)
+  process.on("SIGTERM", async () => {
+    logger.info("SIGTERM received, initiating graceful shutdown...");
+    await app.close();
+    logger.info("Application closed successfully");
+  });
 }
 
 bootstrap();

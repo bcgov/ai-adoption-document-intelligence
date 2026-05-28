@@ -19,6 +19,9 @@ spec:
       labels:
         app: temporal-worker
     spec:
+      # Allow 70 seconds for graceful shutdown: complete in-flight activities (55s timeout
+      # in worker code), close connections, and clean up resources before forced termination.
+      terminationGracePeriodSeconds: 70
       containers:
         - name: temporal-worker
           image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal:develop-latest
@@ -126,6 +129,12 @@ spec:
               mountPath: /app/data/blobs
             - name: logs
               mountPath: /var/log/app
+          lifecycle:
+            preStop:
+              exec:
+                # Sleep 5s before SIGTERM to allow metrics scrape and smooth shutdown initiation.
+                # Worker code handles SIGTERM gracefully with 55s timeout for in-flight activities.
+                command: ["/bin/sh", "-c", "sleep 5"]
           resources:
             requests:
               memory: "256Mi"

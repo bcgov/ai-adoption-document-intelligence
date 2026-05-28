@@ -19,6 +19,9 @@ spec:
       labels:
         app: backend-services
     spec:
+      # Allow 60 seconds for graceful shutdown: complete in-flight requests,
+      # close database connections, and clean up resources before forced termination.
+      terminationGracePeriodSeconds: 60
       # IMPORTANT: When scaling this deployment, use gradual scaling or update the
       # deployment's replicas field (which triggers rolling updates). Do NOT use
       # `kubectl scale --replicas=N` to jump from 1->N replicas instantly, as this
@@ -252,6 +255,13 @@ spec:
           mountPath: /app/data/blobs
         - name: logs
           mountPath: /var/log/app
+        lifecycle:
+          preStop:
+            exec:
+              # Sleep 10s to allow load balancer to de-register pod before shutting down.
+              # This prevents "connection refused" errors during rolling updates.
+              # Total shutdown time: 10s (preStop) + app shutdown time < 60s (terminationGracePeriodSeconds)
+              command: ["/bin/sh", "-c", "sleep 10"]
         resources:
           requests:
             memory: "256Mi"

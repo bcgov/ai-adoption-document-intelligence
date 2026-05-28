@@ -1,12 +1,12 @@
 import { Prisma, PrismaClient } from "@generated/client";
-import { Injectable, OnModuleInit } from "@nestjs/common";
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getPrismaPgOptions } from "@/utils/database-url";
 
 @Injectable()
-export class PrismaService implements OnModuleInit {
+export class PrismaService implements OnModuleInit, OnModuleDestroy {
   public readonly prisma: PrismaClient;
   private readonly shouldLogQueries: boolean;
 
@@ -122,5 +122,17 @@ export class PrismaService implements OnModuleInit {
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
     return this.prisma.$transaction(fn);
+  }
+
+  /**
+   * Gracefully close database connections on shutdown.
+   * Called automatically by NestJS during application shutdown.
+   */
+  async onModuleDestroy(): Promise<void> {
+    this.logger.log("Closing database connections...", {
+      category: "database",
+    });
+    await this.prisma.$disconnect();
+    this.logger.log("Database connections closed", { category: "database" });
   }
 }
