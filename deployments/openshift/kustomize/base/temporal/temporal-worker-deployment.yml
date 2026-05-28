@@ -5,7 +5,8 @@ metadata:
   labels:
     app: temporal-worker
 spec:
-  replicas: 1
+  # Start with 2 replicas for HA (matches HPA minReplicas)
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -146,12 +147,6 @@ spec:
               mountPath: /app/data/blobs
             - name: logs
               mountPath: /var/log/app
-          lifecycle:
-            preStop:
-              exec:
-                # Sleep 5s before SIGTERM to allow metrics scrape and smooth shutdown initiation.
-                # Worker code handles SIGTERM gracefully with 55s timeout for in-flight activities.
-                command: ["/bin/sh", "-c", "sleep 5"]
           resources:
             requests:
               memory: "256Mi"

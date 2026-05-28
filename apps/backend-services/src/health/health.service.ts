@@ -26,14 +26,26 @@ export class HealthService {
 
     // Check database connectivity
     try {
+      const startTime = Date.now();
       await this.prisma.prisma.$queryRaw`SELECT 1`;
+      const duration = Date.now() - startTime;
       checks.database = "ok";
+      this.logger.log("Health check - database OK", {
+        category: "health",
+        durationMs: duration,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
+      const errorCode =
+        error instanceof Error && "code" in error
+          ? (error as Error & { code: string }).code
+          : undefined;
       errors.push(`Database: ${message}`);
       this.logger.error("Health check - database failed", {
         category: "health",
         error: message,
+        errorCode,
+        databaseUrl: process.env.DATABASE_URL?.replace(/:[^:@]+@/, ":***@"), // Sanitize password
       });
     }
 

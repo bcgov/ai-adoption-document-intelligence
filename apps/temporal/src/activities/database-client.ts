@@ -15,14 +15,14 @@ export function getPrismaClient(): PrismaClient {
 
     // Configure connection pool for horizontal scaling:
     // - max: 3 connections per worker pod (lighter load than backend-services)
-    // - idleTimeoutMillis: Close idle connections after 30s
+    // - idleTimeoutMillis: Close idle connections after 60s (reduces connection churn)
     // - connectionTimeoutMillis: Fail fast if pool is exhausted
     prismaClient = new PrismaClient({
       adapter: new PrismaPg({
         ...dbOptions,
         pool: {
           max: parseInt(process.env.DB_POOL_MAX ?? "3", 10),
-          idleTimeoutMillis: 30000,
+          idleTimeoutMillis: 60000,
           connectionTimeoutMillis: 5000,
         },
       }),

@@ -5,7 +5,7 @@ metadata:
   labels:
     app: backend-services
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -255,13 +255,6 @@ spec:
           mountPath: /app/data/blobs
         - name: logs
           mountPath: /var/log/app
-        lifecycle:
-          preStop:
-            exec:
-              # Sleep 10s to allow load balancer to de-register pod before shutting down.
-              # This prevents "connection refused" errors during rolling updates.
-              # Total shutdown time: 10s (preStop) + app shutdown time < 60s (terminationGracePeriodSeconds)
-              command: ["/bin/sh", "-c", "sleep 10"]
         resources:
           requests:
             memory: "256Mi"
