@@ -1,0 +1,146 @@
+# High Availability Configuration
+
+This document describes the HA configuration for backend-services, temporal-worker, frontend, and supporting services.
+
+## PodDisruptionBudgets (PDB)
+
+PodDisruptionBudgets ensure minimum availability during voluntary disruptions (node drains, cluster upgrades, manual evictions).
+
+### Configured PDBs
+
+| Service | Min Available | Notes |
+|---------|---------------|-------|
+| backend-services | 1 | At least 1 pod must remain during disruptions |
+| temporal-worker | 1 | At least 1 worker must remain to process workflows |
+| temporal-server | 1 | At least 1 server must remain for workflow coordination |
+| frontend | 1 | At least 1 frontend must remain for user access |
+| ches-adapter | 1 | At least 1 adapter must remain (from 2 replicas) |
+
+**Important:** PDBs only protect against *voluntary* disruptions. They do not prevent involuntary disruptions like node failures or out-of-memory kills.
+
+## HorizontalPodAutoscaler (HPA)
+
+HPAs automatically scale deployments based on CPU and memory utilization.
+
+### Backend Services HPA
+
+- **Min Replicas:** 2 (for HA)
+- **Max Replicas:** 5 (limited by database connection pool capacity)
+- **Scale Trigger:** CPU 75% or Memory 80%
+- **Scale Up:** Add up to 100% of current pods or 2 pods (whichever is higher) every 30s
+- **Scale Down:** Remove up to 50% of current pods every 60s, with 5 min stabilization window
+
+**Connection Pool Limit:**  
+Each backend-services pod uses `DB_POOL_MAX=5` connections. With 5 pods max, that's 25 connections to PostgreSQL.
+
+### Temporal Worker HPA
+
+- **Min Replicas:** 2 (for HA)
+- **Max Replicas:** 4 (limited by database connection pool capacity)
+- **Scale Trigger:** CPU 70% or Memory 75%
+- **Scale Up:** Add up to 50% of current pods or 1 pod (whichever is higher) every 60s
+- **Scale Down:** Remove up to 50% of current pods every 120s, with 10 min stabilization window
+
+**Connection Pool Limit:**  
+Each temporal-worker pod uses `DB_POOL_MAX=3` connections. With 4 pods max, that's 12 connections to PostgreSQL.
+
+**Scale Behavior:**  
+Temporal workers scale more conservatively than backend-services because:
+1. They process long-running workflows (up to 55s graceful shutdown)
+2. Scaling down too quickly can interrupt in-flight activities
+3. Workers have lighter database load than backend-services
+
+### Frontend HPA
+
+- **Min Replicas:** 2 (for HA)
+- **Max Replicas:** 4
+- **Scale Trigger:** CPU 75% or Memory 80%
+- **Scale Up:** Add up to 100% of current pods or 1 pod (whichever is higher) every 30s
+- **Scale Down:** Remove up to 50% of current pods every 60s, with 5 min stabilization window
+
+**No Database Limit:**  
+Frontend is nginx serving static files, so no database connections are used. Max replicas can be increased if needed.
+
+## Database Connection Pool Capacity
+
+PostgreSQL default `max_connections` is 100. Our configuration uses:
+
+| Service | Pods (max) | Connections per Pod | Total Connections |
+|---------|------------|---------------------|-------------------|
+| backend-services | 5 | 5 | 25 |
+| temporal-worker | 4 | 3 | 12 |
+| **Total** | **9** | - | **37** |
+
+This leaves **63 connections** for:
+- Interactive queries (pgAdmin, psql)
+- Migrations (run in initContainer)
+- Monitoring tools
+- Connection overhead
+
+**To increase max pods:**
+1. Calculate new total connections: `(backend_pods * 5) + (worker_pods * 3)`
+2. Ensure total < 80 (leaving 20% headroom)
+3. Or increase PostgreSQL `max_connections` in CrunchyDB cluster config
+4. Update HPA `maxReplicas` accordingly
+
+## Migration Safety
+
+The backend-services deployment uses an initContainer to run Prisma migrations with advisory locks, ensuring only one pod runs migrations at a time.
+
+**Important:** The HPA respects the RollingUpdate strategy (`maxSurge: 1, maxUnavailable: 0`), which means:
+- New pods are added one at a time during scale-up
+- Each pod's initContainer runs migrations sequentially
+- Prisma's advisory locks prevent concurrent migration attempts
+- This is safe even when scaling from 1→N replicas
+
+**Caution:** Do NOT use `kubectl scale --replicas=N` to bypass the HPA, as this can create multiple pods simultaneously and cause migration races.
+
+## Resource Requests/Limits
+
+All pods have resource requests and limits defined, which are required for HPA to function:
+
+| Service | CPU Request | Memory Request | CPU Limit | Memory Limit |
+|---------|-------------|----------------|-----------|--------------|
+| backend-services | 100m | 256Mi | 500m | 512Mi |
+| temporal-worker | 100m | 256Mi | 500m | 512Mi |
+| frontend | 50m | 64Mi | 200m | 128Mi |
+
+These values may need adjustment based on actual workload metrics.
+
+## Monitoring HPA
+
+Check HPA status:
+```bash
+kubectl get hpa -n <namespace>
+```
+
+View detailed metrics:
+```bash
+kubectl describe hpa backend-services -n <namespace>
+kubectl describe hpa temporal-worker -n <namespace>
+kubectl describe hpa frontend -n <namespace>
+```
+
+## Testing HA
+
+1. **Test PDB during node drain:**
+   ```bash
+   kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
+   ```
+   Verify that at least 1 pod remains available during the drain.
+
+2. **Test HPA scaling:**
+   ```bash
+   # Generate load on backend-services
+   kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh
+   while true; do wget -q -O- http://backend-services:3002/health; done
+   
+   # Watch HPA scale up
+   kubectl get hpa -w
+   ```
+
+3. **Test graceful shutdown:**
+   ```bash
+   kubectl delete pod <pod-name> -n <namespace>
+   # Check logs to verify graceful shutdown with no connection errors
+   ```
