@@ -275,6 +275,59 @@ def write_wrong_by_category_csv(
 
 
 # ---------------------------------------------------------------------------
+# Report 1b — All-predictions audit (every cell, matched + non-matched)
+# ---------------------------------------------------------------------------
+
+
+def write_all_predictions_csv(
+    target_label: str,
+    target_preds: dict[tuple[str, str], dict],
+    out_path: Path,
+) -> int:
+    """One row per (sampleId, field) cell — both matched AND non-matched —
+    from a single engine. Same columns as wrong-by-category.csv but with the
+    `kind` field covering 'matched' as well. Useful for investigating where
+    a category's accuracy comes from (how many matches, how many wrongs,
+    confidence distribution on correct vs wrong).
+
+    Sorted by category → field → sampleId."""
+    rows: list[dict] = []
+    for (sid, field), info in target_preds.items():
+        rows.append({
+            "sampleId": sid,
+            "category": classify_field(field),
+            "field": field,
+            "kind": info["kind"],
+            "predicted": serialize_value(info["predicted"]),
+            "expected": serialize_value(info["expected"]),
+            "confidence": info["confidence"] if info["confidence"] is not None else "",
+        })
+
+    cat_rank = {c: i for i, c in enumerate(CATEGORY_ORDER)}
+    rows.sort(key=lambda r: (
+        cat_rank.get(r["category"], 99),
+        r["field"],
+        r["sampleId"],
+    ))
+
+    header = ["sampleId", "category", "field", "kind", "predicted", "expected", "confidence"]
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        for r in rows:
+            w.writerow([r[c] for c in header])
+
+    by_kind: dict[str, int] = defaultdict(int)
+    for r in rows:
+        by_kind[r["kind"]] += 1
+    print(
+        f"wrote {out_path} ({len(rows)} total cells from '{target_label}'; by kind: {dict(by_kind)})",
+        file=sys.stderr,
+    )
+    return len(rows)
+
+
+# ---------------------------------------------------------------------------
 # Report 2 — Missing-comparison
 # ---------------------------------------------------------------------------
 
@@ -399,6 +452,12 @@ def main(argv: list[str]) -> int:
         help='one or more LABEL=PATH pairs (or bare paths; label = filename stem)',
     )
     ap.add_argument("--out-dir", required=True, type=Path)
+    ap.add_argument(
+        "--include-all-predictions",
+        action="store_true",
+        help="also emit all-predictions.csv (every cell, matched + non-matched). "
+             "Same columns as wrong-by-category.csv but with matched rows included.",
+    )
     args = ap.parse_args(argv)
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -419,6 +478,10 @@ def main(argv: list[str]) -> int:
         target_label, target_preds, args.out_dir / "wrong-by-category.csv",
         baseline=baseline,
     )
+    if args.include_all_predictions:
+        write_all_predictions_csv(
+            target_label, target_preds, args.out_dir / "all-predictions.csv",
+        )
     if len(engines) >= 2:
         write_missing_comparison_csv(engines, args.out_dir / "missing-comparison.csv")
 
