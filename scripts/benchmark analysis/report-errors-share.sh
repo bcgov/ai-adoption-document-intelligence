@@ -33,9 +33,11 @@ trap cleanup EXIT
 
 ENGINE_ARGS=()
 OUT_DIR=""
+EXTRA_FLAGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --out-dir) OUT_DIR="$2"; shift 2 ;;
+        --include-all-predictions) EXTRA_FLAGS+=("$1"); shift ;;
         -h|--help)
             sed -n 's/^# //p; s/^#//p' "$0" | sed -n '1,18p'
             exit 0 ;;
@@ -74,7 +76,8 @@ done
 # Run the report generator.
 python3 "${SCRIPT_DIR}/report-errors.py" \
     "${STAGED[@]}" \
-    --out-dir "$SHM_DIR"
+    --out-dir "$SHM_DIR" \
+    "${EXTRA_FLAGS[@]}"
 
 # Wait for input writers.
 for pid in "${WRITER_PIDS[@]}"; do
