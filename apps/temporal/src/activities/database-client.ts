@@ -31,3 +31,14 @@ export function getPrismaClient(): PrismaClient {
   }
   return prismaClient;
 }
+
+/**
+ * Disconnect Prisma client and close connection pool.
+ * Should be called during worker shutdown or test teardown.
+ */
+export async function disconnectPrismaClient(): Promise<void> {
+  if (prismaClient) {
+    await prismaClient.$disconnect();
+    prismaClient = null;
+  }
+}
