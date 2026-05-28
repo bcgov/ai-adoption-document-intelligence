@@ -118,6 +118,18 @@ async function run() {
     process.env.BENCHMARK_TASK_QUEUE || "benchmark-processing";
   const enableBenchmarkQueue = process.env.ENABLE_BENCHMARK_QUEUE !== "false"; // enabled by default
 
+  // Worker concurrency settings for horizontal scaling (Group 5: HA)
+  // maxConcurrentActivityTaskExecutions: Max parallel activities per worker pod
+  // maxConcurrentWorkflowTaskExecutions: Max parallel workflow decision tasks per worker pod
+  const maxConcurrentActivityTaskExecutions = parseInt(
+    process.env.MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS ?? "10",
+    10,
+  );
+  const maxConcurrentWorkflowTaskExecutions = parseInt(
+    process.env.MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS ?? "100",
+    10,
+  );
+
   workerLogger.info("Worker initializing", {
     event: "initializing",
     address,
@@ -125,6 +137,8 @@ async function run() {
     taskQueue,
     benchmarkTaskQueue,
     enableBenchmarkQueue,
+    maxConcurrentActivityTaskExecutions,
+    maxConcurrentWorkflowTaskExecutions,
   });
 
   // Create connection to Temporal server
@@ -154,6 +168,9 @@ async function run() {
     activities: activitiesMap,
     taskQueue,
     shutdownGraceTime: "55s", // Allow 55s for in-flight activities to complete (< 70s terminationGracePeriodSeconds)
+    // Concurrency limits for horizontal scaling (Group 5: HA)
+    maxConcurrentActivityTaskExecutions,
+    maxConcurrentWorkflowTaskExecutions,
   });
   workers.push(ocrWorker);
 
@@ -168,6 +185,9 @@ async function run() {
       activities: activitiesMap,
       taskQueue: benchmarkTaskQueue,
       shutdownGraceTime: "55s", // Allow 55s for in-flight activities to complete (< 70s terminationGracePeriodSeconds)
+      // Concurrency limits for horizontal scaling (Group 5: HA)
+      maxConcurrentActivityTaskExecutions,
+      maxConcurrentWorkflowTaskExecutions,
     });
     workers.push(benchmarkWorker);
 

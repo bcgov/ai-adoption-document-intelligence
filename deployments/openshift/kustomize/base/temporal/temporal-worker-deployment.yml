@@ -124,6 +124,23 @@ spec:
                 configMapKeyRef:
                   name: temporal-worker-config
                   key: ENRICHMENT_REDACT_PII
+            # Database Connection Pool
+            - name: DB_POOL_MAX
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: DB_POOL_MAX
+            # Worker Concurrency Configuration
+            - name: MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS
+            - name: MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS
           volumeMounts:
             - name: storage
               mountPath: /app/data/blobs

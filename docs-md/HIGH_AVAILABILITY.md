@@ -144,3 +144,74 @@ kubectl describe hpa frontend -n <namespace>
    kubectl delete pod <pod-name> -n <namespace>
    # Check logs to verify graceful shutdown with no connection errors
    ```
+
+## Temporal Worker Concurrency Configuration
+
+Each Temporal worker pod has concurrency limits to control parallel task execution:
+
+### Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS` | 10 | Max parallel activities per worker pod |
+| `MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | 100 | Max parallel workflow decision tasks per worker pod |
+
+### Activity Concurrency
+
+**Per-pod limit:** 10 concurrent activities  
+**Total capacity with HPA:** 2-4 pods × 10 = **20-40 concurrent activities**
+
+**Rationale:**
+- Activities are I/O-bound (Azure AI API calls, database queries, blob storage)
+- Each activity has a `startToCloseTimeout` (typically 2-30 minutes)
+- 10 per pod balances throughput with memory usage (512Mi limit per pod)
+- Activities may spawn child processes or use significant memory for document processing
+
+**Scaling behavior:**
+- Low load: 2 pods × 10 = 20 concurrent activities
+- High load: HPA scales to 4 pods × 10 = 40 concurrent activities
+- If all 40 slots are busy, new activities queue in Temporal server until a slot opens
+
+### Workflow Task Concurrency
+
+**Per-pod limit:** 100 concurrent workflow decision tasks  
+**Total capacity with HPA:** 2-4 pods × 100 = **200-400 concurrent decision tasks**
+
+**Rationale:**
+- Workflow tasks are lightweight in-memory operations (decision logic, conditional branching)
+- They complete quickly (typically <100ms)
+- High concurrency (100/pod) ensures workflows don't block waiting for decision slots
+- Minimal memory impact compared to activities
+
+### Tuning Guidelines
+
+**Increase activity concurrency if:**
+- Workflows queue for long periods despite idle worker CPU/memory
+- Temporal dashboard shows high \"Activity Task Schedule-to-Start Latency\"
+- Activities are very lightweight (quick database queries, simple transforms)
+
+**Decrease activity concurrency if:**
+- Worker pods hit memory limits (OOMKilled)
+- Activities frequently timeout due to resource contention
+- Database connection pool exhausted (each activity may use a DB connection)
+
+**Monitor:**
+```bash
+# Check worker resource usage
+kubectl top pods -l app=temporal-worker
+
+# Check Temporal metrics
+curl http://temporal-worker:9091/metrics | grep temporal_worker
+
+# View Temporal dashboard
+oc port-forward svc/temporal-ui 8080:8080
+# Open http://localhost:8080 and check \"Workers\" tab
+```
+
+**Connection pool capacity check:**
+```bash
+# Each activity may hold a DB connection for its duration
+# Ensure: (max worker pods * activity concurrency) * DB usage per activity < DB_POOL_MAX * max pods
+# Example: 4 pods * 10 activities = 40, with DB_POOL_MAX=3 per pod = 12 total connections
+# This is safe because not all activities use the DB simultaneously
+```
