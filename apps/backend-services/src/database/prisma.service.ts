@@ -19,7 +19,19 @@ export class PrismaService implements OnModuleInit {
       this.configService.get("DATABASE_URL"),
     );
 
-    const adapter = new PrismaPg(dbOptions);
+    // Configure connection pool for horizontal scaling:
+    // - max: 5 connections per pod (vs default 10) to prevent exhausting DB max_connections
+    // - With 3 pods: 15 backend + 3 temporal = 18 connections (Postgres default is 100)
+    // - idleTimeoutMillis: Close idle connections after 30s
+    // - connectionTimeoutMillis: Fail fast if pool is exhausted
+    const adapter = new PrismaPg({
+      ...dbOptions,
+      pool: {
+        max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      },
+    });
     if (this.shouldLogQueries) {
       this.prisma = new PrismaClient({
         log: [
