@@ -143,15 +143,23 @@ spec:
               memory: "512Mi"
               cpu: "500m"
           livenessProbe:
-            exec:
-              command: ["/bin/sh", "-c", "kill -0 1"]
+            httpGet:
+              path: /health/live
+              port: 9091
+              scheme: HTTP
             initialDelaySeconds: 30
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
-            exec:
-              command: ["/bin/sh", "-c", "kill -0 1"]
-            initialDelaySeconds: 10
+            httpGet:
+              path: /health/ready
+              port: 9091
+              scheme: HTTP
+            initialDelaySeconds: 15
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
         - name: logrotate
           image: debian:bookworm-slim
           command: ["sh", "-c"]

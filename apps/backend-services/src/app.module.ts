@@ -15,6 +15,7 @@ import { ConfusionProfileModule } from "./confusion-profile/confusion-profile.mo
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
 import { GroupModule } from "./group/group.module";
+import { HealthModule } from "./health/health.module";
 import { HitlModule } from "./hitl/hitl.module";
 import { LoggingModule } from "./logging/logging.module";
 import { MetricsModule } from "./metrics/metrics.module";
@@ -72,6 +73,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     AzureModule,
     BootstrapModule,
     GroupModule,
+    HealthModule,
     MetricsModule,
     TablesModule,
   ],

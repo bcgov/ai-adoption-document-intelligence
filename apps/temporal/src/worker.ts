@@ -10,6 +10,7 @@ import "./env-loader";
 
 import * as http from "node:http";
 import { NativeConnection, Worker } from "@temporalio/worker";
+import { getPrismaClient } from "./activities/database-client";
 import { getActivityRegistry } from "./activity-registry";
 import { workerLogger } from "./logger";
 import { getRegistry } from "./metrics";
@@ -17,21 +18,92 @@ import { installTemporalRuntimeLogger } from "./temporal-runtime-logger";
 
 // Workflows are automatically discovered via workflowsPath in Worker.create()
 
+/**
+ * Check worker health by testing database connectivity.
+ * Note: If the worker process is running, Temporal connectivity is inherently healthy
+ * since the worker maintains a connection to Temporal server.
+ */
+async function checkWorkerHealth(): Promise<{
+  status: "healthy" | "unhealthy";
+  checks: {
+    database: "ok" | "error";
+  };
+  timestamp: string;
+  errors?: string[];
+}> {
+  const errors: string[] = [];
+  const checks = {
+    database: "error" as "ok" | "error",
+  };
+
+  // Check database connectivity
+  try {
+    const prisma = getPrismaClient();
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = "ok";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    errors.push(`Database: ${message}`);
+    workerLogger.error("Health check - database failed", {
+      event: "health_check_failed",
+      dependency: "database",
+      error: message,
+    });
+  }
+
+  const status = checks.database === "ok" ? "healthy" : "unhealthy";
+
+  return {
+    status,
+    checks,
+    timestamp: new Date().toISOString(),
+    ...(errors.length > 0 && { errors }),
+  };
+}
+
 async function run() {
   // Env already loaded via top-of-file `import "./env-loader"`.
 
   // Route Temporal SDK logs through shared logger (pretty in dev, NDJSON in prod).
   installTemporalRuntimeLogger();
 
-  // Expose Prometheus metrics on a dedicated HTTP server so Prometheus can scrape them.
+  // Expose Prometheus metrics and health checks on a dedicated HTTP server
   const metricsPort = parseInt(process.env.METRICS_PORT ?? "9091", 10);
-  const metricsServer = http.createServer(async (_req, res) => {
-    const metrics = await getRegistry().metrics();
-    res.setHeader("Content-Type", getRegistry().contentType);
-    res.end(metrics);
+  const metricsServer = http.createServer(async (req, res) => {
+    const url = req.url || "/";
+
+    // Health check endpoints
+    if (url === "/health/live") {
+      // Liveness: process is running and responsive
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
+      return;
+    }
+
+    if (url === "/health/ready" || url === "/health") {
+      // Readiness: can connect to database
+      // Note: Temporal connectivity is implicit - if worker is running, it's connected
+      const health = await checkWorkerHealth();
+      const statusCode = health.status === "healthy" ? 200 : 503;
+      res.writeHead(statusCode, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(health));
+      return;
+    }
+
+    // Default: Prometheus metrics
+    if (url === "/metrics" || url === "/") {
+      const metrics = await getRegistry().metrics();
+      res.setHeader("Content-Type", getRegistry().contentType);
+      res.end(metrics);
+      return;
+    }
+
+    // 404 for unknown paths
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found");
   });
   metricsServer.listen(metricsPort, () => {
-    workerLogger.info("Metrics server listening", {
+    workerLogger.info("Metrics and health server listening", {
       event: "metrics_server_ready",
       port: metricsPort,
     });
