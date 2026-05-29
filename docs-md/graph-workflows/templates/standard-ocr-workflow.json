@@ -16,9 +16,9 @@
     "confidenceThreshold": { "type": "number", "defaultValue": 0.95, "description": "OCR confidence threshold for human review" },
     "preparedFileData": { "type": "object" },
     "apimRequestId": { "type": "string" },
-    "ocrResponse": { "type": "object" },
-    "ocrResult": { "type": "object" },
-    "cleanedResult": { "type": "object" },
+    "ocrResponseRef": { "type": "object" },
+    "ocrResultRef": { "type": "object" },
+    "cleanedResultRef": { "type": "object" },
     "averageConfidence": { "type": "number" },
     "requiresReview": { "type": "boolean", "defaultValue": false }
   },
@@ -69,12 +69,13 @@
       "activityType": "azureOcr.poll",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
-        { "port": "modelId", "ctxKey": "modelId" }
+        { "port": "modelId", "ctxKey": "modelId" },
+        { "port": "documentId", "ctxKey": "documentId" }
       ],
-      "outputs": [{ "port": "response", "ctxKey": "ocrResponse" }],
+      "outputs": [{ "port": "response", "ctxKey": "ocrResponseRef" }],
       "condition": {
         "operator": "not-equals",
-        "left": { "ref": "ctx.ocrResponse.status" },
+        "left": { "ref": "ctx.ocrResponseRef.status" },
         "right": { "literal": "running" }
       },
       "interval": "10s",
@@ -89,12 +90,13 @@
       "activityType": "azureOcr.extract",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
-        { "port": "ocrResponse", "ctxKey": "ocrResponse" },
+        { "port": "ocrResponse", "ctxKey": "ocrResponseRef" },
         { "port": "fileName", "ctxKey": "fileName" },
         { "port": "fileType", "ctxKey": "fileType" },
-        { "port": "modelId", "ctxKey": "modelId" }
+        { "port": "modelId", "ctxKey": "modelId" },
+        { "port": "documentId", "ctxKey": "documentId" }
       ],
-      "outputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
+      "outputs": [{ "port": "ocrResult", "ctxKey": "ocrResultRef" }],
       "timeout": { "startToClose": "1m" },
       "retry": { "maximumAttempts": 3 }
     },
@@ -103,8 +105,11 @@
       "type": "activity",
       "label": "Post-OCR Cleanup",
       "activityType": "ocr.cleanup",
-      "inputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
-      "outputs": [{ "port": "cleanedResult", "ctxKey": "cleanedResult" }],
+      "inputs": [
+        { "port": "ocrResult", "ctxKey": "ocrResultRef" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [{ "port": "cleanedResult", "ctxKey": "cleanedResultRef" }],
       "timeout": { "startToClose": "2m" },
       "retry": { "maximumAttempts": 3 }
     },
@@ -115,7 +120,7 @@
       "activityType": "ocr.checkConfidence",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResult" },
+        { "port": "ocrResult", "ctxKey": "cleanedResultRef" },
         { "port": "threshold", "ctxKey": "confidenceThreshold" }
       ],
       "outputs": [
@@ -166,7 +171,7 @@
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResult" }
+        { "port": "ocrResult", "ctxKey": "cleanedResultRef" }
       ],
       "timeout": { "startToClose": "2m" },
       "retry": { "maximumAttempts": 5 }
