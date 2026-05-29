@@ -6,7 +6,7 @@
 	"private": true,
 	"license": "Apache-2.0",
 	"scripts": {
-		"build": "npm run db:generate && npm run build:graph-insertion-slots && nest build",
+		"build": "npm run db:generate && npm run build:graph-insertion-slots && npm run build:graph-workflow-config && nest build",
 		"build:prod": "NODE_ENV=production npm run db:generate && npm run build:graph-insertion-slots && nest build",
 		"build:logging": "cd ../../packages/logging && npm run build",
 		"format": "prettier --write \"src/**/*.ts\"",
@@ -19,8 +19,8 @@
 		"test": "jest --passWithNoTests",
 		"test:watch": "jest --watch",
 		"test:int": "./integration-tests/run.sh",
-		"test:int:workflow": "ts-node -r tsconfig-paths/register integration-tests/test-graph-workflow.ts",
-		"test:int:workflow:with-worker": "MANAGE_WORKER=true ts-node -r tsconfig-paths/register integration-tests/test-graph-workflow.ts",
+		"test:int:workflow": "ts-node -r tsconfig-paths/register integration-tests/graph-workflow-tests/test-graph-workflow.ts",
+		"test:int:workflow:with-worker": "MANAGE_WORKER=true ts-node -r tsconfig-paths/register integration-tests/graph-workflow-tests/test-graph-workflow.ts",
 		"test:cov": "jest --coverage",
 		"db:generate": "node ../shared/scripts/generate-prisma.js",
 		"db:migrate": "prisma migrate dev",
@@ -28,10 +28,15 @@
 		"db:status": "prisma migrate status",
 		"db:studio": "BROWSER=none prisma studio --port 5555",
 		"db:seed": "prisma db seed",
-		"build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build"
+		"workflow:migrate-ocr-refs": "tsx scripts/migrate-workflow-config-ocr-refs.ts",
+		"workflow:migrate-ocr-refs:apply": "tsx scripts/migrate-workflow-config-ocr-refs.ts --apply --refresh-benchmark-hashes",
+		"build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build",
+		"build:graph-workflow-config": "cd ../../packages/graph-workflow-config && npm run build"
 	},
 	"dependencies": {
 		"@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
+		"@ai-di/graph-workflow-config": "file:../../packages/graph-workflow-config",
+		"@ai-di/temporal-payload-codec": "file:../../packages/temporal-payload-codec",
 		"@ai-di/graph-insertion-slots": "file:../../packages/graph-insertion-slots",
 		"@ai-di/monitoring": "file:../../packages/monitoring",
 		"@ai-di/shared-logging": "file:../../packages/logging",
