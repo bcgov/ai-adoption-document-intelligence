@@ -97,7 +97,7 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     },
     "document.extractToBase64": {
       description:
-        "Extract a page range from a PDF blob and return it as base64 (no blob write)",
+        "Extract a page range from a PDF blob, write to blob storage, return pageBlobPath",
     },
     "document.normalizeOrientation": {
       description:

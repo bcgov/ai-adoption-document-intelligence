@@ -25,6 +25,8 @@ export interface GraphMetadata {
   description?: string;
   version?: string;
   tags?: string[];
+  /** SHA-256 of normalized config; set on save, excluded from hash input. */
+  configHash?: string;
 }
 
 export interface CtxDeclaration {
@@ -249,20 +251,39 @@ export type ValueRef =
 // Execution I/O
 // ---------------------------------------------------------------------------
 
+export interface OcrPayloadRef {
+  documentId: string;
+  blobPath: string;
+  storage: "blob";
+  byteLength?: number;
+  pageCount?: number;
+  status?: string;
+}
+
 export interface GraphWorkflowInput {
-  graph: GraphWorkflowConfig;
-  initialCtx: Record<string, unknown>;
+  workflowVersionId: string;
   configHash: string;
+  initialCtx: Record<string, unknown>;
   runnerVersion: string;
   parentWorkflowId?: string;
-  /** Correlation ID from the API request; included for cross-service tracing. */
   requestId?: string;
+  groupId?: string | null;
+  /** Exposed-param overrides merged when loading graph config in the worker. */
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 export interface GraphWorkflowResult {
-  ctx: Record<string, unknown>;
-  completedNodes: string[];
   status: "completed" | "failed" | "cancelled";
+  completedNodes: string[];
+  documentId?: string;
+  refs?: {
+    ocrResponseRef?: OcrPayloadRef;
+    ocrResultRef?: OcrPayloadRef;
+    cleanedResultRef?: OcrPayloadRef;
+  };
+  failedNodeId?: string;
+  outputPaths?: string[];
+  error?: string;
 }
 
 // ---------------------------------------------------------------------------
