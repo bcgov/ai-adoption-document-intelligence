@@ -17,6 +17,8 @@ interface MaterializeDatasetParams {
 
 interface MaterializeDatasetResult {
   materializedPath: string;
+  /** Dataset tenant scope for OCR blob paths (`{groupId}/ocr/...`). */
+  groupId: string;
 }
 
 /**
@@ -97,7 +99,7 @@ export async function materializeDataset(
         durationMs: Date.now() - startTime,
       });
 
-      return { materializedPath };
+      return { materializedPath, groupId };
     } catch {
       // Cache doesn't exist - proceed with materialization
       log.info("Cache miss", {
@@ -179,10 +181,11 @@ export async function materializeDataset(
     log.info("Materialize dataset complete", {
       event: "complete",
       materializedPath,
+      groupId,
       durationMs,
     });
 
-    return { materializedPath };
+    return { materializedPath, groupId };
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = getErrorMessage(error);
