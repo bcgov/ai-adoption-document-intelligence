@@ -7,9 +7,10 @@
  */
 
 import type {
-  GraphWorkflowInput,
+  GraphWorkflowExecutionInput,
   GraphWorkflowResult,
 } from "../graph-workflow-types";
+import { buildGraphWorkflowResult } from "./build-workflow-result";
 import { initializeContext } from "./context-utils";
 import { handleNodeError } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
@@ -22,18 +23,24 @@ import { executeNode, executeSwitchNode } from "./node-executors";
  * Runs the DAG workflow using topological sort and ready set computation.
  */
 export async function runGraphExecution(
-  input: GraphWorkflowInput,
+  input: GraphWorkflowExecutionInput,
   state: ExecutionState,
 ): Promise<GraphWorkflowResult> {
   const config = input.graph;
 
+  state.workflowVersionId = input.workflowVersionId;
   state.configHash = input.configHash;
   state.runnerVersion = input.runnerVersion;
   state.requestId = input.requestId;
   state.groupId = input.groupId ?? null;
+  state.workflowConfigOverrides = input.workflowConfigOverrides;
 
   // Step 1: Initialize context from defaults + initialCtx
-  state.ctx = initializeContext(config, input.initialCtx);
+  const initializedCtx = initializeContext(config, input.initialCtx);
+  for (const key of Object.keys(state.ctx)) {
+    delete state.ctx[key];
+  }
+  Object.assign(state.ctx, initializedCtx);
 
   // Step 2: Validate DAG structure (cycle detection via topological sort)
   computeTopologicalOrder(config);
@@ -44,11 +51,7 @@ export async function runGraphExecution(
   while (true) {
     // Check for immediate cancellation
     if (state.cancelled() && state.cancelMode() === "immediate") {
-      return {
-        ctx: state.ctx,
-        completedNodes: Array.from(state.completedNodeIds),
-        status: "cancelled",
-      };
+      return buildGraphWorkflowResult(state, "cancelled");
     }
 
     // Compute ready set
@@ -101,18 +104,9 @@ export async function runGraphExecution(
 
     // Check for graceful cancellation
     if (state.cancelled() && state.cancelMode() === "graceful") {
-      return {
-        ctx: state.ctx,
-        completedNodes: Array.from(state.completedNodeIds),
-        status: "cancelled",
-      };
+      return buildGraphWorkflowResult(state, "cancelled");
     }
   }
 
-  // All nodes completed successfully
-  return {
-    ctx: state.ctx,
-    completedNodes: Array.from(state.completedNodeIds),
-    status: "completed",
-  };
+  return buildGraphWorkflowResult(state, "completed");
 }

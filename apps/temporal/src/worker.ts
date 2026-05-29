@@ -13,6 +13,7 @@ import { NativeConnection, Worker } from "@temporalio/worker";
 import { getActivityRegistry } from "./activity-registry";
 import { workerLogger } from "./logger";
 import { getRegistry } from "./metrics";
+import { temporalDataConverter } from "./temporal-data-converter";
 import { installTemporalRuntimeLogger } from "./temporal-runtime-logger";
 
 // Workflows are automatically discovered via workflowsPath in Worker.create()
@@ -81,6 +82,7 @@ async function run() {
     workflowsPath: require.resolve("./graph-workflow"),
     activities: activitiesMap,
     taskQueue,
+    dataConverter: temporalDataConverter,
   });
   workers.push(ocrWorker);
 
@@ -94,6 +96,7 @@ async function run() {
       workflowsPath: require.resolve("./benchmark-workflows"),
       activities: activitiesMap,
       taskQueue: benchmarkTaskQueue,
+      dataConverter: temporalDataConverter,
     });
     workers.push(benchmarkWorker);
 

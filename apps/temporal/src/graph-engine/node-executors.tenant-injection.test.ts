@@ -49,11 +49,7 @@ jest.mock("../expression-evaluator", () => ({
   evaluateCondition: (...args: unknown[]) => mockEvaluateCondition(...args),
 }));
 
-import type {
-  ChildWorkflowNode,
-  GraphWorkflowConfig,
-  PollUntilNode,
-} from "../graph-workflow-types";
+import type { ChildWorkflowNode, PollUntilNode } from "../graph-workflow-types";
 import type { ExecutionState } from "./execution-state";
 import { executeNode } from "./node-executors";
 
@@ -164,6 +160,49 @@ describe("executePollUntilNode — tenant groupId injection", () => {
     expect(calledWith.groupId).toBe("trusted-group");
   });
 
+  it("injects ctx.documentId into pollUntil activity params", async () => {
+    const node = makePollUntilNode({
+      activityType: "azureOcr.poll",
+      inputs: [
+        { port: "apimRequestId", ctxKey: "apimRequestId" },
+        { port: "modelId", ctxKey: "modelId" },
+      ],
+    });
+    const state = makeState({
+      ctx: {
+        documentId: "doc-from-initial-ctx",
+        apimRequestId: "req-1",
+        modelId: "prebuilt-layout",
+      },
+      groupId: "trusted-group",
+    });
+
+    await executeNode(node, graphConfig as never, state);
+
+    expect(mockActivityFn).toHaveBeenCalledWith(
+      expect.objectContaining({ documentId: "doc-from-initial-ctx" }),
+    );
+  });
+
+  it("ctx.documentId wins over port-bound documentId (spoof guard)", async () => {
+    const node = makePollUntilNode({
+      activityType: "azureOcr.poll",
+      inputs: [{ port: "documentId", ctxKey: "evilDoc" }],
+    });
+    const state = makeState({
+      ctx: { documentId: "trusted-doc", evilDoc: "other-doc" },
+      groupId: "trusted-group",
+    });
+
+    await executeNode(node, graphConfig as never, state);
+
+    const calledWith = mockActivityFn.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(calledWith.documentId).toBe("trusted-doc");
+  });
+
   it("does NOT inject groupId when state.groupId is null", async () => {
     const node = makePollUntilNode();
     const state = makeState({ groupId: null });
@@ -185,19 +224,11 @@ describe("executePollUntilNode — tenant groupId injection", () => {
 function makeChildWorkflowNode(
   overrides: Partial<ChildWorkflowNode> = {},
 ): ChildWorkflowNode {
-  const inlineGraph: GraphWorkflowConfig = {
-    schemaVersion: "1.0",
-    metadata: { name: "child" },
-    nodes: {},
-    edges: [],
-    entryNodeId: "noop",
-    ctx: {},
-  };
   return {
     id: "child-node",
     type: "childWorkflow",
     label: "Child",
-    workflowRef: { type: "inline", graph: inlineGraph },
+    workflowRef: { type: "library", workflowId: "child-lib-workflow" },
     ...overrides,
   };
 }
@@ -205,10 +236,14 @@ function makeChildWorkflowNode(
 describe("executeChildWorkflowNode — tenant groupId propagation", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockActivityFn.mockResolvedValue({
+      workflowVersionId: "child-wv-1",
+      configHash: "child-config-hash",
+    });
     mockExecuteChild.mockResolvedValue({
-      ctx: {},
       completedNodes: [],
       status: "completed",
+      refs: {},
     });
   });
 

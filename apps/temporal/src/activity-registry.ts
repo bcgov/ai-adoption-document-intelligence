@@ -13,6 +13,7 @@ import {
   benchmarkCleanup,
   benchmarkCompareAgainstBaseline,
   benchmarkEvaluate,
+  benchmarkFlattenPredictionFromRefs,
   benchmarkLoadOcrCache,
   benchmarkPersistEvaluationDetails,
   benchmarkPersistOcrCache,
@@ -312,6 +313,16 @@ register({
 });
 
 register({
+  activityType: "benchmark.flattenPredictionFromRefs",
+  activityFn: benchmarkFlattenPredictionFromRefs as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Build flat benchmark prediction maps from OCR blob refs",
+});
+
+register({
   activityType: "benchmark.materializeDataset",
   activityFn: materializeDataset as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "30m",
@@ -443,7 +454,7 @@ register({
   defaultTimeout: "3m",
   defaultRetry: { maximumAttempts: 2 },
   description:
-    "Extract a page range from a PDF blob and return it as base64 (no blob write)",
+    "Extract a page range from a PDF blob, write to blob storage, return pageBlobPath",
 });
 
 register({

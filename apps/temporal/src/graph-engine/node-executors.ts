@@ -22,6 +22,7 @@ import type {
   ChildWorkflowNode,
   GraphNode,
   GraphWorkflowConfig,
+  GraphWorkflowResult,
   HumanGateNode,
   JoinNode,
   MapNode,
@@ -81,7 +82,7 @@ function mergeBenchmarkOcrCacheParams(
  * standard merge order:
  *   1. resolved port-binding inputs
  *   2. static node parameters
- *   3. system fields (requestId, groupId) — spread last so they always win
+ *   3. system fields (requestId, groupId, documentId) — spread last so they always win
  *
  * SECURITY: groupId is the tenant scope set by the workflow caller. It lives
  * on ExecutionState (not in ctx) so graph workflow authors (MEMBER role)
@@ -89,17 +90,24 @@ function mergeBenchmarkOcrCacheParams(
  * parameters to access another group's data. Every executor that invokes an
  * activity must build its parameter object through this helper so the rule
  * is applied consistently.
+ *
+ * documentId is taken from initialCtx (ctx.documentId) set by the upload/start
+ * path so pollUntil and other nodes that omit an explicit port binding still
+ * pass documentId into OCR blob activities.
  */
 function buildActivityParams(
   node: { parameters?: Record<string, unknown> },
   state: ExecutionState,
   inputs: Record<string, unknown>,
 ): Record<string, unknown> {
+  const ctxDocumentId = state.ctx.documentId;
   return {
     ...inputs,
     ...node.parameters,
     ...(state.requestId && { requestId: state.requestId }),
     ...(state.groupId != null && { groupId: state.groupId }),
+    ...(typeof ctxDocumentId === "string" &&
+      ctxDocumentId.length > 0 && { documentId: ctxDocumentId }),
   };
 }
 
@@ -254,15 +262,16 @@ export function executeSwitchNode(
  * Map nodes iterate over a collection and execute a subgraph for each item.
  * Each branch gets an isolated context copy with the item and optional index.
  *
- * For simplicity, this executes branches in-process rather than using child workflows.
- * Future optimization: Use child workflows for large collections (> 50 items).
+ * Collections with more than 20 items use child graphWorkflow per branch (ref-only history).
+ * Smaller collections run in-process in the parent workflow.
  */
+const MAP_CHILD_WORKFLOW_THRESHOLD = 20;
+
 async function executeMapNode(
   node: MapNode,
   config: GraphWorkflowConfig,
   state: ExecutionState,
 ): Promise<void> {
-  // Step 1: Get collection from context
   const collection = resolvePortBinding(node.collectionCtxKey, state.ctx);
 
   if (!Array.isArray(collection)) {
@@ -273,33 +282,52 @@ async function executeMapNode(
     });
   }
 
-  // Step 2: Execute branches with concurrency limiting
   const maxConcurrency = node.maxConcurrency || Infinity;
+  const useChildWorkflows =
+    collection.length > MAP_CHILD_WORKFLOW_THRESHOLD &&
+    state.workflowVersionId !== undefined;
+
   const results = await executeWithConcurrencyLimit(
     collection,
     maxConcurrency,
     async (item: unknown, index: number) => {
-      // Create branch context (shallow copy with item and index)
       const branchCtx: Record<string, unknown> = { ...state.ctx };
       branchCtx[node.itemCtxKey] = item;
       if (node.indexCtxKey) {
         branchCtx[node.indexCtxKey] = index;
       }
 
-      // Execute the subgraph for this branch
-      const branchResult = await executeBranchSubgraph(
+      if (useChildWorkflows) {
+        const childResult = (await executeChild("graphWorkflow", {
+          args: [
+            {
+              workflowVersionId: state.workflowVersionId!,
+              configHash: state.configHash,
+              initialCtx: branchCtx,
+              runnerVersion: state.runnerVersion,
+              parentWorkflowId: workflowInfo().workflowId,
+              groupId: state.groupId ?? null,
+              requestId: state.requestId,
+              ...(state.workflowConfigOverrides &&
+              Object.keys(state.workflowConfigOverrides).length > 0
+                ? { workflowConfigOverrides: state.workflowConfigOverrides }
+                : {}),
+            },
+          ],
+        })) as GraphWorkflowResult;
+        return childResult.refs ?? {};
+      }
+
+      return executeBranchSubgraph(
         config,
         node.bodyEntryNodeId,
         node.bodyExitNodeId,
         branchCtx,
         state,
       );
-
-      return branchResult;
     },
   );
 
-  // Step 3: Store branch results for join node
   state.mapBranchResults.set(node.id, results);
 }
 
@@ -505,6 +533,26 @@ async function executeHumanGateNode(
  *
  * Starts a child graphWorkflow using an inline graph or a library reference.
  */
+function resolveChildOutputPort(
+  port: string,
+  childResult: GraphWorkflowResult,
+): unknown {
+  const refs = childResult.refs;
+  if (port === "ocrResponse" && refs?.ocrResponseRef) {
+    return refs.ocrResponseRef;
+  }
+  if (port === "ocrResult" && refs?.ocrResultRef) {
+    return refs.ocrResultRef;
+  }
+  if (port === "cleanedResult" && refs?.cleanedResultRef) {
+    return refs.cleanedResultRef;
+  }
+  if (refs && port in refs) {
+    return refs[port as keyof typeof refs];
+  }
+  return undefined;
+}
+
 async function executeChildWorkflowNode(
   node: ChildWorkflowNode,
   state: ExecutionState,
@@ -514,20 +562,23 @@ async function executeChildWorkflowNode(
     retry: { maximumAttempts: 3 } as RetryPolicy,
   });
 
-  let childGraph: GraphWorkflowConfig;
-
   if (node.workflowRef.type === "inline") {
-    childGraph = node.workflowRef.graph;
-  } else {
-    const result = (await (
-      activityProxy.getWorkflowGraphConfig as (
-        params: Record<string, unknown>,
-      ) => Promise<Record<string, unknown>>
-    )({ workflowId: node.workflowRef.workflowId })) as {
-      graph: GraphWorkflowConfig;
-    };
-    childGraph = result.graph;
+    throw ApplicationFailure.create({
+      type: "GRAPH_EXECUTION_ERROR",
+      message:
+        "Inline childWorkflow graphs are not supported; use library workflowRef",
+      nonRetryable: true,
+    });
   }
+
+  const { workflowVersionId, configHash } = (await (
+    activityProxy.getWorkflowGraphConfig as (
+      params: Record<string, unknown>,
+    ) => Promise<Record<string, unknown>>
+  )({ workflowId: node.workflowRef.workflowId })) as {
+    workflowVersionId: string;
+    configHash: string;
+  };
 
   const initialCtx: Record<string, unknown> = {};
   if (node.inputMappings) {
@@ -536,28 +587,26 @@ async function executeChildWorkflowNode(
     }
   }
 
-  const childResult = await executeChild("graphWorkflow", {
+  const childResult = (await executeChild("graphWorkflow", {
     args: [
       {
-        graph: childGraph,
+        workflowVersionId,
+        configHash,
         initialCtx,
-        configHash: state.configHash,
         runnerVersion: state.runnerVersion,
         parentWorkflowId: workflowInfo().workflowId,
-        // SECURITY: propagate the parent's tenant scope so the child runner
-        // sets state.groupId and its activity-node executor can inject the
-        // trusted groupId. Without this the child would run with
-        // state.groupId=null and any activity parameters supplied by the
-        // graph author would reach the activity unchecked.
         groupId: state.groupId ?? null,
+        requestId: state.requestId,
       },
     ],
-  });
+  })) as GraphWorkflowResult;
 
   if (node.outputMappings) {
     for (const mapping of node.outputMappings) {
-      const value = resolvePortBinding(mapping.port, childResult.ctx);
-      writeToCtx(mapping.ctxKey, value, state.ctx);
+      const value = resolveChildOutputPort(mapping.port, childResult);
+      if (value !== undefined) {
+        writeToCtx(mapping.ctxKey, value, state.ctx);
+      }
     }
   }
 }
@@ -588,8 +637,11 @@ export async function executeBranchSubgraph(
     ctx: branchCtx,
     selectedEdges: new Map<string, string>(),
     mapBranchResults: new Map<string, unknown[]>(),
+    workflowVersionId: parentState.workflowVersionId,
     configHash: parentState.configHash,
     runnerVersion: parentState.runnerVersion,
+    groupId: parentState.groupId,
+    requestId: parentState.requestId,
     lastError: parentState.lastError,
   };
 
