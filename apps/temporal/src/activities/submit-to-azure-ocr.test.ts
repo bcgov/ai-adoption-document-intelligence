@@ -37,7 +37,7 @@ describe("submitToAzureOCR activity", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
     process.env = {
       ...originalEnv,
       AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:

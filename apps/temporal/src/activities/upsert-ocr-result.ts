@@ -1,6 +1,11 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { Prisma } from "@generated/client";
 import { createActivityLogger } from "../logger";
+import {
+  isOcrPayloadRef,
+  loadOcrResultFromPort,
+  type OcrPayloadRef,
+} from "../ocr-payload-ref";
 import type { EnrichmentSummary, OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 
@@ -12,11 +17,15 @@ import { getPrismaClient } from "./database-client";
  */
 export async function upsertOcrResult(params: {
   documentId: string;
-  ocrResult: OCRResult;
+  ocrResult: OCRResult | OcrPayloadRef;
+  groupId?: string | null;
   enrichmentSummary?: EnrichmentSummary | null;
 }): Promise<void> {
   const activityName = "upsertOcrResult";
-  const { documentId, ocrResult, enrichmentSummary } = params;
+  const { documentId, enrichmentSummary } = params;
+  const ocrResult = isOcrPayloadRef(params.ocrResult)
+    ? await loadOcrResultFromPort(params.ocrResult, params.groupId)
+    : params.ocrResult;
   const log = createActivityLogger(activityName, { documentId });
   const startTime = Date.now();
 

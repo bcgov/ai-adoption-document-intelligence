@@ -22,6 +22,10 @@ import type {
 } from "../correction-types";
 import { deepCopyOcrResult } from "../correction-types";
 import { createActivityLogger } from "../logger";
+import {
+  finalizeCorrectionResult,
+  resolveOcrResultInput,
+} from "../ocr-activity-ref-utils";
 import type { EnrichmentChange } from "../types";
 import { getPrismaClient } from "./database-client";
 import type { FieldMap } from "./enrichment-rules";
@@ -302,7 +306,8 @@ export async function characterConfusionCorrection(
   params: CharacterConfusionParams,
 ): Promise<CorrectionResult> {
   const log = createActivityLogger("characterConfusionCorrection");
-  const { ocrResult, fieldScope, applyToAllFields, documentType } = params;
+  const { documentId, fieldScope, applyToAllFields, documentType } = params;
+  const { ocrResult, groupId } = await resolveOcrResultInput(params);
 
   let profileMap: Record<string, string> | null = null;
   if (params.confusionProfileId) {
@@ -455,22 +460,26 @@ export async function characterConfusionCorrection(
     changesApplied: changes.length,
   });
 
-  return {
-    ocrResult: result,
-    changes,
-    metadata: {
-      confusionMapEntries: useProfile
-        ? Object.keys(profileMap ?? {}).length
-        : useOverride
-          ? Object.keys(confusionMapOverride ?? {}).length
-          : Object.keys(mergeConfusionRules(baseResolvedRules ?? [])).length,
-      applyToAllFields: applyToAllFields ?? false,
-      documentType: documentType ?? null,
-      schemaAware: Boolean(fieldMap),
-      enabledRules: resolvedRuleIds,
-      useProfile,
-      useOverride,
-      confusionProfileId: params.confusionProfileId ?? null,
+  return finalizeCorrectionResult(
+    {
+      ocrResult: result,
+      changes,
+      metadata: {
+        confusionMapEntries: useProfile
+          ? Object.keys(profileMap ?? {}).length
+          : useOverride
+            ? Object.keys(confusionMapOverride ?? {}).length
+            : Object.keys(mergeConfusionRules(baseResolvedRules ?? [])).length,
+        applyToAllFields: applyToAllFields ?? false,
+        documentType: documentType ?? null,
+        schemaAware: Boolean(fieldMap),
+        enabledRules: resolvedRuleIds,
+        useProfile,
+        useOverride,
+        confusionProfileId: params.confusionProfileId ?? null,
+      },
     },
-  };
+    documentId,
+    groupId,
+  );
 }

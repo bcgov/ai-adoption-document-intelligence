@@ -3,16 +3,41 @@
  * Mocks database and optional LLM; uses real enrichment rules.
  */
 
-import * as loggerModule from "../logger";
+jest.mock("../logger", () => {
+  const mockLog = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(),
+  };
+  mockLog.child.mockReturnValue(mockLog);
+  return {
+    createActivityLogger: jest.fn(() => mockLog),
+  };
+});
+
+jest.mock("./database-client", () => ({
+  getPrismaClient: jest.fn(),
+}));
+
+import { createActivityLogger } from "../logger";
+import * as ocrRefUtils from "../ocr-activity-ref-utils";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 import { type EnrichResultsParams, enrichResults } from "./enrich-results";
 import * as enrichmentLlm from "./enrichment-llm";
 
-jest.mock("../logger");
-jest.mock("./database-client", () => ({
-  getPrismaClient: jest.fn(),
-}));
+const ocrBodiesByPath = new Map<string, OCRResult>();
+
+function ocrBodyFromRef(ref: OcrPayloadRef): OCRResult {
+  const body = ocrBodiesByPath.get(ref.blobPath);
+  if (!body) {
+    throw new Error(`missing OCR body for ${ref.blobPath}`);
+  }
+  return body;
+}
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 
@@ -80,25 +105,30 @@ describe("enrichResults activity", () => {
       },
     };
     jest.clearAllMocks();
-    // Set up the mocked logger — auto-mock creates jest.fn() stubs automatically
-    const mockLog = {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
-      child: jest.fn(),
-    };
-    mockLog.child.mockReturnValue(mockLog);
-    jest
-      .mocked(loggerModule.createActivityLogger)
-      .mockReturnValue(
-        mockLog as unknown as ReturnType<
-          typeof loggerModule.createActivityLogger
-        >,
-      );
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
     getPrismaClientMock.mockReturnValue(prismaMock);
+    ocrBodiesByPath.clear();
+    jest
+      .spyOn(ocrRefUtils, "resolveOcrResultInput")
+      .mockImplementation(async (params) => ({
+        ocrResult: params.ocrResult as OCRResult,
+        groupId: "gtestgroupidfortests01",
+      }));
+    jest
+      .spyOn(ocrRefUtils, "toOcrResultPort")
+      .mockImplementation(async (body, documentId, groupId) => {
+        const blobPath = `${groupId}/ocr/${documentId}/ocr-result.json`;
+        ocrBodiesByPath.set(blobPath, body);
+        return {
+          ocrResult: {
+            documentId,
+            blobPath,
+            storage: "blob",
+            status: "succeeded",
+          },
+        };
+      });
   });
 
   afterEach(() => {
@@ -117,7 +147,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
       expect(prismaMock.templateModel.findUnique).toHaveBeenCalledWith({
         where: { id: "missing-tm" },
@@ -139,7 +169,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
     });
 
@@ -154,7 +184,7 @@ describe("enrichResults activity", () => {
         ocrResult,
         documentType: "tm-1",
       });
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
     });
   });
@@ -176,11 +206,10 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).not.toBe(ocrResult);
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
-        "2024-01-15",
-      );
-      expect(result.ocrResult.keyValuePairs[1].value?.content).toBe("1234.56");
+      const enriched = ocrBodyFromRef(result.ocrResult);
+      expect(enriched).not.toBe(ocrResult);
+      expect(enriched.keyValuePairs[0].value?.content).toBe("2024-01-15");
+      expect(enriched.keyValuePairs[1].value?.content).toBe("1234.56");
       expect(result.summary).not.toBeNull();
       expect(result.summary?.changes.length).toBeGreaterThan(0);
       expect(result.summary?.rulesApplied).toContain("trimWhitespace");
@@ -276,9 +305,9 @@ describe("enrichResults activity", () => {
       expect(result.summary).not.toBeNull();
       expect(result.summary?.llmEnriched).toBe(true);
       expect(result.summary?.llmModel).toBe("gpt-4o");
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
-        "2024-01-15",
-      );
+      expect(
+        ocrBodyFromRef(result.ocrResult).keyValuePairs[0].value?.content,
+      ).toBe("2024-01-15");
 
       if (origEndpoint !== undefined)
         process.env.AZURE_OPENAI_ENDPOINT = origEndpoint;
@@ -312,9 +341,9 @@ describe("enrichResults activity", () => {
         enableLlmEnrichment: true,
       });
 
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
-        "2024-01-15",
-      );
+      expect(
+        ocrBodyFromRef(result.ocrResult).keyValuePairs[0].value?.content,
+      ).toBe("2024-01-15");
       expect(result.summary).not.toBeNull();
       expect(result.summary?.llmEnriched).toBe(false);
 
@@ -338,7 +367,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
     });
   });
@@ -356,7 +385,7 @@ describe("enrichResults activity", () => {
 
       expect(result).toHaveProperty("ocrResult");
       expect(result).toHaveProperty("summary");
-      expect(typeof result.ocrResult).toBe("object");
+      expect(result.ocrResult.storage).toBe("blob");
       expect(
         result.summary === null || typeof result.summary === "object",
       ).toBe(true);
@@ -375,8 +404,9 @@ describe("enrichResults activity", () => {
         documentType: "tm-1",
       });
 
-      const mockLog = jest.mocked(loggerModule.createActivityLogger).mock
-        .results[0].value as { info: jest.Mock };
+      const mockLog = (createActivityLogger as jest.Mock)() as {
+        info: jest.Mock;
+      };
       const completionCall = mockLog.info.mock.calls.find(
         ([msg]: [string]) => msg === "Enrich results complete",
       );
@@ -397,8 +427,9 @@ describe("enrichResults activity", () => {
         documentType: "tm-1",
       });
 
-      const mockLog = jest.mocked(loggerModule.createActivityLogger).mock
-        .results[0].value as { error: jest.Mock };
+      const mockLog = (createActivityLogger as jest.Mock)() as {
+        error: jest.Mock;
+      };
       const errorCall = mockLog.error.mock.calls.find(
         ([msg]: [string]) => msg === "Enrich results error",
       );

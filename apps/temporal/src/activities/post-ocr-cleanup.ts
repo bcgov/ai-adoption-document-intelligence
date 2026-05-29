@@ -1,5 +1,13 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../logger";
+import {
+  isOcrPayloadRef,
+  loadOcrResultFromPort,
+  type OcrPayloadRef,
+  persistOcrArtifactRef,
+  requireDocumentId,
+  resolveGroupIdForOcr,
+} from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
 
 /**
@@ -7,10 +15,15 @@ import type { OCRResult } from "../types";
  * Performs text cleanup including unicode/encoding fixes, dehyphenation, and number/date normalization
  */
 export async function postOcrCleanup(params: {
-  ocrResult: OCRResult;
-}): Promise<{ cleanedResult: OCRResult }> {
+  ocrResult: OCRResult | OcrPayloadRef;
+  documentId: string;
+  groupId?: string | null;
+}): Promise<{ cleanedResult: OcrPayloadRef }> {
   const activityName = "postOcrCleanup";
-  const { ocrResult } = params;
+  const documentId = requireDocumentId(params);
+  const ocrResult = isOcrPayloadRef(params.ocrResult)
+    ? await loadOcrResultFromPort(params.ocrResult, params.groupId)
+    : params.ocrResult;
   const log = createActivityLogger(activityName);
 
   log.info("Post-OCR cleanup start", {
@@ -207,8 +220,15 @@ export async function postOcrCleanup(params: {
       cleanedTextLength: cleanedResult.extractedText.length,
     });
 
-    // Return with port name as key for output binding
-    return { cleanedResult };
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const cleanedResultRef = await persistOcrArtifactRef(
+      groupId,
+      documentId,
+      "cleaned-result.json",
+      cleanedResult,
+    );
+
+    return { cleanedResult: cleanedResultRef };
   } catch (error) {
     const errorMessage = getErrorMessage(error);
     log.error("Post-OCR cleanup error", {
@@ -217,7 +237,13 @@ export async function postOcrCleanup(params: {
       error: errorMessage,
       stack: getErrorStack(error),
     });
-    // Return original result if cleanup fails
-    return { cleanedResult: ocrResult };
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const fallbackRef = await persistOcrArtifactRef(
+      groupId,
+      documentId,
+      "cleaned-result.json",
+      ocrResult,
+    );
+    return { cleanedResult: fallbackRef };
   }
 }
