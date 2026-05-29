@@ -44,7 +44,7 @@ MANAGE_WORKER=true npm run test:int:workflow
 npm run test:int:workflow:with-worker
 
 # Run with specific template and test file
-WORKFLOW_TEMPLATE=multi-page-report-workflow TEST_FILE=multi-page-sample-1.pdf npm run test:int:workflow:with-worker
+WORKFLOW_SLUG=multi-page-report TEST_FILE=multi-page-sample-1.pdf npm run test:int:workflow:with-worker
 ```
 
 **Benefits:**
@@ -64,7 +64,7 @@ npm run dev
 
 # Terminal 2: Run the test
 cd ~/GitHub/ai-adoption-document-intelligence/apps/backend-services
-WORKFLOW_TEMPLATE=multi-page-report-workflow TEST_FILE=multi-page-sample-1.pdf npm run test:int:workflow
+WORKFLOW_SLUG=multi-page-report TEST_FILE=multi-page-sample-1.pdf npm run test:int:workflow
 ```
 
 **Benefits:**
@@ -78,7 +78,8 @@ WORKFLOW_TEMPLATE=multi-page-report-workflow TEST_FILE=multi-page-sample-1.pdf n
 |----------|---------|-------------|
 | `MANAGE_WORKER` | `false` | Set to `true` to have the test start/stop the worker |
 | `WORKER_STARTUP_DELAY` | `5000` | Milliseconds to wait for worker to initialize (when `MANAGE_WORKER=true`) |
-| `WORKFLOW_TEMPLATE` | `standard-ocr-workflow` | Workflow template to test (from `docs-md/templates/`) |
+| `WORKFLOW_SLUG` | `standard-ocr` | Seeded workflow lineage slug (`workflow_versions` in DB) |
+| `WORKFLOW_VERSION` | *(head)* | Optional pin to a specific `version_number` |
 | `TEST_FILE` | `test-document.jpg` | Test file to upload (from `integration-tests/`) |
 | `BACKEND_URL` | `http://localhost:3002` | Backend API URL |
 | `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal server address |
@@ -125,7 +126,7 @@ Example output:
 
 ```bash
 # Test with managed worker and custom template
-MANAGE_WORKER=true WORKFLOW_TEMPLATE=multi-page-report-workflow TEST_FILE=multi-page-sample-1.pdf npm run test:int:workflow
+MANAGE_WORKER=true WORKFLOW_SLUG=multi-page-report TEST_FILE=multi-page-sample-1.pdf npm run test:int:workflow
 
 # Test with longer timeout for complex workflows
 MANAGE_WORKER=true TEST_TIMEOUT=600000 npm run test:int:workflow

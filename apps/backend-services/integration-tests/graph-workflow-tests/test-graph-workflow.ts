@@ -18,6 +18,7 @@ import {
 } from "@temporalio/client";
 import axios, { AxiosInstance } from "axios";
 import * as dotenv from "dotenv";
+import { temporalDataConverter } from "../../src/temporal/temporal-data-converter";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -32,7 +33,10 @@ const CONFIG = {
   TEST_API_KEY: process.env.TEST_API_KEY || "",
   TEST_TIMEOUT: parseInt(process.env.TEST_TIMEOUT || "300000", 10), // 5 minutes
   POLL_INTERVAL: 2000, // 2 seconds
-  WORKFLOW_TEMPLATE: process.env.WORKFLOW_TEMPLATE || "standard-ocr-workflow",
+  WORKFLOW_SLUG: process.env.WORKFLOW_SLUG || "standard-ocr",
+  WORKFLOW_VERSION: process.env.WORKFLOW_VERSION
+    ? parseInt(process.env.WORKFLOW_VERSION, 10)
+    : undefined,
   TEST_FILE: process.env.TEST_FILE || "test-document.jpg",
   MANAGE_WORKER: process.env.MANAGE_WORKER === "true", // Set to 'true' to auto-start/stop worker
   WORKER_STARTUP_DELAY: parseInt(
@@ -55,24 +59,13 @@ function assertResolvedPathUnderRoot(
 }
 
 // --- Types ---
-interface GraphWorkflowConfig {
-  schemaVersion: string;
-  metadata: {
-    name?: string;
-    description?: string;
-    tags?: string[];
-  };
-  entryNodeId: string;
-  ctx: Record<string, unknown>;
-  nodes: Record<string, unknown>;
-  edges: Array<unknown>;
-}
-
 interface WorkflowInfo {
   id: string;
+  workflowVersionId: string;
+  slug: string;
+  version: number;
   name: string;
   description: string | null;
-  config: GraphWorkflowConfig;
 }
 
 interface UploadResponse {
@@ -80,6 +73,20 @@ interface UploadResponse {
   title: string;
   status: string;
   file_path: string;
+}
+
+interface DocumentDetails {
+  id: string;
+  status: string;
+  workflow_execution_id: string | null;
+  normalized_file_path: string | null;
+  group_id: string;
+}
+
+/** Matches `@ai-di/blob-storage-paths` group-id validation used by OCR blob reads. */
+function isValidBlobGroupId(groupId: string): boolean {
+  if (groupId.length < 2) return false;
+  return /^[a-z][0-9a-z]+$/.test(groupId);
 }
 
 interface WorkflowStatus {
@@ -100,6 +107,7 @@ interface WorkflowProgress {
 let testDocumentId: string | null = null;
 let testWorkflowConfigId: string | null = null;
 let workflowExecutionId: string | null = null;
+let testPassed = false;
 let api: AxiosInstance;
 let temporalClient: Client | null = null;
 let temporalConnection: Connection | null = null;
@@ -237,6 +245,7 @@ async function checkTemporalServer(): Promise<boolean> {
     const client = new Client({
       connection: conn,
       namespace: CONFIG.TEMPORAL_NAMESPACE,
+      dataConverter: temporalDataConverter,
     });
 
     // Try to list workflows to verify connection
@@ -251,7 +260,8 @@ async function checkTemporalServer(): Promise<boolean> {
     log(`Temporal Server connected at ${CONFIG.TEMPORAL_ADDRESS}`, "success");
     return true;
   } catch (error) {
-    log(`Failed to connect to Temporal: ${error.message}`, "error");
+    const msg = error instanceof Error ? error.message : String(error);
+    log(`Failed to connect to Temporal: ${msg}`, "error");
     return false;
   }
 }
@@ -299,32 +309,6 @@ async function runPreflightChecks(): Promise<boolean> {
 }
 
 // --- Test Data Preparation ---
-async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
-  log("Loading workflow configuration from template...");
-  const templatePath = path.join(
-    __dirname,
-    `../../../docs-md/templates/${CONFIG.WORKFLOW_TEMPLATE}.json`,
-  );
-  assertResolvedPathUnderRoot(
-    path.resolve(templatePath),
-    path.resolve(__dirname, "../../../docs-md/templates"),
-  );
-
-  if (!fs.existsSync(templatePath)) {
-    throw new Error(`Workflow template not found at ${templatePath}`);
-  }
-
-  const configData = fs.readFileSync(templatePath, "utf-8");
-  const config = JSON.parse(configData) as GraphWorkflowConfig;
-
-  log(
-    `Loaded workflow config: ${config.metadata.name || "Unnamed"}`,
-    "success",
-  );
-  log(`Template: ${CONFIG.WORKFLOW_TEMPLATE}`, "info");
-  return config;
-}
-
 async function loadTestFile(): Promise<string> {
   log("Loading test document...");
   const testFilePath = path.join(__dirname, CONFIG.TEST_FILE);
@@ -348,22 +332,31 @@ async function loadTestFile(): Promise<string> {
   return base64;
 }
 
-async function findWorkflowConfig(workflowName: string): Promise<string> {
+async function findWorkflowVersionIdBySlug(
+  workflowSlug: string,
+): Promise<string> {
   try {
-    log(`Looking up existing workflow: ${workflowName}...`);
+    log(`Looking up existing workflow by slug: ${workflowSlug}...`);
     const listResponse = await api.get("/api/workflows");
     const existingWorkflow = listResponse.data.workflows?.find(
-      (w: WorkflowInfo) => w.name === workflowName,
+      (w: WorkflowInfo) => w.slug === workflowSlug,
     );
 
     if (!existingWorkflow) {
       throw new Error(
-        `Workflow not found: ${workflowName}. Please ensure it exists in the database before running the test.`,
+        `Workflow not found: ${workflowSlug}. Please ensure it exists in the database before running the test.`,
       );
     }
 
-    log(`Found workflow: ${existingWorkflow.id}`, "success");
-    return existingWorkflow.id;
+    const versionInfo =
+      CONFIG.WORKFLOW_VERSION !== undefined
+        ? ` (pinned version=${CONFIG.WORKFLOW_VERSION})`
+        : ` (head version=${existingWorkflow.version})`;
+    log(
+      `Found workflow lineage=${existingWorkflow.id} versionId=${existingWorkflow.workflowVersionId}${versionInfo}`,
+      "success",
+    );
+    return existingWorkflow.workflowVersionId;
   } catch (error: any) {
     log(`Failed to find workflow: ${error.message}`, "error");
     if (error.response) {
@@ -375,7 +368,7 @@ async function findWorkflowConfig(workflowName: string): Promise<string> {
 
 async function uploadDocument(
   fileBase64: string,
-  workflowConfigId: string,
+  workflowVersionId: string,
 ): Promise<UploadResponse> {
   log("Uploading test document...");
 
@@ -386,7 +379,9 @@ async function uploadDocument(
       file_type: "image",
       original_filename: "test-document.jpg",
       model_id: "prebuilt-layout",
-      workflow_config_id: workflowConfigId,
+      // Upload accepts WorkflowVersion.id (or lineage id). We pass the resolved version id
+      // to exercise versionId-only Temporal starts.
+      workflow_config_id: workflowVersionId,
       metadata: {
         test: true,
         testRun: new Date().toISOString(),
@@ -412,21 +407,61 @@ async function uploadDocument(
   }
 }
 
+async function fetchDocument(documentId: string): Promise<DocumentDetails> {
+  const response = await api.get(`/api/documents/${documentId}`);
+  return response.data as DocumentDetails;
+}
+
+/**
+ * Upload returns before background OCR starts. Poll until the backend sets
+ * workflow_execution_id or marks the document failed.
+ */
+async function waitForOcrWorkflowStart(
+  documentId: string,
+  timeoutMs = 60_000,
+): Promise<string> {
+  log("Waiting for backend OCR to start Temporal workflow...");
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const doc = await fetchDocument(documentId);
+
+    if (doc.workflow_execution_id) {
+      log(`Temporal workflow started: ${doc.workflow_execution_id}`, "success");
+      return doc.workflow_execution_id;
+    }
+
+    if (doc.status === "failed") {
+      const groupHint = !isValidBlobGroupId(doc.group_id)
+        ? ` API key group "${doc.group_id}" is not a valid blob group id (must match /^[a-z][0-9a-z]+$/). Re-seed the database (npm run db:seed) and ensure the API key uses group id "seeddefaultgroup".`
+        : ' Check backend logs for "Background OCR processing failed" or "Failed to start graph workflow".';
+      throw new Error(
+        `Document ${documentId} failed before Temporal workflow started.${groupHint}`,
+      );
+    }
+
+    await sleep(CONFIG.POLL_INTERVAL);
+  }
+
+  throw new Error(
+    `Timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for workflow_execution_id on document ${documentId}. Ensure backend-services and the Temporal worker are running.`,
+  );
+}
+
 async function setupTestData(): Promise<void> {
   section("Test Setup");
 
-  const _workflowConfig = await loadWorkflowConfig();
   const fileBase64 = await loadTestFile();
 
-  testWorkflowConfigId = await findWorkflowConfig("multi-page-report-workflow");
+  testWorkflowConfigId = await findWorkflowVersionIdBySlug(
+    CONFIG.WORKFLOW_SLUG,
+  );
 
   const uploadResponse = await uploadDocument(fileBase64, testWorkflowConfigId);
   testDocumentId = uploadResponse.id;
 
-  // The workflow execution ID follows the pattern: graph-{documentId}
-  workflowExecutionId = `graph-${testDocumentId}`;
-
-  log(`Workflow execution ID: ${workflowExecutionId}`, "info");
+  workflowExecutionId = await waitForOcrWorkflowStart(testDocumentId);
+  log(`Monitoring workflow execution ID: ${workflowExecutionId}`, "info");
 }
 
 // --- Workflow Monitoring ---
@@ -438,6 +473,7 @@ async function initTemporalClient(): Promise<void> {
   temporalClient = new Client({
     connection: temporalConnection,
     namespace: CONFIG.TEMPORAL_NAMESPACE,
+    dataConverter: temporalDataConverter,
   });
   log("Temporal client initialized", "success");
 }
@@ -616,16 +652,17 @@ async function displayDetailedErrorInfo(): Promise<void> {
   }
 }
 
-async function monitorWorkflow(): Promise<void> {
+async function monitorWorkflow(): Promise<boolean> {
   section("Workflow Execution");
 
   await initTemporalClient();
 
-  log(`Monitoring workflow: ${workflowExecutionId}`);
-  log("Waiting for workflow to start...");
+  if (!workflowExecutionId) {
+    log("Workflow execution ID not set", "error");
+    return false;
+  }
 
-  // Wait a bit for workflow to start
-  await sleep(2000);
+  log(`Monitoring workflow: ${workflowExecutionId}`);
 
   const startTime = Date.now();
   let lastStep = "";
@@ -636,7 +673,7 @@ async function monitorWorkflow(): Promise<void> {
 
     if (elapsed > CONFIG.TEST_TIMEOUT) {
       log(`Workflow timeout after ${(elapsed / 1000).toFixed(1)}s`, "error");
-      break;
+      return false;
     }
 
     try {
@@ -678,7 +715,7 @@ async function monitorWorkflow(): Promise<void> {
           "success",
         );
         log(`Result: ${JSON.stringify(status.result, null, 2)}`, "info");
-        break;
+        return true;
       } else if (status.status === "FAILED") {
         log(`Workflow failed after ${(elapsed / 1000).toFixed(1)}s`, "error");
 
@@ -689,16 +726,21 @@ async function monitorWorkflow(): Promise<void> {
         // Fetch detailed error information from workflow history
         await displayWorkflowHistory();
         await displayDetailedErrorInfo();
-        break;
+        return false;
       } else if (status.status === "RUNNING") {
         // Continue monitoring
       } else {
         log(`Workflow status: ${status.status}`, "warn");
-        break;
+        return false;
       }
     } catch (error) {
-      log(`Error monitoring workflow: ${error.message}`, "error");
-      break;
+      const msg = error instanceof Error ? error.message : String(error);
+      if (/workflow not found/i.test(msg) && elapsed < 15_000) {
+        log("Workflow not visible in Temporal yet, retrying...", "warn");
+      } else {
+        log(`Error monitoring workflow: ${msg}`, "error");
+        return false;
+      }
     }
 
     await sleep(CONFIG.POLL_INTERVAL);
@@ -720,7 +762,8 @@ async function cleanup(): Promise<void> {
         await api.delete(`/api/documents/${testDocumentId}`);
         log(`Test document deleted: ${testDocumentId}`, "success");
       } catch (error) {
-        log(`Could not delete test document: ${error.message}`, "warn");
+        const msg = error instanceof Error ? error.message : String(error);
+        log(`Could not delete test document: ${msg}`, "warn");
       }
     }
 
@@ -732,7 +775,8 @@ async function cleanup(): Promise<void> {
     // Stop worker if we started it
     await stopWorker();
   } catch (error) {
-    log(`Cleanup error: ${error.message}`, "warn");
+    const msg = error instanceof Error ? error.message : String(error);
+    log(`Cleanup error: ${msg}`, "warn");
   }
 }
 
@@ -803,16 +847,22 @@ async function runIntegrationTest(): Promise<void> {
     await setupTestData();
 
     // Monitor workflow execution
-    await monitorWorkflow();
+    testPassed = await monitorWorkflow();
 
     // Cleanup
     await cleanup();
 
+    if (!testPassed) {
+      section("❌ Integration Test Failed");
+      process.exit(1);
+    }
+
     section("✅ Integration Test Completed");
   } catch (error) {
-    log(`Test failed with error: ${error.message}`, "error");
-    if (error.stack) {
-      logger.error(error.stack);
+    const err = error as { message?: string; stack?: string };
+    log(`Test failed with error: ${err.message ?? String(error)}`, "error");
+    if (err.stack) {
+      logger.error(err.stack);
     }
 
     // Attempt cleanup even on failure
@@ -828,6 +878,21 @@ async function runIntegrationTest(): Promise<void> {
 
 // Run the test
 if (require.main === module) {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    logger.log("Graph workflow integration test");
+    logger.log("");
+    logger.log("Environment variables:");
+    logger.log("  TEST_API_KEY        required (x-api-key for backend)");
+    logger.log("  BACKEND_URL         default http://localhost:3002");
+    logger.log("  TEMPORAL_ADDRESS    default localhost:7233");
+    logger.log("  TEMPORAL_NAMESPACE  default default");
+    logger.log("  WORKFLOW_SLUG       default standard-ocr (seed slug)");
+    logger.log("  WORKFLOW_VERSION    optional integer");
+    logger.log("  TEST_FILE           default test-document.jpg");
+    logger.log("  MANAGE_WORKER       true|false (default false)");
+    process.exit(0);
+  }
+
   runIntegrationTest().catch((error) => {
     logger.error("Unhandled error:", error);
     process.exit(1);

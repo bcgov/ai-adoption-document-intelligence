@@ -45,13 +45,32 @@ npm run test:int:workflow
 ## What the Test Does
 
 1. ✓ Checks that Temporal (port 7233) and Backend (port 3002) are running
-2. ✓ Loads `docs-md/templates/standard-ocr-workflow.json`
+2. ✓ Resolves a workflow by `workflow_slug` and uses its `workflowVersionId`
 3. ✓ Loads test image from `integration-tests/test-document.jpg`
-4. ✓ Creates workflow config in database
-5. ✓ Uploads test document
+4. ✓ Uploads test document (which triggers versionId-only Temporal start)
 6. ✓ Monitors workflow execution through Temporal
 7. ✓ Shows real-time progress of each activity
 8. ✓ Cleans up test data when done
+
+## Troubleshooting
+
+### Document status `failed` immediately (no Temporal workflow)
+
+Upload returns before background OCR runs. If the document moves to `failed` without a `workflow_execution_id`, OCR never reached Temporal.
+
+**Common cause:** API key `group_id` contains characters invalid for blob paths (e.g. `seed-default-group`). OCR reads blobs via `validateBlobFilePath`, which requires group ids matching `/^[a-z][0-9a-z]+$/`.
+
+**Fix:** Re-seed and point the API key at the seeded group:
+
+```bash
+cd apps/backend-services
+npm run db:seed
+# Then update api_keys.group_id to seeddefaultgroup for your test key
+```
+
+### `workflow not found` in Temporal
+
+Ensure the Temporal worker is running (`cd apps/temporal && npm run dev`) and listening on task queue `ocr-processing` (default). The test now polls the document API for `workflow_execution_id` before monitoring Temporal.
 
 ## Expected Behavior
 

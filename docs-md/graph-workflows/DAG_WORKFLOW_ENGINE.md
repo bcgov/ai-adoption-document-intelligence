@@ -335,6 +335,8 @@ Edge types:
 
 ### 4.4 Worked Example: Current OCR Workflow as a Graph
 
+> **Canonical OCR templates** use `ocrResponseRef`, `ocrResultRef`, and `cleanedResultRef` in workflow `ctx` (activity **ports** stay `ocrResponse` / `ocrResult` / `cleanedResult`). See [`templates/standard-ocr-workflow.json`](templates/standard-ocr-workflow.json) and [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md). The JSON below is an older illustration of graph shape; do not copy legacy ctx key names into new workflows.
+
 This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new graph schema:
 
 ```json
@@ -662,6 +664,30 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
 
 ## 5. Temporal Execution Engine
 
+### 5.0 Temporal payload footprint (OCR refs)
+
+Large Azure OCR JSON must not flow through Temporal event history. The footprint-reduction release uses:
+
+**`OcrPayloadRef` in workflow `ctx`** (not inline JSON):
+
+| Legacy ctx key | Current ctx key | Activity port (unchanged) |
+|----------------|-----------------|-----------------------------|
+| `ocrResponse` | `ocrResponseRef` | `response` on poll; `ocrResponse` on extract |
+| `ocrResult` | `ocrResultRef` | `ocrResult` |
+| `cleanedResult` | `cleanedResultRef` | `cleanedResult` |
+
+Each ref is a small object: `{ documentId, blobPath, storage: "blob", status?, byteLength? }`. Activities read/write blobs under `{groupId}/ocr/{documentId}/` (e.g. `azure-response.json`, `ocr-result.json`, `cleaned-result.json`). Structured fields for the UI still land in `ocr_results` via `ocr.storeResults`.
+
+**Poll conditions** reference ref status, e.g. `ctx.ocrResponseRef.status` (not `ctx.ocrResponse.status`).
+
+**`transform` / `fieldMapping` templates** use `{{ocrResultRef.*}}`, `{{ocrResponseRef.*}}`, `{{cleanedResultRef.*}}`.
+
+On **document delete**, `DocumentService.deleteDocument` best-effort deletes the `{groupId}/ocr/{documentId}/` prefix.
+
+**Benchmark / ground-truth overrides:** optional `workflowConfigOverrides` on `GraphWorkflowInput` (dot paths from `exposedParams`). The worker merges them in `getWorkflowGraphConfig` before hash check and execution; `configHash` must be `hash(merged config)`.
+
+See [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md) and [TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md](../temporal/TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md).
+
 ### 5.1 The `graphWorkflow` Function
 
 A single exported Temporal workflow function that replaces `ocrWorkflow`:
@@ -672,15 +698,18 @@ export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
 export async function graphWorkflow(input: GraphWorkflowInput): Promise<GraphWorkflowResult>;
 ```
 
-**Input**:
+**Start args (versionId-only)** — the full graph JSON is **not** passed on `workflow.start`. The worker loads it via the `getWorkflowGraphConfig` activity using `workflowVersionId` and verifies `configHash`.
 
 ```typescript
 interface GraphWorkflowInput {
-  graph: GraphWorkflowConfig;    // The full graph definition
-  initialCtx: Record<string, unknown>;  // Initial context values (documentId, blobKey, etc.)
-  configHash: string;            // SHA-256 of the canonicalized graph (see Section 12)
-  runnerVersion: string;         // Version of the graph runner engine
+  workflowVersionId: string;       // WorkflowVersion.id (or lineage id/name resolved in activity)
+  configHash: string;              // SHA-256 of canonicalized config at publish time (see Section 12)
+  initialCtx: Record<string, unknown>;  // documentId, blobKey, fileName, etc.
+  runnerVersion: string;         // Graph runner semver
+  groupId?: string | null;       // Injected into activities as groupId
+  requestId?: string;            // API correlation id
   parentWorkflowId?: string;     // Set when invoked as a child workflow
+  workflowConfigOverrides?: Record<string, unknown>;  // Merged at load (benchmark / ground truth)
 }
 ```
 
@@ -688,11 +717,21 @@ interface GraphWorkflowInput {
 
 ```typescript
 interface GraphWorkflowResult {
-  ctx: Record<string, unknown>;  // Final context state
-  completedNodes: string[];      // IDs of all nodes that completed
   status: "completed" | "failed" | "cancelled";
+  completedNodes: string[];
+  documentId?: string;
+  refs?: {
+    ocrResponseRef?: OcrPayloadRef;
+    ocrResultRef?: OcrPayloadRef;
+    cleanedResultRef?: OcrPayloadRef;
+  };
+  failedNodeId?: string;
+  outputPaths?: string[];
+  error?: string;
 }
 ```
+
+`getStatus` queries return progress and node status; large OCR bodies are not included in the query payload (refs only where needed).
 
 ### 5.1.1 Pre-Execution Hook: Automatic Status Update
 
@@ -728,7 +767,7 @@ if (input.initialCtx.documentId && typeof input.initialCtx.documentId === 'strin
 
 For benchmark runs that only change nodes **after** Azure OCR (`extractResults` and downstream), the benchmark orchestrator may set a reserved key on `initialCtx`:
 
-- **`__benchmarkOcrCache`**: `{ ocrResponse: OCRResponse }` — full Azure poll response JSON from a prior benchmark run (stored in `benchmark_ocr_cache`).
+- **`__benchmarkOcrCache`**: `{ ocrResponse: OCRResponse }` — full Azure poll response JSON from a prior benchmark run (stored in `benchmark_ocr_cache`). Merged into submit/poll/extract parameters for replay; activities still write **`ocrResponseRef`** to ctx when executing the poll/extract path.
 
 The graph runner merges this into **`azureOcr.submit`**, **`azureOcr.poll`**, and **`azureOcr.extract`** activity parameters so submit/poll skip the network when replaying. See [OCR_IMPROVEMENT_PIPELINE.md](../OCR_IMPROVEMENT_PIPELINE.md) § Benchmark OCR cache.
 
@@ -951,7 +990,9 @@ When a `map` node creates parallel branches:
 
 ### 7.4 Context Serialization
 
-The ctx object must be JSON-serializable at all times (it flows through Temporal's event history). Large payloads (binary data, full OCR results) should be stored externally (see Section 13) with only references (blob keys, document IDs) kept in ctx.
+The ctx object must be JSON-serializable at all times (it flows through Temporal's event history). **OCR pipeline graphs must use `*Ref` ctx keys** (`ocrResponseRef`, `ocrResultRef`, `cleanedResultRef`) holding `OcrPayloadRef` metadata; activities load full JSON from blob storage. Activity **port names** remain `ocrResponse`, `ocrResult`, `cleanedResult` — bindings map ports to `*Ref` ctx keys (see §5.0).
+
+Other large payloads (binary data, page PDFs) use blob paths (`pageBlobPath`, `blobKey`) rather than inline base64 in ctx. Temporal clients and the worker use a gzip `PayloadCodec` for remaining payloads (see [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md) §3.10).
 
 ---
 

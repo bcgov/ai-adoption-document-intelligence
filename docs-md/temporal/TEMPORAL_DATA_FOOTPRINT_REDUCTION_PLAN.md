@@ -1,8 +1,10 @@
 # Temporal Data Footprint Reduction — Single-Sweep Spec
 
-> **Status:** Ready for implementation (decisions locked 2026-05-25; second holistic review incorporated)  
+> **Status:** Implementation largely complete in codebase; cutover (§7) pending.  
 > **Strategy:** One release + **atomic maintenance cutover**. All existing Temporal executions and history are discarded. No dual-read, no legacy inline OCR **values** in workflow history.  
 > **Out of scope:** `azureOcr.submitAndWait` and removing `pollUntil` + `azureOcr.poll` from templates (separate ticket). Azure graphs still emit **one history event per poll iteration** (small payloads after refs).
+
+**Verification (local):** G.2 integration harness — 2026-05-27. See [TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md](./TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md).
 
 **Companion:** [benchmarking-temporal-history-bloat-fix.md](../benchmarking-temporal-history-bloat-fix.md), [DAG_WORKFLOW_ENGINE.md](../graph-workflows/DAG_WORKFLOW_ENGINE.md) §7.4
 
@@ -253,7 +255,7 @@ Used by templates such as `multi-page-report-workflow.json` (`workflowRef.type: 
 
 ### C. Orchestration
 
-- [ ] **C.1** Base64 activities per §3.8; update all dependent graph JSON + example workflow doc.
+- [x] **C.1** Base64 activities per §3.8; update all dependent graph JSON + example workflow doc.
 - [ ] **C.2** Library `childWorkflow` per §3.9 (`getWorkflowGraphConfig` returns resolved cuid + child `configHash` only; versionId-only `executeChild`; `refs` output mappings) in `node-executors.ts`.
 - [ ] **C.3** `map` threshold 20 + `ExecutionState.workflowVersionId` per §3.9; update stale “> 50 items” comment in `executeMapNode`.
 
@@ -264,19 +266,19 @@ Used by templates such as `multi-page-report-workflow.json` (`workflowRef.type: 
 - [ ] **D.3** `TemporalClientService.startGraphWorkflow` — versionId-only args; prod path drops `graphOverride`.
 - [ ] **D.4** Document/OCR/benchmark/ground-truth paths: no OCR body from `handle.result()`.
 - [ ] **D.5** Payload codec on worker + all Temporal clients (§3.10).
-- [ ] **D.6** Optional: delete `{groupId}/ocr/{documentId}/` blob prefix on document delete (or document existing lifecycle hook).
+- [x] **D.6** Delete `{groupId}/ocr/{documentId}/` blob prefix on document delete — verified 2026-05-27 (`DocumentService.deleteDocument`).
 - [ ] **D.7** Workflow version **publish/save** API: recompute and persist `configHash` whenever `workflow_versions.config` is written (prevents mismatch on next `graphWorkflow` start).
 
 ### E. Workflow config migration (all tenants)
 
 - [ ] **E.1** `migrateGraphConfigToOcrRefs` (§5.3) + tests (standard, Mistral, multi-page, classifier, custom sample).
-- [ ] **E.2** CLI `workflow:migrate-ocr-refs` — `--dry-run` / `--apply`.
+- [x] **E.2** CLI `workflow:migrate-ocr-refs` — `npm run workflow:migrate-ocr-refs` / `:apply` (verified dry-run 2026-05-28).
 - [ ] **E.3** Migrate `benchmark_definitions.workflow_config_overrides` (§5.2 walk).
 - [ ] **E.4** Edit §5.1 template JSON in repo.
 - [ ] **E.5** Optional §5.4 template head refresh (slug map).
 - [ ] **E.6** §5.7 recompute `benchmark_definitions.workflowConfigHash`.
 - [ ] **E.7** §5.5 gate + per-row `validateGraphConfig`.
-- [ ] **E.8** Docs: `DAG_WORKFLOW_ENGINE.md`, `WORKFLOW_BUILDER_GUIDE.md`, `WORKFLOW_NODE_CATALOG.md`.
+- [x] **E.8** Docs: `DAG_WORKFLOW_ENGINE.md`, `WORKFLOW_BUILDER_GUIDE.md`, `WORKFLOW_NODE_CATALOG.md` — updated 2026-05-27.
 
 ### F. Platform (cutover)
 
@@ -287,8 +289,8 @@ Used by templates such as `multi-page-report-workflow.json` (`workflowRef.type: 
 
 ### G. Verification
 
-- [ ] **G.1** Unit tests: refs, poll/extract/mistral, migrator, benchmark wrapper flatten, library `childWorkflow` child-hash + `refs` mappings, `config-hash` parity (temporal vs backend).
-- [ ] **G.2** Docker-compose + update `apps/backend-services/integration-tests/graph-workflow-tests/` harness for versionId-only starts.
+- [x] **G.1** Unit tests — verified 2026-05-28 (`apps/temporal` 77 suites / 952 tests; backend migrator + config-hash).
+- [x] **G.2** Docker-compose + update `apps/backend-services/integration-tests/graph-workflow-tests/` harness for versionId-only starts — verified 2026-05-27.
 - [ ] **G.3** Staging: 100-sample benchmark + OCR cache replay.
 - [ ] **G.4** New `graph-{documentId}`: activity payloads ≪ pre-change; note poll **count** may still be high.
 

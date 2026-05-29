@@ -51,7 +51,8 @@ The test uses the following environment variables (with defaults):
 - `TEMPORAL_NAMESPACE` (default: `default`)
 - `TEST_API_KEY` (required for authentication)
 - `TEST_TIMEOUT` (default: `300000` ms / 5 minutes)
-- `WORKFLOW_TEMPLATE` (default: `standard-ocr-workflow`)
+- `WORKFLOW_SLUG` (default: `standard-ocr`) — seeded workflow lineage slug in the database
+- `WORKFLOW_VERSION` (optional) — pin a specific `version_number`; default is head version
 - `TEST_FILE` (default: `test-document.jpg`)
 
 These are typically already configured in your `.env` file.
@@ -83,17 +84,21 @@ ts-node -r tsconfig-paths/register integration-tests/test-graph-workflow.ts
 
 ### Testing Different Workflows
 
-You can test different workflow templates by setting the `WORKFLOW_TEMPLATE` environment variable:
+The harness resolves a **seeded** workflow by `WORKFLOW_SLUG` (not by loading JSON from disk). Re-seed after template changes:
 
 ```bash
-# Test standard OCR workflow (default)
+cd apps/backend-services && npx tsx ../shared/prisma/seed.ts
+```
+
+```bash
+# Test standard OCR workflow (default slug: standard-ocr)
 npm run test:int:workflow
 
 # Test multi-page report workflow
-WORKFLOW_TEMPLATE=multi-page-report-workflow npm run test:int:workflow
+WORKFLOW_SLUG=multi-page-report npm run test:int:workflow
 
 # Test with a different file
-TEST_FILE=my-test-file.pdf WORKFLOW_TEMPLATE=multi-page-report-workflow npm run test:int:workflow
+TEST_FILE=my-test-file.pdf WORKFLOW_SLUG=multi-page-report npm run test:int:workflow
 ```
 
 ## Test Flow
@@ -104,10 +109,9 @@ TEST_FILE=my-test-file.pdf WORKFLOW_TEMPLATE=multi-page-report-workflow npm run 
    └─ Check Backend API health endpoint
 
 2. Test Setup
-   ├─ Load workflow config from docs-md/templates/{WORKFLOW_TEMPLATE}.json
+   ├─ Resolve workflow version by WORKFLOW_SLUG (seeded workflow_versions row)
    ├─ Load test file (from integration-tests/{TEST_FILE})
-   ├─ Create workflow configuration in database
-   └─ Upload document via /api/upload
+   └─ Upload document via /api/upload (workflow_config_id → versionId-only Temporal start)
 
 3. Workflow Execution
    ├─ Initialize Temporal client
@@ -179,9 +183,11 @@ When running successfully, you'll see output like:
 - Ensure backend is running: `cd apps/backend-services && npm run start:dev`
 - Check health endpoint: `curl http://localhost:3001/health`
 
-### "Workflow template not found"
+### "Workflow not found" / unknown slug
 
-- Verify the template exists: `ls docs-md/templates/standard-ocr-workflow.json`
+- Re-seed: `npx tsx ../shared/prisma/seed.ts` from `apps/backend-services`
+- List slugs in DB or check seed: `standard-ocr`, `multi-page-report`
+- Canonical JSON templates: `docs-md/graph-workflows/templates/standard-ocr-workflow.json`
 
 ### "Test file not found"
 
@@ -189,9 +195,9 @@ When running successfully, you'll see output like:
 
 ## Test Data
 
-- **Workflow Templates**:
-  - `docs-md/templates/standard-ocr-workflow.json` (default)
-  - `docs-md/templates/multi-page-report-workflow.json`
+- **Workflow slugs (seed)**:
+  - `standard-ocr` (default) — template `docs-md/graph-workflows/templates/standard-ocr-workflow.json`
+  - `multi-page-report` — template `docs-md/graph-workflows/templates/multi-page-report-workflow.json`
 - **Test Documents**:
   - `apps/backend-services/integration-tests/test-document.jpg` (default)
   - You can add your own test files and reference them via `TEST_FILE` env var
