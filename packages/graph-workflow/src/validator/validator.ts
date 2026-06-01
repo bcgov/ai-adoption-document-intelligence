@@ -57,6 +57,9 @@ const ALL_VALID_OPERATORS = [
  * Options injected by each app to supply its own activity registry.
  * This is the only genuine difference between apps — all other validation
  * logic is identical.
+ *
+ * When omitted, activity type and parameter checks are skipped (useful for
+ * frontend or tooling contexts that do not have a registry).
  */
 export interface ValidateGraphConfigOptions {
   /** Return true if the given activity type string is registered in the calling app's registry. */
@@ -73,16 +76,22 @@ export interface ValidateGraphConfigOptions {
   ) => void;
 }
 
+const SKIP_ACTIVITY_VALIDATION: ValidateGraphConfigOptions = {
+  isRegisteredActivityType: () => true,
+  validateActivityParameters: () => undefined,
+};
+
 /**
  * Validate a graph workflow config.
  *
  * @param config - The graph workflow configuration to validate.
- * @param options - Activity registry callbacks; injected by each app.
+ * @param options - Activity registry callbacks; injected by each app. When
+ *   omitted, activity type and parameter checks are skipped.
  * @returns Validation result with an errors array.
  */
 export function validateGraphConfig(
   config: GraphWorkflowConfig,
-  options: ValidateGraphConfigOptions,
+  options: ValidateGraphConfigOptions = SKIP_ACTIVITY_VALIDATION,
 ): { valid: boolean; errors: GraphValidationError[] } {
   const errors: GraphValidationError[] = [];
 
