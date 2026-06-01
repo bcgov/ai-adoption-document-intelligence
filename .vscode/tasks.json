@@ -5,7 +5,7 @@
       "label": "docker: infra up",
       "type": "shell",
       "command": "docker",
-      "args": ["compose", "up", "-d"],
+      "args": ["compose", "--profile", "infra", "--profile", "temporal", "up", "-d"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -51,7 +51,7 @@
       "command": "bash",
       "args": [
         "-lc",
-        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" ai-doc-intelligence-postgres 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for backend postgres to become healthy...\"; sleep 2; done; echo \"backend postgres is healthy\""
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" postgres 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for backend postgres to become healthy...\"; sleep 2; done; echo \"backend postgres is healthy\""
       ],
       "problemMatcher": [],
       "presentation": {
@@ -65,7 +65,7 @@
       "command": "bash",
       "args": [
         "-lc",
-        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" ai-doc-intelligence-minio 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for minio to become healthy...\"; sleep 2; done; echo \"minio is healthy\""
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" minio 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for minio to become healthy...\"; sleep 2; done; echo \"minio is healthy\""
       ],
       "problemMatcher": [],
       "presentation": {
