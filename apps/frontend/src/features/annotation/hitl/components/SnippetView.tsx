@@ -1,6 +1,5 @@
 import {
   Checkbox,
-  Group,
   Paper,
   ScrollArea,
   Stack,
@@ -8,8 +7,10 @@ import {
   Textarea,
 } from "@mantine/core";
 import { FC, useEffect, useRef, useState } from "react";
-import { colorForFieldKeyWithBorder } from "@/shared/utils";
-import { ConfidenceIndicator } from "./ConfidenceIndicator";
+import {
+  ConfidenceIndicator,
+  getConfidenceBorderColor,
+} from "./ConfidenceIndicator";
 
 interface SnippetField {
   fieldKey: string;
@@ -94,7 +95,14 @@ export const SnippetView: FC<SnippetViewProps> = ({
     for (const field of fields) {
       const polygon = field.boundingRegions?.[0]?.polygon;
       if (polygon) {
-        newSnippets[field.fieldKey] = cropFieldSnippet(documentImage, polygon);
+        // padding=1.5 → crop extends 1.5× the box on each side, so the
+        // visible area is (1 + 2·1.5)² ≈ 16× the bounding box. Substantial
+        // surrounding context so the reviewer can read nearby form labels.
+        newSnippets[field.fieldKey] = cropFieldSnippet(
+          documentImage,
+          polygon,
+          0.5,
+        );
       } else {
         newSnippets[field.fieldKey] = null;
       }
@@ -119,7 +127,9 @@ export const SnippetView: FC<SnippetViewProps> = ({
         {fields.map((field) => {
           const isActive = field.fieldKey === activeFieldKey;
           const cropResult = snippets[field.fieldKey];
-          const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+          // Snippet view borders carry only confidence semantics — no
+          // field-key-based coloring. Active selection still overrides.
+          const confidenceBorder = getConfidenceBorderColor(field.confidence);
           const correctedValue = correctionMap[field.fieldKey]?.corrected_value;
 
           return (
@@ -128,7 +138,7 @@ export const SnippetView: FC<SnippetViewProps> = ({
               ref={isActive ? activeRowRef : undefined}
               withBorder
               style={{
-                borderColor: isActive ? "#ff0000" : borderCss,
+                borderColor: isActive ? "#ff0000" : confidenceBorder,
                 borderStyle: isActive ? "dashed" : "solid",
                 borderWidth: isActive ? "3px" : "2px",
                 cursor: "pointer",
@@ -137,12 +147,12 @@ export const SnippetView: FC<SnippetViewProps> = ({
               onClick={() => onFieldSelect(field.fieldKey)}
             >
               <Stack gap="xs" p="sm">
-                <Group justify="space-between">
+                <Stack gap={4} align="flex-start">
                   <Text fw={600} size="sm">
                     {field.fieldKey}
                   </Text>
                   <ConfidenceIndicator confidence={field.confidence} />
-                </Group>
+                </Stack>
                 {(() => {
                   const displayValue = correctedValue ?? field.value;
                   const isSelectionMark =
@@ -198,7 +208,7 @@ export const SnippetView: FC<SnippetViewProps> = ({
                       alt={`Source region for ${field.fieldKey}`}
                       style={{
                         maxWidth: "100%",
-                        maxHeight: 200,
+                        maxHeight: 400,
                         objectFit: "contain",
                       }}
                     />

@@ -1,5 +1,6 @@
 import {
   Accordion,
+  ActionIcon,
   Button,
   Checkbox,
   Group,
@@ -12,13 +13,18 @@ import {
   Textarea,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconEye,
+  IconEyeOff,
+  IconRotate,
+} from "@tabler/icons-react";
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
@@ -27,7 +33,12 @@ import type { ShortcutDefinition } from "../../core/keyboard/useKeyboardShortcut
 import { CorrectionAction } from "../../core/types/annotation";
 import type { BoundingBox } from "../../core/types/canvas";
 import { CanvasTool } from "../../core/types/canvas";
-import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
+import { CanvasFieldOverlay } from "../components/CanvasFieldOverlay";
+import {
+  ConfidenceIndicator,
+  getConfidenceBorderColor,
+  getConfidenceCanvasColor,
+} from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
@@ -200,6 +211,19 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  /**
+   * When true, the document view suppresses bounding boxes, labels, and
+   * other drawn overlays. The active-field inline edit overlay still
+   * renders so the reviewer can tab through fields without canvas chrome.
+   */
+  const [hideOverlayElements, setHideOverlayElements] = useState(false);
+  /**
+   * Keyboard toggle (F2) that fades the canvas overlay textbox + label so
+   * the reviewer can peek at the underlying form region without using the
+   * mouse. Persists across field navigation so a hide-once-then-tab pattern
+   * keeps the document visible until they bring the overlay back.
+   */
+  const [overlayHiddenByKeyboard, setOverlayHiddenByKeyboard] = useState(false);
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
 
   const queuePath = location.pathname.match(
@@ -434,7 +458,9 @@ export const ReviewWorkspacePage: FC = () => {
     );
 
     return fieldsOnPage.map((field) => {
-      const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+      // Document-view bounding boxes carry only confidence semantics — no
+      // field-key-based coloring (same policy as the snippet view).
+      const confidenceColor = getConfidenceCanvasColor(field.confidence);
       const isActive = field.fieldKey === activeFieldKey;
       return {
         id: field.fieldKey,
@@ -445,7 +471,7 @@ export const ReviewWorkspacePage: FC = () => {
           })),
         },
         label: field.fieldKey,
-        color: borderCss,
+        color: confidenceColor,
         confidence: field.confidence,
         isActive,
       };
@@ -606,6 +632,14 @@ export const ReviewWorkspacePage: FC = () => {
 
   const navigateToField = useCallback(
     (direction: "next" | "prev") => {
+      // Detect focus context BEFORE state change. When tabbing starts on
+      // the inline canvas overlay (data-overlay-field-key), we let the
+      // next overlay's autoFocus carry focus forward instead of stealing
+      // it back to the sidebar. Tabbing started in the sidebar keeps the
+      // existing behavior (focus the matching sidebar input).
+      const active = document.activeElement as HTMLElement | null;
+      const fromOverlay = !!active?.dataset?.overlayFieldKey;
+
       const currentIndex = filteredSortedFields.findIndex(
         (f) => f.fieldKey === activeFieldKey,
       );
@@ -622,6 +656,12 @@ export const ReviewWorkspacePage: FC = () => {
         setActiveFieldKey(nextField.fieldKey);
         if (viewMode === "document") {
           focusField(nextField.fieldKey);
+        }
+        if (fromOverlay) {
+          // The new overlay renders with autoFocus on its textarea; nothing
+          // more to do here. Skipping the sidebar focus prevents the cursor
+          // from jumping out of the canvas.
+          return;
         }
         // Focus the input/textarea/checkbox after React re-renders
         requestAnimationFrame(() => {
@@ -740,6 +780,12 @@ export const ReviewWorkspacePage: FC = () => {
         alwaysActive: true,
       },
       {
+        key: "F2",
+        handler: () => setOverlayHiddenByKeyboard((v) => !v),
+        description: "Hide/show inline edit overlay (peek behind)",
+        alwaysActive: true,
+      },
+      {
         key: "Escape",
         handler: () => setActiveFieldKey(null),
         description: "Deselect field",
@@ -773,7 +819,14 @@ export const ReviewWorkspacePage: FC = () => {
         alwaysActive: true,
       },
     ],
-    [navigateToField, handleApprove, handleSkip, handleUndo, handleRedo],
+    [
+      navigateToField,
+      handleApprove,
+      handleSkip,
+      handleUndo,
+      handleRedo,
+      setOverlayHiddenByKeyboard,
+    ],
   );
 
   if (isLoading) {
@@ -918,20 +971,86 @@ export const ReviewWorkspacePage: FC = () => {
                 ) : (
                   canvasWidth > 0 &&
                   canvasHeight > 0 && (
-                    <AnnotationCanvas
-                      ref={fieldFocusCanvasRef}
-                      imageUrl={canvasImageUrl}
-                      width={canvasWidth}
-                      height={canvasHeight}
-                      boxes={boxes}
-                      activeTool={CanvasTool.SELECT}
-                      onBoxSelect={(boxId) => {
-                        setActiveFieldKey(boxId);
-                        if (boxId) {
-                          focusField(boxId);
+                    <>
+                      <Tooltip
+                        label={
+                          hideOverlayElements
+                            ? "Show bounding boxes & labels"
+                            : "Hide bounding boxes & labels"
                         }
-                      }}
-                    />
+                        position="left"
+                      >
+                        <ActionIcon
+                          variant="default"
+                          onClick={() => setHideOverlayElements((v) => !v)}
+                          style={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            zIndex: 30,
+                            background: "rgba(255,255,255,0.92)",
+                            color: "#000",
+                          }}
+                          aria-label={
+                            hideOverlayElements
+                              ? "Show overlay elements"
+                              : "Hide overlay elements"
+                          }
+                        >
+                          {hideOverlayElements ? (
+                            <IconEye size={18} color="#000" />
+                          ) : (
+                            <IconEyeOff size={18} color="#000" />
+                          )}
+                        </ActionIcon>
+                      </Tooltip>
+                      <AnnotationCanvas
+                        ref={fieldFocusCanvasRef}
+                        imageUrl={canvasImageUrl}
+                        width={canvasWidth}
+                        height={canvasHeight}
+                        boxes={boxes}
+                        activeTool={CanvasTool.SELECT}
+                        onBoxSelect={(boxId) => {
+                          setActiveFieldKey(boxId);
+                          if (boxId) {
+                            focusField(boxId);
+                          }
+                        }}
+                        activeBoxId={activeFieldKey}
+                        hideBoxes={hideOverlayElements}
+                        renderActiveBoxOverlay={({ boxId, screenRect }) => {
+                          const field = filteredSortedFields.find(
+                            (f) => f.fieldKey === boxId,
+                          );
+                          if (!field) return null;
+                          const displayValue =
+                            correctionMap[field.fieldKey]?.corrected_value ??
+                            enrichmentCorrectedValues.get(field.fieldKey) ??
+                            field.value;
+                          const isSelectionMark =
+                            displayValue === ":selected:" ||
+                            displayValue === ":unselected:";
+                          return (
+                            <div style={{ marginTop: 4 }}>
+                              <CanvasFieldOverlay
+                                fieldKey={field.fieldKey}
+                                value={displayValue}
+                                confidence={field.confidence}
+                                isSelectionMark={isSelectionMark}
+                                width={screenRect.width}
+                                height={screenRect.height}
+                                readOnly={readOnly}
+                                hiddenByKeyboard={overlayHiddenByKeyboard}
+                                onChange={(next) =>
+                                  handleFieldChange(field, next)
+                                }
+                              />
+                            </div>
+                          );
+                        }}
+                      />
+                    </>
                   )
                 )}
               </div>
@@ -1006,9 +1125,10 @@ export const ReviewWorkspacePage: FC = () => {
                       correction?.action === CorrectionAction.CORRECTED;
                     const isActive = field.fieldKey === activeFieldKey;
 
-                    // Generate deterministic color based on field key
-                    const { borderCss } = colorForFieldKeyWithBorder(
-                      field.fieldKey,
+                    // Confidence-tier border, same policy as snippet view and
+                    // canvas overlay. Active selection still overrides red.
+                    const confidenceBorder = getConfidenceBorderColor(
+                      field.confidence,
                     );
 
                     return (
@@ -1018,7 +1138,7 @@ export const ReviewWorkspacePage: FC = () => {
                         withBorder
                         p="sm"
                         style={{
-                          borderColor: isActive ? "#ff0000" : borderCss,
+                          borderColor: isActive ? "#ff0000" : confidenceBorder,
                           borderStyle: isActive ? "dashed" : "solid",
                           borderWidth: isActive
                             ? "3px"
