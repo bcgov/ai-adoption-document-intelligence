@@ -139,8 +139,8 @@
     {
       "label": "monitoring: docker up",
       "type": "shell",
-      "command": "npm",
-      "args": ["run", "dev:monitoring"],
+      "command": "docker",
+      "args": ["compose", "--profile", "monitoring", "up", "-d"],
       "options": {
         "cwd": "${workspaceFolder}"
       },

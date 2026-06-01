@@ -9,7 +9,7 @@
  *
  * After running, reload Prometheus (or restart the monitoring stack) to pick up
  * the new rules:
- *   npm run dev:monitoring:down && npm run dev:monitoring
+ *   docker compose --profile monitoring down && docker compose --profile monitoring up -d
  */
 
 import * as fs from "fs";
