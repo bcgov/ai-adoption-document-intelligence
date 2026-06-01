@@ -20,18 +20,21 @@ import { BLOB_STORAGE } from "./blob-storage.interface";
 export const BLOB_STORAGE_CONTAINER_NAME = "BLOB_STORAGE_CONTAINER_NAME";
 
 import { MinioBlobStorageService } from "./minio-blob-storage.service";
+import { UncFilesystemBlobStorageService } from "./unc-filesystem-blob-storage.service";
 
 @Module({
   providers: [
     MinioBlobStorageService,
     AzureBlobProviderService,
     AzureStorageService,
+    UncFilesystemBlobStorageService,
     {
       provide: BLOB_STORAGE,
       useFactory: (
         configService: ConfigService,
         minioService: MinioBlobStorageService,
         azureService: AzureBlobProviderService,
+        uncService: UncFilesystemBlobStorageService,
       ) => {
         const provider = configService.get<string>(
           "BLOB_STORAGE_PROVIDER",
@@ -40,12 +43,16 @@ import { MinioBlobStorageService } from "./minio-blob-storage.service";
         if (provider === "azure") {
           return azureService;
         }
+        if (provider === "unc-filesystem") {
+          return uncService;
+        }
         return minioService;
       },
       inject: [
         ConfigService,
         MinioBlobStorageService,
         AzureBlobProviderService,
+        UncFilesystemBlobStorageService,
       ],
     },
     {
@@ -61,6 +68,9 @@ import { MinioBlobStorageService } from "./minio-blob-storage.service";
         );
         if (provider === "azure") {
           return azureService["containerName"];
+        }
+        if (provider === "unc-filesystem") {
+          return configService.get<string>("UNC_BLOB_STORAGE_BASE", "");
         }
         return minioService["bucket"];
       },

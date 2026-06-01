@@ -14,6 +14,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ModuleRef } from "@nestjs/core";
 import { AuditService } from "@/audit/audit.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
@@ -28,6 +29,11 @@ import {
   DocumentStatusFilter,
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
+import {
+  applyExperimentFieldFilter,
+  EXPERIMENT_FIELD_FILTER_ENV,
+} from "./experiment-field-filter";
+import { ExperimentOcrLoaderService } from "./experiment-ocr-loader.service";
 import { ReviewDbService } from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
 
@@ -44,6 +50,32 @@ interface DocumentWithOcrResult extends Document {
 
 interface ReviewSessionWithDocument extends ReviewSession {
   document: DocumentWithOcrResult;
+}
+
+/** Marker placed on Document.metadata by the SDPR HITL experiment seeder. */
+const EXPERIMENT_TAG = "sdpr-hitl-timing-experiment";
+
+interface ExperimentMarker {
+  sampleId: string;
+}
+
+/** Read the experiment marker from Document.metadata; null when not present. */
+function readExperimentMarkerFromMetadata(
+  metadata: unknown,
+): ExperimentMarker | null {
+  if (
+    metadata === null ||
+    metadata === undefined ||
+    typeof metadata !== "object" ||
+    Array.isArray(metadata)
+  ) {
+    return null;
+  }
+  const obj = metadata as Record<string, unknown>;
+  if (obj.experiment !== EXPERIMENT_TAG) return null;
+  const sampleId = obj.sampleId;
+  if (typeof sampleId !== "string" || sampleId.length === 0) return null;
+  return { sampleId };
 }
 
 function readTemplateModelIdFromMetadata(
@@ -72,7 +104,57 @@ export class HitlService {
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
     private readonly moduleRef: ModuleRef,
+    private readonly configService: ConfigService,
+    private readonly experimentOcrLoader: ExperimentOcrLoaderService,
   ) {}
+
+  /** Apply the experiment field filter when EXPERIMENT_FIELD_FILTER is set. */
+  private filterFields(
+    fields: unknown,
+    allowlist?: Set<string> | null,
+  ): ExtractedFields | Record<string, unknown> {
+    return applyExperimentFieldFilter(
+      fields as ExtractedFields | Record<string, unknown> | null | undefined,
+      this.configService.get<string>(EXPERIMENT_FIELD_FILTER_ENV),
+      allowlist,
+    );
+  }
+
+  /**
+   * Get the OCR field map for a document. For experiment documents, this
+   * pulls from the in-memory ExperimentOcrLoaderService (which streams the
+   * benchmark JSON from the share on first call). For all other documents,
+   * returns the DB-stored keyValuePairs unchanged.
+   */
+  private async getOcrFieldsForDocument(doc: {
+    metadata?: unknown;
+    ocr_result?: { keyValuePairs?: unknown } | null;
+  }): Promise<unknown> {
+    const marker = readExperimentMarkerFromMetadata(doc.metadata);
+    if (marker && this.experimentOcrLoader.isEnabled()) {
+      const fields = await this.experimentOcrLoader.getFieldsForSample(
+        marker.sampleId,
+      );
+      return fields ?? {};
+    }
+    return doc.ocr_result?.keyValuePairs ?? {};
+  }
+
+  /**
+   * Get the exact per-document allow-list for HITL display. For experiment
+   * documents the loader returns the same field set as reviewable-items.csv.
+   * Returns null for non-experiment documents (the filter falls back to
+   * category-based rules in that case).
+   */
+  private async getDisplayAllowlistForDocument(doc: {
+    metadata?: unknown;
+  }): Promise<Set<string> | null> {
+    const marker = readExperimentMarkerFromMetadata(doc.metadata);
+    if (!marker || !this.experimentOcrLoader.isEnabled()) return null;
+    return this.experimentOcrLoader.getReviewableFieldsForSample(
+      marker.sampleId,
+    );
+  }
 
   async getQueue(
     filters: QueueFilterDto,
@@ -106,17 +188,22 @@ export class HitlService {
       currentReviewerId,
     })) as DocumentWithOcrResult[];
 
-    // Filter by confidence if OCR results exist
-    const filtered = documents.filter((doc) => {
-      if (!doc.ocr_result) return false;
+    // Resolve OCR fields + per-doc allow-list. For experiment docs both
+    // come from the in-memory loader (exact reviewable-items.csv match);
+    // for regular docs the allow-list is null and the filter falls back to
+    // category rules (or passthrough when EXPERIMENT_FIELD_FILTER is unset).
+    const docsWithFields = await Promise.all(
+      documents.map(async (doc) => ({
+        doc,
+        fields: await this.getOcrFieldsForDocument(doc),
+        allowlist: await this.getDisplayAllowlistForDocument(doc),
+      })),
+    );
 
-      const fields = doc.ocr_result
-        .keyValuePairs as unknown as ExtractedFields | null;
-      if (!fields) return false;
-      if (typeof fields !== "object") return false;
-
-      // Check if any field has confidence below threshold
-      const hasLowConfidence = Object.values(fields).some(
+    // Filter by confidence if any field's confidence is below threshold.
+    const filtered = docsWithFields.filter(({ fields }) => {
+      if (!fields || typeof fields !== "object") return false;
+      return Object.values(fields as Record<string, DocumentField>).some(
         (field: DocumentField) => {
           if (field?.confidence !== undefined) {
             return field.confidence < maxConfidence;
@@ -124,12 +211,10 @@ export class HitlService {
           return false;
         },
       );
-
-      return hasLowConfidence;
     });
 
     return {
-      documents: filtered.map((doc) => ({
+      documents: filtered.map(({ doc, fields, allowlist }) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
@@ -137,7 +222,7 @@ export class HitlService {
         created_at: doc.created_at,
         updated_at: doc.updated_at,
         ocr_result: {
-          fields: doc.ocr_result?.keyValuePairs || {},
+          fields: this.filterFields(fields, allowlist),
         },
         lastSession: doc.review_sessions?.[0]
           ? {
@@ -258,9 +343,14 @@ export class HitlService {
         original_filename: session.document.original_filename,
         storage_path: session.document.file_path,
         ocr_result: {
-          fields:
-            (session.document as ReviewSessionWithDocument["document"])
-              .ocr_result?.keyValuePairs || {},
+          fields: this.filterFields(
+            await this.getOcrFieldsForDocument(
+              session.document as ReviewSessionWithDocument["document"],
+            ),
+            await this.getDisplayAllowlistForDocument(
+              session.document as ReviewSessionWithDocument["document"],
+            ),
+          ),
         },
       },
     };
@@ -337,7 +427,10 @@ export class HitlService {
         original_filename: session.document.original_filename,
         storage_path: session.document.file_path,
         ocr_result: {
-          fields: doc.ocr_result?.keyValuePairs || {},
+          fields: this.filterFields(
+            await this.getOcrFieldsForDocument(doc),
+            await this.getDisplayAllowlistForDocument(doc),
+          ),
           enrichment_summary: doc.ocr_result?.enrichment_summary ?? undefined,
         },
       },
@@ -354,13 +447,25 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
+    // For SDPR HITL experiment docs, drop the actual values before persistence
+    // so PII (predicted values, user-typed corrections) never lands in the DB.
+    // Action + timestamps + field_key are sufficient for timing analysis.
+    const isExperimentDoc =
+      readExperimentMarkerFromMetadata(
+        (session.document as { metadata?: unknown }).metadata,
+      ) !== null;
+
     // Save all corrections
     const savedCorrections = await Promise.all(
       dto.corrections.map((correction) =>
         this.reviewDb.createFieldCorrection(sessionId, {
           field_key: correction.field_key,
-          original_value: correction.original_value,
-          corrected_value: correction.corrected_value,
+          original_value: isExperimentDoc
+            ? undefined
+            : (correction.original_value ?? undefined),
+          corrected_value: isExperimentDoc
+            ? undefined
+            : (correction.corrected_value ?? undefined),
           original_conf: correction.original_conf,
           action: correction.action,
         }),
@@ -716,28 +821,31 @@ export class HitlService {
       groupIds,
     })) as DocumentWithOcrResult[];
 
-    // Filter by confidence — same logic as getQueue
-    const eligible = documents.filter((doc: DocumentWithOcrResult) => {
-      if (!doc.ocr_result) return false;
-
-      const fields = doc.ocr_result
-        .keyValuePairs as unknown as ExtractedFields | null;
-      if (!fields) return false;
-      if (typeof fields !== "object") return false;
-
-      return Object.values(fields).some((field: DocumentField) => {
-        if (field?.confidence !== undefined) {
-          return field.confidence < maxConfidence;
-        }
-        return false;
-      });
+    // Filter by confidence — same logic as getQueue, with experiment-doc
+    // OCR fields pulled from the in-memory loader.
+    const docsWithFields = await Promise.all(
+      documents.map(async (doc: DocumentWithOcrResult) => ({
+        doc,
+        fields: await this.getOcrFieldsForDocument(doc),
+      })),
+    );
+    const eligible = docsWithFields.filter(({ fields }) => {
+      if (!fields || typeof fields !== "object") return false;
+      return Object.values(fields as Record<string, DocumentField>).some(
+        (field: DocumentField) => {
+          if (field?.confidence !== undefined) {
+            return field.confidence < maxConfidence;
+          }
+          return false;
+        },
+      );
     });
 
     if (eligible.length === 0) {
       return null;
     }
 
-    const firstDoc = eligible[0];
+    const firstDoc = eligible[0].doc;
     return this.startSession({ documentId: firstDoc.id }, reviewerId);
   }
 }
