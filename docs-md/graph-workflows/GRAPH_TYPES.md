@@ -98,14 +98,13 @@ Current activity types, grouped by category:
 
 ## Validation
 
-A single shared validator lives in `packages/graph-workflow/src/validator/validator.ts` (exported as `validateGraphConfig(config, options: ValidateGraphConfigOptions)` from `@ai-di/graph-workflow`). Both backend and temporal call this shared function, injecting their own activity registry via the `ValidateGraphConfigOptions` parameter.
+A single shared validator lives in `packages/graph-workflow/src/validator/validator.ts` (exported as `validateGraphConfig(config, options?)` from `@ai-di/graph-workflow`). All three consumers call this shared function:
 
-Thin wrappers:
+- **Backend** (`apps/backend-services/src/workflow/graph-schema-validator.ts`): Thin wrapper that injects the backend constant registry via `ValidateGraphConfigOptions` for save-time validation
+- **Temporal** (`apps/temporal/src/graph-schema-validator.ts`): Thin wrapper that injects the runtime registry for execution-time defensive validation
+- **Frontend** (`apps/frontend/src/pages/WorkflowEditorPage.tsx`): Calls `validateGraphConfig()` directly without options; the `options` parameter defaults to `SKIP_ACTIVITY_VALIDATION` which skips activity-type/parameter checks (appropriate since the frontend has no activity registry)
 
-- **Backend** (`apps/backend-services/src/workflow/graph-schema-validator.ts`): Injects the backend constant registry for save-time validation
-- **Temporal** (`apps/temporal/src/graph-schema-validator.ts`): Injects the runtime registry for execution-time defensive validation
-
-Both check: schema version, node/edge integrity, DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity.
+All callers check: schema version, node/edge integrity (including non-empty `label`), DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity.
 
 ## Blob Storage
 

@@ -16,7 +16,7 @@ This document is the architecture reference for the DAG (Directed Acyclic Graph)
 
 - **Temporal workflow**: `graphWorkflow()` -- a generic graph interpreter that reads a DAG definition and executes nodes in topological order with parallel branches
 - **Config format**: `GraphWorkflowConfig` -- typed nodes, directed edges with port bindings, and a workflow-scoped context (`ctx`). Stored as JSONB in the database.
-- **Shared types/validator**: `packages/graph-workflow` (`@ai-di/graph-workflow`) -- single source of truth for all TypeScript interfaces and the shared `validateGraphConfig()` function. Both backend and temporal import from this package; the frontend also re-exports types from it.
+- **Shared types/validator**: `packages/graph-workflow` (`@ai-di/graph-workflow`) -- single source of truth for all TypeScript interfaces and the shared `validateGraphConfig()` function. Backend, temporal, and frontend all import from this package via thin re-export shims.
 - **Frontend**: JSON text editor (CodeMirror) with React Flow (`@xyflow/react`) read-only visualization, auto-synced with debounce
 - **Backend**: NestJS CRUD endpoints (`/api/workflows`) with Prisma-backed database. Save-time validation via thin wrapper in `apps/backend-services/src/workflow/graph-schema-validator.ts`.
 
@@ -119,7 +119,7 @@ This document is the architecture reference for the DAG (Directed Acyclic Graph)
 2. **Activity registry**: A mapping from activity type strings (e.g., `"azureOcr.submit"`, `"document.split"`) to actual Temporal activity implementations. The graph JSON references activities by registry key.
 3. **Deterministic execution**: The graph runner schedules nodes in a stable topological sort order. Parallel branches are scheduled in deterministic order by node ID.
 4. **Library workflows as data**: Reusable subgraphs are stored as `Workflow` records in the database. A `childWorkflow` node references a library workflow by its database ID. At runtime, the graph runner starts a new `graphWorkflow` Temporal child workflow with the referenced subgraph.
-5. **Shared type/validator package**: `packages/graph-workflow` (`@ai-di/graph-workflow`) is the single source of truth for all TypeScript interfaces and the `validateGraphConfig()` function. Backend and temporal each have thin validator wrappers that inject their own activity registry; the frontend re-exports types from the same package.
+5. **Shared type/validator package**: `packages/graph-workflow` (`@ai-di/graph-workflow`) is the single source of truth for all TypeScript interfaces and the `validateGraphConfig()` function. Backend and temporal each have thin validator wrappers that inject their own activity registry. The frontend (`WorkflowEditorPage.tsx`) calls `validateGraphConfig()` directly without an activity registry — the shared validator's optional `options` parameter defaults to `SKIP_ACTIVITY_VALIDATION` (skips activity-type and parameter checks) for this purpose.
 
 ---
 
