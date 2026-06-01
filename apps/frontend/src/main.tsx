@@ -13,17 +13,17 @@ import { ErrorBoundary } from "./components";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AuthProvider>
-      <GroupProvider>
-        <QueryClientProvider client={queryClient}>
-          <MantineProvider defaultColorScheme="dark">
-            <ErrorBoundary>
+    <ErrorBoundary>
+      <AuthProvider>
+        <GroupProvider>
+          <QueryClientProvider client={queryClient}>
+            <MantineProvider defaultColorScheme="dark">
               <Notifications position="top-right" />
               <App />
-            </ErrorBoundary>
-          </MantineProvider>
-        </QueryClientProvider>
-      </GroupProvider>
-    </AuthProvider>
+            </MantineProvider>
+          </QueryClientProvider>
+        </GroupProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

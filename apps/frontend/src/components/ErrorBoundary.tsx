@@ -1,4 +1,3 @@
-import { Button, Center, Stack, Text, Title } from "@mantine/core";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { apiService } from "../data/services/api.service";
 
@@ -59,18 +58,37 @@ export class ErrorBoundary extends Component<
     if (this.state.hasError) {
       const attemptsLeft = MAX_RETRIES - this.state.retryCount;
       return (
-        <Center style={{ height: "100vh" }}>
-          <Stack align="center" gap="md">
-            <Title order={2}>Something went wrong</Title>
-            <Text c="dimmed">
+        <div
+          style={{
+            display: "flex",
+            height: "100vh",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "16px",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>Something went wrong</h2>
+            <p style={{ margin: 0, color: "#888" }}>
               An unexpected error occurred. Please try again or contact support
               if the problem persists.
-            </Text>
-            <Button variant="filled" onClick={this.handleReset}>
+            </p>
+            <button
+              type="button"
+              onClick={this.handleReset}
+              style={{ padding: "8px 16px", cursor: "pointer" }}
+            >
               {attemptsLeft <= 1 ? "Go to home page" : "Try again"}
-            </Button>
-          </Stack>
-        </Center>
+            </button>
+          </div>
+        </div>
       );
     }
 
