@@ -152,4 +152,4 @@ Start the full monitoring stack including ches-adapter:
 podman compose -f deployments/local/docker-compose.monitoring.yml up -d
 ```
 
-The ches-adapter is available at `http://localhost:3003/`. Set the required env vars in a `.env` file at the repo root or export them before starting. See `apps/backend-services/.env.sample` for the full list of `CHES_*` variables.
+The ches-adapter is available at `http://localhost:3003/`. Set the required env vars in a `.env` file at the repo root or export them before starting. See `.env.sample` at the repo root for the full list of `CHES_*` variables.
