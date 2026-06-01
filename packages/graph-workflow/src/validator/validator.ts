@@ -181,6 +181,14 @@ function validateNodeIds(
         severity: "error",
       });
     }
+    if (typeof node.label !== "string" || node.label.trim() === "") {
+      errors.push({
+        path: `nodes.${nodeId}.label`,
+        message: `Node "${nodeId}" must have a non-empty label`,
+        severity: "error",
+      });
+    }
+
     nodeIds.add(nodeId);
   }
 }
