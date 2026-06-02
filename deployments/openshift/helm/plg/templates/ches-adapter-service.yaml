@@ -1,0 +1,17 @@
+{{- if eq .Values.alertmanager.notificationChannel "ches" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "plg.chesAdapter.fullname" . }}
+  labels:
+    {{- include "plg.chesAdapter.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.chesAdapter.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "plg.chesAdapter.selectorLabels" . | nindent 4 }}
+{{- end }}

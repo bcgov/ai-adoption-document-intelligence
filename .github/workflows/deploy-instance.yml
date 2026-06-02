@@ -120,6 +120,9 @@ jobs:
           - service: temporal
             context: "."
             dockerfile: apps/temporal/Dockerfile
+          - service: ches-adapter
+            context: "."
+            dockerfile: apps/ches-adapter/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -365,6 +368,81 @@ jobs:
             "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite -n "$OC_NAMESPACE" || true
           echo "::endgroup::"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Generate alert rules
+        run: npm ci --ignore-scripts && npm run generate:alert-rules
+
+      - name: Create ches-adapter secret
+        if: env.DEPLOY_PLG == 'true'
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
+          ALERTMANAGER_CHES_ADAPTER_SECRET: ${{ secrets.ALERTMANAGER_CHES_ADAPTER_SECRET }}
+          CHES_CLIENT_ID: ${{ secrets.CHES_CLIENT_ID }}
+          CHES_CLIENT_SECRET: ${{ secrets.CHES_CLIENT_SECRET }}
+          CHES_AUTH_HOST: ${{ secrets.CHES_AUTH_HOST }}
+          CHES_HOST: ${{ secrets.CHES_HOST }}
+          CHES_FROM_EMAIL: ${{ secrets.CHES_FROM_EMAIL }}
+          CHES_TO_EMAILS: ${{ secrets.CHES_TO_EMAILS }}
+        run: |
+          set -euo pipefail
+
+          CHES_SECRET="${INSTANCE_NAME}-ches-adapter-secrets"
+
+          # Write all values to a temp file so they never appear as process
+          # arguments (avoids leaking via ps or runner audit logs).
+          TMPFILE=$(mktemp)
+          trap "rm -f '${TMPFILE}'" EXIT
+          {
+            printf 'chesAdapterSecret=%s\n' "${ALERTMANAGER_CHES_ADAPTER_SECRET}"
+            printf 'chesClientId=%s\n'     "${CHES_CLIENT_ID}"
+            printf 'chesClientSecret=%s\n' "${CHES_CLIENT_SECRET}"
+            printf 'chesAuthHost=%s\n'     "${CHES_AUTH_HOST}"
+            printf 'chesHost=%s\n'         "${CHES_HOST}"
+            printf 'chesFromEmail=%s\n'    "${CHES_FROM_EMAIL}"
+            printf 'chesToEmails=%s\n'     "${CHES_TO_EMAILS}"
+          } > "${TMPFILE}"
+
+          oc create secret generic "${CHES_SECRET}" \
+            --from-env-file="${TMPFILE}" \
+            --dry-run=client -o yaml | oc apply -f - -n "${OC_NAMESPACE}"
+
+          oc label secret "${CHES_SECRET}" \
+            "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite \
+            -n "${OC_NAMESPACE}" || true
+
+      - name: Create alertmanager webhook secret
+        if: env.DEPLOY_PLG == 'true'
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
+          ALERTMANAGER_CHES_ADAPTER_SECRET: ${{ secrets.ALERTMANAGER_CHES_ADAPTER_SECRET }}
+        run: |
+          set -euo pipefail
+
+          PLG_RELEASE="${INSTANCE_NAME}-plg"
+          # Secret name must match the default produced by the plg.alertmanager.adapterSecretName
+          # Helm helper: <release>-alertmanager-adapter-secret.
+          ADAPTER_SECRET_NAME="${PLG_RELEASE}-alertmanager-adapter-secret"
+
+          # Write the token to a temp file so the value never appears on the
+          # process command line (avoids leaking via ps or runner audit logs).
+          TMPFILE=$(mktemp)
+          trap "rm -f '${TMPFILE}'" EXIT
+          printf '%s' "${ALERTMANAGER_CHES_ADAPTER_SECRET}" > "${TMPFILE}"
+
+          oc create secret generic "${ADAPTER_SECRET_NAME}" \
+            --from-file=token="${TMPFILE}" \
+            --dry-run=client -o yaml | oc apply -f - -n "${OC_NAMESPACE}"
+
+          oc label secret "${ADAPTER_SECRET_NAME}" \
+            "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite \
+            -n "${OC_NAMESPACE}" || true
+
       - name: Deploy PLG monitoring stack
         if: env.DEPLOY_PLG == 'true'
         env:
@@ -375,6 +453,10 @@ jobs:
           LOKI_PVC_SIZE: ${{ secrets.LOKI_PVC_SIZE }}
           PROMETHEUS_PVC_SIZE: ${{ secrets.PROMETHEUS_PVC_SIZE }}
           METRICS_SCRAPE_INTERVAL: ${{ secrets.METRICS_SCRAPE_INTERVAL }}
+          ALERTMANAGER_NOTIFICATION_CHANNEL: ${{ secrets.ALERTMANAGER_NOTIFICATION_CHANNEL }}
+          ALERTMANAGER_NOTIFICATIONS_ENABLED: ${{ secrets.ALERTMANAGER_NOTIFICATIONS_ENABLED }}
+          ALERTMANAGER_MIN_SEVERITY: ${{ secrets.ALERTMANAGER_MIN_SEVERITY }}
+          ALERTMANAGER_TEAMS_WEBHOOK_URL: ${{ secrets.ALERTMANAGER_TEAMS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
 
@@ -390,8 +472,16 @@ jobs:
             --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE:-10Gi}" \
             --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL:-15s}" \
             --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
-            --set "prometheus.scrapeTargets.temporalServer.host=${INSTANCE_NAME}-temporal" \
-            --wait --timeout 120s || echo "::warning::PLG deployment failed (non-blocking)"
+            --set "prometheus.scrapeTargets.temporalWorker.host=${INSTANCE_NAME}-temporal" \
+            --set "alertmanager.notificationChannel=${ALERTMANAGER_NOTIFICATION_CHANNEL:-ches}" \
+            --set "alertmanager.notificationsEnabled=${ALERTMANAGER_NOTIFICATIONS_ENABLED:-false}" \
+            --set "alertmanager.minNotificationSeverity=${ALERTMANAGER_MIN_SEVERITY:-warning}" \
+            --set "chesAdapter.image.repository=${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/ches-adapter" \
+            --set "chesAdapter.image.tag=${{ needs.metadata.outputs.image-tag }}" \
+            --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
+            --set "chesAdapter.secretName=${INSTANCE_NAME}-ches-adapter-secrets" \
+            --set "alertmanager.teams.webhookUrl=${ALERTMANAGER_TEAMS_WEBHOOK_URL:-placeholder}" \
+            --wait --timeout 120s
 
       - name: Restart deployments and wait
         env:

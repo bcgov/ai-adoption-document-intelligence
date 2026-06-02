@@ -3,7 +3,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { Prisma, TrainingStatus } from "@generated/client";
+import { BuildMode, Prisma, TrainingStatus } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
@@ -22,6 +22,7 @@ interface AzureOperationResponse {
   result?: {
     docTypes?: Record<string, DocumentType>;
     description?: string;
+    trainingHours?: number;
   };
   error?: {
     message?: string;
@@ -35,14 +36,15 @@ interface DocumentType {
 interface AzureModelResponse {
   docTypes?: Record<string, DocumentType>;
   description?: string;
+  trainingHours?: number;
 }
 
 @Injectable()
 export class TrainingPollerService {
   private adminClient?: DocumentIntelligenceClient;
   private readonly pollInterval: number;
-  private readonly maxAttempts: number;
   private readonly diMode: ReturnType<typeof resolveDocumentIntelligenceMode>;
+  private readonly maxWallClockHours: number;
 
   constructor(
     private readonly trainingDb: TrainingDbService,
@@ -84,9 +86,14 @@ export class TrainingPollerService {
       "TRAINING_POLL_INTERVAL_SECONDS",
       10,
     );
-    this.maxAttempts = this.configService.get<number>(
-      "TRAINING_MAX_POLL_ATTEMPTS",
-      60,
+    // Local safety net: if Azure never returns a terminal status (operation
+    // wedged in "running", or repeated 404s on /operations/:id), stop polling
+    // after this many wall-clock hours and mark the job FAILED. Default is
+    // ~2x the neural cap of 10h to absorb queueing/finalisation; template
+    // builds finish in minutes so this only ever fires for pathological cases.
+    this.maxWallClockHours = this.configService.get<number>(
+      "TRAINING_MAX_WALL_CLOCK_HOURS",
+      24,
     );
   }
 
@@ -109,11 +116,13 @@ export class TrainingPollerService {
 
       this.logger.debug(`Polling ${activeJobs.length} active training job(s)`);
 
-      // Poll each active job
+      // Poll each active job. target_model_id is the versioned Azure model
+      // name captured at startTraining; fall back to the bare template id
+      // for legacy in-flight jobs that pre-date the column.
       for (const job of activeJobs) {
         await this.pollTrainingStatus(
           job.id,
-          job.template_model.model_id,
+          job.target_model_id ?? job.template_model.model_id,
           job.operation_id,
         );
       }
@@ -154,15 +163,19 @@ export class TrainingPollerService {
         (Date.now() - job.started_at.getTime()) / 1000,
       );
       const attempts = Math.floor(elapsedSeconds / this.pollInterval);
+      const elapsedHours = elapsedSeconds / 3600;
 
-      // Check if max attempts exceeded
-      if (attempts > this.maxAttempts) {
-        this.logger.warn(
-          `Training job ${jobId} exceeded max polling attempts (${this.maxAttempts})`,
+      // Local wall-clock safety net. The poller otherwise defers to Azure's
+      // terminal status — if Azure never delivers one, we'd poll forever.
+      // Mark FAILED here so the job leaves the "TRAINING" state; the Azure
+      // side may still be running, but it's the user's call to follow up.
+      if (elapsedHours > this.maxWallClockHours) {
+        this.logger.error(
+          `Job ${jobId} exceeded local wall-clock cap of ${this.maxWallClockHours}h (elapsed ${elapsedHours.toFixed(1)}h); marking FAILED. Azure operation ${operationId} may still be running — check Azure portal.`,
         );
         await this.trainingDb.updateTrainingJob(jobId, {
           status: TrainingStatus.FAILED,
-          error_message: "Training timeout - exceeded maximum polling time",
+          error_message: `Training exceeded local wall-clock cap of ${this.maxWallClockHours}h. Azure operation may still be running — check the Azure portal.`,
           completed_at: new Date(),
         });
         return;
@@ -181,7 +194,7 @@ export class TrainingPollerService {
         if (isUnexpected(operationResponse)) {
           if (operationResponse.status === "404") {
             this.logger.debug(
-              `Operation ${operationId} not ready yet (attempt ${attempts}/${this.maxAttempts})`,
+              `Operation ${operationId} not ready yet (attempt ${attempts})`,
             );
             return;
           }
@@ -200,7 +213,7 @@ export class TrainingPollerService {
 
         if (status === "notStarted" || status === "running") {
           this.logger.debug(
-            `Training still in progress for job ${jobId} (status: ${status}, attempt ${attempts}/${this.maxAttempts})`,
+            `Training still in progress for job ${jobId} (status: ${status}, attempt ${attempts})`,
           );
           return;
         }
@@ -220,9 +233,22 @@ export class TrainingPollerService {
         const resultModel = operation.result;
         let docTypes = resultModel?.docTypes || {};
         let description = resultModel?.description;
+        // Gate on neural at the source — the schema documents this column as
+        // "always null for template", and Azure could in principle return
+        // trainingHours on a template result. Belt-and-braces matches the
+        // fallback path below.
+        let actualTrainingHours: number | null =
+          job.build_mode === BuildMode.neural
+            ? (resultModel?.trainingHours ?? null)
+            : null;
 
-        if (!resultModel) {
-          // Fallback: fetch the model by ID
+        if (
+          !resultModel ||
+          (job.build_mode === BuildMode.neural && actualTrainingHours === null)
+        ) {
+          // Fallback: fetch the model by ID (required when result is absent, or
+          // when trainingHours is missing from the operation result — Azure
+          // typically surfaces trainingHours only on GET /documentModels).
           const modelResponse = await client
             .path("/documentModels/{modelId}", modelId)
             .get();
@@ -238,8 +264,13 @@ export class TrainingPollerService {
           }
 
           const modelBody = modelResponse.body as AzureModelResponse;
-          docTypes = modelBody.docTypes || {};
-          description = modelBody.description;
+          if (!resultModel) {
+            docTypes = modelBody.docTypes || {};
+            description = modelBody.description;
+          }
+          if (job.build_mode === BuildMode.neural) {
+            actualTrainingHours = modelBody.trainingHours ?? null;
+          }
         }
 
         let fieldCount = 0;
@@ -257,20 +288,46 @@ export class TrainingPollerService {
           completed_at: new Date(),
         });
 
-        // Create trained model record
-        await this.trainingDb.createTrainedModel({
+        // Build a snapshot of the labeled documents that just trained this
+        // version. Captured here (rather than at startTraining) because users
+        // very rarely modify labels mid-Azure-training, and the simpler model
+        // is easier to reason about than threading the snapshot through the
+        // job row.
+        const snapshot = await this.trainingDb.buildTrainedModelSnapshot(
+          job.template_model_id,
+        );
+
+        // Resolve the version + Azure model id this job targets. Legacy
+        // jobs (started before this column existed) fall back to v1 / the
+        // bare template model id so they keep working.
+        const targetVersion = job.target_version ?? 1;
+        const targetModelId =
+          job.target_model_id ?? job.template_model.model_id;
+
+        // Atomically demote the prior active version and create the new one.
+        // Wrapping these together avoids leaving the template with zero
+        // active versions if the process dies between writes.
+        await this.trainingDb.replaceActiveTrainedModel(job.template_model_id, {
           template_model_id: job.template_model_id,
           training_job_id: jobId,
-          model_id: job.template_model.model_id,
+          model_id: targetModelId,
+          version: targetVersion,
+          is_active: true,
           description,
           doc_types:
             docTypes == null
               ? Prisma.DbNull
               : (docTypes as Prisma.InputJsonValue),
           field_count: fieldCount,
+          dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
+          build_mode: job.build_mode,
+          max_training_hours: job.max_training_hours,
+          actual_training_hours: actualTrainingHours,
         });
 
-        this.logger.log(`Created trained model record for: ${modelId}`);
+        this.logger.log(
+          `Created trained model record v${targetVersion} for: ${targetModelId}`,
+        );
       } catch (modelError) {
         this.logger.error(
           `Error polling operation ${operationId} for model ${modelId}: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
@@ -306,7 +363,7 @@ export class TrainingPollerService {
     ) {
       await this.pollTrainingStatus(
         jobId,
-        job.template_model.model_id,
+        job.target_model_id ?? job.template_model.model_id,
         job.operation_id,
       );
     }

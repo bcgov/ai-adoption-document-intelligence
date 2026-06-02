@@ -1,6 +1,8 @@
-import { LabelingStatus, TrainingStatus } from "@generated/client";
+import { BuildMode, LabelingStatus, TrainingStatus } from "@generated/client";
 import {
   BadRequestException,
+  ConflictException,
+  InternalServerErrorException,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
@@ -8,6 +10,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -41,12 +44,22 @@ describe("TrainingService", () => {
     findTrainingJob: jest.Mock;
     findAllTrainingJobs: jest.Mock;
     findAllActiveTrainingJobs: jest.Mock;
+    findInFlightJobForTemplate: jest.Mock;
     findAllTrainedModels: jest.Mock;
+    findTrainedModelForTemplate: jest.Mock;
+    findActiveTrainedModel: jest.Mock;
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
     findTrainedModelByModelId: jest.Mock;
-    deleteTrainedModel: jest.Mock;
     findAllTrainedModelIds: jest.Mock;
+    getNextVersionNumber: jest.Mock;
+    setActiveTrainedModel: jest.Mock;
+    tombstoneTrainedModel: jest.Mock;
+    demoteActiveTrainedModels: jest.Mock;
+    buildTrainedModelSnapshot: jest.Mock;
+  };
+  let mockBenchmarkDefinitionDb: {
+    countDefinitionsReferencingModelId: jest.Mock;
   };
 
   const mockTemplateModel = {
@@ -117,6 +130,10 @@ describe("TrainingService", () => {
     container_name: "training-tm-1",
     sas_url: null,
     blob_count: 0,
+    build_mode: BuildMode.template,
+    max_training_hours: null,
+    target_model_id: null,
+    target_version: null,
     operation_id: null,
     error_message: null,
     started_at: new Date(),
@@ -130,9 +147,16 @@ describe("TrainingService", () => {
     template_model_id: "tm-1",
     training_job_id: "job-1",
     model_id: "custom-model-1",
+    version: 1,
+    is_active: true,
+    deleted_at: null,
+    dataset_snapshot: null,
     description: "Test Model",
     doc_types: { custom: { fieldSchema: { field1: {} } } },
     field_count: 1,
+    build_mode: BuildMode.template,
+    max_training_hours: null,
+    actual_training_hours: null,
     created_at: new Date(),
   };
 
@@ -142,12 +166,22 @@ describe("TrainingService", () => {
       findTrainingJob: jest.fn(),
       findAllTrainingJobs: jest.fn(),
       findAllActiveTrainingJobs: jest.fn(),
+      findInFlightJobForTemplate: jest.fn().mockResolvedValue(null),
       findAllTrainedModels: jest.fn(),
+      findTrainedModelForTemplate: jest.fn(),
+      findActiveTrainedModel: jest.fn(),
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
       findTrainedModelByModelId: jest.fn(),
-      deleteTrainedModel: jest.fn(),
       findAllTrainedModelIds: jest.fn(),
+      getNextVersionNumber: jest.fn().mockResolvedValue(1),
+      setActiveTrainedModel: jest.fn(),
+      tombstoneTrainedModel: jest.fn(),
+      demoteActiveTrainedModels: jest.fn().mockResolvedValue(0),
+      buildTrainedModelSnapshot: jest.fn().mockResolvedValue({ documents: [] }),
+    };
+    mockBenchmarkDefinitionDb = {
+      countDefinitionsReferencingModelId: jest.fn().mockResolvedValue(0),
     };
 
     const mockBlob = {
@@ -220,6 +254,10 @@ describe("TrainingService", () => {
           useValue: mockTemplateModelSvc,
         },
         {
+          provide: BenchmarkDefinitionDbService,
+          useValue: mockBenchmarkDefinitionDb,
+        },
+        {
           provide: ConfigService,
           useValue: mockConfig,
         },
@@ -259,6 +297,10 @@ describe("TrainingService", () => {
           {
             provide: TemplateModelService,
             useValue: mockTemplateModelService,
+          },
+          {
+            provide: BenchmarkDefinitionDbService,
+            useValue: mockBenchmarkDefinitionDb,
           },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],
@@ -456,10 +498,11 @@ describe("TrainingService", () => {
       );
     });
 
-    it("should delete existing trained model before training", async () => {
-      const dto = {
-        description: "Test model",
-      };
+    it("does NOT delete the prior tracked TrainedModel when retraining", async () => {
+      // Versioned-trained-models keep history; retraining mints a new version
+      // rather than overwriting v1. Confirm we don't issue any deletes for
+      // versions we already track.
+      const dto = { description: "Test model" };
 
       const mockDelete = jest.fn().mockResolvedValue({ status: 200 });
       mockAdminClient.path.mockImplementation((pathTemplate: string) => {
@@ -470,27 +513,463 @@ describe("TrainingService", () => {
       });
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(2);
 
       mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
         mockTemplateModel as never,
       );
-      // validateTrainingData
       mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
         mockTemplateModel as never,
       );
       mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
         Array(5).fill(mockLabeledDocument),
       );
-      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(
-        mockTrainedModel,
-      );
-      mockTrainingDb.deleteTrainedModel.mockResolvedValueOnce(mockTrainedModel);
+      // The Azure model name for v2 is suffixed; we DO defensively check that
+      // a previous failed run didn't leave it lingering. If our tracking has
+      // no row for it, the defensive Azure delete may run; but since this
+      // versioned name has never been used, nothing should match locally.
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
       mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
       await service.startTraining("tm-1", dto);
 
-      expect(mockDelete).toHaveBeenCalled();
-      expect(mockTrainingDb.deleteTrainedModel).toHaveBeenCalled();
+      // Job is created with the versioned target.
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_model_id: "custom-model-1-v2",
+          target_version: 2,
+        }),
+      );
+    });
+
+    it("uses the bare template model id for the very first training (v1)", async () => {
+      const dto = { description: "First training" };
+
+      mockAdminClient.path.mockImplementation((pathTemplate: string) => {
+        if (pathTemplate.includes("/documentModels/")) {
+          return { delete: jest.fn() };
+        }
+        return { post: jest.fn() };
+      });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument),
+      );
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
+
+      await service.startTraining("tm-1", dto);
+
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_model_id: "custom-model-1",
+          target_version: 1,
+        }),
+      );
+    });
+
+    it("persists buildMode=neural and maxTrainingHours on the new TrainingJob", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+      ] as never);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(2);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v2",
+        sas_url: null,
+        blob_count: 0,
+        operation_id: null,
+        error_message: null,
+        started_at: new Date(),
+        completed_at: null,
+        target_model_id: "custom-model-1-v2",
+        target_version: 2,
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+
+      await service.startTraining("tm-1", {
+        description: "test",
+        buildMode: "neural" as never,
+        maxTrainingHours: 2,
+      });
+
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: "neural",
+          max_training_hours: 2,
+        }),
+      );
+    });
+
+    it("defaults buildMode to template and leaves max_training_hours null when not provided", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce([
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+        mockLabeledDocument,
+      ] as never);
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v1",
+        target_model_id: "custom-model-1",
+        target_version: 1,
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+
+      await service.startTraining("tm-1", { description: "test" });
+
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          build_mode: "template",
+          max_training_hours: null,
+        }),
+      );
+    });
+
+    it("sends buildMode=neural and maxTrainingHours in the Azure build request", async () => {
+      const mockPost = jest.fn().mockResolvedValue({
+        status: "202",
+        headers: { "operation-location": "https://x/operations/op-1" },
+        body: { resultId: "op-1" },
+      });
+      const mockDelete = jest.fn().mockResolvedValue({ status: "204" });
+      mockAdminClient.path = jest
+        .fn()
+        .mockReturnValue({ post: mockPost, delete: mockDelete });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      // validateTrainingData call
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce({
+        fieldsJson: { fields: [] },
+        labelsFiles: [],
+      } as never);
+      // prepareTrainingFiles call (inside uploadAndTrain)
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v1",
+        target_model_id: "custom-model-1",
+        target_version: 1,
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        container_name: "training-tm-1-v1",
+        build_mode: "neural",
+        max_training_hours: 2,
+      } as never);
+      mockBlobStorage.clearContainerContents.mockResolvedValueOnce(
+        undefined as never,
+      );
+      mockBlobStorage.uploadFiles.mockResolvedValueOnce({
+        uploaded: 1,
+        failed: 0,
+        failedFiles: [],
+      } as never);
+      mockBlobStorage.generateSasUrl.mockResolvedValueOnce(
+        "https://blob/c?sp=rl&sr=c&se=2099-01-01" as never,
+      );
+
+      await service.startTraining("tm-1", {
+        buildMode: "neural" as never,
+        maxTrainingHours: 2,
+      });
+      await new Promise((r) => setImmediate(r));
+
+      expect(mockPost).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            buildMode: "neural",
+            maxTrainingHours: 2,
+          }),
+        }),
+      );
+    });
+
+    it("omits maxTrainingHours from Azure payload when buildMode=template", async () => {
+      const mockPost = jest.fn().mockResolvedValue({
+        status: "202",
+        headers: { "operation-location": "https://x/operations/op-1" },
+        body: { resultId: "op-1" },
+      });
+      const mockDelete = jest.fn().mockResolvedValue({ status: "204" });
+      mockAdminClient.path = jest
+        .fn()
+        .mockReturnValue({ post: mockPost, delete: mockDelete });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      // validateTrainingData call
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce({
+        fieldsJson: { fields: [] },
+        labelsFiles: [],
+      } as never);
+      // prepareTrainingFiles call (inside uploadAndTrain)
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument) as never,
+      );
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(1);
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        template_model_id: "tm-1",
+        status: "PENDING",
+        container_name: "training-tm-1-v1",
+        target_model_id: "custom-model-1",
+        target_version: 1,
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+      mockTrainingDb.findTrainingJob.mockResolvedValueOnce({
+        id: "job-1",
+        container_name: "training-tm-1-v1",
+        build_mode: "template",
+        max_training_hours: null,
+      } as never);
+      mockBlobStorage.clearContainerContents.mockResolvedValueOnce(
+        undefined as never,
+      );
+      mockBlobStorage.uploadFiles.mockResolvedValueOnce({
+        uploaded: 1,
+        failed: 0,
+        failedFiles: [],
+      } as never);
+      mockBlobStorage.generateSasUrl.mockResolvedValueOnce(
+        "https://blob/c?sp=rl&sr=c&se=2099-01-01" as never,
+      );
+
+      await service.startTraining("tm-1", {});
+      await new Promise((r) => setImmediate(r));
+
+      expect(mockPost).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({ buildMode: "template" }),
+        }),
+      );
+      const sentBody = mockPost.mock.calls[0][0].body;
+      expect(sentBody.maxTrainingHours).toBeUndefined();
+    });
+
+    it("refuses to start when an in-flight job already exists for the template", async () => {
+      const dto = { description: "Test model" };
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTrainingDb.findInFlightJobForTemplate.mockResolvedValueOnce({
+        id: "job-already-running",
+        template_model_id: "tm-1",
+        status: TrainingStatus.TRAINING,
+      });
+
+      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
+        ConflictException,
+      );
+      // Guard fires before version computation and job creation.
+      expect(mockTrainingDb.getNextVersionNumber).not.toHaveBeenCalled();
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("listTrainedVersions", () => {
+    it("returns all versions including tombstoned, mapped to DTO", async () => {
+      mockTrainingDb.findAllTrainedModels.mockResolvedValueOnce([
+        { ...mockTrainedModel, version: 2, is_active: true },
+        {
+          ...mockTrainedModel,
+          id: "trained-old",
+          version: 1,
+          is_active: false,
+          deleted_at: new Date("2026-04-01"),
+        },
+      ]);
+
+      const result = await service.listTrainedVersions("tm-1");
+
+      expect(result).toHaveLength(2);
+      expect(result[0].version).toBe(2);
+      expect(result[1].deletedAt).toBeInstanceOf(Date);
+      expect(mockTrainingDb.findAllTrainedModels).toHaveBeenCalledWith("tm-1", {
+        includeDeleted: true,
+      });
+    });
+  });
+
+  describe("setActiveTrainedVersion", () => {
+    it("activates a non-deleted version", async () => {
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v2",
+        version: 2,
+        is_active: false,
+      });
+      mockTrainingDb.setActiveTrainedModel.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v2",
+        version: 2,
+        is_active: true,
+      });
+
+      const result = await service.setActiveTrainedVersion("tm-1", "v2");
+
+      expect(result.isActive).toBe(true);
+      expect(mockTrainingDb.findTrainedModelForTemplate).toHaveBeenCalledWith(
+        "tm-1",
+        "v2",
+        { includeDeleted: true },
+      );
+      expect(mockTrainingDb.setActiveTrainedModel).toHaveBeenCalledWith("v2");
+    });
+
+    it("rejects activating a deleted version", async () => {
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        deleted_at: new Date(),
+      });
+
+      await expect(
+        service.setActiveTrainedVersion("tm-1", "v1"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws NotFound when the version doesn't belong to the template", async () => {
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(null);
+      await expect(
+        service.setActiveTrainedVersion("tm-1", "missing"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("deleteTrainedVersion", () => {
+    it("blocks deletion when the version is currently active", async () => {
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: true,
+      });
+
+      await expect(service.deleteTrainedVersion("tm-1", "v1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("blocks deletion when a benchmark definition references the version", async () => {
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce({
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: false,
+      });
+      mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mockResolvedValueOnce(
+        2,
+      );
+
+      await expect(service.deleteTrainedVersion("tm-1", "v1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("tombstones the version when guardrails pass", async () => {
+      const inactive = {
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: false,
+      };
+      const tombstoned = {
+        ...inactive,
+        deleted_at: new Date("2026-05-01"),
+      };
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(
+        inactive,
+      );
+      mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mockResolvedValueOnce(
+        0,
+      );
+      mockTrainingDb.tombstoneTrainedModel.mockResolvedValueOnce(tombstoned);
+      mockAdminClient.path.mockImplementation(() => ({
+        delete: jest.fn().mockResolvedValue({ status: 200 }),
+      }));
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const result = await service.deleteTrainedVersion("tm-1", "v1");
+
+      expect(result.deletedAt).toBeInstanceOf(Date);
+      expect(mockTrainingDb.tombstoneTrainedModel).toHaveBeenCalledWith("v1");
+    });
+
+    it("returns the existing row when the version is already tombstoned", async () => {
+      const tombstoned = {
+        ...mockTrainedModel,
+        id: "v1",
+        is_active: false,
+        deleted_at: new Date("2026-04-01"),
+      };
+      mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(
+        tombstoned,
+      );
+
+      const result = await service.deleteTrainedVersion("tm-1", "v1");
+
+      expect(result.deletedAt).toEqual(tombstoned.deleted_at);
+      expect(mockTrainingDb.tombstoneTrainedModel).not.toHaveBeenCalled();
     });
   });
 
@@ -519,6 +998,10 @@ describe("TrainingService", () => {
           { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
           { provide: TemplateModelService, useValue: mockTemplateModelService },
+          {
+            provide: BenchmarkDefinitionDbService,
+            useValue: mockBenchmarkDefinitionDb,
+          },
           { provide: ConfigService, useValue: mockConfigMockDi },
         ],
       }).compile();
@@ -665,6 +1148,10 @@ describe("TrainingService", () => {
             provide: TemplateModelService,
             useValue: mockTemplateModelService,
           },
+          {
+            provide: BenchmarkDefinitionDbService,
+            useValue: mockBenchmarkDefinitionDb,
+          },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],
       }).compile();
@@ -714,6 +1201,95 @@ describe("TrainingService", () => {
       expect(result).toHaveProperty("trainingJobId", "job-1");
       expect(result).toHaveProperty("modelId", "custom-model-1");
       expect(result).toHaveProperty("fieldCount", 1);
+    });
+  });
+
+  describe("getTrainingInfo", () => {
+    it("returns the parsed Azure /info response", async () => {
+      const mockGet = jest.fn().mockResolvedValue({
+        status: "200",
+        body: {
+          customDocumentModels: { count: 1, limit: 100 },
+          customNeuralDocumentModelBuilds: {
+            used: 3,
+            quota: 20,
+            quotaResetDateTime: "2026-06-01T00:00:00Z",
+          },
+        },
+      });
+      mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+
+      const result = await service.getTrainingInfo();
+
+      expect(result.customNeuralDocumentModelBuilds).toEqual({
+        used: 3,
+        quota: 20,
+        quotaResetDateTime: "2026-06-01T00:00:00Z",
+      });
+      // Allow-listed fields only — Azure body fields we don't model must not leak.
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(["customNeuralDocumentModelBuilds"]),
+      );
+      expect(result).not.toHaveProperty("raw");
+      expect(result).not.toHaveProperty("customDocumentModels");
+    });
+
+    it("throws a generic 500 when Azure returns an error (does not leak Azure message)", async () => {
+      const mockGet = jest.fn().mockResolvedValue({
+        status: "401",
+        body: { error: { message: "Invalid api-key" } },
+      });
+      mockAdminClient.path = jest.fn().mockReturnValue({ get: mockGet });
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
+
+      const promise = service.getTrainingInfo();
+      await expect(promise).rejects.toThrow(InternalServerErrorException);
+      // Azure's message must be logged but not raised through.
+      await expect(promise).rejects.toThrow(
+        "Failed to fetch Azure training info",
+      );
+      await expect(promise).rejects.not.toThrow("Invalid api-key");
+      expect(mockAppLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid api-key"),
+      );
+    });
+
+    it("throws 503 when the Azure client is not configured", async () => {
+      const moduleNoCreds: TestingModule = await Test.createTestingModule({
+        providers: [
+          TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          { provide: TrainingDbService, useValue: mockTrainingDb },
+          {
+            provide: AzureStorageService,
+            useValue: mockBlobStorage,
+          },
+          { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
+          {
+            provide: TemplateModelService,
+            useValue: mockTemplateModelService,
+          },
+          {
+            provide: BenchmarkDefinitionDbService,
+            useValue: mockBenchmarkDefinitionDb,
+          },
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn(() => undefined),
+            },
+          },
+        ],
+      }).compile();
+      const unconfiguredService =
+        moduleNoCreds.get<TrainingService>(TrainingService);
+
+      const promise = unconfiguredService.getTrainingInfo();
+      await expect(promise).rejects.toThrow(ServiceUnavailableException);
+      await expect(promise).rejects.toThrow(
+        "Azure Document Intelligence is not configured",
+      );
     });
   });
 });

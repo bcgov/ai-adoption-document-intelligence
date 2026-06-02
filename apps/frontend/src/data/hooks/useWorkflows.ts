@@ -6,6 +6,8 @@ import { apiService } from "../services/api.service";
 export interface WorkflowInfo {
   id: string;
   workflowVersionId: string;
+  /** Stable, URL/CLI-friendly handle. Unique within a group. */
+  slug: string;
   name: string;
   description: string | null;
   actorId: string;

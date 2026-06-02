@@ -1,11 +1,13 @@
 import { Global, Module, type NestModule } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
+import { MetricsModule } from "@/metrics/metrics.module";
 import { AppLoggerService } from "./app-logger.service";
 import { LoggingMiddleware } from "./logging.middleware";
 import { RequestLoggingInterceptor } from "./request-logging.interceptor";
 
 @Global()
 @Module({
+  imports: [MetricsModule],
   providers: [
     AppLoggerService,
     LoggingMiddleware,

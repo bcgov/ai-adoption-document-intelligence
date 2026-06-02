@@ -217,5 +217,31 @@ describe("ClassifierPollerService", () => {
         mockClassifierDbService.systemUpdateClassifierModel,
       ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.FAILED });
     });
+
+    it("should log with alertType when training succeeds", async () => {
+      mockConfigService.get.mockReturnValue("minio");
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        status: "succeeded",
+      });
+      mockClassifierDbService.markClassifierReadyIfTraining.mockResolvedValue(
+        true,
+      );
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ alertType: "classifier_training_failed" }),
+      );
+    });
+
+    it("should log with alertType when training fails", async () => {
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        status: "failed",
+      });
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ alertType: "classifier_training_failed" }),
+      );
+    });
   });
 });

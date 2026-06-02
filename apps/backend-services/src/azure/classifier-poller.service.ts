@@ -118,6 +118,7 @@ export class ClassifierPollerService {
         if (transitioned) {
           this.logger.log(
             `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
+            { alertType: "classifier_training_failed" },
           );
           await this.deleteTrainingBlobs(classifierName, groupId);
         }
@@ -134,7 +135,7 @@ export class ClassifierPollerService {
         );
         this.logger.warn(
           `Classifier ${classifierName} (group ${groupId}) training failed: ${errorMessage}`,
-          { result },
+          { result, alertType: "classifier_training_failed" },
         );
       } else {
         this.logger.debug(

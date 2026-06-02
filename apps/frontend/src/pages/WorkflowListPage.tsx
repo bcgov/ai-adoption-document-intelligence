@@ -16,6 +16,7 @@ import { notifications } from "@mantine/notifications";
 import { IconEdit, IconFlask, IconPlus, IconTrash } from "@tabler/icons-react";
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { SlugChip } from "../components/workflow/SlugChip";
 import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
 
 export function WorkflowListPage() {
@@ -161,6 +162,7 @@ export function WorkflowListPage() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Name</Table.Th>
+                <Table.Th>Slug</Table.Th>
                 <Table.Th>Description</Table.Th>
                 <Table.Th>Version</Table.Th>
                 <Table.Th>Schema</Table.Th>
@@ -174,6 +176,9 @@ export function WorkflowListPage() {
                 <Table.Tr key={workflow.id}>
                   <Table.Td>
                     <Text fw={500}>{workflow.name}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <SlugChip slug={workflow.slug} />
                   </Table.Td>
                   <Table.Td>
                     <Text c="dimmed" size="sm" lineClamp={1}>

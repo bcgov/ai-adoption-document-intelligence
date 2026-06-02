@@ -10,6 +10,15 @@ data:
       scrape_interval: {{ .Values.prometheus.scrapeInterval }}
       evaluation_interval: {{ .Values.prometheus.scrapeInterval }}
 
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - "{{ include "plg.alertmanager.fullname" . }}:{{ .Values.alertmanager.httpPort }}"
+
+    rule_files:
+      - "rules/*.yml"
+
     scrape_configs:
       - job_name: "backend-services"
         metrics_path: "/metrics"
@@ -18,9 +27,9 @@ data:
           - targets:
               - "{{ .Values.prometheus.scrapeTargets.backendServices.host }}:{{ .Values.prometheus.scrapeTargets.backendServices.port }}"
 
-      - job_name: "temporal-server"
+      - job_name: "temporal-worker"
         metrics_path: "/metrics"
         scrape_interval: {{ .Values.prometheus.scrapeInterval }}
         static_configs:
           - targets:
-              - "{{ .Values.prometheus.scrapeTargets.temporalServer.host }}:{{ .Values.prometheus.scrapeTargets.temporalServer.port }}"
+              - "{{ .Values.prometheus.scrapeTargets.temporalWorker.host }}:{{ .Values.prometheus.scrapeTargets.temporalWorker.port }}"
