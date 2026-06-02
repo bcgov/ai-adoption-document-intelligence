@@ -65,16 +65,18 @@ Accepts an `isAdmin: boolean` prop from `TableDetailPage`.
 Modal form for creating/editing a column definition.
 
 Fields:
-- **Key** — stable identifier (letters, digits, underscore; must start with letter/underscore). Disabled when editing.
+- **Key** — stable lowercase identifier (disabled when editing).
 - **Label** — human-readable display name.
-- **Type** — `string | number | boolean | date | datetime | enum`.
+- **Type** — `string | number | boolean | date | datetime | year-month | enum`.
 - **Enum values** — visible only when type is `enum`. Uses `TagsInput` (press Enter to add values).
 - **Required** — toggle.
+- **Unique** — toggle. When enabled, the backend enforces that no two rows share the same value for this column. Cannot be combined with a seed value (each row must supply a distinct value manually).
+- **Seed value** — appears when **Required** is enabled and **Unique** is not. Provides a default value that is backfilled into all existing rows that currently have no value for this column. The input widget matches the column type (text, number, date picker, month picker, etc.). On submit, `year-month` values are truncated to `YYYY-MM` and `datetime` values are converted to ISO UTC before being sent to the API.
 
 Validation:
-- Key must match `/^[a-zA-Z_][a-zA-Z0-9_]*$/`
-- Label is required
-- Enum values must have at least one entry when type is `enum`
+- Key must match `/^[a-z][a-z0-9_]*$/` — lowercase letters, digits, underscore; must start with a letter.
+- Label is required.
+- Enum values must have at least one entry when type is `enum`.
 
 `enumValues` is stripped from the payload when type is not `enum` to avoid sending stale values after a type change.
 
@@ -86,8 +88,27 @@ Displays lookup query definitions. Accepts an `isAdmin: boolean` prop. Add/Edit/
 
 Provides a paginated row list and a dynamic form driven by the column schema. All group members can create, edit, and delete rows.
 
-- **Delete row** — clicking the delete button opens a confirmation modal before calling `DELETE /tables/:tableId/rows/:rowId`.
-- **Date fields** — `DateInput` fields show a description hint: "Click the calendar icon to pick a date".
+**Column visibility** — a columns icon button (top-right of the rows toolbar) opens a popover with a checkbox per column. Hidden columns are excluded from the table. Visibility state is persisted to `localStorage` under the key `rows-hidden-cols:{groupId}:{tableId}`.
+
+**Bulk delete** — a checkbox column is shown at the left of every row (sticky). Checking rows reveals a "Delete N selected" button in the toolbar. Clicking it opens a confirmation modal; confirmed deletes are processed in parallel chunks of 10 API calls. Selection resets on page change.
+
+**Single row delete** — clicking the delete icon on a row opens a confirmation modal before calling `DELETE /tables/:tableId/rows/:rowId`.
+
+**Date fields** — `DateInput` fields show a description hint: "Click the calendar icon to pick a date".
+
+**RowForm widget mapping by column type:**
+
+| ColumnType | Widget | Wire format sent to API |
+|------------|--------|-------------------------|
+| `string` | `TextInput` | string |
+| `number` | `NumberInput` | number |
+| `boolean` | `Switch` | boolean |
+| `date` | `DateInput` (`YYYY-MM-DD`) | `YYYY-MM-DD` |
+| `datetime` | `DateTimePicker` | ISO 8601 UTC string |
+| `year-month` | `MonthPickerInput` (`YYYY-MM`) | `YYYY-MM` |
+| `enum` | `Select` populated from `enumValues` | string |
+
+Optional fields with an empty/null value are stripped from the payload before submission.
 
 ## API Endpoints Used
 
