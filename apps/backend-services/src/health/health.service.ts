@@ -30,10 +30,12 @@ export class HealthService {
       await this.prisma.prisma.$queryRaw`SELECT 1`;
       const duration = Date.now() - startTime;
       checks.database = "ok";
-      this.logger.log("Health check - database OK", {
-        category: "health",
-        durationMs: duration,
-      });
+      if (duration > 5000) {
+        this.logger.warn("Health check - database slow response", {
+          category: "health",
+          durationMs: duration,
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       const errorCode =
