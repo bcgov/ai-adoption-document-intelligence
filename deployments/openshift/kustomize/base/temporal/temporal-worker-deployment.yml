@@ -65,6 +65,11 @@ spec:
                 secretKeyRef:
                   name: temporal-worker-secrets
                   key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+            - name: MOCK_AZURE_OCR
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MOCK_AZURE_OCR
             - name: BENCHMARK_TASK_QUEUE
               valueFrom:
                 configMapKeyRef:
@@ -80,6 +85,30 @@ spec:
                 configMapKeyRef:
                   name: temporal-worker-config
                   key: BLOB_STORAGE_PROVIDER
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MINIO_ENDPOINT
+                  optional: true
+            - name: MINIO_DOCUMENT_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MINIO_DOCUMENT_BUCKET
+                  optional: true
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: MINIO_ROOT_USER
+                  optional: true
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: MINIO_ROOT_PASSWORD
+                  optional: true
             - name: AZURE_STORAGE_CONTAINER_NAME
               valueFrom:
                 configMapKeyRef:

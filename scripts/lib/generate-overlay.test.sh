@@ -147,8 +147,28 @@ assert_contains "namePrefix contains instance name" "namePrefix: \"${INSTANCE}-\
 echo ""
 
 echo "Test 1.4: No placeholder tokens remain in generated files"
-remaining_placeholders=$(grep -r '__INSTANCE_NAME__\|__NAMESPACE__\|__CLUSTER_DOMAIN__\|__BACKEND_IMAGE__\|__FRONTEND_IMAGE__\|__WORKER_IMAGE__\|__IMAGE_TAG__\|__SSO_AUTH_SERVER_URL__\|__SSO_REALM__\|__SSO_CLIENT_ID__\|__BOOTSTRAP_ADMIN_EMAIL__\|__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__\|__AZURE_DOC_INTELLIGENCE_MODELS__' "${overlay_dir}/" 2>/dev/null || true)
+remaining_placeholders=$(grep -rE '__[A-Z][A-Z0-9_]*__' "${overlay_dir}/" 2>/dev/null || true)
 assert_eq "No placeholder tokens remain" "" "${remaining_placeholders}"
+echo ""
+
+echo "Test 1.5: Load-test ConfigMap placeholders resolve"
+overlay_load=$(generate_instance_overlay \
+  --instance "${INSTANCE}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
+  --backend-image "${BACKEND_IMAGE}" \
+  --frontend-image "${FRONTEND_IMAGE}" \
+  --worker-image "${WORKER_IMAGE}" \
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}" \
+  --document-intelligence-mode mock \
+  --mock-azure-ocr true)
+kusto_load=$(cat "${overlay_load}/kustomization.yml")
+assert_contains "Backend patch sets DOCUMENT_INTELLIGENCE_MODE mock" 'DOCUMENT_INTELLIGENCE_MODE: "mock"' "${kusto_load}"
+assert_contains "Worker patch sets MOCK_AZURE_OCR true" 'MOCK_AZURE_OCR: "true"' "${kusto_load}"
+cleanup_generated_overlay "${overlay_load}"
 echo ""
 
 # Clean up
@@ -390,6 +410,117 @@ exit_code=0
 generate_instance_overlay --unknown-arg value 2>/dev/null || exit_code=$?
 assert_exit_code "Unknown argument returns error" 1 "${exit_code}"
 echo ""
+
+# ========================================
+# Scenario 6: MinIO component opt-in
+# ========================================
+
+echo "--- Scenario 6: MinIO component opt-in ---"
+echo ""
+
+echo "Test 6.1: Without --with-minio, no MinIO files are generated"
+overlay_dir=$(generate_instance_overlay \
+  --instance "${INSTANCE}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
+  --backend-image "${BACKEND_IMAGE}" \
+  --frontend-image "${FRONTEND_IMAGE}" \
+  --worker-image "${WORKER_IMAGE}" \
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ ! -d "${overlay_dir}/minio" ]]; then
+  echo "  PASS: minio component directory not present"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+  echo "  FAIL: minio component directory should not be present"
+  TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+kusto_no_minio=$(cat "${overlay_dir}/kustomization.yml")
+assert_not_contains "Without flag, kustomization has no components reference" "components:" "${kusto_no_minio}"
+cleanup_generated_overlay "${overlay_dir}"
+echo ""
+
+echo "Test 6.2: With --with-minio, MinIO component is included"
+overlay_dir=$(generate_instance_overlay \
+  --instance "${INSTANCE}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
+  --backend-image "${BACKEND_IMAGE}" \
+  --frontend-image "${FRONTEND_IMAGE}" \
+  --worker-image "${WORKER_IMAGE}" \
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}" \
+  --with-minio \
+  --minio-pvc-size 8Gi \
+  --minio-root-user testuser123 \
+  --minio-root-password testpass-456)
+assert_file_exists "minio/kustomization.yml exists" "${overlay_dir}/minio/kustomization.yml"
+assert_file_exists "minio/deployment.yml exists" "${overlay_dir}/minio/deployment.yml"
+assert_file_exists "minio/init-job.yml exists" "${overlay_dir}/minio/init-job.yml"
+kusto_minio=$(cat "${overlay_dir}/kustomization.yml")
+assert_contains "components: ./minio is referenced" "  - ./minio" "${kusto_minio}"
+echo ""
+
+echo "Test 6.3: ConfigMap patches set MINIO_ENDPOINT to instance-prefixed Service"
+expected_endpoint="http://${INSTANCE}-minio:9000"
+assert_contains "Backend MINIO_ENDPOINT set" "MINIO_ENDPOINT: \"${expected_endpoint}\"" "${kusto_minio}"
+endpoint_count=$(grep -c "MINIO_ENDPOINT: \"${expected_endpoint}\"" "${overlay_dir}/kustomization.yml" || true)
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ "${endpoint_count}" -ge 2 ]]; then
+  echo "  PASS: MINIO_ENDPOINT patched in both backend and worker configs (${endpoint_count} occurrences)"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+  echo "  FAIL: MINIO_ENDPOINT should appear in backend and worker patches, found ${endpoint_count}"
+  TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+echo ""
+
+echo "Test 6.4: PVC size placeholder substituted"
+pvc_content=$(cat "${overlay_dir}/minio/pvc.yml")
+assert_contains "PVC storage uses provided size" "storage: \"8Gi\"" "${pvc_content}"
+echo ""
+
+echo "Test 6.5: Init Job MINIO_SERVICE_NAME points at instance-prefixed Service"
+job_content=$(cat "${overlay_dir}/minio/init-job.yml")
+assert_contains "Init Job MINIO_SERVICE_NAME instance-scoped" "value: \"${INSTANCE}-minio\"" "${job_content}"
+echo ""
+
+echo "Test 6.6: No placeholder tokens remain in MinIO component files"
+remaining_minio_placeholders=$(grep -rE '__[A-Z][A-Z0-9_]*__' "${overlay_dir}/minio/" 2>/dev/null || true)
+assert_eq "No placeholder tokens remain in MinIO component" "" "${remaining_minio_placeholders}"
+echo ""
+
+echo "Test 6.7: secretGenerator carries supplied root credentials"
+minio_kusto=$(cat "${overlay_dir}/minio/kustomization.yml")
+assert_contains "secretGenerator name minio-credentials" "name: minio-credentials" "${minio_kusto}"
+assert_contains "secretGenerator MINIO_ROOT_USER literal" "MINIO_ROOT_USER=testuser123" "${minio_kusto}"
+assert_contains "secretGenerator MINIO_ROOT_PASSWORD literal" "MINIO_ROOT_PASSWORD=testpass-456" "${minio_kusto}"
+assert_contains "disableNameSuffixHash so refs stay stable" "disableNameSuffixHash: true" "${minio_kusto}"
+echo ""
+
+echo "Test 6.8: --with-minio without credentials is rejected"
+exit_code=0
+generate_instance_overlay \
+  --instance "${INSTANCE}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
+  --backend-image "${BACKEND_IMAGE}" \
+  --frontend-image "${FRONTEND_IMAGE}" \
+  --worker-image "${WORKER_IMAGE}" \
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}" \
+  --with-minio >/dev/null 2>&1 || exit_code=$?
+assert_exit_code "--with-minio without creds returns error" 1 "${exit_code}"
+echo ""
+
+cleanup_generated_overlay "${overlay_dir}"
 
 # ========================================
 # Different instance name test

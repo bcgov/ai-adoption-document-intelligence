@@ -21,6 +21,7 @@
 _GENERATE_OVERLAY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PROJECT_ROOT="$(cd "${_GENERATE_OVERLAY_DIR}/../.." && pwd)"
 _TEMPLATE_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/overlays/instance-template"
+_MINIO_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/minio"
 
 # Escape a string for use as a sed replacement value.
 # Handles the delimiter (|), backslash, and ampersand.
@@ -74,6 +75,14 @@ generate_instance_overlay() {
   local azure_doc_intelligence_endpoint=""
   local azure_doc_intelligence_models="prebuilt-layout"
   local pg_backup_storage_size="10Gi"
+  local document_intelligence_mode="live"
+  local mock_azure_ocr="false"
+  local minio_endpoint=""
+  local minio_document_bucket="document-blobs"
+  local with_minio="false"
+  local minio_pvc_size="5Gi"
+  local minio_root_user=""
+  local minio_root_password=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -193,6 +202,38 @@ generate_instance_overlay() {
         pg_backup_storage_size="$2"
         shift 2
         ;;
+      --document-intelligence-mode)
+        document_intelligence_mode="$2"
+        shift 2
+        ;;
+      --mock-azure-ocr)
+        mock_azure_ocr="$2"
+        shift 2
+        ;;
+      --with-minio)
+        with_minio="true"
+        shift
+        ;;
+      --minio-endpoint)
+        minio_endpoint="$2"
+        shift 2
+        ;;
+      --minio-document-bucket)
+        minio_document_bucket="$2"
+        shift 2
+        ;;
+      --minio-pvc-size)
+        minio_pvc_size="$2"
+        shift 2
+        ;;
+      --minio-root-user)
+        minio_root_user="$2"
+        shift 2
+        ;;
+      --minio-root-password)
+        minio_root_password="$2"
+        shift 2
+        ;;
       *)
         echo "[ERROR] generate_instance_overlay: unknown argument '$1'" >&2
         return 1
@@ -223,6 +264,20 @@ generate_instance_overlay() {
     return 1
   fi
 
+  if [[ "${with_minio}" == "true" ]]; then
+    if [[ ! -d "${_MINIO_COMPONENT_DIR}" ]]; then
+      echo "[ERROR] MinIO component directory not found: ${_MINIO_COMPONENT_DIR}" >&2
+      return 1
+    fi
+    if [[ -z "${minio_endpoint}" ]]; then
+      minio_endpoint="http://${instance}-minio:9000"
+    fi
+    if [[ -z "${minio_root_user}" || -z "${minio_root_password}" ]]; then
+      echo "[ERROR] --with-minio requires --minio-root-user and --minio-root-password." >&2
+      return 1
+    fi
+  fi
+
   # Create a temporary directory that preserves the relative path structure
   # so that ../../base in kustomization.yml resolves correctly.
   # Structure: tmpdir/overlays/instance/ (overlay) with tmpdir/base -> symlink to real base
@@ -241,6 +296,19 @@ generate_instance_overlay() {
   # Symlink the real base directory so ../../base resolves from overlays/instance/
   local real_base="${_PROJECT_ROOT}/deployments/openshift/kustomize/base"
   ln -s "${real_base}" "${tmp_root}/base"
+
+  # When --with-minio is requested, copy the component into the overlay so
+  # the kustomization can reference it via a relative path, and append the
+  # `components:` reference. Placeholders inside the component will be
+  # substituted alongside the rest of the overlay below.
+  if [[ "${with_minio}" == "true" ]]; then
+    cp -r "${_MINIO_COMPONENT_DIR}" "${generated_dir}/minio"
+    {
+      echo ""
+      echo "components:"
+      echo "  - ./minio"
+    } >>"${generated_dir}/kustomization.yml"
+  fi
 
   # Replace all placeholder tokens in the generated overlay files
   local sed_args=(
@@ -273,12 +341,20 @@ generate_instance_overlay() {
     -e "s|__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__|$(_sed_escape_replacement "${azure_doc_intelligence_endpoint}")|g"
     -e "s|__AZURE_DOC_INTELLIGENCE_MODELS__|$(_sed_escape_replacement "${azure_doc_intelligence_models}")|g"
     -e "s|__PG_BACKUP_STORAGE_SIZE__|$(_sed_escape_replacement "${pg_backup_storage_size}")|g"
+    -e "s|__DOCUMENT_INTELLIGENCE_MODE__|$(_sed_escape_replacement "${document_intelligence_mode}")|g"
+    -e "s|__MOCK_AZURE_OCR__|$(_sed_escape_replacement "${mock_azure_ocr}")|g"
+    -e "s|__MINIO_ENDPOINT__|$(_sed_escape_replacement "${minio_endpoint}")|g"
+    -e "s|__MINIO_DOCUMENT_BUCKET__|$(_sed_escape_replacement "${minio_document_bucket}")|g"
+    -e "s|__MINIO_PVC_SIZE__|$(_sed_escape_replacement "${minio_pvc_size}")|g"
+    -e "s|__MINIO_ROOT_USER__|$(_sed_escape_replacement "${minio_root_user}")|g"
+    -e "s|__MINIO_ROOT_PASSWORD__|$(_sed_escape_replacement "${minio_root_password}")|g"
   )
 
   # Process all YAML files in the generated directory
-  find "${generated_dir}" -type f -name '*.yml' -o -name '*.yaml' | while read -r file; do
-    sed -i "${sed_args[@]}" "${file}"
-  done
+  find "${generated_dir}" \( -name '*.yml' -o -name '*.yaml' \) -type f -print0 |
+    while IFS= read -r -d '' file; do
+      sed -i "${sed_args[@]}" "${file}"
+    done
 
   echo "${generated_dir}"
 }
