@@ -231,58 +231,16 @@ async function run() {
     });
   }
 
-  // Run all workers in parallel with graceful shutdown support
-  let shutdownRequested = false;
-
-  // Handle SIGTERM gracefully (sent by Kubernetes during pod shutdown)
-  process.on("SIGTERM", () => {
-    if (shutdownRequested) return;
-    shutdownRequested = true;
-
-    workerLogger.info("SIGTERM received, initiating graceful shutdown...", {
-      event: "shutdown_requested",
-    });
-
-    // Shut down all workers with timeout to complete in-flight activities
-    Promise.all(
-      workers.map(async (worker) => {
-        try {
-          workerLogger.info("Shutting down worker...", {
-            event: "worker_shutdown",
-          });
-          // shutdownGracePeriod configured in Worker.create() controls timeout
-          worker.shutdown();
-          workerLogger.info("Worker shut down cleanly", {
-            event: "worker_shutdown_complete",
-          });
-        } catch (error) {
-          workerLogger.error("Worker shutdown error", {
-            event: "worker_shutdown_error",
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
-        }
-      }),
-    )
-      .then(async () => {
-        workerLogger.info("Closing Temporal connection...", {
-          event: "connection_closing",
-        });
-        await connection.close();
-        metricsServer.close();
-        workerLogger.info("Shutdown complete", { event: "shutdown_complete" });
-        process.exit(0);
-      })
-      .catch((err) => {
-        workerLogger.error("Shutdown error", {
-          event: "shutdown_error",
-          error: err instanceof Error ? err.message : "Unknown error",
-        });
-        process.exit(1);
-      });
-  });
-
+  // The Temporal SDK automatically handles SIGTERM by calling worker.shutdown()
+  // and worker.run() resolves once all in-flight activities have drained.
   await Promise.all(workers.map((worker) => worker.run()));
 
+  // Only reached after all workers have fully drained
+  workerLogger.info("Closing Temporal connection...", {
+    event: "connection_closing",
+  });
+  await connection.close();
+  metricsServer.close();
   workerLogger.info("Worker stopped", { event: "stopped" });
 }
 
