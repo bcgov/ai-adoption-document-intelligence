@@ -84,7 +84,7 @@ describe("useDocuments", () => {
       });
 
       expect(apiService.get).toHaveBeenCalledWith(
-        `/documents?group_id=${activeGroup.id}&limit=50&offset=0&sort_by=created_at&sort_dir=desc`,
+        `/documents?group_id=${activeGroup.id}&limit=50&offset=0&source=api&sort_by=created_at&sort_dir=desc`,
       );
       expect(result.current.data?.documents).toEqual(mockDocuments);
       expect(result.current.data?.total).toBe(2);
@@ -110,7 +110,7 @@ describe("useDocuments", () => {
 
       expect(result.current.data?.documents).toEqual(mockDocuments);
       expect(apiService.get).toHaveBeenCalledWith(
-        `/documents?group_id=${activeGroup.id}&limit=50&offset=0&sort_by=created_at&sort_dir=desc`,
+        `/documents?group_id=${activeGroup.id}&limit=50&offset=0&source=api&sort_by=created_at&sort_dir=desc`,
       );
     });
   });
@@ -133,7 +133,7 @@ describe("useDocuments", () => {
       });
 
       expect(apiService.get).toHaveBeenCalledWith(
-        "/documents?limit=50&offset=0&sort_by=created_at&sort_dir=desc",
+        "/documents?limit=50&offset=0&source=api&sort_by=created_at&sort_dir=desc",
       );
     });
   });
@@ -162,20 +162,11 @@ describe("useDocuments", () => {
   });
 
   describe("Source filtering – excludes ground-truth-generation documents", () => {
-    it("filters out documents whose source is not 'api'", async () => {
+    it("sends source=api as a server-side query parameter", async () => {
       mockUseGroup.mockReturnValue({ activeGroup });
       vi.mocked(apiService.get).mockResolvedValue({
         success: true,
-        data: {
-          documents: [
-            { id: "doc-1", title: "Regular", source: "api" },
-            { id: "doc-2", title: "GT", source: "ground-truth-generation" },
-            { id: "doc-3", title: "Regular 2", source: "api" },
-          ],
-          total: 3,
-          limit: 50,
-          offset: 0,
-        },
+        data: mockPaginatedResponse,
         message: undefined,
       });
 
@@ -187,10 +178,9 @@ describe("useDocuments", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data?.documents).toEqual([
-        { id: "doc-1", title: "Regular", source: "api" },
-        { id: "doc-3", title: "Regular 2", source: "api" },
-      ]);
+      expect(apiService.get).toHaveBeenCalledWith(
+        expect.stringContaining("source=api"),
+      );
     });
   });
 

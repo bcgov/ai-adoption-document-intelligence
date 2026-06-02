@@ -118,6 +118,7 @@ export class DocumentDbService {
       status?: DocumentStatus | "all";
       sortBy?: string;
       sortDir?: "asc" | "desc";
+      source?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<{
@@ -141,6 +142,11 @@ export class DocumentDbService {
     // Status filter
     if (options?.status && options.status !== "all") {
       where.status = options.status;
+    }
+
+    // Source filter
+    if (options?.source) {
+      where.source = options.source;
     }
 
     // Search filter (title or filename)

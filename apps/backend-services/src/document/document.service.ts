@@ -333,6 +333,7 @@ export class DocumentService {
       status?: DocumentStatus | "all";
       sortBy?: string;
       sortDir?: "asc" | "desc";
+      source?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<{

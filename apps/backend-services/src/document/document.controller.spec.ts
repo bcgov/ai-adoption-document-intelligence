@@ -93,6 +93,7 @@ describe("DocumentController", () => {
           status: "all",
           sortBy: "created_at",
           sortDir: "desc",
+          source: undefined,
         },
       );
     });
@@ -118,6 +119,7 @@ describe("DocumentController", () => {
           status: "all",
           sortBy: "created_at",
           sortDir: "desc",
+          source: undefined,
         },
       );
     });
@@ -141,6 +143,7 @@ describe("DocumentController", () => {
         status: "all",
         sortBy: "created_at",
         sortDir: "desc",
+        source: undefined,
       });
     });
 
@@ -176,6 +179,7 @@ describe("DocumentController", () => {
           status: "all",
           sortBy: "created_at",
           sortDir: "desc",
+          source: undefined,
         },
       );
     });
@@ -198,6 +202,7 @@ describe("DocumentController", () => {
           status: "all",
           sortBy: "created_at",
           sortDir: "desc",
+          source: undefined,
         },
       );
     });
@@ -220,6 +225,7 @@ describe("DocumentController", () => {
           status: "all",
           sortBy: "created_at",
           sortDir: "desc",
+          source: undefined,
         },
       );
     });
@@ -256,6 +262,7 @@ describe("DocumentController", () => {
           status: "all",
           sortBy: "created_at",
           sortDir: "desc",
+          source: undefined,
         },
       );
     });

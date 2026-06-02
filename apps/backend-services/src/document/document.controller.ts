@@ -372,6 +372,11 @@ export class DocumentController {
     required: false,
     description: 'Sort direction: "asc" or "desc".',
   })
+  @ApiQuery({
+    name: "source",
+    required: false,
+    description: 'Filter by document source (e.g., "api").',
+  })
   @ApiOkResponse({
     description: "Returns a paginated list of documents",
     type: PaginatedDocumentsDto,
@@ -388,6 +393,7 @@ export class DocumentController {
     @Query("status") status?: string,
     @Query("sort_by") sortBy?: string,
     @Query("sort_dir") sortDir?: string,
+    @Query("source") source?: string,
   ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
@@ -413,6 +419,7 @@ export class DocumentController {
           status: (status as DocumentStatus | "all") || "all",
           sortBy: sortBy || "created_at",
           sortDir: sortDir === "asc" || sortDir === "desc" ? sortDir : "desc",
+          source: source || undefined,
         },
       );
 

@@ -22,6 +22,7 @@ interface UseDocumentsOptions {
   status?: DocumentStatus | "all";
   sortBy?: string;
   sortDir?: "asc" | "desc";
+  source?: string;
 }
 
 /**
@@ -48,6 +49,7 @@ export function useDocuments(
   const status = options?.status ?? "all";
   const sortBy = options?.sortBy ?? "created_at";
   const sortDir = options?.sortDir ?? "desc";
+  const source = options?.source ?? "api";
 
   return useQuery({
     queryKey: [
@@ -59,12 +61,14 @@ export function useDocuments(
       status,
       sortBy,
       sortDir,
+      source,
     ],
     queryFn: async (): Promise<PaginatedDocuments> => {
       const params = new URLSearchParams();
       if (activeGroup?.id) params.set("group_id", activeGroup.id);
       params.set("limit", String(limit));
       params.set("offset", String(offset));
+      if (source) params.set("source", source);
       if (search) params.set("search", search);
       if (status !== "all") params.set("status", status);
       params.set("sort_by", sortBy);
@@ -73,15 +77,7 @@ export function useDocuments(
       const endpoint = `/documents${qs ? `?${qs}` : ""}`;
       const response = await apiService.get<PaginatedDocuments>(endpoint);
       if (response.success && response.data) {
-        // Exclude documents created by ground-truth dataset generation. They
-        // run through the OCR pipeline but are not part of the regular
-        // processing queue the user monitors here.
-        return {
-          ...response.data,
-          documents: response.data.documents.filter(
-            (doc) => doc.source === "api",
-          ),
-        };
+        return response.data;
       }
       throw new Error(response.message || "Failed to fetch documents");
     },
