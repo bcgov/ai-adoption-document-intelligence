@@ -142,7 +142,7 @@ export class ClassifierPollerService {
     } catch (error) {
       this.logger.error(
         `Error polling classifier ${classifierName} (group ${groupId})`,
-        { stack: getErrorStack(error) },
+        { stack: getErrorStack(error), alertType: "classifier_training_poll" },
       );
     }
   }
