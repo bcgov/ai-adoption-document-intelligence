@@ -353,6 +353,27 @@ export class TablesDbService {
   }
 
   /**
+   * Returns `true` if any row in the table is missing a value for `key`
+   * (i.e. the key is absent or JSON null). Used to block enabling `required`
+   * on a column without providing a seed value.
+   */
+  async hasRowsMissingColumn(
+    group_id: string,
+    table_id: string,
+    key: string,
+  ): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<Array<{ found: bigint }>>`
+      SELECT 1 AS found
+      FROM reference_table_rows
+      WHERE group_id = ${group_id}
+        AND table_id = ${table_id}
+        AND data->>${key}::text IS NULL
+      LIMIT 1
+    `;
+    return rows.length > 0;
+  }
+
+  /**
    * Writes `value` into the `key` field of every row that is currently
    * missing a value for that column (i.e. the key is absent or JSON null).
    * Rows that already have a non-null value are left unchanged.

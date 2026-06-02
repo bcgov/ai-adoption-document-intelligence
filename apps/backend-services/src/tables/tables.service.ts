@@ -286,6 +286,22 @@ export class TablesService {
     const checkDuplicates =
       !!next.unique && (!before?.unique || seed_value !== undefined);
 
+    // Guard: enabling required without a seed_value would leave rows that have
+    // no value for this column in an invalid state.
+    if (next.required && !before?.required && seed_value === undefined) {
+      const hasMissing = await this.db.hasRowsMissingColumn(
+        group_id,
+        table_id,
+        key,
+      );
+      if (hasMissing) {
+        throw new BadRequestException(
+          `Cannot mark column "${next.label}" as required — existing rows are missing a value for it. ` +
+            "Provide a seed_value to backfill those rows, or fill in all values manually first.",
+        );
+      }
+    }
+
     let result: Awaited<ReturnType<typeof this.db.updateColumn>>;
     if (seed_value !== undefined) {
       result = await this.db.backfillAndUpdateColumn(

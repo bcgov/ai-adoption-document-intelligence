@@ -77,6 +77,7 @@ describe("TablesService", () => {
       hasRowWithColumnValue: jest.fn(),
       columnHasDuplicateValues: jest.fn(),
       hasRows: jest.fn(),
+      hasRowsMissingColumn: jest.fn(),
       backfillAndUpdateColumn: jest.fn(),
     } as unknown as jest.Mocked<TablesDbService>;
     audit = { recordEvent: jest.fn() };
@@ -459,6 +460,50 @@ describe("TablesService", () => {
       "row1",
     );
     expect(db.updateRow).toHaveBeenCalled();
+  });
+
+  // Test 3f: updateColumn blocks enabling required when rows are missing the value
+  it("updateColumn throws BadRequestException when enabling required without seed_value and rows are missing values", async () => {
+    const before: ColumnDef = { key: "code", label: "Code", type: "string" };
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(
+      makeTable({ columns: [before] }) as never,
+    );
+    db.hasRowsMissingColumn.mockResolvedValueOnce(true);
+
+    await expect(
+      svc.updateColumn("user1", "g", "t", "code", next),
+    ).rejects.toThrow(/required.*missing/i);
+
+    expect(db.hasRowsMissingColumn).toHaveBeenCalledWith("g", "t", "code");
+    expect(db.updateColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 3g: updateColumn allows enabling required when all rows have a value
+  it("updateColumn allows enabling required when no rows are missing a value", async () => {
+    const before: ColumnDef = { key: "code", label: "Code", type: "string" };
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(
+      makeTable({ columns: [before] }) as never,
+    );
+    db.hasRowsMissingColumn.mockResolvedValueOnce(false);
+    db.updateColumn.mockResolvedValueOnce(
+      makeTable({ columns: [next] }) as never,
+    );
+
+    await svc.updateColumn("user1", "g", "t", "code", next);
+
+    expect(db.updateColumn).toHaveBeenCalled();
   });
 
   // Test 4: removeColumn blocks when lookup references the column
