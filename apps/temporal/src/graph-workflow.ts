@@ -185,9 +185,9 @@ export async function graphWorkflow(
     ctx = result.ctx;
 
     // Post-execution hook: If workflow completed successfully, transition documents
-    // from completed_ocr to ready (documents that didn't go through HITL).
+    // from extracted to complete (documents that didn't go through HITL).
     // Documents at awaiting_review (went through HumanGate) are left alone - HITL
-    // approval will transition them to ready.
+    // approval will transition them to complete.
     if (
       result.status === "completed" &&
       input.initialCtx.documentId &&
@@ -206,21 +206,21 @@ export async function graphWorkflow(
             documentId: input.initialCtx.documentId,
           });
 
-          // Only transition from completed_ocr to ready
+          // Only transition from extracted to complete
           // Leave awaiting_review alone (HITL handles that transition)
-          if (currentStatus === "completed_ocr") {
+          if (currentStatus === "extracted") {
             const updateStatusActivity = activityProxy["document.updateStatus"];
             await updateStatusActivity({
               documentId: input.initialCtx.documentId,
-              status: "ready",
+              status: "complete",
             });
 
             console.log(
-              `[GraphWorkflow] Post-execution: Updated document ${input.initialCtx.documentId} from completed_ocr to ready`,
+              `[GraphWorkflow] Post-execution: Updated document ${input.initialCtx.documentId} from extracted to complete`,
             );
           } else {
             console.log(
-              `[GraphWorkflow] Post-execution: Document ${input.initialCtx.documentId} at status ${currentStatus}, skipping transition to ready`,
+              `[GraphWorkflow] Post-execution: Document ${input.initialCtx.documentId} at status ${currentStatus}, skipping transition to complete`,
             );
           }
         }

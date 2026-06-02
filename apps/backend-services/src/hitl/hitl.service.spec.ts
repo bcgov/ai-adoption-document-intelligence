@@ -44,7 +44,7 @@ describe("HitlService", () => {
     file_size: 1000,
     metadata: {},
     source: "upload",
-    status: DocumentStatus.completed_ocr,
+    status: DocumentStatus.extracted,
     model_id: "model-1",
     apim_request_id: null,
     created_at: new Date(),
@@ -275,10 +275,7 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
-          statuses: [
-            DocumentStatus.completed_ocr,
-            DocumentStatus.awaiting_review,
-          ],
+          statuses: [DocumentStatus.extracted, DocumentStatus.awaiting_review],
         }),
       );
     });

@@ -267,7 +267,7 @@ describe("DocumentController", () => {
     it("should return consistent structure with OCR result if found", async () => {
       const mockDocument = {
         id: "1",
-        status: "completed_ocr",
+        status: "extracted",
         title: "Test Document",
         original_filename: "test.pdf",
         file_type: "pdf",
@@ -298,7 +298,7 @@ describe("DocumentController", () => {
       });
       expect(result).toEqual({
         document_id: "1",
-        status: "completed_ocr",
+        status: "extracted",
         title: "Test Document",
         original_filename: "test.pdf",
         file_type: "pdf",

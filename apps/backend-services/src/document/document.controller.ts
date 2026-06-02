@@ -360,7 +360,7 @@ export class DocumentController {
     name: "status",
     required: false,
     description:
-      'Filter by document status (e.g., "pre_ocr", "completed_ocr", "all").',
+      'Filter by document status (e.g., "pre_ocr", "extracted", "all").',
   })
   @ApiQuery({
     name: "sort_by",

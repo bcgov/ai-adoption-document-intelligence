@@ -54,7 +54,7 @@ describe("UploadController", () => {
       original_filename: "test.pdf",
       file_type: FileType.PDF,
       file_size: 123,
-      status: DocumentStatus.completed_ocr,
+      status: DocumentStatus.extracted,
       created_at: new Date(),
       updated_at: new Date(),
       file_path: "path",

@@ -3,9 +3,9 @@
 export type DocumentStatus =
   | "pre_ocr"
   | "ongoing_ocr"
-  | "completed_ocr"
+  | "extracted"
   | "awaiting_review"
-  | "ready"
+  | "complete"
   | "failed"
   | "rejected_by_human"
   | "conversion_failed";

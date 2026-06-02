@@ -236,9 +236,9 @@ export class DocumentDbService {
     total: number;
     pre_ocr: number;
     ongoing_ocr: number;
-    completed_ocr: number;
+    extracted: number;
     awaiting_review: number;
-    ready: number;
+    complete: number;
     failed: number;
     rejected_by_human: number;
     conversion_failed: number;
@@ -264,9 +264,9 @@ export class DocumentDbService {
         total,
         pre_ocr: counts["pre_ocr"] ?? 0,
         ongoing_ocr: counts["ongoing_ocr"] ?? 0,
-        completed_ocr: counts["completed_ocr"] ?? 0,
+        extracted: counts["extracted"] ?? 0,
         awaiting_review: counts["awaiting_review"] ?? 0,
-        ready: counts["ready"] ?? 0,
+        complete: counts["complete"] ?? 0,
         failed: counts["failed"] ?? 0,
         rejected_by_human: counts["rejected_by_human"] ?? 0,
         conversion_failed: counts["conversion_failed"] ?? 0,

@@ -81,8 +81,8 @@ export class DocumentStatusCountsDto {
   @ApiProperty({ description: "Documents currently being processed" })
   ongoing_ocr!: number;
 
-  @ApiProperty({ description: "Documents that completed OCR successfully" })
-  completed_ocr!: number;
+  @ApiProperty({ description: "Documents that completed OCR extraction" })
+  extracted!: number;
 
   @ApiProperty({ description: "Documents awaiting human review" })
   awaiting_review!: number;
@@ -91,7 +91,7 @@ export class DocumentStatusCountsDto {
     description:
       "Documents that completed entire process (OCR + optional HITL)",
   })
-  ready!: number;
+  complete!: number;
 
   @ApiProperty({ description: "Documents that failed processing" })
   failed!: number;

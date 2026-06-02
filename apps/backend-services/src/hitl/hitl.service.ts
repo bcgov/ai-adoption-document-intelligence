@@ -91,10 +91,10 @@ export class HitlService {
           : "pending";
 
     const statuses: DocumentStatus[] =
-      filters.status === DocumentStatusFilter.COMPLETED_OCR
-        ? [DocumentStatus.completed_ocr]
+      filters.status === DocumentStatusFilter.EXTRACTED
+        ? [DocumentStatus.extracted]
         : filters.status === DocumentStatusFilter.ALL
-          ? [DocumentStatus.completed_ocr, DocumentStatus.awaiting_review]
+          ? [DocumentStatus.extracted, DocumentStatus.awaiting_review]
           : [DocumentStatus.awaiting_review];
 
     const documents = (await this.reviewDb.findReviewQueue({
@@ -403,9 +403,9 @@ export class HitlService {
       completed_at: new Date(),
     });
 
-    // Transition document to 'ready' status after HITL approval
+    // Transition document to 'complete' status after HITL approval
     await this.documentService.updateDocument(session.document_id, {
-      status: DocumentStatus.ready,
+      status: DocumentStatus.complete,
     });
 
     await this.reviewDb.releaseDocumentLock(sessionId);

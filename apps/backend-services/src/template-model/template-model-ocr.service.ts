@@ -170,7 +170,7 @@ export class TemplateModelOcrService {
       const analysisResponse = await this.waitForOcrCompletion(apimRequestId);
 
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
         ocr_result: analysisResponse as unknown as JsonValue,
       });
     } catch (error) {

@@ -71,7 +71,7 @@ const makeReviewSession = (
       file_size: 1024,
       metadata: {},
       source: "upload",
-      status: DocumentStatus.completed_ocr,
+      status: DocumentStatus.extracted,
       apim_request_id: null,
       model_id: "model-1",
       workflow_id: null,

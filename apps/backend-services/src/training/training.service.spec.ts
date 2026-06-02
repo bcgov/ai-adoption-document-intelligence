@@ -101,7 +101,7 @@ describe("TrainingService", () => {
       file_size: 1024,
       metadata: {},
       source: "labeling",
-      status: "completed_ocr" as const,
+      status: "extracted" as const,
       created_at: new Date(),
       updated_at: new Date(),
       apim_request_id: null,

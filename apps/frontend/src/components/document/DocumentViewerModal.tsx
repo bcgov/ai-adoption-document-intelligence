@@ -540,7 +540,7 @@ export function DocumentViewerModal({
                           <Table.Td style={{ wordBreak: "break-word" }}>
                             <Badge
                               color={
-                                document.status === "ready"
+                                document.status === "complete"
                                   ? "green"
                                   : document.status === "failed"
                                     ? "red"

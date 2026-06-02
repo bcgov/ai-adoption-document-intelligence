@@ -6,9 +6,9 @@ export interface DocumentStatusCounts {
   total: number;
   pre_ocr: number;
   ongoing_ocr: number;
-  completed_ocr: number;
+  extracted: number;
   awaiting_review: number;
-  ready: number;
+  complete: number;
   failed: number;
   rejected_by_human: number;
   conversion_failed: number;

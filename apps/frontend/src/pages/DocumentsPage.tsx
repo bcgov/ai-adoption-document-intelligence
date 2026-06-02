@@ -44,9 +44,9 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
   { value: "pre_ocr", label: "Waiting" },
   { value: "ongoing_ocr", label: "Processing" },
-  { value: "completed_ocr", label: "Completed" },
+  { value: "extracted", label: "Extracted" },
   { value: "awaiting_review", label: "Awaiting Review" },
-  { value: "ready", label: "Ready" },
+  { value: "complete", label: "Complete" },
   { value: "failed", label: "Failed" },
   { value: "rejected_by_human", label: "Rejected" },
 ];
@@ -54,9 +54,9 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
 const statusStyles: Record<string, { color: string; label: string }> = {
   pre_ocr: { color: "gray", label: "Queued" },
   ongoing_ocr: { color: "yellow", label: "Processing" },
-  completed_ocr: { color: "blue", label: "Complete" },
+  extracted: { color: "blue", label: "Extracted" },
   awaiting_review: { color: "orange", label: "Awaiting Review" },
-  ready: { color: "green", label: "Ready" },
+  complete: { color: "green", label: "Complete" },
   failed: { color: "red", label: "Failed" },
   rejected_by_human: { color: "red", label: "Rejected by Human" },
 };
@@ -234,10 +234,10 @@ export function DocumentsPage() {
             </Paper>
             <Paper radius="md" p="md" withBorder>
               <Text size="xs" c="dimmed">
-                OCR Complete
+                Extracted
               </Text>
               <Text fw={600} size="lg" c="blue">
-                {statsData?.completed_ocr ?? 0}
+                {statsData?.extracted ?? 0}
               </Text>
             </Paper>
             <Paper radius="md" p="md" withBorder>
@@ -250,10 +250,10 @@ export function DocumentsPage() {
             </Paper>
             <Paper radius="md" p="md" withBorder>
               <Text size="xs" c="dimmed">
-                Ready
+                Complete
               </Text>
               <Text fw={600} size="lg" c="green">
-                {statsData?.ready ?? 0}
+                {statsData?.complete ?? 0}
               </Text>
             </Paper>
             <Paper radius="md" p="md" withBorder>

@@ -17,7 +17,7 @@ export class QueueFilterDto {
   @ApiPropertyOptional({
     description: "Filter by document status",
     enum: DocumentStatusFilter,
-    default: DocumentStatusFilter.COMPLETED_OCR,
+    default: DocumentStatusFilter.EXTRACTED,
   })
   @IsOptional()
   @IsEnum(DocumentStatusFilter)
