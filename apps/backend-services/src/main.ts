@@ -116,13 +116,6 @@ async function bootstrap(): Promise<void> {
   await app.listen(port, "0.0.0.0");
   logger.info(`Backend services is running on: http://localhost:${port}`);
   logger.info(`Upload endpoint: http://localhost:${port}/api/upload`);
-
-  // Handle SIGTERM gracefully (sent by Kubernetes during pod shutdown)
-  process.on("SIGTERM", async () => {
-    logger.info("SIGTERM received, initiating graceful shutdown...");
-    await app.close();
-    logger.info("Application closed successfully");
-  });
 }
 
 bootstrap();
