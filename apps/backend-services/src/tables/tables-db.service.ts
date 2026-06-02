@@ -106,6 +106,42 @@ export class TablesDbService {
     );
   }
 
+  /**
+   * Atomically adds a column definition and backfills `seed_value` into all
+   * existing rows within a single Prisma interactive transaction. If either
+   * step fails the entire operation is rolled back.
+   */
+  async addColumnAndBackfill(
+    group_id: string,
+    table_id: string,
+    col: ColumnDef,
+    seed_value: unknown,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.referenceTable.findUniqueOrThrow({
+        where: { group_id_table_id: { group_id, table_id } },
+      });
+      const cols = (existing.columns as unknown as ColumnDef[]) ?? [];
+      const result = await tx.referenceTable.update({
+        where: { group_id_table_id: { group_id, table_id } },
+        data: {
+          columns: [...cols, col] as unknown as Prisma.InputJsonValue,
+        },
+      });
+
+      const valueJson = JSON.stringify(seed_value);
+      await tx.$executeRaw`
+        UPDATE reference_table_rows
+        SET data       = data || jsonb_build_object(${col.key}::text, ${valueJson}::jsonb),
+            updated_at = NOW()
+        WHERE group_id = ${group_id}
+          AND table_id = ${table_id}
+      `;
+
+      return result;
+    });
+  }
+
   async updateColumn(
     group_id: string,
     table_id: string,

@@ -63,6 +63,7 @@ describe("TablesService", () => {
       deleteTable: jest.fn(),
       addColumn: jest.fn(),
       backfillColumn: jest.fn(),
+      addColumnAndBackfill: jest.fn(),
       updateColumn: jest.fn(),
       removeColumn: jest.fn(),
       addLookup: jest.fn(),
@@ -131,7 +132,7 @@ describe("TablesService", () => {
   });
 
   // Test 2a: addColumn backfills rows when seed_value is provided
-  it("addColumn calls backfillColumn with seed_value when provided", async () => {
+  it("addColumn calls addColumnAndBackfill with seed_value when provided", async () => {
     const col = {
       key: "code",
       label: "Code",
@@ -139,23 +140,25 @@ describe("TablesService", () => {
       required: true,
     };
     db.findTable.mockResolvedValueOnce(makeTable() as never);
-    db.addColumn.mockResolvedValueOnce(makeTable({ columns: [col] }) as never);
-    db.backfillColumn.mockResolvedValueOnce(undefined);
+    db.addColumnAndBackfill.mockResolvedValueOnce(
+      makeTable({ columns: [col] }) as never,
+    );
 
     await svc.addColumn("user1", "g", "t", col, "ABC");
 
-    expect(db.backfillColumn).toHaveBeenCalledWith("g", "t", "code", "ABC");
+    expect(db.addColumnAndBackfill).toHaveBeenCalledWith("g", "t", col, "ABC");
+    expect(db.addColumn).not.toHaveBeenCalled();
   });
 
   // Test 2b: addColumn does not backfill when seed_value is not provided
-  it("addColumn does not call backfillColumn when seed_value is not provided", async () => {
+  it("addColumn does not call addColumnAndBackfill when seed_value is not provided", async () => {
     const col = { key: "name", label: "Name", type: "string" as const };
     db.findTable.mockResolvedValueOnce(makeTable() as never);
     db.addColumn.mockResolvedValueOnce(makeTable({ columns: [col] }) as never);
 
     await svc.addColumn("user1", "g", "t", col);
 
-    expect(db.backfillColumn).not.toHaveBeenCalled();
+    expect(db.addColumnAndBackfill).not.toHaveBeenCalled();
   });
 
   // Test 2c: addColumn rejects seed_value that does not match column type

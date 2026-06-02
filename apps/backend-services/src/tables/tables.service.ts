@@ -202,11 +202,15 @@ export class TablesService {
       }
     }
 
-    const result = await this.db.addColumn(group_id, table_id, col);
-
-    if (seed_value !== undefined) {
-      await this.db.backfillColumn(group_id, table_id, col.key, seed_value);
-    }
+    const result =
+      seed_value !== undefined
+        ? await this.db.addColumnAndBackfill(
+            group_id,
+            table_id,
+            col,
+            seed_value,
+          )
+        : await this.db.addColumn(group_id, table_id, col);
 
     await this.audit.recordEvent({
       event_type: "tables.column.added",
