@@ -3,6 +3,7 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
+import { AzureService } from "@/azure/azure.service";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -13,6 +14,10 @@ import {
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelOcrService } from "./template-model-ocr.service";
+
+const mockAzureService = {
+  isMockMode: jest.fn().mockReturnValue(false),
+};
 
 describe("TemplateModelOcrService", () => {
   let service: TemplateModelOcrService;
@@ -41,6 +46,8 @@ describe("TemplateModelOcrService", () => {
   };
 
   beforeEach(async () => {
+    mockAzureService.isMockMode.mockReturnValue(false);
+
     const mockLabelingDocumentDb = {
       createLabelingDocument: jest.fn(),
       findLabelingDocument: jest.fn(),
@@ -82,6 +89,7 @@ describe("TemplateModelOcrService", () => {
       providers: [
         TemplateModelOcrService,
         { provide: AppLoggerService, useValue: mockAppLogger },
+        { provide: AzureService, useValue: mockAzureService },
         {
           provide: LabelingDocumentDbService,
           useValue: mockLabelingDocumentDb,
@@ -493,78 +501,9 @@ describe("TemplateModelOcrService", () => {
     });
   });
 
-  describe("DOCUMENT_INTELLIGENCE_MODE=mock", () => {
-    beforeEach(async () => {
-      const mockLabelingDocumentDb = {
-        createLabelingDocument: jest.fn(),
-        findLabelingDocument: jest.fn(),
-        updateLabelingDocument: jest.fn(),
-      };
-
-      const mockHttp = {
-        post: jest.fn(),
-        get: jest.fn(),
-      };
-
-      const mockBlob = {
-        write: jest.fn().mockResolvedValue(undefined),
-        read: jest.fn().mockResolvedValue(Buffer.from("test")),
-        exists: jest.fn().mockResolvedValue(true),
-        delete: jest.fn().mockResolvedValue(undefined),
-        list: jest.fn().mockResolvedValue([]),
-        deleteByPrefix: jest.fn().mockResolvedValue(undefined),
-      };
-
-      const mockConfig = {
-        get: jest.fn((key: string) => {
-          const config: Record<string, string> = {
-            DOCUMENT_INTELLIGENCE_MODE: "mock",
-            AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
-            AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
-          };
-          return config[key];
-        }),
-      };
-
-      const mockPdfNormalization = {
-        validateForUpload: jest.fn().mockResolvedValue(undefined),
-        normalizeToPdf: jest
-          .fn()
-          .mockImplementation((buf: Buffer) =>
-            Promise.resolve(Buffer.from(buf)),
-          ),
-      };
-
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          TemplateModelOcrService,
-          { provide: AppLoggerService, useValue: mockAppLogger },
-          {
-            provide: LabelingDocumentDbService,
-            useValue: mockLabelingDocumentDb,
-          },
-          {
-            provide: HttpService,
-            useValue: mockHttp,
-          },
-          {
-            provide: ConfigService,
-            useValue: mockConfig,
-          },
-          {
-            provide: BLOB_STORAGE,
-            useValue: mockBlob,
-          },
-          {
-            provide: PdfNormalizationService,
-            useValue: mockPdfNormalization,
-          },
-        ],
-      }).compile();
-
-      service = module.get<TemplateModelOcrService>(TemplateModelOcrService);
-      mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
-      mockHttpService = module.get(HttpService);
+  describe("when AzureService.isMockMode() is true", () => {
+    beforeEach(() => {
+      mockAzureService.isMockMode.mockReturnValue(true);
     });
 
     it("processOcrForLabelingDocument completes without Azure HTTP calls", async () => {

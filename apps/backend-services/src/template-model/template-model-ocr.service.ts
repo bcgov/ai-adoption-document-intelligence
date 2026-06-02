@@ -5,7 +5,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
-import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
+import { AzureService } from "@/azure/azure.service";
 import {
   buildBlobFilePath,
   OperationCategory,
@@ -37,10 +37,10 @@ export type CreateLabelingDocumentResult =
 export class TemplateModelOcrService {
   private readonly azureEndpoint: string;
   private readonly azureApiKey: string;
-  private readonly diMode: ReturnType<typeof resolveDocumentIntelligenceMode>;
 
   constructor(
     private readonly labelingDocumentDb: LabelingDocumentDbService,
+    private readonly azureService: AzureService,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     @Inject(BLOB_STORAGE)
@@ -48,9 +48,6 @@ export class TemplateModelOcrService {
     private readonly pdfNormalization: PdfNormalizationService,
     private readonly logger: AppLoggerService,
   ) {
-    this.diMode = resolveDocumentIntelligenceMode(
-      this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
-    );
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     )!;
@@ -190,7 +187,7 @@ export class TemplateModelOcrService {
   }
 
   private async requestOcr(blobKey: string): Promise<string> {
-    if (this.diMode === "mock") {
+    if (this.azureService.isMockMode()) {
       return "mock-apim-request-id";
     }
 
@@ -225,7 +222,7 @@ export class TemplateModelOcrService {
     maxAttempts = 30,
     delayMs = 2000,
   ): Promise<AnalysisResponse> {
-    if (this.diMode === "mock") {
+    if (this.azureService.isMockMode()) {
       return mockLabelingOcrAnalysisResponse();
     }
 
