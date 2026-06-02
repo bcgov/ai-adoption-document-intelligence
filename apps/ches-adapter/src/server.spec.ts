@@ -1,7 +1,7 @@
 import http from "node:http";
-import { createServer, isAuthorized } from "./server";
-import type { Config } from "./config";
 import * as ches from "./ches";
+import type { Config } from "./config";
+import { createServer, isAuthorized } from "./server";
 
 const baseConfig: Config = {
   port: 3003,
@@ -20,7 +20,11 @@ const firingBody = JSON.stringify({
   status: "firing",
   receiver: "ches-notifications",
   groupLabels: { alertname: "TestAlert" },
-  commonLabels: { alertname: "TestAlert", severity: "critical", job: "backend" },
+  commonLabels: {
+    alertname: "TestAlert",
+    severity: "critical",
+    job: "backend",
+  },
   commonAnnotations: { summary: "Test", description: "Test desc" },
   externalURL: "http://alertmanager:9093",
   alerts: [
@@ -40,17 +44,31 @@ const firingBody = JSON.stringify({
  */
 function sendRequest(
   server: http.Server,
-  options: { method: string; path: string; headers?: Record<string, string>; body?: string },
+  options: {
+    method: string;
+    path: string;
+    headers?: Record<string, string>;
+    body?: string;
+  },
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const addr = server.address() as { port: number };
     const req = http.request(
-      { host: "127.0.0.1", port: addr.port, method: options.method, path: options.path, headers: options.headers },
+      {
+        host: "127.0.0.1",
+        port: addr.port,
+        method: options.method,
+        path: options.path,
+        headers: options.headers,
+      },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
         res.on("end", () =>
-          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }),
+          resolve({
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString(),
+          }),
         );
       },
     );
@@ -103,7 +121,10 @@ describe("createServer", () => {
   });
 
   it("returns 204 without calling CHES for resolved payloads", async () => {
-    const resolvedBody = JSON.stringify({ ...JSON.parse(firingBody), status: "resolved" });
+    const resolvedBody = JSON.stringify({
+      ...JSON.parse(firingBody),
+      status: "resolved",
+    });
     const res = await sendRequest(server, {
       method: "POST",
       path: "/",
