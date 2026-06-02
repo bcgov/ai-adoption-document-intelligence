@@ -250,6 +250,11 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: THROTTLE_AUTH_REFRESH_LIMIT
+        - name: DB_POOL_MAX
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DB_POOL_MAX
         volumeMounts:
         - name: storage
           mountPath: /app/data/blobs

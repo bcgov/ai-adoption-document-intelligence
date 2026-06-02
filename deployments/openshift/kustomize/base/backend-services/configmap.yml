@@ -21,6 +21,8 @@ data:
   # Benchmarking
   BENCHMARK_TASK_QUEUE: "benchmark-processing"
   ENABLE_BENCHMARK_QUEUE: "true"
+  # Database Connection Pool
+  DB_POOL_MAX: "5"
   # Request body limit
   BODY_LIMIT: "50mb"
   # Rate limiting
