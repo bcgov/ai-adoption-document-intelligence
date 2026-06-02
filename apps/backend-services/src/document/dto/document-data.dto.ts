@@ -57,6 +57,18 @@ export class DocumentDataDto {
   workflow_name?: string | null;
 }
 
+export class ThumbnailResultDto {
+  @ApiProperty({ description: "Document ID" })
+  documentId!: string;
+
+  @ApiProperty({
+    description: "Base64 WebP data URL, or null if no thumbnail is available",
+    nullable: true,
+    type: "string",
+  })
+  thumbnailData!: string | null;
+}
+
 export class PaginatedDocumentsDto {
   @ApiProperty({ type: [DocumentDataDto], description: "Page of documents" })
   documents!: DocumentDataDto[];

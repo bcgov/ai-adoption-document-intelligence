@@ -49,6 +49,7 @@ import {
   DocumentDataDto,
   DocumentStatusCountsDto,
   PaginatedDocumentsDto,
+  ThumbnailResultDto,
 } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
@@ -125,17 +126,7 @@ export class DocumentController {
   @ApiOkResponse({
     description:
       "Array of thumbnail results, each containing documentId and thumbnailData (base64 WebP data URL or null).",
-    schema: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          documentId: { type: "string" },
-          thumbnailData: { type: "string", nullable: true },
-        },
-        required: ["documentId", "thumbnailData"],
-      },
-    },
+    type: [ThumbnailResultDto],
   })
   @ApiBadRequestResponse({
     description: "Missing required query parameters or too many IDs requested.",
@@ -146,7 +137,7 @@ export class DocumentController {
     @Query("group_id") groupId: string | undefined,
     @Query("ids") idsParam: string | undefined,
     @Req() req: Request,
-  ): Promise<Array<{ documentId: string; thumbnailData: string | null }>> {
+  ): Promise<ThumbnailResultDto[]> {
     if (!groupId) {
       throw new BadRequestException("group_id query parameter is required");
     }
@@ -698,16 +689,6 @@ export class DocumentController {
       }
 
       identityCanAccessGroup(req.resolvedIdentity, document.group_id);
-
-      await this.auditService.recordEvent({
-        event_type: "document_accessed",
-        resource_type: "document",
-        resource_id: documentId,
-        actor_id: req.resolvedIdentity.actorId,
-        document_id: documentId,
-        group_id: document.group_id,
-        payload: { action: "download" },
-      });
 
       // Read file from blob storage using the blob key
       const filePath = validateBlobFilePath(document.file_path);

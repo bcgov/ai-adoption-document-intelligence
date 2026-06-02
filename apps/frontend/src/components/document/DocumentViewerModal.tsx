@@ -130,17 +130,12 @@ export function DocumentViewerModal({
   onClose,
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
-  const { data: ocrResult, error: ocrError } = useDocumentOcr(documentId);
+  const { data: ocrResult } = useDocumentOcr(documentId);
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [rotation, setRotation] = useState(0);
   const showOverlays = true;
-
-  useEffect(() => {
-    // OCR result and error are handled by the component state
-    // Removed console statements for lint compliance
-  }, [ocrResult, ocrError]);
 
   useEffect(() => {
     if (opened && document) {
