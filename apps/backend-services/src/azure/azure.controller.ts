@@ -469,11 +469,14 @@ export class AzureController {
           group_id,
           actorId,
         );
-        this.logger.debug(`Training request accepted for classifier "${name}"`);
+        this.logger.debug(
+          `Training request accepted for classifier "${name}"`,
+          { alertType: "classifier_training_submit" },
+        );
       } catch (e) {
         this.logger.error(
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
-          { error: String(e), alertType: "classifier_training_failed" },
+          { error: String(e), alertType: "classifier_training_submit" },
         );
         await this.classifierService.updateClassifierModel(
           name,

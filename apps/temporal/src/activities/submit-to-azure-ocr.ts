@@ -166,6 +166,7 @@ export async function submitToAzureOCR(params: {
         error: "azure_api_error",
         status,
         body: initialResponse.body,
+        alertType: "azure_ocr_submit",
       });
       const hint =
         Number(status) === 404
@@ -191,6 +192,7 @@ export async function submitToAzureOCR(params: {
         statusCode,
         expectedStatusCode: 202,
         responseBody: initialResponse.body,
+        alertType: "azure_ocr_submit",
       });
       throw new Error(
         `Failed to submit document to Azure OCR. Expected status code 202, got ${statusCode}`,
@@ -202,6 +204,7 @@ export async function submitToAzureOCR(params: {
         event: "error",
         error: "missing_apim_request_id",
         availableHeaders: Object.keys(initialResponse.headers),
+        alertType: "azure_ocr_submit",
       });
       throw new Error("APIM Request ID not found in response headers");
     }
@@ -210,6 +213,7 @@ export async function submitToAzureOCR(params: {
       event: "complete",
       statusCode,
       apimRequestId,
+      alertType: "azure_ocr_submit",
     });
 
     // Return serializable result
@@ -223,6 +227,7 @@ export async function submitToAzureOCR(params: {
       event: "error",
       error: getErrorMessage(error),
       stack: getErrorStack(error),
+      alertType: "azure_ocr_submit",
     });
     throw error;
   }

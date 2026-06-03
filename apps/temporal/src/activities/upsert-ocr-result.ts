@@ -195,6 +195,7 @@ export async function upsertOcrResult(params: {
       modelId: ocrResult.modelId,
       fieldCount: extractedFields ? Object.keys(extractedFields).length : 0,
       dataSize: extractedFields ? JSON.stringify(extractedFields).length : 0,
+      alertType: "upsert_ocr_result",
     });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -220,6 +221,7 @@ export async function upsertOcrResult(params: {
       error: getErrorMessage(error),
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "upsert_ocr_result",
     });
     throw error;
   }

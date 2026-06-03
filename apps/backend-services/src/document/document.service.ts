@@ -232,13 +232,17 @@ export class DocumentService {
       const savedDocument = await this.documentDb.createDocument(documentData);
       this.logger.debug(`Document saved to database: ${savedDocument.id}`);
 
-      this.logger.debug("=== DocumentService.uploadDocument completed ===");
+      this.logger.debug("=== DocumentService.uploadDocument completed ===", {
+        alertType: "document_upload",
+      });
       return {
         kind: "success",
         document: this.toUploadedDocument(savedDocument),
       };
     } catch (error) {
-      this.logger.error(`Error uploading document: ${getErrorMessage(error)}`);
+      this.logger.error(`Error uploading document: ${getErrorMessage(error)}`, {
+        alertType: "document_upload",
+      });
       this.logger.error(`Stack: ${getErrorStack(error)}`);
       throw error;
     }
