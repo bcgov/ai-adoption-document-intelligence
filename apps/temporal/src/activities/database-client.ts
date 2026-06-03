@@ -20,11 +20,9 @@ export function getPrismaClient(): PrismaClient {
     prismaClient = new PrismaClient({
       adapter: new PrismaPg({
         ...dbOptions,
-        pool: {
-          max: parseInt(process.env.DB_POOL_MAX ?? "3", 10),
-          idleTimeoutMillis: 60000,
-          connectionTimeoutMillis: 5000,
-        },
+        max: parseInt(process.env.DB_POOL_MAX ?? "3", 10),
+        idleTimeoutMillis: 60000,
+        connectionTimeoutMillis: 5000,
       }),
       log: ["error", "warn"],
     });

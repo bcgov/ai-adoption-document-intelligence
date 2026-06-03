@@ -26,11 +26,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     // - connectionTimeoutMillis: Fail fast if pool is exhausted
     const adapter = new PrismaPg({
       ...dbOptions,
-      pool: {
-        max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
-        idleTimeoutMillis: 60000,
-        connectionTimeoutMillis: 5000,
-      },
+      max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
+      idleTimeoutMillis: 60000,
+      connectionTimeoutMillis: 5000,
     });
     if (this.shouldLogQueries) {
       this.prisma = new PrismaClient({
