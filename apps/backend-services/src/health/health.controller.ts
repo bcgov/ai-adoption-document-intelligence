@@ -1,27 +1,45 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, HttpStatus, Res } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
+import type { Response } from "express";
 import { Public } from "@/auth/public.decorator";
+import { HealthService } from "./health.service";
 
-/** Response shape for the health endpoint. */
-export interface HealthResponse {
-  status: "ok";
-}
-
-/**
- * Exposes a liveness probe endpoint for container orchestration healthchecks.
- * Returns HTTP 200 as long as the application process is running.
- */
 @ApiExcludeController()
-@Controller("health")
+@Controller()
 export class HealthController {
-  /**
-   * Liveness probe used by Docker/Kubernetes healthchecks.
-   *
-   * @returns A simple status object indicating the service is alive.
-   */
+  constructor(private readonly healthService: HealthService) {}
+
   @Public()
-  @Get()
-  check(): HealthResponse {
-    return { status: "ok" };
+  @Get("health")
+  async getHealth(@Res() res: Response): Promise<void> {
+    const health = await this.healthService.checkHealth();
+
+    if (health.status === "healthy") {
+      res.status(HttpStatus.OK).json(health);
+    } else {
+      res.status(HttpStatus.SERVICE_UNAVAILABLE).json(health);
+    }
+  }
+
+  @Public()
+  @Get("health/live")
+  async getLiveness(@Res() res: Response): Promise<void> {
+    // Liveness probe: application is running and can accept requests
+    // This is a lightweight check - just confirms the app is responsive
+    res.status(HttpStatus.OK).json({ status: "ok" });
+  }
+
+  @Public()
+  @Get("health/ready")
+  async getReadiness(@Res() res: Response): Promise<void> {
+    // Readiness probe: application is ready to handle traffic
+    // Checks all dependencies are accessible
+    const health = await this.healthService.checkHealth();
+
+    if (health.status === "healthy") {
+      res.status(HttpStatus.OK).json(health);
+    } else {
+      res.status(HttpStatus.SERVICE_UNAVAILABLE).json(health);
+    }
   }
 }

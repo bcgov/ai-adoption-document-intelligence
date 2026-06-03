@@ -26,3 +26,21 @@ data:
   AZURE_OPENAI_DEPLOYMENT: ""
   AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
   ENRICHMENT_REDACT_PII: "false"
+  # Database Connection Pool
+  # Maximum number of database connections per worker pod (default: 3)
+  # Workers have lighter database load than backend-services
+  DB_POOL_MAX: "3"
+  # Worker Concurrency Configuration
+  # Controls how many tasks each worker pod can process in parallel
+  # Scale these based on: worker pod resources, activity I/O patterns, and desired throughput
+  # With HPA scaling 2-4 worker pods, total capacity is: pods * maxConcurrentActivityTaskExecutions
+  #
+  # maxConcurrentActivityTaskExecutions: Max parallel activities per worker (default: 10)
+  # Activities are I/O-bound (Azure AI calls, DB queries), so 10 per pod is reasonable
+  # Total capacity: 4 pods * 10 = 40 concurrent activities at max scale
+  #
+  # maxConcurrentWorkflowTaskExecutions: Max parallel workflow decision tasks per worker (default: 100)
+  # Workflow tasks are lightweight (in-memory decision logic), so 100 per pod is safe
+  # Total capacity: 4 pods * 100 = 400 concurrent workflow tasks at max scale
+  MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS: "10"
+  MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: "100"

@@ -198,7 +198,6 @@ function generateRulesYaml(): string {
     `# Counters driving these rules (emitted by the shared logger hook):`,
     `#   app_error_total{type, severity}  — incremented on warn/error log level`,
     `#   app_success_total{type}          — incremented on info/debug log level`,
-    `#   app_recovery_total{type}         — incremented on first info/debug after an error`,
     `#`,
     `# To add a new alert:`,
     `#   1. Add alertType to log context in application code.`,

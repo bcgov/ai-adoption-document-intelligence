@@ -15,6 +15,8 @@ scrape_configs:
   - job_name: "backend-services"
     metrics_path: "/metrics"
     scrape_interval: 15s
+    # For local development, use static_configs since Kubernetes SD is not available.
+    # In production (OpenShift), pod service discovery is used to scrape each pod directly.
     static_configs:
       - targets:
           - "host.containers.internal:3002"
@@ -22,6 +24,8 @@ scrape_configs:
   - job_name: "temporal-worker"
     metrics_path: "/metrics"
     scrape_interval: 15s
+    # For local development, use static_configs since Kubernetes SD is not available.
+    # In production (OpenShift), pod service discovery is used to scrape each pod directly.
     static_configs:
       - targets:
           - "host.containers.internal:9091"

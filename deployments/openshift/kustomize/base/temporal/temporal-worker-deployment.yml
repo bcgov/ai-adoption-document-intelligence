@@ -5,9 +5,13 @@ metadata:
   labels:
     app: temporal-worker
 spec:
-  replicas: 1
+  # Start with 2 replicas for HA (matches HPA minReplicas)
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: temporal-worker
@@ -16,6 +20,9 @@ spec:
       labels:
         app: temporal-worker
     spec:
+      # Allow 70 seconds for graceful shutdown: complete in-flight activities (55s timeout
+      # in worker code), close connections, and clean up resources before forced termination.
+      terminationGracePeriodSeconds: 70
       containers:
         - name: temporal-worker
           image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal:develop-latest
@@ -147,6 +154,23 @@ spec:
                 configMapKeyRef:
                   name: temporal-worker-config
                   key: ENRICHMENT_REDACT_PII
+            # Database Connection Pool
+            - name: DB_POOL_MAX
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: DB_POOL_MAX
+            # Worker Concurrency Configuration
+            - name: MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS
+            - name: MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS
           volumeMounts:
             - name: storage
               mountPath: /app/data/blobs
@@ -160,15 +184,23 @@ spec:
               memory: "512Mi"
               cpu: "500m"
           livenessProbe:
-            exec:
-              command: ["/bin/sh", "-c", "kill -0 1"]
+            httpGet:
+              path: /health/live
+              port: 9091
+              scheme: HTTP
             initialDelaySeconds: 30
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
-            exec:
-              command: ["/bin/sh", "-c", "kill -0 1"]
-            initialDelaySeconds: 10
+            httpGet:
+              path: /health/ready
+              port: 9091
+              scheme: HTTP
+            initialDelaySeconds: 15
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
         - name: logrotate
           image: debian:bookworm-slim
           command: ["sh", "-c"]
