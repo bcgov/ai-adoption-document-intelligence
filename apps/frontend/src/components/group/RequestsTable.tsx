@@ -45,7 +45,7 @@ const REQUEST_STATUS_OPTIONS = [
   { value: "APPROVED", label: "Approved" },
   { value: "DENIED", label: "Denied" },
   { value: "CANCELLED", label: "Cancelled" },
-  { value: "", label: "All" },
+  { value: "ALL", label: "All" },
 ];
 
 export interface RequestsTableColumn<T> {
@@ -262,7 +262,11 @@ export function RequestsTable<T extends { id: string }>({
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const { data: requests, isLoading, isError } = fetchData(statusFilter);
+  const {
+    data: requests,
+    isLoading,
+    isError,
+  } = fetchData(statusFilter === "ALL" ? "" : statusFilter);
 
   /**
    * Toggles sort direction for the same column, or activates a new sort column.
