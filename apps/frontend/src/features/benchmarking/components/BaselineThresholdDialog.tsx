@@ -188,6 +188,7 @@ export function BaselineThresholdDialog({
                       )
                     }
                     style={{ width: "140px" }}
+                    aria-label="Threshold type"
                     data-testid={`threshold-type-${threshold.metricName}`}
                   />
                   <TextInput

@@ -132,6 +132,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
                     onChange={(value) => handleRoleChange(member, value)}
                     disabled={updateRoleMutation.isPending}
                     allowDeselect={false}
+                    aria-label="Member role"
                     data-testid={`role-select-${member.userId}`}
                   />
                 ) : (

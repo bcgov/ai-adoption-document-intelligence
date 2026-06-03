@@ -37,16 +37,19 @@ const { mockBcdsText, mockBcdsHeading } = vi.hoisted(() => ({
       level,
       color,
       style,
+      slot,
     }: {
       children: ReactNode;
       level?: number;
       color?: string;
       style?: CSSProperties;
+      slot?: string;
     }) => (
       <span
         data-testid="bcds-heading"
         data-level={level}
         data-color={color}
+        data-slot={slot}
         style={style}
       >
         {children}
@@ -150,6 +153,17 @@ describe("Title adapter", () => {
     expect(screen.getByTestId("bcds-heading")).toHaveAttribute(
       "data-level",
       "3",
+    );
+  });
+
+  it("passes slot through to BC DS Heading", () => {
+    render(
+      <Title order={5} slot="title">
+        Modal title
+      </Title>,
+    );
+    expect(mockBcdsHeading).toHaveBeenCalledWith(
+      expect.objectContaining({ slot: "title", children: "Modal title" }),
     );
   });
 });

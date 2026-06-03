@@ -98,6 +98,20 @@ When reviewing a migrated control, ask:
 - Do not remove Mantine globally until all direct usage has been intentionally replaced or documented.
 - Do not build document-specific UI; the application must remain generic for arbitrary workloads.
 
+## Accessibility (adapter layer)
+
+Form field adapters (`TextInput`, `Textarea`, `Select`) use `resolveFieldAriaLabel` in `formFieldUtils.ts`:
+
+- When a visible string `label` is present, BC DS associates it normally (no redundant `aria-label`).
+- When unlabeled, an explicit `aria-label` prop is forwarded from passthrough props.
+- Otherwise, a non-empty `placeholder` becomes the accessible name.
+
+Unlabeled controls with no placeholder must pass `aria-label` at the call site (for example, inline table role selects).
+
+`Modal` renders string titles as BC DS `Heading` with `slot="title"` inside `Dialog`. Modals without a visible title accept `aria-label` on the adapter.
+
+Adapter unit tests live under `apps/frontend/src/ui/*.test.tsx` with shared BC DS mocks in `apps/frontend/src/test/mockBcdsComponents.tsx`.
+
 ## Component Decision Rules
 
 When adding or migrating a component, follow this decision order:
@@ -143,13 +157,13 @@ When adding or migrating a component, follow this decision order:
 | `Alert` | B.C. DS `InlineAlert` | `BC DS native` | `Alert.tsx`; Mantine `color`→`variant`. |
 | `TextInput` | B.C. DS `TextField` | `BC DS native` | `TextInput.tsx`; Mantine `onChange` event bridge. |
 | `Textarea` | B.C. DS `TextArea` | `BC DS native` | `Textarea.tsx`. |
-| `Select` | B.C. DS `Select` | `BC DS native` | `Select.tsx`; flat `data` and grouped `{ group, items }`; default trigger/popover width fits option labels (`bcds-select.css`, `bcds-form-field--fit`); use `fullWidth` in form columns or `w` for fixed width; `StatusSelect` remains separate. |
+| `Select` | B.C. DS `Select` | `BC DS native` | `Select.tsx`; flat `data` and grouped `{ group, items }`; default trigger/popover width fits option labels (`bcds-select.css`, `bcds-form-field--fit`); use `fullWidth` in form columns or `w` for fixed width; `StatusSelect` remains separate. **Empty-string values:** React Aria rejects `""` as a Select item key — the adapter maps empty option values to an internal sentinel and maps back to `""` in `onChange`. Mantine fallback (searchable/clearable) passes empty strings through unchanged. |
 | `Checkbox` | B.C. DS `Checkbox` | `BC DS native` | `Checkbox.tsx`; `Radio.Group` in `Radio.tsx`. |
 | `Switch` | B.C. DS `Switch` | `BC DS native` | `Switch.tsx`. |
 | `Radio` | B.C. DS `Radio` / `RadioGroup` | `BC DS native` | `Radio.tsx`. |
 | `NumberInput` | B.C. DS `NumberField` | `BC DS native` | `NumberInput.tsx`. |
 | `DateInput` | B.C. DS `DatePicker` | `BC DS native` | `DateInput.tsx`; Mantine `Date` value via `@internationalized/date`. |
-| `Modal` | B.C. DS `Modal` + `Dialog` | `BC DS native` | `Modal.tsx`; controlled `opened`/`onClose`; header/body padding and width on modal shell (`bcds-modal.css`, mirrors `AlertDialog` layout). |
+| `Modal` | B.C. DS `Modal` + `Dialog` | `BC DS native` | `Modal.tsx`; controlled `opened`/`onClose`; header/body padding and width on modal shell (`bcds-modal.css`, mirrors `AlertDialog` layout). Modal titles render BC DS `Heading` with `slot="title"` for React Aria dialog accessibility; modals without a visible title accept `aria-label`. |
 | `DataTable` | Mantine `Table` | `Mantine fallback` | [`DataTable.tsx`](apps/frontend/src/ui/DataTable.tsx): bordered wrapper, caption, `bcds-mantine-table` tokens |
 | `PanelCard` | Mantine `Paper` | `Application-specific` | `bcds-panel-card` token class |
 | `StatCard` | Mantine `Paper` + `Text` | `Application-specific` | `bcds-stat-card` token class |

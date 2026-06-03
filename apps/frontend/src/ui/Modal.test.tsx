@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockBcdsModal, mockBcdsDialog } = vi.hoisted(() => ({
+const { mockBcdsModal, mockBcdsDialog, mockBcdsHeading } = vi.hoisted(() => ({
   mockBcdsModal: vi.fn(
     ({
       children,
@@ -27,16 +27,32 @@ const { mockBcdsModal, mockBcdsDialog } = vi.hoisted(() => ({
       </div>
     ),
   ),
-  mockBcdsDialog: vi.fn(({ children }: { children: ReactNode }) => (
-    <div data-testid="bcds-dialog">{children}</div>
-  )),
+  mockBcdsDialog: vi.fn(
+    ({
+      children,
+      "aria-label": ariaLabel,
+    }: {
+      children: ReactNode;
+      "aria-label"?: string;
+    }) => (
+      <div data-testid="bcds-dialog" aria-label={ariaLabel}>
+        {children}
+      </div>
+    ),
+  ),
+  mockBcdsHeading: vi.fn(
+    ({ children, slot }: { children: ReactNode; slot?: string }) => (
+      <h2 data-slot={slot}>{children}</h2>
+    ),
+  ),
 }));
 
 vi.mock("@bcgov/design-system-react-components", () => ({
   Modal: (props: Parameters<typeof mockBcdsModal>[0]) => mockBcdsModal(props),
   Dialog: (props: Parameters<typeof mockBcdsDialog>[0]) =>
     mockBcdsDialog(props),
-  Heading: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  Heading: (props: Parameters<typeof mockBcdsHeading>[0]) =>
+    mockBcdsHeading(props),
   Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }));
 
@@ -46,6 +62,7 @@ describe("Modal", () => {
   beforeEach(() => {
     mockBcdsModal.mockClear();
     mockBcdsDialog.mockClear();
+    mockBcdsHeading.mockClear();
   });
 
   it("renders nothing when closed", () => {
@@ -149,5 +166,32 @@ describe("Modal", () => {
       className: string;
     };
     expect(className).not.toContain("bcds-modal--centered");
+  });
+
+  it("passes slot title to Heading for dialog accessibility", () => {
+    render(
+      <Modal opened onClose={() => undefined} title="Delete item">
+        Content
+      </Modal>,
+    );
+
+    expect(mockBcdsHeading).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slot: "title",
+        children: "Delete item",
+      }),
+    );
+  });
+
+  it("passes aria-label to Dialog when no title is provided", () => {
+    render(
+      <Modal opened onClose={() => undefined} aria-label="Confirm action">
+        Content
+      </Modal>,
+    );
+
+    expect(mockBcdsDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ "aria-label": "Confirm action" }),
+    );
   });
 });

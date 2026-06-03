@@ -28,6 +28,28 @@ export function isStringLabel(label: ReactNode): label is string {
   return typeof label === "string";
 }
 
+/**
+ * Resolves an accessible name for BC DS fields when no visible string label is present.
+ * Call sites may pass `aria-label` explicitly or rely on placeholder text.
+ */
+export function resolveFieldAriaLabel(
+  label: ReactNode | undefined,
+  placeholder: string | undefined,
+  passthrough: Record<string, unknown>,
+): string | undefined {
+  if (isStringLabel(label)) {
+    return undefined;
+  }
+  const explicit = passthrough["aria-label"];
+  if (typeof explicit === "string" && explicit.length > 0) {
+    return explicit;
+  }
+  if (placeholder != null && placeholder.length > 0) {
+    return placeholder;
+  }
+  return undefined;
+}
+
 /** Mantine field spacing shorthands on wrappers */
 export function fieldMarginStyle(
   mt?: string | number,

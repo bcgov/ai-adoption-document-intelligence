@@ -6,8 +6,21 @@ import {
   isStringLabel,
   normalizeFieldError,
   pickFieldPassthrough,
+  resolveFieldAriaLabel,
 } from "./formFieldUtils";
 import { rem } from "./spacingUtils";
+
+/** React Aria rejects empty string keys; map transparently at the adapter boundary. */
+export const BCDS_EMPTY_SELECT_KEY = "__bcds_empty__";
+
+export function toBcdsItemId(value: string): string {
+  return value === "" ? BCDS_EMPTY_SELECT_KEY : value;
+}
+
+export function fromBcdsItemId(id: string | null | undefined): string | null {
+  if (id == null) return null;
+  return id === BCDS_EMPTY_SELECT_KEY ? "" : id;
+}
 
 export type SelectDataItem =
   | string
@@ -79,13 +92,13 @@ function normalizeFlatItems(
   const items: { id: string; label: string }[] = [];
   for (const item of data) {
     if (typeof item === "string") {
-      items.push({ id: item, label: item });
+      items.push({ id: toBcdsItemId(item), label: item });
     } else if ("group" in item) {
       for (const sub of item.items) {
-        items.push({ id: sub.value, label: sub.label });
+        items.push({ id: toBcdsItemId(sub.value), label: sub.label });
       }
     } else {
-      items.push({ id: item.value, label: item.label });
+      items.push({ id: toBcdsItemId(item.value), label: item.label });
     }
   }
   return items;
@@ -102,7 +115,10 @@ function normalizeSections(data: SelectDataItem[] | readonly SelectDataItem[]) {
       sections.push({
         id: item.group,
         header: item.group,
-        items: item.items.map((sub) => ({ id: sub.value, label: sub.label })),
+        items: item.items.map((sub) => ({
+          id: toBcdsItemId(sub.value),
+          label: sub.label,
+        })),
       });
     }
   }
@@ -222,6 +238,13 @@ export function Select({
     ...fieldMarginStyle(mt, mb),
     ...style,
   };
+  const ariaLabel = resolveFieldAriaLabel(label, placeholder, passthrough);
+  const bcdsSelectedKey =
+    selectedKey != null && selectedKey !== ""
+      ? toBcdsItemId(selectedKey)
+      : selectedKey === ""
+        ? toBcdsItemId("")
+        : undefined;
 
   const field = (
     <BcdsSelect
@@ -233,11 +256,14 @@ export function Select({
       placeholder={placeholder}
       items={items}
       sections={sections}
-      selectedKey={selectedKey ?? undefined}
-      onSelectionChange={(key) => onChange?.((key as string) ?? null)}
+      selectedKey={bcdsSelectedKey}
+      onSelectionChange={(key) =>
+        onChange?.(fromBcdsItemId(key as string | null))
+      }
       isDisabled={disabled}
       isRequired={required}
       errorMessage={errorText}
+      aria-label={ariaLabel}
     />
   );
 

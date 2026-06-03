@@ -6,6 +6,7 @@ import {
   isStringLabel,
   normalizeFieldError,
   pickFieldPassthrough,
+  resolveFieldAriaLabel,
 } from "./formFieldUtils";
 
 export interface AppTextareaProps {
@@ -63,6 +64,7 @@ export function Textarea({
   const errorMessage = normalizeFieldError(error);
   const descriptionText =
     typeof description === "string" ? description : undefined;
+  const ariaLabel = resolveFieldAriaLabel(label, placeholder, passthrough);
 
   const fieldProps = {
     ...passthrough,
@@ -78,7 +80,7 @@ export function Textarea({
       description={descriptionText}
       errorMessage={errorMessage}
       value={value ?? defaultValue ?? ""}
-      aria-label={placeholder}
+      aria-label={ariaLabel}
       onChange={(next) => emitTextareaChange(next, onChange)}
       isDisabled={disabled}
       isRequired={required ?? withAsterisk}

@@ -23,6 +23,8 @@ export interface AppModalProps {
   };
   /** Mantine prop — BC DS modal always portals */
   withinPortal?: boolean;
+  /** Accessible name when no visible title is provided */
+  "aria-label"?: string;
   "data-testid"?: string;
 }
 
@@ -85,6 +87,7 @@ export function Modal({
   withCloseButton = true,
   zIndex,
   styles,
+  "aria-label": ariaLabel,
   "data-testid": dataTestId,
 }: AppModalProps) {
   if (!opened) {
@@ -103,7 +106,7 @@ export function Modal({
 
   const titleNode =
     typeof title === "string" ? (
-      <Title order={5} className="bcds-modal-title">
+      <Title order={5} className="bcds-modal-title" slot="title">
         {title}
       </Title>
     ) : (
@@ -134,6 +137,7 @@ export function Modal({
       <BcdsDialog
         isCloseable={withCloseButton}
         className="bcds-react-aria-Dialog bcds-modal-dialog"
+        aria-label={showTitle ? undefined : ariaLabel}
       >
         {showTitle ? (
           <div className="bcds-modal-header">{titleNode}</div>

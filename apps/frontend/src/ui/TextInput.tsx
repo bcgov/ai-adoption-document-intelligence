@@ -11,6 +11,7 @@ import {
   isStringLabel,
   normalizeFieldError,
   pickFieldPassthrough,
+  resolveFieldAriaLabel,
 } from "./formFieldUtils";
 
 export interface AppTextInputProps {
@@ -79,6 +80,7 @@ export function TextInput({
   const isRequired = required ?? withAsterisk;
   const descriptionText =
     typeof description === "string" ? description : undefined;
+  const ariaLabel = resolveFieldAriaLabel(label, placeholder, passthrough);
 
   const fieldProps = {
     ...passthrough,
@@ -107,6 +109,7 @@ export function TextInput({
       onBlur={onBlur}
       isDisabled={disabled}
       isRequired={isRequired}
+      aria-label={ariaLabel}
       iconLeft={
         leftSection && typeof leftSection === "object"
           ? (leftSection as React.ReactElement)
