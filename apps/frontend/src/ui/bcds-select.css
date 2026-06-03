@@ -47,3 +47,8 @@
   width: 100%;
   max-width: 100%;
 }
+
+.bcds-form-field:not(.bcds-form-field--fit):not(.bcds-form-field--full-width)
+  .bcds-react-aria-Select--Button {
+  width: 100%;
+}

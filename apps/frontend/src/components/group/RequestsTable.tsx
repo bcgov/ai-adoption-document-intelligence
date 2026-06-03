@@ -338,7 +338,7 @@ export function RequestsTable<T extends { id: string }>({
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
           data-testid="requests-search"
-          style={{ flex: 1 }}
+          style={{ flex: 1, alignSelf: "flex-end" }}
         />
       </Group>
 

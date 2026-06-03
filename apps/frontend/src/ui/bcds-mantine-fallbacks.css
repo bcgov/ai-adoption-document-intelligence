@@ -175,8 +175,8 @@
   max-width: 100%;
 }
 
-.mantine-MultiSelect-dropdown {
-  width: max-content !important;
+.mantine-MultiSelect-dropdown[style] {
+  width: max-content;
   min-width: var(--combobox-dropdown-width, auto);
   max-width: min(100vw - 2rem, 32rem);
 }
