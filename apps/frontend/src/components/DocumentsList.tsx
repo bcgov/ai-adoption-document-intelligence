@@ -16,7 +16,8 @@ import type { Document } from "../shared/types";
 import { formatDate, formatFileSize } from "../shared/utils";
 
 export const DocumentsList: React.FC = () => {
-  const { data: documents, isLoading, error } = useDocuments();
+  const { data, isLoading, error } = useDocuments();
+  const documents = data?.documents;
 
   if (isLoading) {
     return (

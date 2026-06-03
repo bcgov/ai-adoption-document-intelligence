@@ -275,7 +275,7 @@ describe("TemplateModelOcrService", () => {
       expect(
         mockLabelingDocumentDbService.updateLabelingDocument,
       ).toHaveBeenCalledWith("doc-1", {
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
         ocr_result: analysisResponse,
       });
     });

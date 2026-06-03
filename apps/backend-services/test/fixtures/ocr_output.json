@@ -17,7 +17,7 @@
       "lastModified": 1771021925017
     },
     "source": "labeling",
-    "status": "completed_ocr",
+    "status": "extracted",
     "created_at": "2026-02-13T23:21:11.777Z",
     "updated_at": "2026-02-13T23:21:21.120Z",
     "apim_request_id": "818b2248-9701-4498-b4f9-2c324023908c",

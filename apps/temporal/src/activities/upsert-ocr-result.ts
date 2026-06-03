@@ -182,11 +182,11 @@ export async function upsertOcrResult(params: {
       },
     });
 
-    // Update document status to completed_ocr
+    // Update document status to extracted
     // Note: The workflow status "awaiting_review" is used by the frontend to determine if review is needed
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: "completed_ocr" as const },
+      data: { status: "extracted" as const },
     });
 
     log.info("Upsert OCR result complete", {
