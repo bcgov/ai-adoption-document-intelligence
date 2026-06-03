@@ -116,7 +116,7 @@ npm run generate:alert-rules
 Then restart the monitoring stack to pick up the new rules:
 
 ```sh
-podman compose -f deployments/local/docker-compose.monitoring.yml up -d
+docker compose --profile monitoring up -d
 ```
 
 ### Temporal worker metrics endpoint
