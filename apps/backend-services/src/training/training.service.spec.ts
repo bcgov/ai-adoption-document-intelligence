@@ -973,6 +973,49 @@ describe("TrainingService", () => {
     });
   });
 
+  describe("when DOCUMENT_INTELLIGENCE_MODE is mock", () => {
+    let mockDiService: TrainingService;
+
+    beforeEach(async () => {
+      const mockConfigMockDi = {
+        get: jest.fn((key: string, defaultValue?: number) => {
+          if (key === "DOCUMENT_INTELLIGENCE_MODE") return "mock";
+          const config: Record<string, string | number> = {
+            AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
+            AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+            TRAINING_MIN_DOCUMENTS: 5,
+            TRAINING_SAS_EXPIRY_DAYS: 7,
+          };
+          return config[key] ?? defaultValue;
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
+          { provide: TrainingDbService, useValue: mockTrainingDb },
+          { provide: AzureStorageService, useValue: mockBlobStorage },
+          { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
+          { provide: TemplateModelService, useValue: mockTemplateModelService },
+          {
+            provide: BenchmarkDefinitionDbService,
+            useValue: mockBenchmarkDefinitionDb,
+          },
+          { provide: ConfigService, useValue: mockConfigMockDi },
+        ],
+      }).compile();
+
+      mockDiService = module.get<TrainingService>(TrainingService);
+    });
+
+    it("startTraining throws ServiceUnavailableException", async () => {
+      await expect(
+        mockDiService.startTraining("tm-1", { description: "Test" }),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+  });
+
   describe("getTrainingJobs", () => {
     it("should return all training jobs for a template model", async () => {
       const jobs = [mockTrainingJob, { ...mockTrainingJob, id: "job-2" }];

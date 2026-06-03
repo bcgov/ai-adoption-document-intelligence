@@ -1,12 +1,12 @@
 import http from "node:http";
-import type { Config } from "./config";
-import { logger } from "./logger";
 import {
+  type AlertmanagerPayload,
   buildEmail,
   getChesToken,
   sendEmail,
-  type AlertmanagerPayload,
 } from "./ches";
+import type { Config } from "./config";
+import { logger } from "./logger";
 
 /**
  * Validates the `Authorization: Bearer <secret>` header against the configured

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Substituted by scripts/lib/generate-overlay.sh (--minio-pvc-size, default 5Gi).
+      storage: "__MINIO_PVC_SIZE__"

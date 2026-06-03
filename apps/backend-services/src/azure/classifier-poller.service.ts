@@ -27,6 +27,9 @@ export class ClassifierPollerService {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async pollActiveClassifiers(): Promise<void> {
+    if (this.azureService.isMockMode()) {
+      return;
+    }
     try {
       // Find all classifiers that are currently training
       const classifiers = await this.classifierDb.findAllTrainingClassifiers();
