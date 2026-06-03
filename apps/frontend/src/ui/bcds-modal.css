@@ -4,10 +4,19 @@
  */
 
 .bcds-react-aria-Modal.bcds-app-modal {
-  max-height: 90vh;
-  overflow: auto;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--layout-margin-large);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+/* Mantine `centered` — vertically center the modal on the overlay */
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--centered {
+  align-items: center;
+  padding-top: 0;
 }
 
 .bcds-react-aria-Modal.bcds-modal--xs {

@@ -12,6 +12,8 @@ import type {
   MyMembershipRequest,
   UserGroup,
 } from "../data/hooks/useGroups";
+import { changeFieldValue } from "../test/fieldHelpers";
+import { mockNotificationsShow } from "../test/mockNotifications";
 import { MantineProvider } from "../ui";
 import { GroupsPage } from "./GroupsPage";
 
@@ -32,13 +34,6 @@ const mockUseRequestMembership = vi.fn();
 const mockRequestMutate = vi.fn();
 const mockUseCreateGroup = vi.fn();
 const mockCreateMutate = vi.fn();
-
-const { mockNotificationsShow } = vi.hoisted(() => ({
-  mockNotificationsShow: vi.fn(),
-}));
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: mockNotificationsShow },
-}));
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -560,9 +555,9 @@ describe("GroupsPage", () => {
       fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
 
       await waitFor(() => {
-        // Mantine Select renders a visible input + a hidden input; ensure at least one has PENDING
-        const inputs = screen.getAllByDisplayValue("PENDING");
-        expect(inputs.length).toBeGreaterThan(0);
+        expect(screen.getByTestId("requests-status-filter")).toHaveTextContent(
+          /pending/i,
+        );
       });
     });
 
@@ -1177,9 +1172,7 @@ describe("GroupsPage", () => {
         expect(screen.getByTestId("create-group-name")).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
-        target: { value: "Duplicate Group" },
-      });
+      changeFieldValue("create-group-name", "Duplicate Group");
 
       fireEvent.click(screen.getByTestId("create-group-submit-btn"));
 
@@ -1189,9 +1182,9 @@ describe("GroupsPage", () => {
         ).toBeInTheDocument();
       });
 
-      expect(
-        screen.getByText("A group with that name already exists"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("create-group-server-error")).toHaveTextContent(
+        "A group with that name already exists",
+      );
 
       // Modal should remain open
       expect(screen.getByTestId("create-group-modal")).toBeInTheDocument();
@@ -1214,10 +1207,16 @@ describe("GroupsPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("create-group-submit-btn"));
+      const form = screen
+        .getByTestId("create-group-submit-btn")
+        .closest("form");
+      expect(form).not.toBeNull();
+      fireEvent.submit(form as HTMLFormElement);
 
       await waitFor(() => {
-        expect(screen.getByText("Name is required")).toBeInTheDocument();
+        expect(screen.getByTestId("create-group-modal")).toHaveTextContent(
+          /name is required/i,
+        );
       });
 
       expect(mockCreateMutate).not.toHaveBeenCalled();

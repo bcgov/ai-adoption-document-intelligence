@@ -119,16 +119,10 @@ describe("ClassifierPage", () => {
       renderPage();
 
       const button = screen.getByRole("button", { name: /create new model/i });
-      const tooltipAnchor = button.parentElement;
-      if (tooltipAnchor) {
-        fireEvent.mouseEnter(tooltipAnchor);
-      }
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/a group must be selected to create a model/i),
-        ).toBeInTheDocument();
-      });
+      expect(button.closest("[title]")).toHaveAttribute(
+        "title",
+        expect.stringMatching(/a group must be selected to create a model/i),
+      );
     });
   });
 

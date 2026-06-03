@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const mockBcdsTag = vi.fn(
@@ -13,7 +14,7 @@ const mockBcdsTag = vi.fn(
     color?: string;
     size?: string;
     tagStyle?: string;
-    icon?: React.ReactNode;
+    icon?: ReactNode;
   }) => (
     <span
       data-testid="bcds-tag"
@@ -30,6 +31,19 @@ const mockBcdsTag = vi.fn(
 
 vi.mock("@bcgov/design-system-react-components", () => ({
   Tag: (props: Parameters<typeof mockBcdsTag>[0]) => mockBcdsTag(props),
+  TagGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TagList: ({ items }: { items: Parameters<typeof mockBcdsTag>[0][] }) => (
+    <>
+      {items.map((item) => {
+        mockBcdsTag(item);
+        return (
+          <span key={item.textValue} data-testid="bcds-tag">
+            {item.textValue}
+          </span>
+        );
+      })}
+    </>
+  ),
 }));
 
 import { Badge } from "./Badge";

@@ -34,10 +34,6 @@ vi.mock("@/data/hooks/useClassifier", () => ({
   useClassifier: () => mockUseClassifier(),
 }));
 
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: vi.fn() },
-}));
-
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------

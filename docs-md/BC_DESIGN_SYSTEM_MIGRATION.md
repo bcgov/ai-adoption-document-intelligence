@@ -35,7 +35,7 @@ GitHub Actions workflow [`.github/workflows/frontend-qa.yml`](../.github/workflo
 2. `npm run type-check` — TypeScript
 3. `npm run test` — Vitest (jsdom environment)
 
-CI uses **Node 24** (see workflow), matching the recommended local Node for Vitest. The repo root `.nvmrc` pins `24` for `nvm use` / auto-switch (see README Quick Start). `jsdom` is **28.1.0** in `apps/frontend/package.json`. If tests fail worker startup with `ERR_REQUIRE_ESM` on Node 20.x, use Node 24 locally (or temporarily pin `jsdom` to 26.x).
+CI uses **Node 24** (see workflow), matching the required local Node for Vitest. The repo root `.nvmrc` pins `24` for `nvm use` / auto-switch (see README Quick Start). `jsdom` is **26.1.0** in `apps/frontend/package.json` (pinned after ESM/worker issues with newer jsdom). If tests fail worker startup with `ERR_REQUIRE_ESM`, use Node 24 locally; do not use Node 20.x for frontend tests.
 
 ## Current Implementation Status
 

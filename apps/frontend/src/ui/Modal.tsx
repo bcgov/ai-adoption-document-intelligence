@@ -79,7 +79,9 @@ export function Modal({
   title,
   children,
   size,
+  centered,
   closeOnClickOutside = true,
+  closeOnEscape = true,
   withCloseButton = true,
   zIndex,
   styles,
@@ -112,6 +114,7 @@ export function Modal({
     "bcds-react-aria-Modal",
     "bcds-app-modal",
     modalWidthClass(size),
+    centered ? "bcds-modal--centered" : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -123,6 +126,7 @@ export function Modal({
         if (!isOpen) onClose();
       }}
       isDismissable={closeOnClickOutside}
+      isKeyboardDismissDisabled={!closeOnEscape}
       className={modalClassName}
       style={{ ...overlayStyle, ...modalShellStyle }}
       data-testid={dataTestId}

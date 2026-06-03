@@ -48,12 +48,20 @@ export function AzureClassifySubmitForm({
         Azure Classifier parameters
       </Text>
       {!activeGroup && (
-        <Alert color="yellow" title="No group selected">
+        <Alert
+          color="yellow"
+          title="No group selected"
+          data-testid="classifier-no-group-alert"
+        >
           Select a group to load available classifiers.
         </Alert>
       )}
       {getClassifiers.isError && (
-        <Alert color="red" title="Failed to load classifiers">
+        <Alert
+          color="red"
+          title="Failed to load classifiers"
+          data-testid="classifier-fetch-error-alert"
+        >
           Could not fetch classifiers. Please try again.
         </Alert>
       )}

@@ -38,8 +38,28 @@ export function Alert({
       ? String(children)
       : undefined;
 
+  const srOnlyText = [titleText, descriptionText].filter(Boolean).join(" ");
+
   return (
     <div data-testid={dataTestId} style={wrapperStyle}>
+      {srOnlyText.length > 0 ? (
+        <span
+          className="bcds-alert-sr-only"
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+        >
+          {srOnlyText}
+        </span>
+      ) : null}
       <BcdsInlineAlert
         variant={mapMantineAlertVariant(color, variant)}
         title={titleText}

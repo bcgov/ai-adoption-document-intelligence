@@ -55,26 +55,68 @@ export function fieldMarginStyle(
   };
 }
 
-export function emitInputChange(
+function coerceFieldValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value != null && typeof value === "object" && "nativeEvent" in value) {
+    const { currentTarget } = value as ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement
+    >;
+    if (
+      currentTarget instanceof HTMLInputElement ||
+      currentTarget instanceof HTMLTextAreaElement
+    ) {
+      return currentTarget.value;
+    }
+    const plain = currentTarget as { value?: string };
+    if (typeof plain?.value === "string") {
+      return plain.value;
+    }
+  }
+  return value == null ? "" : String(value);
+}
+
+function syntheticInputEvent(value: string): ChangeEvent<HTMLInputElement> {
+  const input = document.createElement("input");
+  input.value = value;
+  return {
+    currentTarget: input,
+    target: input,
+    nativeEvent: new Event("input"),
+  } as ChangeEvent<HTMLInputElement>;
+}
+
+function syntheticTextareaEvent(
   value: string,
+): ChangeEvent<HTMLTextAreaElement> {
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  return {
+    currentTarget: textarea,
+    target: textarea,
+    nativeEvent: new Event("input"),
+  } as ChangeEvent<HTMLTextAreaElement>;
+}
+
+/**
+ * Notifies Mantine form `getInputProps` and `e.currentTarget.value` handlers.
+ * Uses a real `HTMLInputElement` so Mantine does not store the event object as the value.
+ */
+export function emitInputChange(
+  value: unknown,
   onChange?: (event: ChangeEvent<HTMLInputElement>) => void,
 ): void {
   if (!onChange) return;
-  onChange({
-    currentTarget: { value },
-    target: { value },
-  } as ChangeEvent<HTMLInputElement>);
+  onChange(syntheticInputEvent(coerceFieldValue(value)));
 }
 
 export function emitTextareaChange(
-  value: string,
+  value: unknown,
   onChange?: (event: ChangeEvent<HTMLTextAreaElement>) => void,
 ): void {
   if (!onChange) return;
-  onChange({
-    currentTarget: { value },
-    target: { value },
-  } as ChangeEvent<HTMLTextAreaElement>);
+  onChange(syntheticTextareaEvent(coerceFieldValue(value)));
 }
 
 export function pickFieldPassthrough(

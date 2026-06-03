@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "../../auth/AuthContext";
+import { mockNotificationsShow } from "../../test/mockNotifications";
 import { MantineProvider } from "../../ui";
 import {
   CreateClassifierModal,
@@ -13,10 +14,6 @@ import {
 // Mocks
 // ---------------------------------------------------------------------------
 
-const { mockNotificationsShow } = vi.hoisted(() => ({
-  mockNotificationsShow: vi.fn(),
-}));
-
 const mockUseGroup = vi.fn();
 const mockUseClassifier = vi.fn();
 
@@ -26,12 +23,6 @@ vi.mock("../../auth/GroupContext", () => ({
 
 vi.mock("../../data/hooks/useClassifier", () => ({
   useClassifier: () => mockUseClassifier(),
-}));
-
-vi.mock("@mantine/notifications", () => ({
-  notifications: {
-    show: mockNotificationsShow,
-  },
 }));
 
 // ---------------------------------------------------------------------------

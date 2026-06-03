@@ -120,10 +120,30 @@ export function TextInput({
     />
   );
 
+  const errorSrOnly = errorMessage ? (
+    <span
+      className="bcds-field-error-sr-only"
+      style={{
+        position: "absolute",
+        width: 1,
+        height: 1,
+        padding: 0,
+        margin: -1,
+        overflow: "hidden",
+        clip: "rect(0, 0, 0, 0)",
+        whiteSpace: "nowrap",
+        border: 0,
+      }}
+    >
+      {errorMessage}
+    </span>
+  ) : null;
+
   if (!isStringLabel(label) && label != null) {
     return (
       <div className="bcds-form-field" style={wrapperStyle}>
         <div className="bcds-form-field-custom-label">{label}</div>
+        {errorSrOnly}
         {field}
       </div>
     );
@@ -131,6 +151,7 @@ export function TextInput({
 
   return (
     <div className="bcds-form-field" style={wrapperStyle}>
+      {errorSrOnly}
       {field}
     </div>
   );

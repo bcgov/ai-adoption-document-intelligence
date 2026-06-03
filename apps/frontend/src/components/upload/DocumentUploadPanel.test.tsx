@@ -28,12 +28,6 @@ vi.mock("../../data/services/api.service", () => ({
   },
 }));
 
-vi.mock("@mantine/notifications", () => ({
-  notifications: {
-    show: vi.fn(),
-  },
-}));
-
 const mockUseGroup = vi.fn();
 const mockUseModels = vi.fn();
 const mockUseWorkflows = vi.fn();
@@ -158,13 +152,10 @@ describe("DocumentUploadPanel", () => {
       // Tooltip rendered as wrapper around the button; check the button is disabled
       expect(uploadBtn).toBeDisabled();
 
-      // Hover to trigger tooltip
-      fireEvent.mouseEnter(uploadBtn);
-      await waitFor(() => {
-        expect(
-          screen.getByText(/select a group before uploading/i),
-        ).toBeInTheDocument();
-      });
+      expect(
+        uploadBtn.parentElement?.getAttribute("title") ??
+          uploadBtn.getAttribute("title"),
+      ).toMatch(/select a group before uploading/i);
     });
 
     it("does not call apiService.post when activeGroup is null", async () => {

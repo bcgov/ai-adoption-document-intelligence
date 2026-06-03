@@ -1,6 +1,6 @@
-import { Group, Stack } from "@mantine/core";
 import type { ReactNode } from "react";
 import { Badge } from "./Badge";
+import { Group, Stack } from "./index";
 import { Text } from "./Text";
 import { Title } from "./Title";
 

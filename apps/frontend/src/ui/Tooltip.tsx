@@ -97,10 +97,19 @@ export function Tooltip({
   }
 
   const trigger = ensureFocusableTrigger(onlyChild);
+  const titleAttr = typeof label === "string" ? label : undefined;
+  const triggerNode =
+    titleAttr != null ? (
+      <span title={titleAttr} style={{ display: "inline-flex" }}>
+        {trigger}
+      </span>
+    ) : (
+      trigger
+    );
 
   return (
     <TooltipTrigger>
-      {trigger}
+      {triggerNode}
       <BcdsTooltip placement={mapMantineTooltipPosition(position)}>
         <span
           style={

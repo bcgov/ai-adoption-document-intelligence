@@ -7,7 +7,9 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroupRequest } from "../../data/hooks/useGroups";
-import { MantineProvider, notifications } from "../../ui";
+import { changeFieldValue } from "../../test/fieldHelpers";
+import { mockNotificationsShow } from "../../test/mockNotifications";
+import { MantineProvider } from "../../ui";
 import { GroupRequestsTab } from "./GroupRequestsTab";
 
 // ---------------------------------------------------------------------------
@@ -24,10 +26,6 @@ vi.mock("../../data/hooks/useGroups", () => ({
   useGroupRequests: () => mockUseGroupRequests(),
   useApproveMembershipRequest: () => mockUseApproveMembershipRequest(),
   useDenyMembershipRequest: () => mockUseDenyMembershipRequest(),
-}));
-
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: vi.fn() },
 }));
 
 // ---------------------------------------------------------------------------
@@ -194,9 +192,7 @@ describe("RequestsTab – Deny action (US-021)", () => {
 
       await openDenyModal(pendingRequest.id);
 
-      fireEvent.change(screen.getByTestId("deny-reason-input"), {
-        target: { value: "Not eligible" },
-      });
+      changeFieldValue("deny-reason-input", "Not eligible");
 
       fireEvent.click(screen.getByTestId("deny-confirm-btn"));
 
@@ -347,7 +343,7 @@ describe("RequestsTab – Deny action (US-021)", () => {
       await openDenyModal(pendingRequest.id);
       fireEvent.click(screen.getByTestId("deny-confirm-btn"));
 
-      expect(notifications.show).toHaveBeenCalledWith(
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
         expect.objectContaining({ color: "red" }),
       );
     });

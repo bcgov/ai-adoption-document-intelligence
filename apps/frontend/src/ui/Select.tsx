@@ -1,4 +1,5 @@
 import { Select as BcdsSelect } from "@bcgov/design-system-react-components";
+import { Select as MantineSelect } from "@mantine/core";
 import type { CSSProperties, ReactNode } from "react";
 import {
   fieldMarginStyle,
@@ -115,8 +116,32 @@ function mapSelectSize(
   return "medium";
 }
 
+function mapMantineSelectSize(
+  size: AppSelectProps["size"],
+): "xs" | "sm" | "md" | "lg" | undefined {
+  if (size === "xs" || size === "small") return "xs";
+  if (size === "sm") return "sm";
+  if (size === "lg") return "lg";
+  return "md";
+}
+
+function usesMantineSelectFallback(props: {
+  searchable?: boolean;
+  clearable?: boolean;
+  nothingFoundMessage?: string;
+  allowDeselect?: boolean;
+}): boolean {
+  return (
+    props.searchable === true ||
+    props.clearable === true ||
+    props.nothingFoundMessage != null ||
+    props.allowDeselect === true
+  );
+}
+
 /**
  * BC DS `Select` with Mantine `Select`-compatible `data` / `value` / `onChange`.
+ * Falls back to Mantine `Select` when searchable/clearable (no BC DS equivalent).
  */
 export function Select({
   label,
@@ -129,6 +154,10 @@ export function Select({
   error,
   disabled,
   required,
+  searchable,
+  clearable,
+  nothingFoundMessage,
+  allowDeselect,
   size,
   w,
   fullWidth,
@@ -140,17 +169,59 @@ export function Select({
 }: AppSelectProps) {
   const passthrough = pickFieldPassthrough(rest);
   const dataList = data ?? [];
+  const selectedKey = value ?? defaultValue ?? null;
+  const descriptionText =
+    typeof description === "string" ? description : undefined;
+  const errorText = normalizeFieldError(error);
+
+  if (
+    usesMantineSelectFallback({
+      searchable,
+      clearable,
+      nothingFoundMessage,
+      allowDeselect,
+    })
+  ) {
+    return (
+      <MantineSelect
+        {...passthrough}
+        label={isStringLabel(label) ? label : undefined}
+        description={descriptionText}
+        placeholder={placeholder}
+        data={dataList.map((item) =>
+          typeof item === "string"
+            ? item
+            : "group" in item
+              ? { group: item.group, items: [...item.items] }
+              : item,
+        )}
+        value={selectedKey}
+        onChange={onChange}
+        error={errorText}
+        disabled={disabled}
+        required={required}
+        searchable={searchable}
+        clearable={clearable}
+        nothingFoundMessage={nothingFoundMessage}
+        allowDeselect={allowDeselect}
+        size={mapMantineSelectSize(size)}
+        w={w}
+        mt={mt}
+        mb={mb}
+        style={style}
+        className={className}
+      />
+    );
+  }
+
   const sections = normalizeSections(dataList);
   const items = sections ? undefined : normalizeFlatItems(dataList);
-  const selectedKey = value ?? defaultValue ?? null;
   const fieldClassName = selectFieldClassName(fullWidth, w);
   const wrapperStyle: CSSProperties = {
     ...selectWrapperWidth(w, fullWidth),
     ...fieldMarginStyle(mt, mb),
     ...style,
   };
-  const descriptionText =
-    typeof description === "string" ? description : undefined;
 
   const field = (
     <BcdsSelect
@@ -166,7 +237,7 @@ export function Select({
       onSelectionChange={(key) => onChange?.((key as string) ?? null)}
       isDisabled={disabled}
       isRequired={required}
-      errorMessage={normalizeFieldError(error)}
+      errorMessage={errorText}
     />
   );
 

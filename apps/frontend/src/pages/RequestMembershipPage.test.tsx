@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroupInfo } from "../data/hooks/useGroups";
+import { changeFieldValue } from "../test/fieldHelpers";
 import { MantineProvider } from "../ui";
 import { RequestMembershipPage } from "./RequestMembershipPage";
 
@@ -155,9 +156,7 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      fireEvent.change(screen.getByTestId("groups-search"), {
-        target: { value: "Alpha" },
-      });
+      changeFieldValue("groups-search", "Alpha");
 
       expect(screen.getByText("Group Alpha")).toBeInTheDocument();
       expect(screen.queryByText("Group Beta")).not.toBeInTheDocument();
@@ -172,9 +171,7 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      fireEvent.change(screen.getByTestId("groups-search"), {
-        target: { value: "zzznomatch" },
-      });
+      changeFieldValue("groups-search", "zzznomatch");
 
       expect(screen.queryByText("Group Alpha")).not.toBeInTheDocument();
       expect(screen.queryByText("Group Beta")).not.toBeInTheDocument();
@@ -288,8 +285,9 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      expect(screen.getByTestId("request-error")).toBeInTheDocument();
-      expect(screen.getByText("Request failed")).toBeInTheDocument();
+      const errorAlert = screen.getByTestId("request-error");
+      expect(errorAlert).toBeInTheDocument();
+      expect(errorAlert).toHaveTextContent("Request failed");
     });
   });
 
