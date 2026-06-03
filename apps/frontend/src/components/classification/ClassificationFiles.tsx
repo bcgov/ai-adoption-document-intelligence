@@ -84,7 +84,7 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
 
   return (
     <Stack>
-      <Paper shadow="xs" radius="md" p="sm" withBorder>
+      <Paper shadow="xs" radius="md" p="md" withBorder>
         <Group justify="space-between" align="center" mb="xs">
           <h2>Classification Label Training Groups</h2>
           <Group gap={4}>

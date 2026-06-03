@@ -29,7 +29,7 @@ const ClassifierPage = () => {
     return (
       <>
         <PanelCard>
-          <Stack gap="md" mt="md">
+          <Stack gap="md">
             <Group justify="space-between">
               <Title order={3}>Select a model</Title>
               <Tooltip
