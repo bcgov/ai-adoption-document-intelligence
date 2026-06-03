@@ -37,7 +37,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     LoggingModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ".env",
+      envFilePath: ["../../.env", ".env"],
       cache: true,
     }),
     ScheduleModule.forRoot(),

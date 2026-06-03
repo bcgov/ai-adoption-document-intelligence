@@ -69,7 +69,7 @@ describe("TemplateModelService", () => {
     file_size: 1024,
     metadata: {},
     source: "labeling",
-    status: DocumentStatus.completed_ocr,
+    status: DocumentStatus.extracted,
     created_at: new Date(),
     updated_at: new Date(),
     apim_request_id: null,

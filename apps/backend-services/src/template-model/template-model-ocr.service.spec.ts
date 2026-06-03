@@ -275,7 +275,7 @@ describe("TemplateModelOcrService", () => {
       expect(
         mockLabelingDocumentDbService.updateLabelingDocument,
       ).toHaveBeenCalledWith("doc-1", {
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
         ocr_result: analysisResponse,
       });
     });
@@ -520,7 +520,7 @@ describe("TemplateModelOcrService", () => {
       ).toHaveBeenCalledWith(
         "doc-1",
         expect.objectContaining({
-          status: DocumentStatus.completed_ocr,
+          status: DocumentStatus.extracted,
           ocr_result: expect.objectContaining({
             status: "succeeded",
             analyzeResult: expect.objectContaining({ content: "mock" }),

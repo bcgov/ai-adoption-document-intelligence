@@ -6,14 +6,12 @@ Start all required services:
 
 ### 1. Start Temporal Server and Database
 ```bash
-cd apps/temporal
-docker-compose up -d
+docker compose --profile temporal up -d
 ```
 
 ### 2. Start Backend Database
 ```bash
-cd apps/backend-services
-docker-compose up -d
+docker compose --profile infra up -d
 ```
 
 ### 3. Start Temporal Worker

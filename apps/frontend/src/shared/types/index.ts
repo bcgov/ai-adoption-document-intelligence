@@ -3,8 +3,9 @@
 export type DocumentStatus =
   | "pre_ocr"
   | "ongoing_ocr"
-  | "completed_ocr"
-  | "needs_validation"
+  | "extracted"
+  | "awaiting_review"
+  | "complete"
   | "failed"
   | "rejected_by_human"
   | "conversion_failed";
@@ -42,6 +43,7 @@ export interface Document {
   };
   model_id?: string;
   needsReview?: boolean; // Set by backend when workflow is awaiting review
+  workflow_name?: string | null; // Name of the workflow used to process this document
 }
 
 export interface BoundingRegion {

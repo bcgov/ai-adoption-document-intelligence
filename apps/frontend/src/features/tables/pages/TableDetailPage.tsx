@@ -1,6 +1,5 @@
 import {
   Button,
-  Container,
   Group,
   Modal,
   Stack,
@@ -10,87 +9,76 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useAuth } from "@/auth/AuthContext";
 import { useGroup } from "@/auth/GroupContext";
-import { apiService } from "@/data/services/api.service";
 import { ColumnsTab } from "../components/ColumnsTab";
 import { LookupSnippetPanel } from "../components/LookupSnippetPanel";
 import { LookupsTab } from "../components/LookupsTab";
 import { RowForm } from "../components/RowForm";
 import { RowsTab } from "../components/RowsTab";
+import { useDeleteTable } from "../hooks/useDeleteTable";
 import { useTable } from "../hooks/useTable";
+import { useUpdateTable } from "../hooks/useUpdateTable";
 import type { LookupDef, TableRow } from "../types";
 
 export function TableDetailPage() {
   const { tableId } = useParams<{ tableId: string }>();
+  const { isSystemAdmin } = useAuth();
   const { activeGroup } = useGroup();
   const groupId = activeGroup?.id ?? null;
-  const navigate = useNavigate();
-  const qc = useQueryClient();
   const table = useTable(groupId, tableId ?? null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [tableDeleteConfirm, setTableDeleteConfirm] = useState("");
   const [editingRow, setEditingRow] = useState<TableRow | undefined>(undefined);
   const [rowFormOpen, setRowFormOpen] = useState(false);
   const [snippetLookup, setSnippetLookup] = useState<LookupDef | null>(null);
 
-  const updateMeta = useMutation({
-    mutationFn: async (patch: {
-      label?: string;
-      description?: string | null;
-    }) => {
-      const response = await apiService.patch(
-        `/tables/${tableId}?group_id=${groupId}`,
-        patch,
-      );
-      if (!response.success)
-        throw new Error(response.message ?? "Failed to update table");
-      return response.data;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tables", groupId, tableId] });
-      qc.invalidateQueries({ queryKey: ["tables", groupId] });
-    },
-  });
+  const isAdmin = isSystemAdmin || activeGroup?.role === "ADMIN";
 
-  const deleteTable = useMutation({
-    mutationFn: async () => {
-      const response = await apiService.delete(
-        `/tables/${tableId}?group_id=${groupId}`,
-      );
-      if (!response.success)
-        throw new Error(response.message ?? "Failed to delete table");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tables", groupId] });
-      navigate("/tables");
-    },
-  });
+  const updateMeta = useUpdateTable(groupId, tableId);
+  const deleteTable = useDeleteTable(groupId, tableId);
+
+  // Controlled state for the settings form
+  const [settingsLabel, setSettingsLabel] = useState<string | null>(null);
+  const [settingsDescription, setSettingsDescription] = useState<string | null>(
+    null,
+  );
+
+  // Use live table data as the source of truth; local state only while editing
+  const currentLabel = settingsLabel ?? table.data?.label ?? "";
+  const currentDescription =
+    settingsDescription ?? table.data?.description ?? "";
+
+  const closeDeleteModal = () => {
+    setConfirmDelete(false);
+    setTableDeleteConfirm("");
+  };
 
   if (table.isLoading)
     return (
-      <Container py="md">
+      <Stack py="md">
         <Text c="dimmed">Loading…</Text>
-      </Container>
+      </Stack>
     );
   if (table.isError)
     return (
-      <Container py="md">
+      <Stack py="md">
         <Text c="red">
           Failed to load table: {(table.error as Error).message}
         </Text>
-      </Container>
+      </Stack>
     );
   if (!table.data)
     return (
-      <Container py="md">
+      <Stack py="md">
         <Text c="dimmed">Table not found.</Text>
-      </Container>
+      </Stack>
     );
 
   return (
-    <Container size="xl" py="md">
+    <Stack py="md">
       <Group justify="space-between" mb="md">
         <Stack gap={0}>
           <Title order={2}>{table.data.label}</Title>
@@ -104,7 +92,7 @@ export function TableDetailPage() {
           <Tabs.Tab value="rows">Rows</Tabs.Tab>
           <Tabs.Tab value="columns">Columns</Tabs.Tab>
           <Tabs.Tab value="lookups">Lookups</Tabs.Tab>
-          <Tabs.Tab value="settings">Settings</Tabs.Tab>
+          {isAdmin && <Tabs.Tab value="settings">Settings</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="rows" pt="md">
           {groupId && tableId && (
@@ -129,6 +117,7 @@ export function TableDetailPage() {
               groupId={groupId}
               tableId={tableId}
               columns={table.data.columns}
+              isAdmin={isAdmin}
             />
           )}
         </Tabs.Panel>
@@ -140,75 +129,90 @@ export function TableDetailPage() {
               columns={table.data.columns}
               lookups={table.data.lookups}
               onShowSnippet={setSnippetLookup}
+              isAdmin={isAdmin}
             />
           )}
         </Tabs.Panel>
-        <Tabs.Panel value="settings" pt="md">
-          <Stack maw={500}>
-            <TextInput
-              label="Label"
-              defaultValue={table.data.label}
-              onBlur={(e) => {
-                const next = e.currentTarget.value.trim();
-                if (next && next !== table.data?.label) {
-                  updateMeta.mutate({ label: next });
-                }
-              }}
-            />
-            <Textarea
-              label="Description"
-              defaultValue={table.data.description ?? ""}
-              onBlur={(e) => {
-                const raw = e.currentTarget.value;
-                const next = raw.trim() || null;
-                if (next !== (table.data?.description ?? null)) {
-                  updateMeta.mutate({ description: next });
-                }
-              }}
-            />
-            {updateMeta.isError && (
-              <Text c="red" size="sm">
-                {(updateMeta.error as Error).message}
-              </Text>
-            )}
-            <Group>
-              <Button color="red" onClick={() => setConfirmDelete(true)}>
-                Delete Table
-              </Button>
-            </Group>
-          </Stack>
-          <Modal
-            opened={confirmDelete}
-            onClose={() => setConfirmDelete(false)}
-            title="Delete table?"
-          >
-            <Stack>
-              <Text>
-                This deletes the table and all its rows. Cannot be undone.
-              </Text>
-              {deleteTable.isError && (
+        {isAdmin && (
+          <Tabs.Panel value="settings" pt="md">
+            <Stack maw={500}>
+              <TextInput
+                label="Label"
+                value={currentLabel}
+                onChange={(e) => setSettingsLabel(e.currentTarget.value)}
+              />
+              <Textarea
+                label="Description"
+                value={currentDescription}
+                onChange={(e) => setSettingsDescription(e.currentTarget.value)}
+              />
+              {updateMeta.isError && (
                 <Text c="red" size="sm">
-                  {(deleteTable.error as Error).message}
+                  {(updateMeta.error as Error).message}
                 </Text>
               )}
-              <Group justify="flex-end">
+              <Group>
                 <Button
-                  variant="default"
-                  onClick={() => setConfirmDelete(false)}
+                  loading={updateMeta.isPending}
+                  onClick={() => {
+                    const label = currentLabel.trim();
+                    const description = currentDescription.trim() || null;
+                    if (!label) return;
+                    updateMeta.mutate(
+                      { label, description },
+                      {
+                        onSuccess: () => {
+                          setSettingsLabel(null);
+                          setSettingsDescription(null);
+                        },
+                      },
+                    );
+                  }}
                 >
-                  Cancel
+                  Save Settings
                 </Button>
-                <Button
-                  color="red"
-                  loading={deleteTable.isPending}
-                  onClick={() => deleteTable.mutate()}
-                >
-                  Delete
+                <Button color="red" onClick={() => setConfirmDelete(true)}>
+                  Delete Table
                 </Button>
               </Group>
             </Stack>
-          </Modal>
-        </Tabs.Panel>
+            <Modal
+              opened={confirmDelete}
+              onClose={closeDeleteModal}
+              title="Delete table?"
+            >
+              <Stack>
+                <Text>
+                  This deletes the table and all its rows. Cannot be undone.
+                </Text>
+                <TextInput
+                  label='Type "delete" to confirm'
+                  placeholder="delete"
+                  value={tableDeleteConfirm}
+                  onChange={(e) => setTableDeleteConfirm(e.currentTarget.value)}
+                />
+                {deleteTable.isError && (
+                  <Text c="red" size="sm">
+                    {(deleteTable.error as Error).message}
+                  </Text>
+                )}
+                <Group justify="flex-end">
+                  <Button variant="default" onClick={closeDeleteModal}>
+                    Cancel
+                  </Button>
+                  <Button
+                    color="red"
+                    disabled={tableDeleteConfirm !== "delete"}
+                    loading={deleteTable.isPending}
+                    onClick={() => deleteTable.mutate()}
+                  >
+                    Delete
+                  </Button>
+                </Group>
+              </Stack>
+            </Modal>
+          </Tabs.Panel>
+        )}
       </Tabs>
       {groupId && tableId && (
         <RowForm
@@ -228,6 +232,6 @@ export function TableDetailPage() {
           lookup={snippetLookup}
         />
       )}
-    </Container>
+    </Stack>
   );
 }

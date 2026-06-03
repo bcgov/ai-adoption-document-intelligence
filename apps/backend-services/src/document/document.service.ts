@@ -151,6 +151,26 @@ export class DocumentService {
           fileType,
         );
         await this.blobStorage.write(normalizedKey, pdfBuffer);
+
+        const thumbnailKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.OCR,
+          [documentId],
+          "thumbnail.webp",
+        );
+        try {
+          const thumbnailBuffer =
+            await this.pdfNormalization.generateThumbnailWebp(
+              fileBuffer,
+              fileType,
+            );
+          await this.blobStorage.write(thumbnailKey, thumbnailBuffer);
+          this.logger.debug(`Thumbnail saved: ${thumbnailKey}`);
+        } catch (thumbErr) {
+          this.logger.warn(
+            `Thumbnail generation skipped for ${documentId}: ${thumbErr instanceof Error ? thumbErr.message : String(thumbErr)}`,
+          );
+        }
       } catch (e) {
         if (e instanceof BadRequestException) {
           throw e;
@@ -297,17 +317,50 @@ export class DocumentService {
   }
 
   /**
-   * Returns all documents, optionally filtered by group IDs.
+   * Returns documents, optionally filtered by group IDs, with pagination, search, status filter, and sorting.
    *
    * @param groupIds - Optional list of group IDs to filter by.
+   * @param options - Query options: pagination, search, status filter, and sort parameters.
    * @param tx - Optional transaction client for atomic operations.
-   * @returns Array of matching document records.
+   * @returns Object with matching document records (including workflow_name) and total count.
    */
   async findAllDocuments(
     groupIds?: string[],
+    options?: {
+      limit?: number;
+      offset?: number;
+      search?: string;
+      status?: DocumentStatus | "all";
+      sortBy?: string;
+      sortDir?: "asc" | "desc";
+      source?: string;
+    },
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentData[]> {
-    return this.documentDb.findAllDocuments(groupIds, tx);
+  ): Promise<{
+    documents: (DocumentData & { workflow_name?: string | null })[];
+    total: number;
+  }> {
+    return this.documentDb.findAllDocuments(groupIds, options, tx);
+  }
+
+  /**
+   * Returns document counts grouped by status, plus a grand total.
+   *
+   * @param groupIds - Optional list of group IDs to scope the counts.
+   * @returns Per-status counts and a grand total.
+   */
+  async getDocumentStatusCounts(groupIds?: string[]): Promise<{
+    total: number;
+    pre_ocr: number;
+    ongoing_ocr: number;
+    extracted: number;
+    awaiting_review: number;
+    complete: number;
+    failed: number;
+    rejected_by_human: number;
+    conversion_failed: number;
+  }> {
+    return this.documentDb.getDocumentStatusCounts(groupIds);
   }
 
   /**

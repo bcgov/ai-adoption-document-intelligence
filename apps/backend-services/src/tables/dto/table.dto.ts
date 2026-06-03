@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString, Matches } from "class-validator";
 
 export class CreateTableDto {
   @ApiProperty({ description: "Group ID this table belongs to" })
@@ -13,6 +13,10 @@ export class CreateTableDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-z][a-z0-9_]*$/, {
+    message:
+      "table_id must start with a lowercase letter and contain only lowercase letters, digits, and underscores",
+  })
   table_id!: string;
 
   @ApiProperty({ description: "Display label" })

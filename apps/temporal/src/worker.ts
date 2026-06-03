@@ -133,12 +133,22 @@ async function run() {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");
   });
-  metricsServer.listen(metricsPort, () => {
-    workerLogger.info("Metrics and health server listening", {
+  metricsServer.listen({ port: metricsPort, exclusive: false }, () => {
+    workerLogger.info("Metrics server listening", {
       event: "metrics_server_ready",
       port: metricsPort,
     });
   });
+
+  const shutdown = () => {
+    metricsServer.close(() => {
+      workerLogger.info("Metrics server closed", {
+        event: "metrics_server_closed",
+      });
+    });
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
 
   const address = process.env.TEMPORAL_ADDRESS || "localhost:7233";
   const namespace = process.env.TEMPORAL_NAMESPACE || "default";

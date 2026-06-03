@@ -4,6 +4,8 @@ import type { ColumnDef, LookupDef } from "../types";
 export interface LookupTemplate {
   id: string;
   label: string;
+  /** One-sentence plain-English explanation shown below the template selector. */
+  description: string;
   toLookupDef(
     name: string,
     values: Record<string, unknown>,

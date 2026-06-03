@@ -1,6 +1,5 @@
 import {
   Button,
-  Container,
   Group,
   Stack,
   Table,
@@ -10,28 +9,34 @@ import {
 } from "@mantine/core";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/AuthContext";
 import { useGroup } from "@/auth/GroupContext";
 import { CreateTableModal } from "../components/CreateTableModal";
 import { useTables } from "../hooks/useTables";
 
 export function TablesListPage() {
+  const { isSystemAdmin } = useAuth();
   const { activeGroup } = useGroup();
   const navigate = useNavigate();
   const tables = useTables(activeGroup?.id ?? null);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
+  const isAdmin = isSystemAdmin || activeGroup?.role === "ADMIN";
+
   const filtered = (tables.data ?? []).filter((t) =>
     t.label.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
-    <Container size="xl" py="md">
+    <Stack py="md">
       <Group justify="space-between">
         <Title order={2}>Tables</Title>
-        <Button onClick={() => setModalOpen(true)} disabled={!activeGroup}>
-          Create Table
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setModalOpen(true)} disabled={!activeGroup}>
+            Create Table
+          </Button>
+        )}
       </Group>
       <Stack mt="md">
         <TextInput
@@ -92,6 +97,6 @@ export function TablesListPage() {
         onClose={() => setModalOpen(false)}
         onCreated={(tid) => navigate(`/tables/${tid}`)}
       />
-    </Container>
+    </Stack>
   );
 }

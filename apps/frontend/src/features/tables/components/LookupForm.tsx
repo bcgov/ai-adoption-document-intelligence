@@ -33,6 +33,7 @@ export function LookupForm({
     initial ? (initialTemplate.fromLookupDef(initial) ?? {}) : {},
   );
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Reset state when reopened with different initial
@@ -43,6 +44,7 @@ export function LookupForm({
       setName(initial?.name ?? "");
       setValues(initial ? (t.fromLookupDef(initial) ?? {}) : {});
       setError(null);
+      setNameError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, initial?.name]);
@@ -52,12 +54,15 @@ export function LookupForm({
 
   const handleSave = async () => {
     setError(null);
+    setNameError(null);
     if (!name.trim()) {
-      setError("Name is required");
+      setNameError("Required");
       return;
     }
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-      setError("Name must be a valid identifier (letters, digits, underscore)");
+      setNameError(
+        "Letters, digits, underscore. Must start with a letter or underscore.",
+      );
       return;
     }
     setSaving(true);
@@ -82,15 +87,19 @@ export function LookupForm({
       <Stack>
         <TextInput
           label="Lookup name"
-          description="Used to invoke this lookup in workflows"
+          description="A short identifier used to call this lookup from a workflow node (e.g. findByDate, lookupRate) — cannot be changed after creation"
           required
           disabled={!!initial}
           value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
+          error={nameError}
+          onChange={(e) => {
+            setName(e.currentTarget.value);
+            setNameError(null);
+          }}
         />
         <Select
-          label="Template"
-          description="Pre-built shapes; use Custom for anything else"
+          label="Match type"
+          description="Describes how the lookup filters table rows to find a match"
           required
           data={LOOKUP_TEMPLATES.map((t) => ({ value: t.id, label: t.label }))}
           value={templateId}
@@ -100,6 +109,11 @@ export function LookupForm({
           }}
           allowDeselect={false}
         />
+        {template.description && (
+          <Text size="sm" c="dimmed">
+            {template.description}
+          </Text>
+        )}
         {template.renderFields({
           columns,
           values,
