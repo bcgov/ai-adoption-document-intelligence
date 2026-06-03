@@ -22,6 +22,10 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+      {{- if .Values.chesAdapter.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.chesAdapter.imagePullSecret }}
+      {{- end }}
       containers:
         - name: ches-adapter
           image: "{{ .Values.chesAdapter.image.repository }}:{{ .Values.chesAdapter.image.tag }}"
