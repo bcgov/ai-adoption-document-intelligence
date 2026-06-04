@@ -175,12 +175,11 @@ export function RowsTab({
         <Text size="sm" c="dimmed">
           {rows.data.total} {rows.data.total === 1 ? "row" : "rows"}
         </Text>
-        <Group gap="xs">
+        <Group gap="xs" align="center">
           {totalSelected > 0 && (
             <Button
               color="red"
               variant="light"
-              size="sm"
               onClick={() => {
                 deleteRows.reset();
                 setConfirmBulkDelete(true);
@@ -191,11 +190,14 @@ export function RowsTab({
           )}
           <Popover position="bottom-end" withinPortal>
             <Popover.Target>
-              <Tooltip label="Show / hide columns" withArrow>
-                <ActionIcon variant="default" aria-label="Column visibility">
-                  <IconColumns size={16} />
-                </ActionIcon>
-              </Tooltip>
+              <ActionIcon
+                variant="default"
+                size="md"
+                aria-label="Show / hide columns"
+                title="Show / hide columns"
+              >
+                <IconColumns size={16} />
+              </ActionIcon>
             </Popover.Target>
             <Popover.Dropdown>
               <Stack gap="xs">

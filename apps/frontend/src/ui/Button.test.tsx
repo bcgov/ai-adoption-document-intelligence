@@ -150,10 +150,11 @@ describe("Button adapter", () => {
       expect.objectContaining({
         style: expect.objectContaining({
           width: "fit-content",
-          alignSelf: "flex-start",
         }),
       }),
     );
+    const style = mockBcdsButton.mock.calls[0]?.[0]?.style as CSSProperties;
+    expect(style.alignSelf).toBeUndefined();
   });
 
   it("applies fullWidth style", () => {

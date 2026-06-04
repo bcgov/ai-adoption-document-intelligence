@@ -315,7 +315,6 @@ export function Button({
       : {
           width: "fit-content",
           maxWidth: "100%",
-          alignSelf: "flex-start",
         }),
     ...style,
   };
