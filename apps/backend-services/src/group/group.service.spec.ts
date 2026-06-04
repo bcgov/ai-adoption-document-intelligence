@@ -40,6 +40,7 @@ const stubGroupDbService: GroupDbService = {
   isUserSystemAdmin: jest.fn().mockResolvedValue(false),
   findMembershipRequest: jest.fn().mockResolvedValue(null),
   findPendingMembershipRequest: jest.fn().mockResolvedValue(null),
+  deleteResolvedMembershipRequests: jest.fn().mockResolvedValue(undefined),
   createMembershipRequest: jest.fn().mockResolvedValue({ id: "req-1" }),
   updateMembershipRequest: jest.fn().mockResolvedValue(undefined),
   approveRequestTransaction: jest.fn().mockResolvedValue(undefined),
@@ -375,6 +376,61 @@ describe("requestMembership", () => {
       "A pending membership request already exists for this group",
     );
     expect(createMembershipRequest).not.toHaveBeenCalled();
+  });
+
+  it("should reuse and reset a prior APPROVED request when user re-requests after leaving", async () => {
+    const updateMembershipRequest = jest.fn().mockResolvedValue(undefined);
+    const deleteResolvedMembershipRequests = jest
+      .fn()
+      .mockResolvedValue(undefined);
+    const createMembershipRequest = jest
+      .fn()
+      .mockResolvedValue({ id: "req-new", user_id: userId, group_id: groupId });
+    const groupDb = makeGroupDb({
+      findGroup: jest.fn().mockResolvedValue(mockGroup),
+      findUserGroupMembership: jest.fn().mockResolvedValue(null),
+      findPendingMembershipRequest: jest.fn().mockResolvedValue(null),
+      deleteResolvedMembershipRequests,
+      updateMembershipRequest,
+      createMembershipRequest,
+    });
+    const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
+    const identity = makeIdentity();
+    await svc.requestMembership(userId, groupId, identity);
+    expect(deleteResolvedMembershipRequests).toHaveBeenCalledWith(
+      userId,
+      groupId,
+    );
+    expect(createMembershipRequest).toHaveBeenCalledWith(
+      userId,
+      groupId,
+      identity,
+    );
+    expect(updateMembershipRequest).not.toHaveBeenCalled();
+  });
+
+  it("should delete all resolved records before creating a new request (multiple prior statuses)", async () => {
+    const deleteResolvedMembershipRequests = jest
+      .fn()
+      .mockResolvedValue(undefined);
+    const createMembershipRequest = jest
+      .fn()
+      .mockResolvedValue({ id: "req-new", user_id: userId, group_id: groupId });
+    const groupDb = makeGroupDb({
+      findGroup: jest.fn().mockResolvedValue(mockGroup),
+      findUserGroupMembership: jest.fn().mockResolvedValue(null),
+      findPendingMembershipRequest: jest.fn().mockResolvedValue(null),
+      deleteResolvedMembershipRequests,
+      createMembershipRequest,
+    });
+    const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
+    const identity = makeIdentity();
+    await svc.requestMembership(userId, groupId, identity);
+    expect(deleteResolvedMembershipRequests).toHaveBeenCalledWith(
+      userId,
+      groupId,
+    );
+    expect(createMembershipRequest).toHaveBeenCalled();
   });
 });
 

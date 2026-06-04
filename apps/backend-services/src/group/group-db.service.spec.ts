@@ -525,10 +525,19 @@ describe("GroupDbService", () => {
   });
 
   describe("approveRequestTransaction", () => {
-    it("uses $transaction when no tx", async () => {
-      mockPrisma.$transaction.mockResolvedValue(undefined);
-      mockPrisma.userGroup.upsert.mockReturnValue("upsert");
-      mockPrisma.groupMembershipRequest.update.mockReturnValue("update");
+    it("uses $transaction (callback form) when no tx", async () => {
+      mockPrisma.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<void>) => {
+          const fakeTx = {
+            groupMembershipRequest: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              update: jest.fn().mockResolvedValue(undefined),
+            },
+            userGroup: { upsert: jest.fn().mockResolvedValue(undefined) },
+          };
+          await fn(fakeTx);
+        },
+      );
       await service.approveRequestTransaction("user-1", "g-1", "req-1", {
         status: "APPROVED" as $Enums.GroupMembershipRequestStatus,
       });
@@ -536,12 +545,23 @@ describe("GroupDbService", () => {
     });
     it("uses tx client directly", async () => {
       const txUG = { upsert: jest.fn().mockResolvedValue(undefined) };
-      const txReq = { update: jest.fn().mockResolvedValue(undefined) };
+      const txReq = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        update: jest.fn().mockResolvedValue(undefined),
+      };
       const tx = {
         userGroup: txUG,
         groupMembershipRequest: txReq,
       } as unknown as Parameters<typeof service.approveRequestTransaction>[4];
       await service.approveRequestTransaction("user-1", "g-1", "req-1", {}, tx);
+      expect(txReq.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            user_id: "user-1",
+            group_id: "g-1",
+          }),
+        }),
+      );
       expect(txUG.upsert).toHaveBeenCalled();
       expect(txReq.update).toHaveBeenCalled();
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();

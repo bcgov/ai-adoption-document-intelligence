@@ -1,7 +1,6 @@
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { useGroup } from "../auth/GroupContext";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { MembersTab } from "../components/group/MembersTab";
 import {
@@ -40,11 +39,7 @@ export function GroupDetailPage(): JSX.Element {
   const match = useMatch("/groups/:groupId");
   const groupId = match?.params.groupId;
   const { user, isSystemAdmin } = useAuth();
-  const { availableGroups } = useGroup();
   const navigate = useNavigate();
-
-  const isMember = availableGroups.some((g) => g.id === groupId);
-  const canViewMembers = isSystemAdmin || isMember;
 
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
   const [editGroupOpen, setEditGroupOpen] = useState(false);
@@ -55,6 +50,9 @@ export function GroupDetailPage(): JSX.Element {
   const [activeTab, setActiveTab] = useState<string>("members");
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
+
+  const isMember = (myGroups ?? []).some((g) => g.id === groupId);
+  const canViewMembers = isSystemAdmin || isMember;
 
   const { data: allGroups } = useAllGroups();
 

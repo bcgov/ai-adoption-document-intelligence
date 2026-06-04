@@ -297,6 +297,12 @@ export function useApproveMembershipRequest(groupId: string) {
       queryClient.invalidateQueries({
         queryKey: ["groups", groupId, "members"],
       });
+      // Refresh the user's group memberships and their own requests list so that
+      // button states (Join/Leave, pending request badges) update immediately.
+      queryClient.invalidateQueries({ queryKey: ["groups", "user"] });
+      queryClient.invalidateQueries({
+        queryKey: ["groups", "requests", "mine"],
+      });
     },
   });
 }
