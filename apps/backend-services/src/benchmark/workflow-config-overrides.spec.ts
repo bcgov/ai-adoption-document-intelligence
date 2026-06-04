@@ -341,7 +341,7 @@ describe("applyWorkflowConfigOverrides", () => {
         "__proto__.polluted": true,
       }),
     ).toThrow(/Unsafe override path segment: __proto__/);
-    expect({}.hasOwnProperty("polluted")).toBe(false);
+    expect(Object.hasOwn({}, "polluted")).toBe(false);
   });
 
   it("rejects constructor path segments to prevent prototype pollution", () => {
@@ -351,6 +351,15 @@ describe("applyWorkflowConfigOverrides", () => {
         "constructor.prototype.polluted": true,
       }),
     ).toThrow(/Unsafe override path segment: constructor/);
-    expect({}.hasOwnProperty("polluted")).toBe(false);
+    expect(Object.hasOwn({}, "polluted")).toBe(false);
+  });
+
+  it("rejects path segments that are not plain identifiers", () => {
+    const config = makeWorkflowConfig();
+    expect(() =>
+      applyWorkflowConfigOverrides(config, {
+        "nodes.1node.parameters.model": "gpt-4o",
+      }),
+    ).toThrow(/Unsafe override path segment: 1node/);
   });
 });

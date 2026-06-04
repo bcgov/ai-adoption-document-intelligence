@@ -44,7 +44,7 @@ A definition can override:
 
 ## Security
 
-`applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow-config`) rejects dot-path segments named `__proto__`, `constructor`, or `prototype` so override keys cannot pollute `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`.
+`applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow-config`) rejects unsafe dot-path segments: blocklisted names (`__proto__`, `constructor`, `prototype`), empty segments, and segments that are not plain identifiers (`^[a-zA-Z][a-zA-Z0-9_-]*$`). The config copy uses null-prototype objects so nested assignment cannot reach `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`.
 
 ## Key Implementation Files
 
