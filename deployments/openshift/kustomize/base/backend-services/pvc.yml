@@ -7,9 +7,8 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
+  storageClassName: netapp-file-standard
   resources:
     requests:
       storage: 2Gi
-  # storageClassName can be set via kustomize patches for different environments
-  # Note: ReadWriteMany requires a storage class that supports it (e.g., NFS-based storage)
 
