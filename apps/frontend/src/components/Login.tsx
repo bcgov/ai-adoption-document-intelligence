@@ -1,5 +1,14 @@
 import { useAuth } from "../auth/useAuth";
-import { Badge, Button, Group, PanelCard, Stack, Text, Title } from "../ui";
+import {
+  Badge,
+  Button,
+  Center,
+  Group,
+  PanelCard,
+  Stack,
+  Text,
+  Title,
+} from "../ui";
 
 export const Login = () => {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -28,15 +37,17 @@ export const Login = () => {
             </Group>
           </Stack>
 
-          <Button
-            variant="primary"
-            danger
-            size="large"
-            onClick={() => logout()}
-            style={{ minWidth: 120 }}
-          >
-            Logout
-          </Button>
+          <Center>
+            <Button
+              variant="primary"
+              danger
+              size="large"
+              onClick={() => logout()}
+              style={{ minWidth: 120 }}
+            >
+              Logout
+            </Button>
+          </Center>
         </Stack>
       </PanelCard>
     );
@@ -51,14 +62,16 @@ export const Login = () => {
         <Text c="dimmed" ta="center" size="lg">
           Use your IDIR credentials to access the AI OCR application
         </Text>
-        <Button
-          variant="primary"
-          size="large"
-          onClick={() => login()}
-          style={{ minWidth: 150 }}
-        >
-          Login with IDIR
-        </Button>
+        <Center>
+          <Button
+            variant="primary"
+            size="large"
+            onClick={() => login()}
+            style={{ minWidth: 150 }}
+          >
+            Login with IDIR
+          </Button>
+        </Center>
       </Stack>
     </PanelCard>
   );
