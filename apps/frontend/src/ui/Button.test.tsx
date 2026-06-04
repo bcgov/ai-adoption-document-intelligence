@@ -13,6 +13,7 @@ const { mockBcdsButton, mockBcdsLink } = vi.hoisted(() => ({
       children: ReactNode;
       danger?: boolean;
       isPending?: boolean;
+      style?: CSSProperties;
       onClick?: MouseEventHandler<HTMLButtonElement>;
     }) => (
       <button

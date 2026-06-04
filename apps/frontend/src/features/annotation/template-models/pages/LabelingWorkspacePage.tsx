@@ -4,7 +4,7 @@ import {
   IconRefresh,
   IconRestore,
 } from "@tabler/icons-react";
-import { FC, useEffect, useMemo, useState } from "react";
+import { type FC, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import {
@@ -747,7 +747,12 @@ export const LabelingWorkspacePage: FC = () => {
       className="annotation-workspace"
       data-testid="labeling-workspace"
     >
-      <Group justify="space-between" wrap="nowrap" gap="sm" style={{ flexShrink: 0 }}>
+      <Group
+        justify="space-between"
+        wrap="nowrap"
+        gap="sm"
+        style={{ flexShrink: 0 }}
+      >
         <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
           <Button
             variant="subtle"
@@ -891,7 +896,7 @@ export const LabelingWorkspacePage: FC = () => {
             fw={600}
             mb="md"
             style={{ flexShrink: 0 }}
-            onClick={(e) => {
+            onClick={(e: MouseEvent) => {
               setActiveFieldKey(null);
               e.stopPropagation();
             }}
@@ -908,7 +913,9 @@ export const LabelingWorkspacePage: FC = () => {
             />
           </div>
 
-          <FieldListScrollArea onBackgroundClick={() => setActiveFieldKey(null)}>
+          <FieldListScrollArea
+            onBackgroundClick={() => setActiveFieldKey(null)}
+          >
             <FieldPanel
               fields={filteredSchema}
               values={labelValues}

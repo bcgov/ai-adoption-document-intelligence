@@ -68,8 +68,11 @@ function buildModalShellStyle(
         ? { width: size, maxWidth: "100%" }
         : {};
 
-  const { height: _height, maxHeight: _maxHeight, ...contentWithoutHeight } =
-    contentStyle ?? {};
+  const {
+    height: _height,
+    maxHeight: _maxHeight,
+    ...contentWithoutHeight
+  } = contentStyle ?? {};
 
   return {
     ...widthStyle,
