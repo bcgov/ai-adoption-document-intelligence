@@ -5,12 +5,12 @@ describe("validateColumnDefs", () => {
   it("accepts a valid column array", () => {
     const cols: ColumnDef[] = [
       {
-        key: "scheduleId",
+        key: "schedule_id",
         label: "Schedule ID",
         type: "string",
         required: true,
       },
-      { key: "issueDay", label: "Issue Day", type: "date" },
+      { key: "issue_day", label: "Issue Day", type: "date" },
     ];
     expect(() => validateColumnDefs(cols)).not.toThrow();
   });
@@ -108,5 +108,19 @@ describe("buildRowZodSchema", () => {
       { key: "ts", label: "TS", type: "datetime", required: true },
     ]);
     expect(() => schema.parse({ ts: "2026-04-22" })).toThrow();
+  });
+
+  it("accepts a valid year-month string", () => {
+    const schema = buildRowZodSchema([
+      { key: "ym", label: "YM", type: "year-month", required: true },
+    ]);
+    expect(() => schema.parse({ ym: "2026-04" })).not.toThrow();
+  });
+
+  it("rejects a full date for year-month type", () => {
+    const schema = buildRowZodSchema([
+      { key: "ym", label: "YM", type: "year-month", required: true },
+    ]);
+    expect(() => schema.parse({ ym: "2026-04-22" })).toThrow();
   });
 });

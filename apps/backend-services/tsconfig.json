@@ -21,7 +21,8 @@
     "noImplicitReturns": true,
     "paths": {
       "@/*": ["src/*"],
-      "@generated/*": ["src/generated/*"]
+      "@generated/*": ["src/generated/*"],
+      "mupdf": ["../../node_modules/mupdf/dist/mupdf"]
     }
   },
   "include": ["src/**/*"],

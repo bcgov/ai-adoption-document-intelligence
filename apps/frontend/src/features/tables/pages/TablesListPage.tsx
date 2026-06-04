@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/AuthContext";
 import { useGroup } from "@/auth/GroupContext";
 import {
   Button,
@@ -14,11 +15,14 @@ import { CreateTableModal } from "../components/CreateTableModal";
 import { useTables } from "../hooks/useTables";
 
 export function TablesListPage() {
+  const { isSystemAdmin } = useAuth();
   const { activeGroup } = useGroup();
   const navigate = useNavigate();
   const tables = useTables(activeGroup?.id ?? null);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+
+  const isAdmin = isSystemAdmin || activeGroup?.role === "ADMIN";
 
   const filtered = (tables.data ?? []).filter((t) =>
     t.label.toLowerCase().includes(search.toLowerCase()),
@@ -30,9 +34,11 @@ export function TablesListPage() {
         title="Tables"
         description="Manage reference data tables for your group."
         actions={
-          <Button onClick={() => setModalOpen(true)} disabled={!activeGroup}>
-            Create Table
-          </Button>
+          isAdmin ? (
+            <Button onClick={() => setModalOpen(true)} disabled={!activeGroup}>
+              Create Table
+            </Button>
+          ) : undefined
         }
       />
 

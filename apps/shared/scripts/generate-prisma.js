@@ -14,21 +14,26 @@ const schemaPath = path.join(sharedDir, 'prisma/schema.prisma');
 const tempOutputPath = path.join(sharedDir, 'prisma/generated-temp');
 
 // Target directories for both apps
-const backendServicesPath = path.join(sharedDir, '../backend-services/src/generated');
+const backendWorkspaceRoot = path.join(sharedDir, '../backend-services');
+const backendPrismaDir = path.join(backendWorkspaceRoot, 'prisma');
+const backendServicesPath = path.join(backendWorkspaceRoot, 'src/generated');
 const temporalPath = path.join(sharedDir, '../temporal/src/generated');
 
-// Create a temporary schema with the correct output path
-const tempSchemaPath = path.join(sharedDir, 'prisma/schema-temp.prisma');
+// Prisma 7 resolves @prisma/client from the schema file's package tree; a schema under
+// apps/shared has no node_modules. Write the temp schema under backend-services/prisma
+// and point generator output back to apps/shared/prisma/generated-temp.
+const tempSchemaPath = path.join(backendPrismaDir, 'schema-temp.prisma');
 const sharedSchema = fs.readFileSync(schemaPath, 'utf-8');
 const tempSchema = sharedSchema.replace(
   /generator client \{[\s\S]*?\}/,
   `generator client {
   provider = "prisma-client-js"
-  output   = "./generated-temp"
+  output   = "../../shared/prisma/generated-temp"
 }`
 );
 
 // Write temporary schema
+fs.mkdirSync(backendPrismaDir, { recursive: true });
 fs.writeFileSync(tempSchemaPath, tempSchema);
 
 function removeSourceMaps(dir) {
@@ -97,7 +102,7 @@ try {
     ['prisma', 'generate', `--schema=${tempSchemaPath}`],
     {
       stdio: 'inherit',
-      cwd: sharedDir,
+      cwd: backendWorkspaceRoot,
       env: { ...process.env, PATH: pathWithNode },
     },
   );

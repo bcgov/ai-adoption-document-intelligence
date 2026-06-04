@@ -11,7 +11,7 @@
 		"build:logging": "cd ../../packages/logging && npm run build",
 		"format": "prettier --write \"src/**/*.ts\"",
 		"start": "nest start",
-		"start:dev": "npm run build:logging && npm run build:graph-insertion-slots && CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 nest start --watch --preserveWatchOutput",
+		"start:dev": "npm run build:logging && npm run build:graph-insertion-slots && NODE_ENV=development CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 nest start --watch --preserveWatchOutput",
 		"start:prod": "node dist/main",
 		"lint": "npx @biomejs/biome check",
 		"lint:fix": "npm run lint -- --write",
@@ -33,6 +33,7 @@
 	"dependencies": {
 		"@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
 		"@ai-di/graph-insertion-slots": "file:../../packages/graph-insertion-slots",
+		"@ai-di/monitoring": "file:../../packages/monitoring",
 		"@ai-di/shared-logging": "file:../../packages/logging",
 		"@aws-sdk/client-s3": "3.990.0",
 		"@azure-rest/ai-document-intelligence": "1.1.0",
@@ -57,6 +58,7 @@
 		"class-validator": "0.14.4",
 		"cookie-parser": "1.4.7",
 		"dotenv": "17.2.3",
+		"mupdf": "1.27.0",
 		"express": "5.2.1",
 		"helmet": "8.1.0",
 		"jwks-rsa": "3.2.2",
@@ -130,7 +132,8 @@
 		],
 		"moduleNameMapper": {
 			"^@/(.*)$": "<rootDir>/$1",
-			"^@generated/(.*)$": "<rootDir>/generated/$1"
+			"^@generated/(.*)$": "<rootDir>/generated/$1",
+			"^mupdf$": "<rootDir>/../../../node_modules/mupdf/dist/mupdf"
 		},
 		"setupFiles": [
 			"./testUtils/testSetup.ts"

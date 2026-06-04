@@ -105,7 +105,7 @@
         "useNamespaceKeyword": "error",
         "useIterableCallbackReturn": "error",
         "noDoubleEquals": "error",
-        "noImplicitAnyLet":"error",
+        "noImplicitAnyLet": "error",
         "noGlobalIsNan": "error",
         "noTsIgnore": "error"
       },
@@ -127,5 +127,27 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/tools/load-testing/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/tools/load-testing/k6/**/*.js"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off"
+          }
+        }
+      }
+    }
+  ]
 }

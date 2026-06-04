@@ -85,7 +85,7 @@ describe("HitlDatasetService", () => {
       file_path: "testgroup/ocr/documents/doc-1/original.pdf",
       normalized_file_path: "testgroup/ocr/doc1/normalized.pdf",
       file_type: "pdf",
-      status: "completed_ocr",
+      status: "complete", // approved documents are in complete status
       group_id: "test-group",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [mockApprovedSession],
@@ -96,7 +96,7 @@ describe("HitlDatasetService", () => {
       file_path: "testgroup/ocr/documents/doc-2/original.pdf",
       normalized_file_path: "testgroup/ocr/doc2/normalized.pdf",
       file_type: "pdf",
-      status: "completed_ocr",
+      status: "complete", // approved documents are in complete status
       group_id: "test-group",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [

@@ -5,7 +5,8 @@
  *   1. External override file (sensitive secrets, outside the repo).
  *      Path: $DI_SECRETS_DIR/backend-services.env
  *            (default $DI_SECRETS_DIR = ~/.config/bcgov-di)
- *   2. Repo-local ./.env (non-sensitive defaults, shared with other devs).
+ *   2. Repo-root .env (shared with all apps — ../../.env relative to this app).
+ *   3. App-local ./.env (fallback for app-only overrides).
  *
  * Imported for side effects; must be the FIRST import in the entry point
  * so env is populated before any other module reads process.env at import time.
@@ -23,4 +24,7 @@ const overridePath = resolve(overrideDir, `${APP_NAME}.env`);
 if (existsSync(overridePath)) {
   dotenvConfig({ path: overridePath, quiet: true });
 }
+// Root-level .env (monorepo root, two levels up from apps/backend-services)
+dotenvConfig({ path: resolve(__dirname, "../../../.env"), quiet: true });
+// App-local .env as final fallback
 dotenvConfig({ quiet: true });

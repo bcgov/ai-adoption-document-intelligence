@@ -65,6 +65,7 @@ export async function updateDocumentStatus(params: {
     log.info("Update document status complete", {
       event: "complete",
       status,
+      alertType: "document_status_update",
     });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -91,6 +92,7 @@ export async function updateDocumentStatus(params: {
       error: getErrorMessage(error),
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "document_status_update",
     });
     throw error;
   }

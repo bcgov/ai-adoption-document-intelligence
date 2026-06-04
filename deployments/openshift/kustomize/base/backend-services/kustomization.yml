@@ -11,6 +11,8 @@ resources:
   - logrotate-configmap.yml
   - promtail-configmap.yml
   - networkpolicy.yml
+  - poddisruptionbudget.yml
+  - horizontalpodautoscaler.yml
 commonLabels:
   app: backend-services
   env: tools

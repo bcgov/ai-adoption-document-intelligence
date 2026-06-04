@@ -5,9 +5,12 @@ metadata:
   labels:
     app: backend-services
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: backend-services
@@ -16,6 +19,15 @@ spec:
       labels:
         app: backend-services
     spec:
+      # Allow 60 seconds for graceful shutdown: complete in-flight requests,
+      # close database connections, and clean up resources before forced termination.
+      terminationGracePeriodSeconds: 60
+      # IMPORTANT: When scaling this deployment, use gradual scaling or update the
+      # deployment's replicas field (which triggers rolling updates). Do NOT use
+      # `kubectl scale --replicas=N` to jump from 1->N replicas instantly, as this
+      # would cause N pods to start simultaneously and race to run migrations.
+      # With RollingUpdate strategy (maxSurge: 1), new pods start sequentially during
+      # normal deployments, so the migrate-db initContainer runs safely one at a time.
       initContainers:
       - name: migrate-db
         # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
@@ -143,6 +155,11 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+        - name: DOCUMENT_INTELLIGENCE_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DOCUMENT_INTELLIGENCE_MODE
         - name: AZURE_DOC_INTELLIGENCE_MODELS
           valueFrom:
             configMapKeyRef:
@@ -183,6 +200,30 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: BLOB_STORAGE_PROVIDER
+        - name: MINIO_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: MINIO_ENDPOINT
+              optional: true
+        - name: MINIO_DOCUMENT_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: MINIO_DOCUMENT_BUCKET
+              optional: true
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: MINIO_ROOT_USER
+              optional: true
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: MINIO_ROOT_PASSWORD
+              optional: true
         - name: AZURE_STORAGE_CONTAINER_NAME
           valueFrom:
             configMapKeyRef:
@@ -238,6 +279,11 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: THROTTLE_AUTH_REFRESH_LIMIT
+        - name: DB_POOL_MAX
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DB_POOL_MAX
         volumeMounts:
         - name: storage
           mountPath: /app/data/blobs
@@ -251,16 +297,20 @@ spec:
             memory: "512Mi"
             cpu: "500m"
         livenessProbe:
-          tcpSocket:
+          httpGet:
+            path: /health/live
             port: 3002
+            scheme: HTTP
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
-          tcpSocket:
+          httpGet:
+            path: /health/ready
             port: 3002
-          initialDelaySeconds: 10
+            scheme: HTTP
+          initialDelaySeconds: 15
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3

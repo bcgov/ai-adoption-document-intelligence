@@ -262,14 +262,14 @@ The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and suppo
 
 ## Local Development
 
-MinIO is started via Docker Compose (`apps/backend-services/docker-compose.yml`). The `minio-init` sidecar runs `scripts/init-minio.sh` which creates the required buckets:
+MinIO is started via Docker Compose (root `docker-compose.yml`, `infra` profile). The `minio-init` sidecar runs `scripts/init-minio.sh` which creates the required buckets:
 
 - `document-blobs` — primary storage for documents, labeling files, and datasets
 - `benchmark-outputs` — benchmark run artifacts
 
 ```bash
-# From apps/backend-services/
-docker compose up -d
+# From repo root
+docker compose --profile infra up -d
 ```
 
 - **MinIO API**: http://localhost:19000

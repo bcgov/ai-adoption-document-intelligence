@@ -1,0 +1,17 @@
+{{- if eq .Values.alertmanager.notificationChannel "ches" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plg.chesAdapter.fullname" . }}-logrotate
+  labels:
+    {{- include "plg.chesAdapter.labels" . | nindent 4 }}
+data:
+  ches-adapter: |
+    /var/log/app/ches-adapter.log {
+        copytruncate
+        rotate 5
+        size 50M
+        missingok
+        notifempty
+    }
+{{- end }}

@@ -4,14 +4,21 @@ import {
   type LogContext,
   type Logger as SharedLogger,
 } from "@ai-di/shared-logging";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
+import { MetricsService } from "@/metrics/metrics.service";
 import { getRequestContext } from "./request-context";
-
-const BASE_LOGGER = createLogger("backend-services");
 
 @Injectable()
 export class AppLoggerService {
-  private readonly logger: SharedLogger = BASE_LOGGER;
+  private readonly logger: SharedLogger;
+
+  constructor(@Optional() metricsService?: MetricsService) {
+    this.logger = createLogger(
+      "backend-services",
+      undefined,
+      metricsService?.getMetricsHook(),
+    );
+  }
 
   private mergeRequestContext(context?: LogContext): LogContext {
     const ctx = getRequestContext();

@@ -16,7 +16,8 @@ import {
 } from "../ui";
 
 export const DocumentsList: React.FC = () => {
-  const { data: documents, isLoading, error } = useDocuments();
+  const { data, isLoading, error } = useDocuments();
+  const documents = data?.documents;
 
   if (isLoading) {
     return (

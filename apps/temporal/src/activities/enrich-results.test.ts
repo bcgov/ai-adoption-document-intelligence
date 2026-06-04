@@ -3,11 +3,13 @@
  * Mocks database and optional LLM; uses real enrichment rules.
  */
 
+import * as loggerModule from "../logger";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 import { type EnrichResultsParams, enrichResults } from "./enrich-results";
 import * as enrichmentLlm from "./enrichment-llm";
 
+jest.mock("../logger");
 jest.mock("./database-client", () => ({
   getPrismaClient: jest.fn(),
 }));
@@ -77,9 +79,26 @@ describe("enrichResults activity", () => {
         findUnique: jest.fn(),
       },
     };
-    getPrismaClientMock.mockReturnValue(prismaMock);
+    jest.clearAllMocks();
+    // Set up the mocked logger — auto-mock creates jest.fn() stubs automatically
+    const mockLog = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      child: jest.fn(),
+    };
+    mockLog.child.mockReturnValue(mockLog);
+    jest
+      .mocked(loggerModule.createActivityLogger)
+      .mockReturnValue(
+        mockLog as unknown as ReturnType<
+          typeof loggerModule.createActivityLogger
+        >,
+      );
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
+    getPrismaClientMock.mockReturnValue(prismaMock);
   });
 
   afterEach(() => {
@@ -341,6 +360,52 @@ describe("enrichResults activity", () => {
       expect(
         result.summary === null || typeof result.summary === "object",
       ).toBe(true);
+    });
+  });
+
+  describe("alert instrumentation", () => {
+    it("logs info with alertType on successful completion", async () => {
+      prismaMock.templateModel.findUnique.mockResolvedValue(
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
+      );
+
+      await enrichResults({
+        documentId: "doc-1",
+        ocrResult: minimalOcrResult(),
+        documentType: "tm-1",
+      });
+
+      const mockLog = jest.mocked(loggerModule.createActivityLogger).mock
+        .results[0].value as { info: jest.Mock };
+      const completionCall = mockLog.info.mock.calls.find(
+        ([msg]: [string]) => msg === "Enrich results complete",
+      );
+      expect(completionCall).toBeDefined();
+      expect(completionCall?.[1]).toMatchObject({
+        alertType: "enrich_results",
+      });
+    });
+
+    it("logs error with alertType on database error", async () => {
+      prismaMock.templateModel.findUnique.mockRejectedValue(
+        new Error("Database connection failed"),
+      );
+
+      await enrichResults({
+        documentId: "doc-1",
+        ocrResult: minimalOcrResult(),
+        documentType: "tm-1",
+      });
+
+      const mockLog = jest.mocked(loggerModule.createActivityLogger).mock
+        .results[0].value as { error: jest.Mock };
+      const errorCall = mockLog.error.mock.calls.find(
+        ([msg]: [string]) => msg === "Enrich results error",
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[1]).toMatchObject({
+        alertType: "enrich_results",
+      });
     });
   });
 });

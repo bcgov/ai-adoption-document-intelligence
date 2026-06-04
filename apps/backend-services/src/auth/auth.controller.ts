@@ -93,6 +93,20 @@ export class AuthController {
     }
 
     const tokens = await this.authService.refreshAccessToken(refreshTokenValue);
+
+    // If the refresh grant did not return a new id_token (common with Keycloak),
+    // carry forward the existing id_token cookie so that id_token_hint remains
+    // available when the user logs out. Without it, Keycloak may not terminate
+    // the SSO session, causing silent re-authentication after logout.
+    if (!tokens.id_token) {
+      const existingIdToken = req.cookies?.[AUTH_COOKIE_NAMES.ID_TOKEN] as
+        | string
+        | undefined;
+      if (existingIdToken) {
+        tokens.id_token = existingIdToken;
+      }
+    }
+
     const csrfToken = generateCsrfToken();
     setAuthCookies(res, tokens, csrfToken);
 

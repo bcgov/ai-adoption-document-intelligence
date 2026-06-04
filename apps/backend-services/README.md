@@ -279,8 +279,8 @@ The project includes a `docker-compose.yml` for local development services (Post
 #### Starting Services
 
 ```bash
-# From apps/backend-services/
-docker compose up -d
+# From repo root
+docker compose --profile infra up -d
 ```
 
 This starts:
@@ -297,7 +297,7 @@ This starts:
 
 ```bash
 # Check container health
-docker ps | grep ai-doc-intelligence-minio
+docker ps | grep minio
 
 # Check bucket initialization logs
 docker compose logs minio-init
@@ -306,12 +306,12 @@ docker compose logs minio-init
 If `minio-init` failed (e.g., MinIO wasn't healthy in time), re-run it:
 
 ```bash
-docker compose up minio-init
+docker compose --profile infra up minio-init
 ```
 
 #### Troubleshooting MinIO
 
-- **Port conflict**: The compose file maps MinIO's internal ports 9000/9001 to host ports 19000/19001. If those are taken, adjust the port mappings in `docker-compose.yml`.
+- **Port conflict**: The compose file maps MinIO's internal ports 9000/9001 to host ports 19000/19001. If those are taken, adjust the port mappings in `docker-compose.yml` at the repo root.
 - **Buckets missing**: Check `docker compose logs minio-init` — the init container depends on MinIO's healthcheck and will retry until ready.
 - **Connection refused from app**: Ensure your `.env` has `MINIO_ENDPOINT=http://localhost:19000` (not port 9000).
 
@@ -339,8 +339,8 @@ npm run db:studio
 
 ```bash
 # Using Docker Compose (recommended for local development)
-cd ../temporal
-docker-compose up -d
+# From repo root
+docker compose --profile temporal up -d
 
 # Verify Temporal is running
 temporal server status
@@ -622,8 +622,8 @@ npm run db:generate
 Ensure Temporal server is running:
 
 ```bash
-cd ../temporal
-docker-compose ps
+# From repo root
+docker compose --profile temporal ps
 ```
 
 ### Azure Document Intelligence Errors

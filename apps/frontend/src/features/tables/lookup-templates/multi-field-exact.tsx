@@ -18,6 +18,8 @@ interface Pair {
 export const multiFieldExact: LookupTemplate = {
   id: "multi-field-exact",
   label: "Multi-field exact match",
+  description:
+    "Returns the row that matches on multiple columns at once — e.g. find a price by both region and product code.",
   toLookupDef(name, v, columns) {
     const pairs = (v.pairs as Pair[] | undefined) ?? [];
     return {

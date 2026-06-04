@@ -1,0 +1,42 @@
+{
+	"name": "ches-adapter",
+	"version": "1.0.0",
+	"description": "Minimal adapter that receives webhook payloads and delivers email notifications via CHES",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsx watch src/index.ts",
+		"type-check": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"lint": "npx @biomejs/biome check",
+		"lint:fix": "npm run lint -- --write",
+		"test": "jest",
+		"test:coverage": "jest --coverage"
+	},
+	"engines": {
+		"node": ">=24.0.0",
+		"npm": ">=10.0.0"
+	},
+	"dependencies": {
+		"dotenv": "16.5.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.8",
+		"@types/jest": "30.0.0",
+		"@types/node": "22.15.17",
+		"jest": "30.2.0",
+		"ts-jest": "29.4.5",
+		"tsx": "4.20.6",
+		"typescript": "5.9.3"
+	},
+	"jest": {
+		"moduleFileExtensions": ["js", "ts"],
+		"rootDir": "src",
+		"testRegex": ".*\\.spec\\.ts$",
+		"transform": {
+			"^.+\\.ts$": ["ts-jest", { "tsconfig": "<rootDir>/../tsconfig.json" }]
+		},
+		"testEnvironment": "node"
+	}
+}

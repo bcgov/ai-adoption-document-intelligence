@@ -361,10 +361,8 @@ MINIO_SECRET_KEY=minioadmin
 ### 4. Start Temporal Server
 
 ```bash
-cd apps/temporal
-
-# Start Temporal server with Docker Compose
-docker-compose up -d
+# From repo root
+docker compose --profile temporal up -d
 
 # Verify Temporal is running
 temporal server status
@@ -939,8 +937,7 @@ psql $DATABASE_URL
 **Temporal Connection Errors:**
 ```bash
 # Check Temporal server
-cd apps/temporal
-docker-compose ps
+docker compose --profile temporal ps
 
 # Verify temporal CLI
 temporal server status --address localhost:7233
