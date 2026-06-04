@@ -1,3 +1,5 @@
+import { describe, expect, it, vi } from "vitest";
+
 vi.mock("@bcgov/design-system-react-components", () =>
   import("../test/mockBcdsComponents").then((mod) =>
     mod.mockBcdsDesignSystem(),
@@ -5,7 +7,6 @@ vi.mock("@bcgov/design-system-react-components", () =>
 );
 
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
 import { Divider } from "./Divider";
 
 describe("Divider adapter", () => {
