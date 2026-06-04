@@ -1,11 +1,5 @@
-vi.mock("@bcgov/design-system-react-components", () =>
-  import("../test/mockBcdsComponents").then((mod) =>
-    mod.mockBcdsDesignSystem(),
-  ),
-);
-
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Tooltip } from "./Tooltip";
 
 describe("Tooltip adapter", () => {

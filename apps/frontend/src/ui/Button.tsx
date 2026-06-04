@@ -118,11 +118,14 @@ export function mapMantineVariantToBcds(
 function mapLinkButtonVariant(
   variant: AppButtonProps["variant"],
 ): NonNullable<BcdsLinkProps["buttonVariant"]> {
-  const mapped = mapMantineVariantToBcds(variant) ?? "primary";
+  const mapped = mapMantineVariantToBcds(variant);
   if (mapped === "link" || mapped === "tertiary") {
     return "tertiary";
   }
-  return mapped;
+  if (mapped === "secondary") {
+    return "secondary";
+  }
+  return "primary";
 }
 
 function mapSize(size: AppButtonProps["size"]): BcdsButtonProps["size"] {

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import { vi } from "vitest";
 
 type BcdsMocksState = ReturnType<typeof createBcdsMocksInternal>;
@@ -8,17 +8,41 @@ declare global {
   var __bcdsAdapterTestMocks: BcdsMocksState | undefined;
 }
 
+/** Test-only href guard: allow same-origin relative paths and fragments (CodeQL). */
+function testSafeHref(href: string | undefined): string {
+  if (href == null || href.length === 0) {
+    return "#";
+  }
+  if (href.startsWith("/") && !href.startsWith("//")) {
+    return href;
+  }
+  if (href.startsWith("#")) {
+    return href;
+  }
+  return "#";
+}
+
 function createBcdsMocksInternal() {
   const mockBcdsButton = vi.fn(
     ({
       children,
-      ...props
+      onClick,
+      "aria-label": ariaLabel,
+      disabled,
+      type,
     }: {
       children?: ReactNode;
-      onClick?: () => void;
-      [key: string]: unknown;
+      onClick?: MouseEventHandler<HTMLButtonElement>;
+      "aria-label"?: string;
+      disabled?: boolean;
+      type?: "button" | "submit" | "reset";
     }) => (
-      <button type="button" onClick={props.onClick as () => void} {...props}>
+      <button
+        type={type ?? "button"}
+        onClick={onClick}
+        aria-label={ariaLabel}
+        disabled={disabled}
+      >
         {children}
       </button>
     ),
@@ -26,7 +50,7 @@ function createBcdsMocksInternal() {
 
   const mockBcdsLink = vi.fn(
     ({ children, href }: { children?: ReactNode; href?: string }) => (
-      <a href={href}>{children}</a>
+      <a href={testSafeHref(href)}>{children}</a>
     ),
   );
 

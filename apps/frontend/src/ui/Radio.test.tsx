@@ -1,11 +1,5 @@
-vi.mock("@bcgov/design-system-react-components", () =>
-  import("../test/mockBcdsComponents").then((mod) =>
-    mod.mockBcdsDesignSystem(),
-  ),
-);
-
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { getBcdsMocks } from "../test/mockBcdsComponents";
 import { Radio } from "./Radio";
 

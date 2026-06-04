@@ -26,9 +26,16 @@ const { mockBcdsButton, mockBcdsLink } = vi.hoisted(() => ({
     ),
   ),
   mockBcdsLink: vi.fn(
-    ({ children, href }: { children: ReactNode; href?: string }) => (
-      <a href={href}>{children}</a>
-    ),
+    ({ children, href }: { children: ReactNode; href?: string }) => {
+      const safeHref =
+        href != null &&
+        href.length > 0 &&
+        ((href.startsWith("/") && !href.startsWith("//")) ||
+          href.startsWith("#"))
+          ? href
+          : "#";
+      return <a href={safeHref}>{children}</a>;
+    },
   ),
 }));
 

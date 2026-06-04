@@ -1,9 +1,3 @@
-vi.mock("@bcgov/design-system-react-components", () =>
-  import("../test/mockBcdsComponents").then((mod) =>
-    mod.mockBcdsDesignSystem(),
-  ),
-);
-
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IconActionButton } from "./IconActionButton";
