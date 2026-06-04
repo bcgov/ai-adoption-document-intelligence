@@ -37,6 +37,10 @@ interface AnnotationCanvasProps {
   onBoxCreate?: (box: BoundingBox) => void;
   onBoxHover?: (info: { boxId: string; x: number; y: number } | null) => void;
   rotation?: number;
+  /** Vertical position when the image is smaller than the canvas (default: center). */
+  verticalAlign?: "top" | "center";
+  /** Fraction of container used when fitting (1 = edge-to-edge). Default 0.95. */
+  fitPadding?: number;
 }
 
 export const AnnotationCanvas = forwardRef<
@@ -54,6 +58,8 @@ export const AnnotationCanvas = forwardRef<
       onBoxCreate,
       onBoxHover,
       rotation = 0,
+      verticalAlign = "center",
+      fitPadding = 0.95,
     },
     ref,
   ) => {
@@ -93,8 +99,8 @@ export const AnnotationCanvas = forwardRef<
       if (!effectiveDimensions || width <= 0 || height <= 0) return 1;
       const scaleX = width / effectiveDimensions.width;
       const scaleY = height / effectiveDimensions.height;
-      return Math.min(scaleX, scaleY) * 0.95; // 95% to leave some padding
-    }, [width, height, effectiveDimensions]);
+      return Math.min(scaleX, scaleY) * fitPadding;
+    }, [width, height, effectiveDimensions, fitPadding]);
 
     // Combined scale = fitScale * userZoom
     const effectiveScale = fitScale * userZoom;
@@ -129,12 +135,14 @@ export const AnnotationCanvas = forwardRef<
             : clamp(nextPan.x, minX, maxX);
         const y =
           scaledHeight < height
-            ? (height - scaledHeight) / 2
+            ? verticalAlign === "top"
+              ? 0
+              : (height - scaledHeight) / 2
             : clamp(nextPan.y, minY, maxY);
 
         return { x, y };
       },
-      [clamp, effectiveDimensions, width, height],
+      [clamp, effectiveDimensions, verticalAlign, width, height],
     );
 
     useImperativeHandle(

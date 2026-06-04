@@ -310,7 +310,13 @@ export function Button({
 
   const mergedStyle: CSSProperties = {
     ...buildMarginStyle({ mt, mb, ml, mr }),
-    ...(fullWidth ? { width: "100%" } : {}),
+    ...(fullWidth
+      ? { width: "100%", maxWidth: "100%" }
+      : {
+          width: "fit-content",
+          maxWidth: "100%",
+          alignSelf: "flex-start",
+        }),
     ...style,
   };
 

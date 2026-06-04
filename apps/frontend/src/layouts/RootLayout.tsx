@@ -40,6 +40,17 @@ const NAV_COLLAPSED = 72;
 
 const MAIN_CONTENT_ID = "main-content";
 
+/** Routes that use a fixed viewport workspace (document + field panel). */
+function isWorkspaceRoute(pathname: string): boolean {
+  return (
+    /^\/template-models\/[^/]+\/document\/[^/]+$/.test(pathname) ||
+    /^\/review\/[^/]+$/.test(pathname) ||
+    /^\/benchmarking\/datasets\/[^/]+\/versions\/[^/]+\/review\/[^/]+$/.test(
+      pathname,
+    )
+  );
+}
+
 export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,6 +58,7 @@ export function RootLayout() {
   const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
 
   const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
+  const workspaceRoute = isWorkspaceRoute(location.pathname);
 
   const navItems = useMemo(
     () => [
@@ -332,14 +344,28 @@ export function RootLayout() {
 
       <AppShell.Main
         id={MAIN_CONTENT_ID}
+        className={workspaceRoute ? "app-shell-main--workspace" : undefined}
         style={{ display: "flex", flexDirection: "column" }}
       >
-        <Stack gap="lg" style={{ minHeight: "100dvh" }}>
-          <Outlet />
-        </Stack>
-        <div className="app-shell-bcds-footer">
-          <Footer hideLogoAndLinks />
-        </div>
+        {workspaceRoute ? (
+          <>
+            <div className="app-shell-workspace-outlet">
+              <Outlet />
+            </div>
+            <div className="app-shell-bcds-footer app-shell-bcds-footer--workspace">
+              <Footer hideLogoAndLinks />
+            </div>
+          </>
+        ) : (
+          <>
+            <Stack gap="lg" style={{ minHeight: "100dvh" }}>
+              <Outlet />
+            </Stack>
+            <div className="app-shell-bcds-footer">
+              <Footer hideLogoAndLinks />
+            </div>
+          </>
+        )}
       </AppShell.Main>
     </AppShell>
   );

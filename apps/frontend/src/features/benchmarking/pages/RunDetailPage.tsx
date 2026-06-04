@@ -856,7 +856,7 @@ export function RunDetailPage() {
             title="No Baseline Set"
             data-testid="no-baseline-alert"
           >
-            <Stack gap="sm">
+            <Stack gap="sm" align="flex-start">
               <Text>
                 No baseline has been set for this definition. Promote this run
                 to baseline to enable performance comparisons for future runs.

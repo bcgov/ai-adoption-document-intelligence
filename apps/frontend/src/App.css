@@ -51,3 +51,75 @@
 .app-shell-bcds-footer .bcds-footer {
   width: 100%;
 }
+
+/* Full-height workspace routes (labeling, review) — workspace uses full viewport; footer below (page scroll) */
+.app-shell-main--workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.app-shell-workspace-outlet {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* One viewport for document + fields; footer is not in this box */
+  height: calc(
+    100dvh - var(--app-shell-header-offset, 0rem) -
+      2 * var(--app-shell-padding, 1rem)
+  );
+}
+
+.app-shell-bcds-footer--workspace {
+  flex-shrink: 0;
+}
+
+.app-shell-workspace-outlet > * {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Labeling / review workspace: grow document + fields row */
+.annotation-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.annotation-workspace > .mantine-Group-root:last-of-type {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Field panel list — scrolls inside the panel, not the page */
+.workspace-field-list-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  padding-right: var(--layout-padding-small);
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-color-border-dark)
+    var(--surface-color-background-light-gray);
+}
+
+.workspace-field-list-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.workspace-field-list-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--surface-color-border-dark);
+  border: 2px solid var(--surface-color-background-light-gray);
+  border-radius: var(--layout-border-radius-circular);
+  min-height: 2rem;
+}
+
+.workspace-field-list-scroll::-webkit-scrollbar-track {
+  background-color: var(--surface-color-background-light-gray);
+  border-radius: var(--layout-border-radius-circular);
+}

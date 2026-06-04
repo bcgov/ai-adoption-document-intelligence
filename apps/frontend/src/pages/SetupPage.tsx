@@ -103,7 +103,7 @@ export function SetupPage(): JSX.Element {
               )}
 
               {!statusLoading && !statusError && status?.eligible && (
-                <Stack gap="sm">
+                <Stack gap="sm" align="flex-start">
                   <Text size="sm">
                     Logged in as <strong>{user?.profile.email}</strong>.
                     Clicking the button below will:

@@ -221,7 +221,7 @@ export function SettingsPage() {
         title={`API Key Generated for ${activeGroup?.name}`}
         size="lg"
       >
-        <Stack gap="md">
+        <Stack gap="md" align="flex-start">
           <Alert
             icon={<IconAlertCircle size={16} />}
             title="Important"

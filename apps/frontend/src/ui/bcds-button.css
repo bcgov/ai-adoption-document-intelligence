@@ -2,6 +2,8 @@
  * BC Design System button polish for the Mantine-compat adapter.
  * Component styles ship inside @bcgov/design-system-react-components; these
  * rules align icon slots and prevent global app styles from fighting tokens.
+ *
+ * Default width is content-sized (see Button.tsx); fullWidth sets width: 100%.
  */
 
 .bcds-react-aria-Button .bcds-Button-icon {

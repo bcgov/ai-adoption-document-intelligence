@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { MouseEventHandler, ReactNode } from "react";
+import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockBcdsButton, mockBcdsLink } = vi.hoisted(() => ({
@@ -143,13 +143,30 @@ describe("Button adapter", () => {
     expect(rowClick).not.toHaveBeenCalled();
   });
 
+  it("defaults to content width in flex layouts", () => {
+    render(<Button>Save</Button>);
+    expect(mockBcdsButton).toHaveBeenCalledWith(
+      expect.objectContaining({
+        style: expect.objectContaining({
+          width: "fit-content",
+          alignSelf: "flex-start",
+        }),
+      }),
+    );
+  });
+
   it("applies fullWidth style", () => {
     render(<Button fullWidth>Wide</Button>);
     expect(mockBcdsButton).toHaveBeenCalledWith(
       expect.objectContaining({
-        style: expect.objectContaining({ width: "100%" }),
+        style: expect.objectContaining({
+          width: "100%",
+          maxWidth: "100%",
+        }),
       }),
     );
+    const style = mockBcdsButton.mock.calls[0]?.[0]?.style as CSSProperties;
+    expect(style.alignSelf).toBeUndefined();
   });
 
   it("renders anchor-style buttons with BC DS Link", () => {

@@ -50,6 +50,21 @@ export interface AppTooltipProps {
   w?: number | string;
 }
 
+function withInlineFlexTriggerStyle(child: ReactElement): ReactElement {
+  const props = child.props as { style?: CSSProperties };
+  const existing =
+    typeof props.style === "object" && props.style != null ? props.style : {};
+  if (existing.display != null) {
+    return child;
+  }
+  return cloneElement(child, {
+    style: {
+      display: "inline-flex",
+      ...existing,
+    },
+  } as Record<string, unknown>);
+}
+
 function ensureFocusableTrigger(child: ReactElement): ReactElement {
   const props = child.props as {
     tabIndex?: number;
@@ -57,7 +72,7 @@ function ensureFocusableTrigger(child: ReactElement): ReactElement {
     style?: CSSProperties;
   };
   if (props.tabIndex != null || props.role === "button") {
-    return child;
+    return withInlineFlexTriggerStyle(child);
   }
   return cloneElement(child, {
     tabIndex: 0,
@@ -96,7 +111,10 @@ export function Tooltip({
     contentStyle.whiteSpace = "pre-wrap";
   }
 
-  const trigger = ensureFocusableTrigger(onlyChild);
+  const trigger =
+    onlyChild.type === "span"
+      ? withInlineFlexTriggerStyle(onlyChild)
+      : ensureFocusableTrigger(onlyChild);
   const titleAttr = typeof label === "string" ? label : undefined;
   const triggerNode =
     titleAttr != null ? (

@@ -91,12 +91,14 @@ export const multiFieldExact: LookupTemplate = {
             </ActionIcon>
           </Group>
         ))}
-        <Button
-          variant="default"
-          onClick={() => update([...pairs, { column: "", param: "" }])}
-        >
-          Add field
-        </Button>
+        <Group>
+          <Button
+            variant="default"
+            onClick={() => update([...pairs, { column: "", param: "" }])}
+          >
+            Add field
+          </Button>
+        </Group>
       </Stack>
     );
   },
