@@ -333,4 +333,24 @@ describe("applyWorkflowConfigOverrides", () => {
     expect(params["model"]).toBe("gpt-4o");
     expect(params["temperature"]).toBe(0.1);
   });
+
+  it("rejects __proto__ path segments to prevent prototype pollution", () => {
+    const config = makeWorkflowConfig();
+    expect(() =>
+      applyWorkflowConfigOverrides(config, {
+        "__proto__.polluted": true,
+      }),
+    ).toThrow(/Unsafe override path segment: __proto__/);
+    expect({}.hasOwnProperty("polluted")).toBe(false);
+  });
+
+  it("rejects constructor path segments to prevent prototype pollution", () => {
+    const config = makeWorkflowConfig();
+    expect(() =>
+      applyWorkflowConfigOverrides(config, {
+        "constructor.prototype.polluted": true,
+      }),
+    ).toThrow(/Unsafe override path segment: constructor/);
+    expect({}.hasOwnProperty("polluted")).toBe(false);
+  });
 });
