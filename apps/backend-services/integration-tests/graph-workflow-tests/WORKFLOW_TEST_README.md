@@ -20,14 +20,12 @@ All of the following services must be running:
 
 1. **PostgreSQL (Backend Database)**
    ```bash
-   cd apps/backend-services
-   docker-compose up -d
+   docker compose --profile infra up -d
    ```
 
 2. **Temporal Server & PostgreSQL (Temporal Database)**
    ```bash
-   cd apps/temporal
-   docker-compose up -d
+   docker compose --profile temporal up -d
    ```
 
 3. **Temporal Worker**
@@ -175,7 +173,7 @@ When running successfully, you'll see output like:
 
 ### "Failed to connect to Temporal"
 
-- Ensure Temporal Server is running: `cd apps/temporal && docker-compose ps`
+- Ensure Temporal Server is running: `docker compose --profile temporal ps` (from repo root)
 - Check if port 7233 is accessible: `curl -v localhost:7233`
 
 ### "Backend API not reachable"

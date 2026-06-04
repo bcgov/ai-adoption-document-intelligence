@@ -4,6 +4,11 @@ import DocumentIntelligence, {
 } from "@azure-rest/ai-document-intelligence";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
+import {
+  MOCK_DOCUMENT_INTELLIGENCE_ENDPOINT,
+  mockClassificationPollResult,
+} from "@/azure/mock-document-intelligence.constants";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 type PollOperationResult = {
@@ -18,11 +23,34 @@ export class AzureService {
   private readonly client: DocumentIntelligenceClient;
   private readonly endpoint: string;
   private readonly apiKey: string;
+  private readonly mode: ReturnType<typeof resolveDocumentIntelligenceMode>;
 
   constructor(
     private configService: ConfigService,
     private readonly logger: AppLoggerService,
   ) {
+    this.mode = resolveDocumentIntelligenceMode(
+      this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
+    );
+
+    if (this.mode === "mock") {
+      this.endpoint = MOCK_DOCUMENT_INTELLIGENCE_ENDPOINT;
+      this.apiKey = "mock-api-key";
+      this.client = DocumentIntelligence(
+        this.endpoint,
+        { key: this.apiKey },
+        {
+          credentials: {
+            apiKeyHeaderName: "api-key",
+          },
+        },
+      );
+      this.logger.log(
+        "Azure Document Intelligence: DOCUMENT_INTELLIGENCE_MODE=mock — polling uses deterministic stubs (no live Azure).",
+      );
+      return;
+    }
+
     this.endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     )!;
@@ -39,6 +67,10 @@ export class AzureService {
         },
       },
     );
+  }
+
+  isMockMode(): boolean {
+    return this.mode === "mock";
   }
 
   getClient() {
@@ -109,6 +141,12 @@ export class AzureService {
    * @returns A response from Azure on your operation.
    */
   async checkOperationStatus(operationLocation: string) {
+    if (this.mode === "mock") {
+      return this.asPollResult(
+        mockClassificationPollResult() as unknown as PollOperationResult,
+      );
+    }
+
     const safeUrl = this.buildSafeOperationStatusUrl(operationLocation);
     // Reconstruct URL from trusted endpoint origin + validated path/query and disable redirects.
     const response = await fetch(safeUrl, {
@@ -190,6 +228,14 @@ export class AzureService {
       maxRetries?: number;
     },
   ): Promise<void> {
+    if (this.mode === "mock") {
+      await onSuccess(
+        this.asPollResult(
+          mockClassificationPollResult() as unknown as PollOperationResult,
+        ),
+      );
+      return;
+    }
     const maxRetries = options?.maxRetries ?? 5;
     const interval = options?.intervalMs ?? 5000;
     const getStatus = (result: PollOperationResult): string | undefined => {

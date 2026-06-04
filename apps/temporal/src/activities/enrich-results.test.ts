@@ -412,7 +412,7 @@ describe("enrichResults activity", () => {
       );
       expect(completionCall).toBeDefined();
       expect(completionCall?.[1]).toMatchObject({
-        alertType: "enrich_results_failed",
+        alertType: "enrich_results",
       });
     });
 
@@ -435,7 +435,7 @@ describe("enrichResults activity", () => {
       );
       expect(errorCall).toBeDefined();
       expect(errorCall?.[1]).toMatchObject({
-        alertType: "enrich_results_failed",
+        alertType: "enrich_results",
       });
     });
   });

@@ -578,7 +578,7 @@ export const ModelDetailPage: FC = () => {
                 <Table.Tbody>
                   {documents.map((doc) => {
                     const isReady =
-                      doc.labeling_document.status === "completed_ocr";
+                      doc.labeling_document.status === "extracted";
 
                     return (
                       <Table.Tr key={doc.id}>
@@ -590,7 +590,7 @@ export const ModelDetailPage: FC = () => {
                             size="sm"
                             variant="light"
                             color={
-                              doc.labeling_document.status === "completed_ocr"
+                              doc.labeling_document.status === "extracted"
                                 ? "green"
                                 : doc.labeling_document.status === "failed"
                                   ? "red"
@@ -601,8 +601,7 @@ export const ModelDetailPage: FC = () => {
                               ? "Pending OCR"
                               : doc.labeling_document.status === "ongoing_ocr"
                                 ? "Processing OCR"
-                                : doc.labeling_document.status ===
-                                    "completed_ocr"
+                                : doc.labeling_document.status === "extracted"
                                   ? "OCR Complete"
                                   : doc.labeling_document.status === "failed"
                                     ? "Failed"

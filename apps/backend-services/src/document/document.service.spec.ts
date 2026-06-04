@@ -282,7 +282,7 @@ describe("DocumentService", () => {
         id: "1",
         file_path: "testgroup1/ocr/documents/1/original.pdf",
         group_id: "testgroup1",
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
@@ -325,7 +325,7 @@ describe("DocumentService", () => {
         id: "1",
         file_path: "testgroup1/ocr/documents/1/original.pdf",
         group_id: "testgroup1",
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);

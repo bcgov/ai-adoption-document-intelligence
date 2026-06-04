@@ -184,6 +184,7 @@ export async function pollOCRResults(params: {
     log.info("Poll OCR results complete", {
       event: "complete",
       status,
+      alertType: "azure_ocr_poll",
     });
 
     if (status === "running") {
@@ -222,6 +223,7 @@ export async function pollOCRResults(params: {
       event: "error",
       error: getErrorMessage(error),
       stack: getErrorStack(error),
+      alertType: "azure_ocr_poll",
     });
     throw error;
   }

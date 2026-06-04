@@ -352,7 +352,7 @@ describe("GroundTruthGenerationService", () => {
           document: {
             id: "doc-id-1",
             original_filename: "doc-001.pdf",
-            status: DocumentStatus.completed_ocr,
+            status: DocumentStatus.extracted,
             model_id: "prebuilt-layout",
             created_at: new Date(),
             updated_at: new Date(),

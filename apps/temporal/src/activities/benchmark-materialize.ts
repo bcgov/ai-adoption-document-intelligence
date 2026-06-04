@@ -183,6 +183,7 @@ export async function materializeDataset(
       materializedPath,
       groupId,
       durationMs,
+      alertType: "benchmark_materialize",
     });
 
     return { materializedPath, groupId };
@@ -194,6 +195,7 @@ export async function materializeDataset(
       error: errorMessage,
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "benchmark_materialize",
     });
     throw error;
   }

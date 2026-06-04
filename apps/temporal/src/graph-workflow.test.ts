@@ -1076,6 +1076,7 @@ describe("Graph Workflow", () => {
         ctx: {
           approved: { type: "boolean" },
           reviewer: { type: "string" },
+          documentId: { type: "string", defaultValue: "test-doc" },
         },
       };
 
@@ -1114,7 +1115,7 @@ describe("Graph Workflow", () => {
         },
         edges: [],
         entryNodeId: "gate",
-        ctx: {},
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
       };
 
       const input = makeMockInput(graph);
@@ -1158,7 +1159,7 @@ describe("Graph Workflow", () => {
         },
         edges: [],
         entryNodeId: "gate",
-        ctx: {},
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
       };
 
       const input = makeMockInput(graph);
@@ -1207,7 +1208,7 @@ describe("Graph Workflow", () => {
         },
         edges: [{ id: "e1", source: "gate", target: "next", type: "normal" }],
         entryNodeId: "gate",
-        ctx: {},
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
       };
 
       const input = makeMockInput(graph);
@@ -1269,7 +1270,7 @@ describe("Graph Workflow", () => {
           },
         ],
         entryNodeId: "gate",
-        ctx: {},
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
       };
 
       const input = makeMockInput(graph);

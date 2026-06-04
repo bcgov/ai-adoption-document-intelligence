@@ -200,7 +200,7 @@ export async function enrichResults(
       ruleChangeCount: ruleChanges.length,
       llmChangeCount: llmChanges.length,
       hasSummary: !!summary,
-      alertType: "enrich_results_failed",
+      alertType: "enrich_results",
     });
 
     const { ocrResult: ocrResultRef } = await toOcrResultPort(
@@ -215,7 +215,7 @@ export async function enrichResults(
       event: "error",
       error: errorMessage,
       stack: getErrorStack(error),
-      alertType: "enrich_results_failed",
+      alertType: "enrich_results",
     });
     const { ocrResult: ocrResultRef } = await toOcrResultPort(
       ocrResult,

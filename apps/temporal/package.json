@@ -88,6 +88,6 @@
 		"moduleNameMapper": {
 			"^@generated/(.*)$": "<rootDir>/generated/$1"
 		},
-		"forceExit": true
+		"setupFilesAfterEnv": ["<rootDir>/jest-teardown.ts"]
 	}
 }

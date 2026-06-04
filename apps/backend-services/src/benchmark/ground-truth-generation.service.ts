@@ -711,15 +711,15 @@ export class GroundTruthGenerationService {
   // ---- Private helpers ----
 
   /**
-   * Sync job statuses: processing → awaiting_review when document is completed_ocr.
+   * Sync job statuses: processing → awaiting_review when document is extracted.
    */
   private async syncJobStatuses(versionId: string): Promise<void> {
-    // Sync document-level status transitions (completed_ocr → awaiting_review, failed → failed)
+    // Sync document-level status transitions (extracted → awaiting_review, failed → failed)
     const processingJobs =
       await this.jobDb.findProcessingJobsWithDocumentStatus(versionId);
 
     const jobsToUpdate = processingJobs.filter(
-      (j) => j.document?.status === DocumentStatus.completed_ocr,
+      (j) => j.document?.status === DocumentStatus.extracted,
     );
 
     const jobsToFail = processingJobs.filter(

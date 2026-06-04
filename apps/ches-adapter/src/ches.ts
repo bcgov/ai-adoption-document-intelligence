@@ -125,7 +125,9 @@ export function buildEmail(
   payload: AlertmanagerPayload,
   config: Config,
 ): ChesEmailPayload {
-  const alertName = escapeHtml(payload.commonLabels["alertname"] ?? "Unknown Alert");
+  const alertName = escapeHtml(
+    payload.commonLabels["alertname"] ?? "Unknown Alert",
+  );
   const severity = escapeHtml(payload.commonLabels["severity"] ?? "unknown");
   const job = escapeHtml(payload.commonLabels["job"] ?? "unknown");
   const subject = `[Alert: ${severity.toUpperCase()}] ${alertName} (${job})`;
@@ -225,5 +227,9 @@ export async function sendEmail(
 
   const result = (await response.json()) as ChesEmailResponse;
   const msgIds = result.messages.map((m) => m.msgId);
-  logger.info("CHES email queued", { correlationId, txId: result.txId, msgIds });
+  logger.info("CHES email queued", {
+    correlationId,
+    txId: result.txId,
+    msgIds,
+  });
 }

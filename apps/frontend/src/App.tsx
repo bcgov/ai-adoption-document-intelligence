@@ -24,9 +24,9 @@ import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
 import { RootLayout } from "./layouts/RootLayout";
 import ClassifierPage from "./pages/ClassifierPage";
+import { DocumentsPage } from "./pages/DocumentsPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
-import { QueuePage } from "./pages/QueuePage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
@@ -51,7 +51,7 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <UploadPage /> },
-      { path: "queue", element: <QueuePage /> },
+      { path: "documents", element: <DocumentsPage /> },
       { path: "classify", element: <ClassifierPage /> },
       { path: "settings", element: <SettingsPage /> },
 

@@ -43,6 +43,9 @@ type PreExecutionActivities = {
     workflowVersionId: string;
     configHash: string;
   }>;
+  "document.getStatus": (params: { documentId: string }) => Promise<{
+    status: string;
+  }>;
 };
 
 // Workflow type constant
@@ -225,6 +228,52 @@ export async function graphWorkflow(
     });
 
     overallStatus = result.status;
+
+    // Post-execution hook: If workflow completed successfully, transition documents
+    // from extracted to complete (documents that didn't go through HITL).
+    // Documents at awaiting_review (went through HumanGate) are left alone - HITL
+    // approval will transition them to complete.
+    if (
+      result.status === "completed" &&
+      input.initialCtx.documentId &&
+      typeof input.initialCtx.documentId === "string"
+    ) {
+      const postExecutionProxy = proxyActivities<PreExecutionActivities>({
+        startToCloseTimeout: "30s",
+        retry: { maximumAttempts: 5 },
+      });
+
+      try {
+        const { status: currentStatus } = await postExecutionProxy[
+          "document.getStatus"
+        ]({
+          documentId: input.initialCtx.documentId,
+        });
+
+        // Only transition from extracted to complete
+        // Leave awaiting_review alone (HITL handles that transition)
+        if (currentStatus === "extracted") {
+          await postExecutionProxy["document.updateStatus"]({
+            documentId: input.initialCtx.documentId,
+            status: "complete",
+          });
+
+          console.log(
+            `[GraphWorkflow] Post-execution: Updated document ${input.initialCtx.documentId} from extracted to complete`,
+          );
+        } else {
+          console.log(
+            `[GraphWorkflow] Post-execution: Document ${input.initialCtx.documentId} at status ${currentStatus}, skipping transition to complete`,
+          );
+        }
+      } catch (error) {
+        // Don't fail the workflow if post-execution hook fails
+        console.warn(
+          `[GraphWorkflow] Post-execution hook failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
     return result;
   } catch (error) {
     overallStatus = "failed";

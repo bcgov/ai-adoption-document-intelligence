@@ -5,6 +5,8 @@ import type { LookupTemplate } from "./types";
 export const exactMatch: LookupTemplate = {
   id: "exact-match",
   label: "Exact match",
+  description:
+    "Returns the row where the chosen column equals the value you pass in — e.g. find the customer whose ID matches.",
   toLookupDef(name, v, columns) {
     const col = String(v.column);
     const param = String(v.param);
@@ -42,7 +44,7 @@ export const exactMatch: LookupTemplate = {
         />
         <TextInput
           label="Param name"
-          description="The lookup will accept a parameter with this name"
+          description="Name this input — the workflow supplies a value for it at runtime (e.g. customer_id, order_ref)"
           required
           value={(values.param as string) ?? ""}
           onChange={(e) => setValue("param", e.currentTarget.value)}

@@ -5,6 +5,7 @@ import {
 } from "./activity-registry";
 
 const EXPECTED_ACTIVITY_TYPES = [
+  "document.getStatus",
   "document.updateStatus",
   "file.prepare",
   "azureOcr.submit",

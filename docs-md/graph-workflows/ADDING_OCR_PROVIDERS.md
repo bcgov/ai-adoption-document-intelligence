@@ -129,7 +129,7 @@ Guidelines:
 
 Update:
 
-- `apps/temporal/.env.sample` with required env vars and mock flags.
+- `.env.sample` at the repo root with required env vars and mock flags.
 - provider doc under `docs-md/graph-workflows/` with:
   - API assumptions (sync vs async)
   - mapping details to `OCRResult`

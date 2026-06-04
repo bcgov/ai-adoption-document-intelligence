@@ -22,6 +22,7 @@ import {
   checkOcrConfidence,
   enrichResults,
   extractOCRResults,
+  getDocumentStatus,
   getWorkflowGraphConfig,
   loadDatasetManifest,
   materializeDataset,
@@ -77,6 +78,14 @@ function register(entry: ActivityRegistryEntry): void {
 }
 
 // -- Existing activities ----------------------------------------------------
+
+register({
+  activityType: "document.getStatus",
+  activityFn: getDocumentStatus as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 5 },
+  description: "Get document status from database",
+});
 
 register({
   activityType: "document.updateStatus",
