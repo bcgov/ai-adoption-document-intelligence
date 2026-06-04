@@ -29,19 +29,21 @@ function createBcdsMocksInternal() {
       onClick,
       "aria-label": ariaLabel,
       disabled,
+      isDisabled,
       type,
     }: {
       children?: ReactNode;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       "aria-label"?: string;
       disabled?: boolean;
+      isDisabled?: boolean;
       type?: "button" | "submit" | "reset";
     }) => (
       <button
         type={type ?? "button"}
         onClick={onClick}
         aria-label={ariaLabel}
-        disabled={disabled}
+        disabled={disabled ?? isDisabled}
       >
         {children}
       </button>
