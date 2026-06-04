@@ -20,7 +20,13 @@ export interface AppModalProps {
     body?: CSSProperties;
     content?: CSSProperties;
     overlay?: CSSProperties;
+    header?: CSSProperties;
+    title?: CSSProperties;
   };
+  /** Remove default body padding (full-bleed content such as document viewer). */
+  fullBleedBody?: boolean;
+  /** Darker overlay backdrop (e.g. document viewer). */
+  darkOverlay?: boolean;
   /** Mantine prop — BC DS modal always portals */
   withinPortal?: boolean;
   /** Accessible name when no visible title is provided */
@@ -62,10 +68,23 @@ function buildModalShellStyle(
         ? { width: size, maxWidth: "100%" }
         : {};
 
+  const { height: _height, maxHeight: _maxHeight, ...contentWithoutHeight } =
+    contentStyle ?? {};
+
   return {
     ...widthStyle,
-    ...(contentStyle ?? {}),
+    ...contentWithoutHeight,
   };
+}
+
+function isTallModal(contentStyle?: CSSProperties): boolean {
+  if (!contentStyle) return false;
+  const height = contentStyle.height ?? contentStyle.maxHeight;
+  return (
+    height === "90vh" ||
+    height === "100vh" ||
+    (typeof height === "string" && height.includes("vh"))
+  );
 }
 
 function hasModalTitle(title: ReactNode | undefined): boolean {
@@ -81,12 +100,14 @@ export function Modal({
   title,
   children,
   size,
-  centered,
+  centered: _centered,
   closeOnClickOutside = true,
   closeOnEscape = true,
   withCloseButton = true,
   zIndex,
   styles,
+  fullBleedBody = false,
+  darkOverlay = false,
   "aria-label": ariaLabel,
   "data-testid": dataTestId,
 }: AppModalProps) {
@@ -99,25 +120,44 @@ export function Modal({
     ...(styles?.overlay ?? {}),
   };
 
+  const tallModal = isTallModal(styles?.content);
   const modalShellStyle = buildModalShellStyle(size, styles?.content);
   const bodyStyle: CSSProperties = styles?.body ?? {};
+  const headerStyle: CSSProperties = styles?.header ?? {};
+  const titleStyle: CSSProperties = styles?.title ?? {};
 
   const showTitle = hasModalTitle(title);
 
   const titleNode =
     typeof title === "string" ? (
-      <Title order={5} className="bcds-modal-title" slot="title">
+      <Title
+        order={5}
+        className="bcds-modal-title"
+        slot="title"
+        style={titleStyle}
+      >
         {title}
       </Title>
     ) : (
-      title
+      <div className="bcds-modal-title-custom" style={titleStyle}>
+        {title}
+      </div>
     );
 
   const modalClassName = [
     "bcds-react-aria-Modal",
     "bcds-app-modal",
     modalWidthClass(size),
-    centered ? "bcds-modal--centered" : null,
+    tallModal ? "bcds-modal--tall" : null,
+    zIndex != null && zIndex >= 1000 ? "bcds-modal--elevated" : null,
+    darkOverlay ? "bcds-modal--dark-overlay" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const bodyClassName = [
+    "bcds-modal-body",
+    fullBleedBody ? "bcds-modal-body--flush" : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -140,9 +180,11 @@ export function Modal({
         aria-label={showTitle ? undefined : ariaLabel}
       >
         {showTitle ? (
-          <div className="bcds-modal-header">{titleNode}</div>
+          <div className="bcds-modal-header" style={headerStyle}>
+            {titleNode}
+          </div>
         ) : null}
-        <div className="bcds-modal-body" style={bodyStyle}>
+        <div className={bodyClassName} style={bodyStyle}>
           {children}
         </div>
       </BcdsDialog>

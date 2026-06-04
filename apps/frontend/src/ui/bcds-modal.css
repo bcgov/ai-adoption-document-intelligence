@@ -1,72 +1,75 @@
 /**
  * App modal layout on top of BC DS Modal + Dialog.
  * BC DS Dialog has no content padding; AlertDialog does — these rules mirror that pattern.
+ *
+ * Do not override core `.bcds-react-aria-Modal` card styles (background, shadow, border)
+ * from the design system package — only width, height, and inner layout.
  */
 
-.bcds-react-aria-Modal.bcds-app-modal {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: var(--layout-margin-large);
-  max-height: 90vh;
-  overflow: auto;
-}
-
-/* Mantine `centered` — vertically center the modal on the overlay */
-.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--centered {
-  align-items: center;
-  padding-top: 0;
-}
-
-.bcds-react-aria-Modal.bcds-modal--xs {
+/* Width presets (BC DS default modal width is 600px) */
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--xs {
   width: min(20rem, calc(100vw - 2 * var(--layout-margin-large)));
 }
 
-.bcds-react-aria-Modal.bcds-modal--sm {
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--sm {
   width: min(24rem, calc(100vw - 2 * var(--layout-margin-large)));
 }
 
-.bcds-react-aria-Modal.bcds-modal--md {
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--md {
   width: min(32rem, calc(100vw - 2 * var(--layout-margin-large)));
 }
 
-.bcds-react-aria-Modal.bcds-modal--lg {
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--lg {
   width: min(48rem, calc(100vw - 2 * var(--layout-margin-large)));
 }
 
-.bcds-react-aria-Modal.bcds-modal--xl {
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--xl {
   width: min(64rem, calc(100vw - 2 * var(--layout-margin-large)));
 }
 
-.bcds-react-aria-Modal.bcds-modal--full {
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--full {
   width: min(96vw, calc(100vw - 2 * var(--layout-margin-large)));
 }
 
-.bcds-react-aria-Modal.bcds-modal--fluid {
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--fluid {
   width: min(90vw, calc(100vw - 2 * var(--layout-margin-large)));
+}
+
+/* Full-height modals (e.g. document viewer) */
+.bcds-react-aria-Modal.bcds-app-modal.bcds-modal--tall {
+  display: flex;
+  flex-direction: column;
+  height: 90vh;
+  max-height: 90vh;
+  overflow: hidden;
 }
 
 .bcds-modal-dialog.bcds-react-aria-Dialog {
   width: 100%;
   min-height: 0;
-  max-height: none;
-  overflow: visible;
+  flex: 1;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .bcds-modal-dialog .bcds-react-aria-Dialog--Container {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  max-height: 100%;
 }
 
 .bcds-modal-header {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
   padding: var(--layout-padding-medium) var(--layout-padding-large);
   padding-right: calc(
-    var(--layout-padding-large) +
-    var(--icons-size-medium) +
-    var(--layout-padding-small) *
-    2
+    var(--layout-padding-large) + var(--icons-size-medium) +
+      var(--layout-padding-small) * 2
   );
   border-bottom: var(--layout-border-width-small) solid
     var(--surface-color-border-default);
@@ -76,6 +79,7 @@
 .bcds-modal-title {
   margin: 0;
   flex: 1;
+  min-width: 0;
   font: var(--typography-bold-h5);
   color: var(--typography-color-primary);
 }
@@ -84,14 +88,36 @@
   display: flex;
   flex-direction: column;
   gap: var(--layout-margin-medium);
+  min-height: 0;
+  flex: 1;
   padding: var(--layout-padding-medium) var(--layout-padding-large);
+  overflow: hidden;
+}
+
+.bcds-modal-body.bcds-modal-body--flush {
+  gap: 0;
+  padding: 0;
 }
 
 /* Reserve space for the absolutely positioned close control when there is no title row */
 .bcds-modal-dialog:not(:has(.bcds-modal-header)) .bcds-modal-body {
   padding-top: calc(
-    var(--layout-padding-medium) +
-    var(--icons-size-medium) +
-    var(--layout-padding-small)
+    var(--layout-padding-medium) + var(--icons-size-medium) +
+      var(--layout-padding-small)
   );
+}
+
+/* Elevated stacking for modals that must sit above Mantine overlays */
+.react-aria-ModalOverlay:has(.bcds-app-modal.bcds-modal--elevated) {
+  z-index: 9999;
+}
+
+.react-aria-ModalOverlay:has(.bcds-app-modal.bcds-modal--dark-overlay) {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.bcds-modal-title-custom {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
 }

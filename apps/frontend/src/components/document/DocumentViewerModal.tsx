@@ -231,6 +231,9 @@ export function DocumentViewerModal({
     <Modal
       opened={opened}
       onClose={handleClose}
+      centered
+      fullBleedBody
+      darkOverlay
       title={
         <Group
           justify="space-between"
@@ -270,13 +273,13 @@ export function DocumentViewerModal({
       size="90vw"
       styles={{
         body: {
-          height: "90vh",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
         },
         content: { height: "90vh", overflow: "hidden" },
-        overlay: { backgroundColor: "rgba(0, 0, 0, 0.8)" },
+        header: { paddingRight: "1rem" },
+        title: { flex: 1, width: "100%" },
       }}
       zIndex={9999}
       closeOnClickOutside={true}
@@ -322,7 +325,14 @@ export function DocumentViewerModal({
               overflow: "hidden",
             }}
           >
-            <Tabs.List className="flex-shrink-0 px-4 pt-2">
+            <Tabs.List
+              className="flex-shrink-0"
+              style={{
+                paddingLeft: "var(--layout-padding-large)",
+                paddingRight: "var(--layout-padding-large)",
+                paddingTop: "var(--layout-padding-small)",
+              }}
+            >
               <Tabs.Tab
                 value="viewer"
                 leftSection={<IconFileDownload size={16} />}

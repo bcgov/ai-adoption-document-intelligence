@@ -163,7 +163,7 @@ When adding or migrating a component, follow this decision order:
 | `Radio` | B.C. DS `Radio` / `RadioGroup` | `BC DS native` | `Radio.tsx`. |
 | `NumberInput` | B.C. DS `NumberField` | `BC DS native` | `NumberInput.tsx`. |
 | `DateInput` | B.C. DS `DatePicker` | `BC DS native` | `DateInput.tsx`; Mantine `Date` value via `@internationalized/date`. |
-| `Modal` | B.C. DS `Modal` + `Dialog` | `BC DS native` | `Modal.tsx`; controlled `opened`/`onClose`; header/body padding and width on modal shell (`bcds-modal.css`, mirrors `AlertDialog` layout). Modal titles render BC DS `Heading` with `slot="title"` for React Aria dialog accessibility; modals without a visible title accept `aria-label`. |
+| `Modal` | B.C. DS `Modal` + `Dialog` | `BC DS native` | `Modal.tsx`; controlled `opened`/`onClose`; width/height on modal shell (`bcds-modal.css`) without overriding BC DS card chrome. Options: `fullBleedBody`, `darkOverlay`, tall layout via `styles.content.height` (`90vh` → `bcds-modal--tall`). Custom title nodes use `bcds-modal-title-custom`. Modal titles render BC DS `Heading` with `slot="title"` for React Aria dialog accessibility; modals without a visible title accept `aria-label`. |
 | `DataTable` | Mantine `Table` | `Mantine fallback` | [`DataTable.tsx`](apps/frontend/src/ui/DataTable.tsx): bordered wrapper, caption, `bcds-mantine-table` tokens |
 | `PanelCard` | Mantine `Paper` | `Application-specific` | `bcds-panel-card` token class |
 | `StatCard` | Mantine `Paper` + `Text` | `Application-specific` | `bcds-stat-card` token class |

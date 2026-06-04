@@ -141,31 +141,27 @@ describe("Modal", () => {
     );
   });
 
-  it("adds centered class when centered is true", () => {
+  it("adds tall and elevated classes for full-height high z-index modals", () => {
     render(
-      <Modal opened onClose={() => undefined} centered title="Test">
+      <Modal
+        opened
+        onClose={() => undefined}
+        zIndex={9999}
+        darkOverlay
+        title="Test"
+        styles={{ content: { height: "90vh" } }}
+      >
         Content
       </Modal>,
     );
 
     expect(mockBcdsModal).toHaveBeenCalledWith(
       expect.objectContaining({
-        className: expect.stringContaining("bcds-modal--centered"),
+        className: expect.stringMatching(
+          /bcds-modal--tall.*bcds-modal--elevated.*bcds-modal--dark-overlay/,
+        ),
       }),
     );
-  });
-
-  it("omits centered class when centered is not set", () => {
-    render(
-      <Modal opened onClose={() => undefined} title="Test">
-        Content
-      </Modal>,
-    );
-
-    const { className } = mockBcdsModal.mock.calls[0][0] as {
-      className: string;
-    };
-    expect(className).not.toContain("bcds-modal--centered");
   });
 
   it("passes slot title to Heading for dialog accessibility", () => {
