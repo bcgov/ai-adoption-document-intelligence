@@ -478,6 +478,7 @@ jobs:
             --set "alertmanager.minNotificationSeverity=${ALERTMANAGER_MIN_SEVERITY:-warning}" \
             --set "chesAdapter.image.repository=${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/ches-adapter" \
             --set "chesAdapter.image.tag=${{ needs.metadata.outputs.image-tag }}" \
+            --set "chesAdapter.imagePullSecret=${INSTANCE_NAME}-artifactory-pull" \
             --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
             --set "chesAdapter.secretName=${INSTANCE_NAME}-ches-adapter-secrets" \
             --set "alertmanager.teams.webhookUrl=${ALERTMANAGER_TEAMS_WEBHOOK_URL:-placeholder}" \
