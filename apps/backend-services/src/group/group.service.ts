@@ -244,13 +244,9 @@ export class GroupService {
         "Cannot cancel a request belonging to another user",
       );
     }
-    // Remove any prior resolved records that would violate the unique constraint
-    // on (group_id, user_id, status) when this PENDING request is updated to CANCELLED.
-    await this.groupDb.deleteResolvedMembershipRequests(
+    await this.groupDb.cancelRequestTransaction(
       request.user_id,
       request.group_id,
-    );
-    await this.groupDb.updateMembershipRequest(
       requestId,
       this.buildResolutionData(
         identity.actorId,

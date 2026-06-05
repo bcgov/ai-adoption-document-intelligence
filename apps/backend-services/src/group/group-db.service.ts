@@ -430,6 +430,52 @@ export class GroupDbService {
   }
 
   /**
+   * Atomically cancels a membership request.
+   * Deletes all prior resolved records for the user+group pair (APPROVED, DENIED,
+   * CANCELLED) within the same transaction before updating the PENDING request to
+   * CANCELLED. This prevents unique-constraint violations on (group_id, user_id, status).
+   *
+   * Note: GroupMembershipRequest rows are treated as ephemeral state. Historical
+   * resolution data is preserved in the audit log, not in this table.
+   *
+   * @param requestUserId - The user ID from the request.
+   * @param requestGroupId - The group ID from the request.
+   * @param requestId - The membership request ID.
+   * @param resolutionData - The update payload (status=CANCELLED, resolved_at, updated_by).
+   * @param tx - Optional. Prisma transaction client.
+   */
+  async cancelRequestTransaction(
+    requestUserId: string,
+    requestGroupId: string,
+    requestId: string,
+    resolutionData: Prisma.GroupMembershipRequestUpdateInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const run = async (client: Prisma.TransactionClient): Promise<void> => {
+      // Remove any prior resolved records that would violate the unique constraint
+      // on (group_id, user_id, status) when this PENDING request is updated to CANCELLED.
+      await client.groupMembershipRequest.deleteMany({
+        where: {
+          user_id: requestUserId,
+          group_id: requestGroupId,
+          id: { not: requestId },
+          status: { not: "PENDING" as $Enums.GroupMembershipRequestStatus },
+        },
+      });
+      await client.groupMembershipRequest.update({
+        where: { id: requestId },
+        data: resolutionData,
+      });
+    };
+
+    if (tx) {
+      await run(tx);
+      return;
+    }
+    await this.prisma.$transaction(run);
+  }
+
+  /**
    * Atomically approves a membership request: upserts the user into the group
    * and updates the request status within a single transaction.
    * @param requestUserId - The user ID from the request.

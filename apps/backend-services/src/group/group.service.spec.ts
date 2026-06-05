@@ -43,6 +43,7 @@ const stubGroupDbService: GroupDbService = {
   deleteResolvedMembershipRequests: jest.fn().mockResolvedValue(undefined),
   createMembershipRequest: jest.fn().mockResolvedValue({ id: "req-1" }),
   updateMembershipRequest: jest.fn().mockResolvedValue(undefined),
+  cancelRequestTransaction: jest.fn().mockResolvedValue(undefined),
   approveRequestTransaction: jest.fn().mockResolvedValue(undefined),
   findGroupMembershipRequests: jest.fn().mockResolvedValue([]),
   findUserMembershipRequests: jest.fn().mockResolvedValue([]),
@@ -553,15 +554,17 @@ describe("cancelMembershipRequest", () => {
     groupRoles: {},
   };
 
-  it("should update the request to CANCELLED with actor, resolved_at, and updated_by", async () => {
-    const updateMembershipRequest = jest.fn().mockResolvedValue(undefined);
+  it("should cancel atomically via cancelRequestTransaction with correct resolution data", async () => {
+    const cancelRequestTransaction = jest.fn().mockResolvedValue(undefined);
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
-      updateMembershipRequest,
+      cancelRequestTransaction,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await svc.cancelMembershipRequest(identity, requestId);
-    expect(updateMembershipRequest).toHaveBeenCalledWith(
+    expect(cancelRequestTransaction).toHaveBeenCalledWith(
+      pendingRequest.user_id,
+      pendingRequest.group_id,
       requestId,
       expect.objectContaining({
         status: "CANCELLED",
@@ -572,28 +575,30 @@ describe("cancelMembershipRequest", () => {
   });
 
   it("should store reason when provided", async () => {
-    const updateMembershipRequest = jest.fn().mockResolvedValue(undefined);
+    const cancelRequestTransaction = jest.fn().mockResolvedValue(undefined);
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
-      updateMembershipRequest,
+      cancelRequestTransaction,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await svc.cancelMembershipRequest(identity, requestId, "No longer needed");
-    expect(updateMembershipRequest).toHaveBeenCalledWith(
+    expect(cancelRequestTransaction).toHaveBeenCalledWith(
+      pendingRequest.user_id,
+      pendingRequest.group_id,
       requestId,
       expect.objectContaining({ reason: "No longer needed" }),
     );
   });
 
   it("should not include reason key when not provided", async () => {
-    const updateMembershipRequest = jest.fn().mockResolvedValue(undefined);
+    const cancelRequestTransaction = jest.fn().mockResolvedValue(undefined);
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
-      updateMembershipRequest,
+      cancelRequestTransaction,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await svc.cancelMembershipRequest(identity, requestId);
-    const callData = updateMembershipRequest.mock.calls[0][1];
+    const callData = cancelRequestTransaction.mock.calls[0][3];
     expect(callData).not.toHaveProperty("reason");
   });
 
