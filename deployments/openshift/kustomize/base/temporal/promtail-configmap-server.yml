@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: temporal-server-promtail
   labels:
-    app: temporal
+    app: temporal-server
 data:
   promtail.yaml: |
     server:

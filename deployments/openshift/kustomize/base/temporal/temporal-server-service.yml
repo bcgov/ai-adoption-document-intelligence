@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: temporal
   labels:
-    app: temporal
+    app: temporal-server
 spec:
   ports:
     - port: 7233
@@ -11,5 +11,5 @@ spec:
       protocol: TCP
       name: grpc
   selector:
-    app: temporal
+    app: temporal-server
   type: ClusterIP
