@@ -175,7 +175,7 @@ export function RowsTab({
         <Text size="sm" c="dimmed">
           {rows.data.total} {rows.data.total === 1 ? "row" : "rows"}
         </Text>
-        <Group gap="xs" align="center">
+        <Group gap="sm" align="center">
           {totalSelected > 0 && (
             <Button
               color="red"
@@ -192,7 +192,7 @@ export function RowsTab({
             <Popover.Target>
               <ActionIcon
                 variant="default"
-                size="md"
+                size={40}
                 aria-label="Show / hide columns"
                 title="Show / hide columns"
               >
