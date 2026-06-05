@@ -9,7 +9,7 @@ loki:
       memory: "256Mi"
       cpu: "500m"
     limits:
-      memory: "256Mi"
+      memory: "512Mi"
       cpu: "500m"
 
 prometheus:
