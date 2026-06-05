@@ -183,10 +183,12 @@ export interface OCRResult {
   extractedText: string;
   /**
    * Markdown rendering of the document, populated only when the OCR request
-   * was made with outputContentFormat="markdown".
+   * was made with outputContentFormat="markdown". Presence of this field is
+   * the discriminator for markdown-format output; downstream consumers
+   * derive contentFormat from `!!markdown` rather than carrying it
+   * separately.
    */
   markdown?: string;
-  contentFormat?: OcrOutputFormat;
   pages: Page[];
   tables: Table[];
   paragraphs: Paragraph[];

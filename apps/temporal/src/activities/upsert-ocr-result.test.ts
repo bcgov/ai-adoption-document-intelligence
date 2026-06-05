@@ -347,7 +347,7 @@ describe("upsertOcrResult activity", () => {
     expect(upsertCall.update.content.markdown).toBeUndefined();
   });
 
-  it("captures markdown content when contentFormat is markdown", async () => {
+  it("captures markdown content and stamps format=markdown when markdown is set", async () => {
     const ocrResult: OCRResult = {
       success: true,
       status: "succeeded",
@@ -357,7 +357,6 @@ describe("upsertOcrResult activity", () => {
       modelId: "prebuilt-read",
       extractedText: "",
       markdown: "# Title\n\nSome **bold** body.",
-      contentFormat: "markdown",
       pages: [
         {
           pageNumber: 1,

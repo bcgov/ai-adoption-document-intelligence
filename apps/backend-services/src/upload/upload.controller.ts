@@ -78,21 +78,15 @@ export class UploadController {
         uploadDto.original_filename ||
         `${uploadDto.title}.${uploadDto.file_type}`;
 
-      // Resolve group: explicit body > API key's group. Reject mismatches.
-      const apiKeyGroupId = req.apiKey?.groupId;
-      const groupId = uploadDto.group_id ?? apiKeyGroupId;
+      // Resolve group: explicit body > API key's group. Mismatches between the
+      // body's group_id and the API key's group are rejected by
+      // identityCanAccessGroup below (the API key's groupRoles only contains
+      // its own scoped group, so a foreign body group_id fails the membership
+      // check with a 403).
+      const groupId = uploadDto.group_id ?? req.apiKey?.groupId;
       if (!groupId) {
         throw new BadRequestException(
           "group_id is required when not authenticating with an API key",
-        );
-      }
-      if (
-        apiKeyGroupId &&
-        uploadDto.group_id &&
-        apiKeyGroupId !== uploadDto.group_id
-      ) {
-        throw new ForbiddenException(
-          "group_id does not match the API key's group",
         );
       }
       identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);

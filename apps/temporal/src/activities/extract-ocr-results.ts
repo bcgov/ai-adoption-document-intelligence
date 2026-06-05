@@ -93,7 +93,6 @@ export async function extractOCRResults(params: {
       modelId: analyzeResult.modelId || modelId || "prebuilt-layout",
       extractedText: isMarkdown ? "" : azureContent,
       markdown: isMarkdown ? azureContent : undefined,
-      contentFormat: isMarkdown ? "markdown" : "text",
       pages: analyzeResult.pages || [],
       tables: analyzeResult.tables || [],
       paragraphs: analyzeResult.paragraphs || [],
