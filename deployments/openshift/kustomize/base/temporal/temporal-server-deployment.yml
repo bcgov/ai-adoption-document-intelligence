@@ -3,16 +3,16 @@ kind: Deployment
 metadata:
   name: temporal
   labels:
-    app: temporal
+    app: temporal-server
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: temporal
+      app: temporal-server
   template:
     metadata:
       labels:
-        app: temporal
+        app: temporal-server
     spec:
       volumes:
         # Holds config_template.yaml + generated docker.yaml so main container sees both (entrypoint needs config_template.yaml).
