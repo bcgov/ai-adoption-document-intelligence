@@ -191,6 +191,8 @@ THROTTLE_AUTH_LIMIT=$(optional_cfg THROTTLE_AUTH_LIMIT 10)
 THROTTLE_AUTH_REFRESH_TTL_MS=$(optional_cfg THROTTLE_AUTH_REFRESH_TTL_MS 60000)
 THROTTLE_AUTH_REFRESH_LIMIT=$(optional_cfg THROTTLE_AUTH_REFRESH_LIMIT 5)
 
+DB_POOL_MAX=$(optional_cfg DB_POOL_MAX 20)
+
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=$(optional_cfg AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT "")
 AZURE_DOC_INTELLIGENCE_MODELS=$(optional_cfg AZURE_DOC_INTELLIGENCE_MODELS prebuilt-layout)
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=$(require_cfg AZURE_DOCUMENT_INTELLIGENCE_API_KEY)
@@ -328,6 +330,7 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --throttle-auth-limit "${THROTTLE_AUTH_LIMIT}" \
   --throttle-auth-refresh-ttl-ms "${THROTTLE_AUTH_REFRESH_TTL_MS}" \
   --throttle-auth-refresh-limit "${THROTTLE_AUTH_REFRESH_LIMIT}" \
+  --db-pool-max "${DB_POOL_MAX}" \
   --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT}" \
   --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT}" \
   --azure-openai-api-version "${AZURE_OPENAI_API_VERSION}" \

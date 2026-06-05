@@ -167,6 +167,12 @@ See [LOAD_TESTING.md](../LOAD_TESTING.md) for load-test usage of `mock`.
 |----------|-------------|
 | `BOOTSTRAP_ADMIN_EMAIL` | Email of the user who should be promoted to system admin on first launch. The Setup page only appears when zero admins exist in the database. Once bootstrap is complete this variable has no effect. |
 
+### Database Connection Pool
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_POOL_MAX` | `20` (dev), `10` (prod example) | Max concurrent PostgreSQL connections per **backend-services** pod. Wired to the Prisma/pg pool (`PrismaPg` `max`). Without an explicit value, Prisma defaults to `num_cpus * 2 + 1`, which is **3** in a 500m container and caps read throughput at ~7 req/s per pod regardless of VU count. Size to pod CPU and to `(backend_pods × DB_POOL_MAX) + (worker_pods × 3) < Postgres max_connections` when HPA is at max scale. |
+
 ### Rate Limiting
 
 | Variable | Description |

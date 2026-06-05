@@ -1,6 +1,7 @@
 import {
   getDatabaseConnectionString,
   getPrismaPgOptions,
+  getPrismaPoolMax,
 } from "./database-url";
 
 describe("database-url", () => {
@@ -61,6 +62,25 @@ describe("database-url", () => {
       process.env.PGSSLREJECTUNAUTHORIZED = "true";
       const result = getPrismaPgOptions("postgresql://localhost/db");
       expect(result.ssl).toBeUndefined();
+    });
+  });
+
+  describe("getPrismaPoolMax", () => {
+    it("returns default when env is undefined", () => {
+      expect(getPrismaPoolMax(undefined)).toBe(20);
+    });
+
+    it("returns parsed value from env", () => {
+      expect(getPrismaPoolMax("15")).toBe(15);
+    });
+
+    it("falls back when env is invalid", () => {
+      expect(getPrismaPoolMax("not-a-number", 10)).toBe(10);
+      expect(getPrismaPoolMax("0", 10)).toBe(10);
+    });
+
+    it("supports custom fallback for temporal workers", () => {
+      expect(getPrismaPoolMax(undefined, 3)).toBe(3);
     });
   });
 });

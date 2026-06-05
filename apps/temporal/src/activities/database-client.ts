@@ -1,6 +1,6 @@
 import { PrismaClient } from "@generated/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions } from "../utils/database-url";
+import { getPrismaPgOptions, getPrismaPoolMax, DEFAULT_TEMPORAL_DB_POOL_MAX } from "../utils/database-url";
 
 // Initialize Prisma client (singleton pattern)
 let prismaClient: PrismaClient | null = null;
@@ -13,14 +13,19 @@ export function getPrismaClient(): PrismaClient {
     }
     const dbOptions = getPrismaPgOptions(databaseUrl);
 
+    const poolMax = getPrismaPoolMax(
+      process.env.DB_POOL_MAX,
+      DEFAULT_TEMPORAL_DB_POOL_MAX,
+    );
+
     // Configure connection pool for horizontal scaling:
-    // - max: 3 connections per worker pod (lighter load than backend-services)
+    // - max: DB_POOL_MAX (default 3) — lighter load than backend-services
     // - idleTimeoutMillis: Close idle connections after 60s (reduces connection churn)
     // - connectionTimeoutMillis: Fail fast if pool is exhausted
     prismaClient = new PrismaClient({
       adapter: new PrismaPg({
         ...dbOptions,
-        max: parseInt(process.env.DB_POOL_MAX ?? "3", 10),
+        max: poolMax,
         idleTimeoutMillis: 60000,
         connectionTimeoutMillis: 5000,
       }),
