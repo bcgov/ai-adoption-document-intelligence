@@ -237,6 +237,7 @@ export function DocumentViewerModal({
       title={
         <Group
           justify="space-between"
+          pr={30}
           style={{ width: "100%", flex: 1 }}
           wrap="nowrap"
         >
