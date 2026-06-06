@@ -375,6 +375,41 @@ All endpoints reuse the existing `x-api-key` middleware + group-scoping. Any gro
 - Returns `{ entries: [...static, ...dynamicEntries] }`
 - Static entries are first; dynamic entries follow, sorted by `signature.name` for deterministic ordering
 
+### 5.4 Security posture & accepted risks (review follow-up — 2026-06-06)
+
+A post-implementation review of the Phase 6 execution boundary produced three
+hardening changes and one explicitly accepted risk.
+
+**Hardened (shipped):**
+
+- **Deploy wiring.** `DENO_RUNNER_URL`, `AI_DI_API_BASE_URL`, and
+  `DYNAMIC_NODE_ALLOW_NET` are now set in the OpenShift configmaps
+  (`backend-services-config`, `temporal-worker-config`). They were previously
+  unset, so both processes defaulted to `localhost` and could not reach the
+  `deno-runner:9090` Service — dynamic nodes were non-functional once deployed.
+  The backend and worker `DYNAMIC_NODE_ALLOW_NET` values MUST stay identical.
+- **Fail-closed allowlist.** `computeAllowNet` now keeps a signature host only
+  if it is present in the global allowlist (previously an empty allowlist meant
+  "no restriction"). This matches the publish-time gate (§5.1 step 4), so the
+  two layers agree and a version row carrying a non-allowlisted host cannot
+  widen run-time egress.
+- **Egress NetworkPolicy.** `deno-runner-egress` restricts the runner pod's
+  outbound traffic to DNS + `backend-services:3002`. With `DYNAMIC_NODE_ALLOW_NET`
+  empty, scripts can reach only the platform API. (Flagged NEEDS CLUSTER
+  VALIDATION in the manifest.)
+
+**Accepted risk (no code change — decision 2026-06-06):** the combination of
+(a) any group member being able to publish server-side scripts (§5.2, §11) and
+(b) the caller's group-scoped `AI_DI_API_KEY` being passed into the sandbox
+verbatim (§3, "Key provenance") means a group member can author a node that runs
+with a *different* group member's key. Accepted for now because: the new egress
+policy blocks exfiltration to arbitrary hosts; the key is group-scoped (not
+org-wide); and authoring is not yet a broad self-serve surface. **Revisit when**
+dynamic-node authoring opens to lower-trust / many users — at which point apply
+one or both of: restrict publish to an elevated role (cheap), or mint a per-run
+short-lived scoped token instead of the verbatim key (§12 — "per-invocation
+short-lived keys are 6.x").
+
 ---
 
 ## 6. The `dyn.run` Temporal activity
