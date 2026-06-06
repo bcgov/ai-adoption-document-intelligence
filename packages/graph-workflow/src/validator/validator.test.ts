@@ -1852,3 +1852,157 @@ describe("validateGraphConfig + resolveBindings: __auto. ctx keys are accepted",
     expect(result.errors).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Condition-expression structural completeness (review follow-up)
+//
+// Previously `validateExpression` only recursed into fields that happened to
+// be present, so a malformed expression (`{ operator: "and" }`, an `equals`
+// with no `left`/`right`, etc.) passed validation and only misbehaved at run
+// time inside the executor. These tests pin the now-required structure.
+// ---------------------------------------------------------------------------
+
+describe("condition-expression structural completeness", () => {
+  function pollUntilWithCondition(condition: unknown): GraphWorkflowConfig {
+    const pollNode = {
+      id: "poll",
+      type: "pollUntil",
+      label: "Poll",
+      activityType: "azureOcr.poll",
+      condition,
+      interval: "10s",
+    } as unknown as PollUntilNode;
+    return {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "poll",
+      ctx: { status: { type: "string" } },
+      nodes: { poll: pollNode },
+      edges: [],
+    };
+  }
+
+  function conditionErrors(
+    errors: GraphValidationError[],
+  ): GraphValidationError[] {
+    return errors.filter((e) => e.path.startsWith("nodes.poll.condition"));
+  }
+
+  it("logical `and` with missing operands → error", () => {
+    const result = validateGraphConfig(
+      pollUntilWithCondition({ operator: "and" }),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.poll.condition.operands",
+          severity: "error",
+        }),
+      ]),
+    );
+    expect(result.valid).toBe(false);
+  });
+
+  it("logical `or` with an empty operands array → error", () => {
+    const result = validateGraphConfig(
+      pollUntilWithCondition({ operator: "or", operands: [] }),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "nodes.poll.condition.operands" }),
+      ]),
+    );
+  });
+
+  it("`not` with a missing operand → error", () => {
+    const result = validateGraphConfig(
+      pollUntilWithCondition({ operator: "not" }),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.poll.condition.operand",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+
+  it("comparison with missing `left`/`right` → error at each", () => {
+    const result = validateGraphConfig(
+      pollUntilWithCondition({ operator: "equals" }),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "nodes.poll.condition.left" }),
+        expect.objectContaining({ path: "nodes.poll.condition.right" }),
+      ]),
+    );
+  });
+
+  it("null-check with a missing `value` → error", () => {
+    const result = validateGraphConfig(
+      pollUntilWithCondition({ operator: "is-null" }),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "nodes.poll.condition.value" }),
+      ]),
+    );
+  });
+
+  it("list-membership with missing `value`/`list` → error at each", () => {
+    const result = validateGraphConfig(
+      pollUntilWithCondition({ operator: "in" }),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "nodes.poll.condition.value" }),
+        expect.objectContaining({ path: "nodes.poll.condition.list" }),
+      ]),
+    );
+  });
+
+  it("value ref that is neither `ref` nor `literal` → error", () => {
+    const result = validateGraphConfig(
+      pollUntilWithCondition({
+        operator: "equals",
+        left: {},
+        right: { literal: 1 },
+      }),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.poll.condition.left",
+          message: expect.stringContaining("ref"),
+        }),
+      ]),
+    );
+  });
+
+  it("well-formed nested expression → no condition errors", () => {
+    const condition = {
+      operator: "and",
+      operands: [
+        { operator: "equals", left: { literal: 1 }, right: { literal: 2 } },
+        {
+          operator: "not",
+          operand: { operator: "is-null", value: { literal: null } },
+        },
+      ],
+    };
+    const result = validateGraphConfig(
+      pollUntilWithCondition(condition),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(conditionErrors(result.errors)).toEqual([]);
+  });
+});

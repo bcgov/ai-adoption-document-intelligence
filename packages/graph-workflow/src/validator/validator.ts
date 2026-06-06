@@ -706,14 +706,30 @@ function validateExpression(
   }
 
   if (VALID_COMPARISON_OPERATORS.includes(expr.operator)) {
-    const compExpr = expr as { left: ValueRef; right: ValueRef };
-    validateValueRef(compExpr.left, `${path}.left`, declaredCtxKeys, errors);
-    validateValueRef(compExpr.right, `${path}.right`, declaredCtxKeys, errors);
+    const compExpr = expr as { left?: ValueRef; right?: ValueRef };
+    validateRequiredValueRef(
+      compExpr.left,
+      `${path}.left`,
+      declaredCtxKeys,
+      errors,
+    );
+    validateRequiredValueRef(
+      compExpr.right,
+      `${path}.right`,
+      declaredCtxKeys,
+      errors,
+    );
   }
 
   if (VALID_LOGICAL_OPERATORS.includes(expr.operator)) {
-    const logExpr = expr as { operands: ConditionExpression[] };
-    if (logExpr.operands && Array.isArray(logExpr.operands)) {
+    const logExpr = expr as { operands?: ConditionExpression[] };
+    if (!Array.isArray(logExpr.operands) || logExpr.operands.length === 0) {
+      errors.push({
+        path: `${path}.operands`,
+        message: `"${expr.operator}" requires a non-empty "operands" array`,
+        severity: "error",
+      });
+    } else {
       for (let i = 0; i < logExpr.operands.length; i++) {
         validateExpression(
           logExpr.operands[i],
@@ -726,8 +742,14 @@ function validateExpression(
   }
 
   if (expr.operator === "not") {
-    const notExpr = expr as { operand: ConditionExpression };
-    if (notExpr.operand) {
+    const notExpr = expr as { operand?: ConditionExpression };
+    if (notExpr.operand === undefined || notExpr.operand === null) {
+      errors.push({
+        path: `${path}.operand`,
+        message: `"not" requires an "operand" expression`,
+        severity: "error",
+      });
+    } else {
       validateExpression(
         notExpr.operand,
         `${path}.operand`,
@@ -738,15 +760,66 @@ function validateExpression(
   }
 
   if (VALID_NULL_CHECK_OPERATORS.includes(expr.operator)) {
-    const nullExpr = expr as { value: ValueRef };
-    validateValueRef(nullExpr.value, `${path}.value`, declaredCtxKeys, errors);
+    const nullExpr = expr as { value?: ValueRef };
+    validateRequiredValueRef(
+      nullExpr.value,
+      `${path}.value`,
+      declaredCtxKeys,
+      errors,
+    );
   }
 
   if (VALID_LIST_MEMBERSHIP_OPERATORS.includes(expr.operator)) {
-    const listExpr = expr as { value: ValueRef; list: ValueRef };
-    validateValueRef(listExpr.value, `${path}.value`, declaredCtxKeys, errors);
-    validateValueRef(listExpr.list, `${path}.list`, declaredCtxKeys, errors);
+    const listExpr = expr as { value?: ValueRef; list?: ValueRef };
+    validateRequiredValueRef(
+      listExpr.value,
+      `${path}.value`,
+      declaredCtxKeys,
+      errors,
+    );
+    validateRequiredValueRef(
+      listExpr.list,
+      `${path}.list`,
+      declaredCtxKeys,
+      errors,
+    );
   }
+}
+
+/**
+ * Validate a value ref that is structurally required by its parent operator.
+ * Unlike `validateValueRef` (which silently ignores a missing / non-object
+ * ref), this emits an error when the ref is absent or is neither a `{ ref }`
+ * nor a `{ literal }`. Closes the gap where a comparison / null-check / list
+ * operator with a missing operand passed validation and only failed at run
+ * time.
+ */
+function validateRequiredValueRef(
+  ref: ValueRef | undefined,
+  path: string,
+  declaredCtxKeys: Set<string>,
+  errors: GraphValidationError[],
+): void {
+  if (ref === undefined || ref === null || typeof ref !== "object") {
+    errors.push({
+      path,
+      message: "Expected a value ref (`{ ref }` or `{ literal }`)",
+      severity: "error",
+    });
+    return;
+  }
+  const hasStringRef =
+    "ref" in ref && typeof (ref as { ref?: unknown }).ref === "string";
+  const hasLiteral = "literal" in ref;
+  if (!hasStringRef && !hasLiteral) {
+    errors.push({
+      path,
+      message: "Value ref must have either `ref` (string) or `literal`",
+      severity: "error",
+    });
+    return;
+  }
+  validateValueRef(ref, path, declaredCtxKeys, errors);
 }
 
 function validateDurations(
