@@ -1,7 +1,7 @@
 /**
  * Insert disposable HITL-eligible documents plus OCR results for review API load tests.
  *
- * Documents are synthetic, source="api", completed_ocr, and use id prefix "ldt-hitl-".
+ * Documents are synthetic, source="api", awaiting_review, and use id prefix "ldt-hitl-".
  * Deleting by prefix cascades review sessions, locks, corrections, and OCR results.
  */
 import "dotenv/config";
@@ -127,7 +127,7 @@ WITH inserted_documents AS (
       'synthetic', true
     ),
     'api',
-    'completed_ocr'::"DocumentStatus",
+    'awaiting_review'::"DocumentStatus",
     NOW(),
     NOW(),
     'prebuilt-layout',
