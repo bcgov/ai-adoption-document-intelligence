@@ -30,3 +30,11 @@ data:
   THROTTLE_AUTH_LIMIT: "10"
   THROTTLE_AUTH_REFRESH_TTL_MS: "60000"
   THROTTLE_AUTH_REFRESH_LIMIT: "5"
+  # Phase 6 dynamic nodes — deno-runner sidecar (internal ClusterIP service).
+  # The backend POSTs /check here at publish time; without it the client
+  # defaults to localhost:9099 and publish-time type-checking fails.
+  DENO_RUNNER_URL: "http://deno-runner:9090"
+  # Global egress allowlist for dynamic-node scripts (comma-separated hosts),
+  # enforced at publish time. MUST stay identical to temporal-worker-config.
+  # Empty = scripts may reach only the platform API.
+  DYNAMIC_NODE_ALLOW_NET: ""

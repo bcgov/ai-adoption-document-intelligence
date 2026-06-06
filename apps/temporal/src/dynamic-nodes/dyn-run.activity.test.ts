@@ -406,10 +406,10 @@ describe("dynRun — Scenario 6: output structural check", () => {
 });
 
 describe("computeAllowNet + extractHost — unit helpers", () => {
-  it("empty global allowlist → keeps signature hosts as-is", () => {
+  it("empty global allowlist → drops signature hosts (fail-closed), keeps API host", () => {
     expect(
       computeAllowNet(new Set(), ["api.example.com"], "localhost:3002"),
-    ).toEqual(["api.example.com", "localhost:3002"]);
+    ).toEqual(["localhost:3002"]);
   });
 
   it("global allowlist intersects with signature", () => {

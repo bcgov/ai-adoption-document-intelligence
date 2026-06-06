@@ -22,3 +22,36 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: deno-runner-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: deno-runner
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution (CoreDNS / kube-dns) — needed to resolve the platform API
+    # host and any future allowlisted hosts.
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Platform API callback ONLY. Dynamic-node scripts receive AI_DI_API_BASE_URL
+    # (the backend-services Service) plus a group-scoped key; with
+    # DYNAMIC_NODE_ALLOW_NET empty they can reach nothing else. If external hosts
+    # are later allowlisted, add matching egress rules here as well.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: backend-services
+      ports:
+        - protocol: TCP
+          port: 3002
+# NEEDS CLUSTER VALIDATION: the DNS rule allows :53 to all destinations (tighten
+# to the openshift-dns namespace if your CNI requires it), and the
+# backend-services pod label + port 3002 must match the deployed Service.

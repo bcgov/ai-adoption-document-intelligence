@@ -201,13 +201,16 @@ function parseAllowlist(raw: string | undefined): ReadonlySet<string> {
 }
 
 /**
- * Compute the intersected allowNet per L32:
- *   `(global ∩ signature) ∪ {API_BASE_URL host}`
+ * Compute the effective allowNet per L32:
+ *   `(signature ∩ global) ∪ {API_BASE_URL host}`
  *
- * If `global` is empty, treat it as "no restriction at the global layer"
- * and keep the signature's hosts as-is. The signature-side intersection
- * is enforced at publish time (US-164), so any host already present in
- * `signature.allowNet` is known to be globally allowed.
+ * Fail-closed: a signature host is kept only if it is explicitly present in
+ * the global allowlist. An empty global allowlist therefore yields just the
+ * API host. This mirrors the publish-time gate (`validateAllowlist`), which
+ * already rejects any host absent from the global allowlist — so the two
+ * layers now agree, and a version row that somehow carries a non-allowlisted
+ * host (e.g. one inserted outside the publish path) cannot widen run-time
+ * egress. The worker's `DYNAMIC_NODE_ALLOW_NET` MUST match the backend's.
  */
 export function computeAllowNet(
   global: ReadonlySet<string>,
@@ -216,7 +219,7 @@ export function computeAllowNet(
 ): string[] {
   const hosts = new Set<string>();
   for (const host of signatureAllowNet) {
-    if (global.size === 0 || global.has(host)) {
+    if (global.has(host)) {
       hosts.add(host);
     }
   }

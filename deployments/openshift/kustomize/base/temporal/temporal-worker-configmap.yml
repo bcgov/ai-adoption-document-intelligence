@@ -20,3 +20,16 @@ data:
   AZURE_OPENAI_DEPLOYMENT: ""
   AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
   ENRICHMENT_REDACT_PII: "false"
+  # Phase 6 dynamic nodes — deno-runner sidecar (internal ClusterIP service).
+  # The worker POSTs /execute here at run time; without this the client defaults
+  # to localhost:9099 and cannot reach the runner, so every dyn.run fails.
+  DENO_RUNNER_URL: "http://deno-runner:9090"
+  # Base URL injected into dynamic-node scripts as AI_DI_API_BASE_URL so they can
+  # call back into the platform API. In-cluster this is the backend Service —
+  # the localhost default is only valid for host-based local dev.
+  AI_DI_API_BASE_URL: "http://backend-services:3002"
+  # Global egress allowlist for dynamic-node scripts (comma-separated hosts).
+  # MUST stay identical to backend-services-config: the backend enforces it at
+  # publish time, the worker re-enforces it at run time. Empty = scripts may
+  # reach only AI_DI_API_BASE_URL.
+  DYNAMIC_NODE_ALLOW_NET: ""
