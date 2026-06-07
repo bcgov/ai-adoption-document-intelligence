@@ -10,6 +10,9 @@ import { ActivityCatalogController } from "./activity-catalog.controller";
 
 function makeReq(groupId: string | null, userId?: string): Request {
   return {
+    headers: {},
+    query: {},
+    body: {},
     resolvedIdentity:
       groupId === null
         ? null
@@ -24,6 +27,9 @@ function makeReq(groupId: string | null, userId?: string): Request {
 
 function makeSystemAdminReq(): Request {
   return {
+    headers: {},
+    query: {},
+    body: {},
     resolvedIdentity: {
       userId: "admin-user",
       isSystemAdmin: true,
@@ -35,6 +41,9 @@ function makeSystemAdminReq(): Request {
 function makeMultiGroupReq(groupIds: string[]): Request {
   const groupRoles = Object.fromEntries(groupIds.map((g) => [g, "MEMBER"]));
   return {
+    headers: {},
+    query: {},
+    body: {},
     resolvedIdentity: {
       userId: "u-multi",
       isSystemAdmin: false,

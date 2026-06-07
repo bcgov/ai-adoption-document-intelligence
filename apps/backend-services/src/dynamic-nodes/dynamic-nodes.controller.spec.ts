@@ -35,6 +35,9 @@ const SAMPLE_SIGNATURE: DynamicNodeSignature = {
 
 function makeReq(groupId: string | null, userId?: string): Request {
   return {
+    headers: {},
+    query: {},
+    body: {},
     resolvedIdentity:
       groupId === null
         ? null
@@ -326,6 +329,9 @@ describe("DynamicNodesController", () => {
   describe("group scoping", () => {
     it("rejects callers with no group membership (400)", async () => {
       const req = {
+        headers: {},
+        query: {},
+        body: {},
         resolvedIdentity: {
           isSystemAdmin: false,
           groupRoles: {},
@@ -339,6 +345,9 @@ describe("DynamicNodesController", () => {
 
     it("rejects callers with multiple groups (400) — no disambiguation in 6.0", async () => {
       const req = {
+        headers: {},
+        query: {},
+        body: {},
         resolvedIdentity: {
           isSystemAdmin: false,
           groupRoles: { "g-1": "MEMBER", "g-2": "MEMBER" },
@@ -352,6 +361,9 @@ describe("DynamicNodesController", () => {
 
     it("rejects system-admin callers without explicit group context (400)", async () => {
       const req = {
+        headers: {},
+        query: {},
+        body: {},
         resolvedIdentity: {
           isSystemAdmin: true,
           groupRoles: {},

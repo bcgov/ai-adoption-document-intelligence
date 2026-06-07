@@ -109,9 +109,6 @@ describe("WorkflowController", () => {
       updateWorkflow: jest.fn(),
       deleteWorkflow: jest.fn(),
       revertHeadToVersion: jest.fn(),
-      cancelInFlightTriesForLineage: jest
-        .fn()
-        .mockResolvedValue({ cancelledCount: 0 }),
     } as unknown as jest.Mocked<WorkflowService>;
 
     temporalClient = {
@@ -125,6 +122,9 @@ describe("WorkflowController", () => {
       listRunsForWorkflow: jest
         .fn()
         .mockResolvedValue({ executions: [], nextCursor: null }),
+      cancelInFlightTriesForLineage: jest
+        .fn()
+        .mockResolvedValue({ cancelledCount: 0 }),
     } as unknown as jest.Mocked<TemporalClientService>;
 
     sourceUploadService = {
@@ -910,6 +910,8 @@ describe("WorkflowController", () => {
         "wv-wf-1",
         { customerId: "cust-001" },
         "group-1",
+        undefined,
+        undefined,
       );
     });
 
@@ -955,6 +957,8 @@ describe("WorkflowController", () => {
         "wv-wf-1",
         {},
         "group-1",
+        undefined,
+        undefined,
       );
     });
 
@@ -1039,6 +1043,8 @@ describe("WorkflowController", () => {
         "wv-v2",
         {},
         "group-1",
+        undefined,
+        undefined,
       );
     });
 
@@ -1248,6 +1254,8 @@ describe("WorkflowController", () => {
           "wv-wf-1",
           { documentUrl: "https://example.com/doc.pdf" },
           "group-1",
+          undefined,
+          undefined,
         );
       });
 
@@ -1357,6 +1365,8 @@ describe("WorkflowController", () => {
             extra: true,
           },
           "group-1",
+          undefined,
+          undefined,
         );
       });
 
@@ -1404,6 +1414,8 @@ describe("WorkflowController", () => {
           "wv-v1",
           { documentUrl: "https://example.com/v1.pdf" },
           "group-1",
+          undefined,
+          undefined,
         );
       });
     });
