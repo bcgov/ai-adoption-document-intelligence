@@ -62,7 +62,13 @@
 		"@swc/core-linux-x64-gnu": "1.15.3",
 		"@swc/core-linux-x64-musl": "1.15.3"
 	},
+	"overridesNotes": {
+		"@xyflow/react.zustand": "Pinned to zustand v4 because React Flow (@xyflow/react) only supports zustand ^4.4; our top-level zustand is v5 for @assistant-ui. REMOVE this override when React Flow ships zustand v5 support (as of @xyflow/react 12.11.0 it still requires ^4.4.0)."
+	},
 	"overrides": {
+		"@xyflow/react": {
+			"zustand": "4.5.7"
+		},
 		"@hono/node-server": "1.19.13",
 		"@nestjs/throttler": {
 			"@nestjs/core": "11.1.19",

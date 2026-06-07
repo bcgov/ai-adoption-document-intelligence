@@ -46,7 +46,8 @@
 		"react-konva": "19.2.1",
 		"react-router-dom": "7.14.0",
 		"recharts": "3.7.0",
-		"zod": "3.25.76"
+		"zod": "3.25.76",
+		"zustand": "5.0.13"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",
