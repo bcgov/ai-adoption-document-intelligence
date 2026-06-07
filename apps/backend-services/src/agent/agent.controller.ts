@@ -13,25 +13,26 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 import type { UIMessage } from "ai";
 import type { Request, Response } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { getIdentityGroupIds } from "@/auth/identity.helpers";
 import { AbortFlagMap } from "./abort-flag-map";
-import type { AgentProvider } from "./agent.env";
 import { AgentService } from "./agent.service";
-
-interface AgentChatRequestBody {
-  conversationId?: string | null;
-  workflowId?: string | null;
-  /** Active group ID — required for system-admin callers; otherwise inferred from membership. */
-  groupId?: string | null;
-  provider?: AgentProvider;
-  model?: string;
-  /** UI messages forwarded from assistant-ui's composer. */
-  messages: UIMessage[];
-}
+import { AgentChatRequestDto } from "./dto/agent-chat-request.dto";
+import {
+  AbortConversationResponseDto,
+  ConversationDetailResponseDto,
+  ConversationListResponseDto,
+} from "./dto/agent-conversation.dto";
 
 @ApiTags("agent")
 @Controller("api/agent")
@@ -48,10 +49,17 @@ export class AgentController {
     summary:
       "Stream a Phase 7 agent chat turn. Returns a Vercel AI SDK UI message stream consumed by assistant-ui's runtime adapter.",
   })
+  @ApiOkResponse({
+    description:
+      "A Vercel AI SDK UI message stream (text/event-stream). The `x-conversation-id` response header carries the conversation id.",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Caller is unauthenticated or could not be scoped to a group.",
+  })
   async chat(
     @Req() req: Request,
     @Res() res: Response,
-    @Body() body: AgentChatRequestBody,
+    @Body() body: AgentChatRequestDto,
   ): Promise<void> {
     const { actorId, groupId, apiKey } = resolveCallerOrThrow(req);
     const backendBaseUrl =
@@ -67,7 +75,9 @@ export class AgentController {
       backendBaseUrl,
       provider: body.provider,
       model: body.model,
-      messages: body.messages ?? [],
+      // DTO-validated as a bounded array of objects; the precise UIMessage
+      // shape is owned by the AI SDK that consumes the stream.
+      messages: (body.messages ?? []) as unknown as UIMessage[],
     });
 
     res.setHeader("x-conversation-id", result.conversationId);
@@ -78,10 +88,18 @@ export class AgentController {
 
   @Get("conversations")
   @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "List the caller's chat conversations (optionally filtered by workflow).",
+  })
+  @ApiOkResponse({ type: ConversationListResponseDto })
+  @ApiUnauthorizedResponse({
+    description: "Caller is unauthenticated or could not be scoped to a group.",
+  })
   async listConversations(
     @Req() req: Request,
     @Query("workflowId") workflowId?: string,
-  ) {
+  ): Promise<ConversationListResponseDto> {
     const { actorId, groupId } = resolveCallerOrThrow(req);
     const items = await this.agentService.listConversationsForCaller({
       actorId,
@@ -93,7 +111,18 @@ export class AgentController {
 
   @Get("conversations/:id")
   @Identity({ allowApiKey: true })
-  async getConversation(@Req() req: Request, @Param("id") id: string) {
+  @ApiOperation({ summary: "Fetch a single conversation and its messages." })
+  @ApiOkResponse({ type: ConversationDetailResponseDto })
+  @ApiUnauthorizedResponse({
+    description: "Caller is unauthenticated or could not be scoped to a group.",
+  })
+  @ApiNotFoundResponse({
+    description: "No conversation with that id is owned by the caller.",
+  })
+  async getConversation(
+    @Req() req: Request,
+    @Param("id") id: string,
+  ): Promise<ConversationDetailResponseDto> {
     const { actorId } = resolveCallerOrThrow(req);
     return this.agentService.getConversationForCaller(id, actorId);
   }
@@ -101,14 +130,38 @@ export class AgentController {
   @Delete("conversations/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @Identity({ allowApiKey: true })
-  async deleteConversation(@Req() req: Request, @Param("id") id: string) {
+  @ApiOperation({ summary: "Delete one of the caller's conversations." })
+  @ApiNoContentResponse({ description: "Conversation deleted." })
+  @ApiUnauthorizedResponse({
+    description: "Caller is unauthenticated or could not be scoped to a group.",
+  })
+  @ApiNotFoundResponse({
+    description: "No conversation with that id is owned by the caller.",
+  })
+  async deleteConversation(
+    @Req() req: Request,
+    @Param("id") id: string,
+  ): Promise<void> {
     const { actorId } = resolveCallerOrThrow(req);
     await this.agentService.deleteConversationForCaller(id, actorId);
   }
 
   @Post("conversations/:id/abort")
   @Identity({ allowApiKey: true })
-  async abortConversation(@Req() req: Request, @Param("id") id: string) {
+  @ApiOperation({
+    summary: "Signal an in-flight chat stream for this conversation to abort.",
+  })
+  @ApiOkResponse({ type: AbortConversationResponseDto })
+  @ApiUnauthorizedResponse({
+    description: "Caller is unauthenticated or could not be scoped to a group.",
+  })
+  @ApiNotFoundResponse({
+    description: "No conversation with that id is owned by the caller.",
+  })
+  async abortConversation(
+    @Req() req: Request,
+    @Param("id") id: string,
+  ): Promise<AbortConversationResponseDto> {
     const { actorId } = resolveCallerOrThrow(req);
     // Verify ownership (throws 404 on cross-user access).
     await this.agentService.getConversationForCaller(id, actorId);

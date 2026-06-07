@@ -117,10 +117,9 @@ export class AgentService {
       const firstUserText = extractTextFromUIMessage(latestUserMessage);
       void this.generateTitle(conversation.id, firstUserText, model).catch(
         (err: unknown) => {
-          this.logger.error?.(
-            "AgentService title-gen failed",
-            err instanceof Error ? err.message : String(err),
-          );
+          this.logger.error?.("AgentService title-gen failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
         },
       );
     }
@@ -177,23 +176,21 @@ export class AgentService {
             outputTokens: event.usage?.outputTokens ?? null,
           });
         } catch (err) {
-          this.logger.error?.(
-            "AgentService.onFinish persistence failed",
-            err instanceof Error ? err.stack : String(err),
-          );
+          this.logger.error?.("AgentService.onFinish persistence failed", {
+            stack: err instanceof Error ? err.stack : String(err),
+          });
         }
       },
       onError: ({ error }) => {
-        this.logger.error?.(
-          "AgentService streamText error",
-          error instanceof Error ? error.stack : String(error),
-        );
+        this.logger.error?.("AgentService streamText error", {
+          stack: error instanceof Error ? error.stack : String(error),
+        });
       },
     });
 
     // Clear the abort registration once the stream completes so the
     // map doesn't leak entries across long-lived conversations.
-    void result.finishReason.finally(() => {
+    void Promise.resolve(result.finishReason).finally(() => {
       this.abortFlags.clear(conversation.id);
     });
 
@@ -205,7 +202,14 @@ export class AgentService {
     groupId: string;
     workflowId?: string | null;
   }) {
-    return this.chatRepository.listConversationsForUser(input);
+    // Conversations are keyed by `createdBy` (set to the actor id at creation
+    // time), so map the caller's actorId onto the repository's `createdBy`
+    // filter. Passing `actorId` straight through queried `createdBy: undefined`.
+    return this.chatRepository.listConversationsForUser({
+      groupId: input.groupId,
+      createdBy: input.actorId,
+      workflowId: input.workflowId,
+    });
   }
 
   async getConversationForCaller(id: string, actorId: string) {
