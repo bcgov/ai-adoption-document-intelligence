@@ -105,6 +105,7 @@ import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
 import { findNextFreePosition } from "./place-extended-node";
 import { swapActivityType } from "./swap-node-type";
+import { useHoverExtend } from "./use-hover-extend";
 import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
 
 interface WorkflowEditorCanvasProps {
@@ -1366,99 +1367,17 @@ function WorkflowEditorCanvasInner({
     [config, simplifiedView],
   );
 
-  // -------------------------------------------------------------------------
-  // Hover-to-extend (US-045)
-  //   The source `out` handle drives a 200ms-debounced popover that lets
-  //   the user pick the next node + edge in one click. Open / close are
-  //   both debounced (open on 200ms hover, close on 200ms grace after
-  //   mouseleave) so the picker doesn't flicker as the cursor crosses
-  //   the gap from the handle to the popover.
-  // -------------------------------------------------------------------------
-  const [hoverExtend, setHoverExtend] = useState<{
-    nodeId: string;
-    anchor: { x: number; y: number };
-  } | null>(null);
-  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Cancel any pending timers on unmount so a stray callback doesn't fire
-  // after the canvas has gone away.
-  useEffect(() => {
-    return () => {
-      if (openTimerRef.current) clearTimeout(openTimerRef.current);
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    };
-  }, []);
-
-  const handleSourceHandleEnter = useCallback(
-    (nodeId: string, anchor: { x: number; y: number }) => {
-      // If a close was scheduled (e.g. the user just re-entered the same
-      // handle), cancel it — the user is still in the hover region.
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = null;
-      }
-      // Already pending open for the same node — do nothing.
-      if (openTimerRef.current) {
-        clearTimeout(openTimerRef.current);
-      }
-      openTimerRef.current = setTimeout(() => {
-        openTimerRef.current = null;
-        setHoverExtend({ nodeId, anchor });
-      }, 200);
-    },
-    [],
-  );
-
-  const handleSourceHandleLeave = useCallback(() => {
-    // Cancel any pending open — the user moved off the handle before the
-    // 200ms threshold elapsed.
-    if (openTimerRef.current) {
-      clearTimeout(openTimerRef.current);
-      openTimerRef.current = null;
-    }
-    // Grace period before closing — gives the user time to slide onto
-    // the popover.
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-    }
-    closeTimerRef.current = setTimeout(() => {
-      closeTimerRef.current = null;
-      setHoverExtend(null);
-    }, 200);
-  }, []);
-
-  const handlePopoverEnter = useCallback(() => {
-    // The cursor crossed the gap onto the popover — cancel the close
-    // timer so the popover stays open.
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  }, []);
-
-  const handlePopoverLeave = useCallback(() => {
-    // Re-arm the close grace timer when the cursor leaves the popover.
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-    }
-    closeTimerRef.current = setTimeout(() => {
-      closeTimerRef.current = null;
-      setHoverExtend(null);
-    }, 200);
-  }, []);
-
-  const closeHoverExtend = useCallback(() => {
-    if (openTimerRef.current) {
-      clearTimeout(openTimerRef.current);
-      openTimerRef.current = null;
-    }
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-    setHoverExtend(null);
-  }, []);
+  // Hover-to-extend (US-045) — debounced source-handle popover. See
+  // use-hover-extend.ts. Picking a node stays here since it mutates the graph
+  // (the hook owns only the open/close timer state + popover handlers).
+  const {
+    hoverExtend,
+    handleSourceHandleEnter,
+    handleSourceHandleLeave,
+    handlePopoverEnter,
+    handlePopoverLeave,
+    closeHoverExtend,
+  } = useHoverExtend();
 
   const projectionCallbacks = useMemo<ProjectionCallbacks>(
     () => ({
