@@ -85,6 +85,7 @@
 		"@nestjs/testing": "11.1.19",
 		"@swc/cli": "0.7.9",
 		"@swc/core": "1.15.3",
+		"@swc/jest": "0.2.39",
 		"@testcontainers/postgresql": "11.10.0",
 		"@types/bcrypt": "6.0.0",
 		"@types/cookie-parser": "1.4.10",
@@ -120,6 +121,26 @@
 		"rootDir": "src",
 		"testRegex": ".*\\.spec\\.ts$",
 		"transform": {
+			"src/agent/.*\\.(t|j)s$": [
+				"@swc/jest",
+				{
+					"jsc": {
+						"parser": {
+							"syntax": "typescript",
+							"decorators": true,
+							"dynamicImport": true
+						},
+						"transform": {
+							"legacyDecorator": true,
+							"decoratorMetadata": true
+						},
+						"target": "es2022"
+					},
+					"module": {
+						"type": "commonjs"
+					}
+				}
+			],
 			"^.+\\.(t|j)s$": "ts-jest"
 		},
 		"collectCoverageFrom": [
@@ -131,6 +152,8 @@
 		],
 		"coverageDirectory": "../coverage",
 		"testEnvironment": "node",
+		"maxWorkers": 4,
+		"workerIdleMemoryLimit": "2GB",
 		"transformIgnorePatterns": [
 			"node_modules/(?!(uuid|openid-client|oauth4webapi|jose))"
 		],
