@@ -428,7 +428,7 @@ Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph
 
 Critical preferences (honour these):
 
-1. **Don't dump intermediate code/text at him.** Only surface clickable milestones. He explicitly said *"How am I supposed to verify what you just did? I'm not reviewing code at this phase, tell me when there's something I can play around with."*
+1. **Don't dump intermediate code/text at the owner.** Only surface clickable milestones — the expectation is to verify by trying something hands-on, not by reviewing code at this phase.
 2. **Stop pinging him with mid-work updates.** End-of-turn summary should be terse and only when the milestone is interactive.
 3. **Work milestone-by-milestone.** Commit between milestones.
 4. **Locked decisions are locked.** Don't re-raise typed I/O, single-in/single-out, shared package vs sibling, or Zod v4 vs Zod 3. All resolved in [IMPLEMENTATION_PLAN.md §3](IMPLEMENTATION_PLAN.md).

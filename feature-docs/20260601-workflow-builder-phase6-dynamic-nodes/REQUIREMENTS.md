@@ -14,7 +14,7 @@
 
 Today (post-Phase-4 + post-Phase-8) the V2 editor is a live execution surface for the 41 activities baked into the static catalog. To add a 42nd capability — a custom OCR call, a non-trivial transform, a one-off API integration — the only path is editing TypeScript in the codebase and shipping a release. That's slow for power users and impossible for the **AI agent that Phase 7 will introduce**.
 
-The user vision: *"can we have dynamic nodes, or basically nodes that you define at runtime, like Windmill"* ([NOTES.md §1.6](../../docs-md/workflow-builder/NOTES.md#16-dynamic-nodes-windmill-inspiration)). Phase 7 closes the loop: *"instruct an AI agent to build these workflows for you on the fly… work in a feedback loop where it sets up the pipeline and tests it"* ([NOTES.md §1.7](../../docs-md/workflow-builder/NOTES.md#17-ai-built-workflows--feedback-loop)).
+The user vision: dynamic nodes — nodes defined at runtime, in the style of Windmill ([NOTES.md §1.6](../../docs-md/workflow-builder/NOTES.md#16-dynamic-nodes-windmill-inspiration)). Phase 7 closes the loop: an AI agent that builds these workflows on the fly, working in a feedback loop where it sets up the pipeline and tests it ([NOTES.md §1.7](../../docs-md/workflow-builder/NOTES.md#17-ai-built-workflows--feedback-loop)).
 
 Phase 6 reframes "dynamic nodes" around the **agent feedback loop**:
 

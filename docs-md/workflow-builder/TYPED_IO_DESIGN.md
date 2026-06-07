@@ -272,7 +272,7 @@ The agent reads the catalog (already JSON-Schema-exportable) and uses `kind` to 
 
 ## 10. Provider catalog (the OCR-/VLM-picker question)
 
-The user's original framing — *"extract the segment out of a document and then pass it to a particular OCR or VLM"* — collapses into a `provider-catalog.ts` companion to the activity catalog:
+The user's original framing — extracting a segment from a document and passing it to a particular OCR or VLM — collapses into a `provider-catalog.ts` companion to the activity catalog:
 
 ```ts
 interface ProviderDescriptor {

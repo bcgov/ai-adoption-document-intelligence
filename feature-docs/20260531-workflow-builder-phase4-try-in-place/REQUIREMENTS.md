@@ -14,7 +14,7 @@
 
 Today (post-Phase-8), the V2 editor is design-only. To test a workflow the user has to save it, open the Run drawer, paste a body or upload a file, click Run, then leave the editor entirely and look at Temporal UI to see what happened. The feedback loop is minutes, not seconds, and it breaks before the user gets to per-node results.
 
-[NOTES.md §1.5](../../docs-md/workflow-builder/NOTES.md#15-try-in-place-and-comfyui-inspiration) names this gap: *"ComfyUI for documents — the canvas should be the place you iterate, not a thing you fill out before testing somewhere else."* Phase 4 collapses the loop:
+[NOTES.md §1.5](../../docs-md/workflow-builder/NOTES.md#15-try-in-place-and-comfyui-inspiration) names this gap — a "ComfyUI for documents" where the canvas is the place you iterate, not a form you fill out before testing somewhere else. Phase 4 collapses the loop:
 
 - The canvas becomes a **live execution surface** — every node shows its last-run output inline.
 - The **active edge animates** while a run executes.

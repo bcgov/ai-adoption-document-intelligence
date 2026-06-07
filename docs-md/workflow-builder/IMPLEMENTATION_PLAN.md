@@ -320,7 +320,7 @@ The `Segment<Kind>` parameterisation from Phase 3 makes downstream typed wiring 
 
 ### Phase 6 — Dynamic nodes (Windmill-style)
 
-User vision: *"can we have dynamic nodes, or basically nodes that you define at runtime, like Windmill"* ([NOTES.md §1.6](NOTES.md#16-dynamic-nodes-windmill-inspiration)). Co-dependent with Phase 7.
+User vision: dynamic nodes — nodes defined at runtime, in the style of Windmill ([NOTES.md §1.6](NOTES.md#16-dynamic-nodes-windmill-inspiration)). Co-dependent with Phase 7.
 
 - [ ] A `dynamic-script` activity type that proxies to a sandboxed runtime (Deno / Pyodide / Windmill-style worker — backend decision item)
 - [ ] User authors TS or Python with a declared signature → signature drives the form via the same JSON Schema renderer used everywhere else
@@ -330,7 +330,7 @@ User vision: *"can we have dynamic nodes, or basically nodes that you define at 
 
 ### Phase 7 — AI workflow builder (Claude Code sub-agent)
 
-User vision: *"instruct an AI agent to build these workflows for you on the fly… work in a feedback loop where it sets up the pipeline and tests it"* ([NOTES.md §1.7](NOTES.md#17-ai-built-workflows--feedback-loop)). Designer confirmed this is the long-term primary creation path ([NOTES.md §2](NOTES.md#2-designer-conversation-outcomes)). Depends on Phase 2 (library workflows), Phase 3 (typed I/O — narrows valid compositions), Phase 6 (dynamic nodes — agent's lever for novel work), and Phase 8 (sources — composition surface for "where does input come from").
+User vision: an AI agent that builds these workflows on the fly, working in a feedback loop where it sets up the pipeline and tests it ([NOTES.md §1.7](NOTES.md#17-ai-built-workflows--feedback-loop)). The designer confirmed this is the long-term primary creation path ([NOTES.md §2](NOTES.md#2-designer-conversation-outcomes)). Depends on Phase 2 (library workflows), Phase 3 (typed I/O — narrows valid compositions), Phase 6 (dynamic nodes — agent's lever for novel work), and Phase 8 (sources — composition surface for "where does input come from").
 
 - [ ] `.claude/agents/workflow-builder.md` agent spec
 - [ ] Chat surface in the editor invokes the agent via Claude Agent SDK with a constrained tool allowlist: `{ read catalog, read library workflows, write workflow JSON, deploy, run on sample, read results, write Windmill script, register dynamic node }`
@@ -341,7 +341,7 @@ User vision: *"instruct an AI agent to build these workflows for you on the fly�
 
 ### Phase 8 — Sources (document intake as nodes)
 
-**Why this exists.** [NOTES.md §1.1](NOTES.md#11-typed-connections-between-nodes) names two halves of the typed-connections vision: a *typed artifact hierarchy* (delivered by Phase 3) AND *document sources as nodes* — *"clearly you have document, and you could have a document source — for example SharePoint or API input."* The source half was orphaned during the original plan write-up; this phase reclaims it.
+**Why this exists.** [NOTES.md §1.1](NOTES.md#11-typed-connections-between-nodes) names two halves of the typed-connections vision: a *typed artifact hierarchy* (delivered by Phase 3) AND *document sources as nodes* — a base document type with a document source such as SharePoint or API input. The source half was orphaned during the original plan write-up; this phase reclaims it.
 
 Today (post-Phase-2-Track-2), every workflow's intake is implicit: a caller POSTs to `/api/workflows/:id/runs` with an `initialCtx` body, OR (Phase 4) the user uploads a document from the canvas's try-in-place affordance. Sources from SharePoint, email, S3, cron, watched folders, etc. would have to be glued on outside the graph (a separate cron job; an external webhook handler that calls `/runs`) — they're not first-class concepts in the workflow.
 

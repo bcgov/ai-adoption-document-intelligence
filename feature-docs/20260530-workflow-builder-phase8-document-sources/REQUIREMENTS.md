@@ -14,7 +14,7 @@
 
 Today (post-Phase-3), every workflow's intake is implicit: a caller POSTs to `/api/workflows/:id/runs` with an `initialCtx` body keyed by `CtxDeclaration.isInput`-flagged ctx vars (Phase 2 Track 2). Sources from SharePoint / email / S3 / cron / watched folders would have to be glued on outside the graph — they aren't first-class concepts in the workflow.
 
-[NOTES.md §1.1](../../docs-md/workflow-builder/NOTES.md#11-typed-connections-between-nodes) names two halves of the typed-connections vision: a *typed artifact hierarchy* (delivered by Phase 3) AND *document sources as nodes* — *"clearly you have document, and you could have a document source — for example SharePoint or API input."* This phase reclaims the second half.
+[NOTES.md §1.1](../../docs-md/workflow-builder/NOTES.md#11-typed-connections-between-nodes) names two halves of the typed-connections vision: a *typed artifact hierarchy* (delivered by Phase 3) AND *document sources as nodes* — a base document type with a document source such as SharePoint or API input. This phase reclaims the second half.
 
 Three downstream phases depend on Phase 8 landing as the unified intake abstraction:
 

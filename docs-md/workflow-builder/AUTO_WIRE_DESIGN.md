@@ -11,9 +11,9 @@ This document commits to a concrete resolver + UX for hiding port bindings. It i
 
 There is one mental model the user holds:
 
-> *"Each input slot is either a constant I set, or a source I connect from. Most of the time, drawing an execution arrow between nodes is enough — the system figures out the rest."*
+> Each input slot is either a constant the user sets or a source they connect from; most of the time, drawing an execution arrow between nodes is enough and the system figures out the rest.
 
-That quote is the user-vision framing from [NOTES.md §1.1](NOTES.md). Today the canvas honours the first clause (execution arrow) but not the second (figures out the rest). The settings panel exposes the underlying `port → ctxKey` machinery directly. After this change, the panel exposes the user model directly and treats `ctxKey` as an implementation detail.
+That is the user-vision framing from [NOTES.md §1.1](NOTES.md). Today the canvas honours the first clause (execution arrow) but not the second (figures out the rest). The settings panel exposes the underlying `port → ctxKey` machinery directly. After this change, the panel exposes the user model directly and treats `ctxKey` as an implementation detail.
 
 Wires remain pure execution-order arrows (Model A is unchanged, per [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md)). Data flow is derived from the graph + the typed-I/O signatures, not from a parallel set of typed handles on the canvas.
 
@@ -128,7 +128,7 @@ Producer labels are the consumer-friendly node label (`node.label`), not the nod
 
 ### 4.2 Constant vs. connect
 
-Ports whose `kind` is a primitive (or whose activity also accepts the same field as a static parameter) get a two-mode toggle on the row: **Set value** vs. **Connect from**. This honours the user-vision framing in [NOTES.md §1.1](NOTES.md): *"Some types are adjustable, for example integer — you can set it to a fixed value or connect some integer source into it."* Switching to "Set value" moves the binding into `node.parameters` and locks the port to constant mode; switching to "Connect from" returns it to the resolver.
+Ports whose `kind` is a primitive (or whose activity also accepts the same field as a static parameter) get a two-mode toggle on the row: **Set value** vs. **Connect from**. This honours the user-vision framing in [NOTES.md §1.1](NOTES.md): some types are adjustable — a primitive like an integer can be set to a fixed value or connected from an upstream source. Switching to "Set value" moves the binding into `node.parameters` and locks the port to constant mode; switching to "Connect from" returns it to the resolver.
 
 ### 4.3 Override + revert
 
