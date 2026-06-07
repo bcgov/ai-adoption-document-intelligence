@@ -327,7 +327,7 @@
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "validationResults" }
+        { "port": "ocrResult", "ctxKey": "initialOcrResult" }
       ],
       "timeout": { "startToClose": "2m" }
     }
