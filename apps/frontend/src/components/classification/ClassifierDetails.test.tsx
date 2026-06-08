@@ -1,4 +1,3 @@
-import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +6,7 @@ import {
   ClassifierSource,
   ClassifierStatus,
 } from "@/shared/types/classifier";
+import { MantineProvider } from "../../ui";
 import ClassifierDetails from "./ClassifierDetails";
 
 // ---------------------------------------------------------------------------
@@ -32,10 +32,6 @@ vi.mock("@/data/hooks/useGroups", () => ({
 
 vi.mock("@/data/hooks/useClassifier", () => ({
   useClassifier: () => mockUseClassifier(),
-}));
-
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: vi.fn() },
 }));
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,9 @@
+import { IconPlus } from "@tabler/icons-react";
+import { useState } from "react";
+import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
+import { useCreateWorkflow } from "../data/hooks/useWorkflows";
+import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
+import type { WorkflowStepsConfig } from "../types/workflow";
 import {
   Badge,
   Button,
@@ -5,6 +11,7 @@ import {
   Grid,
   Group,
   NumberInput,
+  notifications,
   Paper,
   Select,
   Stack,
@@ -12,14 +19,7 @@ import {
   Text,
   TextInput,
   Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { IconPlus } from "@tabler/icons-react";
-import { useState } from "react";
-import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
-import { useCreateWorkflow } from "../data/hooks/useWorkflows";
-import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
-import type { WorkflowStepsConfig } from "../types/workflow";
+} from "../ui";
 
 /**
  * Mirrors the backend `slugifyName` so the create form can preview the

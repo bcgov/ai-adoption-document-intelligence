@@ -1,0 +1,8 @@
+/* Read-only status labels: BC DS Tag defaults to pointer (removable-tag pattern) */
+.bcds-status-badge .bcds-react-aria-Tag {
+  cursor: default;
+}
+
+.bcds-status-badge .bcds-react-aria-Tag .react-aria-Button {
+  cursor: default;
+}

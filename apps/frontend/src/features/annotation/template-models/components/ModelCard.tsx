@@ -1,3 +1,5 @@
+import { IconCheck, IconCopy } from "@tabler/icons-react";
+import { FC } from "react";
 import {
   ActionIcon,
   Badge,
@@ -8,9 +10,7 @@ import {
   Stack,
   Text,
   Tooltip,
-} from "@mantine/core";
-import { IconCheck, IconCopy } from "@tabler/icons-react";
-import { FC } from "react";
+} from "../../../../ui";
 import type { TemplateModelStatus } from "../types/training.types";
 
 interface FieldSchema {

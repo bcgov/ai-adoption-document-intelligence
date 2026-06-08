@@ -1,19 +1,3 @@
-import {
-  Badge,
-  Button,
-  Grid,
-  Group,
-  Loader,
-  NumberInput,
-  Paper,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { SlugChip } from "../components/workflow/SlugChip";
@@ -21,6 +5,22 @@ import { WorkflowVisualization } from "../components/workflow/WorkflowVisualizat
 import { useUpdateWorkflow, useWorkflow } from "../data/hooks/useWorkflows";
 import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
 import type { WorkflowStepsConfig } from "../types/workflow";
+import {
+  Badge,
+  Button,
+  Grid,
+  Group,
+  Loader,
+  NumberInput,
+  notifications,
+  Paper,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+  Title,
+} from "../ui";
 
 interface WorkflowStepConfig {
   enabled: boolean;

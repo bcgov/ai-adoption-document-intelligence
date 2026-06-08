@@ -14,6 +14,7 @@ interface BoundingBoxProps {
   onClick?: (id: string) => void;
   onMouseEnter?: (id: string) => void;
   onMouseLeave?: (id: string) => void;
+  rotation?: number;
 }
 
 const BoundingBoxShape: FC<BoundingBoxProps> = ({
@@ -28,6 +29,7 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   onClick,
   onMouseEnter,
   onMouseLeave,
+  rotation = 0,
 }) => {
   const points: number[] = [];
   for (const point of box.polygon) {
@@ -83,7 +85,12 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
 
       {/* 3) Label text */}
       {(label || confidence !== undefined) && (
-        <Group x={firstPoint.x} y={firstPoint.y - 20} listening={false}>
+        <Group
+          x={firstPoint.x}
+          y={firstPoint.y - 20}
+          listening={false}
+          rotation={-rotation}
+        >
           <KonvaText
             text={
               label
@@ -114,6 +121,11 @@ interface BoundingBoxLayerProps {
   onBoxClick?: (id: string) => void;
   onBoxMouseEnter?: (id: string) => void;
   onBoxMouseLeave?: (id: string) => void;
+  rotation?: number;
+  offsetX?: number;
+  offsetY?: number;
+  x?: number;
+  y?: number;
 }
 
 export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
@@ -123,9 +135,14 @@ export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
   onBoxClick,
   onBoxMouseEnter,
   onBoxMouseLeave,
+  rotation,
+  offsetX,
+  offsetY,
+  x,
+  y,
 }) => {
   return (
-    <Layer>
+    <Layer rotation={rotation} offsetX={offsetX} offsetY={offsetY} x={x} y={y}>
       {boxes.map((item) => (
         <BoundingBoxShape
           key={item.id}
@@ -140,6 +157,7 @@ export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
           onClick={onBoxClick}
           onMouseEnter={onBoxMouseEnter}
           onMouseLeave={onBoxMouseLeave}
+          rotation={rotation}
         />
       ))}
     </Layer>

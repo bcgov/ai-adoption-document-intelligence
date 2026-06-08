@@ -69,17 +69,17 @@ if [ "$TEMPORAL_OK" = false ] || [ "$BACKEND_OK" = false ]; then
 
     if [ "$TEMPORAL_OK" = false ]; then
         echo -e "${YELLOW}Temporal Server:${NC}"
-        echo "  cd $PROJECT_ROOT/apps/temporal"
-        echo "  docker-compose up -d"
-        echo "  npm run dev  # Start Temporal worker"
+        echo "  cd $PROJECT_ROOT"
+        echo "  docker compose --profile temporal up -d"
+        echo "  cd $PROJECT_ROOT/apps/temporal && npm run dev  # Start Temporal worker"
         echo ""
     fi
 
     if [ "$BACKEND_OK" = false ]; then
         echo -e "${YELLOW}Backend Services:${NC}"
-        echo "  cd $PROJECT_ROOT/apps/backend-services"
-        echo "  docker-compose up -d  # Start PostgreSQL"
-        echo "  npm run start:dev     # Start backend"
+        echo "  cd $PROJECT_ROOT"
+        echo "  docker compose --profile infra up -d  # Start PostgreSQL"
+        echo "  cd $PROJECT_ROOT/apps/backend-services && npm run start:dev  # Start backend"
         echo ""
     fi
 

@@ -784,11 +784,11 @@ async function runIntegrationTest(): Promise<void> {
         log("  - Temporal Worker: cd apps/temporal && npm run dev", "info");
       }
       log(
-        "  - Temporal Server: cd apps/temporal && docker-compose up -d",
+        "  - Temporal Server: docker compose --profile temporal up -d (from repo root)",
         "info",
       );
       log(
-        "  - Backend Database: cd apps/backend-services && docker-compose up -d",
+        "  - Backend Database: docker compose --profile infra up -d (from repo root)",
         "info",
       );
       log(

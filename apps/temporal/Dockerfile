@@ -26,6 +26,13 @@ RUN cd /packages/blob-storage-paths && npm install --ignore-scripts && npm run b
 COPY packages/graph-workflow /packages/graph-workflow
 RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
 
+COPY packages/monitoring /packages/monitoring
+# @ai-di/shared-logging is a peerDependency of monitoring (not needed at build time).
+# Link the already-built logging package so npm doesn't fetch it from the registry.
+RUN mkdir -p /packages/monitoring/node_modules/@ai-di && \
+    ln -s /packages/logging /packages/monitoring/node_modules/@ai-di/shared-logging && \
+    cd /packages/monitoring && npm install --ignore-scripts && npm run build
+
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install --ignore-scripts
 
@@ -71,9 +78,13 @@ COPY --from=builder /packages/logging /packages/logging
 COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
 COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
 COPY --from=builder /packages/graph-workflow /packages/graph-workflow
+COPY --from=builder /packages/monitoring /packages/monitoring
 
 # Package files and production deps
 COPY apps/temporal/package.json ./
+# --ignore-scripts is safe here because all native binaries (prisma, esbuild, etc.)
+# were already built in the builder stage and are copied over. No postinstall
+# scripts need to run again in production.
 RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 

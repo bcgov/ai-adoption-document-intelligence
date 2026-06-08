@@ -1,0 +1,52 @@
+/* Upload panel composite (DocumentUploadPanel) */
+
+.bcds-upload-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-margin-large);
+}
+
+.bcds-upload-panel__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-margin-xsmall);
+}
+
+.bcds-upload-panel__actions {
+  margin-top: var(--layout-margin-medium);
+}
+
+.bcds-upload-queue__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--layout-margin-medium);
+  margin-bottom: var(--layout-margin-small);
+}
+
+.bcds-upload-queue__scroll {
+  border: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  border-radius: var(--layout-border-radius-medium);
+  background-color: var(--surface-color-background-white);
+}
+
+.bcds-upload-queue-row {
+  background-color: var(--surface-color-background-white);
+  border: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  border-radius: var(--layout-border-radius-medium);
+  padding: var(--layout-padding-small);
+}
+
+.bcds-upload-queue-row:hover {
+  border-color: var(--surface-color-border-medium);
+}
+
+.bcds-upload-queue-row__meta {
+  min-width: 0;
+}
+
+.bcds-upload-queue-row .mantine-Avatar-root {
+  border-color: var(--surface-color-border-default);
+}

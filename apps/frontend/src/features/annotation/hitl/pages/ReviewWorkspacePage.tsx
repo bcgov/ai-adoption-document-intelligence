@@ -1,3 +1,7 @@
+import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import {
   Accordion,
   Button,
@@ -5,6 +9,7 @@ import {
   Group,
   Loader,
   Modal,
+  notifications,
   Paper,
   ScrollArea,
   Stack,
@@ -12,16 +17,12 @@ import {
   Textarea,
   TextInput,
   Title,
-} from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { colorForFieldKeyWithBorder } from "@/shared/utils";
+  useElementSize,
+} from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
+import { FieldListScrollArea } from "../../core/field-panel/FieldListScrollArea";
 import { KeyboardManager } from "../../core/keyboard/KeyboardManager";
 import type { ShortcutDefinition } from "../../core/keyboard/useKeyboardShortcuts";
 import { CorrectionAction } from "../../core/types/annotation";
@@ -797,8 +798,9 @@ export const ReviewWorkspacePage: FC = () => {
   return (
     <KeyboardManager shortcuts={shortcuts}>
       <Stack
-        gap="md"
-        style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}
+        gap="sm"
+        className="annotation-workspace"
+        style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
         <Group justify="space-between">
           <Group>
@@ -886,7 +888,7 @@ export const ReviewWorkspacePage: FC = () => {
           <Group
             align="stretch"
             gap="md"
-            style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+            style={{ flex: "1 1 0", minHeight: 0, overflow: "hidden" }}
             wrap="nowrap"
           >
             <Paper
@@ -925,6 +927,8 @@ export const ReviewWorkspacePage: FC = () => {
                       height={canvasHeight}
                       boxes={boxes}
                       activeTool={CanvasTool.SELECT}
+                      verticalAlign="top"
+                      fitPadding={1}
                       onBoxSelect={(boxId) => {
                         setActiveFieldKey(boxId);
                         if (boxId) {
@@ -943,7 +947,9 @@ export const ReviewWorkspacePage: FC = () => {
               p="sm"
               style={{
                 width: 360,
+                flexShrink: 0,
                 minHeight: 0,
+                maxHeight: "100%",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
@@ -981,23 +987,8 @@ export const ReviewWorkspacePage: FC = () => {
                 filteredCount={filteredSortedFields.length}
               />
 
-              <ScrollArea
-                type="auto"
-                style={{ flex: 1, minHeight: 0 }}
-                offsetScrollbars="present"
-                viewportProps={{
-                  style: { paddingRight: 16 },
-                  onClick: (e: React.MouseEvent) => {
-                    if (
-                      e.target === e.currentTarget ||
-                      (e.target as HTMLElement).classList.contains(
-                        "mantine-ScrollArea-viewport",
-                      )
-                    ) {
-                      setActiveFieldKey(null);
-                    }
-                  },
-                }}
+              <FieldListScrollArea
+                onBackgroundClick={() => setActiveFieldKey(null)}
               >
                 <Stack gap="md">
                   {filteredSortedFields.map((field) => {
@@ -1106,7 +1097,7 @@ export const ReviewWorkspacePage: FC = () => {
                     );
                   })}
                 </Stack>
-              </ScrollArea>
+              </FieldListScrollArea>
             </Paper>
           </Group>
         )}

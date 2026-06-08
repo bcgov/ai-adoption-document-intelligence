@@ -80,9 +80,6 @@ export class MetricsService implements OnModuleInit {
         .labels({ type: alertType, severity })
         .inc(0);
       this.appMetrics.appSuccessTotal.labels({ type: alertType }).inc(0);
-      this.appMetrics.appAlertActive
-        .labels({ type: alertType, severity })
-        .set(0);
     }
   }
 

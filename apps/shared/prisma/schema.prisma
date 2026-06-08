@@ -574,7 +574,12 @@ enum ClassifierStatus {
 enum DocumentStatus {
   pre_ocr
   ongoing_ocr
-  completed_ocr
+  /// OCR extraction complete; workflow may continue (e.g. HITL review).
+  extracted
+  /// OCR complete; document paused awaiting human review.
+  awaiting_review
+  /// Entire process complete (OCR + optional HITL review).
+  complete
   failed
   /// Original stored but image/PDF could not be normalized to a display/OCR PDF.
   conversion_failed

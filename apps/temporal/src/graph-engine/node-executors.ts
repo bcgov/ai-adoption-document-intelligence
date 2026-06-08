@@ -435,11 +435,33 @@ async function executePollUntilNode(
  * US-011: HumanGate node handler
  *
  * Waits for a human signal (approved/rejected) or times out.
+ * Sets document status to `awaiting_review` before waiting so the HITL queue
+ * can show documents that need human review without querying Temporal.
  */
 async function executeHumanGateNode(
   node: HumanGateNode,
   state: ExecutionState,
 ): Promise<void> {
+  // Update document status to awaiting_review if documentId is in context
+  const documentId = state.ctx.documentId;
+  if (documentId && typeof documentId === "string") {
+    const activityProxy = proxyActivities({
+      startToCloseTimeout: "30s" as Duration,
+      retry: { maximumAttempts: 3 } as RetryPolicy,
+    });
+
+    const updateStatusActivity = activityProxy[
+      "document.updateStatus"
+    ] as (params: { documentId: string; status: string }) => Promise<void>;
+
+    if (updateStatusActivity) {
+      await updateStatusActivity({
+        documentId,
+        status: "awaiting_review",
+      });
+    }
+  }
+
   let payload: Record<string, unknown> | null = null;
 
   const signalDefinition = defineSignal<[Record<string, unknown>]>(

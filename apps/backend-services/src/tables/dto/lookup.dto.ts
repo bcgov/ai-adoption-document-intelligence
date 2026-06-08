@@ -7,6 +7,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Matches,
   ValidateNested,
 } from "class-validator";
 
@@ -16,6 +17,7 @@ const PARAM_TYPES = [
   "boolean",
   "date",
   "datetime",
+  "year-month",
   "enum",
 ] as const;
 
@@ -29,7 +31,14 @@ export class LookupParamDto {
 
   @ApiProperty({ enum: PARAM_TYPES })
   @IsIn(PARAM_TYPES)
-  type!: "string" | "number" | "boolean" | "date" | "datetime" | "enum";
+  type!:
+    | "string"
+    | "number"
+    | "boolean"
+    | "date"
+    | "datetime"
+    | "year-month"
+    | "enum";
 }
 
 export class OrderClauseDto {
@@ -47,6 +56,10 @@ export class LookupDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-zA-Z_][a-zA-Z0-9_]*$/, {
+    message:
+      "name must start with a letter or underscore and contain only letters, digits, and underscores",
+  })
   name!: string;
 
   @ApiProperty({ type: LookupParamDto, isArray: true })

@@ -166,9 +166,9 @@ describe("GroundTruthJobDbService", () => {
   });
 
   describe("syncProcessingJobStatuses", () => {
-    it("transitions completed_ocr jobs to awaiting_review", async () => {
+    it("transitions extracted jobs to awaiting_review", async () => {
       mockPrismaClient.datasetGroundTruthJob.findMany.mockResolvedValue([
-        { id: "j-1", document: { status: "completed_ocr" } },
+        { id: "j-1", document: { status: "extracted" } },
         { id: "j-2", document: { status: "processing" } },
       ]);
       mockPrismaClient.datasetGroundTruthJob.updateMany.mockResolvedValue({

@@ -12,10 +12,31 @@ export function getPrismaClient(): PrismaClient {
       throw new Error("DATABASE_URL environment variable is not set");
     }
     const dbOptions = getPrismaPgOptions(databaseUrl);
+
+    // Configure connection pool for horizontal scaling:
+    // - max: 3 connections per worker pod (lighter load than backend-services)
+    // - idleTimeoutMillis: Close idle connections after 60s (reduces connection churn)
+    // - connectionTimeoutMillis: Fail fast if pool is exhausted
     prismaClient = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
+      adapter: new PrismaPg({
+        ...dbOptions,
+        max: parseInt(process.env.DB_POOL_MAX ?? "3", 10),
+        idleTimeoutMillis: 60000,
+        connectionTimeoutMillis: 5000,
+      }),
       log: ["error", "warn"],
     });
   }
   return prismaClient;
+}
+
+/**
+ * Disconnect Prisma client and close connection pool.
+ * Should be called during worker shutdown or test teardown.
+ */
+export async function disconnectPrismaClient(): Promise<void> {
+  if (prismaClient) {
+    await prismaClient.$disconnect();
+    prismaClient = null;
+  }
 }

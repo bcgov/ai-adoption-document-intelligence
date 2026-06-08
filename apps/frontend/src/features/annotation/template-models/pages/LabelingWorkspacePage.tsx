@@ -1,28 +1,28 @@
 import {
-  Button,
-  Group,
-  Loader,
-  Paper,
-  ScrollArea,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import {
   IconArrowLeft,
   IconDeviceFloppy,
   IconRefresh,
   IconRestore,
 } from "@tabler/icons-react";
-import { FC, useEffect, useMemo, useState } from "react";
+import { type FC, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
+import {
+  Button,
+  Group,
+  Loader,
+  notifications,
+  Paper,
+  Stack,
+  Text,
+  Title,
+  useElementSize,
+} from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
+import { FieldListScrollArea } from "../../core/field-panel/FieldListScrollArea";
 import { FieldPanel } from "../../core/field-panel/FieldPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import { type LabelDto, useLabels } from "../hooks/useLabels";
@@ -742,11 +742,18 @@ export const LabelingWorkspacePage: FC = () => {
 
   return (
     <Stack
-      gap="md"
-      style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}
+      gap="sm"
+      style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
+      className="annotation-workspace"
+      data-testid="labeling-workspace"
     >
-      <Group justify="space-between">
-        <Group>
+      <Group
+        justify="space-between"
+        wrap="nowrap"
+        gap="sm"
+        style={{ flexShrink: 0 }}
+      >
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
@@ -754,14 +761,16 @@ export const LabelingWorkspacePage: FC = () => {
           >
             Back
           </Button>
-          <Stack gap={2}>
-            <Title order={2}>{documentName}</Title>
-            <Text size="sm" c="dimmed">
-              Label fields by selecting OCR boxes
+          <Stack gap={0} style={{ minWidth: 0 }}>
+            <Title order={4} style={{ lineHeight: 1.25 }}>
+              {documentName}
+            </Title>
+            <Text size="xs" c="dimmed">
+              Select a field, then click OCR boxes on the document
             </Text>
           </Stack>
         </Group>
-        <Group>
+        <Group gap="xs" wrap="nowrap">
           <Button
             variant="default"
             leftSection={<IconRefresh size={16} />}
@@ -791,7 +800,7 @@ export const LabelingWorkspacePage: FC = () => {
       <Group
         align="stretch"
         gap="md"
-        style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+        style={{ flex: "1 1 0", minHeight: 0, overflow: "hidden" }}
         wrap="nowrap"
       >
         <Paper
@@ -854,6 +863,8 @@ export const LabelingWorkspacePage: FC = () => {
                     height={canvasHeight}
                     boxes={wordBoxes}
                     onBoxSelect={handleWordSelect}
+                    verticalAlign="top"
+                    fitPadding={1}
                   />
                 )}
               </div>
@@ -866,9 +877,12 @@ export const LabelingWorkspacePage: FC = () => {
           p="md"
           style={{
             width: 320,
+            flexShrink: 0,
+            alignSelf: "stretch",
             minHeight: 0,
             display: "flex",
             flexDirection: "column",
+            overflow: "hidden",
           }}
           onClick={(e) => {
             // Deselect active field if clicking on field panel background
@@ -881,7 +895,8 @@ export const LabelingWorkspacePage: FC = () => {
             size="sm"
             fw={600}
             mb="md"
-            onClick={(e) => {
+            style={{ flexShrink: 0 }}
+            onClick={(e: MouseEvent) => {
               setActiveFieldKey(null);
               e.stopPropagation();
             }}
@@ -889,31 +904,17 @@ export const LabelingWorkspacePage: FC = () => {
             Fields
           </Text>
 
-          <FieldFilterInput
-            value={fieldFilter}
-            onChange={setFieldFilter}
-            totalCount={schema.length}
-            filteredCount={filteredSchema.length}
-          />
+          <div style={{ flexShrink: 0 }}>
+            <FieldFilterInput
+              value={fieldFilter}
+              onChange={setFieldFilter}
+              totalCount={schema.length}
+              filteredCount={filteredSchema.length}
+            />
+          </div>
 
-          <ScrollArea
-            type="auto"
-            style={{ flex: 1, minHeight: 0 }}
-            offsetScrollbars="present"
-            viewportProps={{
-              style: { paddingRight: 16 },
-              onClick: (e: React.MouseEvent) => {
-                // Deselect when clicking in the scroll area but not on a field
-                if (
-                  e.target === e.currentTarget ||
-                  (e.target as HTMLElement).classList.contains(
-                    "mantine-ScrollArea-viewport",
-                  )
-                ) {
-                  setActiveFieldKey(null);
-                }
-              },
-            }}
+          <FieldListScrollArea
+            onBackgroundClick={() => setActiveFieldKey(null)}
           >
             <FieldPanel
               fields={filteredSchema}
@@ -931,7 +932,7 @@ export const LabelingWorkspacePage: FC = () => {
                   : "Add fields to this template model before labeling documents."
               }
             />
-          </ScrollArea>
+          </FieldListScrollArea>
         </Paper>
       </Group>
     </Stack>

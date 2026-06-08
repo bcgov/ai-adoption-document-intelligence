@@ -1,12 +1,12 @@
 import { Prisma, PrismaClient } from "@generated/client";
-import { Injectable, OnModuleInit } from "@nestjs/common";
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getPrismaPgOptions } from "@/utils/database-url";
 
 @Injectable()
-export class PrismaService implements OnModuleInit {
+export class PrismaService implements OnModuleInit, OnModuleDestroy {
   public readonly prisma: PrismaClient;
   private readonly shouldLogQueries: boolean;
 
@@ -19,7 +19,17 @@ export class PrismaService implements OnModuleInit {
       this.configService.get("DATABASE_URL"),
     );
 
-    const adapter = new PrismaPg(dbOptions);
+    // Configure connection pool for horizontal scaling:
+    // - max: 5 connections per pod (vs default 10) to prevent exhausting DB max_connections
+    // - With 3 pods: 15 backend + 3 temporal = 18 connections (Postgres default is 100)
+    // - idleTimeoutMillis: Close idle connections after 60s (reduces connection churn)
+    // - connectionTimeoutMillis: Fail fast if pool is exhausted
+    const adapter = new PrismaPg({
+      ...dbOptions,
+      max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
+      idleTimeoutMillis: 60000,
+      connectionTimeoutMillis: 5000,
+    });
     if (this.shouldLogQueries) {
       this.prisma = new PrismaClient({
         log: [
@@ -110,5 +120,17 @@ export class PrismaService implements OnModuleInit {
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
     return this.prisma.$transaction(fn);
+  }
+
+  /**
+   * Gracefully close database connections on shutdown.
+   * Called automatically by NestJS during application shutdown.
+   */
+  async onModuleDestroy(): Promise<void> {
+    this.logger.log("Closing database connections...", {
+      category: "database",
+    });
+    await this.prisma.$disconnect();
+    this.logger.log("Database connections closed", { category: "database" });
   }
 }

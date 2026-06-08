@@ -3,7 +3,7 @@ import type { ColumnDef, LookupDef } from "./types";
 
 const cols: ColumnDef[] = [
   { key: "cutoff", label: "Cutoff", type: "date" },
-  { key: "scheduleId", label: "Schedule ID", type: "string" },
+  { key: "schedule_id", label: "Schedule ID", type: "string" },
 ];
 
 describe("validateLookupDefs", () => {
@@ -94,7 +94,7 @@ describe("validateLookupDefs", () => {
         filter: {
           operator: "equals",
           left: { ref: "param.b" },
-          right: { ref: "row.scheduleId" },
+          right: { ref: "row.schedule_id" },
         },
         pick: "first",
       },
@@ -135,7 +135,7 @@ describe("validateLookupDefs", () => {
         params: [],
         filter: {
           operator: "in",
-          value: { ref: "row.scheduleId" },
+          value: { ref: "row.schedule_id" },
           list: { ref: "row.unknown" },
         } as never,
         pick: "all",
@@ -154,7 +154,7 @@ describe("validateLookupDefs", () => {
         filter: {
           operator: "equals",
           left: { ref: "ctx.someKey" },
-          right: { ref: "row.scheduleId" },
+          right: { ref: "row.schedule_id" },
         },
         pick: "all",
       },
