@@ -17,6 +17,7 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@ai-di/graph-workflow": "file:../../packages/graph-workflow",
 		"@bcgov/bc-sans": "2.1.0",
 		"@bcgov/design-system-react-components": "0.7.0",
 		"@bcgov/design-tokens": "4.0.0",
