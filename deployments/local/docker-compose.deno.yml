@@ -56,7 +56,11 @@ services:
     networks:
       - deno-runner
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/health"]
+      # Use 127.0.0.1, not `localhost`: the runner listens on IPv4 0.0.0.0:9090,
+      # but `localhost` resolves to IPv6 ::1 first inside the container, so a
+      # `localhost` probe gets "connection refused" and the container is marked
+      # unhealthy forever even though the service is fine.
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9090/health"]
       interval: 10s
       timeout: 3s
       retries: 5
