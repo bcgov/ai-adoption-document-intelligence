@@ -40,7 +40,6 @@ interface DynRunCall {
   inputCtx: Record<string, unknown>;
   groupId: string;
   workflowRunId: string;
-  apiKey: string;
 }
 
 function makeDynGraph(
@@ -83,7 +82,6 @@ function makeInput(graph: GraphWorkflowConfig): GraphWorkflowInput {
     configHash: computeConfigHash(graph),
     runnerVersion: "1.0.0",
     groupId: "g-test",
-    apiKey: "key-test",
   };
 }
 
@@ -154,8 +152,11 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
     ]);
     expect(dynRunCalls).toHaveLength(1);
     expect(dynRunCalls[0].versionId).toBe("v-head-1");
-    expect(dynRunCalls[0].apiKey).toBe("key-test");
     expect(dynRunCalls[0].groupId).toBe("g-test");
+    // Item 4 (security): the caller's API key is NOT part of the dyn.run
+    // activity input — it must not be persisted in Temporal history. The
+    // platform key is sourced server-side in the activity from worker config.
+    expect(dynRunCalls[0]).not.toHaveProperty("apiKey");
     expect(result.ctx.result).toEqual({ url: "FOO.PDF" });
   });
 

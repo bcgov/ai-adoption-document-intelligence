@@ -93,7 +93,6 @@ describe("dynRun — Scenario 2: permission flags computed", () => {
         inputCtx: {},
         groupId: "g1",
         workflowRunId: "run-1",
-        apiKey: "key-1",
       },
       {
         client,
@@ -115,7 +114,7 @@ describe("dynRun — Scenario 2: permission flags computed", () => {
 describe("dynRun — Scenario 3: ambient env composition", () => {
   beforeEach(() => versionCache.clear());
 
-  it("sends exactly the four AI_DI_ env vars sourced from args + config", async () => {
+  it("sends exactly the four AI_DI_ env vars; AI_DI_API_KEY is sourced server-side from PLATFORM_API_KEY", async () => {
     setupCachedVersion("v1", makeSignature());
     const { client, execute } = makeClientStub({
       stdout: '{"url":"FOO"}',
@@ -133,13 +132,17 @@ describe("dynRun — Scenario 3: ambient env composition", () => {
         inputCtx: {},
         groupId: "g42",
         workflowRunId: "run-42",
-        apiKey: "key-secret",
       },
       {
         client,
         prisma: stubPrisma,
-        readEnv: (name) =>
-          name === "AI_DI_API_BASE_URL" ? "http://localhost:3002" : undefined,
+        // Item 4: AI_DI_API_KEY comes from the worker's own config
+        // (`PLATFORM_API_KEY`), NOT from the activity input.
+        readEnv: (name) => {
+          if (name === "AI_DI_API_BASE_URL") return "http://localhost:3002";
+          if (name === "PLATFORM_API_KEY") return "server-side-platform-key";
+          return undefined;
+        },
       },
     );
 
@@ -150,9 +153,40 @@ describe("dynRun — Scenario 3: ambient env composition", () => {
       "AI_DI_GROUP_ID",
       "AI_DI_WORKFLOW_RUN_ID",
     ]);
-    expect(req.ambientEnv.AI_DI_API_KEY).toBe("key-secret");
+    expect(req.ambientEnv.AI_DI_API_KEY).toBe("server-side-platform-key");
     expect(req.ambientEnv.AI_DI_GROUP_ID).toBe("g42");
     expect(req.ambientEnv.AI_DI_WORKFLOW_RUN_ID).toBe("run-42");
+  });
+
+  it("Item 4: AI_DI_API_KEY is empty string when PLATFORM_API_KEY is unset (no caller key leaks via input)", async () => {
+    setupCachedVersion("v1", makeSignature());
+    const { client, execute } = makeClientStub({
+      stdout: '{"url":"FOO"}',
+      stderr: "",
+      exitCode: 0,
+      durationMs: 10,
+      timedOut: false,
+    });
+
+    await dynRun(
+      {
+        slug: "my-node",
+        versionId: "v1",
+        parameters: {},
+        inputCtx: {},
+        groupId: "g42",
+        workflowRunId: "run-42",
+      },
+      {
+        client,
+        prisma: stubPrisma,
+        readEnv: (name) =>
+          name === "AI_DI_API_BASE_URL" ? "http://localhost:3002" : undefined,
+      },
+    );
+
+    const req = execute.mock.calls[0][0];
+    expect(req.ambientEnv.AI_DI_API_KEY).toBe("");
   });
 });
 
@@ -178,7 +212,6 @@ describe("dynRun — Scenario 5: runner failures mapped to typed errors", () => 
           inputCtx: {},
           groupId: "g1",
           workflowRunId: "run-1",
-          apiKey: "k",
         },
         { client, prisma: stubPrisma },
       ),
@@ -205,7 +238,6 @@ describe("dynRun — Scenario 5: runner failures mapped to typed errors", () => 
           inputCtx: {},
           groupId: "g1",
           workflowRunId: "run-1",
-          apiKey: "k",
         },
         { client, prisma: stubPrisma },
       ),
@@ -234,7 +266,6 @@ describe("dynRun — Scenario 5: runner failures mapped to typed errors", () => 
           inputCtx: {},
           groupId: "g1",
           workflowRunId: "run-1",
-          apiKey: "k",
         },
         { client, prisma: stubPrisma },
       ),
@@ -269,7 +300,6 @@ describe("dynRun — Scenario 5: runner failures mapped to typed errors", () => 
           inputCtx: {},
           groupId: "g1",
           workflowRunId: "run-1",
-          apiKey: "k",
         },
         { client: failingClient, prisma: stubPrisma },
       ),
@@ -298,7 +328,6 @@ describe("dynRun — Scenario 6: output structural check", () => {
         inputCtx: {},
         groupId: "g1",
         workflowRunId: "run-1",
-        apiKey: "k",
       },
       { client, prisma: stubPrisma },
     );
@@ -332,7 +361,6 @@ describe("dynRun — Scenario 6: output structural check", () => {
           inputCtx: {},
           groupId: "g1",
           workflowRunId: "run-1",
-          apiKey: "k",
         },
         { client, prisma: stubPrisma },
       ),
@@ -361,7 +389,6 @@ describe("dynRun — Scenario 6: output structural check", () => {
           inputCtx: {},
           groupId: "g1",
           workflowRunId: "run-1",
-          apiKey: "k",
         },
         { client, prisma: stubPrisma },
       ),
@@ -397,7 +424,6 @@ describe("dynRun — Scenario 6: output structural check", () => {
         inputCtx: {},
         groupId: "g1",
         workflowRunId: "run-1",
-        apiKey: "k",
       },
       { client, prisma: stubPrisma },
     );

@@ -51,16 +51,14 @@ export interface ExecutionState {
   workflowLineageId?: string | null;
   cacheDeps?: CachedActivityDeps;
   /**
-   * Phase 6 Milestone C (US-170) — the originating run's API key, threaded
-   * through to `dyn.run` for injection as `AI_DI_API_KEY` into the Deno
-   * subprocess's ambient env. Sourced from the original `/api/workflows/:id/runs`
-   * request's `x-api-key` header; the same key the dynamic-node script must
-   * use to call back into the platform.
-   */
-  apiKey?: string | null;
-  /**
    * Phase 6 Milestone C (US-170) — workflow-run identifier injected into
    * `dyn.run` as `AI_DI_WORKFLOW_RUN_ID`. Typically `workflowInfo().workflowId`.
+   *
+   * Item 4 (security): the caller's `x-api-key` is NO LONGER threaded through
+   * the workflow/activity input chain (it would otherwise be persisted in
+   * Temporal's durable history in cleartext). The `dyn.run` activity now
+   * sources the platform API key server-side from worker config — see
+   * `dyn-run.activity.ts`.
    */
   workflowRunId?: string;
   lastError: {

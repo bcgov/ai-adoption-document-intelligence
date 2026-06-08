@@ -142,7 +142,10 @@ export async function handleCheck(req: Request): Promise<Response> {
     await Deno.writeTextFile(scriptPath, rewrittenScript);
 
     const command = new Deno.Command("deno", {
-      args: ["check", "--no-lock", scriptPath],
+      // `--no-remote` disables remote module loading. Static remote imports are
+      // resolved during the `deno check` module-graph build (publish time),
+      // outside any runtime gating, so they must be blocked here too.
+      args: ["check", "--no-remote", "--no-lock", scriptPath],
       stdout: "piped",
       stderr: "piped",
     });

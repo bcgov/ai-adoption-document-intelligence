@@ -12,6 +12,25 @@
 # In OpenShift the service is just `deno-runner:9090` so no conflict there.
 #
 # Architecture context: docs-md/workflow-builder/DYNAMIC_NODES_DESIGN.md §1.5
+#
+# EGRESS / NETWORK ISOLATION (local-dev): in OpenShift the deno-runner pod is
+# locked down by deployments/openshift/kustomize/base/deno-runner/networkpolicy.yml
+# (egress restricted to cluster DNS + the backend-services Service on :3002). That
+# NetworkPolicy is the security boundary for real deployments.
+#
+# Locally we CANNOT fully replicate that boundary. A `deno run` user script
+# receives AI_DI_API_BASE_URL and must be able to reach the platform API for its
+# `dyn.run` callbacks. On the host the backend listens on localhost:3002, so the
+# container reaches it via host.docker.internal (mapped below). A docker network
+# marked `internal: true` would sever that route and break local "Try" for any
+# dynamic node that calls the platform API — so full isolation is NOT applied.
+#
+# ACCEPTED LOCAL-DEV GAP: this sidecar still has outbound internet access via the
+# dedicated bridge network's NAT. Per-script egress is still gated at runtime by
+# Deno's --allow-net (the runner passes the intersected allowlist from
+# DYNAMIC_NODE_ALLOW_NET), but the container itself is not network-isolated. This
+# is acceptable for local development only; production isolation is enforced by
+# the OpenShift NetworkPolicy referenced above.
 
 services:
   deno-runner:
@@ -26,6 +45,16 @@ services:
     environment:
       PORT: "9090"
       HOST: "0.0.0.0"
+    # Required so user scripts can reach the host's backend (localhost:3002 on the
+    # host) for legitimate dyn.run platform-API callbacks. Without this the
+    # container's `localhost` is the container itself and callbacks fail.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Dedicated bridge network keeps the runner off the shared default bridge with
+    # other local services. It is intentionally NOT `internal: true` — see the
+    # ACCEPTED LOCAL-DEV GAP note in the file header.
+    networks:
+      - deno-runner
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/health"]
       interval: 10s
@@ -35,3 +64,8 @@ services:
     labels:
       org.label-schema.name: "deno-runner"
       org.label-schema.description: "Phase 6 dynamic-node sandbox"
+
+networks:
+  deno-runner:
+    name: ai-doc-intelligence-deno-runner
+    driver: bridge

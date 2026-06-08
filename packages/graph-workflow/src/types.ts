@@ -375,15 +375,6 @@ export interface GraphWorkflowInput {
    * still execute, just without cache reads/writes).
    */
   workflowLineageId?: string | null;
-  /**
-   * Phase 6 Milestone C (US-170) — the API key from the originating
-   * `/api/workflows/:id/runs` caller's `x-api-key` header. Threaded into
-   * `dyn.run` so the Deno subprocess can call back into the platform
-   * with the original caller's permissions (injected as `AI_DI_API_KEY`
-   * into the subprocess's ambient env). When omitted, dynamic-node
-   * scripts that need to call the platform API will fail with 401.
-   */
-  apiKey?: string | null;
 }
 
 export interface GraphWorkflowResult {

@@ -105,6 +105,11 @@ export async function handleExecute(req: Request): Promise<Response> {
 
   const args = [
     "run",
+    // Disable remote module loading. Static remote imports
+    // (`import x from "https://..."`) are fetched during module-graph build,
+    // OUTSIDE runtime `--allow-net` gating, so they would otherwise bypass the
+    // egress allowlist. User scripts may import only local/std-vendored modules.
+    "--no-remote",
     allowNetFlag,
     allowEnvFlag,
     "--no-prompt",

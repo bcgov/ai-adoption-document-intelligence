@@ -240,12 +240,12 @@ Pure function. Same package consumed by both backend (publish) and frontend (liv
 
 ## 3. Ambient context (system-managed env vars)
 
-Distinct from Q3's deferred user-supplied secrets, the `dyn.run` activity injects four ambient env vars into every Deno subprocess. These are server-controlled, generated per-invocation, and let scripts call back into the running backend via the existing `x-api-key` mechanic.
+Distinct from Q3's deferred user-supplied secrets, the `dyn.run` activity injects four ambient env vars into every Deno subprocess. These are server-controlled (the API key is read from worker config, never from workflow input — see "Key provenance" below) and let scripts call back into the running backend via the existing `x-api-key` mechanic.
 
 | Env var | Value | Purpose |
 |---|---|---|
 | `AI_DI_API_BASE_URL` | Backend's base URL (e.g. `http://localhost:3002`) | What URL to call back at |
-| `AI_DI_API_KEY` | A valid `x-api-key` value scoped to the current group | Authentication for callback requests |
+| `AI_DI_API_KEY` | The platform service-account `x-api-key` sourced server-side by the worker (`PLATFORM_API_KEY` config) | Authentication for callback requests |
 | `AI_DI_GROUP_ID` | The current group's id | Lets scripts disambiguate when multiple groups share a script (rare; useful for telemetry) |
 | `AI_DI_WORKFLOW_RUN_ID` | The current Temporal run id | Lets scripts correlate logs / write back run-scoped state if your API ever exposes such an endpoint |
 
@@ -261,7 +261,7 @@ const libs = await fetch(`${baseUrl}/api/workflows?kind=library`, {
 
 **Network access for callbacks.** The activity automatically grants `--allow-net` for `AI_DI_API_BASE_URL`'s host — no need to add it to either the global allowlist or `@allowNet`. The signature's `@allowNet` is for *additional* outbound hosts.
 
-**Key provenance.** In 6.0, `AI_DI_API_KEY` is the same `x-api-key` value already used for the calling request — passed through verbatim. Per-invocation short-lived keys are 6.x if needed.
+**Key provenance.** `AI_DI_API_KEY` is sourced SERVER-SIDE by the `dyn.run` activity from the worker's own config env var `PLATFORM_API_KEY` — it is NOT the caller's `x-api-key` and is NOT threaded through workflow/activity input. Rationale (security item #4): Temporal persists workflow + activity inputs in durable history, so forwarding the caller key would store it in cleartext in the history store. The deployment MUST set `PLATFORM_API_KEY` on the temporal worker (OpenShift: `temporal-worker-secrets`; local: `temporal.env` override) to a service-account API key with the permissions dynamic nodes require. When unset, `AI_DI_API_KEY` is injected as an empty string and platform callbacks will 401. Per-invocation short-lived keys remain a possible future enhancement.
 
 **Not for user secrets.** Scripts cannot get arbitrary env vars. `--allow-env` is granted only for the four ambient names listed above; everything else is denied.
 
@@ -398,17 +398,20 @@ hardening changes and one explicitly accepted risk.
   empty, scripts can reach only the platform API. (Flagged NEEDS CLUSTER
   VALIDATION in the manifest.)
 
-**Accepted risk (no code change — decision 2026-06-06):** the combination of
-(a) any group member being able to publish server-side scripts (§5.2, §11) and
-(b) the caller's group-scoped `AI_DI_API_KEY` being passed into the sandbox
-verbatim (§3, "Key provenance") means a group member can author a node that runs
-with a *different* group member's key. Accepted for now because: the new egress
-policy blocks exfiltration to arbitrary hosts; the key is group-scoped (not
-org-wide); and authoring is not yet a broad self-serve surface. **Revisit when**
-dynamic-node authoring opens to lower-trust / many users — at which point apply
-one or both of: restrict publish to an elevated role (cheap), or mint a per-run
-short-lived scoped token instead of the verbatim key (§12 — "per-invocation
-short-lived keys are 6.x").
+**Update (security item #4, 2026-06-07):** `AI_DI_API_KEY` is no longer the
+caller's `x-api-key` threaded through workflow input — it is now sourced
+server-side by the `dyn.run` activity from the worker's `PLATFORM_API_KEY`
+config (§3, "Key provenance"). This was driven by a different concern (the
+caller key was being persisted in Temporal's durable history in cleartext), but
+it also changes the residual-risk picture below: the sandbox now runs with a
+single platform service-account key rather than whichever group member triggered
+the run. The remaining authoring-trust consideration stands: any group member
+can publish a node that calls the platform with the service-account key, so the
+service-account key's permissions should be scoped to what dynamic nodes
+legitimately need. **Revisit when** dynamic-node authoring opens to lower-trust /
+many users — at which point apply one or both of: restrict publish to an elevated
+role (cheap), or mint a per-run short-lived scoped token instead of the shared
+service-account key (§12 — "per-invocation short-lived keys are 6.x").
 
 ---
 

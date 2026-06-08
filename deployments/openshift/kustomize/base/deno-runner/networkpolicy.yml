@@ -34,9 +34,14 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # DNS resolution (CoreDNS / kube-dns) — needed to resolve the platform API
-    # host and any future allowlisted hosts.
-    - ports:
+    # DNS resolution — needed to resolve the platform API host and any future
+    # allowlisted hosts. Restricted to the OpenShift cluster DNS namespace so
+    # :53 cannot be used as an exfil channel to arbitrary destinations.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
@@ -52,6 +57,8 @@ spec:
       ports:
         - protocol: TCP
           port: 3002
-# NEEDS CLUSTER VALIDATION: the DNS rule allows :53 to all destinations (tighten
-# to the openshift-dns namespace if your CNI requires it), and the
-# backend-services pod label + port 3002 must match the deployed Service.
+# NEEDS CLUSTER VALIDATION: the DNS rule is scoped to the openshift-dns
+# namespace via the standard `kubernetes.io/metadata.name: openshift-dns` label;
+# confirm your cluster's DNS pods live in that namespace and that the namespace
+# carries that label. The backend-services pod label + port 3002 must also match
+# the deployed Service.

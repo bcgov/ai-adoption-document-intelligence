@@ -5,9 +5,11 @@
  */
 
 import {
+  applyCtxNamespace,
   CTX_NAMESPACE_PREFIXES,
   getCtxRootKey,
   getRefCtxRootKey,
+  resolveCtxBinding,
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
 
@@ -21,20 +23,6 @@ export function isSafeContextKeySegment(key: string): boolean {
     key !== "constructor" &&
     key !== "prototype"
   );
-}
-
-/**
- * Substitutes a leading namespace prefix (e.g. `doc.`) with the underlying
- * ctx key (e.g. `documentMetadata.`). Paths without a known namespace are
- * returned unchanged. Used by runtime ctx read/write so the resolver and the
- * validator share one source of truth (`CTX_NAMESPACE_PREFIXES`).
- */
-function applyCtxNamespace(ctxKey: string): string {
-  const dotIdx = ctxKey.indexOf(".");
-  if (dotIdx === -1) return CTX_NAMESPACE_PREFIXES[ctxKey] ?? ctxKey;
-  const ns = ctxKey.slice(0, dotIdx);
-  const remap = CTX_NAMESPACE_PREFIXES[ns];
-  return remap ? `${remap}${ctxKey.slice(dotIdx)}` : ctxKey;
 }
 
 /**
@@ -82,26 +70,7 @@ export function resolvePortBinding(
   ctxKey: string,
   ctx: Record<string, unknown>,
 ): unknown {
-  const resolvedKey = applyCtxNamespace(ctxKey);
-
-  // Traverse path using dot notation
-  const keys = resolvedKey.split(".");
-  for (const key of keys) {
-    if (!isSafeContextKeySegment(key)) {
-      return undefined;
-    }
-  }
-
-  let value: unknown = ctx;
-
-  for (const key of keys) {
-    if (value == null || typeof value !== "object") {
-      return undefined;
-    }
-    value = (value as Record<string, unknown>)[key];
-  }
-
-  return value;
+  return resolveCtxBinding(ctxKey, ctx);
 }
 
 /**

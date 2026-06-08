@@ -30,9 +30,14 @@ export const DYN_RUN_ACTIVITY_OPTIONS: {
 /**
  * Input shape the workflow passes to `dyn.run`. The executor populates
  * every field at dispatch time (US-171): `versionId` from the lineage
- * resolution; ambient context (groupId, workflowRunId, apiKey) from
+ * resolution; ambient context (groupId, workflowRunId) from
  * `ExecutionState`; `parameters` from `node.parameters`; `inputCtx` from
  * the consumed ctx slice.
+ *
+ * Item 4 (security): the platform API key is NOT part of this input — it
+ * would otherwise be persisted in Temporal's durable activity history in
+ * cleartext. The activity sources it server-side from worker config
+ * (`PLATFORM_API_KEY`); see `dyn-run.activity.ts`.
  */
 export interface DynRunActivityInput {
   slug: string;
@@ -41,7 +46,6 @@ export interface DynRunActivityInput {
   inputCtx: Record<string, unknown>;
   groupId: string;
   workflowRunId: string;
-  apiKey: string;
 }
 
 /**

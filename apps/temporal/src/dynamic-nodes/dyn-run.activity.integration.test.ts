@@ -126,7 +126,6 @@ export default async function (inputCtx) {
         inputCtx: { url: "foo.pdf" },
         groupId: "g-int",
         workflowRunId: "run-int",
-        apiKey: "key-int",
       },
       { client, prisma: stubPrisma },
     );
@@ -164,7 +163,6 @@ export default async function () {
           inputCtx: {},
           groupId: "g-int",
           workflowRunId: "run-int",
-          apiKey: "key-int",
         },
         { client, prisma: stubPrisma },
       );
@@ -208,7 +206,6 @@ export default async function () {
           inputCtx: {},
           groupId: "g-int",
           workflowRunId: "run-int",
-          apiKey: "key-int",
         },
         { client, prisma: stubPrisma },
       );
@@ -248,7 +245,6 @@ export default async function () {
           inputCtx: {},
           groupId: "g-int",
           workflowRunId: "run-int",
-          apiKey: "key-int",
         },
         { client, prisma: stubPrisma },
       );
@@ -291,7 +287,6 @@ export default async function () { return {}; }
           inputCtx: {},
           groupId: "g-int",
           workflowRunId: "run-int",
-          apiKey: "key-int",
         },
         { client, prisma: stubPrisma },
       );
@@ -333,7 +328,6 @@ export default async function () {
           inputCtx: {},
           groupId: "g-int",
           workflowRunId: "run-int",
-          apiKey: "key-int",
         },
         { client, prisma: stubPrisma },
       );
@@ -369,7 +363,6 @@ export default async function () {
           inputCtx: {},
           groupId: "g-int",
           workflowRunId: "run-int",
-          apiKey: "key-int",
         },
         { client, prisma: stubPrisma },
       ),
@@ -408,6 +401,10 @@ export default async function () {
     });
     const client = new DenoRunnerClient({ baseUrl: RUNNER_URL });
 
+    // Item 4 (security): AI_DI_API_KEY is sourced SERVER-SIDE from the worker's
+    // `PLATFORM_API_KEY` config — not from the activity input (which would put
+    // it in Temporal's durable history). Inject it via `readEnv` so the
+    // assertion is deterministic regardless of the host env.
     const result = await dynRun(
       {
         slug: "test-node",
@@ -416,9 +413,15 @@ export default async function () {
         inputCtx: {},
         groupId: "g-int",
         workflowRunId: "run-int",
-        apiKey: "key-int",
       },
-      { client, prisma: stubPrisma },
+      {
+        client,
+        prisma: stubPrisma,
+        readEnv: (name) => {
+          if (name === "PLATFORM_API_KEY") return "server-side-platform-key";
+          return process.env[name];
+        },
+      },
     );
 
     const env = result.env as Record<string, string>;
@@ -430,7 +433,164 @@ export default async function () {
     ]);
     expect(env.AI_DI_GROUP_ID).toBe("g-int");
     expect(env.AI_DI_WORKFLOW_RUN_ID).toBe("run-int");
-    expect(env.AI_DI_API_KEY).toBe("key-int");
+    expect(env.AI_DI_API_KEY).toBe("server-side-platform-key");
     expect(result.pathDenied).toBe(true);
+  }, 30_000);
+
+  // -------------------------------------------------------------------------
+  // Item 5 — sandbox-escape negative tests.
+  //
+  // The deno-runner sandbox spawns Deno with a fixed, minimal permission set
+  // (no --allow-read, --allow-write, --allow-run, --allow-ffi; --allow-net is
+  // restricted to the computed allowlist; --allow-env is restricted to the
+  // four AI_DI_* vars). A script attempting any denied capability must have
+  // the call REJECTED by the Deno permission system. Because the harness
+  // catches the script's thrown error and returns a non-zero exit, the
+  // activity surfaces a `DynamicNodeRuntimeError` whose stderr names the
+  // denied permission. Each test below proves one escape vector is closed.
+  //
+  // These require the LIVE deno-runner (they spawn real Deno) and are SKIPPED
+  // when it is unreachable — same gating as every test in this suite. They
+  // MUST run in CI with the deno-runner container up to be meaningful.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Drive a deny-script through `dynRun` and return the resulting
+   * `DynamicNodeRuntimeError` so each case can assert on its stderr. The
+   * script is expected to throw inside the sandbox (denied capability), which
+   * the runner surfaces as a non-zero exit → `DynamicNodeRuntimeError`.
+   */
+  async function expectSandboxDenied(
+    versionId: string,
+    script: string,
+  ): Promise<DynamicNodeRuntimeError> {
+    fixture(versionId, {
+      script,
+      signature: makeSignature({
+        outputs: [{ name: "uppercased", kind: "string" }],
+        timeoutMs: 5000,
+      }),
+      allowNet: [],
+      deterministic: false,
+    });
+    const client = new DenoRunnerClient({ baseUrl: RUNNER_URL });
+
+    let caught: unknown;
+    try {
+      await dynRun(
+        {
+          slug: "test-node",
+          versionId,
+          parameters: {},
+          inputCtx: {},
+          groupId: "g-int",
+          workflowRunId: "run-int",
+        },
+        { client, prisma: stubPrisma },
+      );
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(DynamicNodeRuntimeError);
+    return caught as DynamicNodeRuntimeError;
+  }
+
+  it("Item 5 — denies file read (Deno.readTextFile)", async () => {
+    if (!requireRunner()) return;
+    const err = await expectSandboxDenied(
+      "v-deny-read",
+      `
+export default async function () {
+  await Deno.readTextFile("/etc/passwd");
+  return { uppercased: "should-not-reach" };
+}
+`,
+    );
+    expect(err.exitCode).not.toBe(0);
+    // Deno's permission error names the read permission.
+    expect(err.stderrTail.toLowerCase()).toMatch(/read|permission/);
+  }, 30_000);
+
+  it("Item 5 — denies file write (Deno.writeTextFile)", async () => {
+    if (!requireRunner()) return;
+    const err = await expectSandboxDenied(
+      "v-deny-write",
+      `
+export default async function () {
+  await Deno.writeTextFile("/tmp/escape.txt", "pwned");
+  return { uppercased: "should-not-reach" };
+}
+`,
+    );
+    expect(err.exitCode).not.toBe(0);
+    expect(err.stderrTail.toLowerCase()).toMatch(/write|permission/);
+  }, 30_000);
+
+  it("Item 5 — denies subprocess spawn (Deno.Command)", async () => {
+    if (!requireRunner()) return;
+    const err = await expectSandboxDenied(
+      "v-deny-run",
+      `
+export default async function () {
+  const cmd = new Deno.Command("ls", { args: ["/"] });
+  await cmd.output();
+  return { uppercased: "should-not-reach" };
+}
+`,
+    );
+    expect(err.exitCode).not.toBe(0);
+    expect(err.stderrTail.toLowerCase()).toMatch(/run|permission/);
+  }, 30_000);
+
+  it("Item 5 — denies FFI (Deno.dlopen)", async () => {
+    if (!requireRunner()) return;
+    const err = await expectSandboxDenied(
+      "v-deny-ffi",
+      `
+export default async function () {
+  Deno.dlopen("libc.so.6", {});
+  return { uppercased: "should-not-reach" };
+}
+`,
+    );
+    expect(err.exitCode).not.toBe(0);
+    expect(err.stderrTail.toLowerCase()).toMatch(/ffi|permission|unstable/);
+  }, 30_000);
+
+  it("Item 5 — denies fetch to a non-allowlisted host", async () => {
+    if (!requireRunner()) return;
+    // allowNet is [] for this fixture → the runner's computed allowlist
+    // contains only the API host; example.com is not reachable.
+    const err = await expectSandboxDenied(
+      "v-deny-net",
+      `
+export default async function () {
+  await fetch("https://example.com/");
+  return { uppercased: "should-not-reach" };
+}
+`,
+    );
+    expect(err.exitCode).not.toBe(0);
+    expect(err.stderrTail.toLowerCase()).toMatch(/net|permission/);
+  }, 30_000);
+
+  it("Item 5 (review #3) — denies remote import", async () => {
+    if (!requireRunner()) return;
+    // A remote `import` requires both --allow-net AND the import permission;
+    // the sandbox forbids fetching remote modules, so module evaluation
+    // fails before the default export ever runs.
+    const err = await expectSandboxDenied(
+      "v-deny-import",
+      `
+import { serve } from "https://deno.land/std/http/server.ts";
+export default async function () {
+  return { uppercased: typeof serve };
+}
+`,
+    );
+    expect(err.exitCode).not.toBe(0);
+    expect(err.stderrTail.toLowerCase()).toMatch(
+      /import|net|permission|module/,
+    );
   }, 30_000);
 });

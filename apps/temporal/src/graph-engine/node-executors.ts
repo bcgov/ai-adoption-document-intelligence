@@ -39,7 +39,11 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "../graph-workflow-types";
-import { resolvePortBinding, writeToCtx } from "./context-utils";
+import {
+  getCtxRootKey,
+  resolvePortBinding,
+  writeToCtx,
+} from "./context-utils";
 import { handleNodeError, throwPollTimeout } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
 import { computeReadySetForSubgraph } from "./graph-algorithms";
@@ -213,11 +217,15 @@ function collectOutputTopLevelKeys(node: ActivityNode): string[] {
   }
   const seen = new Set<string>();
   for (const binding of node.outputs) {
-    // First segment of the (potentially-namespaced) ctxKey path. We don't
-    // expand namespace prefixes here — writeToCtx handles that internally,
-    // and the cache only needs a stable identifier for "what changed at
-    // the top level".
-    const head = binding.ctxKey.split(".")[0];
+    // Item 13: the cache snapshots/restores top-level ctx SUBTREES, so the
+    // root we record must match where `writeToCtx` actually writes. A raw
+    // `split(".")[0]` would record `"doc"` / `"segment"`, but writeToCtx
+    // remaps those namespace prefixes (`doc.* → documentMetadata.*`,
+    // `segment.* → currentSegment.*`). Use the namespace-aware root helper
+    // (single source of truth in the graph-workflow package) so a `doc.*`
+    // output snapshots `documentMetadata` — the subtree that was actually
+    // mutated — and a cache hit restores it.
+    const head = getCtxRootKey(binding.ctxKey);
     if (head.length > 0) {
       seen.add(head);
     }
@@ -453,8 +461,6 @@ async function dispatchDynamicNode(
       nonRetryable: true,
     });
   }
-  const apiKey = state.apiKey ?? "";
-
   // (1) Resolve lineage → versionId — skipped when the executor already did
   // it above the cache decorator (sweep follow-on #2).
   let versionId: string;
@@ -483,7 +489,6 @@ async function dispatchDynamicNode(
     inputCtx: inputs,
     groupId: state.groupId,
     workflowRunId: state.workflowRunId,
-    apiKey,
   });
 }
 
@@ -832,10 +837,9 @@ async function executeChildWorkflowNode(
         // lineage. Identical activity configs across parent+child share
         // cache rows.
         workflowLineageId: state.workflowLineageId ?? null,
-        // Phase 6 Milestone C (US-170) — child workflows inherit the
-        // originating caller's API key so dynamic nodes nested in
-        // library child workflows can still call back into the platform.
-        apiKey: state.apiKey ?? null,
+        // Item 4 (security): the caller's API key is no longer part of the
+        // child workflow input. Dynamic nodes nested in library child
+        // workflows source the platform API key server-side in `dyn.run`.
       },
     ],
   });
@@ -888,9 +892,9 @@ export async function executeBranchSubgraph(
     workflowLineageId: parentState.workflowLineageId,
     cacheDeps: parentState.cacheDeps,
     // Phase 6 Milestone C (US-170) — propagate the dyn.run ambient context
-    // so dynamic-node branches inside map subgraphs see the same caller +
-    // workflow run.
-    apiKey: parentState.apiKey,
+    // so dynamic-node branches inside map subgraphs see the same workflow
+    // run. (Item 4: the caller API key is no longer threaded here; `dyn.run`
+    // sources the platform key server-side.)
     workflowRunId: parentState.workflowRunId,
     lastError: parentState.lastError,
   };

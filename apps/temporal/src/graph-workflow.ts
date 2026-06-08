@@ -238,7 +238,6 @@ export async function graphWorkflow(
       // `workflowInfo()` here (it's a workflow-context-only API; the
       // runner module can't reach it directly).
       workflowRunId: workflowInfo().workflowId,
-      apiKey: input.apiKey ?? null,
       lastError,
     });
 

@@ -55,8 +55,14 @@ const STDOUT_HEAD_CHARS = 500;
 
 /**
  * Input shape passed by the executor (US-171). All fields are required —
- * the executor resolves head→versionId, ambient context, and API key
- * before invoking `dyn.run`.
+ * the executor resolves head→versionId and ambient context before invoking
+ * `dyn.run`.
+ *
+ * Item 4 (security): the platform API key is intentionally absent from this
+ * input. Temporal records activity inputs in durable workflow history, so a
+ * caller key passed here would be persisted in cleartext. The activity
+ * instead reads the platform key server-side from worker config
+ * (`PLATFORM_API_KEY`).
  */
 export interface DynRunInput {
   slug: string;
@@ -65,7 +71,6 @@ export interface DynRunInput {
   inputCtx: Record<string, unknown>;
   groupId: string;
   workflowRunId: string;
-  apiKey: string;
 }
 
 /**
@@ -101,11 +106,19 @@ export async function dynRun(
   const allowNet = computeAllowNet(globalAllowlist, entry.allowNet, apiHost);
 
   // (3) Compose runner request.
+  //
+  // Item 4 (security): the platform API key injected as `AI_DI_API_KEY` is
+  // sourced SERVER-SIDE from the worker's own config (`PLATFORM_API_KEY`),
+  // NOT from the activity input. Temporal persists activity inputs in durable
+  // history, so threading the caller's `x-api-key` through the input chain
+  // would leak it in cleartext. Reading it here keeps it out of history while
+  // still giving dynamic-node scripts a key to call back into the platform.
+  const platformApiKey = readEnv("PLATFORM_API_KEY") ?? "";
   const timeoutMs = signature.timeoutMs ?? 60_000;
   const maxMemoryMB = signature.maxMemoryMB ?? 256;
   const ambientEnv: Record<string, string> = {
     AI_DI_API_BASE_URL: apiBaseUrl,
-    AI_DI_API_KEY: args.apiKey,
+    AI_DI_API_KEY: platformApiKey,
     AI_DI_GROUP_ID: args.groupId,
     AI_DI_WORKFLOW_RUN_ID: args.workflowRunId,
   };

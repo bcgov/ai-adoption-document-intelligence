@@ -118,6 +118,14 @@ spec:
                 configMapKeyRef:
                   name: temporal-worker-config
                   key: ENRICHMENT_REDACT_PII
+            # Item 4 (security): platform API key the dyn.run activity injects
+            # into dynamic-node scripts as AI_DI_API_KEY. Sourced server-side
+            # from the worker secret — never threaded through Temporal history.
+            - name: PLATFORM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: PLATFORM_API_KEY
           volumeMounts:
             - name: storage
               mountPath: /app/data/blobs

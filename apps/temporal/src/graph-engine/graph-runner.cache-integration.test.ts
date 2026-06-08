@@ -122,9 +122,84 @@ const minimalActivityGraph: GraphWorkflowConfig = {
   edges: [],
 };
 
+/**
+ * Item 13 fixture: an activity node whose output binds to a NAMESPACED ctx
+ * key (`doc.*`). `writeToCtx` remaps `doc.field → documentMetadata.field`,
+ * so the cache snapshot must record the `documentMetadata` subtree, not a
+ * (non-existent) `doc` subtree.
+ */
+const namespacedOutputGraph: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { name: "namespaced-output-cache-test", description: "" },
+  entryNodeId: "classify",
+  ctx: {},
+  nodes: {
+    classify: {
+      id: "classify",
+      type: "activity",
+      label: "Classify",
+      // Reuse the known-good cacheable activity type from the other
+      // fixtures; Item 13 is about the namespaced OUTPUT binding
+      // (`doc.*`), independent of the activity type.
+      activityType: "tables.lookup",
+      parameters: {},
+      outputs: [{ port: "category", ctxKey: "doc.category" }],
+    },
+  },
+  edges: [],
+};
+
 describe("runGraphExecution — Phase 4 cache decorator integration (US-133)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  // Item 13 — namespaced OUTPUT ctx keys (`doc.*` / `segment.*`) must snapshot
+  // the REMAPPED top-level subtree (`documentMetadata` / `currentSegment`),
+  // not the raw prefix. A raw `split(".")[0]` recorded `doc` (undefined), so
+  // the cache row stored `{ doc: undefined }` and a hit restored nothing.
+  it("Item 13 — snapshots the remapped subtree for a `doc.*` output (cache-miss write)", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null); // miss
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ category: "invoice" });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(namespacedOutputGraph), state);
+
+    expect(mockActivityFn).toHaveBeenCalledTimes(1);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const upsertCall = upsert.mock.calls[0][0] as {
+      outputCtx: Record<string, unknown>;
+    };
+    // The snapshot records `documentMetadata` (the subtree writeToCtx
+    // actually mutated) — NOT a `doc` key and NOT `{ doc: undefined }`.
+    expect(upsertCall.outputCtx).toEqual({
+      documentMetadata: { category: "invoice" },
+    });
+    expect(upsertCall.outputCtx).not.toHaveProperty("doc");
+    // And ctx itself was written under the remapped path.
+    expect(state.ctx.documentMetadata).toEqual({ category: "invoice" });
+  });
+
+  it("Item 13 — restores the remapped subtree for a `doc.*` output (cache-hit replay)", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    // The cache row holds the REMAPPED subtree (what the fixed snapshot
+    // would have written on a prior miss).
+    findFresh.mockResolvedValue({
+      outputCtx: { documentMetadata: { category: "receipt" } },
+      outputKind: null,
+    });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(namespacedOutputGraph), state);
+
+    // Served from cache — activity never ran, nothing re-written.
+    expect(mockActivityFn).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    // The cached subtree is overlaid back onto ctx under `documentMetadata`,
+    // so a downstream `doc.category` ref resolves correctly.
+    expect(state.ctx.documentMetadata).toEqual({ category: "receipt" });
   });
 
   it("Scenario 1 — writes a cache row after a regular activity executes (cache-miss path)", async () => {
