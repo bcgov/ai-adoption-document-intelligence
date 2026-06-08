@@ -45,7 +45,7 @@ describe("TemplateModelController", () => {
     file_size: 1024,
     metadata: {},
     source: "labeling",
-    status: "completed_ocr",
+    status: "extracted",
     created_at: new Date(),
     updated_at: new Date(),
     apim_request_id: null,

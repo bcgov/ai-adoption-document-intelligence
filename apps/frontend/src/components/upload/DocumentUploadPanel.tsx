@@ -1,23 +1,4 @@
 import {
-  ActionIcon,
-  Avatar,
-  Badge,
-  Button,
-  Divider,
-  Group,
-  Paper,
-  Progress,
-  rem,
-  ScrollArea,
-  Select,
-  Stack,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { Dropzone, FileRejection } from "@mantine/dropzone";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCircleCheck,
   IconFileDescription,
@@ -34,6 +15,26 @@ import { useWorkflows } from "../../data/hooks/useWorkflows";
 import { apiService } from "../../data/services/api.service";
 import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "../../shared/constants";
 import type { Document, UploadDocumentPayload } from "../../shared/types";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Divider,
+  Dropzone,
+  type FileRejection,
+  Group,
+  IconActionButton,
+  notifications,
+  PanelCard,
+  Progress,
+  rem,
+  ScrollArea,
+  Select,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from "../../ui";
 
 interface UploadQueueItem {
   id: string;
@@ -298,15 +299,15 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   };
 
   return (
-    <Stack gap="lg">
-      <Paper shadow="sm" radius="md" p="lg" withBorder>
-        <Stack gap="sm">
+    <div className="bcds-upload-panel">
+      <PanelCard>
+        <div className="bcds-upload-panel__intro">
           <Title order={3}>Upload images</Title>
           <Text c="dimmed" size="sm">
             Select a processing model, then drag and drop scans or mobile
             captures. Click Upload to start OCR processing.
           </Text>
-        </Stack>
+        </div>
         <Select
           mt="md"
           label="Processing Model"
@@ -336,6 +337,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           clearable
         />
         <Dropzone
+          className="bcds-mantine-dropzone"
           mt="lg"
           onDrop={handleDrop}
           onReject={handleReject}
@@ -353,14 +355,14 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
               <IconUpload
                 style={{ width: rem(40), height: rem(40) }}
                 stroke={1.5}
-                color="var(--mantine-color-blue-6)"
+                color="var(--theme-primary-blue)"
               />
             </Dropzone.Accept>
             <Dropzone.Reject>
               <IconX
                 style={{ width: rem(40), height: rem(40) }}
                 stroke={1.5}
-                color="var(--mantine-color-red-6)"
+                color="var(--support-border-color-danger)"
               />
             </Dropzone.Reject>
             <Dropzone.Idle>
@@ -382,7 +384,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           </Group>
         </Dropzone>
 
-        <Group mt="md" justify="space-between">
+        <Group className="bcds-upload-panel__actions" justify="space-between">
           <Text size="sm" c="dimmed">
             {queue.length === 0
               ? "No files queued yet"
@@ -417,23 +419,27 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             </Tooltip>
           </Group>
         </Group>
-      </Paper>
+      </PanelCard>
 
       {queue.length > 0 && (
-        <Paper shadow="sm" radius="md" p="lg" withBorder>
-          <Group justify="space-between" mb="sm">
+        <PanelCard>
+          <div className="bcds-upload-queue__header">
             <Title order={4}>Upload queue</Title>
             <Badge>{queue.length} files</Badge>
-          </Group>
+          </div>
           <Divider mb="sm" />
-          <ScrollArea h={260} type="hover">
-            <Stack gap="sm">
+          <ScrollArea
+            className="bcds-upload-queue__scroll"
+            h={260}
+            type="hover"
+          >
+            <Stack gap="sm" p="sm">
               {queue.map((item) => {
                 const badge = formatStatusBadge(item.status);
                 return (
-                  <Paper key={item.id} radius="md" p="sm" withBorder>
+                  <div key={item.id} className="bcds-upload-queue-row">
                     <Group align="flex-start" justify="space-between">
-                      <Group align="center">
+                      <Group align="center" wrap="nowrap">
                         <Avatar
                           radius="sm"
                           src={item.previewUrl}
@@ -442,9 +448,11 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                         >
                           <IconFileDescription size={20} />
                         </Avatar>
-                        <div>
-                          <Group gap={4} mb={4}>
-                            <Text fw={600}>{item.file.name}</Text>
+                        <div className="bcds-upload-queue-row__meta">
+                          <Group gap={4} mb={4} wrap="nowrap">
+                            <Text fw={600} truncate>
+                              {item.file.name}
+                            </Text>
                             <Badge
                               size="sm"
                               color={badge.color}
@@ -459,27 +467,25 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                           </Text>
                         </div>
                       </Group>
-                      <Group gap="xs">
-                        {item.document && (
-                          <Tooltip label="Open in viewer">
-                            <ActionIcon
-                              variant="subtle"
-                              color="green"
-                              onClick={() =>
-                                onDocumentFocus?.(item.document as Document)
-                              }
-                            >
-                              <IconCircleCheck size={18} />
-                            </ActionIcon>
-                          </Tooltip>
-                        )}
-                        <ActionIcon
+                      <Group gap="xs" wrap="nowrap">
+                        {item.document ? (
+                          <IconActionButton
+                            tooltip="Open in viewer"
+                            variant="subtle"
+                            color="green"
+                            onClick={() =>
+                              onDocumentFocus?.(item.document as Document)
+                            }
+                            icon={<IconCircleCheck size={18} />}
+                          />
+                        ) : null}
+                        <IconActionButton
+                          tooltip="Remove from queue"
                           variant="subtle"
                           color="red"
                           onClick={() => removeFromQueue(item.id)}
-                        >
-                          <IconTrash size={18} />
-                        </ActionIcon>
+                          icon={<IconTrash size={18} />}
+                        />
                       </Group>
                     </Group>
                     <Progress
@@ -488,26 +494,26 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                       color={badge.color}
                       animated={item.status === "uploading"}
                     />
-                    {item.message && (
+                    {item.message ? (
                       <Group gap={4} mt="xs">
                         {item.status === "error" ? (
                           <IconAlertCircle
                             size={14}
-                            color="var(--mantine-color-red-6)"
+                            color="var(--typography-color-danger)"
                           />
                         ) : null}
                         <Text size="xs" c="dimmed">
                           {item.message}
                         </Text>
                       </Group>
-                    )}
-                  </Paper>
+                    ) : null}
+                  </div>
                 );
               })}
             </Stack>
           </ScrollArea>
-        </Paper>
+        </PanelCard>
       )}
-    </Stack>
+    </div>
   );
 };

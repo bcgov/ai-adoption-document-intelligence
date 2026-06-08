@@ -1,3 +1,4 @@
+import { ALERT_THRESHOLDS } from "@ai-di/monitoring";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
@@ -14,9 +15,14 @@ import { ConfusionProfileModule } from "./confusion-profile/confusion-profile.mo
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
 import { GroupModule } from "./group/group.module";
+import { HealthModule } from "./health/health.module";
 import { HitlModule } from "./hitl/hitl.module";
 import { LoggingModule } from "./logging/logging.module";
 import { MetricsModule } from "./metrics/metrics.module";
+import {
+  ALERT_PREFILL_TYPES,
+  type AlertPrefillEntry,
+} from "./metrics/metrics.service";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
 import { TablesModule } from "./tables/tables.module";
@@ -31,7 +37,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     LoggingModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ".env",
+      envFilePath: ["../../.env", ".env"],
       cache: true,
     }),
     ScheduleModule.forRoot(),
@@ -67,6 +73,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     AzureModule,
     BootstrapModule,
     GroupModule,
+    HealthModule,
     MetricsModule,
     TablesModule,
   ],
@@ -74,6 +81,12 @@ import { WorkflowModule } from "./workflow/workflow.module";
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: ALERT_PREFILL_TYPES,
+      useValue: Object.entries(ALERT_THRESHOLDS).map<AlertPrefillEntry>(
+        ([alertType, config]) => ({ alertType, severity: config.severity }),
+      ),
     },
   ],
 })

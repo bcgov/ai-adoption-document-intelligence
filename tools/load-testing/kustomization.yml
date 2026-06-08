@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Bundles k6 scripts from ./k6 into a ConfigMap + Jobs. Apply from repo root:
+#   oc apply -k tools/load-testing -n <namespace>
+
+configMapGenerator:
+  - name: load-test-k6-scripts
+    options:
+      disableNameSuffixHash: true
+    files:
+      - smoke.js=k6/smoke.js
+      - read-benchmark-datasets.js=k6/read-benchmark-datasets.js
+      - stress-documents-list.js=k6/stress-documents-list.js
+      - upload-ocr-workflow.js=k6/upload-ocr-workflow.js
+      - blob-storage-pressure.js=k6/blob-storage-pressure.js
+      - review-hitl-apis.js=k6/review-hitl-apis.js
+
+resources:
+  - openshift/k6-job-smoke.yaml
+  - openshift/k6-job-datasets.yaml
+  - openshift/k6-job-documents.yaml
+  - openshift/k6-job-upload-ocr.yaml
+  - openshift/k6-job-blob-storage.yaml
+  - openshift/k6-job-review-hitl.yaml

@@ -27,6 +27,9 @@ export class ClassifierPollerService {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async pollActiveClassifiers(): Promise<void> {
+    if (this.azureService.isMockMode()) {
+      return;
+    }
     try {
       // Find all classifiers that are currently training
       const classifiers = await this.classifierDb.findAllTrainingClassifiers();
@@ -115,6 +118,7 @@ export class ClassifierPollerService {
         if (transitioned) {
           this.logger.log(
             `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
+            { alertType: "classifier_training_poll" },
           );
           await this.deleteTrainingBlobs(classifierName, groupId);
         }
@@ -131,7 +135,7 @@ export class ClassifierPollerService {
         );
         this.logger.warn(
           `Classifier ${classifierName} (group ${groupId}) training failed: ${errorMessage}`,
-          { result },
+          { result, alertType: "classifier_training_poll" },
         );
       } else {
         this.logger.debug(
@@ -141,7 +145,7 @@ export class ClassifierPollerService {
     } catch (error) {
       this.logger.error(
         `Error polling classifier ${classifierName} (group ${groupId})`,
-        { stack: getErrorStack(error) },
+        { stack: getErrorStack(error), alertType: "classifier_training_poll" },
       );
     }
   }

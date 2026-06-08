@@ -5,7 +5,7 @@ export default defineConfig({
   schema: "../shared/prisma/schema.prisma",
   migrations: {
     path: "../shared/prisma/migrations",
-    seed: "tsx ../shared/prisma/seed.ts",
+    seed: "sh scripts/run-prisma-seed.sh",
   },
   // Generate client locally in this app
   generator: {

@@ -21,9 +21,12 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { GroupRole } from "@/generated";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
+import { WorkflowService } from "../workflow/workflow.service";
 import { UploadConversionFailedResponseDto } from "./dto/upload-conversion-failed-response.dto";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
@@ -34,16 +37,13 @@ export class UploadController {
   constructor(
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
+    private readonly workflowService: WorkflowService,
     private readonly logger: AppLoggerService,
   ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({
-    allowApiKey: true,
-    minimumRole: "MEMBER",
-    groupIdFrom: { body: "group_id" },
-  })
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Upload a new document and start OCR processing" })
   @ApiCreatedResponse({
     description:
@@ -63,25 +63,31 @@ export class UploadController {
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
-    @Req() _req: Request,
+    @Req() req: Request,
   ): Promise<UploadDocumentResponseDto> {
     this.logger.debug("=== UploadController.uploadDocument ===");
-    this.logger.debug(
-      `Received upload request: ${JSON.stringify(
-        {
-          title: uploadDto.title,
-          file_type: uploadDto.file_type,
-          original_filename: uploadDto.original_filename,
-          metadata: uploadDto.metadata,
-          model_id: uploadDto.model_id,
-          file_length: uploadDto.file?.length || 0,
-        },
-        null,
-        2,
-      )}`,
-    );
 
     try {
+      // Authorize first (fail-closed): resolve group and check access before input
+      // validation so invalid payloads cannot bypass membership checks.
+      const apiKeyGroupId = req.apiKey?.groupId;
+      const groupId = uploadDto.group_id ?? apiKeyGroupId;
+      if (
+        apiKeyGroupId &&
+        uploadDto.group_id &&
+        apiKeyGroupId !== uploadDto.group_id
+      ) {
+        throw new ForbiddenException(
+          "group_id does not match the API key's group",
+        );
+      }
+      if (!groupId) {
+        throw new BadRequestException(
+          "group_id is required when not authenticating with an API key",
+        );
+      }
+      identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
+
       // Validate base64 file data
       if (!uploadDto.file || uploadDto.file.trim().length === 0) {
         throw new BadRequestException("File data is required");
@@ -92,19 +98,42 @@ export class UploadController {
         uploadDto.original_filename ||
         `${uploadDto.title}.${uploadDto.file_type}`;
 
-      // Upload document (saves file and stores metadata)
-      // Use workflow_config_id if provided, fallback to workflow_id for backward compatibility
+      // Resolve workflow → WorkflowVersion.id. Accept slug (+ optional version)
+      // or a workflow_config_id (Version.id or Lineage.id).
       const workflowConfigId =
-        uploadDto.workflow_config_id || uploadDto.workflow_id;
+        await this.workflowService.resolveWorkflowVersionId({
+          groupId,
+          workflowSlug: uploadDto.workflow_slug,
+          workflowVersion: uploadDto.workflow_version,
+          workflowConfigId: uploadDto.workflow_config_id,
+        });
+
+      // Default model_id from the workflow's ctx.modelId.defaultValue when not provided.
+      let modelId: string | undefined = uploadDto.model_id;
+      if (!modelId && workflowConfigId) {
+        modelId =
+          (await this.workflowService.getModelIdDefault(workflowConfigId)) ??
+          undefined;
+      }
+      if (!modelId) {
+        throw new BadRequestException(
+          "model_id is required when the workflow does not declare a default",
+        );
+      }
+
+      this.logger.debug(
+        `Upload resolved: group=${groupId}, workflowVersion=${workflowConfigId ?? "<none>"}, model=${modelId}, file_type=${uploadDto.file_type}`,
+      );
+
       const uploadResult = await this.documentService.uploadDocument(
         uploadDto.title,
         uploadDto.file,
         uploadDto.file_type,
         originalFilename,
-        uploadDto.model_id,
-        uploadDto.group_id,
+        modelId,
+        groupId,
         uploadDto.metadata,
-        workflowConfigId,
+        workflowConfigId ?? undefined,
       );
 
       if (uploadResult.kind === "conversion_failed") {
@@ -144,6 +173,7 @@ export class UploadController {
           filePath: uploadedDocument.normalized_file_path ?? "",
           fileType: "pdf",
           metadata: uploadedDocument.metadata,
+          ctxOverrides: uploadDto.ctx_overrides,
           timestamp: new Date(),
         })
         .catch((error) => {

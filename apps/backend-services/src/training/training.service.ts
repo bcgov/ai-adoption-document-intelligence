@@ -21,6 +21,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
@@ -71,7 +72,8 @@ export function mintVersionedModelId(
 
 @Injectable()
 export class TrainingService {
-  private adminClient!: DocumentIntelligenceClient;
+  private adminClient?: DocumentIntelligenceClient;
+  private readonly diMode: ReturnType<typeof resolveDocumentIntelligenceMode>;
   private readonly minDocuments: number;
   private readonly sasExpiryDays: number;
 
@@ -88,6 +90,10 @@ export class TrainingService {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
   ) {
+    this.diMode = resolveDocumentIntelligenceMode(
+      this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
+    );
+
     const endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
@@ -95,7 +101,11 @@ export class TrainingService {
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
 
-    if (!endpoint || !apiKey) {
+    if (this.diMode === "mock") {
+      this.logger.log(
+        "DOCUMENT_INTELLIGENCE_MODE=mock — Azure template training API is disabled.",
+      );
+    } else if (!endpoint || !apiKey) {
       this.logger.warn(
         "Azure Document Intelligence credentials not configured. Training features will not work.",
       );
@@ -275,6 +285,12 @@ export class TrainingService {
     templateModelId: string,
     dto: StartTrainingDto,
   ): Promise<TrainingJobDto> {
+    if (this.diMode === "mock") {
+      throw new ServiceUnavailableException(
+        "Template model training requires DOCUMENT_INTELLIGENCE_MODE=live.",
+      );
+    }
+
     const templateModel =
       await this.templateModelService.getTemplateModel(templateModelId);
     const baseModelId = templateModel.model_id;
@@ -420,6 +436,12 @@ export class TrainingService {
       if (!sasUrl.startsWith("https://") || !hasSasToken) {
         throw new Error(
           "Invalid SAS URL for training container. Expected HTTPS URL with SAS token.",
+        );
+      }
+
+      if (!this.adminClient) {
+        throw new Error(
+          "Azure Document Intelligence client is not configured for training.",
         );
       }
 

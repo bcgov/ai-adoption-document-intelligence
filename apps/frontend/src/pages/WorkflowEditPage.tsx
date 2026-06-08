@@ -1,3 +1,10 @@
+import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { SlugChip } from "../components/workflow/SlugChip";
+import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
+import { useUpdateWorkflow, useWorkflow } from "../data/hooks/useWorkflows";
+import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
+import type { WorkflowStepsConfig } from "../types/workflow";
 import {
   Badge,
   Button,
@@ -5,6 +12,7 @@ import {
   Group,
   Loader,
   NumberInput,
+  notifications,
   Paper,
   Select,
   Stack,
@@ -12,14 +20,7 @@ import {
   Text,
   TextInput,
   Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
-import { useUpdateWorkflow, useWorkflow } from "../data/hooks/useWorkflows";
-import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
-import type { WorkflowStepsConfig } from "../types/workflow";
+} from "../ui";
 
 interface WorkflowStepConfig {
   enabled: boolean;
@@ -334,8 +335,14 @@ export function WorkflowEditPage({
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Stack gap={2}>
+        <Stack gap={4}>
           <Title order={2}>Edit Workflow</Title>
+          <Group gap="xs">
+            <Text c="dimmed" size="sm">
+              Slug:
+            </Text>
+            <SlugChip slug={workflow.slug} />
+          </Group>
           <Text c="dimmed" size="sm">
             Modify workflow configuration and parameters
           </Text>

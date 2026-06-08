@@ -5,6 +5,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import { AzureService } from "@/azure/azure.service";
 import {
   buildBlobFilePath,
   OperationCategory,
@@ -24,6 +25,7 @@ import type { AnalysisResponse } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import type { LabelingDocumentData } from "./labeling-document-db.types";
+import { mockLabelingOcrAnalysisResponse } from "./mock-labeling-ocr-response";
 
 type JsonValue = Prisma.JsonValue;
 
@@ -38,6 +40,7 @@ export class TemplateModelOcrService {
 
   constructor(
     private readonly labelingDocumentDb: LabelingDocumentDbService,
+    private readonly azureService: AzureService,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     @Inject(BLOB_STORAGE)
@@ -170,7 +173,7 @@ export class TemplateModelOcrService {
       const analysisResponse = await this.waitForOcrCompletion(apimRequestId);
 
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
         ocr_result: analysisResponse as unknown as JsonValue,
       });
     } catch (error) {
@@ -184,6 +187,10 @@ export class TemplateModelOcrService {
   }
 
   private async requestOcr(blobKey: string): Promise<string> {
+    if (this.azureService.isMockMode()) {
+      return "mock-apim-request-id";
+    }
+
     const fileBuffer = await this.blobStorage.read(
       validateBlobFilePath(blobKey),
     );
@@ -215,6 +222,10 @@ export class TemplateModelOcrService {
     maxAttempts = 30,
     delayMs = 2000,
   ): Promise<AnalysisResponse> {
+    if (this.azureService.isMockMode()) {
+      return mockLabelingOcrAnalysisResponse();
+    }
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const response = await lastValueFrom(
         this.httpService.get(

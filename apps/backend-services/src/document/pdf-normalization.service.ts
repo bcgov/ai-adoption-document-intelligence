@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { degrees, PDFDocument, PDFImage } from "pdf-lib";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { loadMupdf } from "./esm-imports";
 
 /** `export =` module — default import breaks under Jest/ts-jest. */
 import sharp = require("sharp");
@@ -72,6 +73,61 @@ export class PdfNormalizationService {
           "The file is not a valid image or is corrupted.",
         );
       }
+    }
+  }
+
+  /**
+   * Generates a WebP thumbnail (~200 px wide) from the document's first page.
+   *
+   * For image uploads, sharp processes the original buffer directly.
+   * For PDF/scan uploads, mupdf rasterises page 0 at 72 dpi and sharp
+   * converts the resulting PNG to WebP.
+   *
+   * @param fileBuffer - Original file buffer (image bytes or PDF bytes).
+   * @param fileType - "image", "pdf", or "scan".
+   * @returns WebP thumbnail buffer.
+   * @throws PdfNormalizationError if thumbnail generation fails.
+   */
+  async generateThumbnailWebp(
+    fileBuffer: Buffer,
+    fileType: string,
+  ): Promise<Buffer> {
+    const ft = fileType.toLowerCase();
+    try {
+      if (ft === "image") {
+        return await sharp(fileBuffer)
+          .resize({ width: 200, withoutEnlargement: true })
+          .webp({ quality: 70 })
+          .toBuffer();
+      }
+
+      if (ft === "pdf" || ft === "scan") {
+        const mupdf = await loadMupdf();
+        const doc = mupdf.Document.openDocument(
+          new Uint8Array(fileBuffer),
+          "application/pdf",
+        );
+        const page = doc.loadPage(0);
+        const matrix = mupdf.Matrix.scale(1, 1);
+        const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB);
+        const pngBuffer = Buffer.from(pixmap.asPNG());
+        return await sharp(pngBuffer)
+          .resize({ width: 200, withoutEnlargement: true })
+          .webp({ quality: 70 })
+          .toBuffer();
+      }
+
+      throw new PdfNormalizationError(
+        `Cannot generate thumbnail for file type: ${fileType}`,
+      );
+    } catch (e) {
+      if (e instanceof PdfNormalizationError) {
+        throw e;
+      }
+      this.logger.warn("Thumbnail generation failed", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      throw new PdfNormalizationError("Thumbnail could not be generated.");
     }
   }
 

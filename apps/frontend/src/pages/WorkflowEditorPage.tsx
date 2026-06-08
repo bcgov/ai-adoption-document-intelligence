@@ -1,21 +1,6 @@
 import { json } from "@codemirror/lang-json";
 import { Diagnostic, linter, lintGutter } from "@codemirror/lint";
 import { EditorView } from "@codemirror/view";
-import {
-  Badge,
-  Button,
-  Collapse,
-  Flex,
-  Group,
-  Paper,
-  SegmentedControl,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -28,6 +13,23 @@ import {
   useWorkflow,
 } from "../data/hooks/useWorkflows";
 import { GraphWorkflowConfig } from "../types/workflow";
+import {
+  Badge,
+  Button,
+  Collapse,
+  Flex,
+  Group,
+  notifications,
+  PageHeader,
+  PanelCard,
+  Paper,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  useDebouncedValue,
+} from "../ui";
 
 interface GraphValidationError {
   path: string;
@@ -497,32 +499,35 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
     );
   }
 
+  const editorActions = (
+    <Group gap="xs" wrap="nowrap">
+      <Button variant="subtle" onClick={() => navigate("/workflows")}>
+        Back
+      </Button>
+      <Button variant="light" onClick={handleValidate}>
+        Validate
+      </Button>
+      <Button variant="light" onClick={handleFormat}>
+        Format JSON
+      </Button>
+      <Button variant="light" onClick={handleReset}>
+        Reset
+      </Button>
+      <Button onClick={handleSave} disabled={!canSave}>
+        {mode === "create" ? "Create" : "Save"}
+      </Button>
+    </Group>
+  );
+
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="center">
-        <Title order={3}>
-          {mode === "create" ? "Create workflow" : "Edit workflow"}
-        </Title>
-        <Group>
-          <Button variant="subtle" onClick={() => navigate("/workflows")}>
-            Back
-          </Button>
-          <Button variant="light" onClick={handleValidate}>
-            Validate
-          </Button>
-          <Button variant="light" onClick={handleFormat}>
-            Format JSON
-          </Button>
-          <Button variant="light" onClick={handleReset}>
-            Reset
-          </Button>
-          <Button onClick={handleSave} disabled={!canSave}>
-            {mode === "create" ? "Create" : "Save"}
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={mode === "create" ? "Create workflow" : "Edit workflow"}
+        description="Configure workflow metadata and graph definition."
+        actions={editorActions}
+      />
 
-      <Paper withBorder p="md">
+      <PanelCard>
         <Group justify="space-between" align="center">
           <Stack gap={4} style={{ flex: 1 }}>
             <TextInput
@@ -547,7 +552,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
             </Badge>
           ) : null}
         </Group>
-      </Paper>
+      </PanelCard>
 
       <Flex align="flex-start" gap="xl" wrap="nowrap" style={{ minWidth: 0 }}>
         <Stack style={{ flex: "1 1 50%", minWidth: 0 }} gap="md">

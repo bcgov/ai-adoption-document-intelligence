@@ -1,0 +1,312 @@
+/**
+ * BC Design System token styling for Mantine components without BC DS equivalents.
+ * Loaded after Mantine core styles so tokens override default Mantine chrome.
+ */
+
+/* ── App shell & navigation ───────────────────────────────────────── */
+
+.mantine-AppShell-navbar {
+  background-color: var(--surface-color-background-white);
+  border-right: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+}
+
+.mantine-AppShell-main {
+  background-color: var(--surface-color-background-light-gray);
+}
+
+.mantine-AppShell-header {
+  border-bottom: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+}
+
+.mantine-NavLink-root {
+  border-radius: var(--layout-border-radius-medium);
+  color: var(--typography-color-primary);
+  font: var(--typography-regular-small-body);
+}
+
+.mantine-NavLink-root:hover {
+  background-color: var(--surface-color-secondary-hover);
+}
+
+.mantine-NavLink-root[data-active] {
+  background-color: var(--surface-color-background-light-blue);
+  color: var(--theme-primary-blue);
+}
+
+.mantine-NavLink-label {
+  font: var(--typography-regular-small-body);
+}
+
+.mantine-NavLink-description {
+  color: var(--typography-color-secondary);
+  font: var(--typography-regular-label);
+}
+
+.mantine-ActionIcon-root {
+  border-radius: var(--layout-border-radius-medium);
+  color: var(--icons-color-primary);
+}
+
+/* Mantine Menu.Target — outline trigger (BC DS Button does not forward refs) */
+.bcds-menu-outline-trigger {
+  align-items: center;
+  background-color: var(--surface-color-forms-default);
+  border: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  border-radius: var(--layout-border-radius-medium);
+  color: var(--typography-color-primary);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--typography-regular-body);
+  padding: var(--layout-padding-small) var(--layout-padding-medium);
+}
+
+.bcds-menu-outline-trigger:hover {
+  border-color: var(--surface-color-border-dark);
+  background-color: var(--surface-color-secondary-hover);
+}
+
+.bcds-menu-outline-trigger:focus-visible {
+  outline: solid var(--layout-border-width-medium)
+    var(--surface-color-border-active);
+  outline-offset: var(--layout-margin-hair);
+}
+
+.mantine-ActionIcon-root[data-variant="default"] {
+  background-color: var(--surface-color-background-white);
+  border: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+}
+
+.mantine-ActionIcon-root[data-variant="light"][data-active],
+.mantine-ActionIcon-root[data-variant="light"]:where(
+    :not([data-disabled])
+  ):hover {
+  background-color: var(--surface-color-background-light-blue);
+  color: var(--theme-primary-blue);
+}
+
+/* ── Tables (DataTable / Table) ───────────────────────────────────── */
+
+.bcds-data-table-wrapper {
+  overflow-x: auto;
+  border: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  border-radius: var(--layout-border-radius-medium);
+  background-color: var(--surface-color-background-white);
+}
+
+.bcds-data-table-wrapper .mantine-Table-caption {
+  caption-side: top;
+  color: var(--typography-color-secondary);
+  font: var(--typography-regular-label);
+  padding: var(--layout-padding-small) var(--layout-padding-medium);
+  text-align: left;
+}
+
+.bcds-mantine-table.mantine-Table-table[data-striped]
+  tbody
+  tr:nth-of-type(odd) {
+  background-color: var(--surface-color-background-light-gray);
+}
+
+/* Tables without wrapper class still get baseline token borders */
+.mantine-Table-table {
+  --table-border-color: var(--surface-color-border-default);
+}
+
+.mantine-Table-th {
+  color: var(--typography-color-primary);
+  font: var(--typography-bold-small-body);
+}
+
+.mantine-Table-td {
+  color: var(--typography-color-primary);
+  font: var(--typography-regular-small-body);
+}
+
+.bcds-mantine-table,
+.bcds-mantine-table .mantine-Table-table {
+  --table-border-color: var(--surface-color-border-default);
+  font: var(--typography-regular-small-body);
+  color: var(--typography-color-primary);
+}
+
+.bcds-mantine-table .mantine-Table-thead {
+  background-color: var(--surface-color-background-light-gray);
+}
+
+.bcds-mantine-table .mantine-Table-th {
+  border-bottom: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  color: var(--typography-color-primary);
+  font: var(--typography-bold-small-body);
+  padding: var(--layout-padding-small) var(--layout-padding-medium);
+}
+
+.bcds-mantine-table .mantine-Table-td {
+  border-bottom: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  padding: var(--layout-padding-small) var(--layout-padding-medium);
+}
+
+.bcds-mantine-table .mantine-Table-tr:where([data-hover]):hover {
+  background-color: var(--surface-color-background-light-blue);
+}
+
+/* ── Dropzone ───────────────────────────────────────────────────────── */
+
+.bcds-mantine-dropzone,
+.mantine-Dropzone-root {
+  background-color: var(--surface-color-background-light-blue);
+  border: var(--layout-border-width-medium) dashed
+    var(--surface-color-border-medium);
+  border-radius: var(--layout-border-radius-medium);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+/* Mantine MultiSelect — dropdown wide enough for option labels */
+.mantine-MultiSelect-root {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.mantine-MultiSelect-dropdown[style] {
+  width: max-content;
+  min-width: var(--combobox-dropdown-width, auto);
+  max-width: min(100vw - 2rem, 32rem);
+}
+
+.bcds-mantine-dropzone:hover,
+.mantine-Dropzone-root:hover {
+  background-color: var(--surface-color-forms-default);
+  border-color: var(--surface-color-border-active);
+}
+
+.mantine-Dropzone-root[data-reject] {
+  background-color: var(--support-surface-color-danger);
+  border-color: var(--support-border-color-danger);
+}
+
+.mantine-Dropzone-root[data-accept] {
+  background-color: var(--support-surface-color-success);
+  border-color: var(--support-border-color-success);
+}
+
+/* ── Loader ─────────────────────────────────────────────────────────── */
+
+.mantine-Loader-root {
+  --loader-color: var(--theme-primary-blue);
+}
+
+/* ── Notifications (toast stack) ────────────────────────────────────── */
+
+.mantine-Notification-root {
+  background-color: var(--surface-color-background-white);
+  border: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  border-radius: var(--layout-border-radius-medium);
+  box-shadow: var(--surface-shadow-medium);
+  color: var(--typography-color-primary);
+  font: var(--typography-regular-small-body);
+}
+
+.mantine-Notification-title {
+  font: var(--typography-bold-small-body);
+}
+
+.mantine-Notification-description {
+  color: var(--typography-color-secondary);
+  font: var(--typography-regular-small-body);
+}
+
+.mantine-Notification-root:where([data-with-border])::before {
+  width: var(--layout-border-width-medium);
+}
+
+.mantine-Notification-root[data-color="red"] {
+  background-color: var(--support-surface-color-danger);
+  border-color: var(--support-border-color-danger);
+}
+
+.mantine-Notification-root[data-color="green"] {
+  background-color: var(--support-surface-color-success);
+  border-color: var(--support-border-color-success);
+}
+
+.mantine-Notification-root[data-color="yellow"],
+.mantine-Notification-root[data-color="orange"] {
+  background-color: var(--support-surface-color-warning);
+  border-color: var(--support-border-color-warning);
+}
+
+.mantine-Notification-root[data-color="blue"] {
+  background-color: var(--support-surface-color-info);
+  border-color: var(--support-border-color-info);
+}
+
+/* ── Cards & surfaces (plain Paper / Card) ────────────────────────── */
+
+.mantine-Paper-root:where([data-with-border]) {
+  border-color: var(--surface-color-border-default);
+}
+
+.mantine-Card-root {
+  border-color: var(--surface-color-border-default);
+  box-shadow: var(--surface-shadow-small);
+}
+
+/* ── Tabs (Mantine fallback) ────────────────────────────────────────── */
+
+.mantine-Tabs-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mantine-Tabs-list {
+  position: relative;
+  flex-wrap: nowrap;
+  gap: var(--layout-margin-small);
+  border-bottom: var(--layout-border-width-small) solid
+    var(--surface-color-border-default);
+  background-color: var(--surface-color-background-white);
+}
+
+/* Mantine draws a full-viewport-width ::before border; hide it inside modals */
+.mantine-Tabs-list::before {
+  display: none;
+}
+
+.mantine-Tabs-tab {
+  color: var(--typography-color-secondary);
+  font: var(--typography-regular-small-body);
+  padding: var(--layout-padding-small) var(--layout-padding-medium);
+  border-bottom: var(--layout-border-width-medium) solid transparent;
+  margin-bottom: calc(-1 * var(--layout-border-width-small));
+}
+
+.mantine-Tabs-tab[data-active] {
+  color: var(--theme-primary-blue);
+  border-bottom-color: var(--theme-primary-blue);
+  font: var(--typography-bold-small-body);
+}
+
+.mantine-Tabs-tab:hover {
+  background-color: var(--surface-color-secondary-hover);
+  color: var(--typography-color-primary);
+}
+
+.mantine-Tabs-panel {
+  min-height: 0;
+}
+
+/* ── Scroll area in nav ─────────────────────────────────────────────── */
+
+.mantine-ScrollArea-viewport {
+  font: var(--typography-regular-small-body);
+}

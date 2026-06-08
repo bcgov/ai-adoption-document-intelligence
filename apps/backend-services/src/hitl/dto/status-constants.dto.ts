@@ -1,5 +1,5 @@
 export enum DocumentStatusFilter {
-  COMPLETED_OCR = "completed_ocr",
+  EXTRACTED = "extracted",
   ALL = "all",
 }
 

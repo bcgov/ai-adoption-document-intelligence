@@ -160,7 +160,7 @@ HitlService.getQueue()
 ReviewDbService.findReviewQueue()
       ↓
 Returns: Documents with:
-  - status = 'completed_ocr'
+  - status = 'extracted'
   - confidence < threshold
   - lastSession info (if reviewed)
 ```
