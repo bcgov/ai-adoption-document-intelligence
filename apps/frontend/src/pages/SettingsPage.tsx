@@ -1,18 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Code,
-  CopyButton,
-  Group,
-  Modal,
-  Paper,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCheck,
   IconCopy,
@@ -28,6 +14,22 @@ import {
   useGenerateApiKey,
   useRegenerateApiKey,
 } from "../data/hooks/useApiKey";
+import {
+  Alert,
+  Badge,
+  Button,
+  Code,
+  CopyButton,
+  Group,
+  Modal,
+  notifications,
+  PageHeader,
+  PanelCard,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "../ui";
 
 export function SettingsPage() {
   const { activeGroup } = useGroup();
@@ -99,26 +101,22 @@ export function SettingsPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Stack gap={2}>
-          <Title order={2}>Settings</Title>
-          <Text c="dimmed" size="sm">
-            Manage your API key for programmatic access
-            {activeGroup && (
-              <>
-                {" "}
-                — currently scoped to the group{" "}
-                <strong>{activeGroup.name}</strong>
-              </>
-            )}
-          </Text>
-        </Stack>
-        <Badge variant="outline" size="lg">
-          API Configuration
-        </Badge>
-      </Group>
+      <PageHeader
+        title="Settings"
+        description={
+          activeGroup
+            ? `Manage your API key for programmatic access — scoped to ${activeGroup.name}`
+            : "Manage your API key for programmatic access"
+        }
+        showDateBadge={false}
+        actions={
+          <Badge variant="outline" size="lg">
+            API Configuration
+          </Badge>
+        }
+      />
 
-      <Paper shadow="sm" radius="md" p="lg" withBorder>
+      <PanelCard>
         <Stack gap="md">
           <Group>
             <IconKey size={24} />
@@ -192,9 +190,9 @@ export function SettingsPage() {
             </Button>
           )}
         </Stack>
-      </Paper>
+      </PanelCard>
 
-      <Paper shadow="sm" radius="md" p="lg" withBorder>
+      <PanelCard>
         <Stack gap="md">
           <Title order={3}>API Usage</Title>
           <Text c="dimmed" size="sm">
@@ -215,7 +213,7 @@ export function SettingsPage() {
             </Code>
           </Paper>
         </Stack>
-      </Paper>
+      </PanelCard>
 
       <Modal
         opened={showKeyModal}
@@ -223,7 +221,7 @@ export function SettingsPage() {
         title={`API Key Generated for ${activeGroup?.name}`}
         size="lg"
       >
-        <Stack gap="md">
+        <Stack gap="md" align="flex-start">
           <Alert
             icon={<IconAlertCircle size={16} />}
             title="Important"

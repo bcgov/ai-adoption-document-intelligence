@@ -1,5 +1,5 @@
-import { Stack, Text, Title } from "@mantine/core";
 import React from "react";
+import { Stack, Text, Title } from "../ui";
 
 interface HelloWorldProps {
   name?: string;

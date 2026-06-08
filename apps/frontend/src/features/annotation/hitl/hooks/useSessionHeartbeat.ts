@@ -1,7 +1,7 @@
-import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
+import { notifications } from "../../../../ui";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 const IDLE_WARNING_MS = 8 * 60 * 1000;

@@ -1,27 +1,4 @@
 import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Card,
-  Center,
-  Code,
-  Drawer,
-  Grid,
-  Group,
-  JsonInput,
-  Loader,
-  Pagination,
-  ScrollArea,
-  Select,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Title,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconArrowLeft,
   IconCheck,
@@ -31,6 +8,29 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Center,
+  Code,
+  DataTable,
+  Drawer,
+  Grid,
+  Group,
+  JsonInput,
+  Loader,
+  Pagination,
+  PanelCard,
+  ScrollArea,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+  Title,
+} from "../../../ui";
 import { useProject } from "../hooks/useProjects";
 import { usePerSampleResults, useRun } from "../hooks/useRuns";
 import {
@@ -53,7 +53,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
 }) => {
   return (
     <Stack gap="md">
-      <Card withBorder>
+      <PanelCard>
         <Group justify="space-between">
           <Stack gap="xs">
             <Text fw={600} size="sm">
@@ -69,9 +69,9 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
             {pass ? "PASS" : "FAIL"}
           </Badge>
         </Group>
-      </Card>
+      </PanelCard>
 
-      <Card withBorder>
+      <PanelCard>
         <Stack gap="xs">
           <Text fw={600} size="sm">
             Metadata
@@ -84,35 +84,35 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
             maxRows={10}
           />
         </Stack>
-      </Card>
+      </PanelCard>
 
-      <Card withBorder>
+      <PanelCard>
         <Stack gap="xs">
           <Text fw={600} size="sm">
             Metrics
           </Text>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Metric</Table.Th>
-                <Table.Th>Value</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+          <DataTable>
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Metric</DataTable.Th>
+                <DataTable.Th>Value</DataTable.Th>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {Object.entries(metrics).map(([key, value]) => (
-                <Table.Tr key={key}>
-                  <Table.Td>{key}</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr key={key}>
+                  <DataTable.Td>{key}</DataTable.Td>
+                  <DataTable.Td>
                     {typeof value === "number" ? value.toFixed(4) : value}
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               ))}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
-      </Card>
+      </PanelCard>
 
-      <Card withBorder>
+      <PanelCard>
         <Stack gap="xs">
           <Text fw={600} size="sm">
             Expected vs Actual
@@ -161,10 +161,10 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
             </Grid>
           )}
         </Stack>
-      </Card>
+      </PanelCard>
 
       {evaluationDetails !== undefined && (
-        <Card withBorder>
+        <PanelCard>
           <Stack gap="xs">
             <Text fw={600} size="sm">
               Evaluation Details
@@ -179,11 +179,11 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
               maxRows={15}
             />
           </Stack>
-        </Card>
+        </PanelCard>
       )}
 
       {diagnostics && (
-        <Card withBorder>
+        <PanelCard>
           <Stack gap="xs">
             <Text fw={600} size="sm">
               Diagnostics
@@ -196,7 +196,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
               maxRows={10}
             />
           </Stack>
-        </Card>
+        </PanelCard>
       )}
     </Stack>
   );
@@ -325,7 +325,7 @@ export function ResultsDrillDownPage() {
       </Group>
 
       {/* Filter Panel */}
-      <Card withBorder>
+      <PanelCard>
         <Stack gap="md">
           <Group justify="space-between">
             <Group gap="xs">
@@ -379,10 +379,10 @@ export function ResultsDrillDownPage() {
             </Grid>
           )}
         </Stack>
-      </Card>
+      </PanelCard>
 
       {/* Results Summary */}
-      <Card withBorder>
+      <PanelCard>
         <Group justify="space-between">
           <Text size="sm" fw={500} data-testid="sample-count">
             Showing {results.length} of {total} samples
@@ -397,7 +397,7 @@ export function ResultsDrillDownPage() {
             />
           )}
         </Group>
-      </Card>
+      </PanelCard>
 
       {/* Results Table */}
       {isLoading ? (
@@ -418,30 +418,30 @@ export function ResultsDrillDownPage() {
           No samples match the selected filters.
         </Alert>
       ) : (
-        <Card withBorder>
+        <PanelCard>
           <ScrollArea>
-            <Table striped highlightOnHover data-testid="samples-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Sample ID</Table.Th>
-                  <Table.Th>Status</Table.Th>
+            <DataTable striped highlightOnHover data-testid="samples-table">
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Sample ID</DataTable.Th>
+                  <DataTable.Th>Status</DataTable.Th>
                   {availableDimensions
                     .filter((d) => d !== "pass")
                     .slice(0, 3)
                     .map((dim) => (
-                      <Table.Th key={dim}>{dim}</Table.Th>
+                      <DataTable.Th key={dim}>{dim}</DataTable.Th>
                     ))}
-                  <Table.Th>Metrics</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+                  <DataTable.Th>Metrics</DataTable.Th>
+                  <DataTable.Th>Actions</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {results.map((result) => (
-                  <Table.Tr key={result.sampleId}>
-                    <Table.Td>
+                  <DataTable.Tr key={result.sampleId}>
+                    <DataTable.Td>
                       <Code>{result.sampleId}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Badge
                         color={result.pass ? "green" : "red"}
                         leftSection={
@@ -454,18 +454,18 @@ export function ResultsDrillDownPage() {
                       >
                         {result.pass ? "PASS" : "FAIL"}
                       </Badge>
-                    </Table.Td>
+                    </DataTable.Td>
                     {availableDimensions
                       .filter((d) => d !== "pass")
                       .slice(0, 3)
                       .map((dim) => (
-                        <Table.Td key={dim}>
+                        <DataTable.Td key={dim}>
                           {result.metadata[dim] !== undefined
                             ? String(result.metadata[dim])
                             : "-"}
-                        </Table.Td>
+                        </DataTable.Td>
                       ))}
-                    <Table.Td>
+                    <DataTable.Td>
                       <Group gap={4}>
                         {Object.entries(result.metrics)
                           .slice(0, 2)
@@ -480,8 +480,8 @@ export function ResultsDrillDownPage() {
                           </Badge>
                         )}
                       </Group>
-                    </Table.Td>
-                    <Table.Td
+                    </DataTable.Td>
+                    <DataTable.Td
                       onClick={() => setSelectedSample(result)}
                       data-testid={`view-sample-${result.sampleId}`}
                       style={{ cursor: "pointer" }}
@@ -489,13 +489,13 @@ export function ResultsDrillDownPage() {
                       <ActionIcon variant="subtle">
                         <IconChevronRight size={16} />
                       </ActionIcon>
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </ScrollArea>
-        </Card>
+        </PanelCard>
       )}
 
       {/* Pagination Footer */}

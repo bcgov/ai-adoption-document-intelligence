@@ -1,3 +1,6 @@
+import { DateInput, DateTimePicker, MonthPickerInput } from "@mantine/dates";
+import { IconCalendar, IconInfoCircle } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -10,11 +13,8 @@ import {
   TagsInput,
   Text,
   TextInput,
-} from "@mantine/core";
-import { DateInput, DateTimePicker, MonthPickerInput } from "@mantine/dates";
-import { useForm } from "@mantine/form";
-import { IconCalendar, IconInfoCircle } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+  useForm,
+} from "../../../ui";
 import type { ColumnDef, ColumnType } from "../types";
 
 interface Props {

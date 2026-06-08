@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Button,
   Group,
@@ -6,8 +7,7 @@ import {
   Stack,
   Text,
   TextInput,
-} from "@mantine/core";
-import { useEffect, useState } from "react";
+} from "../../../ui";
 import { LOOKUP_TEMPLATES, templateFor } from "../lookup-templates";
 import type { ColumnDef, LookupDef } from "../types";
 

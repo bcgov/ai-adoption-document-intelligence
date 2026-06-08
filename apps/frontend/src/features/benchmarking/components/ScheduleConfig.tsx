@@ -1,3 +1,5 @@
+import { IconClock } from "@tabler/icons-react";
+import { useState } from "react";
 import {
   Badge,
   Button,
@@ -6,9 +8,7 @@ import {
   Switch,
   Text,
   TextInput,
-} from "@mantine/core";
-import { IconClock } from "@tabler/icons-react";
-import { useState } from "react";
+} from "../../../ui";
 import type { ScheduleConfig as ScheduleConfigType } from "../hooks/useSchedule";
 import { useConfigureSchedule, useScheduleInfo } from "../hooks/useSchedule";
 

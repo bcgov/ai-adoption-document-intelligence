@@ -1,13 +1,5 @@
-import {
-  ActionIcon,
-  Grid,
-  Group,
-  Paper,
-  Stack,
-  Text,
-  Tooltip,
-} from "@mantine/core";
 import { IconTrash, IconUpload } from "@tabler/icons-react";
+import { ActionIcon, Grid, Group, Paper, Stack, Text, Tooltip } from "../../ui";
 
 interface ClassificationFileCardProps {
   label: string;

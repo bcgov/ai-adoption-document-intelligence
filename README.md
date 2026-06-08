@@ -212,7 +212,7 @@ The platform supports diverse document processing scenarios:
 
 Before setting up the development environment, ensure you have:
 
-- **[Node.js](https://nodejs.org/)** 24.x or later
+- **[Node.js](https://nodejs.org/)** 24.x or later (see `.nvmrc`; matches GitHub Actions and Docker builds)
 - **[npm](https://www.npmjs.com/)** 10.x or later
 - **[PostgreSQL](https://www.postgresql.org/)** 14+ (or Podman/Docker for containerized database)
 - **[Podman](https://podman.io/) or Docker** (recommended for local services)
@@ -234,6 +234,11 @@ Before setting up the development environment, ensure you have:
 # Clone the repository
 git clone <repository-url>
 cd ai-adoption-document-intelligence
+
+# Node 24 (required — root package.json engines, CI, and Dockerfiles)
+nvm install    # reads .nvmrc
+nvm alias default 24
+nvm use
 
 # Install all dependencies
 npm run install:all
