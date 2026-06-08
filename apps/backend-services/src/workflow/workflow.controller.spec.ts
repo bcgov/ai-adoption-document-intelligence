@@ -2611,14 +2611,13 @@ describe("WorkflowController", () => {
     it("Item 16: evicts the least-recently-used entry once the cap is exceeded", async () => {
       // getWorkflowVersionById must satisfy the lineage/version match for
       // every synthetic (lineage, version) pair we probe.
-      (
-        workflowService.getWorkflowVersionById as jest.Mock
-      ).mockImplementation((versionId: string) =>
-        Promise.resolve({
-          ...mockWorkflowInfo,
-          id: `lin-${versionId}`,
-          workflowVersionId: versionId,
-        }),
+      (workflowService.getWorkflowVersionById as jest.Mock).mockImplementation(
+        (versionId: string) =>
+          Promise.resolve({
+            ...mockWorkflowInfo,
+            id: `lin-${versionId}`,
+            workflowVersionId: versionId,
+          }),
       );
       (temporalClient.countRunsForVersion as jest.Mock).mockResolvedValue(1);
 
@@ -2629,9 +2628,8 @@ describe("WorkflowController", () => {
       for (let i = 0; i < VERSION_RUN_COUNT_CACHE_MAX_ENTRIES; i++) {
         await probe(i);
       }
-      const callsAfterFill = (
-        temporalClient.countRunsForVersion as jest.Mock
-      ).mock.calls.length;
+      const callsAfterFill = (temporalClient.countRunsForVersion as jest.Mock)
+        .mock.calls.length;
       expect(callsAfterFill).toBe(VERSION_RUN_COUNT_CACHE_MAX_ENTRIES);
 
       // Touch v0 so it becomes most-recently-used; served from cache (no

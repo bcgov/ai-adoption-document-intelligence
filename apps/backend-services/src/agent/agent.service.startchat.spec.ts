@@ -39,8 +39,8 @@ jest.mock("./tools", () => {
 });
 
 import { AbortFlagMap } from "./abort-flag-map";
-import { AgentService } from "./agent.service";
 import type { AgentEnv } from "./agent.env";
+import { AgentService } from "./agent.service";
 import type { ChatRepository } from "./chat.repository";
 import type { ProviderResolver } from "./provider-resolver";
 

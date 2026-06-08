@@ -87,7 +87,9 @@ describe("deriveInputSchema", () => {
         metadata: {
           kind: "library",
           // `doc.X` resolves to the `documentMetadata` ctx root.
-          inputs: [{ label: "Doc field", path: "doc.someField", type: "object" }],
+          inputs: [
+            { label: "Doc field", path: "doc.someField", type: "object" },
+          ],
         },
       });
 

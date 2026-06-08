@@ -1,6 +1,6 @@
 import {
-  getCtxRootKey,
   getSourceCatalogEntry as defaultGetSourceCatalogEntry,
+  getCtxRootKey,
   type JsonSchema7,
   type SourceCatalogEntry,
 } from "@ai-di/graph-workflow";

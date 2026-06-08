@@ -14,19 +14,17 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import {
   mimeMatches,
-  sanitiseUploadFilename,
-  sniffMimeType,
   type SourceUploadParameters,
   SourceUploadService,
+  sanitiseUploadFilename,
+  sniffMimeType,
   type UploadedFileLike,
 } from "./source-upload.service";
 
 /** Minimal valid magic-byte prefix for a PDF, padded so length >= 4. */
 const PDF_BYTES = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
 /** Minimal valid PNG signature. */
-const PNG_BYTES = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-]);
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 describe("mimeMatches", () => {
   it("exact-matches a specific MIME", () => {

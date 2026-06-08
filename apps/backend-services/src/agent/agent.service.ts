@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import type { OnFinishEvent } from "ai";
 import {
   convertToModelMessages,
   generateText,
@@ -12,7 +13,6 @@ import {
   type ToolSet,
   type UIMessage,
 } from "ai";
-import type { OnFinishEvent } from "ai";
 import { DynamicNodesService } from "@/dynamic-nodes/dynamic-nodes.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { WorkflowService } from "@/workflow/workflow.service";
