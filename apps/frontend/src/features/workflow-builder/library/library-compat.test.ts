@@ -43,4 +43,22 @@ describe("isLibraryCompatibleWithUpstream", () => {
     const inputs = [port("Anything", "string")];
     expect(isLibraryCompatibleWithUpstream(inputs, "Document")).toBe(true);
   });
+
+  // Item 21 — every input is checked, not just inputs[0].
+  it("returns false when a NON-FIRST input is incompatible (multi-input)", () => {
+    const inputs = [
+      port("Doc", "string", "Document"), // compatible with Document
+      port("Seg", "string", "Segment"), // incompatible — must disqualify
+    ];
+    expect(isLibraryCompatibleWithUpstream(inputs, "Document")).toBe(false);
+  });
+
+  it("returns true when EVERY input is compatible (multi-input)", () => {
+    const inputs = [
+      port("Doc", "string", "Document"), // exact match
+      port("Any", "string", "Artifact"), // Document assignable to Artifact
+      port("Wild", "string"), // no kind → Artifact wildcard
+    ];
+    expect(isLibraryCompatibleWithUpstream(inputs, "Document")).toBe(true);
+  });
 });

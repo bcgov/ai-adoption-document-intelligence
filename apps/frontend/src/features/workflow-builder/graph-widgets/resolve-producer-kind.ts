@@ -7,6 +7,10 @@
  *
  *   1. Activity catalog `PortDescriptor.kind` (when an activity / pollUntil
  *      node writes the ctx key via one of its declared outputs).
+ *   1b. Source-node synthetic producers — `source.upload` (catalog
+ *      `outputKind` at `parameters.ctxKey ?? "documentUrl"`) and
+ *      `source.api` (per-field `kind ?? "Artifact"`), mirroring the
+ *      validator's `enumerateSourceProducers`.
  *   2. `CtxDeclaration.kind` (when the ctx key is declared on
  *      `config.ctx`).
  *   3. `LibraryPortDescriptor.kind` for library workflows (`metadata.inputs[]`
@@ -17,14 +21,17 @@
  */
 
 import {
+  type FieldDescriptor,
   getActivityCatalogEntry,
   getCtxRootKey,
+  getSourceCatalogEntry,
   type KindRef,
 } from "@ai-di/graph-workflow";
 import type {
   ActivityNode,
   GraphWorkflowConfig,
   PollUntilNode,
+  SourceNode,
 } from "../../../types/workflow";
 
 /**
@@ -73,6 +80,60 @@ function resolveCatalogProducerKind(
 }
 
 /**
+ * Mirror of the backend validator's `enumerateSourceProducers`
+ * (packages/graph-workflow validator). Source nodes have no `outputs[]`
+ * bindings — they write directly to ctx via their catalog entry — so the
+ * picker must synthesise their producer kinds the same way save-time
+ * validation does:
+ *
+ *   - `source.upload` writes a single ctx key (`parameters.ctxKey ??
+ *     "documentUrl"`) with the catalog entry's `outputKind`.
+ *   - `source.api` writes one ctx key per `parameters.fields[]` row,
+ *     keyed by `field.name`, with `field.kind ?? "Artifact"`.
+ *
+ * Returns the matching producer's kind, or `undefined` when no source
+ * node produces `ctxKey`.
+ */
+function resolveSourceProducerKind(
+  ctxKey: string,
+  config: GraphWorkflowConfig,
+): KindRef | undefined {
+  for (const node of Object.values(config.nodes)) {
+    if (node.type !== "source") continue;
+    const sourceNode = node as SourceNode;
+    const entry = getSourceCatalogEntry(sourceNode.sourceType);
+    if (!entry) continue;
+
+    if (sourceNode.sourceType === "source.upload") {
+      const params = sourceNode.parameters as { ctxKey?: unknown } | undefined;
+      const producedKey =
+        typeof params?.ctxKey === "string" && params.ctxKey.length > 0
+          ? params.ctxKey
+          : "documentUrl";
+      if (producedKey === ctxKey) {
+        return entry.outputKind;
+      }
+      continue;
+    }
+
+    if (sourceNode.sourceType === "source.api") {
+      const rawFields = (
+        sourceNode.parameters as { fields?: unknown } | undefined
+      )?.fields;
+      if (!Array.isArray(rawFields)) continue;
+      for (const raw of rawFields) {
+        const field = raw as FieldDescriptor;
+        if (!field || typeof field.name !== "string") continue;
+        if (field.name === ctxKey) {
+          return field.kind ?? "Artifact";
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
  * Resolve the kind of the variable's producer for the given ctx key.
  * See module docstring for the precedence walk.
  */
@@ -84,6 +145,14 @@ export function resolveProducerKindFor(
   const catalogKind = resolveCatalogProducerKind(ctxKey, config);
   if (catalogKind !== undefined) {
     return catalogKind;
+  }
+
+  // 1b. Source-node synthetic producers (source.upload / source.api).
+  // Mirrors the validator's `enumerateSourceProducers` so the picker's
+  // compatibility grouping agrees with save-time validation.
+  const sourceKind = resolveSourceProducerKind(ctxKey, config);
+  if (sourceKind !== undefined) {
+    return sourceKind;
   }
 
   // 2. CtxDeclaration.kind — manual ctx entries (caller-supplied inputs or

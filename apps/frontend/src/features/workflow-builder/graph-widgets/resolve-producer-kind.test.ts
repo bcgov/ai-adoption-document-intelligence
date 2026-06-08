@@ -157,3 +157,78 @@ describe("resolveProducerKindFor — returns undefined when no source declares a
     expect(resolveProducerKindFor("legacyVar", config)).toBeUndefined();
   });
 });
+
+describe("resolveProducerKindFor — source-node producers (Item 20)", () => {
+  it("resolves a source.upload ctxKey to the catalog entry's outputKind", () => {
+    const uploadNode: GraphNode = {
+      id: "src1",
+      type: "source",
+      label: "Upload",
+      sourceType: "source.upload",
+      parameters: { ctxKey: "myDoc" },
+    };
+    const config = makeConfig([uploadNode]);
+
+    // source.upload's catalog entry declares outputKind = "Document".
+    expect(resolveProducerKindFor("myDoc", config)).toBe("Document");
+  });
+
+  it("defaults the source.upload ctx key to 'documentUrl' when unset", () => {
+    const uploadNode: GraphNode = {
+      id: "src1",
+      type: "source",
+      label: "Upload",
+      sourceType: "source.upload",
+      parameters: {},
+    };
+    const config = makeConfig([uploadNode]);
+
+    expect(resolveProducerKindFor("documentUrl", config)).toBe("Document");
+  });
+
+  it("resolves a source.api field to its declared kind, keyed by field.name", () => {
+    const apiNode: GraphNode = {
+      id: "src1",
+      type: "source",
+      label: "API",
+      sourceType: "source.api",
+      parameters: {
+        fields: [
+          { name: "invoiceId", type: "string", kind: "Text", required: true },
+          { name: "amount", type: "number", required: false },
+        ],
+      },
+    };
+    const config = makeConfig([apiNode]);
+
+    expect(resolveProducerKindFor("invoiceId", config)).toBe("Text");
+  });
+
+  it("falls back to 'Artifact' for a source.api field with no declared kind", () => {
+    const apiNode: GraphNode = {
+      id: "src1",
+      type: "source",
+      label: "API",
+      sourceType: "source.api",
+      parameters: {
+        fields: [{ name: "amount", type: "number", required: false }],
+      },
+    };
+    const config = makeConfig([apiNode]);
+
+    expect(resolveProducerKindFor("amount", config)).toBe("Artifact");
+  });
+
+  it("returns undefined for a ctx key no source node produces", () => {
+    const uploadNode: GraphNode = {
+      id: "src1",
+      type: "source",
+      label: "Upload",
+      sourceType: "source.upload",
+      parameters: { ctxKey: "myDoc" },
+    };
+    const config = makeConfig([uploadNode]);
+
+    expect(resolveProducerKindFor("otherKey", config)).toBeUndefined();
+  });
+});

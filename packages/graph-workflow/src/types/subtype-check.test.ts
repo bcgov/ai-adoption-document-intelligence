@@ -115,31 +115,70 @@ describe("isAssignable — Scenario 3: array cardinality is strict", () => {
   it("rejects T[] → unrelated U[]", () => {
     expect(isAssignable("Document[]", "Segment[]")).toBe(false);
   });
+
+  it("rejects T[][] → T[] (nested-array depth must match — no flattening)", () => {
+    expect(isAssignable("Document[][]", "Document[]")).toBe(false);
+  });
+
+  it("rejects T[] → T[][] (no auto-nesting)", () => {
+    expect(isAssignable("Document[]", "Document[][]")).toBe(false);
+  });
+
+  it("accepts identical nested arrays (Document[][] → Document[][])", () => {
+    expect(isAssignable("Document[][]", "Document[][]")).toBe(true);
+  });
+
+  it("accepts element subtype across nested arrays (SinglePageDocument[][] → Document[][])", () => {
+    expect(isAssignable("SinglePageDocument[][]", "Document[][]")).toBe(true);
+  });
+
+  it("rejects deeper nesting against shallower even when element matches (Segment[][] → Segment[])", () => {
+    expect(isAssignable("Segment[][]", "Segment[]")).toBe(false);
+  });
 });
 
-describe("isAssignable — Scenario 4: unknown kinds default to wildcard Artifact", () => {
-  it("treats unknown `from` as wildcard (UnknownKind → Document)", () => {
-    expect(isAssignable("UnknownKind", "Document")).toBe(true);
+describe("isAssignable — Scenario 4: unknown kinds fail closed (no silent wildcard)", () => {
+  // Per TYPED_IO_DESIGN.md §8 ("No silent fallback to Artifact"), an
+  // unrecognised / typo'd kind string is NOT a wildcard. Only `undefined`
+  // (no kind declared) and the in-registry root `Artifact` are permissive.
+  it("rejects unknown `from` against a concrete kind (UnknownKind → Document)", () => {
+    expect(isAssignable("UnknownKind", "Document")).toBe(false);
   });
 
-  it("treats unknown `to` as wildcard (Document → UnknownKind)", () => {
-    expect(isAssignable("Document", "UnknownKind")).toBe(true);
+  it("rejects a concrete kind against unknown `to` (Document → UnknownKind)", () => {
+    expect(isAssignable("Document", "UnknownKind")).toBe(false);
   });
 
-  it("treats undefined `from` as wildcard", () => {
+  it("rejects a typo'd kind against an unrelated concrete kind (Docment → Segment)", () => {
+    expect(isAssignable("Docment", "Segment")).toBe(false);
+  });
+
+  it("rejects a typo on either side even against Artifact's subtree (Docment → Document)", () => {
+    expect(isAssignable("Docment", "Document")).toBe(false);
+    expect(isAssignable("Document", "Docment")).toBe(false);
+  });
+
+  it("rejects two distinct unknown kinds (UnknownA → UnknownB)", () => {
+    expect(isAssignable("UnknownA", "UnknownB")).toBe(false);
+  });
+
+  it("still treats undefined `from` as wildcard", () => {
     expect(isAssignable(undefined, "Document")).toBe(true);
   });
 
-  it("treats undefined `to` as wildcard", () => {
+  it("still treats undefined `to` as wildcard", () => {
     expect(isAssignable("Document", undefined)).toBe(true);
   });
 
-  it("treats both undefined as wildcard (no kind on either side)", () => {
+  it("still treats both undefined as wildcard (no kind on either side)", () => {
     expect(isAssignable(undefined, undefined)).toBe(true);
   });
 
-  it("treats two unknown kinds as wildcards on both sides", () => {
-    expect(isAssignable("UnknownA", "UnknownB")).toBe(true);
+  it("preserves identity even for an unknown kind on both sides", () => {
+    // Identity short-circuit fires before the registry lookup, so a binding
+    // whose producer and consumer share the exact same (even unknown) kind
+    // string is still compatible.
+    expect(isAssignable("UnknownSame", "UnknownSame")).toBe(true);
   });
 });
 
