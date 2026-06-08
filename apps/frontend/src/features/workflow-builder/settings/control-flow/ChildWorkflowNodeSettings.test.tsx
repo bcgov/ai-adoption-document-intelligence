@@ -50,9 +50,7 @@ vi.mock("../../../../data/services/api.service", () => ({
       // the pinned-version path can resolve a version *number* → version
       // *id* (Item 31). v3 is the pinned version used by the Scenario 2
       // tests; v1 stands in for an earlier version.
-      const versionsListMatch = url.match(
-        /^\/workflows\/([^/?]+)\/versions$/,
-      );
+      const versionsListMatch = url.match(/^\/workflows\/([^/?]+)\/versions$/);
       if (versionsListMatch) {
         const id = versionsListMatch[1];
         return {
@@ -603,7 +601,9 @@ describe("ChildWorkflowNodeSettings — US-087 Scenario 2: v{N} badge when pinne
   // not consulted on the pinned path).
   it("renders the pinned version's signature ports when workflowRef.version === 3", async () => {
     libraryMetadataById.set("lib-pinned", {
-      inputs: [{ label: "Doc", path: "ctx.doc", type: "string", kind: "Document" }],
+      inputs: [
+        { label: "Doc", path: "ctx.doc", type: "string", kind: "Document" },
+      ],
       outputs: [],
     });
 

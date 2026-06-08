@@ -53,8 +53,7 @@ export function pruneNodesFromGroups(
       continue;
     }
 
-    const membershipChanged =
-      remainingNodeIds.length !== group.nodeIds.length;
+    const membershipChanged = remainingNodeIds.length !== group.nodeIds.length;
 
     let nextExposedParams: ExposedParam[] | undefined = group.exposedParams;
     if (group.exposedParams) {
