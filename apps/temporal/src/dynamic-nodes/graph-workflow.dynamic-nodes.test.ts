@@ -89,8 +89,11 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
   let testEnv: TestWorkflowEnvironment;
 
   beforeAll(async () => {
+    // createLocal() downloads the Temporal server binary (~500MB) on first run;
+    // a cold CI cache can take 60-90s. Allow generous time so it isn't a flaky
+    // timeout (subsequent cached runs complete in a few seconds).
     testEnv = await TestWorkflowEnvironment.createLocal();
-  }, 30_000);
+  }, 180_000);
 
   afterAll(async () => {
     if (testEnv) await testEnv.teardown();

@@ -576,9 +576,10 @@ export default async function () {
 
   it("Item 5 (review #3) — denies remote import", async () => {
     if (!requireRunner()) return;
-    // A remote `import` requires both --allow-net AND the import permission;
-    // the sandbox forbids fetching remote modules, so module evaluation
-    // fails before the default export ever runs.
+    // `--no-remote` (review #3) blocks remote module specifiers at module-graph
+    // build time, so evaluation fails before the default export ever runs.
+    // Deno's message is "a remote specifier was requested ... but --no-remote
+    // is specified."
     const err = await expectSandboxDenied(
       "v-deny-import",
       `
@@ -590,7 +591,7 @@ export default async function () {
     );
     expect(err.exitCode).not.toBe(0);
     expect(err.stderrTail.toLowerCase()).toMatch(
-      /import|net|permission|module/,
+      /remote|import|net|permission|module/,
     );
   }, 30_000);
 });

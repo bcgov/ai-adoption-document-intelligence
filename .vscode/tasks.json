@@ -87,13 +87,49 @@
       }
     },
     {
+      "label": "deno-runner: docker up",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "deployments/local/docker-compose.deno.yml",
+        "up",
+        "-d"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "wait: deno-runner ready",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" ai-doc-intelligence-deno-runner 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for deno-runner to become healthy...\"; sleep 2; done; echo \"deno-runner is healthy\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
       "label": "Dev: prerequisites",
       "dependsOn": [
         "temporal: docker up",
         "wait: temporal ready",
         "backend-services: docker up",
         "wait: backend postgres ready",
-        "wait: minio ready"
+        "wait: minio ready",
+        "deno-runner: docker up",
+        "wait: deno-runner ready"
       ],
       "dependsOrder": "sequence",
       "problemMatcher": []
