@@ -1,7 +1,9 @@
 import {
+  applyCtxNamespace,
   CTX_NAMESPACE_PREFIXES,
   getCtxRootKey,
   getRefCtxRootKey,
+  resolveCtxBinding,
 } from "./context-utils";
 
 describe("CTX_NAMESPACE_PREFIXES", () => {
@@ -71,5 +73,77 @@ describe("getRefCtxRootKey", () => {
 
   it("returns undefined for ctx with no second segment", () => {
     expect(getRefCtxRootKey("ctx")).toBeUndefined();
+  });
+});
+
+describe("applyCtxNamespace", () => {
+  it("remaps doc.field to documentMetadata.field", () => {
+    expect(applyCtxNamespace("doc.docType")).toBe("documentMetadata.docType");
+  });
+
+  it("remaps segment.field to currentSegment.field", () => {
+    expect(applyCtxNamespace("segment.pageRange")).toBe(
+      "currentSegment.pageRange",
+    );
+  });
+
+  it("remaps a bare namespace token with no dot", () => {
+    expect(applyCtxNamespace("doc")).toBe("documentMetadata");
+  });
+
+  it("passes through an unknown namespace unchanged", () => {
+    expect(applyCtxNamespace("myKey.nested")).toBe("myKey.nested");
+  });
+
+  it("passes through a bare key with no namespace unchanged", () => {
+    expect(applyCtxNamespace("documentId")).toBe("documentId");
+  });
+});
+
+describe("resolveCtxBinding", () => {
+  it("reads a flat key directly", () => {
+    expect(resolveCtxBinding("documentId", { documentId: "abc" })).toBe("abc");
+  });
+
+  it("reads doc.field through the documentMetadata namespace", () => {
+    expect(
+      resolveCtxBinding("doc.docType", {
+        documentMetadata: { docType: "invoice" },
+      }),
+    ).toBe("invoice");
+  });
+
+  it("reads segment.field through the currentSegment namespace", () => {
+    expect(
+      resolveCtxBinding("segment.parentDocId", {
+        currentSegment: { parentDocId: "doc-1" },
+      }),
+    ).toBe("doc-1");
+  });
+
+  it("traverses an explicit dotted path", () => {
+    expect(
+      resolveCtxBinding("currentSegment.pageRange.start", {
+        currentSegment: { pageRange: { start: 3, end: 5 } },
+      }),
+    ).toBe(3);
+  });
+
+  it("returns undefined for a missing root key", () => {
+    expect(resolveCtxBinding("doc.docType", {})).toBeUndefined();
+  });
+
+  it("returns undefined when traversal hits a non-object before the leaf", () => {
+    expect(
+      resolveCtxBinding("doc.docType.deep", {
+        documentMetadata: { docType: "scalar" },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("rejects unsafe path segments (prototype-pollution guard)", () => {
+    expect(
+      resolveCtxBinding("__proto__.polluted", { a: 1 }),
+    ).toBeUndefined();
   });
 });

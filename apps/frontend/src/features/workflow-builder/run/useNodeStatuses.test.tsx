@@ -204,6 +204,39 @@ describe("Scenario 3 — polling stops at terminal", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Item 15 — a run that fails before any node executes must stop polling
+// ---------------------------------------------------------------------------
+
+describe("Item 15 — errored query stops polling", () => {
+  it("stops polling once the query errors (early-failure / empty-map case)", async () => {
+    // Every response is a non-2xx — mirrors a run that fails before any
+    // node executes (404/410 from the node-statuses proxy). The hook must
+    // surface the error and NOT keep polling at 1.5s forever.
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ message: "Run not found" }, { status: 404 }),
+    );
+
+    const { result } = renderHook(() => useNodeStatuses(WORKFLOW_ID, RUN_ID), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Wait several poll intervals — no further refetch must fire because
+    // the query is in the `error` state.
+    await new Promise((r) =>
+      setTimeout(r, NODE_STATUSES_POLL_INTERVAL_MS * 2 + 300),
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 4 — `opts.active = false` mode for replay
 // ---------------------------------------------------------------------------
 

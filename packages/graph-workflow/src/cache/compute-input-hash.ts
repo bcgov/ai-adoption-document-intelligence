@@ -24,11 +24,19 @@
  *       • the raw primitive otherwise — `stableJson` handles strings,
  *         numbers, booleans, null, and arbitrary plain objects directly
  *         (Scenario 4);
- *       • the stable sentinel `null` when `ctx[binding.ctxKey]` is
- *         `undefined` or the key is absent (Scenario 5). We MUST emit
+ *       • the stable sentinel `null` when the binding resolves to
+ *         `undefined` or its key is absent (Scenario 5). We MUST emit
  *         `null` and not `undefined` because `stableJson` omits
  *         undefined property values — the slot would silently disappear
  *         and two distinct missing/present states would collide.
+ *
+ * Bindings are resolved through `resolveCtxBinding`, the SAME namespace-aware
+ * path the engine uses at execution time. A `doc.field` binding therefore
+ * reads `ctx.documentMetadata.field` (and `segment.field` →
+ * `ctx.currentSegment.field`), so the hash reflects the real consumed value
+ * instead of always missing the namespaced key and emitting the null
+ * sentinel (which would make two runs with different `doc.*` inputs hash
+ * identically — a false cache hit).
  *   - Ctx keys that NO binding references are ignored (Scenario 1 —
  *     unrelated-ctx-keys-don't-leak).
  *   - Port-order independence is automatic: `stableJson` sorts object
@@ -40,6 +48,7 @@
  */
 
 import type { GraphNode } from "../types";
+import { resolveCtxBinding } from "../validator/context-utils";
 import { hashArtifact } from "./hash-artifact";
 import { sha256Hex } from "./sha256-hex";
 import { stableJson } from "./stable-json";
@@ -102,9 +111,10 @@ export function computeInputHash(
   const consumed: Record<string, unknown> = {};
 
   for (const binding of node.inputs ?? []) {
-    const raw = Object.prototype.hasOwnProperty.call(ctx, binding.ctxKey)
-      ? ctx[binding.ctxKey]
-      : undefined;
+    // Resolve through the SAME namespace-aware path execution uses, so
+    // `doc.*` / `segment.*` bindings read their real ctx value instead of
+    // missing the raw key and emitting the null sentinel.
+    const raw = resolveCtxBinding(binding.ctxKey, ctx);
 
     if (raw === undefined) {
       // Stable sentinel for absent / undefined slots — see Scenario 5.

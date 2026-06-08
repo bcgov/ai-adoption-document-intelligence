@@ -3,9 +3,11 @@ export * from "./types/index";
 export { validateGraphConfig } from "./validator/validator";
 export type { ValidateGraphConfigOptions } from "./validator/validator";
 export {
+  applyCtxNamespace,
   CTX_NAMESPACE_PREFIXES,
   getCtxRootKey,
   getRefCtxRootKey,
+  resolveCtxBinding,
 } from "./validator/context-utils";
 export { isValidTemporalDuration } from "./validator/duration";
 

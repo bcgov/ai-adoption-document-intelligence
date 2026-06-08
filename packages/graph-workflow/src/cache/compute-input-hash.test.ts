@@ -306,6 +306,65 @@ describe("computeInputHash — Scenario 6: ≥7 cases covering the contract", ()
   });
 });
 
+describe("computeInputHash — Scenario 7: namespace-aware ctx resolution (doc.* / segment.*)", () => {
+  // Bindings resolve through the SAME namespace-aware path execution uses:
+  // `doc.field` → `ctx.documentMetadata.field`,
+  // `segment.field` → `ctx.currentSegment.field`. Without this, namespaced
+  // bindings always missed the raw key and emitted the null sentinel, so two
+  // runs with different `doc.*` inputs hashed identically (a false cache hit).
+  it("reads doc.* through the documentMetadata namespace, not the raw key", () => {
+    const node = makeActivity("n1", [{ port: "type", ctxKey: "doc.docType" }]);
+    const ctx = { documentMetadata: { docType: "invoice" } };
+    const expected = sha256Hex(stableJson({ type: "invoice" }));
+    expect(computeInputHash(node, ctx)).toBe(expected);
+  });
+
+  it("reads segment.* through the currentSegment namespace", () => {
+    const node = makeActivity("n1", [{ port: "p", ctxKey: "segment.pageRange" }]);
+    const ctx = { currentSegment: { pageRange: { start: 2, end: 4 } } };
+    const expected = sha256Hex(stableJson({ p: { start: 2, end: 4 } }));
+    expect(computeInputHash(node, ctx)).toBe(expected);
+  });
+
+  it("produces DIFFERENT hashes for two different doc.* input values", () => {
+    const node = makeActivity("n1", [{ port: "type", ctxKey: "doc.docType" }]);
+    const ctxA = { documentMetadata: { docType: "invoice" } };
+    const ctxB = { documentMetadata: { docType: "receipt" } };
+    expect(computeInputHash(node, ctxA)).not.toBe(computeInputHash(node, ctxB));
+  });
+
+  it("produces the SAME hash for two identical doc.* input values", () => {
+    const node = makeActivity("n1", [{ port: "type", ctxKey: "doc.docType" }]);
+    const ctxA = { documentMetadata: { docType: "invoice" } };
+    const ctxB = { documentMetadata: { docType: "invoice" } };
+    expect(computeInputHash(node, ctxA)).toBe(computeInputHash(node, ctxB));
+  });
+
+  it("emits the null sentinel when a namespaced binding resolves to nothing", () => {
+    const node = makeActivity("n1", [{ port: "type", ctxKey: "doc.docType" }]);
+    const expected = sha256Hex(stableJson({ type: null }));
+    expect(computeInputHash(node, {})).toBe(expected);
+    expect(computeInputHash(node, { documentMetadata: {} })).toBe(expected);
+  });
+
+  it("normalises a Document held under doc.* via hashArtifact (presigned-URL drift ignored)", () => {
+    const node = makeActivity("n1", [{ port: "src", ctxKey: "doc.source" }]);
+    const docA = {
+      url: "https://x.com/?token=A",
+      blobKey: "tenant/file.pdf",
+      mimeType: "application/pdf",
+    };
+    const docB = {
+      url: "https://x.com/?token=B&exp=9",
+      blobKey: "tenant/file.pdf",
+      mimeType: "application/pdf",
+    };
+    expect(
+      computeInputHash(node, { documentMetadata: { source: docA } }),
+    ).toBe(computeInputHash(node, { documentMetadata: { source: docB } }));
+  });
+});
+
 describe("computeInputHash — barrel re-export sanity", () => {
   it("is a function accepting two arguments", () => {
     expect(typeof computeInputHash).toBe("function");

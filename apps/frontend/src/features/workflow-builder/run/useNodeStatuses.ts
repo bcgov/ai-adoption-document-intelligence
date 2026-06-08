@@ -181,6 +181,12 @@ export function useNodeStatuses(
     refetchInterval: (query) => {
       // Replay flow: fire once and never poll, regardless of terminal state.
       if (!active) return false;
+      // Stop polling the moment the query errors. A run that fails before
+      // any node executes resolves the node-statuses endpoint to a 404/410
+      // (or any non-2xx) — without this guard the empty-map check below
+      // never trips and the hook would poll every 1.5s forever. The
+      // consumer surfaces the terminal error via the `error` field.
+      if (query.state.status === "error") return false;
       // Stop polling once every status is terminal (succeeded / failed /
       // skipped / cancelled). The interval stays armed while data is
       // absent (initial load) or while any non-terminal entry remains.
