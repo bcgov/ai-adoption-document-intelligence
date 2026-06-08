@@ -1,9 +1,17 @@
+import { IconPlus } from "@tabler/icons-react";
+import { useState } from "react";
+import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
+import { useCreateWorkflow } from "../data/hooks/useWorkflows";
+import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
+import type { WorkflowStepsConfig } from "../types/workflow";
 import {
   Badge,
   Button,
+  Code,
   Grid,
   Group,
   NumberInput,
+  notifications,
   Paper,
   Select,
   Stack,
@@ -11,14 +19,22 @@ import {
   Text,
   TextInput,
   Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { IconPlus } from "@tabler/icons-react";
-import { useState } from "react";
-import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
-import { useCreateWorkflow } from "../data/hooks/useWorkflows";
-import { useTemplateModels } from "../features/annotation/template-models/hooks/useTemplateModels";
-import type { WorkflowStepsConfig } from "../types/workflow";
+} from "../ui";
+
+/**
+ * Mirrors the backend `slugifyName` so the create form can preview the
+ * handle that will be generated. The server still has the last word --
+ * it deduplicates within the group with `-2`, `-3`, ... suffixes.
+ */
+function previewSlug(name: string): string {
+  const base = name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return base.length > 0 ? base : "workflow";
+}
 
 interface WorkflowStepConfig {
   enabled: boolean;
@@ -272,6 +288,19 @@ export function WorkflowPage() {
                 <TextInput
                   label="Workflow Name"
                   placeholder="e.g., High-Confidence OCR Workflow"
+                  description={
+                    workflowName.trim().length > 0 ? (
+                      <Text size="xs" component="span">
+                        API handle (slug):{" "}
+                        <Code>{previewSlug(workflowName)}</Code>
+                        <Text size="xs" c="dimmed" component="span">
+                          {" "}
+                          — server picks the final value, deduping within the
+                          group if needed.
+                        </Text>
+                      </Text>
+                    ) : undefined
+                  }
                   value={workflowName}
                   onChange={(e) => setWorkflowName(e.target.value)}
                   required

@@ -1,5 +1,3 @@
-import { Button, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { type JSX, useState } from "react";
 import {
   type GroupRequest,
@@ -7,6 +5,15 @@ import {
   useDenyMembershipRequest,
   useGroupRequests,
 } from "../../data/hooks/useGroups";
+import {
+  Button,
+  Group,
+  Modal,
+  notifications,
+  Stack,
+  Text,
+  Textarea,
+} from "../../ui";
 import { makeGroupRequestColumns, RequestsTable } from "./RequestsTable";
 
 interface RequestsTabProps {

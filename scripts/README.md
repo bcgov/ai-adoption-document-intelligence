@@ -2,7 +2,11 @@
 
 CLI scripts for managing, backing up, and tearing down instances of the application stack on OpenShift.
 
-**Deployment itself is done by the `Deploy Instance` GitHub Actions workflow** — see [../docs-md/openshift-deployment/AUTO_DEPLOY.md](../docs-md/openshift-deployment/AUTO_DEPLOY.md). Pushes to `develop` deploy to `bcgov-di-test` (namespace `fd34fb-test`); pushes to `main` deploy to `bcgov-di` (namespace `fd34fb-prod`). The scripts in this directory are for ad-hoc maintenance tasks — listing, backing up, restoring, tearing down — not for deploying.
+**Default deployments use the `Deploy Instance` GitHub Actions workflow** — see [../docs-md/openshift-deployment/AUTO_DEPLOY.md](../docs-md/openshift-deployment/AUTO_DEPLOY.md). Pushes to `develop` deploy to `bcgov-di-test` (namespace `fd34fb-test`); pushes to `main` deploy to `bcgov-di` (namespace `fd34fb-prod`).
+
+For a **second stack** in `fd34fb-test` with images from your branch (load testing), use **[`oc-build-push.sh`](#oc-build-pushsh--build-and-push-images)** and **[`oc-deploy-instance.sh`](#oc-deploy-instancesh--manual-openshift-deploy)** with **[manual deploy docs](../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md)**.
+
+Other scripts here handle listing, backup/restore, and teardown.
 
 ## Quick Start (maintenance tasks)
 
@@ -35,6 +39,60 @@ After deployment, the script prints access URLs for the frontend, backend, and T
 ---
 
 ## Script Reference
+
+### oc-build-push.sh — Build and push images
+
+Builds Docker images locally (matching CI Dockerfiles) and pushes them to Artifactory at `${ARTIFACTORY_URL}/kfd3-fd34fb-local/<service>:<tag>`. Uses **`deployments/openshift/config/<env>.env`** for registry credentials and frontend `VITE_*` build args.
+
+```bash
+./scripts/oc-build-push.sh --env dev --all
+./scripts/oc-build-push.sh --env dev --all --tag my-branch-loadtest
+./scripts/oc-build-push.sh --env dev frontend temporal --tag patch-smoke
+```
+
+| Option | Description |
+|--------|-------------|
+| `--env dev` or `--env prod` | Required — selects config profile |
+| `--all` | Build `backend-services`, `frontend`, `temporal` |
+| `--tag`, `-t` | Tag for all pushed images (default: sanitized current git branch) |
+
+Requires Docker logged out/in handled by the script.
+
+---
+
+### oc-deploy-instance.sh — Manual OpenShift deploy
+
+Generates the instance overlay (`scripts/lib/generate-overlay.sh`), `kubectl apply`s manifests, creates pull/registry secrets and application secrets, optionally Helm-installs PLG, then rollout-restarts workloads — aligned with `.github/workflows/deploy-instance.yml`.
+
+```bash
+./scripts/oc-login-sa.sh --namespace fd34fb-test
+./scripts/oc-deploy-instance.sh \
+  --env dev \
+  --namespace fd34fb-test \
+  --image-tag <same-tag-as-build-push> \
+  --instance loadtest-1 \
+  --document-intelligence-mode mock \
+  --mock-azure-ocr true \
+  --confirm
+```
+
+| Option | Description |
+|--------|-------------|
+| `--env dev` or `--env prod` | Required — secrets/settings source |
+| `--namespace`, `-n` | Required OpenShift project |
+| `--image-tag`, `-t` | Required — tag pushed for all three images |
+| `--instance`, `-i` | Optional — overrides git-branch-derived name |
+| `--confirm` | Required before apply |
+| `--skip-oc-login` | Skip `./scripts/oc-login-sa.sh` when already authenticated |
+| `--skip-plg` | Skip Grafana/Loki/Prometheus Helm release |
+| `--document-intelligence-mode <live\|mock>` | Override `DOCUMENT_INTELLIGENCE_MODE` for the backend |
+| `--mock-azure-ocr <true\|false>` | Override `MOCK_AZURE_OCR` for the Temporal worker |
+| `--blob-storage-provider <azure\|minio>` | Use `minio` to deploy a per-instance MinIO Deployment + PVC + bucket-init Job (load-test only) |
+| `--minio-pvc-size <size>` | PVC size for the per-instance MinIO data volume (default `5Gi`) |
+
+See [MANUAL_LOAD_TEST_INSTANCE.md](../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md).
+
+---
 
 ### oc-setup-sa.sh — Service Account Setup
 
@@ -78,10 +136,14 @@ Destroys all resources for an instance.
 
 # Tear down a specific instance
 ./scripts/oc-teardown.sh --instance feature-other-work
+
+# Use .oc-deploy/token-<namespace> (same convention as oc-login-sa.sh)
+./scripts/oc-teardown.sh --namespace fd34fb-test --instance loadtest-1
 ```
 
 | Option | Short | Required | Description |
 |--------|-------|----------|-------------|
+| `--namespace` | `-n` | No | Use `.oc-deploy/token-<namespace>` instead of default `token` |
 | `--instance` | `-i` | No | Instance to tear down (default: from git branch) |
 | `--help` | `-h` | No | Show help |
 
@@ -141,6 +203,33 @@ Notes:
 - Uses `pg_dump` via `oc exec` into the Crunchy PostgreSQL pod (not pgBackRest)
 - Only backs up PostgreSQL — Azure Blob Storage content is not included (it persists independently)
 - Cleans up partial dump files on failure
+
+---
+
+### oc-backup-db-to-unc.sh — Database Backup to Windows UNC share
+
+Streams a `pg_dump` of an instance's PostgreSQL database directly to a Windows
+UNC share (e.g. `\\widget\SDPRDocuments`) without writing any file on the WSL
+host. Use this when the backup must stay off the local machine.
+
+```bash
+# Stream prod backup to a UNC share
+./scripts/oc-backup-db-to-unc.sh --instance bcgov-di --dest '\\widget\SDPRDocuments'
+```
+
+| Option | Short | Required | Description |
+|--------|-------|----------|-------------|
+| `--dest` | `-d` | Yes | UNC directory to write into (e.g. `\\server\share`) |
+| `--instance` | `-i` | No | Instance to back up (default: from git branch) |
+| `--help` | `-h` | No | Show help |
+
+Output: `<UNC-dest>\<instance>-<timestamp>.pgc` (pg_dump custom format, `-Fc`)
+
+Notes:
+- WSL-only — requires Windows interop with `powershell.exe` reachable
+- Verifies the destination is writable before starting the dump
+- Pipes `oc exec ... pg_dump` stdout through `powershell.exe` to a `[System.IO.File]::Create` stream — no intermediate file on either Linux or Windows local disk
+- See [docs-md/openshift-deployment/BACKUP_TO_NETWORK_SHARE.md](../docs-md/openshift-deployment/BACKUP_TO_NETWORK_SHARE.md) for the longer write-up
 
 ---
 

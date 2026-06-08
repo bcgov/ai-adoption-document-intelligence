@@ -13,6 +13,13 @@ export class WorkflowInfoDto {
   })
   workflowVersionId!: string;
 
+  @ApiProperty({
+    description:
+      "URL/CLI-friendly stable handle, unique within the group. Use this in upload requests (workflow_slug).",
+    example: "ocr-only-minimal",
+  })
+  slug!: string;
+
   @ApiProperty({ description: "Display name for the workflow" })
   name!: string;
 

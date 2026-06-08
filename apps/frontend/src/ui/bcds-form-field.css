@@ -1,0 +1,11 @@
+.bcds-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-margin-hair);
+  align-self: stretch;
+}
+
+.bcds-form-field-custom-label {
+  font: var(--typography-regular-small-body);
+  color: var(--typography-color-primary);
+}

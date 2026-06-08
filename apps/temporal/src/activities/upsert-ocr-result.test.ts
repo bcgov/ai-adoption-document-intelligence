@@ -72,7 +72,7 @@ describe("upsertOcrResult activity", () => {
     });
     prismaMock.document.update.mockResolvedValue({
       id: "doc-1",
-      status: "completed_ocr",
+      status: "extracted",
     });
 
     await upsertOcrResult({ documentId: "doc-1", ocrResult });
@@ -85,6 +85,11 @@ describe("upsertOcrResult activity", () => {
           InvoiceNumber: expect.any(Object),
           TotalAmount: expect.any(Object),
         }),
+        content: expect.objectContaining({
+          format: "text",
+          text: "Invoice content",
+          pages: [],
+        }),
       },
       create: {
         document_id: "doc-1",
@@ -93,12 +98,17 @@ describe("upsertOcrResult activity", () => {
           InvoiceNumber: expect.any(Object),
           TotalAmount: expect.any(Object),
         }),
+        content: expect.objectContaining({
+          format: "text",
+          text: "Invoice content",
+          pages: [],
+        }),
       },
     });
 
     expect(prismaMock.document.update).toHaveBeenCalledWith({
       where: { id: "doc-1" },
-      data: { status: "completed_ocr" },
+      data: { status: "extracted" },
     });
   });
 
@@ -167,6 +177,11 @@ describe("upsertOcrResult activity", () => {
           Name: expect.objectContaining({ content: "John Doe" }),
           Email: expect.objectContaining({ content: "john@example.com" }),
         }),
+        content: expect.objectContaining({
+          format: "text",
+          text: "Document content",
+          pages: [],
+        }),
       },
       create: {
         document_id: "doc-2",
@@ -174,6 +189,11 @@ describe("upsertOcrResult activity", () => {
         keyValuePairs: expect.objectContaining({
           Name: expect.objectContaining({ content: "John Doe" }),
           Email: expect.objectContaining({ content: "john@example.com" }),
+        }),
+        content: expect.objectContaining({
+          format: "text",
+          text: "Document content",
+          pages: [],
         }),
       },
     });
@@ -243,6 +263,147 @@ describe("upsertOcrResult activity", () => {
     expect("Date_1" in keyValuePairs).toBe(true);
   });
 
+  it("persists raw text and per-page content for prebuilt-read OCR results", async () => {
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "read-apim-id",
+      fileName: "scan.pdf",
+      fileType: "pdf",
+      modelId: "prebuilt-read",
+      extractedText: "Hello world\nLine two\f\nPage two line",
+      pages: [
+        {
+          pageNumber: 1,
+          width: 8.5,
+          height: 11,
+          unit: "inch",
+          words: [],
+          spans: [],
+          lines: [
+            {
+              content: "Hello world",
+              polygon: [],
+              spans: [{ offset: 0, length: 11 }],
+            },
+            {
+              content: "Line two",
+              polygon: [],
+              spans: [{ offset: 12, length: 8 }],
+            },
+          ],
+        },
+        {
+          pageNumber: 2,
+          width: 8.5,
+          height: 11,
+          unit: "inch",
+          words: [],
+          spans: [],
+          lines: [
+            {
+              content: "Page two line",
+              polygon: [],
+              spans: [{ offset: 21, length: 13 }],
+            },
+          ],
+        },
+      ],
+      tables: [],
+      paragraphs: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+      processedAt: "2024-01-01T00:00:00Z",
+    };
+
+    prismaMock.ocrResult.upsert.mockResolvedValue({
+      id: 5,
+      document_id: "doc-5",
+    });
+    prismaMock.document.update.mockResolvedValue({
+      id: "doc-5",
+      status: "completed_ocr",
+    });
+
+    await upsertOcrResult({ documentId: "doc-5", ocrResult });
+
+    const upsertCall = prismaMock.ocrResult.upsert.mock.calls[0][0];
+    expect(upsertCall.update.keyValuePairs).toBe(Prisma.JsonNull);
+    expect(upsertCall.update.content).toMatchObject({
+      format: "text",
+      text: "Hello world\nLine two\f\nPage two line",
+    });
+    expect(upsertCall.update.content.pages).toHaveLength(2);
+    expect(upsertCall.update.content.pages[0]).toMatchObject({
+      pageNumber: 1,
+      content: "Hello world\nLine two",
+    });
+    expect(upsertCall.update.content.pages[1]).toMatchObject({
+      pageNumber: 2,
+      content: "Page two line",
+    });
+    expect(upsertCall.update.content.markdown).toBeUndefined();
+  });
+
+  it("captures markdown content when contentFormat is markdown", async () => {
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "md-apim-id",
+      fileName: "md.pdf",
+      fileType: "pdf",
+      modelId: "prebuilt-read",
+      extractedText: "",
+      markdown: "# Title\n\nSome **bold** body.",
+      contentFormat: "markdown",
+      pages: [
+        {
+          pageNumber: 1,
+          width: 8.5,
+          height: 11,
+          unit: "inch",
+          words: [],
+          spans: [],
+          lines: [
+            {
+              content: "Title",
+              polygon: [],
+              spans: [{ offset: 0, length: 5 }],
+            },
+          ],
+        },
+      ],
+      tables: [],
+      paragraphs: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+      processedAt: "2024-01-01T00:00:00Z",
+    };
+
+    prismaMock.ocrResult.upsert.mockResolvedValue({
+      id: 6,
+      document_id: "doc-6",
+    });
+    prismaMock.document.update.mockResolvedValue({
+      id: "doc-6",
+      status: "completed_ocr",
+    });
+
+    await upsertOcrResult({ documentId: "doc-6", ocrResult });
+
+    const upsertCall = prismaMock.ocrResult.upsert.mock.calls[0][0];
+    expect(upsertCall.update.content).toMatchObject({
+      format: "markdown",
+      markdown: "# Title\n\nSome **bold** body.",
+    });
+    expect(upsertCall.update.content.pages).toHaveLength(1);
+    expect(upsertCall.update.content.pages[0].content).toBe("Title");
+  });
+
   it("stores null for extractedFields when no documents or keyValuePairs", async () => {
     const ocrResult: OCRResult = {
       success: true,
@@ -278,11 +439,21 @@ describe("upsertOcrResult activity", () => {
       update: {
         processed_at: expect.any(Date),
         keyValuePairs: Prisma.JsonNull,
+        content: expect.objectContaining({
+          format: "text",
+          text: "Some text",
+          pages: [],
+        }),
       },
       create: {
         document_id: "doc-4",
         processed_at: expect.any(Date),
         keyValuePairs: Prisma.JsonNull,
+        content: expect.objectContaining({
+          format: "text",
+          text: "Some text",
+          pages: [],
+        }),
       },
     });
   });

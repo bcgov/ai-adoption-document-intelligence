@@ -22,6 +22,7 @@ const mockAzureService = {
   }),
   getEndpoint: jest.fn().mockReturnValue("https://mockendpoint"),
   pollOperationUntilResolved: jest.fn(),
+  isMockMode: jest.fn().mockReturnValue(false),
 };
 const mockBlobService = {
   getContainerClient: jest
@@ -71,6 +72,7 @@ describe("ClassifierService", () => {
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
+    mockAzureService.isMockMode.mockReturnValue(false);
   });
 
   describe("getConstructedClassifierName", () => {
@@ -80,6 +82,15 @@ describe("ClassifierService", () => {
   });
 
   describe("requestClassifierTraining", () => {
+    it("should throw ServiceUnavailableException in mock mode", async () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      await expect(
+        service.requestClassifierTraining("c", "g", "u"),
+      ).rejects.toThrow(
+        "Classifier training requires DOCUMENT_INTELLIGENCE_MODE=live.",
+      );
+    });
+
     it("should throw NotFoundException if classifier not found", async () => {
       (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue(
         null,
@@ -436,6 +447,19 @@ describe("ClassifierService", () => {
   });
 
   describe("requestClassification", () => {
+    it("should return mock operation location in mock mode", async () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
+      expect(result.status).toBe("202");
+      expect(result.content).toContain(
+        "/documentintelligence/analyzeResults/mock-classify-operation",
+      );
+    });
+
     it("should return operation location on 202", async () => {
       (service as any).client = {
         path: () => ({
@@ -475,6 +499,20 @@ describe("ClassifierService", () => {
   });
 
   describe("requestClassificationFromFile", () => {
+    it("should return mock operation location in mock mode", async () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      const file = { buffer: Buffer.from("test") } as any;
+      const result = await service.requestClassificationFromFile(
+        file,
+        "cid",
+        "gid",
+      );
+      expect(result.status).toBe("202");
+      expect(result.content).toContain(
+        "/documentintelligence/analyzeResults/mock-classify-operation",
+      );
+    });
+
     it("should return operation location on 202", async () => {
       (service as any).client = {
         path: () => ({

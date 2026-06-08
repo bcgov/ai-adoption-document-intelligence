@@ -1,10 +1,12 @@
-import { Select, Stack, TextInput } from "@mantine/core";
+import { Select, Stack, TextInput } from "../../../ui";
 import type { ColumnDef } from "../types";
 import type { LookupTemplate } from "./types";
 
 export const latestBefore: LookupTemplate = {
   id: "latest-before",
   label: "Latest before / on",
+  description:
+    "Returns the most-recent row whose date column is on or before the value you pass in — e.g. find the exchange rate in effect as of a given date.",
   toLookupDef(name, v, columns) {
     const col = String(v.column);
     const param = String(v.param);
@@ -33,7 +35,7 @@ export const latestBefore: LookupTemplate = {
       <Stack>
         <Select
           label="Column"
-          description="Find the latest row whose value is ≤ the param"
+          description="Find the latest row whose value in this column is ≤ the input you pass in"
           required
           data={columns.map((c: ColumnDef) => ({
             value: c.key,
@@ -44,6 +46,7 @@ export const latestBefore: LookupTemplate = {
         />
         <TextInput
           label="Param name"
+          description="Name this input — the workflow supplies a value for it at runtime (e.g. as_of_date)"
           required
           value={(values.param as string) ?? ""}
           onChange={(e) => setValue("param", e.currentTarget.value)}

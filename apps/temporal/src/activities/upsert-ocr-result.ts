@@ -133,9 +133,37 @@ export async function upsertOcrResult(params: {
       ? new Date()
       : processedDate;
 
+    // Structured OCR output: { format, text, markdown?, pages }. Populated for
+    // prebuilt read/layout/document models, where there are no fields to
+    // extract but the caller still wants the underlying content.
+    const pagesPayload = (ocrResult.pages ?? []).map((p) => ({
+      pageNumber: p.pageNumber,
+      content:
+        Array.isArray(p.lines) && p.lines.length > 0
+          ? p.lines.map((l) => l.content).join("\n")
+          : "",
+      lines: p.lines ?? [],
+    }));
+    const text =
+      ocrResult.extractedText && ocrResult.extractedText.length > 0
+        ? ocrResult.extractedText
+        : pagesPayload.map((p) => p.content).join("\n\n");
+    const format = ocrResult.contentFormat ?? "text";
+    const hasAnyContent =
+      text.length > 0 || pagesPayload.length > 0 || !!ocrResult.markdown;
+    const contentBlob = hasAnyContent
+      ? {
+          format,
+          text,
+          ...(ocrResult.markdown ? { markdown: ocrResult.markdown } : {}),
+          pages: pagesPayload,
+        }
+      : null;
+
     const updateObject: Record<string, unknown> = {
       processed_at: validProcessedDate,
       keyValuePairs: asJson(extractedFields),
+      content: contentBlob == null ? Prisma.JsonNull : asJson(contentBlob),
     };
     if (enrichmentSummary !== undefined) {
       updateObject.enrichment_summary =
@@ -154,11 +182,11 @@ export async function upsertOcrResult(params: {
       },
     });
 
-    // Update document status to completed_ocr
+    // Update document status to extracted
     // Note: The workflow status "awaiting_review" is used by the frontend to determine if review is needed
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: "completed_ocr" as const },
+      data: { status: "extracted" as const },
     });
 
     log.info("Upsert OCR result complete", {
@@ -167,6 +195,7 @@ export async function upsertOcrResult(params: {
       modelId: ocrResult.modelId,
       fieldCount: extractedFields ? Object.keys(extractedFields).length : 0,
       dataSize: extractedFields ? JSON.stringify(extractedFields).length : 0,
+      alertType: "upsert_ocr_result",
     });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -192,6 +221,7 @@ export async function upsertOcrResult(params: {
       error: getErrorMessage(error),
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "upsert_ocr_result",
     });
     throw error;
   }

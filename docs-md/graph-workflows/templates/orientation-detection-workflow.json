@@ -57,7 +57,7 @@
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" }
       ],
-      "parameters": { "status": "completed_ocr" },
+      "parameters": { "status": "extracted" },
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 3 }
     }

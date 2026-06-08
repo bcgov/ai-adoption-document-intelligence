@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-test-k6-blob-storage
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:latest
+          args:
+            - run
+            - --summary-export=/tmp/k6-blob-storage-summary.json
+            - /scripts/blob-storage-pressure.js
+          env:
+            - name: BASE_URL
+              value: "http://backend-services:3002"
+            - name: LOAD_TEST_GROUP_ID
+              value: "seed-default-group"
+            - name: LOAD_TEST_VUS
+              value: "1"
+            - name: LOAD_TEST_DURATION
+              value: "60s"
+            - name: LOAD_TEST_BLOB_PAYLOAD_BYTES
+              value: "1048576"
+            - name: LOAD_TEST_BLOB_FILES_PER_ITER
+              value: "1"
+            - name: LOAD_TEST_BLOB_CLEANUP
+              value: "true"
+            - name: LOAD_TEST_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: load-test-k6-secrets
+                  key: LOAD_TEST_API_KEY
+            - name: LOAD_TEST_BLOB_CLASSIFIER_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: load-test-k6-secrets
+                  key: LOAD_TEST_BLOB_CLASSIFIER_NAME
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: load-test-k6-scripts
+            defaultMode: 420

@@ -45,6 +45,8 @@ spec:
           resources:
             {{- toYaml .Values.grafana.resources | nindent 12 }}
           volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
             - name: config
               mountPath: /etc/grafana/grafana.ini
               subPath: grafana.ini
@@ -58,6 +60,9 @@ spec:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
       volumes:
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: {{ include "plg.grafana.fullname" . }}-data
         - name: config
           configMap:
             name: {{ include "plg.grafana.fullname" . }}-config

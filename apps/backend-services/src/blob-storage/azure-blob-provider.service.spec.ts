@@ -60,6 +60,16 @@ function makeConfigService(
   } as unknown as ConfigService;
 }
 
+function makeLoggerService() {
+  return {
+    debug: jest.fn(),
+    log: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  };
+}
+
 describe("createAzureContainerClient (factory function)", () => {
   it("creates a ContainerClient from connection string and container name", () => {
     const cfg = {
@@ -99,25 +109,37 @@ describe("AzureBlobProviderService", () => {
 
   describe("constructor", () => {
     it("initialises without error when connection string is present", () => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
       expect(service).toBeDefined();
     });
 
     it("does not crash when connection string is absent", () => {
-      service = new AzureBlobProviderService(makeConfigService({}));
+      service = new AzureBlobProviderService(
+        makeConfigService({}),
+        makeLoggerService() as never,
+      );
       expect(service).toBeDefined();
     });
   });
 
   describe("onModuleInit", () => {
     it("calls createIfNotExists when container client exists", async () => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
       await service.onModuleInit();
       expect(mockContainerClient.createIfNotExists).toHaveBeenCalled();
     });
 
     it("skips createIfNotExists when no connection string was configured", async () => {
-      service = new AzureBlobProviderService(makeConfigService({}));
+      service = new AzureBlobProviderService(
+        makeConfigService({}),
+        makeLoggerService() as never,
+      );
       await service.onModuleInit();
       expect(mockContainerClient.createIfNotExists).not.toHaveBeenCalled();
     });
@@ -126,14 +148,20 @@ describe("AzureBlobProviderService", () => {
       mockContainerClient.createIfNotExists.mockRejectedValueOnce(
         new Error("network error"),
       );
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
       await expect(service.onModuleInit()).resolves.toBeUndefined();
     });
   });
 
   describe("write", () => {
     beforeEach(() => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
     });
 
     it("uploads data to the correct blob key", async () => {
@@ -160,7 +188,10 @@ describe("AzureBlobProviderService", () => {
 
   describe("read", () => {
     beforeEach(() => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
     });
 
     it("returns concatenated buffer from readable stream", async () => {
@@ -201,7 +232,10 @@ describe("AzureBlobProviderService", () => {
 
   describe("exists", () => {
     beforeEach(() => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
     });
 
     it("returns true when blob exists", async () => {
@@ -233,7 +267,10 @@ describe("AzureBlobProviderService", () => {
 
   describe("delete", () => {
     beforeEach(() => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
     });
 
     it("calls deleteIfExists for the key", async () => {
@@ -256,7 +293,10 @@ describe("AzureBlobProviderService", () => {
 
   describe("list", () => {
     beforeEach(() => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
     });
 
     it("returns blob names matching the prefix", async () => {
@@ -292,7 +332,10 @@ describe("AzureBlobProviderService", () => {
 
   describe("deleteByPrefix", () => {
     beforeEach(() => {
-      service = new AzureBlobProviderService(makeConfigService(validConfig));
+      service = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+      );
     });
 
     it("deletes all blobs matching the prefix", async () => {

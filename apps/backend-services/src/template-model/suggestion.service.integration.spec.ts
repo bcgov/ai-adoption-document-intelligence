@@ -11,6 +11,12 @@ describe("SuggestionService Integration Test", () => {
   let fields: any[];
 
   beforeAll(() => {
+    // Remove this if you need to see this console output.
+    // Otherwise, it just clogs up the terminal.
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+
     service = new SuggestionService();
 
     // Load test fixtures
@@ -35,6 +41,10 @@ describe("SuggestionService Integration Test", () => {
     );
 
     fields = fieldsData.fields;
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it("should match expected labels from real form data", () => {

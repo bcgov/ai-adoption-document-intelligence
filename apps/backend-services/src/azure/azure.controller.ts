@@ -93,7 +93,7 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -127,6 +127,7 @@ export class AzureController {
   @Identity({
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { body: "group_id" },
+    allowApiKey: true,
   })
   @ApiOperation({
     summary: "Create a new classifier",
@@ -220,6 +221,7 @@ export class AzureController {
 
   @Post("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -288,6 +290,7 @@ export class AzureController {
 
   @Get("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -337,6 +340,7 @@ export class AzureController {
 
   @Delete("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -465,11 +469,14 @@ export class AzureController {
           group_id,
           actorId,
         );
-        this.logger.debug(`Training request accepted for classifier "${name}"`);
+        this.logger.debug(
+          `Training request accepted for classifier "${name}"`,
+          { alertType: "classifier_training_submit" },
+        );
       } catch (e) {
         this.logger.error(
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
-          { error: String(e) },
+          { error: String(e), alertType: "classifier_training_submit" },
         );
         await this.classifierService.updateClassifierModel(
           name,

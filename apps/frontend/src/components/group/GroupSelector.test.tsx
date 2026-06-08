@@ -1,6 +1,6 @@
-import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MantineProvider } from "../../ui";
 import { GroupSelector } from "./GroupSelector";
 
 const mockUseGroup = vi.fn();

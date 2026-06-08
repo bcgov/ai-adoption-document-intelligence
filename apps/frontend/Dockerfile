@@ -23,19 +23,23 @@ ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 ENV VITE_SUPPORT_EMAIL=${VITE_SUPPORT_EMAIL}
 ENV VITE_ENV=${VITE_ENV}
 
-COPY package*.json ./
+# Copy workspace packages referenced as file: dependencies (file:../../packages/* resolves to /packages/*)
+COPY packages/graph-workflow /packages/graph-workflow
+RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
+
+COPY apps/frontend/package*.json ./
 RUN npm install --ignore-scripts
-COPY . .
+COPY apps/frontend/ .
 RUN npm run build
 
 # Production stage: nginx to serve static files (non-root / OpenShift-safe)
 FROM nginx:alpine
 
 # Custom main config: writable paths under /tmp for non-root and read-only fs
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY nginx-default.conf /etc/nginx/conf.d/default.conf
+COPY apps/frontend/nginx.conf /etc/nginx/nginx.conf
+COPY apps/frontend/nginx-default.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY apps/frontend/docker-entrypoint.sh /docker-entrypoint.sh
 
 # Create nginx temp/cache dirs (nginx does not create parent dirs); world-writable for OpenShift arbitrary UID.
 # Make entrypoint and nginx config writable so the entrypoint can substitute env vars at startup.

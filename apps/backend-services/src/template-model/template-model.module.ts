@@ -1,6 +1,7 @@
 import { HttpModule } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
 import { AuditModule } from "../audit/audit.module";
+import { AzureModule } from "../azure/azure.module";
 import { BlobStorageModule } from "../blob-storage/blob-storage.module";
 import { DatabaseModule } from "../database/database.module";
 import { DocumentModule } from "../document/document.module";
@@ -19,6 +20,7 @@ import { TemplateModelOcrService } from "./template-model-ocr.service";
     BlobStorageModule,
     DocumentModule,
     AuditModule,
+    AzureModule,
   ],
   controllers: [TemplateModelController],
   providers: [

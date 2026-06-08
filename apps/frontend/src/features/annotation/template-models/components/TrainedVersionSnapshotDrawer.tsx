@@ -1,17 +1,17 @@
+import { IconAlertCircle } from "@tabler/icons-react";
+import { FC } from "react";
 import {
   Accordion,
   Alert,
   Badge,
+  DataTable,
   Drawer,
   Group,
   Loader,
   ScrollArea,
   Stack,
-  Table,
   Text,
-} from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { FC } from "react";
+} from "../../../../ui";
 import { useTrainedVersionSnapshot } from "../hooks/useTrainedVersions";
 
 interface TrainedVersionSnapshotDrawerProps {
@@ -87,36 +87,38 @@ export const TrainedVersionSnapshotDrawer: FC<
                         No labels recorded for this document.
                       </Text>
                     ) : (
-                      <Table withRowBorders={false} verticalSpacing={4}>
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th>Field</Table.Th>
-                            <Table.Th>Value</Table.Th>
-                            <Table.Th style={{ width: 60 }}>Page</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
+                      <DataTable withRowBorders={false} verticalSpacing={4}>
+                        <DataTable.Thead>
+                          <DataTable.Tr>
+                            <DataTable.Th>Field</DataTable.Th>
+                            <DataTable.Th>Value</DataTable.Th>
+                            <DataTable.Th style={{ width: 60 }}>
+                              Page
+                            </DataTable.Th>
+                          </DataTable.Tr>
+                        </DataTable.Thead>
+                        <DataTable.Tbody>
                           {doc.labels.map((label, idx) => (
-                            <Table.Tr key={`${label.fieldKey}-${idx}`}>
-                              <Table.Td>
+                            <DataTable.Tr key={`${label.fieldKey}-${idx}`}>
+                              <DataTable.Td>
                                 <Text size="xs" fw={500}>
                                   {label.fieldKey}
                                 </Text>
-                              </Table.Td>
-                              <Table.Td>
+                              </DataTable.Td>
+                              <DataTable.Td>
                                 <Text size="xs" lineClamp={2}>
                                   {label.value ?? "—"}
                                 </Text>
-                              </Table.Td>
-                              <Table.Td>
+                              </DataTable.Td>
+                              <DataTable.Td>
                                 <Text size="xs" c="dimmed">
                                   {label.pageNumber}
                                 </Text>
-                              </Table.Td>
-                            </Table.Tr>
+                              </DataTable.Td>
+                            </DataTable.Tr>
                           ))}
-                        </Table.Tbody>
-                      </Table>
+                        </DataTable.Tbody>
+                      </DataTable>
                     )}
                   </Accordion.Panel>
                 </Accordion.Item>
