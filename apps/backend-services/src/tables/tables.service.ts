@@ -4,7 +4,11 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
-import { buildRowZodSchema, validateColumnDefs } from "./column-validation";
+import {
+  buildRowZodSchema,
+  validateColumnDefs,
+  zodForColumn,
+} from "./column-validation";
 import { findLookupsReferencingColumn } from "./dependency-check";
 import { validateLookupDefs } from "./lookup-validation";
 import { type CreateTableInput, TablesDbService } from "./tables-db.service";
@@ -20,6 +24,40 @@ export class TablesService {
     private readonly db: TablesDbService,
     private readonly audit: AuditService,
   ) {}
+
+  /**
+   * Per-table async mutex — serialises the uniqueness-check + insert/update
+   * sequence for a given table so that concurrent requests cannot both pass
+   * the check before either commits the write (TOCTOU prevention).
+   *
+   * NOTE: This lock is in-memory and per-process. It has no effect across
+   * multiple service instances. A database-level unique constraint would be
+   * required for cross-instance enforcement.
+   */
+  private readonly tableLocks = new Map<string, Promise<void>>();
+
+  private async withTableLock<T>(
+    group_id: string,
+    table_id: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const key = `${group_id}:${table_id}`;
+    const prev = this.tableLocks.get(key) ?? Promise.resolve();
+    let resolve!: () => void;
+    const next = new Promise<void>((res) => {
+      resolve = res;
+    });
+    this.tableLocks.set(key, next);
+    try {
+      await prev;
+      return await fn();
+    } finally {
+      resolve();
+      if (this.tableLocks.get(key) === next) {
+        this.tableLocks.delete(key);
+      }
+    }
+  }
 
   async createTable(args: CreateTableArgs) {
     const { actor_id, group_id, table_id, label, description } = args;
@@ -42,6 +80,10 @@ export class TablesService {
 
   async listTables(group_id: string) {
     return this.db.listTables(group_id);
+  }
+
+  async getRowCountsForGroup(group_id: string) {
+    return this.db.getRowCountsForGroup(group_id);
   }
 
   async getTable(group_id: string, table_id: string) {
@@ -80,11 +122,28 @@ export class TablesService {
     });
   }
 
+  /**
+   * Adds a new column to an existing table.
+   *
+   * If `seed_value` is provided, every existing row in the table is updated so
+   * that the new column key is set to that value. The seed value is validated
+   * against the column schema before the backfill is performed.
+   *
+   * **The seed value only affects rows that existed at the time of this call.**
+   * Rows inserted after the column is added must supply their own value.
+   *
+   * @param actor_id - The user performing the operation.
+   * @param group_id - The group that owns the table.
+   * @param table_id - The stable table identifier.
+   * @param col - The column definition to add.
+   * @param seed_value - Optional value to write into all existing rows for the new column.
+   */
   async addColumn(
     actor_id: string,
     group_id: string,
     table_id: string,
     col: ColumnDef,
+    seed_value?: unknown,
   ) {
     const t = await this.db.findTable(group_id, table_id);
     if (!t) throw new BadRequestException("table not found");
@@ -102,24 +161,94 @@ export class TablesService {
       );
     }
 
-    const result = await this.db.addColumn(group_id, table_id, col);
+    if (seed_value !== undefined) {
+      if (col.unique) {
+        throw new BadRequestException(
+          "Cannot provide a seed value for a unique column — each row must have a distinct value",
+        );
+      }
+
+      const parsed = zodForColumn({ ...col, required: true }).safeParse(
+        seed_value,
+      );
+      if (!parsed.success) {
+        throw new BadRequestException(
+          `seed_value is invalid for column type "${col.type}": ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        );
+      }
+    }
+
+    // A required column without a seed_value cannot be added to a table that
+    // already has rows — every existing row would be missing a value, violating
+    // the required constraint.  (Nullable columns are fine: NULL is a valid
+    // absent value for optional fields.)  For required+unique we also cannot
+    // offer a seed value (unique columns reject seeds above), so we block
+    // entirely with a more specific hint.
+    if (col.required && seed_value === undefined) {
+      const occupied = await this.db.hasRows(group_id, table_id);
+      if (occupied) {
+        if (col.unique) {
+          throw new BadRequestException(
+            "Cannot add a required + unique column to a table that already has rows — " +
+              "existing rows would all get null, violating the required constraint. " +
+              "Add the column without these flags first, fill in distinct values for all rows, then enable required and unique.",
+          );
+        }
+        throw new BadRequestException(
+          "Cannot add a required column without a seed_value to a table that already has rows — " +
+            "existing rows would be missing a value, violating the required constraint. " +
+            "Provide a seed_value to backfill existing rows, or add the column as optional first.",
+        );
+      }
+    }
+
+    const result =
+      seed_value !== undefined
+        ? await this.db.addColumnAndBackfill(
+            group_id,
+            table_id,
+            col,
+            seed_value,
+          )
+        : await this.db.addColumn(group_id, table_id, col);
+
     await this.audit.recordEvent({
       event_type: "tables.column.added",
       resource_type: "table",
       resource_id: result.id,
       actor_id,
       group_id,
-      payload: { column: col },
+      // seed_value is reference-table data (not sensitive PII). It is
+      // included so the audit trail captures the initial backfill value.
+      payload: { column: col, seed_value },
     });
     return result;
   }
 
+  /**
+   * Updates an existing column definition.
+   *
+   * If `seed_value` is provided, every existing row that has no value for this
+   * column key will be updated so that it is set to the seed value. Useful
+   * when enabling `required` on a column that already has rows.
+   *
+   * `required` and `unique` cannot both be true in the same save — achieve both
+   * by first saving as required, filling in distinct values, then enabling unique.
+   *
+   * @param actor_id - The user performing the operation.
+   * @param group_id - The group that owns the table.
+   * @param table_id - The stable table identifier.
+   * @param key - Column key to update.
+   * @param next - New column definition.
+   * @param seed_value - Optional value to write into rows that have no value for this column.
+   */
   async updateColumn(
     actor_id: string,
     group_id: string,
     table_id: string,
     key: string,
     next: ColumnDef,
+    seed_value?: unknown,
   ) {
     const t = await this.db.findTable(group_id, table_id);
     if (!t) throw new BadRequestException("table not found");
@@ -128,6 +257,18 @@ export class TablesService {
     const existingLookups = t.lookups as unknown as LookupDef[];
     const before = existingCols.find((c) => c.key === key);
     const proposed = existingCols.map((c) => (c.key === key ? next : c));
+
+    // Run all pure validation before touching any data.
+    if (seed_value !== undefined) {
+      const parsed = zodForColumn({ ...next, required: true }).safeParse(
+        seed_value,
+      );
+      if (!parsed.success) {
+        throw new BadRequestException(
+          `seed_value is invalid for column type "${next.type}": ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        );
+      }
+    }
 
     try {
       validateColumnDefs(proposed);
@@ -138,14 +279,64 @@ export class TablesService {
       );
     }
 
-    const result = await this.db.updateColumn(group_id, table_id, key, next);
+    // Apply seed before the uniqueness check so the check sees the final
+    // data state (null rows filled in by the seed may introduce duplicates).
+    // When seed_value is present, all three steps run inside a single DB
+    // transaction so the backfill is rolled back if the duplicate check fails.
+    const checkDuplicates =
+      !!next.unique && (!before?.unique || seed_value !== undefined);
+
+    // Guard: enabling required without a seed_value would leave rows that have
+    // no value for this column in an invalid state.
+    if (next.required && !before?.required && seed_value === undefined) {
+      const hasMissing = await this.db.hasRowsMissingColumn(
+        group_id,
+        table_id,
+        key,
+      );
+      if (hasMissing) {
+        throw new BadRequestException(
+          `Cannot mark column "${next.label}" as required — existing rows are missing a value for it. ` +
+            "Provide a seed_value to backfill those rows, or fill in all values manually first.",
+        );
+      }
+    }
+
+    let result: Awaited<ReturnType<typeof this.db.updateColumn>>;
+    if (seed_value !== undefined) {
+      result = await this.db.backfillAndUpdateColumn(
+        group_id,
+        table_id,
+        key,
+        next,
+        seed_value,
+        checkDuplicates,
+        next.label,
+      );
+    } else {
+      if (checkDuplicates) {
+        const hasDuplicates = await this.db.columnHasDuplicateValues(
+          group_id,
+          table_id,
+          key,
+        );
+        if (hasDuplicates) {
+          throw new ConflictException(
+            `Column "${next.label}" cannot be saved — rows contain duplicate values. Fill in distinct values for all rows before saving.`,
+          );
+        }
+      }
+      result = await this.db.updateColumn(group_id, table_id, key, next);
+    }
+
     await this.audit.recordEvent({
       event_type: "tables.column.updated",
       resource_type: "table",
       resource_id: result.id,
       actor_id,
       group_id,
-      payload: { column_key: key, before, after: next },
+      // seed_value is reference-table data (not sensitive PII).
+      payload: { column_key: key, before, after: next, seed_value },
     });
     return result;
   }
@@ -280,7 +471,30 @@ export class TablesService {
     // Let ZodError propagate — Nest's global filter handles it, or caller wraps it
     const parsed = schema.parse(data) as Record<string, unknown>;
 
-    const row = await this.db.createRow(group_id, table_id, parsed);
+    // Serialise the check-then-insert within a per-table lock to prevent
+    // concurrent requests from both passing the uniqueness check before
+    // either write is committed.
+    const row = await this.withTableLock(group_id, table_id, async () => {
+      const uniqueCols = cols.filter((c) => c.unique);
+      for (const col of uniqueCols) {
+        const val = parsed[col.key];
+        if (val !== undefined && val !== null) {
+          const clash = await this.db.hasRowWithColumnValue(
+            group_id,
+            table_id,
+            col.key,
+            val,
+          );
+          if (clash) {
+            throw new ConflictException(
+              `Column "${col.label}" requires unique values — "${val}" is already in use`,
+            );
+          }
+        }
+      }
+      return this.db.createRow(group_id, table_id, parsed);
+    });
+
     await this.audit.recordEvent({
       event_type: "tables.row.created",
       resource_type: "table_row",
@@ -318,17 +532,41 @@ export class TablesService {
     const schema = buildRowZodSchema(cols);
     const parsed = schema.parse(input.data) as Record<string, unknown>;
 
+    // Fetch the current row state for audit purposes before the lock is acquired.
     const before = await this.db.findRow(group_id, table_id, id);
 
-    let row: Awaited<ReturnType<typeof this.db.updateRow>>;
-    try {
-      row = await this.db.updateRow(group_id, table_id, id, {
-        data: parsed,
-        expected_updated_at: input.expected_updated_at,
-      });
-    } catch (e) {
-      throw new ConflictException((e as Error).message);
-    }
+    // Serialise the check-then-update within a per-table lock to prevent
+    // concurrent requests from both passing the uniqueness check before
+    // either write is committed.
+    const row = await this.withTableLock(group_id, table_id, async () => {
+      const uniqueCols = cols.filter((c) => c.unique);
+      for (const col of uniqueCols) {
+        const val = parsed[col.key];
+        if (val !== undefined && val !== null) {
+          const clash = await this.db.hasRowWithColumnValue(
+            group_id,
+            table_id,
+            col.key,
+            val,
+            id,
+          );
+          if (clash) {
+            throw new ConflictException(
+              `Column "${col.label}" requires unique values — "${val}" is already in use`,
+            );
+          }
+        }
+      }
+
+      try {
+        return await this.db.updateRow(group_id, table_id, id, {
+          data: parsed,
+          expected_updated_at: input.expected_updated_at,
+        });
+      } catch (e) {
+        throw new ConflictException((e as Error).message);
+      }
+    });
 
     await this.audit.recordEvent({
       event_type: "tables.row.updated",

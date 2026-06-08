@@ -1,5 +1,12 @@
 {
     "chat.tools.terminal.autoApprove": {
         "npm run db:generate": true
+    },
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.profiles.linux": {
+        "bash": {
+            "path": "bash",
+            "args": ["-l"]
+        }
     }
 }

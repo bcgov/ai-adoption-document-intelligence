@@ -3,6 +3,7 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
+import { AzureService } from "@/azure/azure.service";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -13,6 +14,10 @@ import {
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelOcrService } from "./template-model-ocr.service";
+
+const mockAzureService = {
+  isMockMode: jest.fn().mockReturnValue(false),
+};
 
 describe("TemplateModelOcrService", () => {
   let service: TemplateModelOcrService;
@@ -41,6 +46,8 @@ describe("TemplateModelOcrService", () => {
   };
 
   beforeEach(async () => {
+    mockAzureService.isMockMode.mockReturnValue(false);
+
     const mockLabelingDocumentDb = {
       createLabelingDocument: jest.fn(),
       findLabelingDocument: jest.fn(),
@@ -82,6 +89,7 @@ describe("TemplateModelOcrService", () => {
       providers: [
         TemplateModelOcrService,
         { provide: AppLoggerService, useValue: mockAppLogger },
+        { provide: AzureService, useValue: mockAzureService },
         {
           provide: LabelingDocumentDbService,
           useValue: mockLabelingDocumentDb,
@@ -267,7 +275,7 @@ describe("TemplateModelOcrService", () => {
       expect(
         mockLabelingDocumentDbService.updateLabelingDocument,
       ).toHaveBeenCalledWith("doc-1", {
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
         ocr_result: analysisResponse,
       });
     });
@@ -490,6 +498,35 @@ describe("TemplateModelOcrService", () => {
       ).toHaveBeenCalledWith("doc-1", {
         status: DocumentStatus.failed,
       });
+    });
+  });
+
+  describe("when AzureService.isMockMode() is true", () => {
+    beforeEach(() => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+    });
+
+    it("processOcrForLabelingDocument completes without Azure HTTP calls", async () => {
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
+        mockLabelingDocument as never,
+      );
+
+      await service.processOcrForLabelingDocument("doc-1");
+
+      expect(mockHttpService.post).not.toHaveBeenCalled();
+      expect(mockHttpService.get).not.toHaveBeenCalled();
+      expect(
+        mockLabelingDocumentDbService.updateLabelingDocument,
+      ).toHaveBeenCalledWith(
+        "doc-1",
+        expect.objectContaining({
+          status: DocumentStatus.extracted,
+          ocr_result: expect.objectContaining({
+            status: "succeeded",
+            analyzeResult: expect.objectContaining({ content: "mock" }),
+          }),
+        }),
+      );
     });
   });
 });

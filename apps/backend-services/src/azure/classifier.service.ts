@@ -1,6 +1,11 @@
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
 import type { ClassifierModel } from "@generated/client";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import "multer";
 import * as path from "node:path";
 import { AzureService } from "@/azure/azure.service";
@@ -14,6 +19,7 @@ import {
   CLASSIFIER_OTHER_LABEL,
   ClassifierStatus,
 } from "@/azure/dto/classifier-constants.dto";
+import { buildMockClassificationOperationLocation } from "@/azure/mock-document-intelligence.constants";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -59,6 +65,12 @@ export class ClassifierService {
    * @param filePaths A list of relative file paths in blob storage for analysis. They should match the files exactly, not folders.
    */
   createLayoutJson = async (filePaths: string[]) => {
+    if (this.azureService.isMockMode()) {
+      this.logger.warn(
+        "createLayoutJson skipped: DOCUMENT_INTELLIGENCE_MODE=mock",
+      );
+      return;
+    }
     // Each file in a training folder needs accompanying layout json.
     // The file must be named just like its corresponding image + .ocr.json
     // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
@@ -306,6 +318,11 @@ export class ClassifierService {
     groupId: string,
     actorId: string,
   ) => {
+    if (this.azureService.isMockMode()) {
+      throw new ServiceUnavailableException(
+        "Classifier training requires DOCUMENT_INTELLIGENCE_MODE=live.",
+      );
+    }
     // Does this classifier record exist?
     const existingClassifier = await this.classifierDb.findClassifierModel(
       classifierName,
@@ -411,6 +428,14 @@ export class ClassifierService {
     classiferName: string,
     groupId: string,
   ) => {
+    if (this.azureService.isMockMode()) {
+      return {
+        status: "202",
+        content: buildMockClassificationOperationLocation(
+          this.azureService.getEndpoint(),
+        ),
+      };
+    }
     const constructedClassifierName = this.getConstructedClassifierName(
       groupId,
       classiferName,
@@ -454,6 +479,14 @@ export class ClassifierService {
     classiferName: string,
     groupId: string,
   ) => {
+    if (this.azureService.isMockMode()) {
+      return {
+        status: "202",
+        content: buildMockClassificationOperationLocation(
+          this.azureService.getEndpoint(),
+        ),
+      };
+    }
     const constructedClassifierName = this.getConstructedClassifierName(
       groupId,
       classiferName,

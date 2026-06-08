@@ -1,0 +1,15 @@
+.bcds-divider-labeled {
+  display: flex;
+  align-items: center;
+  gap: var(--layout-margin-small);
+}
+
+.bcds-divider-labeled .bcds-react-aria-Separator {
+  flex: 1;
+}
+
+.bcds-divider-label {
+  font: var(--typography-regular-small-body);
+  color: var(--typography-color-secondary);
+  white-space: nowrap;
+}

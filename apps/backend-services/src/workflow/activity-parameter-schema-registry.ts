@@ -7,7 +7,7 @@
  *
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md
  */
-import type { GraphValidationError } from "./graph-workflow-types";
+import type { GraphValidationError } from "@ai-di/graph-workflow";
 
 const VALID_TRANSFORM_FORMATS = new Set(["json", "xml", "csv"]);
 

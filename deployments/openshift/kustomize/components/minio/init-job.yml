@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  labels:
+    app: minio
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            # OpenShift assigns a random non-root UID with $HOME=/, so direct
+            # mc to a writable config dir under /tmp.
+            - name: HOME
+              value: /tmp
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: MINIO_ROOT_PASSWORD
+            # Substituted to "<instance>-minio" by scripts/lib/generate-overlay.sh
+            # when this component is included in an instance overlay.
+            - name: MINIO_SERVICE_NAME
+              value: "__INSTANCE_NAME__-minio"
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              # Wait for the per-instance MinIO Service to accept connections.
+              # Service name comes from kustomize namePrefix (e.g.
+              # <instance>-minio:9000 inside the same namespace).
+              endpoint="http://${MINIO_SERVICE_NAME:-minio}:9000"
+              echo "Waiting for MinIO at ${endpoint}..."
+              i=0
+              until mc --config-dir "${MC_CONFIG_DIR}" alias set local "${endpoint}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" >/dev/null 2>&1; do
+                i=$((i+1))
+                if [ "$i" -gt 60 ]; then
+                  echo "MinIO did not become ready in time" >&2
+                  mc --config-dir "${MC_CONFIG_DIR}" alias set local "${endpoint}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" || true
+                  exit 1
+                fi
+                echo "Not ready yet, retrying ($i)..."
+                sleep 5
+              done
+              echo "MinIO ready. Creating buckets..."
+              mc --config-dir "${MC_CONFIG_DIR}" mb --ignore-existing local/document-blobs
+              mc --config-dir "${MC_CONFIG_DIR}" mb --ignore-existing local/benchmark-outputs
+              echo "Bucket setup complete."
+              mc --config-dir "${MC_CONFIG_DIR}" ls local
+          volumeMounts:
+            - name: mc-config
+              mountPath: /tmp
+      volumes:
+        - name: mc-config
+          emptyDir: {}

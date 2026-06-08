@@ -3,6 +3,18 @@
  * Edits metadata, ctx, entry node, nodes (with type-specific fields), and edges.
  */
 
+import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useRef } from "react";
+import type {
+  ActivityNode,
+  CtxDeclaration,
+  GraphEdge,
+  GraphMetadata,
+  GraphNode,
+  GraphWorkflowConfig,
+  NodeType,
+  PortBinding,
+} from "../../types/graph-workflow";
 import {
   Accordion,
   Button,
@@ -16,19 +28,7 @@ import {
   Textarea,
   TextInput,
   Tooltip,
-} from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useRef } from "react";
-import type {
-  ActivityNode,
-  CtxDeclaration,
-  GraphEdge,
-  GraphMetadata,
-  GraphNode,
-  GraphWorkflowConfig,
-  NodeType,
-  PortBinding,
-} from "../../types/graph-workflow";
+} from "../../ui";
 import { AzureClassifySubmitForm } from "./AzureClassifySubmitForm";
 import { FlattenClassifiedDocumentsForm } from "./FlattenClassifiedDocumentsForm";
 import { SelectClassifiedPagesForm } from "./SelectClassifiedPagesForm";

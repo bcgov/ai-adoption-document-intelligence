@@ -23,8 +23,8 @@ The graph workflow integration test validates end-to-end workflow execution with
 
 Before running the integration tests, ensure the following services are running:
 
-1. **Temporal Server**: `cd apps/temporal && docker-compose up -d`
-2. **Backend Database**: `cd apps/backend-services && docker-compose up -d`
+1. **Temporal Server**: `docker compose --profile temporal up -d` (from repo root)
+2. **Backend Database**: `docker compose --profile infra up -d` (from repo root)
 3. **Backend API**: `cd apps/backend-services && npm run start:dev`
 4. **Temporal Worker**: See options below
 

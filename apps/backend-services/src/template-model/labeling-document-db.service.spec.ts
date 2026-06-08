@@ -3,7 +3,7 @@ jest.mock("@generated/client", () => {
   const DocumentStatus = {
     pre_ocr: "pre_ocr",
     ongoing_ocr: "ongoing_ocr",
-    completed_ocr: "completed_ocr",
+    extracted: "extracted",
     failed: "failed",
   };
   return {
@@ -46,7 +46,7 @@ describe("LabelingDocumentDbService", () => {
     file_size: 456,
     metadata: {},
     source: "upload",
-    status: DocumentStatus.completed_ocr,
+    status: DocumentStatus.extracted,
     created_at: new Date(),
     updated_at: new Date(),
     apim_request_id: "req-123",

@@ -4,10 +4,15 @@ This document describes the TypeScript type system for the DAG workflow engine. 
 
 ## Type Locations
 
-Types are defined in two locations (identical content, no shared import path):
+All types are defined in a single shared package:
 
-- **Backend**: `apps/backend-services/src/workflow/graph-workflow-types.ts`
-- **Temporal Worker**: `apps/temporal/src/graph-workflow-types.ts`
+- **Source of truth**: `packages/graph-workflow/src/types.ts` (package: `@ai-di/graph-workflow`)
+
+Each app re-exports all types via a thin shim that simply does `export * from "@ai-di/graph-workflow"`:
+
+- `apps/backend-services/src/workflow/graph-workflow-types.ts`
+- `apps/temporal/src/graph-workflow-types.ts`
+- `apps/frontend/src/types/graph-workflow.ts`
 
 ## Top-Level Config
 
@@ -67,19 +72,39 @@ Values are referenced via `ValueRef`:
 
 Activities are identified by string keys (e.g., `"azureOcr.submit"`):
 
-- **Temporal runtime registry**: `apps/temporal/src/activity-registry.ts` - maps types to actual functions
-- **Backend constant registry**: `apps/backend-services/src/workflow/activity-registry.ts` - descriptions only for save-time validation
+- **Temporal runtime registry**: `apps/temporal/src/activity-registry.ts` -- maps activity type strings to actual Temporal activity functions, with `defaultTimeout`, `defaultRetry`, and `description`
+- **Temporal workflow-safe list**: `apps/temporal/src/activity-types.ts` -- `REGISTERED_ACTIVITY_TYPES` constant array (workflow code imports this instead of the worker registry to avoid non-determinism)
+- **Backend constant registry**: `apps/backend-services/src/workflow/activity-registry.ts` -- descriptions only, used for save-time validation
 
-12 registered activity types: `document.updateStatus`, `file.prepare`, `azureOcr.submit`, `azureOcr.poll`, `azureOcr.extract`, `ocr.cleanup`, `ocr.checkConfidence`, `ocr.storeResults`, `document.storeRejection`, `document.split`, `document.classify`, `document.validateFields`.
+Current activity types, grouped by category:
+
+**Document / File**: `document.updateStatus`, `document.storeRejection`, `document.split`, `document.classify`, `document.splitAndClassify`, `document.validateFields`, `document.extractPageRange`, `document.selectClassifiedPages`, `document.flattenClassifiedDocuments`, `document.extractToBase64`, `document.normalizeOrientation`, `file.prepare`
+
+**Azure OCR**: `azureOcr.submit`, `azureOcr.poll`, `azureOcr.extract`
+
+**Azure Classifier**: `azureClassify.submit`, `azureClassify.poll`
+
+**Mistral OCR**: `mistralOcr.process`
+
+**OCR Processing**: `ocr.cleanup`, `ocr.enrich`, `ocr.checkConfidence`, `ocr.storeResults`, `ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`
+
+**Segment**: `segment.combineResult`
+
+**Data / Utility**: `data.transform`, `blob.read`, `tables.lookup`
+
+**Internal**: `getWorkflowGraphConfig` (used by `childWorkflow` nodes; not for direct use in user-defined graphs)
+
+**Benchmarking** (temporal-only; not in the backend registry): `benchmark.evaluate`, `benchmark.aggregate`, `benchmark.cleanup`, `benchmark.updateRunStatus`, `benchmark.compareAgainstBaseline`, `benchmark.writePrediction`, `benchmark.materializeDataset`, `benchmark.loadDatasetManifest`, `benchmark.loadOcrCache`, `benchmark.persistOcrCache`, `benchmark.persistEvaluationDetails`
 
 ## Validation
 
-Two validators share core logic but run in different contexts:
+A single shared validator lives in `packages/graph-workflow/src/validator/validator.ts` (exported as `validateGraphConfig(config, options?)` from `@ai-di/graph-workflow`). All three consumers call this shared function:
 
-- **Backend** (`graph-schema-validator.ts`): Save-time validation with constant-based activity type checking
-- **Temporal** (`graph-schema-validator.ts`): Execution-time defensive check with runtime registry validation
+- **Backend** (`apps/backend-services/src/workflow/graph-schema-validator.ts`): Thin wrapper that injects the backend constant registry via `ValidateGraphConfigOptions` for save-time validation
+- **Temporal** (`apps/temporal/src/graph-schema-validator.ts`): Thin wrapper that injects the runtime registry for execution-time defensive validation
+- **Frontend** (`apps/frontend/src/pages/WorkflowEditorPage.tsx`): Calls `validateGraphConfig()` directly without options; the `options` parameter defaults to `SKIP_ACTIVITY_VALIDATION` which skips activity-type/parameter checks (appropriate since the frontend has no activity registry)
 
-Both check: schema version, node/edge integrity, DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity.
+All callers check: schema version, node/edge integrity (including non-empty `label`), DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity.
 
 ## Blob Storage
 

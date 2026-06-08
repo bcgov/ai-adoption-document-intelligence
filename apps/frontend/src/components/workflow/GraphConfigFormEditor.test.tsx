@@ -1,10 +1,10 @@
-import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ActivityNode,
   GraphWorkflowConfig,
 } from "../../types/graph-workflow";
+import { MantineProvider } from "../../ui";
 import { GraphConfigFormEditor } from "./GraphConfigFormEditor";
 
 // ---------------------------------------------------------------------------
@@ -70,32 +70,20 @@ describe("GraphConfigFormEditor — TransformNodeForm", () => {
         makeTransformNode({ inputFormat: "csv", outputFormat: "xml" }),
       );
 
-      // getAllByLabelText because Mantine Select associates the label with both
-      // the visible input and the hidden listbox element
-      const inputFormatInput = screen
-        .getAllByLabelText("Input format")
-        .find((el) => el.tagName === "INPUT") as HTMLInputElement;
-      const outputFormatInput = screen
-        .getAllByLabelText("Output format")
-        .find((el) => el.tagName === "INPUT") as HTMLInputElement;
-
-      expect(inputFormatInput.value).toBe("CSV");
-      expect(outputFormatInput.value).toBe("XML");
+      expect(screen.getByLabelText("Input format")).toHaveTextContent("CSV");
+      expect(screen.getByLabelText("Output format")).toHaveTextContent("XML");
     });
 
     it("calls onChange with updated inputFormat when a new format is selected", async () => {
       const onChange = vi.fn();
       renderEditor(makeTransformNode({ inputFormat: "json" }), onChange);
 
-      const inputFormatInput = screen
-        .getAllByLabelText("Input format")
-        .find((el) => el.tagName === "INPUT") as HTMLInputElement;
-      fireEvent.click(inputFormatInput);
+      fireEvent.click(screen.getByLabelText("Input format"));
+      fireEvent.click(screen.getByRole("option", { name: "CSV" }));
 
-      const csvOption = await screen.findByRole("option", { name: "CSV" });
-      fireEvent.click(csvOption);
-
-      expect(onChange).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(onChange).toHaveBeenCalled();
+      });
       const updatedConfig: GraphWorkflowConfig = onChange.mock.calls[0][0];
       const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
       expect(updatedNode.parameters?.inputFormat).toBe("csv");
@@ -105,15 +93,12 @@ describe("GraphConfigFormEditor — TransformNodeForm", () => {
       const onChange = vi.fn();
       renderEditor(makeTransformNode({ outputFormat: "json" }), onChange);
 
-      const outputFormatInput = screen
-        .getAllByLabelText("Output format")
-        .find((el) => el.tagName === "INPUT") as HTMLInputElement;
-      fireEvent.click(outputFormatInput);
+      fireEvent.click(screen.getByLabelText("Output format"));
+      fireEvent.click(screen.getByRole("option", { name: "XML" }));
 
-      const xmlOption = await screen.findByRole("option", { name: "XML" });
-      fireEvent.click(xmlOption);
-
-      expect(onChange).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(onChange).toHaveBeenCalled();
+      });
       const updatedConfig: GraphWorkflowConfig = onChange.mock.calls[0][0];
       const updatedNode = updatedConfig.nodes.t1 as ActivityNode;
       expect(updatedNode.parameters?.outputFormat).toBe("xml");

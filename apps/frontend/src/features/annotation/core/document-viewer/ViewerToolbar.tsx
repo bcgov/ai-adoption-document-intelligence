@@ -1,4 +1,3 @@
-import { ActionIcon, Divider, Group, NumberInput, Text } from "@mantine/core";
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -8,6 +7,13 @@ import {
   IconZoomReset,
 } from "@tabler/icons-react";
 import { FC } from "react";
+import {
+  Divider,
+  Group,
+  IconActionButton,
+  NumberInput,
+  Text,
+} from "../../../../ui";
 
 interface ViewerToolbarProps {
   currentPage: number;
@@ -43,16 +49,20 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
     <Group
       gap="xs"
       p="xs"
-      style={{ background: "#f8f9fa", borderBottom: "1px solid #dee2e6" }}
+      className="bcds-viewer-toolbar"
+      style={{
+        background: "var(--surface-color-background-light-gray)",
+        borderBottom:
+          "var(--layout-border-width-small) solid var(--surface-color-border-default)",
+      }}
     >
-      {/* Page Navigation */}
-      <ActionIcon
+      <IconActionButton
+        tooltip="Previous page"
         variant="subtle"
-        onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage <= 1}
-      >
-        <IconChevronLeft size={18} />
-      </ActionIcon>
+        onClick={() => onPageChange(currentPage - 1)}
+        icon={<IconChevronLeft size={18} />}
+      />
 
       <Group gap={5}>
         <NumberInput
@@ -69,42 +79,54 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
         </Text>
       </Group>
 
-      <ActionIcon
+      <IconActionButton
+        tooltip="Next page"
         variant="subtle"
-        onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= totalPages}
-      >
-        <IconChevronRight size={18} />
-      </ActionIcon>
+        onClick={() => onPageChange(currentPage + 1)}
+        icon={<IconChevronRight size={18} />}
+      />
 
       {showZoom && (
         <>
           <Divider orientation="vertical" />
 
-          <ActionIcon variant="subtle" onClick={onZoomOut}>
-            <IconZoomOut size={18} />
-          </ActionIcon>
+          <IconActionButton
+            tooltip="Zoom out"
+            variant="subtle"
+            onClick={onZoomOut}
+            icon={<IconZoomOut size={18} />}
+          />
 
           <Text size="sm" style={{ minWidth: 50, textAlign: "center" }}>
             {Math.round(zoom * 100)}%
           </Text>
 
-          <ActionIcon variant="subtle" onClick={onZoomIn}>
-            <IconZoomIn size={18} />
-          </ActionIcon>
+          <IconActionButton
+            tooltip="Zoom in"
+            variant="subtle"
+            onClick={onZoomIn}
+            icon={<IconZoomIn size={18} />}
+          />
 
-          <ActionIcon variant="subtle" onClick={onZoomReset}>
-            <IconZoomReset size={18} />
-          </ActionIcon>
+          <IconActionButton
+            tooltip="Reset zoom"
+            variant="subtle"
+            onClick={onZoomReset}
+            icon={<IconZoomReset size={18} />}
+          />
         </>
       )}
 
       {onRotate && (
         <>
           <Divider orientation="vertical" />
-          <ActionIcon variant="subtle" onClick={onRotate}>
-            <IconRotateClockwise size={18} />
-          </ActionIcon>
+          <IconActionButton
+            tooltip="Rotate"
+            variant="subtle"
+            onClick={onRotate}
+            icon={<IconRotateClockwise size={18} />}
+          />
         </>
       )}
     </Group>

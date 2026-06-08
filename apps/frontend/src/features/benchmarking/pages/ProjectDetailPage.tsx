@@ -1,19 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Checkbox,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
-import {
   IconAlertTriangle,
   IconArrowLeft,
   IconGitCompare,
@@ -23,6 +8,21 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Center,
+  Checkbox,
+  DataTable,
+  Group,
+  Loader,
+  Modal,
+  Stack,
+  Text,
+  Title,
+} from "../../../ui";
 import {
   CreateDefinitionDialog,
   type CreateDefinitionFormData,
@@ -303,44 +303,44 @@ export function ProjectDetailPage() {
               </Stack>
             </Center>
           ) : (
-            <Table striped highlightOnHover data-testid="definitions-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Dataset Version</Table.Th>
-                  <Table.Th>Workflow</Table.Th>
-                  <Table.Th>Evaluator</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Revision</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <DataTable striped highlightOnHover data-testid="definitions-table">
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Name</DataTable.Th>
+                  <DataTable.Th>Dataset Version</DataTable.Th>
+                  <DataTable.Th>Workflow</DataTable.Th>
+                  <DataTable.Th>Evaluator</DataTable.Th>
+                  <DataTable.Th>Status</DataTable.Th>
+                  <DataTable.Th>Revision</DataTable.Th>
+                  <DataTable.Th>Actions</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {definitions.map((def) => (
-                  <Table.Tr
+                  <DataTable.Tr
                     key={def.id}
                     style={{ cursor: "pointer" }}
                     onClick={() => handleViewDetails(def.id)}
                     data-testid={`definition-row-${def.id}`}
                   >
-                    <Table.Td>{def.name}</Table.Td>
-                    <Table.Td>
+                    <DataTable.Td>{def.name}</DataTable.Td>
+                    <DataTable.Td>
                       {def.datasetVersion.datasetName}{" "}
                       {def.datasetVersion.version}
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {def.workflow.name} v{def.workflow.version}
-                    </Table.Td>
-                    <Table.Td>{def.evaluatorType}</Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>{def.evaluatorType}</DataTable.Td>
+                    <DataTable.Td>
                       {def.immutable ? (
                         <Badge color="gray">Immutable</Badge>
                       ) : (
                         <Badge color="blue">Mutable</Badge>
                       )}
-                    </Table.Td>
-                    <Table.Td>{def.revision}</Table.Td>
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                    </DataTable.Td>
+                    <DataTable.Td>{def.revision}</DataTable.Td>
+                    <DataTable.Td onClick={(e) => e.stopPropagation()}>
                       <Button
                         size="xs"
                         variant="subtle"
@@ -354,11 +354,11 @@ export function ProjectDetailPage() {
                       >
                         Delete
                       </Button>
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           )}
         </Stack>
       </Card>
@@ -404,31 +404,31 @@ export function ProjectDetailPage() {
               </Text>
             </Center>
           ) : (
-            <Table striped highlightOnHover data-testid="runs-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Select</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Run ID / Version</Table.Th>
-                  <Table.Th>Definition</Table.Th>
-                  <Table.Th>Started</Table.Th>
-                  <Table.Th>Duration</Table.Th>
-                  <Table.Th>Metrics</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <DataTable striped highlightOnHover data-testid="runs-table">
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Select</DataTable.Th>
+                  <DataTable.Th>Status</DataTable.Th>
+                  <DataTable.Th>Run ID / Version</DataTable.Th>
+                  <DataTable.Th>Definition</DataTable.Th>
+                  <DataTable.Th>Started</DataTable.Th>
+                  <DataTable.Th>Duration</DataTable.Th>
+                  <DataTable.Th>Metrics</DataTable.Th>
+                  <DataTable.Th>Actions</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {runs.map((run) => (
-                  <Table.Tr key={run.id} data-testid={`run-row-${run.id}`}>
-                    <Table.Td>
+                  <DataTable.Tr key={run.id} data-testid={`run-row-${run.id}`}>
+                    <DataTable.Td>
                       <Checkbox
                         checked={selectedRunIds.includes(run.id)}
                         onChange={() => handleToggleRunSelection(run.id)}
                         onClick={(e) => e.stopPropagation()}
                         data-testid={`run-checkbox-${run.id}`}
                       />
-                    </Table.Td>
-                    <Table.Td
+                    </DataTable.Td>
+                    <DataTable.Td
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         navigate(
@@ -465,8 +465,8 @@ export function ProjectDetailPage() {
                           </Badge>
                         )}
                       </Group>
-                    </Table.Td>
-                    <Table.Td
+                    </DataTable.Td>
+                    <DataTable.Td
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         navigate(
@@ -479,8 +479,8 @@ export function ProjectDetailPage() {
                       "version" in run.tags
                         ? String((run.tags as Record<string, unknown>).version)
                         : run.id.substring(0, 8)}
-                    </Table.Td>
-                    <Table.Td
+                    </DataTable.Td>
+                    <DataTable.Td
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         navigate(
@@ -489,8 +489,8 @@ export function ProjectDetailPage() {
                       }
                     >
                       {run.definitionName}
-                    </Table.Td>
-                    <Table.Td
+                    </DataTable.Td>
+                    <DataTable.Td
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         navigate(
@@ -501,8 +501,8 @@ export function ProjectDetailPage() {
                       {run.startedAt
                         ? new Date(run.startedAt).toLocaleString()
                         : "-"}
-                    </Table.Td>
-                    <Table.Td
+                    </DataTable.Td>
+                    <DataTable.Td
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         navigate(
@@ -513,8 +513,8 @@ export function ProjectDetailPage() {
                       {run.status === "running" || run.status === "pending"
                         ? getElapsedTime(run.startedAt)
                         : formatDurationMs(run.durationMs)}
-                    </Table.Td>
-                    <Table.Td
+                    </DataTable.Td>
+                    <DataTable.Td
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         navigate(
@@ -528,8 +528,8 @@ export function ProjectDetailPage() {
                             .map(([key, value]) => `${key}: ${value}`)
                             .join(", ")
                         : "-"}
-                    </Table.Td>
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                    </DataTable.Td>
+                    <DataTable.Td onClick={(e) => e.stopPropagation()}>
                       {(run.status === "completed" ||
                         run.status === "failed" ||
                         run.status === "cancelled") && (
@@ -554,11 +554,11 @@ export function ProjectDetailPage() {
                           Delete
                         </Button>
                       )}
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           )}
         </Stack>
       </Card>

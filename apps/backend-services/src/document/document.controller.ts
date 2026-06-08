@@ -40,8 +40,17 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
-import { DocumentDataDto } from "@/document/dto/document-data.dto";
+import {
+  buildBlobFilePath,
+  OperationCategory,
+  validateBlobFilePath,
+} from "@/blob-storage/storage-path-builder";
+import {
+  DocumentDataDto,
+  DocumentStatusCountsDto,
+  PaginatedDocumentsDto,
+  ThumbnailResultDto,
+} from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -65,6 +74,118 @@ export class DocumentController {
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
   ) {}
+
+  @Get("/stats")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Get document counts grouped by status" })
+  @ApiQuery({
+    name: "group_id",
+    required: false,
+    description: "Scope counts to a specific group ID.",
+  })
+  @ApiOkResponse({
+    description: "Per-status document counts and grand total",
+    type: DocumentStatusCountsDto,
+  })
+  @ApiForbiddenResponse({
+    description: "Access denied: not a member of the specified group",
+  })
+  async getDocumentStats(
+    @Req() req: Request,
+    @Query("group_id") groupId?: string,
+  ): Promise<DocumentStatusCountsDto> {
+    let groupIds: string[] | undefined;
+    if (groupId !== undefined) {
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
+      groupIds = [groupId];
+    } else {
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
+    }
+    return this.documentService.getDocumentStatusCounts(groupIds);
+  }
+
+  @Get("/thumbnails")
+  @HttpCode(HttpStatus.OK)
+  @Identity()
+  @ApiOperation({
+    summary: "Get thumbnails for multiple documents",
+    description:
+      "Returns base64 WebP data URLs for up to 200 documents in a single request. Null thumbnailData indicates that no thumbnail is available for that document.",
+  })
+  @ApiQuery({
+    name: "group_id",
+    required: true,
+    description: "Group ID that owns the documents.",
+  })
+  @ApiQuery({
+    name: "ids",
+    required: true,
+    description: "Comma-separated list of document IDs (max 200).",
+  })
+  @ApiOkResponse({
+    description:
+      "Array of thumbnail results, each containing documentId and thumbnailData (base64 WebP data URL or null).",
+    type: [ThumbnailResultDto],
+  })
+  @ApiBadRequestResponse({
+    description: "Missing required query parameters or too many IDs requested.",
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  async getBulkThumbnails(
+    @Query("group_id") groupId: string | undefined,
+    @Query("ids") idsParam: string | undefined,
+    @Req() req: Request,
+  ): Promise<ThumbnailResultDto[]> {
+    if (!groupId) {
+      throw new BadRequestException("group_id query parameter is required");
+    }
+    if (!idsParam) {
+      throw new BadRequestException("ids query parameter is required");
+    }
+
+    identityCanAccessGroup(req.resolvedIdentity, groupId);
+
+    const ids = idsParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (ids.length > 200) {
+      throw new BadRequestException(
+        "Too many IDs requested; maximum is 200 per call",
+      );
+    }
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const results = await Promise.all(
+      ids.map(async (documentId) => {
+        const thumbnailKey = buildBlobFilePath(
+          groupId,
+          OperationCategory.OCR,
+          [documentId],
+          "thumbnail.webp",
+        );
+        try {
+          const buffer = await this.blobStorage.read(thumbnailKey);
+          return {
+            documentId,
+            thumbnailData: `data:image/webp;base64,${buffer.toString("base64")}`,
+          };
+        } catch {
+          return {
+            documentId,
+            thumbnailData: null,
+          };
+        }
+      }),
+    );
+    return results;
+  }
 
   @Get("/:documentId")
   @HttpCode(HttpStatus.OK)
@@ -200,22 +321,56 @@ export class DocumentController {
     this.logger.debug("=== DocumentController.deleteDocument completed ===");
   }
 
-  // TODO: Refactor list endpoint to avoid per-request Temporal fan-out and full-table reads.
-  // Add pagination, make DB the source of truth for status/review state, move reconciliation off read path,
-  // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Get all documents" })
+  @ApiOperation({ summary: "Get documents (paginated)" })
   @ApiQuery({
     name: "group_id",
     required: false,
     description:
       "Filter documents by group ID. When provided, only documents belonging to this group are returned.",
   })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    description:
+      "Maximum number of documents to return per page (default 50, max 200).",
+  })
+  @ApiQuery({
+    name: "offset",
+    required: false,
+    description: "Number of documents to skip for pagination (default 0).",
+  })
+  @ApiQuery({
+    name: "search",
+    required: false,
+    description: "Search documents by title or original filename.",
+  })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    description:
+      'Filter by document status (e.g., "pre_ocr", "extracted", "all").',
+  })
+  @ApiQuery({
+    name: "sort_by",
+    required: false,
+    description: "Field to sort by (title, status, size, source, created_at).",
+  })
+  @ApiQuery({
+    name: "sort_dir",
+    required: false,
+    description: 'Sort direction: "asc" or "desc".',
+  })
+  @ApiQuery({
+    name: "source",
+    required: false,
+    description: 'Filter by document source (e.g., "api").',
+  })
   @ApiOkResponse({
-    description: "Returns a list of all documents",
-    type: [DocumentDataDto],
+    description: "Returns a paginated list of documents",
+    type: PaginatedDocumentsDto,
   })
   @ApiForbiddenResponse({
     description: "Access denied: not a member of the specified group",
@@ -223,7 +378,14 @@ export class DocumentController {
   async getAllDocuments(
     @Req() req: Request,
     @Query("group_id") groupId?: string,
-  ): Promise<(DocumentData & { needsReview?: boolean })[]> {
+    @Query("limit") limitStr?: string,
+    @Query("offset") offsetStr?: string,
+    @Query("search") search?: string,
+    @Query("status") status?: string,
+    @Query("sort_by") sortBy?: string,
+    @Query("sort_dir") sortDir?: string,
+    @Query("source") source?: string,
+  ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
     let groupIds: string[] | undefined;
@@ -235,82 +397,21 @@ export class DocumentController {
       groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
+    const limit = Math.min(parseInt(limitStr ?? "50", 10) || 50, 200);
+    const offset = Math.max(parseInt(offsetStr ?? "0", 10) || 0, 0);
+
     try {
-      const documents = await this.documentService.findAllDocuments(groupIds);
-
-      // Check workflow status for documents that have workflow_execution_id
-      const documentsWithWorkflowStatus = await Promise.all(
-        documents.map(async (doc) => {
-          // Check workflow status for documents with execution ID and status ongoing_ocr or completed_ocr
-          // (completed_ocr documents may be awaiting review if OCR results were stored before human review)
-          if (
-            doc.workflow_execution_id &&
-            (doc.status === "ongoing_ocr" || doc.status === "completed_ocr")
-          ) {
-            try {
-              // Use workflow_execution_id directly (it's the Temporal workflow execution ID)
-              const workflowId = doc.workflow_execution_id;
-
-              // First check the actual workflow execution status
-              const workflowStatus =
-                await this.temporalClientService.getWorkflowStatus(workflowId);
-
-              // If workflow has failed, terminated, timed out, or cancelled, update database status
-              if (
-                workflowStatus.status === "FAILED" ||
-                workflowStatus.status === "TERMINATED" ||
-                workflowStatus.status === "TIMED_OUT" ||
-                workflowStatus.status === "CANCELLED"
-              ) {
-                this.logger.warn(
-                  `Document ${doc.id} workflow ended with status ${workflowStatus.status}, updating database`,
-                );
-                await this.documentService.updateDocument(doc.id, {
-                  status: DocumentStatus.failed,
-                });
-                return {
-                  ...doc,
-                  status: DocumentStatus.failed,
-                };
-              }
-
-              // If workflow is still running, try to query its internal status
-              if (workflowStatus.status === "RUNNING") {
-                try {
-                  const workflowQueryStatus =
-                    await this.temporalClientService.queryWorkflowStatus(
-                      workflowId,
-                    );
-
-                  // If workflow is awaiting review, mark document as needing review
-                  if (workflowQueryStatus.status === "awaiting_review") {
-                    this.logger.debug(
-                      `Document ${doc.id} workflow is awaiting review`,
-                    );
-                    return {
-                      ...doc,
-                      // Override status for UI - needs_validation is not a valid DocumentStatus enum value but used for UI display
-                      status: "needs_validation" as DocumentStatus,
-                      needsReview: true,
-                    };
-                  }
-                } catch (queryError) {
-                  // Query failed but workflow is running - this is OK, just return current status
-                  this.logger.debug(
-                    `Could not query running workflow for document ${doc.id}: ${queryError instanceof Error ? queryError.message : String(queryError)}`,
-                  );
-                }
-              }
-            } catch (error) {
-              // If workflow status check fails, log but don't fail the entire request
-              // This can happen if Temporal is unavailable
-              this.logger.debug(
-                `Could not get workflow status for document ${doc.id}: ${getErrorMessage(error)}`,
-              );
-            }
-          }
-          return doc;
-        }),
+      const { documents, total } = await this.documentService.findAllDocuments(
+        groupIds,
+        {
+          limit,
+          offset,
+          search: search?.trim() || undefined,
+          status: (status as DocumentStatus | "all") || "all",
+          sortBy: sortBy || "created_at",
+          sortDir: sortDir === "asc" || sortDir === "desc" ? sortDir : "desc",
+          source: source || undefined,
+        },
       );
 
       if (req.resolvedIdentity) {
@@ -323,17 +424,19 @@ export class DocumentController {
           group_id: groupId,
           payload: {
             action: "metadata",
-            document_ids: documents.map((d) => d.id),
             count: documents.length,
+            total,
+            limit,
+            offset,
             group_ids: groupIds,
           },
         });
       }
 
-      this.logger.debug(`Retrieved ${documents.length} documents`);
+      this.logger.debug(`Retrieved ${documents.length} of ${total} documents`);
       this.logger.debug("=== DocumentController.getAllDocuments completed ===");
 
-      return documentsWithWorkflowStatus;
+      return { documents, total, limit, offset };
     } catch (error) {
       this.logger.error(
         `Error retrieving documents: ${getErrorMessage(error)}`,
@@ -503,6 +606,58 @@ export class DocumentController {
     this.logger.debug("=== DocumentController.viewDocument completed ===");
   }
 
+  @Get("/:documentId/thumbnail")
+  @HttpCode(HttpStatus.OK)
+  @Identity()
+  @ApiOperation({
+    summary: "Get document thumbnail",
+    description:
+      "Returns the WebP thumbnail of the document's first page generated during upload. Returns 404 if no thumbnail is available.",
+  })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiProduces("image/webp")
+  @ApiOkResponse({
+    description: "WebP thumbnail (≤200 px wide) of the document's first page",
+  })
+  @ApiNotFoundResponse({
+    description: "Document not found or thumbnail not available",
+  })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getDocumentThumbnail(
+    @Param("documentId") documentId: string,
+    @Res() res: Response,
+    @Req() req: Request,
+  ): Promise<void> {
+    const document = await this.documentService.findDocument(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+
+    const thumbnailKey = buildBlobFilePath(
+      document.group_id ?? "",
+      OperationCategory.OCR,
+      [documentId],
+      "thumbnail.webp",
+    );
+
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = await this.blobStorage.read(thumbnailKey);
+    } catch {
+      throw new NotFoundException(
+        `Thumbnail not available for document: ${documentId}`,
+      );
+    }
+
+    res.setHeader("Content-Type", "image/webp");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Content-Length", fileBuffer.length);
+    res.send(fileBuffer);
+  }
+
   @Get("/:documentId/download")
   @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
@@ -534,16 +689,6 @@ export class DocumentController {
       }
 
       identityCanAccessGroup(req.resolvedIdentity, document.group_id);
-
-      await this.auditService.recordEvent({
-        event_type: "document_accessed",
-        resource_type: "document",
-        resource_id: documentId,
-        actor_id: req.resolvedIdentity.actorId,
-        document_id: documentId,
-        group_id: document.group_id,
-        payload: { action: "download" },
-      });
 
       // Read file from blob storage using the blob key
       const filePath = validateBlobFilePath(document.file_path);

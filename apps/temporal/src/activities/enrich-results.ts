@@ -193,7 +193,7 @@ export async function enrichResults(
       ruleChangeCount: ruleChanges.length,
       llmChangeCount: llmChanges.length,
       hasSummary: !!summary,
-      alertType: "enrich_results_failed",
+      alertType: "enrich_results",
     });
 
     return { ocrResult: finalResult, summary };
@@ -203,7 +203,7 @@ export async function enrichResults(
       event: "error",
       error: errorMessage,
       stack: getErrorStack(error),
-      alertType: "enrich_results_failed",
+      alertType: "enrich_results",
     });
     return { ocrResult, summary: null };
   }

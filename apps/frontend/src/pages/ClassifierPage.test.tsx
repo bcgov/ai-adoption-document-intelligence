@@ -1,8 +1,8 @@
-import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "../auth/AuthContext";
+import { MantineProvider } from "../ui";
 import ClassifierPage from "./ClassifierPage";
 
 // ---------------------------------------------------------------------------
@@ -119,16 +119,10 @@ describe("ClassifierPage", () => {
       renderPage();
 
       const button = screen.getByRole("button", { name: /create new model/i });
-      const tooltipAnchor = button.parentElement;
-      if (tooltipAnchor) {
-        fireEvent.mouseEnter(tooltipAnchor);
-      }
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/a group must be selected to create a model/i),
-        ).toBeInTheDocument();
-      });
+      expect(button.closest("[title]")).toHaveAttribute(
+        "title",
+        expect.stringMatching(/a group must be selected to create a model/i),
+      );
     });
   });
 

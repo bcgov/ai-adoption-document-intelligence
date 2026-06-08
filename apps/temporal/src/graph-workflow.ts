@@ -33,6 +33,9 @@ type PreExecutionActivities = {
     status: string;
     apimRequestId?: string;
   }) => Promise<void>;
+  "document.getStatus": (params: { documentId: string }) => Promise<{
+    status: string;
+  }>;
 };
 
 // Workflow type constant
@@ -180,6 +183,54 @@ export async function graphWorkflow(
     // Update final state
     overallStatus = result.status;
     ctx = result.ctx;
+
+    // Post-execution hook: If workflow completed successfully, transition documents
+    // from extracted to complete (documents that didn't go through HITL).
+    // Documents at awaiting_review (went through HumanGate) are left alone - HITL
+    // approval will transition them to complete.
+    if (
+      result.status === "completed" &&
+      input.initialCtx.documentId &&
+      typeof input.initialCtx.documentId === "string"
+    ) {
+      const activityProxy = proxyActivities<PreExecutionActivities>({
+        startToCloseTimeout: "30s",
+        retry: { maximumAttempts: 5 },
+      });
+
+      try {
+        // Check current document status
+        const getStatusActivity = activityProxy["document.getStatus"];
+        if (getStatusActivity) {
+          const { status: currentStatus } = await getStatusActivity({
+            documentId: input.initialCtx.documentId,
+          });
+
+          // Only transition from extracted to complete
+          // Leave awaiting_review alone (HITL handles that transition)
+          if (currentStatus === "extracted") {
+            const updateStatusActivity = activityProxy["document.updateStatus"];
+            await updateStatusActivity({
+              documentId: input.initialCtx.documentId,
+              status: "complete",
+            });
+
+            console.log(
+              `[GraphWorkflow] Post-execution: Updated document ${input.initialCtx.documentId} from extracted to complete`,
+            );
+          } else {
+            console.log(
+              `[GraphWorkflow] Post-execution: Document ${input.initialCtx.documentId} at status ${currentStatus}, skipping transition to complete`,
+            );
+          }
+        }
+      } catch (error) {
+        // Don't fail the workflow if post-execution hook fails
+        console.warn(
+          `[GraphWorkflow] Post-execution hook failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     return result;
   } catch (error) {

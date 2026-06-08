@@ -27,4 +27,4 @@ Clicking **Remove** opens a Mantine `Modal` asking the admin to confirm the remo
 
 ### Error Handling
 
-If the API call fails, a red error notification is shown via `@mantine/notifications` and the dialog is closed.
+If the API call fails, a red error notification is shown via the shared `notifications` API from `apps/frontend/src/ui/` and the dialog is closed.

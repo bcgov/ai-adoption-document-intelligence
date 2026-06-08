@@ -1,14 +1,14 @@
+import { IconAlertCircle, IconCheck, IconX } from "@tabler/icons-react";
 import {
   Badge,
   Card,
   Code,
+  DataTable,
   Group,
   Stack,
-  Table,
   Text,
   Title,
-} from "@mantine/core";
-import { IconAlertCircle, IconCheck, IconX } from "@tabler/icons-react";
+} from "../../../ui";
 import type { ValidationResponse } from "../hooks/useDatasetValidation";
 
 interface ValidationReportProps {
@@ -56,17 +56,17 @@ export function ValidationReport({ validation }: ValidationReportProps) {
         <Title order={5} mb="md" data-testid="issue-summary-title">
           Issue Summary
         </Title>
-        <Table striped highlightOnHover data-testid="issue-summary-table">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Category</Table.Th>
-              <Table.Th>Count</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            <Table.Tr data-testid="schema-violations-row">
-              <Table.Td>Schema Violations</Table.Td>
-              <Table.Td>
+        <DataTable striped highlightOnHover data-testid="issue-summary-table">
+          <DataTable.Thead>
+            <DataTable.Tr>
+              <DataTable.Th>Category</DataTable.Th>
+              <DataTable.Th>Count</DataTable.Th>
+            </DataTable.Tr>
+          </DataTable.Thead>
+          <DataTable.Tbody>
+            <DataTable.Tr data-testid="schema-violations-row">
+              <DataTable.Td>Schema Violations</DataTable.Td>
+              <DataTable.Td>
                 <Badge
                   color={
                     validation.issueCount.schemaViolations > 0 ? "red" : "gray"
@@ -75,11 +75,11 @@ export function ValidationReport({ validation }: ValidationReportProps) {
                 >
                   {validation.issueCount.schemaViolations}
                 </Badge>
-              </Table.Td>
-            </Table.Tr>
-            <Table.Tr data-testid="missing-ground-truth-row">
-              <Table.Td>Missing Ground Truth</Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+            </DataTable.Tr>
+            <DataTable.Tr data-testid="missing-ground-truth-row">
+              <DataTable.Td>Missing Ground Truth</DataTable.Td>
+              <DataTable.Td>
                 <Badge
                   color={
                     validation.issueCount.missingGroundTruth > 0
@@ -90,11 +90,11 @@ export function ValidationReport({ validation }: ValidationReportProps) {
                 >
                   {validation.issueCount.missingGroundTruth}
                 </Badge>
-              </Table.Td>
-            </Table.Tr>
-            <Table.Tr data-testid="duplicates-row">
-              <Table.Td>Duplicates</Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+            </DataTable.Tr>
+            <DataTable.Tr data-testid="duplicates-row">
+              <DataTable.Td>Duplicates</DataTable.Td>
+              <DataTable.Td>
                 <Badge
                   color={
                     validation.issueCount.duplicates > 0 ? "yellow" : "gray"
@@ -103,34 +103,34 @@ export function ValidationReport({ validation }: ValidationReportProps) {
                 >
                   {validation.issueCount.duplicates}
                 </Badge>
-              </Table.Td>
-            </Table.Tr>
-            <Table.Tr data-testid="corruption-row">
-              <Table.Td>File Corruption</Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+            </DataTable.Tr>
+            <DataTable.Tr data-testid="corruption-row">
+              <DataTable.Td>File Corruption</DataTable.Td>
+              <DataTable.Td>
                 <Badge
                   color={validation.issueCount.corruption > 0 ? "red" : "gray"}
                   data-testid="corruption-count"
                 >
                   {validation.issueCount.corruption}
                 </Badge>
-              </Table.Td>
-            </Table.Tr>
-            <Table.Tr data-testid="total-issues-row">
-              <Table.Td>
+              </DataTable.Td>
+            </DataTable.Tr>
+            <DataTable.Tr data-testid="total-issues-row">
+              <DataTable.Td>
                 <strong>Total Issues</strong>
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Badge
                   color={totalIssues > 0 ? "red" : "green"}
                   data-testid="total-issues-count"
                 >
                   {totalIssues}
                 </Badge>
-              </Table.Td>
-            </Table.Tr>
-          </Table.Tbody>
-        </Table>
+              </DataTable.Td>
+            </DataTable.Tr>
+          </DataTable.Tbody>
+        </DataTable>
       </Card>
 
       {/* Detailed Issues */}

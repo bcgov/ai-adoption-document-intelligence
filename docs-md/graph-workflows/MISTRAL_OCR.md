@@ -20,7 +20,7 @@ The Mistral OCR HTTP API is synchronous (`POST /v1/ocr`). There is no separate p
 | `MISTRAL_API_KEY` | Bearer token for `https://api.mistral.ai/v1/ocr` |
 | `MOCK_MISTRAL_OCR` | Set to `true` to return a deterministic mock `OCRResult` without calling Mistral (useful for CI and local wiring tests) |
 
-Add these to the Temporal worker environment (see [`apps/temporal/.env.sample`](../../apps/temporal/.env.sample)). Do not commit real API keys; set the key locally (e.g. a team member’s key for development).
+Add these to the Temporal worker environment (see [`.env.sample`](../../.env.sample) at the repo root). Do not commit real API keys; set the key locally (e.g. a team member's key for development).
 
 ## Upload / document `model_id`
 

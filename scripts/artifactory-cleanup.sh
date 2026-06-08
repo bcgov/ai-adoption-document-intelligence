@@ -146,9 +146,11 @@ fi
 if [[ -n "${KEEP_N}" ]]; then
   log_info "Rotation: keeping ${KEEP_N} most-recent '${MATCH_GLOB}' tags per image..."
 
+  # Match both `manifest.json` (legacy single-platform) and `list.manifest.json`
+  # (OCI image index — what buildx writes for multi-platform pushes).
   ROTATION_AQL=$(curl -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
     -H "Content-Type: text/plain" \
-    -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\",\"name\":\"manifest.json\"}).include(\"repo\",\"path\",\"name\",\"created\")" 2>&1) || {
+    -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\",\"\$or\":[{\"name\":\"manifest.json\"},{\"name\":\"list.manifest.json\"}]}).include(\"repo\",\"path\",\"name\",\"created\")" 2>&1) || {
     log_error "Rotation AQL query failed."
     exit 1
   }
@@ -160,21 +162,31 @@ keep = int('${KEEP_N}')
 glob = '${MATCH_GLOB}'
 
 # Each result has path like 'backend-services/bcgov-di-abc123' (the tag dir)
-# plus name='manifest.json'. Extract (image, tag, created).
+# plus name like 'manifest.json' or 'list.manifest.json'. A tag may have both;
+# dedupe by (image, tag), keeping the newest created timestamp.
 by_image = {}
+seen = {}
 for r in data['results']:
     parts = r['path'].split('/')
     if len(parts) < 2:
         continue
-    image = parts[0]
-    tag = parts[1]
+    image, tag = parts[0], parts[1]
     if tag.startswith('sha256__') or tag.startswith('sha256:') or tag == '_uploads':
         continue
     if not fnmatch.fnmatch(tag, glob):
         continue
-    by_image.setdefault(image, []).append({'tag': tag, 'created': r.get('created', '')})
+    created = r.get('created', '')
+    key = (image, tag)
+    if key in seen:
+        if created > seen[key]:
+            seen[key] = created
+        continue
+    seen[key] = created
+    by_image.setdefault(image, []).append({'tag': tag, 'key': key})
 
 for image, tags in by_image.items():
+    for t in tags:
+        t['created'] = seen[t['key']]
     tags.sort(key=lambda t: t['created'], reverse=True)
     for t in tags[keep:]:
         print(f\"{image}\t{t['tag']}\")

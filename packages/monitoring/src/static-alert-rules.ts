@@ -2,9 +2,9 @@
  * Static (infrastructure-level) Prometheus alert rules.
  *
  * These cover metrics that are emitted by any Node.js service instrumented with
- * prom-client: HTTP error rate, response latency, heap usage, and the in-app
- * alert gauge. Temporal workers that expose the same metrics can reference these
- * rules directly without duplicating threshold constants.
+ * prom-client: HTTP error rate, response latency, and heap usage. Temporal 
+ * workers that expose the same metrics can reference these rules directly 
+ * without duplicating threshold constants.
  *
  * Rules specific to a single service should be added to STATIC_ALERT_RULES with
  * a descriptive `name` and narrowed `expr` (e.g. filtered by `job` label).
@@ -17,12 +17,8 @@ export interface StaticAlertRule {
   expr: string;
   /** How long the condition must hold before firing. */
   forDuration: string;
-  /**
-   * Severity label value ("info", "warning", or "critical").
-   * Omit for rules whose firing alert should inherit the severity label
-   * directly from the metric series (e.g. AppAlertActive).
-   */
-  severity?: "info" | "warning" | "critical";
+  /** Severity label value ("info", "warning", or "critical"). */
+  severity: "info" | "warning" | "critical";
   /**
    * Prometheus scrape job this rule belongs to.
    * Controls which static rule group the alert is placed in by the generator.
@@ -71,23 +67,5 @@ export const STATIC_ALERT_RULES: StaticAlertRule[] = [
     severity: "warning",
     summary: "High Node.js heap usage on backend-services",
     description: `Node.js heap usage has exceeded ${NODE_HEAP_RATIO_THRESHOLD * 100}% of heap size for 2 minutes.`,
-  },
-  {
-    name: "BackendServicesAlertActive",
-    job: "backend-services",
-    expr: `app_alert_active{job="backend-services"} > 0`,
-    forDuration: "0m",
-    summary: "In-app alert active on backend-services ({{ $labels.type }}, {{ $labels.severity }})",
-    description:
-      "An in-app alert of type {{ $labels.type }} with severity {{ $labels.severity }} is active on backend-services.",
-  },
-  {
-    name: "TemporalWorkerAlertActive",
-    job: "temporal-worker",
-    expr: `app_alert_active{job="temporal-worker"} > 0`,
-    forDuration: "0m",
-    summary: "In-app alert active on temporal-worker ({{ $labels.type }}, {{ $labels.severity }})",
-    description:
-      "An in-app alert of type {{ $labels.type }} with severity {{ $labels.severity }} is active on temporal-worker.",
   },
 ];

@@ -1,5 +1,15 @@
+jest.mock("@/auth/identity.helpers", () => ({
+  identityCanAccessGroup: jest.fn(),
+}));
+
 import { DocumentStatus, GroupRole } from "@generated/client";
-import { BadRequestException, HttpException, HttpStatus } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
+import * as identityHelpers from "@/auth/identity.helpers";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
@@ -14,6 +24,9 @@ describe("UploadController", () => {
   let workflowService: jest.Mocked<WorkflowService>;
 
   beforeEach(() => {
+    jest
+      .mocked(identityHelpers.identityCanAccessGroup)
+      .mockImplementation(() => undefined);
     documentService = {
       uploadDocument: jest.fn(),
     } as any;
@@ -54,7 +67,7 @@ describe("UploadController", () => {
       original_filename: "test.pdf",
       file_type: FileType.PDF,
       file_size: 123,
-      status: DocumentStatus.completed_ocr,
+      status: DocumentStatus.extracted,
       created_at: new Date(),
       updated_at: new Date(),
       file_path: "path",
@@ -96,6 +109,33 @@ describe("UploadController", () => {
       await expect(
         controller.uploadDocument({ ...baseDto, file: "" }, mockReq),
       ).rejects.toThrow(BadRequestException);
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockIdentity,
+        "group-1",
+        GroupRole.MEMBER,
+      );
+    });
+
+    it("checks group access before validating file", async () => {
+      jest
+        .mocked(identityHelpers.identityCanAccessGroup)
+        .mockImplementation(() => {
+          throw new ForbiddenException();
+        });
+
+      await expect(
+        controller.uploadDocument(
+          { ...baseDto, file: "", group_id: "other-group" },
+          mockReq,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockIdentity,
+        "other-group",
+        GroupRole.MEMBER,
+      );
+      expect(documentService.uploadDocument).not.toHaveBeenCalled();
     });
 
     it("should rethrow BadRequestException if documentService throws", async () => {

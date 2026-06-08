@@ -1,13 +1,3 @@
-import {
-  Button,
-  Group,
-  Paper,
-  Select,
-  Stack,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
 import { useState } from "react";
 import { useGroup } from "@/auth/GroupContext";
 import ClassificationFiles from "@/components/classification/ClassificationFiles";
@@ -16,6 +6,17 @@ import ClassifierDetails from "@/components/classification/ClassifierDetails";
 import { CreateClassifierModal } from "@/components/classification/ClassifierModals";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierStatus } from "@/shared/types/classifier";
+import {
+  Button,
+  Group,
+  PageHeader,
+  PanelCard,
+  Select,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from "../ui";
 
 const ClassifierPage = () => {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -27,8 +28,8 @@ const ClassifierPage = () => {
   const ModelSelect = () => {
     return (
       <>
-        <Paper shadow="sm" radius="md" p="lg" withBorder>
-          <Stack gap="md" mt="md">
+        <PanelCard>
+          <Stack gap="md">
             <Group justify="space-between">
               <Title order={3}>Select a model</Title>
               <Tooltip
@@ -65,7 +66,7 @@ const ClassifierPage = () => {
               }}
             />
           </Stack>
-        </Paper>
+        </PanelCard>
         {!selectedModel && (
           <Text c="dimmed" size="sm">
             No model selected. Please select a model or create a new model.
@@ -87,14 +88,10 @@ const ClassifierPage = () => {
 
   return (
     <Stack gap={"lg"} mb="lg">
-      <Group justify="space-between">
-        <Stack gap={2}>
-          <Title order={2}>Classify</Title>
-          <Text c="dimmed" size="sm">
-            Build document classifiers and classify documents
-          </Text>
-        </Stack>
-      </Group>
+      <PageHeader
+        title="Classify"
+        description="Build document classifiers and classify documents"
+      />
       <ModelSelect />
       {selectedModel && selectedModelDetails && (
         <>
