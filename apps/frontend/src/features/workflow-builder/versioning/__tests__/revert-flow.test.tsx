@@ -186,10 +186,10 @@ function renderEditor() {
       <MantineProvider>
         <ModalsProvider>
           <Notifications />
-          <MemoryRouter initialEntries={["/workflows/wf-lineage-1/edit-v2"]}>
+          <MemoryRouter initialEntries={["/workflows/wf-lineage-1/edit"]}>
             <Routes>
               <Route
-                path="/workflows/:workflowId/edit-v2"
+                path="/workflows/:workflowId/edit"
                 element={<WorkflowEditorV2Page mode="edit" />}
               />
             </Routes>

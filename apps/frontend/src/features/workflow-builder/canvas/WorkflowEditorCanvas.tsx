@@ -73,6 +73,7 @@ import {
   getControlFlowVisualHints,
 } from "../control-flow-visual-hints";
 import { DynamicNodeEditor, useActivityCatalog } from "../dynamic-nodes";
+import { pruneNodesFromGroups } from "../group/prune-node-from-groups";
 import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
@@ -263,6 +264,25 @@ function getEdgeStrokeColor(edgeType: GraphEdge["type"]): string {
 const EDGE_TYPES = {
   "workflow-edge": WorkflowEdge,
 };
+
+/**
+ * Generates a unique node id of the form `<prefix>_<base36 time><random>`.
+ * The random suffix (mirroring the edge-id generators in this file)
+ * prevents two same-millisecond adds from colliding and overwriting in
+ * the id-keyed `config.nodes` map. The loop additionally re-rolls on the
+ * (vanishingly rare) collision with an already-present node id.
+ */
+function makeUniqueNodeId(
+  prefix: string,
+  existingNodes: Record<string, unknown>,
+): string {
+  let id = "";
+  do {
+    const rand = Math.random().toString(36).slice(2, 6);
+    id = `${prefix}_${Date.now().toString(36)}${rand}`;
+  } while (existingNodes[id] !== undefined);
+  return id;
+}
 
 const CONTROL_FLOW_TYPES: readonly ControlFlowNodeType[] = [
   "switch",
@@ -1659,11 +1679,16 @@ function WorkflowEditorCanvasInner({
       const nextEntryNodeId = removedIds.has(config.entryNodeId)
         ? (Object.keys(nodesCopy)[0] ?? "")
         : config.entryNodeId;
+      // Strip the deleted ids from every group's membership (and prune
+      // emptied groups + orphaned exposedParams) so the save-time
+      // validator doesn't report "references non-existent node".
+      const prunedGroups = pruneNodesFromGroups(config, removedIds);
       onConfigChange({
         ...config,
         nodes: nodesCopy,
         edges: filteredEdges,
         entryNodeId: nextEntryNodeId,
+        nodeGroups: prunedGroups.nodeGroups,
       });
       if (selectedNodeId && removedIds.has(selectedNodeId)) {
         onSelectNode(null);
@@ -1891,7 +1916,7 @@ function WorkflowEditorCanvasInner({
       if (!hoverExtend) return;
       const sourceNodeId = hoverExtend.nodeId;
       closeHoverExtend();
-      const newId = `activity_${Date.now().toString(36)}`;
+      const newId = makeUniqueNodeId("activity", config.nodes);
       const entry = getActivityCatalogEntry(activityType);
       const inputs = entry
         ? entry.inputs.map((p) => ({ port: p.name, ctxKey: p.name }))
@@ -1910,7 +1935,7 @@ function WorkflowEditorCanvasInner({
       };
       extendFromSource(sourceNodeId, newNode);
     },
-    [hoverExtend, closeHoverExtend, extendFromSource],
+    [hoverExtend, closeHoverExtend, extendFromSource, config.nodes],
   );
 
   const handleHoverPickControlFlow = useCallback(
@@ -1918,11 +1943,11 @@ function WorkflowEditorCanvasInner({
       if (!hoverExtend) return;
       const sourceNodeId = hoverExtend.nodeId;
       closeHoverExtend();
-      const newId = `${controlFlowType}_${Date.now().toString(36)}`;
+      const newId = makeUniqueNodeId(controlFlowType, config.nodes);
       const newNode = buildControlFlowSkeleton(controlFlowType, newId);
       extendFromSource(sourceNodeId, newNode);
     },
-    [hoverExtend, closeHoverExtend, extendFromSource],
+    [hoverExtend, closeHoverExtend, extendFromSource, config.nodes],
   );
 
   const workflowConfigContextValue = useMemo<WorkflowConfigContextValue>(

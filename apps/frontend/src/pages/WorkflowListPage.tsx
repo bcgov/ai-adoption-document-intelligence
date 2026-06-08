@@ -54,7 +54,7 @@ export function WorkflowListPage() {
 
   const handleTemplateSelect = (template: WorkflowTemplate) => {
     setTemplatesOpen(false);
-    navigate("/workflows/create-v2", { state: { template } });
+    navigate("/workflows/create", { state: { template } });
   };
 
   const handleDeleteClick = (workflowId: string, workflowName: string) => {

@@ -42,6 +42,7 @@ import type {
 } from "../../../../types/workflow";
 import { isSyntheticMapBodyGroupId } from "../../canvas/map-body-groups";
 import { GROUP_ICON_KEYS, GROUP_ICONS } from "../../group/group-icons";
+import { pruneNodeFromGroups } from "../../group/prune-node-from-groups";
 import { ExposedParamsEditor } from "./ExposedParamsEditor";
 
 // ---------------------------------------------------------------------------
@@ -193,20 +194,16 @@ export function GroupNodeSettings({
       deleteGroup();
       return;
     }
-    // Prune any exposedParams whose `nodeId` references the removed node.
-    // Per US-044 Scenario 5, the user is notified via a toast if any were
-    // dropped so the change is visible.
+    // Delegate the membership/exposedParams pruning to the shared helper
+    // (the same logic the canvas + page delete paths use) so the three
+    // sites can't drift. The toast below is a settings-only UX concern,
+    // so we compute the dropped count from the helper's result.
     const existingParams: ExposedParam[] = group.exposedParams ?? [];
-    const prunedParams = existingParams.filter(
-      (param) => param.nodeId !== nodeId,
-    );
-    const droppedCount = existingParams.length - prunedParams.length;
-
-    const next: NodeGroup = { ...group, nodeIds: remaining };
-    if (group.exposedParams) {
-      next.exposedParams = prunedParams;
-    }
-    updateGroup(next);
+    const prunedConfig = pruneNodeFromGroups(config, nodeId);
+    const prunedGroup = prunedConfig.nodeGroups?.[groupId];
+    const droppedCount =
+      existingParams.length - (prunedGroup?.exposedParams?.length ?? 0);
+    onConfigChange(prunedConfig);
 
     if (droppedCount > 0) {
       const removedNode = config.nodes[nodeId];

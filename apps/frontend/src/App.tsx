@@ -34,7 +34,6 @@ import { QueuePage } from "./pages/QueuePage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
-import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowFormPreviewPage } from "./pages/WorkflowFormPreviewPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 
@@ -60,23 +59,15 @@ const router = createBrowserRouter([
       { path: "classify", element: <ClassifierPage /> },
       { path: "settings", element: <SettingsPage /> },
 
-      // Workflows with nested routes
+      // Workflows with nested routes — the V2 visual editor is now the
+      // sole workflow editor (the legacy JSON editor was removed).
       { path: "workflows", element: <WorkflowListPage /> },
       {
         path: "workflows/create",
-        element: <WorkflowEditorPage mode="create" />,
-      },
-      {
-        path: "workflows/:workflowId/edit",
-        element: <WorkflowEditorPage mode="edit" />,
-      },
-      // V2 visual workflow editor (coexists with the JSON editor)
-      {
-        path: "workflows/create-v2",
         element: <WorkflowEditorV2Page mode="create" />,
       },
       {
-        path: "workflows/:workflowId/edit-v2",
+        path: "workflows/:workflowId/edit",
         element: <WorkflowEditorV2Page mode="edit" />,
       },
       // Dev-only tracer for the schema-driven form renderer

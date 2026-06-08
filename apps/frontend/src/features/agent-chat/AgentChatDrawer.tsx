@@ -46,7 +46,7 @@ const DRAWER_SIZE = 540;
 
 /**
  * Resolve the currently-displayed workflow id from the route. Phase 7
- * supports `/workflows/create-v2?id=<id>` and `/workflows/:id` patterns.
+ * supports `/workflows/create?id=<id>` and `/workflows/:id` patterns.
  */
 function useCurrentWorkflowId(): string | null {
   const location = useLocation();
@@ -54,7 +54,7 @@ function useCurrentWorkflowId(): string | null {
   const queryId = search.get("id");
   if (queryId !== null && queryId.length > 0) return queryId;
   const match = location.pathname.match(/\/workflows\/([^/?#]+)/);
-  if (match && match[1] !== "create-v2" && match[1] !== "new") return match[1];
+  if (match && match[1] !== "create" && match[1] !== "new") return match[1];
   return null;
 }
 
@@ -787,7 +787,7 @@ function ToolCallNavigator() {
             !window.location.pathname.includes(`/workflows/${id}`)
           ) {
             navigatedRef.current = id;
-            navigate(`/workflows/create-v2?id=${id}`);
+            navigate(`/workflows/create?id=${id}`);
           }
           queryClient.invalidateQueries({ queryKey: ["workflow", id] });
         }

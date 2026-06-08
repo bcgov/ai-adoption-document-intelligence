@@ -294,8 +294,8 @@ function renderPage(template?: WorkflowTemplate) {
     defaultOptions: { queries: { retry: false } },
   });
   const initialEntry = template
-    ? { pathname: "/workflows/create-v2", state: { template } }
-    : { pathname: "/workflows/create-v2" };
+    ? { pathname: "/workflows/create", state: { template } }
+    : { pathname: "/workflows/create" };
   return render(
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
@@ -303,11 +303,11 @@ function renderPage(template?: WorkflowTemplate) {
         <MemoryRouter initialEntries={[initialEntry]}>
           <Routes>
             <Route
-              path="/workflows/create-v2"
+              path="/workflows/create"
               element={<WorkflowEditorV2Page mode="create" />}
             />
             <Route
-              path="/workflows/:workflowId/edit-v2"
+              path="/workflows/:workflowId/edit"
               element={<WorkflowEditorV2Page mode="edit" />}
             />
           </Routes>
@@ -679,7 +679,7 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
 // ---------------------------------------------------------------------------
 
 /**
- * Renders the page directly under the `:workflowId/edit-v2` route so
+ * Renders the page directly under the `:workflowId/edit` route so
  * `mode="edit"` + a defined `workflowId` flow through to the top-bar
  * disabled-state checks. The default `renderPage` only supports
  * create-mode entries.
@@ -693,15 +693,15 @@ function renderEditPage(workflowId: string) {
       <MantineProvider>
         <Notifications />
         <MemoryRouter
-          initialEntries={[{ pathname: `/workflows/${workflowId}/edit-v2` }]}
+          initialEntries={[{ pathname: `/workflows/${workflowId}/edit` }]}
         >
           <Routes>
             <Route
-              path="/workflows/create-v2"
+              path="/workflows/create"
               element={<WorkflowEditorV2Page mode="create" />}
             />
             <Route
-              path="/workflows/:workflowId/edit-v2"
+              path="/workflows/:workflowId/edit"
               element={<WorkflowEditorV2Page mode="edit" />}
             />
           </Routes>

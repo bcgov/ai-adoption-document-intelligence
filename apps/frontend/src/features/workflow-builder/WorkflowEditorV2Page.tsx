@@ -8,7 +8,8 @@
  * `useCreateWorkflow` / `useUpdateWorkflow` hooks — same backend, same
  * `GraphWorkflowConfig` shape as the JSON editor.
  *
- * Coexists with the old JSON-driven editor at `/workflows/:id/edit`.
+ * The sole workflow editor, mounted at `/workflows/create` and
+ * `/workflows/:id/edit` (the legacy JSON-driven editor was removed).
  *
  * Out of scope for Milestone 2:
  *   - node groups
@@ -95,6 +96,7 @@ import {
   createGroupFromSelection,
   filterOutSyntheticBodyMembers,
 } from "./group/create-group";
+import { pruneNodeFromGroups } from "./group/prune-node-from-groups";
 import {
   SaveAsLibraryModal,
   type SaveAsLibrarySubmission,
@@ -118,7 +120,7 @@ import { ValidationDrawer } from "./validation/ValidationDrawer";
 import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
 import { VersionHistoryDrawer } from "./versioning/VersionHistoryDrawer";
 
-/** Router-state payload accepted by /workflows/create-v2 when launched
+/** Router-state payload accepted by /workflows/create when launched
  *  from the templates picker. */
 interface CreateV2LocationState {
   template?: WorkflowTemplate;
@@ -567,11 +569,16 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         prev.entryNodeId === selectedNodeId
           ? (Object.keys(next)[0] ?? "")
           : prev.entryNodeId;
+      // Strip the deleted id from every group's membership (and prune
+      // emptied groups + orphaned exposedParams) so the save-time
+      // validator doesn't report "references non-existent node".
+      const prunedGroups = pruneNodeFromGroups(prev, selectedNodeId);
       return {
         ...prev,
         nodes: next,
         edges: filteredEdges,
         entryNodeId: nextEntryNodeId,
+        nodeGroups: prunedGroups.nodeGroups,
       };
     });
     setSelectedNodeId(null);
@@ -608,7 +615,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           title: "Created",
           message: `Workflow "${cleanedName}" saved.`,
         });
-        navigate(`/workflows/${created.id}/edit-v2`, { replace: true });
+        navigate(`/workflows/${created.id}/edit`, { replace: true });
       }
     } catch (err) {
       notifications.show({
