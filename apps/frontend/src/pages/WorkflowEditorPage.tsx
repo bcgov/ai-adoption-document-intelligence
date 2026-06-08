@@ -13,9 +13,9 @@ import {
   useWorkflow,
 } from "../data/hooks/useWorkflows";
 import {
-  GraphValidationError,
+  type GraphValidationError,
   validateGraphConfig,
-} from "../types/graph-workflow";
+} from "@ai-di/graph-workflow";
 import { GraphWorkflowConfig } from "../types/workflow";
 import {
   Badge,
