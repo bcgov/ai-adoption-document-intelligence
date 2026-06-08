@@ -116,4 +116,18 @@ export class ChatRepository {
       orderBy: { createdAt: "asc" },
     });
   }
+
+  /**
+   * Cumulative token spend (input + output) recorded across every
+   * message of a conversation. Backs the per-conversation budget
+   * ceiling enforced before each turn. Null token columns are treated
+   * as zero by the aggregate.
+   */
+  async sumConversationTokens(conversationId: string): Promise<number> {
+    const result = await this.prisma.prisma.chatMessage.aggregate({
+      where: { conversationId },
+      _sum: { inputTokens: true, outputTokens: true },
+    });
+    return (result._sum.inputTokens ?? 0) + (result._sum.outputTokens ?? 0);
+  }
 }

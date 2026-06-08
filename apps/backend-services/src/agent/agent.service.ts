@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import {
   convertToModelMessages,
   generateText,
@@ -8,6 +12,7 @@ import {
   type ToolSet,
   type UIMessage,
 } from "ai";
+import type { OnFinishEvent } from "ai";
 import { DynamicNodesService } from "@/dynamic-nodes/dynamic-nodes.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { WorkflowService } from "@/workflow/workflow.service";
@@ -124,6 +129,18 @@ export class AgentService {
       );
     }
 
+    // Per-conversation cost ceiling: refuse a new model call once the
+    // conversation's cumulative recorded token spend exceeds the budget.
+    // Uses the input/output tokens persisted by prior onFinish callbacks.
+    const spentTokens = await this.chatRepository.sumConversationTokens(
+      conversation.id,
+    );
+    if (spentTokens >= this.env.maxConversationTokens) {
+      throw new ForbiddenException(
+        `Conversation token budget exceeded (${spentTokens} / ${this.env.maxConversationTokens}). Start a new conversation to continue.`,
+      );
+    }
+
     const ctx: AgentToolContext = {
       actorId: input.actorId,
       groupId: input.groupId,
@@ -132,6 +149,7 @@ export class AgentService {
       backendBaseUrl: input.backendBaseUrl,
       workflowService: this.workflowService,
       dynamicNodesService: this.dynamicNodesService,
+      maxToolResultChars: this.env.maxToolResultChars,
       onWorkflowCreated: async (workflowId) => {
         if (conversation !== null && conversation.workflowId === null) {
           await this.chatRepository.setWorkflowId(conversation.id, workflowId);
@@ -150,7 +168,7 @@ export class AgentService {
     );
 
     const conversationIdForCallback = conversation.id;
-    const abortController = this.abortFlags.register(conversation.id);
+    const abortRegistration = this.abortFlags.register(conversation.id);
     const result = streamText({
       model,
       system: WORKFLOW_BUILDER_SYSTEM_PROMPT,
@@ -158,22 +176,30 @@ export class AgentService {
       tools,
       stopWhen: stepCountIs(this.env.maxSteps),
       maxOutputTokens: this.env.maxOutputTokens,
-      abortSignal: abortController.signal,
+      abortSignal: abortRegistration.controller.signal,
       onFinish: async (event) => {
         try {
           await this.chatRepository.touchLastMessageAt(
             conversationIdForCallback,
           );
+          // Persist the full assistant message `parts` (text + tool-call +
+          // tool-result), aggregated across every step, so a resumed
+          // conversation rehydrates the agent's tool history faithfully
+          // instead of collapsing to a single text part.
           await this.chatRepository.createMessage({
             conversationId: conversationIdForCallback,
             role: "assistant",
             content: {
-              text: event.text,
+              parts: assistantPartsFromFinish(event),
               finishReason: event.finishReason,
-              usage: event.usage,
+              usage: event.totalUsage ?? event.usage,
             },
-            inputTokens: event.usage?.inputTokens ?? null,
-            outputTokens: event.usage?.outputTokens ?? null,
+            inputTokens:
+              event.totalUsage?.inputTokens ?? event.usage?.inputTokens ?? null,
+            outputTokens:
+              event.totalUsage?.outputTokens ??
+              event.usage?.outputTokens ??
+              null,
           });
         } catch (err) {
           this.logger.error?.("AgentService.onFinish persistence failed", {
@@ -189,9 +215,12 @@ export class AgentService {
     });
 
     // Clear the abort registration once the stream completes so the
-    // map doesn't leak entries across long-lived conversations.
+    // map doesn't leak entries across long-lived conversations. The
+    // registration's `clear()` is a compare-and-delete: it only evicts
+    // this turn's controller if a later turn hasn't replaced it (avoids
+    // the resent-turn abort race).
     void Promise.resolve(result.finishReason).finally(() => {
-      this.abortFlags.clear(conversation.id);
+      abortRegistration.clear();
     });
 
     return { conversationId: conversation.id, streamResult: result };
@@ -260,6 +289,95 @@ export class AgentService {
   }
 }
 
+/**
+ * A persisted assistant message part. Text parts and `dynamic-tool`
+ * parts (the SDK's tool-name-agnostic invocation shape) are the only
+ * kinds the agent emits; both round-trip through `convertToModelMessages`
+ * on resume. Typed explicitly so persistence avoids `any`.
+ */
+type PersistedAssistantPart =
+  | { type: "text"; text: string }
+  | {
+      type: "dynamic-tool";
+      toolName: string;
+      toolCallId: string;
+      state: "output-available";
+      input: unknown;
+      output: unknown;
+    }
+  | {
+      type: "dynamic-tool";
+      toolName: string;
+      toolCallId: string;
+      state: "output-error";
+      input: unknown;
+      errorText: string;
+    };
+
+/**
+ * Flatten the finished stream into persistable UIMessage parts. Walks
+ * every step's `content` (not just the final step) so multi-step tool
+ * loops are captured in full: text segments become text parts, and
+ * each tool call is paired with its result (or error) into a single
+ * `dynamic-tool` part. Tool calls without a matching result are dropped
+ * (they never produced model-visible output).
+ */
+export function assistantPartsFromFinish(
+  event: OnFinishEvent<ToolSet>,
+): PersistedAssistantPart[] {
+  const parts: PersistedAssistantPart[] = [];
+  // Index tool results/errors by call id across all steps.
+  const resultsById = new Map<
+    string,
+    { output: unknown } | { errorText: string }
+  >();
+  for (const step of event.steps) {
+    for (const item of step.content) {
+      if (item.type === "tool-result") {
+        resultsById.set(item.toolCallId, { output: item.output });
+      } else if (item.type === "tool-error") {
+        resultsById.set(item.toolCallId, {
+          errorText:
+            item.error instanceof Error
+              ? item.error.message
+              : String(item.error),
+        });
+      }
+    }
+  }
+
+  for (const step of event.steps) {
+    for (const item of step.content) {
+      if (item.type === "text") {
+        if (item.text.length > 0) parts.push({ type: "text", text: item.text });
+      } else if (item.type === "tool-call") {
+        const resolved = resultsById.get(item.toolCallId);
+        if (resolved === undefined) continue;
+        if ("errorText" in resolved) {
+          parts.push({
+            type: "dynamic-tool",
+            toolName: item.toolName,
+            toolCallId: item.toolCallId,
+            state: "output-error",
+            input: item.input,
+            errorText: resolved.errorText,
+          });
+        } else {
+          parts.push({
+            type: "dynamic-tool",
+            toolName: item.toolName,
+            toolCallId: item.toolCallId,
+            state: "output-available",
+            input: item.input,
+            output: resolved.output,
+          });
+        }
+      }
+    }
+  }
+  return parts;
+}
+
 function lastUserUIMessage(messages: UIMessage[]): UIMessage | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") return messages[i];
@@ -267,7 +385,7 @@ function lastUserUIMessage(messages: UIMessage[]): UIMessage | null {
   return null;
 }
 
-function storedRowToUIMessage(row: {
+export function storedRowToUIMessage(row: {
   id: string;
   role: string;
   content: unknown;

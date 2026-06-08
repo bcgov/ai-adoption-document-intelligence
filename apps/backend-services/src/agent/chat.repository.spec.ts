@@ -13,6 +13,7 @@ interface MockPrisma {
   chatMessage: {
     create: jest.Mock;
     findMany: jest.Mock;
+    aggregate: jest.Mock;
   };
 }
 
@@ -32,6 +33,7 @@ describe("ChatRepository", () => {
       chatMessage: {
         create: jest.fn(),
         findMany: jest.fn(),
+        aggregate: jest.fn(),
       },
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -140,5 +142,24 @@ describe("ChatRepository", () => {
     expect(mockPrisma.chatConversation.delete).toHaveBeenCalledWith({
       where: { id: "c1" },
     });
+  });
+
+  it("sumConversationTokens sums input+output across messages (ITEM 26)", async () => {
+    mockPrisma.chatMessage.aggregate.mockResolvedValue({
+      _sum: { inputTokens: 300, outputTokens: 120 },
+    });
+    const total = await repo.sumConversationTokens("c1");
+    expect(total).toBe(420);
+    expect(mockPrisma.chatMessage.aggregate).toHaveBeenCalledWith({
+      where: { conversationId: "c1" },
+      _sum: { inputTokens: true, outputTokens: true },
+    });
+  });
+
+  it("sumConversationTokens treats null aggregates as zero", async () => {
+    mockPrisma.chatMessage.aggregate.mockResolvedValue({
+      _sum: { inputTokens: null, outputTokens: null },
+    });
+    expect(await repo.sumConversationTokens("c1")).toBe(0);
   });
 });

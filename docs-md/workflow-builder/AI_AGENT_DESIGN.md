@@ -483,6 +483,24 @@ Story numbering continues from US-187.
 
 ---
 
+## 12a. Hardening fixes (correctness + cost + safety)
+
+The following fixes harden the agent module beyond the original Phase 7.0 scope. All live under `apps/backend-services/src/agent/**`.
+
+1. **Server-side auto-wire on agent writes.** Agent write tools (`addNode`, `connectNodes`, `setNodeParameters`, `declareCtx`, `deleteNode`, `setEntryNode`) persist through `resolveConfigForPersist(config)` in `tools.ts`, which runs the SAME pass the V2 editor uses before save: `stripRedundantLocks(resolveBindings(normaliseLocks(config)))` (imported from `@ai-di/graph-workflow`). Previously agent writes persisted RAW config, so hand-authored non-`__auto.` keys read back as user-locked ports. Agent-built graphs now round-trip identically to editor-built graphs.
+
+2. **`listSourceCatalog` tool.** Added in `tools.ts`, backed by `SOURCE_CATALOG`, mirroring `listActivityCatalog`. The system prompt already directed the model to call it; the tool now exists and agrees with the prompt.
+
+3. **Tool-call history preserved on resume.** Assistant turns persist full UIMessage `parts` (text + `dynamic-tool` parts carrying tool call input/output) via `assistantPartsFromFinish(event)`, aggregated across all steps. `storedRowToUIMessage` rehydrates them, so resume no longer collapses tool history to a single text part. The legacy `{ text }` envelope is still accepted on read.
+
+4. **Abort-registry race fixed.** `AbortFlagMap.register()` returns an `AbortRegistration` handle whose `clear()` is a compare-and-delete — it only evicts the conversation's controller if it is still the mapped one. A settled turn can no longer clear a resent turn's controller, so `abort()` on the live turn keeps working.
+
+5. **Per-conversation cost ceiling.** `AgentEnv.maxConversationTokens` (`AGENT_MAX_CONVERSATION_TOKENS`, default 500000). Before each turn, `startChat` sums recorded spend via `ChatRepository.sumConversationTokens` and throws `ForbiddenException` once the ceiling is exceeded. Spend is the cumulative input+output tokens recorded by prior `onFinish` callbacks.
+
+6. **Tool-result truncation.** `AgentEnv.maxToolResultChars` (`AGENT_MAX_TOOL_RESULT_CHARS`, default 20000). `getWorkflow` / `getPreviewCache` / `getNodeStatuses` route their payloads through `wrapToolData`, which size-caps with an explicit `[truncated …]` marker so large document/OCR text can't blow up context or cost.
+
+7. **Prompt-injection isolation.** `wrapToolData` also wraps tool-result content in `<<<TOOL_RESULT_DATA … TOOL_RESULT_DATA>>>` fences, and the system prompt instructs the model to treat fenced content strictly as data, never as instructions — mitigating injection from user-controlled document text, workflow names, and node params while the agent holds write + publish + run capability.
+
 ## 13. Companion documents
 
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §5 Phase 7 — the original plan entry; this doc is its detailed decision record.

@@ -24,6 +24,20 @@ export class AgentEnv {
   readonly azureApiVersion: string;
   readonly maxSteps: number;
   readonly maxOutputTokens: number;
+  /**
+   * Cumulative token ceiling (input + output) across all turns of a
+   * single conversation. Once a conversation's recorded spend exceeds
+   * this, further model calls are refused. Guards against unbounded
+   * cost from a long-lived or runaway conversation.
+   */
+  readonly maxConversationTokens: number;
+  /**
+   * Maximum number of characters of a single tool result that may be
+   * injected into the model context. Large payloads (document/OCR text
+   * in preview caches, full workflow configs) are truncated past this
+   * with a clear marker so they don't blow up context or cost.
+   */
+  readonly maxToolResultChars: number;
 
   constructor(config: ConfigService) {
     this.anthropicApiKey = config.get<string>("ANTHROPIC_API_KEY") ?? null;
@@ -46,6 +60,12 @@ export class AgentEnv {
     this.maxSteps = Number(config.get<string>("AGENT_MAX_STEPS") ?? "30");
     this.maxOutputTokens = Number(
       config.get<string>("AGENT_MAX_OUTPUT_TOKENS") ?? "4096",
+    );
+    this.maxConversationTokens = Number(
+      config.get<string>("AGENT_MAX_CONVERSATION_TOKENS") ?? "500000",
+    );
+    this.maxToolResultChars = Number(
+      config.get<string>("AGENT_MAX_TOOL_RESULT_CHARS") ?? "20000",
     );
   }
 
