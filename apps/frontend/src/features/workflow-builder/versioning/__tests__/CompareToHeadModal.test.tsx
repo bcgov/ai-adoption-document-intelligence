@@ -22,12 +22,15 @@ import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   useWorkflowVersion,
+  useWorkflowVersions,
   type WorkflowInfo,
+  type WorkflowVersionSummary,
 } from "../../../../data/hooks/useWorkflows";
 import { CompareToHeadModal } from "../CompareToHeadModal";
 
 vi.mock("../../../../data/hooks/useWorkflows", () => ({
   useWorkflowVersion: vi.fn(),
+  useWorkflowVersions: vi.fn(),
 }));
 
 type UseWorkflowVersionReturn = {
@@ -41,6 +44,20 @@ const useWorkflowVersionMock = useWorkflowVersion as unknown as ReturnType<
   typeof vi.fn
 >;
 
+const useWorkflowVersionsMock = useWorkflowVersions as unknown as ReturnType<
+  typeof vi.fn
+>;
+
+// Head version (v3) carries a created_at distinct from the LINEAGE
+// created_at on `headWorkflow.createdAt` — Item 33 requires the head
+// column to show this VERSION timestamp, not the lineage one.
+const HEAD_VERSION_CREATED_AT = "2026-05-25T09:30:00.000Z";
+
+const versionSummaries: WorkflowVersionSummary[] = [
+  { id: "v3-id", versionNumber: 3, createdAt: HEAD_VERSION_CREATED_AT },
+  { id: "v2-id", versionNumber: 2, createdAt: "2026-05-21T18:00:00.000Z" },
+];
+
 function mockVersionState(state: Partial<UseWorkflowVersionReturn>): void {
   const merged: UseWorkflowVersionReturn = {
     data: undefined,
@@ -50,6 +67,12 @@ function mockVersionState(state: Partial<UseWorkflowVersionReturn>): void {
     ...state,
   };
   useWorkflowVersionMock.mockReturnValue(merged);
+  // Default the summaries query to the loaded list. Individual tests can
+  // override (e.g. to assert the lineage-timestamp fallback).
+  useWorkflowVersionsMock.mockReturnValue({
+    data: versionSummaries,
+    isLoading: false,
+  });
 }
 
 const headWorkflow: WorkflowInfo = {
@@ -138,7 +161,24 @@ describe("CompareToHeadModal", () => {
     expect(
       within(leftColumn).getByText("v2 — 2026-05-21T18:00:00.000Z"),
     ).toBeInTheDocument();
-    // Right header: "head (v{headN} — {iso timestamp})".
+    // Right header: "head (v{headN} — {head VERSION's created_at})" —
+    // Item 33: the head version timestamp, NOT the lineage created_at.
+    expect(
+      within(rightColumn).getByText(`head (v3 — ${HEAD_VERSION_CREATED_AT})`),
+    ).toBeInTheDocument();
+  });
+
+  it("Item 33: falls back to the lineage created_at when version summaries are not yet loaded", () => {
+    mockVersionState({ data: olderVersion });
+    // Summaries still loading → no data → fall back to headWorkflow.createdAt.
+    useWorkflowVersionsMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
+
+    renderModal();
+
+    const rightColumn = screen.getByTestId("compare-right-column");
     expect(
       within(rightColumn).getByText("head (v3 — 2026-05-22T18:00:00.000Z)"),
     ).toBeInTheDocument();

@@ -108,9 +108,9 @@ describe("getWorkflowGraphConfig activity", () => {
 
   // US-080: version-pinned resolution
   describe("with `version` param", () => {
-    it("loads graph by (lineage_id, version_number) pair when version is provided", async () => {
+    it("loads graph by (lineage_id, version_number) compound unique key when version is provided", async () => {
       const cfg = sampleConfig();
-      prismaMock.workflowVersion.findFirst.mockResolvedValue({ config: cfg });
+      prismaMock.workflowVersion.findUnique.mockResolvedValue({ config: cfg });
 
       const result = await getWorkflowGraphConfig({
         workflowId: "lin-1",
@@ -118,24 +118,31 @@ describe("getWorkflowGraphConfig activity", () => {
       });
 
       expect(result.graph).toEqual(cfg);
-      expect(prismaMock.workflowVersion.findFirst).toHaveBeenCalledWith({
-        where: { lineage_id: "lin-1", version_number: 3 },
+      // Item 34: the (lineage_id, version_number) pair is `@@unique`, so the
+      // pinned lookup uses `findUnique` on the compound key — not `findFirst`.
+      expect(prismaMock.workflowVersion.findUnique).toHaveBeenCalledWith({
+        where: {
+          lineage_id_version_number: {
+            lineage_id: "lin-1",
+            version_number: 3,
+          },
+        },
         select: { config: true },
       });
+      expect(prismaMock.workflowVersion.findFirst).not.toHaveBeenCalled();
       // Pinned lookup short-circuits the legacy 3-step resolution.
-      expect(prismaMock.workflowVersion.findUnique).not.toHaveBeenCalled();
       expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
       expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
     });
 
     it("throws a clear error mentioning lineage + version when the pinned version does not exist", async () => {
-      prismaMock.workflowVersion.findFirst.mockResolvedValue(null);
+      prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
 
       await expect(
         getWorkflowGraphConfig({ workflowId: "lin-1", version: 99 }),
       ).rejects.toThrow("Library lineage lin-1 has no version 99");
       // Does NOT fall through to the head/name resolution paths.
-      expect(prismaMock.workflowVersion.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.workflowVersion.findFirst).not.toHaveBeenCalled();
       expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
       expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
     });

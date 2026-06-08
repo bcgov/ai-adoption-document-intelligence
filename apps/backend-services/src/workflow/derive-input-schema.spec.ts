@@ -57,6 +57,62 @@ describe("deriveInputSchema", () => {
   });
 
   // -------------------------------------------------------------------------
+  // Item 32 — library input keys are derived from the ctx-binding path leaf,
+  // not the raw `path` string. A `ctx.<key>` path yields the run-input key
+  // `<key>`; a namespaced short-form resolves to its underlying ctx root.
+  // -------------------------------------------------------------------------
+  describe("Item 32: library run-input keys derive from the path leaf", () => {
+    it("strips the `ctx.` prefix from a library input path", () => {
+      const config = baseConfig({
+        metadata: {
+          kind: "library",
+          inputs: [
+            { label: "Document URL", path: "ctx.documentUrl", type: "string" },
+          ],
+        },
+      });
+
+      const schema = deriveInputSchema(config);
+
+      expect(Object.keys(schema.properties)).toEqual(["documentUrl"]);
+      expect(schema.properties.documentUrl).toEqual({
+        type: "string",
+        title: "Document URL",
+      });
+      expect(schema.required).toEqual(["documentUrl"]);
+    });
+
+    it("resolves a namespaced short-form path to its ctx root key", () => {
+      const config = baseConfig({
+        metadata: {
+          kind: "library",
+          // `doc.X` resolves to the `documentMetadata` ctx root.
+          inputs: [{ label: "Doc field", path: "doc.someField", type: "object" }],
+        },
+      });
+
+      const schema = deriveInputSchema(config);
+
+      expect(Object.keys(schema.properties)).toEqual(["documentMetadata"]);
+      expect(schema.required).toEqual(["documentMetadata"]);
+    });
+
+    it("leaves a bare key path unchanged", () => {
+      const config = baseConfig({
+        metadata: {
+          kind: "library",
+          inputs: [{ label: "Foo", path: "foo", type: "string" }],
+        },
+      });
+
+      const schema = deriveInputSchema(config);
+
+      expect(Object.keys(schema.properties)).toEqual(["foo"]);
+      expect(schema.required).toEqual(["foo"]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // US-068 Scenario 2 — regular workflow with mixed isInput flags
   // -------------------------------------------------------------------------
   describe("US-068 Scenario 2: regular workflow → derived from ctx with isInput true", () => {

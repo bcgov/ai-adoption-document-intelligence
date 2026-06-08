@@ -37,7 +37,12 @@ import {
 } from "@mantine/core";
 import { IconBook2, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import { useWorkflow } from "../../../../data/hooks/useWorkflows";
+import {
+  useWorkflow,
+  useWorkflowVersion,
+  useWorkflowVersions,
+  type WorkflowVersionSummary,
+} from "../../../../data/hooks/useWorkflows";
 import type {
   ChildWorkflowNode,
   GraphMetadata,
@@ -403,10 +408,49 @@ interface LibraryRefBodyProps {
   onPick: (selection: { workflowId: string; version?: number }) => void;
 }
 
+/**
+ * Resolves a pinned `WorkflowVersion.versionNumber` to its version *id*
+ * by scanning the lineage's version summaries. The node pins a version
+ * *number* (REQUIREMENTS D3) but `useWorkflowVersion` is keyed by id, so
+ * this bridges the two. Returns `undefined` when the number isn't found
+ * (summaries still loading, or a stale pin to a pruned version) — the
+ * caller then falls back to the head signature.
+ *
+ * Pure + exported for unit testing.
+ */
+export function resolveVersionIdByNumber(
+  summaries: WorkflowVersionSummary[] | undefined,
+  versionNumber: number | undefined,
+): string | undefined {
+  if (versionNumber === undefined || !summaries) return undefined;
+  return summaries.find((s) => s.versionNumber === versionNumber)?.id;
+}
+
 function LibraryRefBody({ workflowId, version, onPick }: LibraryRefBodyProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const { data: pickedLibrary, isLoading: isLoadingLibrary } =
+  const { data: headLibrary, isLoading: isLoadingHead } =
     useWorkflow(workflowId);
+
+  // When the node pins a version *number*, resolve it to the version *id*
+  // (via the lineage's version summaries) and fetch THAT version's config
+  // so the signature summary reflects the pinned version — not the lineage
+  // head (Item 31). When unpinned (`version === undefined`) we follow head.
+  const versionsQuery = useWorkflowVersions(
+    version === undefined ? undefined : workflowId,
+  );
+  const pinnedVersionId = resolveVersionIdByNumber(versionsQuery.data, version);
+  const pinnedVersionQuery = useWorkflowVersion(
+    version === undefined ? undefined : workflowId,
+    pinnedVersionId,
+  );
+
+  // Head path → headLibrary. Pinned path → the pinned version's config.
+  const pickedLibrary =
+    version === undefined ? headLibrary : pinnedVersionQuery.data;
+  const isLoadingLibrary =
+    version === undefined
+      ? isLoadingHead
+      : versionsQuery.isLoading || pinnedVersionQuery.isLoading;
 
   const metadata = pickedLibrary?.config.metadata as GraphMetadata | undefined;
   const declaredInputs: LibraryPortDescriptor[] = metadata?.inputs ?? [];

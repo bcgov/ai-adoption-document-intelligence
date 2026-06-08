@@ -18,6 +18,12 @@ export interface RunInputValidationError {
  *
  * Extra properties (keys not in the schema) are permitted — workflows
  * may consume ad-hoc ctx beyond what's declared as inputs.
+ *
+ * Item 32: for library workflows the schema keys are the ctx ROOT keys
+ * derived from each `LibraryPortDescriptor.path` leaf (see
+ * `deriveLibraryInputKey`), so validating presence here checks the exact
+ * key the caller must place in `initialCtx` and that the graph body then
+ * reads from `ctx`.
  */
 export function validateRunInput(
   schema: InputJsonSchema,

@@ -1,4 +1,5 @@
 import {
+  getCtxRootKey,
   getSourceCatalogEntry as defaultGetSourceCatalogEntry,
   type JsonSchema7,
   type SourceCatalogEntry,
@@ -161,6 +162,21 @@ function adaptProperty(raw: JsonSchema7): InputJsonSchemaProperty | undefined {
   return property;
 }
 
+/**
+ * Item 32: a `LibraryPortDescriptor.path` is a ctx-binding reference, not a
+ * caller-facing key. It may be written as `"ctx.<key>"`, the bare `"<key>"`,
+ * or a namespaced short-form (`"doc.X"` → `documentMetadata`). The actual
+ * run-input key (what a caller puts in `initialCtx`, and where the graph
+ * body reads it) is the resolved ctx ROOT key. Derive it by stripping any
+ * `ctx.` prefix and applying the shared `getCtxRootKey` resolver — the same
+ * resolution the validator uses (`libraryPortPathMatchesCtxKey`), so the
+ * derived schema, run-input validation, and graph ctx reads all agree.
+ */
+export function deriveLibraryInputKey(path: string): string {
+  const withoutCtxPrefix = path.startsWith("ctx.") ? path.slice(4) : path;
+  return getCtxRootKey(withoutCtxPrefix);
+}
+
 function deriveFromLibraryInputs(
   inputs: LibraryPortDescriptor[],
 ): InputJsonSchema {
@@ -168,8 +184,9 @@ function deriveFromLibraryInputs(
   const required: string[] = [];
 
   for (const input of inputs) {
-    properties[input.path] = { type: input.type, title: input.label };
-    required.push(input.path);
+    const key = deriveLibraryInputKey(input.path);
+    properties[key] = { type: input.type, title: input.label };
+    required.push(key);
   }
 
   return { type: "object", properties, required };

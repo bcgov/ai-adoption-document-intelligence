@@ -19,10 +19,12 @@ export async function getWorkflowGraphConfig(input: {
   const prisma = getPrismaClient();
 
   if (input.version !== undefined) {
-    const pinned = await prisma.workflowVersion.findFirst({
+    const pinned = await prisma.workflowVersion.findUnique({
       where: {
-        lineage_id: input.workflowId,
-        version_number: input.version,
+        lineage_id_version_number: {
+          lineage_id: input.workflowId,
+          version_number: input.version,
+        },
       },
       select: { config: true },
     });

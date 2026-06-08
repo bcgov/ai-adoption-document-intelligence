@@ -46,6 +46,68 @@ vi.mock("../../../../data/services/api.service", () => ({
       if (url.startsWith("/workflows?") || url === "/workflows") {
         return { success: true, data: { workflows: [] } };
       }
+      // Version list (`/workflows/:id/versions`) — expose two summaries so
+      // the pinned-version path can resolve a version *number* → version
+      // *id* (Item 31). v3 is the pinned version used by the Scenario 2
+      // tests; v1 stands in for an earlier version.
+      const versionsListMatch = url.match(
+        /^\/workflows\/([^/?]+)\/versions$/,
+      );
+      if (versionsListMatch) {
+        const id = versionsListMatch[1];
+        return {
+          success: true,
+          data: {
+            versions: [
+              {
+                id: `${id}-vid-3`,
+                versionNumber: 3,
+                createdAt: new Date().toISOString(),
+              },
+              {
+                id: `${id}-vid-1`,
+                versionNumber: 1,
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          },
+        };
+      }
+      // Single version GET (`/workflows/:id/versions/:versionId`) — return
+      // a synthesised library version so the pinned-version signature
+      // summary renders. Reuses the same metadata override map as head.
+      const versionMatch = url.match(
+        /^\/workflows\/([^/?]+)\/versions\/([^/?]+)$/,
+      );
+      if (versionMatch) {
+        const id = versionMatch[1];
+        const metadataOverride = libraryMetadataById.get(id);
+        return {
+          success: true,
+          data: {
+            workflow: {
+              id,
+              workflowVersionId: versionMatch[2],
+              slug: `slug-${id}`,
+              name: `Library ${id}`,
+              description: null,
+              actorId: "actor-1",
+              config: {
+                schemaVersion: "1.0",
+                metadata: metadataOverride ?? { inputs: [], outputs: [] },
+                entryNodeId: "",
+                nodes: {},
+                edges: [],
+                ctx: {},
+              },
+              schemaVersion: "1.0",
+              version: 3,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        };
+      }
       // Single-workflow GETs (`/workflows/:id`) — return a synthesised
       // library so the signature summary renders the name + slug. Tests
       // that need a "Library not found" surface set a different id (e.g.
@@ -530,6 +592,42 @@ describe("ChildWorkflowNodeSettings — US-087 Scenario 2: v{N} badge when pinne
       "child-workflow-node-settings-version-badge",
     );
     expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toBe("v3");
+  });
+
+  // Item 31 — when a version is pinned the signature summary must reflect
+  // the PINNED version's config (resolved number → id → version config),
+  // not the lineage head. The mocked version endpoint supplies the
+  // metadata, so a successfully-rendered signature row proves the pinned
+  // version's config drove the summary (the head `/workflows/:id` GET is
+  // not consulted on the pinned path).
+  it("renders the pinned version's signature ports when workflowRef.version === 3", async () => {
+    libraryMetadataById.set("lib-pinned", {
+      inputs: [{ label: "Doc", path: "ctx.doc", type: "string", kind: "Document" }],
+      outputs: [],
+    });
+
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "library", workflowId: "lib-pinned", version: 3 },
+    });
+    const config = makeConfig([initial]);
+
+    renderSettings(
+      <ChildWorkflowNodeSettings
+        node={initial}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    const inputRow = await screen.findByTestId(
+      "child-workflow-node-settings-input-port-Doc",
+    );
+    expect(inputRow.textContent ?? "").toContain("Doc (string, Document)");
+
+    const badge = await screen.findByTestId(
+      "child-workflow-node-settings-version-badge",
+    );
     expect(badge.textContent).toBe("v3");
   });
 });

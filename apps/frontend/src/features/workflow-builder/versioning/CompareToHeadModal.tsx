@@ -24,6 +24,7 @@ import {
 } from "@mantine/core";
 import {
   useWorkflowVersion,
+  useWorkflowVersions,
   type WorkflowInfo,
 } from "../../../data/hooks/useWorkflows";
 
@@ -50,6 +51,16 @@ export function CompareToHeadModal({
   headWorkflow,
 }: CompareToHeadModalProps) {
   const versionQuery = useWorkflowVersion(lineageId, selectedVersionId);
+
+  // `headWorkflow.createdAt` maps from the lineage's `created_at` (when the
+  // lineage was first created), NOT the head version's timestamp. Resolve
+  // the head VERSION's `created_at` from the version summaries by matching
+  // on the head version number (Item 33). Falls back to the lineage
+  // timestamp while the summaries are still loading.
+  const versionsQuery = useWorkflowVersions(lineageId);
+  const headVersionCreatedAt =
+    versionsQuery.data?.find((s) => s.versionNumber === headWorkflow.version)
+      ?.createdAt ?? headWorkflow.createdAt;
 
   const headConfigJson = JSON.stringify(headWorkflow.config, null, 2);
 
@@ -93,7 +104,7 @@ export function CompareToHeadModal({
         </Stack>
         <Stack gap="xs" data-testid="compare-right-column">
           <Text fw={500}>
-            head (v{headWorkflow.version} — {headWorkflow.createdAt})
+            head (v{headWorkflow.version} — {headVersionCreatedAt})
           </Text>
           <JsonInput
             value={headConfigJson}
