@@ -26,6 +26,8 @@ At runtime, a workflow graph follows this path:
 7. Activity nodes resolve `activityType` strings to real activity functions via the worker registry.
 
 Main files in this flow:
+- **Shared type definitions**: `packages/graph-workflow/src/types.ts` (package `@ai-di/graph-workflow`)
+- **Shared graph validator**: `packages/graph-workflow/src/validator/validator.ts`
 - Backend save-time validation: `apps/backend-services/src/workflow/graph-schema-validator.ts`
 - Backend activity allow-list: `apps/backend-services/src/workflow/activity-registry.ts`
 - Workflow start: `apps/backend-services/src/ocr/ocr.service.ts`
@@ -114,17 +116,15 @@ Use this when your new behavior cannot be expressed with existing node types and
 
 Example: a hypothetical `batch` node.
 
-### Step B1: Add type definitions in all three apps
+### Step B1: Add type definitions to the shared package
 
-Keep these in sync:
-- `apps/backend-services/src/workflow/graph-workflow-types.ts`
-- `apps/temporal/src/graph-workflow-types.ts`
-- `apps/frontend/src/types/graph-workflow.ts`
+Modify `packages/graph-workflow/src/types.ts` (the single source of truth for all graph types):
 
-Update:
-- `NodeType` union
-- new node interface
-- `GraphNode` discriminated union
+- Add the new type to the `NodeType` union
+- Define the new node interface extending `GraphNodeBase`
+- Add it to the `GraphNode` discriminated union
+
+The three app-level type files (`apps/backend-services/src/workflow/graph-workflow-types.ts`, `apps/temporal/src/graph-workflow-types.ts`, `apps/frontend/src/types/graph-workflow.ts`) are all thin re-exports (`export * from "@ai-di/graph-workflow"`) and automatically pick up the changes.
 
 ### Step B2: Implement runtime execution logic
 
@@ -139,9 +139,7 @@ If your node affects dependency readiness/routing semantics, also review:
 
 ### Step B3: Extend graph validation rules
 
-Modify both validators:
-- `apps/backend-services/src/workflow/graph-schema-validator.ts`
-- `apps/temporal/src/graph-schema-validator.ts`
+Modify the shared validator in `packages/graph-workflow/src/validator/validator.ts`. Both backend and temporal use thin wrappers around this shared function (`apps/backend-services/src/workflow/graph-schema-validator.ts` and `apps/temporal/src/graph-schema-validator.ts`), so changes here apply to both validation contexts automatically.
 
 Add validation for:
 - required fields of new node
@@ -212,13 +210,12 @@ Relevant implementation:
 
 ### For a new node type
 
-- [ ] Add node type/interface in backend, temporal, and frontend type files
-- [ ] Implement executor behavior in temporal graph engine
-- [ ] Extend backend validator
-- [ ] Extend temporal validator
-- [ ] Update frontend graph visualization for new node type
+- [ ] Add node type/interface in `packages/graph-workflow/src/types.ts` (all three apps pick it up automatically via re-exports)
+- [ ] Implement executor behavior in `apps/temporal/src/graph-engine/node-executors.ts`
+- [ ] Extend the shared validator in `packages/graph-workflow/src/validator/validator.ts`
+- [ ] Update frontend graph visualization for new node type (`apps/frontend/src/components/workflow/GraphVisualization.tsx`)
 - [ ] Add node-type-specific tests in temporal/backend/frontend
-- [ ] Update docs (`docs-md/GRAPH_TYPES.md` and this guide)
+- [ ] Update docs (`docs-md/graph-workflows/GRAPH_TYPES.md` and this guide)
 
 ---
 
