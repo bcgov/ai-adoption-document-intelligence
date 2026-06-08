@@ -1,3 +1,7 @@
+import {
+  type GraphValidationError,
+  validateGraphConfig,
+} from "@ai-di/graph-workflow";
 import { json } from "@codemirror/lang-json";
 import { Diagnostic, linter, lintGutter } from "@codemirror/lint";
 import { EditorView } from "@codemirror/view";
@@ -12,10 +16,6 @@ import {
   useUpdateWorkflow,
   useWorkflow,
 } from "../data/hooks/useWorkflows";
-import {
-  type GraphValidationError,
-  validateGraphConfig,
-} from "@ai-di/graph-workflow";
 import { GraphWorkflowConfig } from "../types/workflow";
 import {
   Badge,
