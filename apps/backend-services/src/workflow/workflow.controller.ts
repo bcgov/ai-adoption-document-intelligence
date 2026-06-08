@@ -108,7 +108,49 @@ const ALLOWED_WORKFLOW_KIND_FILTERS: readonly WorkflowKindFilter[] = [
 ];
 
 /**
- * US-152 — per-process LRU-with-TTL cache for the per-version
+ * Item 17: maximum number of concurrent `getRunInput` (fetchHistory) RPCs
+ * issued when enriching a run-history first page with `inputCtxSummary`.
+ * Bounds the fan-out so a full first page (up to `LIST_RUNS_MAX_LIMIT`
+ * executions) doesn't hammer Temporal's history service all at once.
+ */
+export const INPUT_CTX_SUMMARY_CONCURRENCY = 8;
+
+/**
+ * Map `items` through `worker` with at most `limit` invocations in flight at
+ * any moment, preserving input order in the result. A focused, dependency-free
+ * bounded-concurrency runner (the repo has no p-limit-style helper). `worker`
+ * is responsible for its own error handling — a rejection propagates and
+ * aborts the run (callers that want best-effort semantics catch inside the
+ * worker, as `buildInputCtxSummariesForExecutions` does).
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  const effectiveLimit = Math.max(1, Math.min(limit, items.length));
+  let nextIndex = 0;
+
+  const runOne = async (): Promise<void> => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  };
+
+  const runners: Promise<void>[] = [];
+  for (let i = 0; i < effectiveLimit; i++) {
+    runners.push(runOne());
+  }
+  await Promise.all(runners);
+  return results;
+}
+
+/**
+ * US-152 — per-process bounded LRU-with-TTL cache for the per-version
  * run-count endpoint. Keyed by `"<workflowId>::<versionId>"`. TTL is 60s
  * — matches the frontend `useVersionRunCount` `staleTime`. Per
  * TRY_IN_PLACE_DESIGN.md §6.5 the cache is intentionally process-local
@@ -116,6 +158,36 @@ const ALLOWED_WORKFLOW_KIND_FILTERS: readonly WorkflowKindFilter[] = [
  * for this UI surface.
  */
 export const VERSION_RUN_COUNT_CACHE_TTL_MS = 60_000;
+
+/**
+ * Item 16 (resource-bound): hard cap on the number of live entries in the
+ * run-count cache. The cache is keyed per `(workflowId, versionId)`, so an
+ * unbounded map would grow with the count of distinct versions ever queried
+ * across the process lifetime. We cap it and evict least-recently-used
+ * entries (plus prune TTL-expired ones on write) so the working set stays
+ * bounded regardless of how many versions are browsed.
+ */
+export const VERSION_RUN_COUNT_CACHE_MAX_ENTRIES = 1_000;
+
+/**
+ * Item 9 (security): hard transport-layer ceiling for `source.upload`
+ * multipart bodies, in megabytes. The per-source `maxFileSizeMB` is
+ * dynamic (resolved from the node's parameters) and still enforced by
+ * `SourceUploadService.assertSizeWithinLimit`, but Multer's interceptor
+ * limit is static (it's a decorator evaluated at class-load), so we set
+ * an absolute upper bound here. A body exceeding this is rejected by
+ * Multer BEFORE the whole file is buffered into memory, bounding the
+ * resource-exhaustion blast radius. Override via the
+ * `WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB` env var.
+ */
+export const WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB = (() => {
+  const raw = process.env.WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB;
+  const parsed = raw === undefined ? Number.NaN : Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
+})();
+
+const WORKFLOW_UPLOAD_MAX_FILE_SIZE_BYTES =
+  WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface VersionRunCountCacheEntry {
   count: number;
@@ -148,16 +220,71 @@ function parseWorkflowKindFilter(
 @Controller("api/workflows")
 export class WorkflowController {
   /**
-   * US-152 — in-process LRU-with-TTL cache backing the per-version
+   * US-152 — in-process bounded LRU-with-TTL cache backing the per-version
    * run-count endpoint. Lives on the controller instance (NestJS makes
    * the controller a singleton in our app), keyed by
    * `"<workflowId>::<versionId>"`. Entries past
-   * `VERSION_RUN_COUNT_CACHE_TTL_MS` are recomputed on next read.
+   * `VERSION_RUN_COUNT_CACHE_TTL_MS` are recomputed on next read; the map
+   * is capped at `VERSION_RUN_COUNT_CACHE_MAX_ENTRIES` with LRU eviction
+   * (a `Map` preserves insertion order, so the first key is the oldest).
+   * Access via `readVersionRunCountCache` / `writeVersionRunCountCache`,
+   * which maintain the recency ordering and size cap.
    */
   private readonly versionRunCountCache = new Map<
     string,
     VersionRunCountCacheEntry
   >();
+
+  /**
+   * Read a fresh (within-TTL) cached run-count, refreshing the entry's LRU
+   * recency on hit. Returns `undefined` on miss or when the entry has
+   * expired (the stale entry is dropped so it can't pin LRU capacity).
+   */
+  private readVersionRunCountCache(
+    cacheKey: string,
+    now: number,
+  ): number | undefined {
+    const cached = this.versionRunCountCache.get(cacheKey);
+    if (cached === undefined) return undefined;
+    if (now - cached.cachedAt >= VERSION_RUN_COUNT_CACHE_TTL_MS) {
+      this.versionRunCountCache.delete(cacheKey);
+      return undefined;
+    }
+    // Refresh recency: re-insert moves the key to the end (most-recent).
+    this.versionRunCountCache.delete(cacheKey);
+    this.versionRunCountCache.set(cacheKey, cached);
+    return cached.count;
+  }
+
+  /**
+   * Write a run-count entry, pruning TTL-expired entries first and then
+   * evicting least-recently-used entries until the map is within the size
+   * cap. Keeps the cache bounded in both time and space.
+   */
+  private writeVersionRunCountCache(
+    cacheKey: string,
+    count: number,
+    now: number,
+  ): void {
+    // Prune expired entries on write so the LRU cap reflects live data.
+    for (const [key, entry] of this.versionRunCountCache) {
+      if (now - entry.cachedAt >= VERSION_RUN_COUNT_CACHE_TTL_MS) {
+        this.versionRunCountCache.delete(key);
+      }
+    }
+    // Re-insert at the end (most-recent position).
+    this.versionRunCountCache.delete(cacheKey);
+    this.versionRunCountCache.set(cacheKey, { count, cachedAt: now });
+    // Evict oldest until within cap. `Map` iteration is insertion-order,
+    // so the first key is the least-recently-used.
+    while (
+      this.versionRunCountCache.size > VERSION_RUN_COUNT_CACHE_MAX_ENTRIES
+    ) {
+      const oldestKey = this.versionRunCountCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.versionRunCountCache.delete(oldestKey);
+    }
+  }
 
   constructor(
     private readonly workflowService: WorkflowService,
@@ -345,16 +472,16 @@ export class WorkflowController {
 
     const cacheKey = buildVersionRunCountCacheKey(lineageId, versionId);
     const now = Date.now();
-    const cached = this.versionRunCountCache.get(cacheKey);
-    if (cached && now - cached.cachedAt < VERSION_RUN_COUNT_CACHE_TTL_MS) {
-      return { runCount: cached.count };
+    const cached = this.readVersionRunCountCache(cacheKey, now);
+    if (cached !== undefined) {
+      return { runCount: cached };
     }
 
     const runCount = await this.temporalClient.countRunsForVersion(
       lineageId,
       versionId,
     );
-    this.versionRunCountCache.set(cacheKey, { count: runCount, cachedAt: now });
+    this.writeVersionRunCountCache(cacheKey, runCount, now);
     return { runCount };
   }
 
@@ -462,24 +589,17 @@ export class WorkflowController {
     // so this never blocks the new run.
     await this.temporalClient.cancelInFlightTriesForLineage(id);
 
-    // Phase 6 (sweep follow-on #1): forward the caller's x-api-key so the
-    // worker's dyn.run activity can inject it as AI_DI_API_KEY for scripts
-    // that call back into the platform.
-    const rawApiKey = req.headers["x-api-key"];
-    const apiKey =
-      typeof rawApiKey === "string"
-        ? rawApiKey
-        : Array.isArray(rawApiKey)
-          ? rawApiKey[0]
-          : undefined;
-
+    // Item 4 (security): the caller's `x-api-key` is intentionally NOT
+    // forwarded into the workflow input. Temporal persists workflow input in
+    // durable history, so forwarding it would leak the caller key in
+    // cleartext. The worker's `dyn.run` activity injects `AI_DI_API_KEY`
+    // server-side from its own config (`PLATFORM_API_KEY`) instead. This also
+    // makes the startRun and upload-and-Try run paths symmetric.
     const workflowId = await this.temporalClient.startGraphWorkflow(
       undefined,
       wf.workflowVersionId,
       initialCtx,
       wf.groupId,
-      undefined,
-      apiKey,
     );
 
     this.logger.log(
@@ -496,7 +616,11 @@ export class WorkflowController {
   @Post(":id/sources/:sourceNodeId/upload")
   @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
-  @UseInterceptors(FileInterceptor("file"))
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: WORKFLOW_UPLOAD_MAX_FILE_SIZE_BYTES },
+    }),
+  )
   @ApiOperation({
     summary:
       "Upload a file to a `source.upload` node. Streams to blob storage " +
@@ -1095,10 +1219,14 @@ export class WorkflowController {
 
   /**
    * Build a `runId -> summariseInputCtx(initialCtx)` map for a batch of
-   * executions. Issues one `getRunInput` call per execution and squashes
-   * per-run errors to "no summary" — a 404 (history retention-cleaned or
-   * never captured) should not poison the whole page. Concurrency is
-   * bounded by Temporal's gRPC pool, which the SDK manages internally.
+   * executions. Issues one `getRunInput` (fetchHistory) call per execution
+   * and squashes per-run errors to "no summary" — a 404 (history
+   * retention-cleaned or never captured) should not poison the whole page.
+   *
+   * Item 17: the calls are run with an explicit concurrency cap
+   * (`INPUT_CTX_SUMMARY_CONCURRENCY`) rather than a single `Promise.all`
+   * fan-out, so a first page of up to `LIST_RUNS_MAX_LIMIT` (200)
+   * executions cannot fire 200 fetchHistory RPCs at once.
    *
    * Scoped to first-page consumers only; see `listRuns` for the budget
    * rationale.
@@ -1106,8 +1234,10 @@ export class WorkflowController {
   private async buildInputCtxSummariesForExecutions(
     executions: ListRunsExecution[],
   ): Promise<Map<string, Record<string, unknown> | undefined>> {
-    const results = await Promise.all(
-      executions.map(async (execution) => {
+    const results = await mapWithConcurrency(
+      executions,
+      INPUT_CTX_SUMMARY_CONCURRENCY,
+      async (execution) => {
         try {
           const runInput = await this.temporalClient.getRunInput(
             execution.runId,
@@ -1125,7 +1255,7 @@ export class WorkflowController {
           // still renders — just without the chip.
           return [execution.runId, undefined] as const;
         }
-      }),
+      },
     );
     return new Map(results);
   }

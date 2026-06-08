@@ -1,8 +1,9 @@
 import { GroupRole } from "@generated/client";
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, type INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { WorkflowNotFoundError } from "@temporalio/client";
 import { Request } from "express";
+import * as request from "supertest";
 import { z } from "zod/v4";
 import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -13,7 +14,11 @@ import type {
   SourceCatalogEntry,
 } from "./graph-workflow-types";
 import { SourceUploadService } from "./source-upload.service";
-import { WorkflowController } from "./workflow.controller";
+import {
+  INPUT_CTX_SUMMARY_CONCURRENCY,
+  VERSION_RUN_COUNT_CACHE_MAX_ENTRIES,
+  WorkflowController,
+} from "./workflow.controller";
 import {
   CreateWorkflowDto,
   WorkflowInfo,
@@ -910,9 +915,48 @@ describe("WorkflowController", () => {
         "wv-wf-1",
         { customerId: "cust-001" },
         "group-1",
-        undefined,
-        undefined,
       );
+    });
+
+    // Item 4 (security): the caller's `x-api-key` MUST NOT be threaded into
+    // the workflow input — Temporal would persist it in durable history in
+    // cleartext. The worker's dyn.run activity sources the platform key
+    // server-side. Even when the request carries an `x-api-key` header, the
+    // controller must call startGraphWorkflow with exactly four args (no key).
+    it("Item 4: does NOT forward the caller's x-api-key into the workflow input", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-nokey");
+
+      const reqWithApiKey = {
+        protocol: "http",
+        headers: {
+          host: "localhost:3002",
+          "x-api-key": "super-secret-caller-key",
+        },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+
+      await controller.startRun(
+        "wf-1",
+        { initialCtx: { customerId: "cust-001" } },
+        reqWithApiKey,
+      );
+
+      // Exactly four positional args — no fifth/sixth carrying the key.
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        "wv-wf-1",
+        { customerId: "cust-001" },
+        "group-1",
+      );
+      // Belt-and-suspenders: the secret value never appears in any argument.
+      const callArgs = temporalClient.startGraphWorkflow.mock.calls[0];
+      expect(callArgs).toHaveLength(4);
+      expect(JSON.stringify(callArgs)).not.toContain("super-secret-caller-key");
     });
 
     it("returns 400 when initialCtx is missing a required field", async () => {
@@ -957,8 +1001,6 @@ describe("WorkflowController", () => {
         "wv-wf-1",
         {},
         "group-1",
-        undefined,
-        undefined,
       );
     });
 
@@ -1043,8 +1085,6 @@ describe("WorkflowController", () => {
         "wv-v2",
         {},
         "group-1",
-        undefined,
-        undefined,
       );
     });
 
@@ -1254,8 +1294,6 @@ describe("WorkflowController", () => {
           "wv-wf-1",
           { documentUrl: "https://example.com/doc.pdf" },
           "group-1",
-          undefined,
-          undefined,
         );
       });
 
@@ -1365,8 +1403,6 @@ describe("WorkflowController", () => {
             extra: true,
           },
           "group-1",
-          undefined,
-          undefined,
         );
       });
 
@@ -1414,8 +1450,6 @@ describe("WorkflowController", () => {
           "wv-v1",
           { documentUrl: "https://example.com/v1.pdf" },
           "group-1",
-          undefined,
-          undefined,
         );
       });
     });
@@ -1850,6 +1884,32 @@ describe("WorkflowController", () => {
         controller.uploadToSource("wf-1", "upload", undefined, mockReq()),
       ).rejects.toThrow(BadRequestException);
       expect(workflowService.resolveLineageAndVersion).not.toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------------
+    // Item 10 (auth): a non-member of the workflow's group → 403. Pins
+    // the `identityCanAccessGroup(MEMBER)` guard on the upload endpoint
+    // (mirrors the startRun auth test). The upload must NOT proceed to
+    // blob storage or kick off a run.
+    // -------------------------------------------------------------------
+    it("throws ForbiddenException when caller is not a member of the workflow's group", async () => {
+      setSourceCatalog([fakeSourceUploadEntry]);
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(
+        controller.uploadToSource("wf-1", "upload", makeFile(), req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(sourceUploadService.uploadFileForSource).not.toHaveBeenCalled();
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
     });
   });
 
@@ -2541,6 +2601,67 @@ describe("WorkflowController", () => {
       ).rejects.toThrow(NotFoundException);
       expect(temporalClient.countRunsForVersion).not.toHaveBeenCalled();
     });
+
+    // -------------------------------------------------------------------
+    // Item 16 (bounded cache): the cache is a true bounded LRU. After
+    // filling it past its capacity, the least-recently-used key is evicted
+    // (a subsequent read re-hits Temporal), while a recently-used key
+    // remains cached (no re-hit).
+    // -------------------------------------------------------------------
+    it("Item 16: evicts the least-recently-used entry once the cap is exceeded", async () => {
+      // getWorkflowVersionById must satisfy the lineage/version match for
+      // every synthetic (lineage, version) pair we probe.
+      (
+        workflowService.getWorkflowVersionById as jest.Mock
+      ).mockImplementation((versionId: string) =>
+        Promise.resolve({
+          ...mockWorkflowInfo,
+          id: `lin-${versionId}`,
+          workflowVersionId: versionId,
+        }),
+      );
+      (temporalClient.countRunsForVersion as jest.Mock).mockResolvedValue(1);
+
+      const probe = (n: number) =>
+        controller.getVersionRunCount(`lin-v${n}`, `v${n}`, mockReq());
+
+      // Fill the cache exactly to capacity (keys v0 .. v_{cap-1}).
+      for (let i = 0; i < VERSION_RUN_COUNT_CACHE_MAX_ENTRIES; i++) {
+        await probe(i);
+      }
+      const callsAfterFill = (
+        temporalClient.countRunsForVersion as jest.Mock
+      ).mock.calls.length;
+      expect(callsAfterFill).toBe(VERSION_RUN_COUNT_CACHE_MAX_ENTRIES);
+
+      // Touch v0 so it becomes most-recently-used; served from cache (no
+      // new Temporal call).
+      await probe(0);
+      expect(
+        (temporalClient.countRunsForVersion as jest.Mock).mock.calls.length,
+      ).toBe(callsAfterFill);
+
+      // Insert one more distinct key → exceeds cap → evicts the LRU entry,
+      // which is now v1 (v0 was just refreshed).
+      await probe(VERSION_RUN_COUNT_CACHE_MAX_ENTRIES);
+      expect(
+        (temporalClient.countRunsForVersion as jest.Mock).mock.calls.length,
+      ).toBe(callsAfterFill + 1);
+
+      // v0 (recently used) is still cached → no re-fetch.
+      const beforeV0 = (temporalClient.countRunsForVersion as jest.Mock).mock
+        .calls.length;
+      await probe(0);
+      expect(
+        (temporalClient.countRunsForVersion as jest.Mock).mock.calls.length,
+      ).toBe(beforeV0);
+
+      // v1 (the evicted LRU entry) must re-hit Temporal.
+      await probe(1);
+      expect(
+        (temporalClient.countRunsForVersion as jest.Mock).mock.calls.length,
+      ).toBe(beforeV0 + 1);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -3006,6 +3127,72 @@ describe("WorkflowController", () => {
     });
 
     // ---------------------------------------------------------------------
+    // Item 17 (bounded concurrency): the first-page inputCtxSummary fan-out
+    // issues at most INPUT_CTX_SUMMARY_CONCURRENCY getRunInput calls at once
+    // even when the page has far more executions than the cap. We track the
+    // live in-flight count and assert it never exceeds the cap.
+    // ---------------------------------------------------------------------
+    it("Item 17: bounds getRunInput concurrency on the first-page summary fan-out", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      const executionCount = INPUT_CTX_SUMMARY_CONCURRENCY * 5; // 40 rows
+      const executions = Array.from({ length: executionCount }, (_, i) =>
+        buildExecution({ runId: `run-${i}` }),
+      );
+      (temporalClient.listRunsForWorkflow as jest.Mock).mockResolvedValue({
+        executions,
+        nextCursor: null,
+      });
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      let resolveBarrier: (() => void) | undefined;
+      let pending = 0;
+      // A barrier that releases once `INPUT_CTX_SUMMARY_CONCURRENCY` calls
+      // are simultaneously in flight — proves the runner saturates the cap
+      // without ever exceeding it.
+      const barrier = new Promise<void>((resolve) => {
+        resolveBarrier = resolve;
+      });
+
+      (temporalClient.getRunInput as jest.Mock).mockImplementation(
+        async (id: string) => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          pending += 1;
+          if (pending >= INPUT_CTX_SUMMARY_CONCURRENCY) {
+            resolveBarrier?.();
+          }
+          await barrier;
+          // Tiny yield so multiple workers overlap measurably.
+          await new Promise((r) => setImmediate(r));
+          inFlight -= 1;
+          return {
+            initialCtx: { customerId: `cust-${id}` },
+            workflowLineageId: "wf-1",
+          };
+        },
+      );
+
+      const result = await controller.listRuns("wf-1", {}, mockReq());
+
+      expect(result.runs).toHaveLength(executionCount);
+      // The crux: concurrency never exceeded the cap...
+      expect(maxInFlight).toBeLessThanOrEqual(INPUT_CTX_SUMMARY_CONCURRENCY);
+      // ...and the cap was actually saturated (not under-utilised).
+      expect(maxInFlight).toBe(INPUT_CTX_SUMMARY_CONCURRENCY);
+      // Every execution was still summarised, in order.
+      expect(result.runs[0].inputCtxSummary).toEqual({
+        customerId: "cust-run-0",
+      });
+      expect(result.runs[executionCount - 1].inputCtxSummary).toEqual({
+        customerId: `cust-run-${executionCount - 1}`,
+      });
+    });
+
+    // ---------------------------------------------------------------------
     // Scenario 3 (status filter): status narrows the visibility query
     // ---------------------------------------------------------------------
     it("Scenario 3 (status filter): translates DTO status to Temporal enum and passes it through", async () => {
@@ -3223,6 +3410,103 @@ describe("WorkflowController", () => {
       expect(result.runs).toHaveLength(2);
       expect(result.runs[0].inputCtxSummary).toEqual({ customerId: "cust-ok" });
       expect(result.runs[1].inputCtxSummary).toBeUndefined();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item 9 (security) — transport-layer file-size ceiling on the upload route.
+//
+// The per-source `maxFileSizeMB` is enforced inside SourceUploadService
+// AFTER buffering; the Multer `FileInterceptor` `limits.fileSize` ceiling is
+// the static, transport-layer guard that rejects an over-ceiling body BEFORE
+// it is fully buffered. This block bootstraps the REAL controller route
+// (with a small ceiling injected via the env var) and POSTs an over-ceiling
+// multipart body through the actual HTTP pipeline, asserting a 413.
+//
+// `jest.isolateModulesAsync` is used so the controller module re-reads
+// `WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB` from the patched env at load time.
+// ---------------------------------------------------------------------------
+describe("uploadToSource — transport-layer fileSize ceiling (Item 9)", () => {
+  let app: INestApplication | undefined;
+  const originalEnv = process.env.WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB;
+
+  afterEach(async () => {
+    if (app) {
+      await app.close();
+      app = undefined;
+    }
+    if (originalEnv === undefined) {
+      delete process.env.WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB;
+    } else {
+      process.env.WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB = originalEnv;
+    }
+  });
+
+  it("rejects an over-ceiling upload at the transport layer (413) before the controller runs", async () => {
+    // 1MB ceiling for a cheap test.
+    process.env.WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB = "1";
+
+    await jest.isolateModulesAsync(async () => {
+      // Re-import the controller AND its injection-token modules inside the
+      // isolated registry so the module-level ceiling constant picks up the
+      // patched env var, and so the provider tokens match the freshly-loaded
+      // controller's constructor metadata (a `Test` providers list keyed by
+      // the top-level imports would be a different class identity here).
+      const { WorkflowController: FreshController } = await import(
+        "./workflow.controller"
+      );
+      const { WorkflowService: FreshWorkflowService } = await import(
+        "./workflow.service"
+      );
+      const { SourceUploadService: FreshSourceUploadService } = await import(
+        "./source-upload.service"
+      );
+      const { TemporalClientService: FreshTemporalClientService } =
+        await import("@/temporal/temporal-client.service");
+      const { AppLoggerService: FreshAppLoggerService } = await import(
+        "@/logging/app-logger.service"
+      );
+      const { ActivityOutputCacheRepository: FreshActivityOutputCacheRepo } =
+        await import("@/cache/activity-output-cache.repository");
+
+      const uploadSpy = jest.fn();
+      const moduleRef = await Test.createTestingModule({
+        controllers: [FreshController],
+        providers: [
+          {
+            provide: FreshWorkflowService,
+            useValue: {
+              resolveLineageAndVersion: jest
+                .fn()
+                .mockResolvedValue(mockWorkflowInfo),
+            },
+          },
+          { provide: FreshTemporalClientService, useValue: {} },
+          { provide: FreshAppLoggerService, useValue: mockAppLogger },
+          {
+            provide: FreshSourceUploadService,
+            useValue: { uploadFileForSource: uploadSpy },
+          },
+          { provide: FreshActivityOutputCacheRepo, useValue: {} },
+        ],
+      }).compile();
+
+      app = moduleRef.createNestApplication();
+      await app.init();
+
+      const httpServer = app.getHttpServer();
+      // 2MB body — well over the 1MB ceiling.
+      const oversized = Buffer.alloc(2 * 1024 * 1024, 0x41);
+
+      await request(httpServer)
+        .post("/api/workflows/wf-1/sources/upload/upload")
+        .attach("file", oversized, "big.pdf")
+        .expect(413);
+
+      // The transport-layer guard fires before the handler — the upload
+      // service is never reached.
+      expect(uploadSpy).not.toHaveBeenCalled();
     });
   });
 });
