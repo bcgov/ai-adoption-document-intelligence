@@ -399,6 +399,64 @@ describe("WorkflowEditorV2Page — US-050: template-load auto-layout", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Edit-mode hydration auto-layout — an opened workflow that carries no node
+// positions (seeded workflows from docs-md/graph-workflows/templates/*.json,
+// or any API/agent-authored workflow) must be auto-laid-out on open, mirroring
+// the create-from-template path. Regression: such workflows rendered
+// stacked/out-of-order because hydration skipped layoutGraphIfMissingPositions.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — edit-mode hydration auto-layout", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  it("runs auto-layout when an opened (seeded) workflow has no node positions", async () => {
+    existingWorkflowRef.current = {
+      id: "wf-seeded",
+      name: "Seeded WF",
+      description: "",
+      slug: "seeded",
+      version: 1,
+      workflowVersionId: "v-1",
+      config: buildTemplateConfig({ positions: "none" }),
+    };
+    renderEditPage("wf-seeded");
+    await waitFor(() => {
+      expect(readPositionsFromCanvas().a).toBeDefined();
+    });
+    const positions = readPositionsFromCanvas();
+    for (const id of ["a", "b", "c"]) {
+      expect(positions[id]).toBeDefined();
+      expect(typeof positions[id]?.x).toBe("number");
+      expect(typeof positions[id]?.y).toBe("number");
+    }
+  });
+
+  it("leaves positions untouched when an opened workflow already has them", async () => {
+    existingWorkflowRef.current = {
+      id: "wf-positioned",
+      name: "Positioned WF",
+      description: "",
+      slug: "positioned",
+      version: 1,
+      workflowVersionId: "v-1",
+      config: buildTemplateConfig({ positions: "all" }),
+    };
+    renderEditPage("wf-positioned");
+    await waitFor(() => {
+      expect(readPositionsFromCanvas().a).toBeDefined();
+    });
+    const positions = readPositionsFromCanvas();
+    expect(positions.a).toEqual({ x: 10, y: 20 });
+    expect(positions.b).toEqual({ x: 30, y: 40 });
+    expect(positions.c).toEqual({ x: 50, y: 60 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // US-041 — "Group selected" top-bar action
 //   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-041-group-from-selection.md
 // ---------------------------------------------------------------------------
