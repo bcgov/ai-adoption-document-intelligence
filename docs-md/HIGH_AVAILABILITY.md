@@ -31,7 +31,7 @@ HPAs automatically scale deployments based on CPU and memory utilization.
 - **Scale Down:** Remove up to 50% of current pods every 60s, with 5 min stabilization window
 
 **Connection Pool Limit:**  
-Each backend-services pod uses `DB_POOL_MAX` connections (default **20** in dev / load-test overlays, **10** recommended in prod when HPA max is 5). With 5 pods at `DB_POOL_MAX=10`, that's 50 connections to PostgreSQL.
+Each backend-services pod uses `DB_POOL_MAX` connections (default **10**). With 5 pods at max HPA scale, that's 50 connections to PostgreSQL.
 
 ### Temporal Worker HPA
 
@@ -67,11 +67,11 @@ PostgreSQL default `max_connections` is 100. Our configuration uses:
 
 | Service | Pods (max) | Connections per Pod | Total Connections |
 |---------|------------|---------------------|-------------------|
-| backend-services | 5 | 10 (prod) / 20 (dev) | 50 / 100 |
+| backend-services | 5 | 10 | 50 |
 | temporal-worker | 4 | 3 | 12 |
-| **Total** | **9** | - | **62 / 112** |
+| **Total** | **9** | - | **62** |
 
-Use **prod** column values (`DB_POOL_MAX=10`) for steady-state HA. The dev default (`20`) is sized for single-replica load testing and removes the ~7 req/s read ceiling documented in [LOAD_TEST_REPORT_2026-05.md](../LOAD_TEST_REPORT_2026-05.md).
+At HPA max scale this stays below Crunchy Postgres default `max_connections` (100) with headroom for migrations and admin tools. For single-replica load testing, override `DB_POOL_MAX=20` in the instance env to remove the ~7 req/s read ceiling documented in [LOAD_TEST_REPORT_2026-05.md](../LOAD_TEST_REPORT_2026-05.md).
 
 This leaves headroom for:
 - Interactive queries (pgAdmin, psql)

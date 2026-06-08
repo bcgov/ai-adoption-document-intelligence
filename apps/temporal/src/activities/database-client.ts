@@ -1,6 +1,10 @@
 import { PrismaClient } from "@generated/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions, getPrismaPoolMax, DEFAULT_TEMPORAL_DB_POOL_MAX } from "../utils/database-url";
+import {
+  DEFAULT_TEMPORAL_DB_POOL_MAX,
+  getPrismaPgOptions,
+  getPrismaPoolMax,
+} from "../utils/database-url";
 
 // Initialize Prisma client (singleton pattern)
 let prismaClient: PrismaClient | null = null;

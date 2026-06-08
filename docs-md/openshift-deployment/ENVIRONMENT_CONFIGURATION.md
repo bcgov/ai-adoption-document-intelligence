@@ -171,7 +171,7 @@ See [LOAD_TESTING.md](../LOAD_TESTING.md) for load-test usage of `mock`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_POOL_MAX` | `20` (dev), `10` (prod example) | Max concurrent PostgreSQL connections per **backend-services** pod. Wired to the Prisma/pg pool (`PrismaPg` `max`). Without an explicit value, Prisma defaults to `num_cpus * 2 + 1`, which is **3** in a 500m container and caps read throughput at ~7 req/s per pod regardless of VU count. Size to pod CPU and to `(backend_pods × DB_POOL_MAX) + (worker_pods × 3) < Postgres max_connections` when HPA is at max scale. |
+| `DB_POOL_MAX` | `10` | Max concurrent PostgreSQL connections per **backend-services** pod. Wired to the Prisma/pg pool (`PrismaPg` `max`). Without an explicit value, Prisma defaults to `num_cpus * 2 + 1`, which is **3** in a 500m container and caps read throughput at ~7 req/s per pod regardless of VU count. Default **10** keeps `(backend_pods × DB_POOL_MAX) + (worker_pods × 3)` under Postgres `max_connections` (100) at HPA max scale. Override to **20** on single-replica load-test instances if needed. |
 
 ### Rate Limiting
 

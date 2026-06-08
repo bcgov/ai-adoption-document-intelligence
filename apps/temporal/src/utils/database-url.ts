@@ -43,7 +43,7 @@ export function getPrismaPgOptions(url: string | undefined): PrismaPgOptions {
 }
 
 /** Default pg pool size for backend-services (500m CPU / 512Mi pod). */
-export const DEFAULT_BACKEND_DB_POOL_MAX = 20;
+export const DEFAULT_BACKEND_DB_POOL_MAX = 10;
 
 /**
  * Returns the configured Prisma/pg pool size from DB_POOL_MAX.

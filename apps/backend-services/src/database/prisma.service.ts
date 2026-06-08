@@ -3,10 +3,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import {
-  getPrismaPgOptions,
-  getPrismaPoolMax,
-} from "@/utils/database-url";
+import { getPrismaPgOptions, getPrismaPoolMax } from "@/utils/database-url";
 
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
@@ -26,7 +23,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     );
 
     // Configure connection pool for horizontal scaling:
-    // - max: DB_POOL_MAX (default 20) — without this, Prisma uses num_cpus*2+1 (= 3 in 500m pods)
+    // - max: DB_POOL_MAX (default 10) — without this, Prisma uses num_cpus*2+1 (= 3 in 500m pods)
     // - idleTimeoutMillis: Close idle connections after 60s (reduces connection churn)
     // - connectionTimeoutMillis: Fail fast if pool is exhausted
     const adapter = new PrismaPg({

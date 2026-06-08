@@ -11,9 +11,8 @@ spec:
   # This is safe: RollingUpdate strategy ensures pods start sequentially, and the
   # initContainer with Prisma advisory locks prevents migration races.
   minReplicas: 2
-  # Max 5 replicas: with DB_POOL_MAX=20 per pod, that's 100 connections — tune
-  # DB_POOL_MAX down in prod.env when running at max scale (Postgres max_connections=100).
-  # Combined with temporal workers (max 4 * 3 = 12), total is 37 of Postgres default 100.
+  # Max 5 replicas: with DB_POOL_MAX=10 per pod, that's 50 connections.
+  # Combined with temporal workers (max 4 * 3 = 12), total is 62 of Postgres default 100.
   maxReplicas: 5
   metrics:
     - type: Resource

@@ -67,7 +67,7 @@ describe("database-url", () => {
 
   describe("getPrismaPoolMax", () => {
     it("returns default when env is undefined", () => {
-      expect(getPrismaPoolMax(undefined)).toBe(20);
+      expect(getPrismaPoolMax(undefined)).toBe(10);
     });
 
     it("returns parsed value from env", () => {

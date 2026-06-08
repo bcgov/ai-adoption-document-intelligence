@@ -20,7 +20,7 @@ export function getDatabaseConnectionString(url: string | undefined): string {
 }
 
 /** Default pg pool size for backend-services (500m CPU / 512Mi pod). */
-export const DEFAULT_BACKEND_DB_POOL_MAX = 20;
+export const DEFAULT_BACKEND_DB_POOL_MAX = 10;
 
 /** Default pg pool size for temporal-worker pods. */
 export const DEFAULT_TEMPORAL_DB_POOL_MAX = 3;
