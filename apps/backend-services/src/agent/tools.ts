@@ -4,10 +4,15 @@ import {
   SOURCE_CATALOG,
   stripRedundantLocks,
 } from "@ai-di/graph-workflow";
+// NOTE: import Zod via the v4 entrypoint. The `ai` SDK v6 tool() schema-type
+// bridge instantiates pathologically (TS2589, ~15M instantiations/tool, OOM on
+// a full type-check) against Zod's v3 API; the v4 API resolves in ~23k
+// instantiations. The runtime API used here is identical across v3/v4.
 import { type ToolSet, tool } from "ai";
-import { z } from "zod";
+import { z } from "zod/v4";
 import type { DynamicNodesService } from "@/dynamic-nodes/dynamic-nodes.service";
 import type {
+  GraphEdge,
   GraphNode,
   GraphWorkflowConfig,
 } from "@/workflow/graph-workflow-types";
@@ -524,9 +529,14 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
             },
           };
         }
-        const edges = [
+        const edges: GraphEdge[] = [
           ...(config.edges ?? []),
-          { source: sourceNodeId, target: targetNodeId },
+          {
+            id: `${sourceNodeId}-${targetNodeId}`,
+            source: sourceNodeId,
+            target: targetNodeId,
+            type: "normal",
+          },
         ];
         let nextNodes = nodes;
         if (binding !== undefined) {

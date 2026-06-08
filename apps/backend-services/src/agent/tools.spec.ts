@@ -53,9 +53,7 @@ interface FakeWorkflowState {
   config: GraphWorkflowConfig;
 }
 
-function makeCtx(
-  overrides: Partial<AgentToolContext> = {},
-): {
+function makeCtx(overrides: Partial<AgentToolContext> = {}): {
   ctx: AgentToolContext;
   state: FakeWorkflowState;
   updateWorkflow: jest.Mock;
@@ -72,7 +70,11 @@ function makeCtx(
     config: state.config,
   }));
   const updateWorkflow = jest.fn(
-    async (_id: string, _actor: string, patch: { config: GraphWorkflowConfig }) => {
+    async (
+      _id: string,
+      _actor: string,
+      patch: { config: GraphWorkflowConfig },
+    ) => {
       state.config = patch.config;
       return { id: "wf-1", name: "WF" };
     },
@@ -162,7 +164,7 @@ describe("auto-wire resolution on the agent write path (ITEM 1)", () => {
           position: { x: 200, y: 0 },
         } as unknown as GraphNode,
       },
-      edges: [{ source: "up", target: "prep" }],
+      edges: [{ id: "up-prep", source: "up", target: "prep", type: "normal" }],
       entryNodeId: "up",
     });
 
@@ -196,7 +198,7 @@ describe("auto-wire resolution on the agent write path (ITEM 1)", () => {
           inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
         } as unknown as GraphNode,
       },
-      edges: [{ source: "up", target: "prep" }],
+      edges: [{ id: "up-prep", source: "up", target: "prep", type: "normal" }],
       entryNodeId: "up",
     });
     state.config = rawConfig;
@@ -370,7 +372,7 @@ describe("connectNodes validation (ITEM 25)", () => {
           position: { x: 200, y: 0 },
         } as unknown as GraphNode,
       },
-      ctx: { documentUrl: { kind: "Document", isInput: true } },
+      ctx: { documentUrl: { type: "string", kind: "Document", isInput: true } },
       entryNodeId: "up",
     });
     const tools = createAgentTools(ctx);
@@ -408,7 +410,7 @@ describe("connectNodes validation (ITEM 25)", () => {
           position: { x: 0, y: 0 },
         } as unknown as GraphNode,
       },
-      ctx: { documentUrl: { kind: "Document", isInput: true } },
+      ctx: { documentUrl: { type: "string", kind: "Document", isInput: true } },
       entryNodeId: "up",
     });
     const tools = createAgentTools(ctx);
