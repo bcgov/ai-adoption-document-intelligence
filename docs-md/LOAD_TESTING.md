@@ -17,14 +17,35 @@ This document describes how to run bulk data generation and API load tests, how 
    - For ~1M rows, use a dedicated environment; monitor disk and duration.
 5. **Start** backend (and Temporal worker if exercising workflows separately).
 6. **Export** `LOAD_TEST_API_KEY` (and optional `BASE_URL`, `LOAD_TEST_GROUP_ID`).
-7. **Run k6** via `npm run load-test:k6:smoke` (then datasets / documents / upload OCR / blob storage / review HITL scenarios as needed), or run the direct Temporal saturation harness for queue-focused tests.
-8. **Track parameter sweeps** with `npm run load-test:matrix -- <scenario> --vus N --duration STR --seeded-rows N --instance NAME --namespace NAME --notes "..."`. The runner wraps the `npm run load-test:k6:<scenario>` script, parses the resulting `tools/load-testing/results/k6-<scenario>-summary.json`, and appends one row per run to `tools/load-testing/test-matrix.csv` (timestamp, requested params, iterations, throughput, failure rate, p50/p95/max latency, threshold pass, git branch/sha, free-text notes, auto-generated `result_summary`). Use `--no-run` to record an existing summary without re-executing k6. To run every applicable scenario in a single invocation use `npm run load-test:suite -- --instance NAME --namespace NAME --vus N --duration STR` — scenarios whose prerequisites are missing (`LOAD_TEST_WORKFLOW_VERSION_ID`, `LOAD_TEST_BLOB_CLASSIFIER_NAME`, HITL fixtures) are skipped and reported, not failed. Full options: [tools/load-testing/README.md](../tools/load-testing/README.md#test-matrix-tracker).
-9. **Collect** k6/Temporal harness summary JSON from `tools/load-testing/results/`, database metrics, and pod metrics.
-10. **Clean up** generated rows after the run:
+7. **Confirm throttling** for sustained scenarios: default backend settings allow **100 requests / 60 s per IP** (`THROTTLE_GLOBAL_LIMIT`). Bundled k6 defaults (1 VU, 1 s sleep) stay under that budget; raise `THROTTLE_GLOBAL_LIMIT` on the backend before multi-VU or zero-think-time stress (see [Global rate limiting](#global-rate-limiting) below).
+8. **Run k6** via `npm run load-test:k6:smoke` (then datasets / documents / upload OCR / blob storage / review HITL scenarios as needed), or run the direct Temporal saturation harness for queue-focused tests.
+9. **Track parameter sweeps** with `npm run load-test:matrix -- <scenario> --vus N --duration STR --seeded-rows N --instance NAME --namespace NAME --notes "..."`. The runner wraps the `npm run load-test:k6:<scenario>` script, parses the resulting `tools/load-testing/results/k6-<scenario>-summary.json`, and appends one row per run to `tools/load-testing/test-matrix.csv` (timestamp, requested params, iterations, throughput, failure rate, p50/p95/max latency, threshold pass, git branch/sha, free-text notes, auto-generated `result_summary`). Use `--no-run` to record an existing summary without re-executing k6. To run every applicable scenario in a single invocation use `npm run load-test:suite -- --instance NAME --namespace NAME --vus N --duration STR` — scenarios whose prerequisites are missing (`LOAD_TEST_WORKFLOW_VERSION_ID`, `LOAD_TEST_BLOB_CLASSIFIER_NAME`, HITL fixtures) are skipped and reported, not failed. Full options: [tools/load-testing/README.md](../tools/load-testing/README.md#test-matrix-tracker).
+10. **Collect** k6/Temporal harness summary JSON from `tools/load-testing/results/`, database metrics, and pod metrics.
+11. **Clean up** generated rows after the run:
     - `npm run load-test:seed -- --delete-by-prefix --count=0 --group-id=seed-default-group`
 
 Detailed flags and Docker notes: [tools/load-testing/README.md](../tools/load-testing/README.md).
 Stress parameter matrix and execution order: [docs-md/LOAD_TEST_STRESS_RUN_SHEET.md](./LOAD_TEST_STRESS_RUN_SHEET.md).
+
+## Global rate limiting
+
+The backend registers **`ThrottlerGuard`** globally ([`apps/backend-services/src/app.module.ts`](../apps/backend-services/src/app.module.ts)). Defaults match production-like settings: **`THROTTLE_GLOBAL_LIMIT=100`** requests per **`THROTTLE_GLOBAL_TTL_MS=60000`** window, keyed by client IP.
+
+| Symptom | Likely cause |
+|---------|----------------|
+| `http_req_failed` ~90 %+, p95 latency tens of ms | Throttler returning **429** after the IP budget is exhausted |
+| Smoke passes, sustained scenarios fail | Smoke uses only 3 iterations; staged or multi-VU scripts exceed 100 req/min |
+
+**Default k6 scripts** (`tools/load-testing/k6/`) use **1 VU** and **1 s think time** so `npm run load-test:k6:datasets` and similar baseline runs succeed against a stock local backend without config changes.
+
+**Before stress or VU sweeps**, raise the limit on the backend (not in k6):
+
+| Environment | Action |
+|-------------|--------|
+| Local | `export THROTTLE_GLOBAL_LIMIT=1000000` in `apps/backend-services/.env` or the shell that starts the backend |
+| OpenShift disposable instance | Patch `<instance>-backend-services-config` and restart — [MANUAL_LOAD_TEST_INSTANCE.md](./openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load) |
+
+Re-apply the OpenShift patch after redeploying the instance; `oc-deploy-instance.sh` resets ConfigMap values from `dev.env`.
 
 ## Baseline vs extended scenarios
 
