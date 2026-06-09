@@ -13,6 +13,19 @@ if (!process.env.TEST_API_KEY) {
 /**
  * Playwright configuration for API and E2E tests
  */
+// Tag gating for the workflow-builder suite (tests/e2e/workflow-builder):
+//   @infra → needs the deno-runner sidecar + a Temporal worker live (Deno
+//            sandbox execution, Try-in-place runs).
+//   @llm   → drives the real LLM (Azure/Anthropic) — non-deterministic + costs
+//            tokens; the deterministic CI path stubs the model instead.
+// Both are EXCLUDED by default so `npm run test:e2e` is hermetic. Opt in with:
+//   RUN_INFRA=1 npm run test:e2e            (include @infra)
+//   RUN_LLM=1   npm run test:e2e            (include @llm)
+//   RUN_INFRA=1 RUN_LLM=1 npm run test:e2e  (include both)
+const excludedTags: RegExp[] = [];
+if (!process.env.RUN_INFRA) excludedTags.push(/@infra/);
+if (!process.env.RUN_LLM) excludedTags.push(/@llm/);
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -20,6 +33,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
+  grepInvert: excludedTags.length > 0 ? excludedTags : undefined,
 
   // Global setup: Reset database before all tests
   globalSetup: require.resolve('./tests/global-setup.ts'),

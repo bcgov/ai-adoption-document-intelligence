@@ -6,6 +6,14 @@ import * as path from 'path';
  * Runs once before all tests to reset the database
  */
 async function globalSetup() {
+  // Escape hatch for running the suite against an already-seeded local stack
+  // without wiping it (e.g. while actively developing). The default behaviour
+  // — a full reset+seed — is unchanged.
+  if (process.env.PLAYWRIGHT_SKIP_DB_RESET) {
+    console.log('\n⏭️  PLAYWRIGHT_SKIP_DB_RESET set — skipping database reset.\n');
+    return;
+  }
+
   console.log('\n🔄 Resetting database before tests...\n');
 
   const backendDir = path.resolve(__dirname, '../apps/backend-services');
