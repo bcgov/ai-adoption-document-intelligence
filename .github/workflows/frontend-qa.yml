@@ -33,6 +33,9 @@ jobs:
       - name: Type Check
         working-directory: apps/frontend
         run: npm run type-check
+      - name: Production Build
+        working-directory: apps/frontend
+        run: npm run build
       - name: Run Unit Tests
         working-directory: apps/frontend
         run: npm run test
