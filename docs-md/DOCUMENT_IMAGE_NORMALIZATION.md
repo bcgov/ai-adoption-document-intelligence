@@ -24,7 +24,7 @@ Upload may return **422** with `code: conversion_failed` when the original was s
 
 Labeling project upload (`POST .../labeling/projects/:id/upload`) requires `group_id` in the body to **match** the project’s group; the caller must also be allowed to access that group (same as other labeling routes).
 
-**Invalid or unsupported files** are rejected with **400** (corrupt image, bad PDF signature, etc.) before a successful store, where validation applies.
+**Invalid or unsupported files** are rejected with **400** when validation fails before storage (bad PDF signature, corrupt image, etc.). PDFs with a valid `%PDF` header but an unreadable body fail during normalization (400) after the original blob write has started.
 
 ## Client
 
@@ -34,7 +34,20 @@ Labeling project upload (`POST .../labeling/projects/:id/upload`) requires `grou
 
 ## Dependencies
 
-Backend normalization uses **sharp** (images, including multi-page TIFF) and **pdf-lib** (PDF assembly). PDF uploads must pass a **magic-byte check and a full `pdf-lib` parse** (with `ignoreEncryption: true`) before storage; images are validated with **sharp** metadata.
+Backend normalization uses **sharp** (images, including multi-page TIFF) and **pdf-lib** (PDF assembly). PDF uploads must pass a **magic-byte check** (`%PDF`) before the original blob is written; full **`pdf-lib` parsing** happens once during normalization (with `ignoreEncryption: true`). Images are validated with **sharp** metadata before storage.
+
+## Upload memory and concurrency (`POST /api/upload`)
+
+The upload API is JSON/base64, so Nest must parse the full request body and the service decodes it to a `Buffer` before normalization. Within that constraint, the upload path minimizes peak memory:
+
+1. **Cheap pre-write validation** — PDF/scan: `%PDF` header only; corrupt bodies are rejected when `normalizeToPdf` loads the document (400). Images: sharp metadata probe.
+2. **Overlapped I/O and CPU** — original blob write starts while `normalizeToPdf` runs under a concurrency cap.
+3. **Single pdf-lib load** — validation no longer loads the PDF separately from normalization.
+4. **Early buffer release** — after the original write completes, the decoded upload buffer is dropped before the normalized blob write.
+5. **Thumbnail from normalized PDF** — `generateThumbnailWebp` uses the normalized PDF bytes, not the original upload buffer.
+6. **Normalization limiter** — [`UploadNormalizationLimiter`](../apps/backend-services/src/upload/upload-normalization-limiter.ts) bounds concurrent `normalizeToPdf` calls to `Math.max(2, availableParallelism())`.
+
+True request-stream normalization would require changing `/api/upload` to multipart or a raw-body contract; see [LOAD_TESTING.md](./LOAD_TESTING.md).
 
 ## Two-stage orientation correction
 
