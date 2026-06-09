@@ -62,12 +62,9 @@ function setNestedValue(
 
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
-    const existing = current[part];
-    if (
-      existing === undefined ||
-      existing === null ||
-      typeof existing !== "object"
-    ) {
+    const hasOwn = Object.prototype.hasOwnProperty.call(current, part);
+    const existing = hasOwn ? current[part] : undefined;
+    if (existing === undefined || existing === null || typeof existing !== "object") {
       current[part] = Object.create(null);
     }
     current = current[part] as Record<string, unknown>;
