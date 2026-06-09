@@ -14,10 +14,7 @@ describe("MulterExceptionFilter", () => {
       }),
     };
 
-    filter.catch(
-      new MulterError("LIMIT_FILE_SIZE", "files"),
-      host as never,
-    );
+    filter.catch(new MulterError("LIMIT_FILE_SIZE", "files"), host as never);
 
     expect(status).toHaveBeenCalledWith(413);
     expect(json).toHaveBeenCalledWith(

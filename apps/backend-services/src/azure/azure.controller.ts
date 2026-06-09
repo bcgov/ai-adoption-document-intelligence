@@ -46,7 +46,6 @@ import {
 } from "@/auth/identity.helpers";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
-import { MulterExceptionFilter } from "@/filters/multer-exception.filter";
 import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
 import {
   CLASSIFIER_OTHER_AZURE_PREFIX,
@@ -80,6 +79,7 @@ import {
   buildBlobPrefixPath,
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
+import { MulterExceptionFilter } from "@/filters/multer-exception.filter";
 import { GroupRole } from "@/generated/edge";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
