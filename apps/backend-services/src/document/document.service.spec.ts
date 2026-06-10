@@ -6,10 +6,10 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
+import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
 import { PdfNormalizationService } from "./pdf-normalization.service";
-import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 
 describe("DocumentService", () => {
   let service: DocumentService;
@@ -31,9 +31,7 @@ describe("DocumentService", () => {
       normalizeToPdf: jest
         .fn()
         .mockImplementation((buf: Buffer) => Promise.resolve(Buffer.from(buf))),
-      generateThumbnailWebp: jest
-        .fn()
-        .mockResolvedValue(Buffer.from("webp")),
+      generateThumbnailWebp: jest.fn().mockResolvedValue(Buffer.from("webp")),
     };
     uploadNormalizationLimiter = {
       run: jest.fn((task: () => Promise<unknown>) => task()),
@@ -208,10 +206,12 @@ describe("DocumentService", () => {
         }
         return Promise.resolve();
       });
-      pdfNormalization.normalizeToPdf.mockImplementation(async (buf: Buffer) => {
-        normalizationStarted = true;
-        return Buffer.from(buf);
-      });
+      pdfNormalization.normalizeToPdf.mockImplementation(
+        async (buf: Buffer) => {
+          normalizationStarted = true;
+          return Buffer.from(buf);
+        },
+      );
 
       const uploadPromise = service.uploadDocument(
         "Test",

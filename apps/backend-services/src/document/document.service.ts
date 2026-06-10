@@ -17,6 +17,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 import { DocumentDbService } from "./document-db.service";
 import type { DocumentData } from "./document-db.types";
 import { extensionForOriginalBlob } from "./original-blob-key.util";
@@ -24,7 +25,6 @@ import {
   PdfNormalizationError,
   PdfNormalizationService,
 } from "./pdf-normalization.service";
-import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 
 export type { DocumentData };
 
@@ -171,10 +171,7 @@ export class DocumentService {
         );
         try {
           const thumbnailBuffer =
-            await this.pdfNormalization.generateThumbnailWebp(
-              pdfBuffer,
-              "pdf",
-            );
+            await this.pdfNormalization.generateThumbnailWebp(pdfBuffer, "pdf");
           await this.blobStorage.write(thumbnailKey, thumbnailBuffer);
           this.logger.debug(`Thumbnail saved: ${thumbnailKey}`);
         } catch (thumbErr) {
@@ -183,11 +180,7 @@ export class DocumentService {
           );
         }
       } catch (e) {
-        try {
-          await originalWrite;
-        } catch (writeError) {
-          throw writeError;
-        }
+        await originalWrite;
 
         if (e instanceof BadRequestException) {
           throw e;
