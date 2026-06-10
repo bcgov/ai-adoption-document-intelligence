@@ -1,5 +1,6 @@
 // Component exports
 
 export { DocumentsList } from "./DocumentsList";
-export { HelloWorld } from "./HelloWorld";
+export { ErrorBoundary } from "./ErrorBoundary";
 export { Login } from "./Login";
+export { RouterErrorPage } from "./RouterErrorPage";
