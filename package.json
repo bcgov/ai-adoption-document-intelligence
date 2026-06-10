@@ -72,7 +72,6 @@
 			"@nestjs/core": "11.1.19",
 			"@nestjs/platform-express": "11.1.19"
 		},
-		"axios": "1.15.0",
 		"defu": "6.1.5",
 		"effect": "3.20.0",
 		"handlebars": "4.7.9",
