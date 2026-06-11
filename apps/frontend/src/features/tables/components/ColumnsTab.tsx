@@ -1,3 +1,7 @@
+import { IconPencil, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   ActionIcon,
   Button,
@@ -8,11 +12,7 @@ import {
   Text,
   TextInput,
   Tooltip,
-} from "@mantine/core";
-import { IconPencil, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { apiService } from "@/data/services/api.service";
+} from "../../../ui";
 import type { ColumnDef } from "../types";
 import { ColumnForm } from "./ColumnForm";
 

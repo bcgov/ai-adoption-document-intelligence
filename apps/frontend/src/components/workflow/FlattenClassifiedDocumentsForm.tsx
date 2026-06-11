@@ -1,5 +1,5 @@
-import { Stack, Text, TextInput } from "@mantine/core";
 import type { ActivityNode } from "../../types/graph-workflow";
+import { Stack, Text, TextInput } from "../../ui";
 
 export interface FlattenClassifiedDocumentsFormProps {
   node: ActivityNode;

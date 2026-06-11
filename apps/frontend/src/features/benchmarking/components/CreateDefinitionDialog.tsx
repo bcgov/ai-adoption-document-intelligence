@@ -1,3 +1,5 @@
+import { IconInfoCircle } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import {
   Button,
   Code,
@@ -10,9 +12,7 @@ import {
   Textarea,
   TextInput,
   Tooltip,
-} from "@mantine/core";
-import { IconInfoCircle } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+} from "../../../ui";
 import { useAllDatasetVersions } from "../hooks/useDatasetVersions";
 import { useWorkflows } from "../hooks/useWorkflows";
 

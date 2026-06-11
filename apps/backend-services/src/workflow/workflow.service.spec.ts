@@ -223,6 +223,27 @@ describe("WorkflowService", () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it("throws ConflictException when unique slug allocation is exhausted", async () => {
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) {
+            return { id: "taken" };
+          }
+          return null;
+        },
+      );
+
+      await expect(
+        service.createWorkflow("actor-1", {
+          name: "My Workflow",
+          groupId: "group-1",
+          config: makeGraphConfig(),
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockLineage.create).not.toHaveBeenCalled();
+    });
   });
 
   describe("createCandidateVersion", () => {

@@ -1,3 +1,7 @@
+import { IconColumns, IconPencil, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   ActionIcon,
   Button,
@@ -10,11 +14,7 @@ import {
   Table,
   Text,
   Tooltip,
-} from "@mantine/core";
-import { IconColumns, IconPencil, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { apiService } from "@/data/services/api.service";
+} from "../../../ui";
 import { useTableRows } from "../hooks/useTableRows";
 import type { ColumnDef, TableRow } from "../types";
 
@@ -175,12 +175,11 @@ export function RowsTab({
         <Text size="sm" c="dimmed">
           {rows.data.total} {rows.data.total === 1 ? "row" : "rows"}
         </Text>
-        <Group gap="xs">
+        <Group gap="sm" align="center">
           {totalSelected > 0 && (
             <Button
               color="red"
               variant="light"
-              size="sm"
               onClick={() => {
                 deleteRows.reset();
                 setConfirmBulkDelete(true);
@@ -191,11 +190,14 @@ export function RowsTab({
           )}
           <Popover position="bottom-end" withinPortal>
             <Popover.Target>
-              <Tooltip label="Show / hide columns" withArrow>
-                <ActionIcon variant="default" aria-label="Column visibility">
-                  <IconColumns size={16} />
-                </ActionIcon>
-              </Tooltip>
+              <ActionIcon
+                variant="default"
+                size={40}
+                aria-label="Show / hide columns"
+                title="Show / hide columns"
+              >
+                <IconColumns size={16} />
+              </ActionIcon>
             </Popover.Target>
             <Popover.Dropdown>
               <Stack gap="xs">

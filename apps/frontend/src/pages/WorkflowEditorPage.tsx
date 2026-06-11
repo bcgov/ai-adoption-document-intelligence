@@ -1,21 +1,10 @@
+import {
+  type GraphValidationError,
+  validateGraphConfig,
+} from "@ai-di/graph-workflow";
 import { json } from "@codemirror/lang-json";
 import { Diagnostic, linter, lintGutter } from "@codemirror/lint";
 import { EditorView } from "@codemirror/view";
-import {
-  Badge,
-  Button,
-  Collapse,
-  Flex,
-  Group,
-  Paper,
-  SegmentedControl,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -28,11 +17,23 @@ import {
   useWorkflow,
 } from "../data/hooks/useWorkflows";
 import { GraphWorkflowConfig } from "../types/workflow";
-
-interface GraphValidationError {
-  path: string;
-  message: string;
-}
+import {
+  Badge,
+  Button,
+  Collapse,
+  Flex,
+  Group,
+  notifications,
+  PageHeader,
+  PanelCard,
+  Paper,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  useDebouncedValue,
+} from "../ui";
 
 interface WorkflowEditorPageProps {
   mode: "create" | "edit";
@@ -68,105 +69,6 @@ const DEFAULT_GRAPH_CONFIG: GraphWorkflowConfig = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function validateGraphConfig(value: unknown): GraphValidationError[] {
-  const errors: GraphValidationError[] = [];
-  if (!isRecord(value)) {
-    return [{ path: "root", message: "Config must be a JSON object." }];
-  }
-
-  const schemaVersion = value.schemaVersion;
-  if (schemaVersion !== "1.0") {
-    errors.push({
-      path: "schemaVersion",
-      message: 'schemaVersion must be "1.0".',
-    });
-  }
-
-  const nodes = value.nodes;
-  if (!isRecord(nodes) || Object.keys(nodes).length === 0) {
-    errors.push({
-      path: "nodes",
-      message: "At least one node is required.",
-    });
-  }
-
-  const entryNodeId = value.entryNodeId;
-  if (typeof entryNodeId !== "string" || entryNodeId.trim() === "") {
-    errors.push({
-      path: "entryNodeId",
-      message: "entryNodeId must be a non-empty string.",
-    });
-  } else if (isRecord(nodes) && !nodes[entryNodeId]) {
-    errors.push({
-      path: "entryNodeId",
-      message: "entryNodeId must match an existing node id.",
-    });
-  }
-
-  if (isRecord(nodes)) {
-    Object.values(nodes).forEach((node) => {
-      if (!isRecord(node)) {
-        errors.push({
-          path: "nodes",
-          message: "Each node must be an object.",
-        });
-        return;
-      }
-      if (typeof node.id !== "string" || node.id.trim() === "") {
-        errors.push({
-          path: "nodes.id",
-          message: "Each node must have a string id.",
-        });
-      }
-      if (typeof node.type !== "string") {
-        errors.push({
-          path: "nodes.type",
-          message: "Each node must have a type.",
-        });
-      }
-      if (typeof node.label !== "string") {
-        errors.push({
-          path: "nodes.label",
-          message: "Each node must have a label.",
-        });
-      }
-    });
-  }
-
-  const edges = value.edges;
-  if (!Array.isArray(edges)) {
-    errors.push({
-      path: "edges",
-      message: "edges must be an array.",
-    });
-  } else if (isRecord(nodes)) {
-    edges.forEach((edge, index) => {
-      if (!isRecord(edge)) {
-        errors.push({
-          path: `edges[${index}]`,
-          message: "Each edge must be an object.",
-        });
-        return;
-      }
-      if (typeof edge.source !== "string" || typeof edge.target !== "string") {
-        errors.push({
-          path: `edges[${index}]`,
-          message: "Each edge must have source and target ids.",
-        });
-        return;
-      }
-      if (!nodes[edge.source] || !nodes[edge.target]) {
-        errors.push({
-          path: `edges[${index}]`,
-          message: "Edge source/target must match existing node ids.",
-        });
-      }
-    });
-  }
-
-  return errors;
 }
 
 function parseJsonErrorPosition(message: string, documentText: string): number {
@@ -307,7 +209,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
     try {
       const parsed = JSON.parse(debouncedJson) as unknown;
       setJsonError(null);
-      const errors = validateGraphConfig(parsed);
+      const { errors } = validateGraphConfig(parsed as GraphWorkflowConfig);
       setValidationErrors(errors);
       if (errors.length === 0 && isRecord(parsed)) {
         setParsedConfig(parsed as unknown as GraphWorkflowConfig);
@@ -357,7 +259,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
     try {
       const parsed = JSON.parse(jsonValue) as unknown;
       setJsonError(null);
-      const errors = validateGraphConfig(parsed);
+      const { errors } = validateGraphConfig(parsed as GraphWorkflowConfig);
       setValidationErrors(errors);
       setShowErrors(true);
       if (errors.length === 0 && isRecord(parsed)) {
@@ -422,7 +324,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
         return;
       }
       const parsed = JSON.parse(formatted) as unknown;
-      const errors = validateGraphConfig(parsed);
+      const { errors } = validateGraphConfig(parsed as GraphWorkflowConfig);
       if (errors.length > 0) {
         setValidationErrors(errors);
         setShowErrors(true);
@@ -497,32 +399,35 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
     );
   }
 
+  const editorActions = (
+    <Group gap="xs" wrap="nowrap">
+      <Button variant="subtle" onClick={() => navigate("/workflows")}>
+        Back
+      </Button>
+      <Button variant="light" onClick={handleValidate}>
+        Validate
+      </Button>
+      <Button variant="light" onClick={handleFormat}>
+        Format JSON
+      </Button>
+      <Button variant="light" onClick={handleReset}>
+        Reset
+      </Button>
+      <Button onClick={handleSave} disabled={!canSave}>
+        {mode === "create" ? "Create" : "Save"}
+      </Button>
+    </Group>
+  );
+
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="center">
-        <Title order={3}>
-          {mode === "create" ? "Create workflow" : "Edit workflow"}
-        </Title>
-        <Group>
-          <Button variant="subtle" onClick={() => navigate("/workflows")}>
-            Back
-          </Button>
-          <Button variant="light" onClick={handleValidate}>
-            Validate
-          </Button>
-          <Button variant="light" onClick={handleFormat}>
-            Format JSON
-          </Button>
-          <Button variant="light" onClick={handleReset}>
-            Reset
-          </Button>
-          <Button onClick={handleSave} disabled={!canSave}>
-            {mode === "create" ? "Create" : "Save"}
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={mode === "create" ? "Create workflow" : "Edit workflow"}
+        description="Configure workflow metadata and graph definition."
+        actions={editorActions}
+      />
 
-      <Paper withBorder p="md">
+      <PanelCard>
         <Group justify="space-between" align="center">
           <Stack gap={4} style={{ flex: 1 }}>
             <TextInput
@@ -547,7 +452,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
             </Badge>
           ) : null}
         </Group>
-      </Paper>
+      </PanelCard>
 
       <Flex align="flex-start" gap="xl" wrap="nowrap" style={{ minWidth: 0 }}>
         <Stack style={{ flex: "1 1 50%", minWidth: 0 }} gap="md">

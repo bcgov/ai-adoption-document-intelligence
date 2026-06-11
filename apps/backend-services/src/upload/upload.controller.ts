@@ -68,24 +68,10 @@ export class UploadController {
     this.logger.debug("=== UploadController.uploadDocument ===");
 
     try {
-      // Validate base64 file data
-      if (!uploadDto.file || uploadDto.file.trim().length === 0) {
-        throw new BadRequestException("File data is required");
-      }
-
-      // Use original_filename from DTO or default to title
-      const originalFilename =
-        uploadDto.original_filename ||
-        `${uploadDto.title}.${uploadDto.file_type}`;
-
-      // Resolve group: explicit body > API key's group. Reject mismatches.
+      // Authorize first (fail-closed): resolve group and check access before input
+      // validation so invalid payloads cannot bypass membership checks.
       const apiKeyGroupId = req.apiKey?.groupId;
       const groupId = uploadDto.group_id ?? apiKeyGroupId;
-      if (!groupId) {
-        throw new BadRequestException(
-          "group_id is required when not authenticating with an API key",
-        );
-      }
       if (
         apiKeyGroupId &&
         uploadDto.group_id &&
@@ -95,7 +81,22 @@ export class UploadController {
           "group_id does not match the API key's group",
         );
       }
+      if (!groupId) {
+        throw new BadRequestException(
+          "group_id is required when not authenticating with an API key",
+        );
+      }
       identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
+
+      // Validate base64 file data
+      if (!uploadDto.file || uploadDto.file.trim().length === 0) {
+        throw new BadRequestException("File data is required");
+      }
+
+      // Use original_filename from DTO or default to title
+      const originalFilename =
+        uploadDto.original_filename ||
+        `${uploadDto.title}.${uploadDto.file_type}`;
 
       // Resolve workflow → WorkflowVersion.id. Accept slug (+ optional version)
       // or a workflow_config_id (Version.id or Lineage.id).

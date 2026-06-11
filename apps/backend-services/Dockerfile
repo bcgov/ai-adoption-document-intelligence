@@ -20,6 +20,9 @@ RUN cd /packages/graph-insertion-slots && npm install && npm run build
 COPY packages/blob-storage-paths /packages/blob-storage-paths
 RUN cd /packages/blob-storage-paths && npm install --ignore-scripts && npm run build
 
+COPY packages/graph-workflow /packages/graph-workflow
+RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
+
 COPY packages/monitoring /packages/monitoring
 RUN mkdir -p /packages/monitoring/node_modules/@ai-di && \
     ln -s /packages/logging /packages/monitoring/node_modules/@ai-di/shared-logging && \
@@ -61,6 +64,7 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=builder /packages/logging /packages/logging
 COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
 COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
+COPY --from=builder /packages/graph-workflow /packages/graph-workflow
 COPY --from=builder /packages/monitoring /packages/monitoring
 
 # Copy package files

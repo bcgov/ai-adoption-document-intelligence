@@ -1,8 +1,8 @@
-import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityNode } from "../../types/graph-workflow";
+import { MantineProvider } from "../../ui";
 import { AzureClassifySubmitForm } from "./AzureClassifySubmitForm";
 
 // ---------------------------------------------------------------------------
@@ -138,8 +138,8 @@ describe("AzureClassifySubmitForm", () => {
       renderForm();
 
       expect(
-        screen.getByText(/Failed to load classifiers/i),
-      ).toBeInTheDocument();
+        screen.getByTestId("classifier-fetch-error-alert"),
+      ).toHaveTextContent(/Failed to load classifiers/i);
       expect(
         screen.getByRole("textbox", { name: /classifier/i }),
       ).toBeDisabled();
@@ -192,7 +192,9 @@ describe("AzureClassifySubmitForm", () => {
 
       renderForm();
 
-      expect(screen.getByText(/No group selected/i)).toBeInTheDocument();
+      expect(screen.getByTestId("classifier-no-group-alert")).toHaveTextContent(
+        /No group selected/i,
+      );
       expect(
         screen.getByRole("textbox", { name: /classifier/i }),
       ).toBeDisabled();

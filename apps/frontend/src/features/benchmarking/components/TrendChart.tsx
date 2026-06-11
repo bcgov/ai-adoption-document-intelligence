@@ -1,13 +1,3 @@
-import {
-  Card,
-  Center,
-  Loader,
-  MultiSelect,
-  Select,
-  Stack,
-  Text,
-} from "@mantine/core";
-import { useSessionStorage } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -19,6 +9,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  Card,
+  Center,
+  Loader,
+  MultiSelect,
+  Select,
+  Stack,
+  Text,
+  useSessionStorage,
+} from "../../../ui";
 import type { HistoricalRunData, MetricComparison } from "../hooks/useRuns";
 
 interface TrendChartProps {

@@ -1,5 +1,13 @@
+import { DateTimePicker, MonthPickerInput } from "@mantine/dates";
+import "@mantine/dates/styles.css";
+import { IconCalendar } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { zodResolver } from "mantine-form-zod-resolver";
+import { useEffect } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   Button,
+  DateInput,
   Group,
   Modal,
   NumberInput,
@@ -8,15 +16,8 @@ import {
   Switch,
   Text,
   TextInput,
-} from "@mantine/core";
-import { DateInput, DateTimePicker, MonthPickerInput } from "@mantine/dates";
-import "@mantine/dates/styles.css";
-import { useForm } from "@mantine/form";
-import { IconCalendar } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "mantine-form-zod-resolver";
-import { useEffect } from "react";
-import { apiService } from "@/data/services/api.service";
+  useForm,
+} from "../../../ui";
 import type { ColumnDef, TableRow } from "../types";
 import { buildRowZodSchema } from "../utils/build-row-zod-schema";
 
