@@ -3,7 +3,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { getPrismaPgOptions, getPrismaPoolMax } from "@/utils/database-url";
 
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
@@ -18,15 +18,17 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
     );
+    const poolMax = getPrismaPoolMax(
+      this.configService.get<string>("DB_POOL_MAX"),
+    );
 
     // Configure connection pool for horizontal scaling:
-    // - max: 5 connections per pod (vs default 10) to prevent exhausting DB max_connections
-    // - With 3 pods: 15 backend + 3 temporal = 18 connections (Postgres default is 100)
+    // - max: DB_POOL_MAX (default 10) — without this, Prisma uses num_cpus*2+1 (= 3 in 500m pods)
     // - idleTimeoutMillis: Close idle connections after 60s (reduces connection churn)
     // - connectionTimeoutMillis: Fail fast if pool is exhausted
     const adapter = new PrismaPg({
       ...dbOptions,
-      max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
+      max: poolMax,
       idleTimeoutMillis: 60000,
       connectionTimeoutMillis: 5000,
     });
@@ -70,9 +72,13 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     });
     const url = this.configService.get<string>("DATABASE_URL");
     const dbInfo = this.getDatabaseInfo(url);
-    this.logger.log(`Prisma client initialized; database: ${dbInfo}`, {
-      category: "database",
-    });
+    const poolMax = getPrismaPoolMax(
+      this.configService.get<string>("DB_POOL_MAX"),
+    );
+    this.logger.log(
+      `Prisma client initialized; database: ${dbInfo}; pool max: ${poolMax}`,
+      { category: "database" },
+    );
 
     if (this.shouldLogQueries) {
       const prismaForQueryLogs = this.prisma as PrismaClient<{
