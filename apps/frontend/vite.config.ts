@@ -67,6 +67,9 @@ export default defineConfig({
       },
     },
   ],
+  optimizeDeps: {
+    include: ["@ai-di/graph-workflow"],
+  },
   // Resolve needed to address plugin-react v5 fast refresh issue.
   resolve: {
     dedupe: ["react", "react-dom"],

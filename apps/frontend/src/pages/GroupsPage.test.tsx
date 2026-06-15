@@ -7,10 +7,10 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  GroupInfo,
-  MyMembershipRequest,
-  UserGroup,
+import {
+  type GroupInfo,
+  type MyMembershipRequest,
+  type UserGroup,
 } from "../data/hooks/useGroups";
 import { changeFieldValue } from "../test/fieldHelpers";
 import { mockNotificationsShow } from "../test/mockNotifications";
@@ -34,6 +34,9 @@ const mockUseRequestMembership = vi.fn();
 const mockRequestMutate = vi.fn();
 const mockUseCreateGroup = vi.fn();
 const mockCreateMutate = vi.fn();
+const mockApproveMembershipRequest = vi.fn().mockResolvedValue({
+  isPending: false,
+});
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -47,6 +50,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useLeaveGroup: () => mockUseLeaveGroup(),
   useRequestMembership: () => mockUseRequestMembership(),
   useCreateGroup: () => mockUseCreateGroup(),
+  useApproveMembershipRequest: () => mockApproveMembershipRequest(),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -214,10 +218,10 @@ describe("GroupsPage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scenario 3 – System admin sees all groups
+  // Scenario 3 – System admin sees their groups
   // -------------------------------------------------------------------------
-  describe("Scenario 3 – System admin sees all groups", () => {
-    it("renders all groups including those the admin does not belong to", () => {
+  describe("Scenario 3 – System admin sees their groups", () => {
+    it("renders only the groups the admin belongs to on My Groups tab", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "admin-1" },
         isSystemAdmin: true,
@@ -238,7 +242,7 @@ describe("GroupsPage", () => {
       const panel = screen.getByRole("tabpanel", { name: "My Groups" });
       expect(within(panel).getByText("My Team A")).toBeInTheDocument();
       expect(within(panel).getByText("My Team B")).toBeInTheDocument();
-      expect(within(panel).getByText("Other Team")).toBeInTheDocument();
+      expect(within(panel).queryByText("Other Team")).not.toBeInTheDocument();
     });
   });
 

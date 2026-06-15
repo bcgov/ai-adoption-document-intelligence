@@ -24,6 +24,7 @@ import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
 import { RootLayout } from "./layouts/RootLayout";
 import ClassifierPage from "./pages/ClassifierPage";
+import { ConfusionProfilesPage } from "./pages/ConfusionProfilesPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
@@ -86,6 +87,9 @@ const router = createBrowserRouter([
       // Groups
       { path: "groups", element: <GroupsPage /> },
       { path: "groups/:groupId", element: <GroupDetailPage /> },
+
+      // Confusion Profiles
+      { path: "confusion-profiles", element: <ConfusionProfilesPage /> },
 
       // Benchmarking routes
       { path: "benchmarking/datasets", element: <DatasetListPage /> },
