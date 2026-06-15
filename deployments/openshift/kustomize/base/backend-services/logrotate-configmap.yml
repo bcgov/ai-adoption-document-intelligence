@@ -9,7 +9,7 @@ data:
     /var/log/app/backend.log {
         copytruncate
         rotate 5
-        size 50M
+        size 10M
         missingok
         notifempty
     }
