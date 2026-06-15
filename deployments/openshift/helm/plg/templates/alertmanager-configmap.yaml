@@ -52,13 +52,13 @@ data:
 
     receivers:
       - name: "drop"
-      {{- if eq .Values.alertmanager.notificationChannel "teams" }}
+      {{- if and .Values.alertmanager.notificationsEnabled (eq .Values.alertmanager.notificationChannel "teams") }}
       - name: "teams-notifications"
         webhook_configs:
           - url: {{ .Values.alertmanager.teams.webhookUrl | quote }}
             send_resolved: true
       {{- end }}
-      {{- if eq .Values.alertmanager.notificationChannel "ches" }}
+      {{- if and .Values.alertmanager.notificationsEnabled (eq .Values.alertmanager.notificationChannel "ches") }}
       - name: "ches-notifications"
         webhook_configs:
           - url: {{ .Values.alertmanager.ches.adapterUrl | quote }}
