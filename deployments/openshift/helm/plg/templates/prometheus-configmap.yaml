@@ -74,5 +74,3 @@ data:
         static_configs:
           - targets:
               - "{{ include "plg.loki.fullname" . }}:{{ .Values.loki.httpPort }}"
-            labels:
-              container: loki
