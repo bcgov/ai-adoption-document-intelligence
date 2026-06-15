@@ -42,7 +42,7 @@
 		"react": "19.2.1",
 		"react-dom": "19.2.1",
 		"react-konva": "19.2.1",
-		"react-router-dom": "7.14.0",
+		"react-router-dom": "7.17.0",
 		"recharts": "3.7.0",
 		"zod": "3.25.76"
 	},
@@ -53,13 +53,13 @@
 		"@types/dagre": "0.7.53",
 		"@types/react": "19.2.7",
 		"@types/react-dom": "19.2.3",
-		"@vitejs/plugin-react": "5.1.2",
+		"@vitejs/plugin-react": "5.2.0",
 		"jsdom": "29.1.1",
 		"postcss": "8.5.6",
 		"postcss-preset-mantine": "1.18.0",
 		"postcss-simple-vars": "7.0.1",
 		"typescript": "5.9.3",
-		"vite": "7.3.2",
+		"vite": "7.3.5",
 		"vitest": "4.1.8"
 	}
 }
