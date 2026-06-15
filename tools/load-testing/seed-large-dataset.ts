@@ -121,7 +121,7 @@ SELECT
   'application/pdf',
   1024,
   'load-test-seed',
-  'completed_ocr'::"DocumentStatus",
+  'extracted'::"DocumentStatus",
   NOW(),
   NOW(),
   'prebuilt-layout',

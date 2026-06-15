@@ -6,3 +6,4 @@ export {
   getCtxRootKey,
   getRefCtxRootKey,
 } from "./validator/context-utils";
+export { GraphWorkflowConfig, GraphValidationError } from "./types";

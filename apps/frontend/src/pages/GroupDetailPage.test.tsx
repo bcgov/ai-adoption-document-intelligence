@@ -8,11 +8,7 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type GroupMember,
-  type GroupRequest,
-  type UserGroup,
-} from "../data/hooks/useGroups";
+import { GroupMember, GroupRequest, UserGroup } from "../data/hooks/useGroups";
 import { changeFieldValue, getNativeInputWithin } from "../test/fieldHelpers";
 import { mockNotificationsShow } from "../test/mockNotifications";
 import { MantineProvider } from "../ui";
@@ -52,14 +48,6 @@ vi.mock("../auth/AuthContext", () => ({
 
 vi.mock("../auth/GroupContext", () => ({
   useGroup: () => mockUseGroup(),
-}));
-
-vi.mock("../features/benchmarking/components/ConfusionProfilesPanel", () => ({
-  ConfusionProfilesPanel: ({ groupId }: { groupId: string }) => (
-    <div data-testid="confusion-profiles-panel">
-      Confusion Profiles for {groupId}
-    </div>
-  ),
 }));
 
 vi.mock("../data/hooks/useGroups", () => ({
