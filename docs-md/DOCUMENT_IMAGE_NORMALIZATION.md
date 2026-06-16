@@ -20,7 +20,7 @@ Database: `file_path` → original blob; `normalized_file_path` → normalized P
 | `GET .../labeling/projects/:id/documents/:docId/view` | Normalized PDF for labeling. |
 | `GET .../labeling/projects/:id/documents/:docId/download` | Original labeling upload. |
 
-Upload may return **422** with `code: conversion_failed` when the original was stored but PDF normalization failed; status `conversion_failed` is set and OCR is not started.
+Upload may return **422** with `code: conversion_failed` when the original was stored but PDF normalization failed; status `conversion_failed` is set and OCR is not started. The original blob is **not** deleted on normalization failure: `file_path` remains valid so clients can still download the upload; only `normalized_file_path` and downstream OCR/view are absent until a future retry path exists.
 
 Labeling project upload (`POST .../labeling/projects/:id/upload`) requires `group_id` in the body to **match** the project’s group; the caller must also be allowed to access that group (same as other labeling routes).
 

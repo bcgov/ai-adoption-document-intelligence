@@ -180,6 +180,10 @@ export class DocumentService {
           );
         }
       } catch (e) {
+        // Ensure the overlapping original write finished before we record failure.
+        // We intentionally keep the original blob (no rollback): the API returns
+        // conversion_failed, status is conversion_failed, normalized_file_path is
+        // null, OCR is not started, but GET .../download still serves the upload.
         await originalWrite;
 
         if (e instanceof BadRequestException) {
