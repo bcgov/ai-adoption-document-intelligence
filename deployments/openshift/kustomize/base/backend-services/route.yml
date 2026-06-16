@@ -10,9 +10,18 @@ metadata:
     # The haproxy.router.openshift.io/deny list uses path-based ACLs
     # to return 403 for matching request paths.
     haproxy.router.openshift.io/deny-list: /metrics
-    # Only allow clients whose source IP is in this CIDR (space-separated list supported).
-    # 142.16.0.0/11 is the approximate VPN address range.
-    haproxy.router.openshift.io/ip_whitelist: 142.16.0.0/11
+    # Only allow clients whose source IP matches one of the entries below (space-separated).
+    # VPN:      142.16.0.0/11      (BC Gov VPN range)
+    # Silver:   142.34.194.121–124 (NAT pool egress IPs)
+    # Gold:     142.34.229.6–9     (NAT pool egress IPs)
+    # Gold DR:  142.34.64.6–9      (NAT pool egress IPs)
+    # Emerald:  no fixed egress IPs — each namespace has a dedicated /26 private range;
+    #           add your namespace's /26 CIDR here if cross-cluster access from Emerald is needed.
+    haproxy.router.openshift.io/ip_whitelist: >-
+      142.16.0.0/11
+      142.34.194.121 142.34.194.122 142.34.194.123 142.34.194.124
+      142.34.229.6 142.34.229.7 142.34.229.8 142.34.229.9
+      142.34.64.6 142.34.64.7 142.34.64.8 142.34.64.9
     haproxy.router.openshift.io/proxy-body-size: 100m
 spec:
   to:
