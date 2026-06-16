@@ -20,6 +20,12 @@ spec:
               value: "http://backend-services:3002"
             - name: LOAD_TEST_GROUP_ID
               value: "seed-default-group"
+            - name: LOAD_TEST_VUS
+              value: "1"
+            - name: LOAD_TEST_DURATION
+              value: "60s"
+            - name: LOAD_TEST_SLEEP_SECONDS
+              value: "1"
             - name: LOAD_TEST_API_KEY
               valueFrom:
                 secretKeyRef:
