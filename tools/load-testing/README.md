@@ -67,8 +67,9 @@ Environment:
 | `BASE_URL` | `http://localhost:3002` (native k6) / `http://host.docker.internal:3002` (Docker fallback) | API base |
 | `LOAD_TEST_API_KEY` | (required) | `x-api-key` header |
 | `LOAD_TEST_GROUP_ID` | `seed-default-group` | Group for scoped routes |
-| `LOAD_TEST_VUS` | `1` | Virtual users (`stress-documents-list` only) |
+| `LOAD_TEST_VUS` | `1` | Virtual users (all sustained scenarios except `smoke`) |
 | `LOAD_TEST_DURATION` | `60s` | Scenario duration |
+| `LOAD_TEST_SLEEP_SECONDS` | `1` | Think time between iterations (`datasets`, `upload-ocr`, `blob-storage`, `review-hitl`; default keeps traffic under the global throttler) |
 | `LOAD_TEST_WORKFLOW_VERSION_ID` | (required for `upload-ocr`) | Existing `WorkflowVersion.id` used by `POST /api/upload` to start Temporal graph workflow execution |
 | `LOAD_TEST_MODEL_ID` | `prebuilt-layout` | OCR model id for `upload-ocr` payloads |
 | `LOAD_TEST_RUN_ID` | generated | Run marker stored in upload metadata for correlation and cleanup |
@@ -123,7 +124,7 @@ npm run k6:smoke
 ```
 
 - **smoke**: few iterations, paginated benchmark datasets.
-- **read-benchmark-datasets**: ramping VUs, paginated reads.
+- **read-benchmark-datasets**: sustained paginated reads (default 1 VU × 60 s, 1 s sleep — stays under the backend global throttler). Increase `LOAD_TEST_VUS` / lower `LOAD_TEST_SLEEP_SECONDS` only after raising `THROTTLE_GLOBAL_LIMIT` on the backend (see [Global rate limiting](#global-rate-limiting-throttler) below).
 - **stress-documents-list**: repeated `GET /api/documents?group_id=...` (heavy once the table is large). Thresholds: **`http_req_failed` below 5%**, **`p(95)` latency under 120s** (aligned with the per-request timeout). Very large groups may exceed latency; use disposable DBs and tune VUs/duration, or establish a higher baseline before tightening further.
 - **upload-ocr-workflow**: repeated `POST /api/upload` with a generic generated PDF. Requires `LOAD_TEST_WORKFLOW_VERSION_ID`, a running backend, Temporal connectivity, and a worker configured for disposable load testing.
 - **payload-sizes**: root alias for the upload/OCR script with its own summary artifact (`k6-payload-sizes-summary.json`), intended for small/medium/large request-body exercises.
@@ -330,6 +331,36 @@ Mock-mode compatibility:
 
 - This direct harness does not call OCR activities, backend DI routes, blob storage, or Azure. `MOCK_AZURE_OCR` is not required for the hold graph itself.
 - Keep worker `MOCK_AZURE_OCR=true` and backend `DOCUMENT_INTELLIGENCE_MODE=mock` in the same disposable environment when you run this alongside upload/OCR scenarios so live Azure failures are not mistaken for queue capacity limits.
+
+### Global rate limiting (throttler)
+
+The Nest backend applies **`@nestjs/throttler`** globally (**100 requests / 60 s per IP** by default via `THROTTLE_GLOBAL_TTL_MS` and `THROTTLE_GLOBAL_LIMIT`). Sustained k6 traffic above that budget returns **`HTTP 429`** quickly — successful responses stay fast (tens of ms) while **`http_req_failed`** climbs toward ~90 %.
+
+**Default k6 scripts** use **1 VU** and **1 s sleep** (where applicable) so out-of-the-box runs against a stock local backend pass thresholds. **`smoke`** (3 iterations) is always safe.
+
+**Symptom:** high failure rate, low p95 latency, response bodies mentioning `ThrottlerException`.
+
+**Before multi-VU or zero-think-time stress**, raise the limit on the backend process:
+
+```bash
+# Local backend (apps/backend-services/.env or shell before npm run start)
+export THROTTLE_GLOBAL_LIMIT=1000000
+export THROTTLE_GLOBAL_TTL_MS=60000
+```
+
+OpenShift disposable instances: patch the instance ConfigMap and restart the backend — see [MANUAL_LOAD_TEST_INSTANCE.md](../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load).
+
+Example stress sweep after raising the limit:
+
+```bash
+export THROTTLE_GLOBAL_LIMIT=1000000   # on the backend, not k6
+for V in 1 5 10; do
+  LOAD_TEST_VUS="$V" LOAD_TEST_DURATION=60s LOAD_TEST_SLEEP_SECONDS=0.3 \
+    npm run load-test:k6:datasets
+done
+```
+
+Auth routes have separate stricter limits (`THROTTLE_AUTH_*`); the bundled k6 scenarios use API keys, not login/refresh.
 
 ### k6 binary vs Docker
 

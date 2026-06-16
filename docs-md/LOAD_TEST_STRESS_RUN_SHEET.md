@@ -26,6 +26,7 @@ Run only in a disposable environment.
    - `LOAD_TEST_WORKFLOW_VERSION_ID`
    - `LOAD_TEST_BLOB_CLASSIFIER_NAME`
    - `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`
+5. Backend **`THROTTLE_GLOBAL_LIMIT`** is raised for sustained or multi-VU runs (default **100/min** per IP causes ~90 % k6 failures above smoke). Local: `export THROTTLE_GLOBAL_LIMIT=1000000` before starting backend-services. OpenShift: see [MANUAL_LOAD_TEST_INSTANCE.md](./openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load). Default k6 scripts (1 VU, 1 s sleep) pass without this override.
 
 ## Common environment template
 

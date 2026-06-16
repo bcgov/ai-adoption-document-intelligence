@@ -19,9 +19,32 @@ export function getDatabaseConnectionString(url: string | undefined): string {
   }
 }
 
+/** Default pg pool size for backend-services (500m CPU / 512Mi pod). */
+export const DEFAULT_BACKEND_DB_POOL_MAX = 10;
+
+/** Default pg pool size for temporal-worker pods. */
+export const DEFAULT_TEMPORAL_DB_POOL_MAX = 3;
+
 export interface PrismaPgOptions {
   connectionString: string;
   ssl?: { rejectUnauthorized: boolean };
+}
+
+/**
+ * Returns the configured Prisma/pg pool size from DB_POOL_MAX.
+ * Without an explicit value, Prisma defaults to num_cpus * 2 + 1 (= 3 in a
+ * 500m container), which caps backend read throughput at ~7 req/s per pod.
+ */
+export function getPrismaPoolMax(
+  poolMaxEnv: string | undefined,
+  fallback: number = DEFAULT_BACKEND_DB_POOL_MAX,
+): number {
+  const raw = poolMaxEnv ?? String(fallback);
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return parsed;
 }
 
 /**

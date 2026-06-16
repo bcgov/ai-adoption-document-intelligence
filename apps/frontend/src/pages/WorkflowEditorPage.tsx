@@ -1,5 +1,6 @@
 import {
-  type GraphValidationError,
+  GraphValidationError,
+  GraphWorkflowConfig,
   validateGraphConfig,
 } from "@ai-di/graph-workflow";
 import { json } from "@codemirror/lang-json";
@@ -16,7 +17,6 @@ import {
   useUpdateWorkflow,
   useWorkflow,
 } from "../data/hooks/useWorkflows";
-import { GraphWorkflowConfig } from "../types/workflow";
 import {
   Badge,
   Button,

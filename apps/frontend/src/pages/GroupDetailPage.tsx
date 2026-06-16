@@ -1,7 +1,6 @@
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { useGroup } from "../auth/GroupContext";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { MembersTab } from "../components/group/MembersTab";
 import {
@@ -13,7 +12,6 @@ import {
   useRequestMembership,
   useUpdateGroup,
 } from "../data/hooks/useGroups";
-import { ConfusionProfilesPanel } from "../features/benchmarking/components/ConfusionProfilesPanel";
 import {
   Alert,
   Button,
@@ -40,11 +38,7 @@ export function GroupDetailPage(): JSX.Element {
   const match = useMatch("/groups/:groupId");
   const groupId = match?.params.groupId;
   const { user, isSystemAdmin } = useAuth();
-  const { availableGroups } = useGroup();
   const navigate = useNavigate();
-
-  const isMember = availableGroups.some((g) => g.id === groupId);
-  const canViewMembers = isSystemAdmin || isMember;
 
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
   const [editGroupOpen, setEditGroupOpen] = useState(false);
@@ -55,6 +49,9 @@ export function GroupDetailPage(): JSX.Element {
   const [activeTab, setActiveTab] = useState<string>("members");
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
+
+  const isMember = (myGroups ?? []).some((g) => g.id === groupId);
+  const canViewMembers = isSystemAdmin || isMember;
 
   const { data: allGroups } = useAllGroups();
 
@@ -267,7 +264,6 @@ export function GroupDetailPage(): JSX.Element {
               {isAdmin && (
                 <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
               )}
-              <Tabs.Tab value="confusion-profiles">Confusion Profiles</Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="members" pt="md">
@@ -278,9 +274,6 @@ export function GroupDetailPage(): JSX.Element {
                 <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
               </Tabs.Panel>
             )}
-            <Tabs.Panel value="confusion-profiles" pt="md">
-              <ConfusionProfilesPanel groupId={groupId} />
-            </Tabs.Panel>
           </Tabs>
         </PanelCard>
       )}
