@@ -27,8 +27,8 @@ data:
   # Benchmarking
   BENCHMARK_TASK_QUEUE: "benchmark-processing"
   ENABLE_BENCHMARK_QUEUE: "true"
-  # Database Connection Pool
-  DB_POOL_MAX: "5"
+  # Database Connection Pool (Prisma/pg via DB_POOL_MAX; default 10 — safe at HPA max scale)
+  DB_POOL_MAX: "10"
   # Request body limit
   BODY_LIMIT: "50mb"
   # Rate limiting
