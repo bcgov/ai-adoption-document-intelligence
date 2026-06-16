@@ -31,6 +31,11 @@ export class PdfNormalizationService {
 
   /**
    * Validates upload bytes before persisting the original blob.
+   *
+   * PDF/scan inputs are checked with a cheap magic-byte probe only; full
+   * pdf-lib parsing happens once in {@link normalizeToPdf} to avoid holding
+   * two document workspaces in memory at the same time.
+   *
    * @throws BadRequestException for corrupt or unsupported inputs.
    */
   async validateForUpload(fileBuffer: Buffer, fileType: string): Promise<void> {
@@ -40,13 +45,6 @@ export class PdfNormalizationService {
         .subarray(0, Math.min(4, fileBuffer.length))
         .toString("latin1");
       if (sig !== "%PDF") {
-        throw new BadRequestException(
-          "The file is not a valid PDF or is corrupted.",
-        );
-      }
-      try {
-        await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
-      } catch {
         throw new BadRequestException(
           "The file is not a valid PDF or is corrupted.",
         );
@@ -236,7 +234,14 @@ export class PdfNormalizationService {
    * Keep both sites in sync when changing the math.
    */
   private async normalizePdfPageRotations(fileBuffer: Buffer): Promise<Buffer> {
-    const srcDoc = await PDFDocument.load(fileBuffer);
+    let srcDoc: PDFDocument;
+    try {
+      srcDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
+    } catch {
+      throw new BadRequestException(
+        "The file is not a valid PDF or is corrupted.",
+      );
+    }
     const pageCount = srcDoc.getPageCount();
 
     const hasRotation = srcDoc
