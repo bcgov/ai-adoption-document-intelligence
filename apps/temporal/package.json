@@ -41,11 +41,13 @@
 		"@temporalio/client": "1.10.0",
 		"@temporalio/worker": "1.10.0",
 		"@temporalio/workflow": "1.10.0",
-		"axios": "1.15.0",
+		"axios": "1.17.0",
 		"csv": "6.5.1",
 		"dictionary-en": "4.0.0",
 		"dotenv": "17.2.3",
-		"fast-xml-parser": "5.5.8",
+		"fast-xml-builder": "1.2.0",
+		"fast-xml-parser": "5.8.0",
+		"fast-xml-validator": "1.1.0",
 		"json-rules-engine": "4.0.0",
 		"mupdf": "1.27.0",
 		"nspell": "2.1.5",
@@ -56,7 +58,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",
 		"@temporalio/testing": "1.10.0",
-		"@types/axios-mock-adapter": "1.9.0",
+		"@types/axios-mock-adapter": "1.10.4",
 		"@types/jest": "29.5.12",
 		"@types/node": "20.10.0",
 		"axios-mock-adapter": "2.1.0",
@@ -83,6 +85,8 @@
 		"moduleNameMapper": {
 			"^@generated/(.*)$": "<rootDir>/generated/$1"
 		},
-		"setupFilesAfterEnv": ["<rootDir>/jest-teardown.ts"]
+		"setupFilesAfterEnv": [
+			"<rootDir>/jest-teardown.ts"
+		]
 	}
 }

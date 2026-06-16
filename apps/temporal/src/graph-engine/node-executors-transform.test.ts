@@ -153,4 +153,20 @@ describe("executeTransformNode activity — successful execution", () => {
 
     expect(result.output).toBe(JSON.stringify({ name: "Alice" }));
   });
+
+  it("ignores system-injected groupId and does not attempt to parse it as input", async () => {
+    // groupId is injected by the graph runner for tenant scoping and must
+    // never be treated as a port-binding input, even for XML inputFormat.
+    const params: ExecuteTransformNodeParams = {
+      inputFormat: "xml",
+      outputFormat: "json",
+      fieldMapping: JSON.stringify({ orderId: "{{src.Order.OrderId}}" }),
+      src: "<Order><OrderId>ORD-001</OrderId></Order>",
+      groupId: "customer-group-123",
+    };
+
+    const result = await executeTransformNode(params);
+
+    expect(result.output).toBe(JSON.stringify({ orderId: "ORD-001" }));
+  });
 });
