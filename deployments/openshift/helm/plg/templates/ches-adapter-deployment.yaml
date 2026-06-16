@@ -1,4 +1,4 @@
-{{- if eq .Values.alertmanager.notificationChannel "ches" }}
+{{- if and .Values.alertmanager.notificationsEnabled (eq .Values.alertmanager.notificationChannel "ches") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
