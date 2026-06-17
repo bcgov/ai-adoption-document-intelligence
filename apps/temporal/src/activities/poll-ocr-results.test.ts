@@ -11,6 +11,7 @@ jest.mock("../logger", () => ({
 import DocumentIntelligence, {
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { ApplicationFailure } from "@temporalio/activity";
 import * as ocrPayloadRef from "../ocr-payload-ref";
 import type { OCRResponse } from "../types";
 import { pollOCRResults } from "./poll-ocr-results";
@@ -104,6 +105,33 @@ describe("pollOCRResults activity", () => {
     expect(documentIntelligenceMock).not.toHaveBeenCalled();
   });
 
+  it("throws non-retryable failure when cached benchmark OCR response failed", async () => {
+    const mockOCRResponse: OCRResponse = {
+      status: "failed",
+      error: {
+        code: "InvalidContent",
+        message: "The document could not be analyzed",
+      },
+    };
+
+    await expect(
+      pollOCRResults({
+        apimRequestId: "any",
+        modelId: "prebuilt-layout",
+        documentId: TEST_DOCUMENT_ID,
+        groupId: TEST_GROUP_ID,
+        __benchmarkOcrCache: { ocrResponse: mockOCRResponse },
+      }),
+    ).rejects.toMatchObject({
+      message:
+        "Azure OCR analysis failed: InvalidContent: The document could not be analyzed",
+      nonRetryable: true,
+      details: [mockOCRResponse],
+    });
+
+    expect(documentIntelligenceMock).not.toHaveBeenCalled();
+  });
+
   it("polls for results and returns succeeded status with ref", async () => {
     const mockOCRResponse: OCRResponse = {
       status: "succeeded",
@@ -170,23 +198,32 @@ describe("pollOCRResults activity", () => {
     expect(result.response?.blobPath).toBe("");
   });
 
-  it("polls for results and returns failed status", async () => {
+  it("polls for results and throws non-retryable failure when OCR failed", async () => {
     const mockOCRResponse: OCRResponse = {
       status: "failed",
       createdDateTime: "2024-01-01T00:00:00Z",
       lastUpdatedDateTime: "2024-01-01T00:00:30Z",
+      error: {
+        code: "InvalidContent",
+        message: "The document could not be analyzed",
+      },
     };
 
     mockGet.mockResolvedValue({ status: 200, body: mockOCRResponse });
 
-    const result = await pollOCRResults({
+    const promise = pollOCRResults({
       apimRequestId: "test-request-id",
       modelId: "prebuilt-layout",
       documentId: TEST_DOCUMENT_ID,
     });
 
-    expect(result.status).toBe("failed");
-    expect(result.response?.status).toBe("failed");
+    await expect(promise).rejects.toBeInstanceOf(ApplicationFailure);
+    await expect(promise).rejects.toMatchObject({
+      message:
+        "Azure OCR analysis failed: InvalidContent: The document could not be analyzed",
+      nonRetryable: true,
+      details: [mockOCRResponse],
+    });
   });
 
   it("throws error when credentials are missing", async () => {

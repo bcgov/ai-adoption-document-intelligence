@@ -3,6 +3,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { ApplicationFailure } from "@temporalio/activity";
 import { createActivityLogger } from "../logger";
 import {
   makeOcrPayloadRef,
@@ -11,6 +12,18 @@ import {
   writeOcrPayloadBlob,
 } from "../ocr-payload-ref";
 import type { OCRResponse, PollResult } from "../types";
+
+function throwFailedOcrResponse(responseBody: OCRResponse): never {
+  const detail = responseBody.error?.message ?? "unknown error";
+  const code = responseBody.error?.code;
+  const suffix = code ? `${code}: ${detail}` : detail;
+
+  throw ApplicationFailure.create({
+    message: `Azure OCR analysis failed: ${suffix}`,
+    nonRetryable: true,
+    details: [responseBody],
+  });
+}
 
 /**
  * Activity: Poll Azure Document Intelligence for OCR results.
@@ -46,10 +59,7 @@ export async function pollOCRResults(params: {
       };
     }
     if (status === "failed") {
-      return {
-        status: "failed",
-        response: makeOcrPayloadRef(documentId, "", "failed"),
-      };
+      throwFailedOcrResponse(body);
     }
     const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
     const { blobPath, byteLength } = await writeOcrPayloadBlob(
@@ -195,10 +205,7 @@ export async function pollOCRResults(params: {
     }
 
     if (status === "failed") {
-      return {
-        status: "failed",
-        response: makeOcrPayloadRef(documentId, "", "failed"),
-      };
+      throwFailedOcrResponse(responseBody);
     }
 
     const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
