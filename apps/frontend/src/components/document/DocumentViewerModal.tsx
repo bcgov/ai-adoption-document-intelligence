@@ -348,6 +348,14 @@ export function DocumentViewerModal({
                   OCR Results
                 </Tabs.Tab>
               )}
+              {ocrResult?.ocr_result?.content.text && (
+                <Tabs.Tab
+                  value="raw-results"
+                  leftSection={<IconChecklist size={16} />}
+                >
+                  Raw Results
+                </Tabs.Tab>
+              )}
               {(document?.status === "awaiting_review" ||
                 document?.needsReview) && (
                 <Tabs.Tab
@@ -407,6 +415,31 @@ export function DocumentViewerModal({
                   <ExtractedFieldsTable
                     fields={ocrResult.ocr_result.keyValuePairs}
                   />
+                </div>
+              </Tabs.Panel>
+            )}
+            {ocrResult?.ocr_result?.content.text && (
+              <Tabs.Panel
+                value="raw-results"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: "auto",
+                    padding: "1rem",
+                    paddingBottom: "3rem",
+                  }}
+                >
+                  {ocrResult?.ocr_result?.content.text.split("\n").map((l) => (
+                    <p>{l}</p>
+                  ))}
                 </div>
               </Tabs.Panel>
             )}

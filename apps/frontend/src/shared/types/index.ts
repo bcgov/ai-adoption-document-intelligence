@@ -77,6 +77,22 @@ export interface OcrResult {
   document_id: string;
   keyValuePairs?: ExtractedFields;
   processed_at: string;
+  content: {
+    text: string;
+    pages: {
+      lines: {
+        spans: {
+          length: number;
+          offset: number;
+        }[];
+        content: string;
+        polygon: number[];
+      }[];
+      content: string;
+      pageNumber: number;
+    }[];
+    format: "text";
+  };
 }
 
 export interface OcrEndpointResponse {
