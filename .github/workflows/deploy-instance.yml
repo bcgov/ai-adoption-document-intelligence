@@ -443,6 +443,25 @@ jobs:
             "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite \
             -n "${OC_NAMESPACE}" || true
 
+      - name: Delete immutable PLG StatefulSets before upgrade
+        if: env.DEPLOY_PLG == 'true'
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          PLG_RELEASE="${INSTANCE_NAME}-plg"
+          # StatefulSet volumeClaimTemplates are immutable in Kubernetes.
+          # Delete the StatefulSets so Helm can recreate them with the correct
+          # spec. PVCs are not deleted and data is preserved.
+          for ss in loki prometheus; do
+            SS_NAME="${PLG_RELEASE}-${ss}"
+            if oc get statefulset "${SS_NAME}" -n "${OC_NAMESPACE}" &>/dev/null; then
+              echo "Deleting StatefulSet ${SS_NAME} for clean upgrade..."
+              oc delete statefulset "${SS_NAME}" -n "${OC_NAMESPACE}" --cascade=orphan
+            fi
+          done
+
       - name: Deploy PLG monitoring stack
         if: env.DEPLOY_PLG == 'true'
         env:
