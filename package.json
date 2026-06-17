@@ -35,6 +35,7 @@
 		"pod:all:build": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d --build",
 		"pod:all:down": "podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring down",
 		"docs:build": "npm run generate:openapi && cd docs && bash build.sh",
+		"docs:wiki:check": "node scripts/validate-wiki.js",
 		"generate:alert-rules": "TS_NODE_TRANSPILE_ONLY=true TS_NODE_COMPILER_OPTIONS='{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' node -r ts-node/register deployments/generate-alert-rules.ts",
 		"load-test:seed": "npm run seed -w @ai-di/load-testing --",
 		"load-test:hitl-fixtures": "npm run hitl-fixtures -w @ai-di/load-testing --",

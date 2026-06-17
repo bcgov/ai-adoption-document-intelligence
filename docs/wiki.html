@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APIReference | BC Gov Document Intelligence</title>
+    <title>Project Wiki Index | BC Gov Document Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -728,90 +728,53 @@
                     </a>
                 </div>
             </div>
-            <a href="api-reference.html" class="active">API Reference</a>
+            <a href="api-reference.html" class="">API Reference</a>
             <a href="diagrams.html" class="">Diagrams</a>
-            <a href="wiki.html" class="">Repo Wiki</a>
+            <a href="wiki.html" class="active">Repo Wiki</a>
         </nav>
     </header>
     <main>
 
-<h1>API Reference</h1>
 
-<p>Complete REST API documentation for the Document Intelligence Platform. All endpoints support Bearer token authentication (Keycloak SSO) or API key authentication.</p>
-
-<div class="alert alert-info" style="margin-bottom: 2rem;">
-    <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-    </div>
-    <div>
-        <strong>Authentication</strong><br>
-        This API supports two authentication methods: Bearer tokens (JWT from Keycloak SSO) or API keys passed via the <code>x-api-key</code> header.
-    </div>
+<div class="card card-gold">
+    <h3 style="margin-top: 0;">Repo Wiki</h3>
+    <p>This wiki routes readers to canonical docs and code. Use it as a map, not a replacement for implementation docs.</p>
+    <ul><li><a href="wiki.html" style="font-weight: 700;">Project Wiki Index</a></li>
+<li><a href="wiki-system-overview.html">System Overview</a></li>
+<li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
+<li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
+<li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
+<li><a href="wiki-sources.html">Canonical Source Registry</a></li>
+<li><a href="wiki-open-questions.html">Open Questions</a></li>
+<li><a href="wiki-log.html">Wiki Maintenance Log</a></li></ul>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">API Endpoints Overview</h3>
-    <ul>
-        <li><strong>Documents</strong> - Document management, OCR results, and metadata operations</li>
-        <li><strong>Upload</strong> - Multipart file upload with workflow execution</li>
-        <li><strong>Workflow</strong> - Graph-based workflow configuration and monitoring</li>
-        <li><strong>Template Models</strong> - Template model management and document annotation</li>
-        <li><strong>Training</strong> - Custom model training and evaluation</li>
-        <li><strong>HITL</strong> - Human-in-the-loop review queue operations</li>
-        <li><strong>API Keys</strong> - API key lifecycle management</li>
-        <li><strong>OCR</strong> - OCR model information and capabilities</li>
-    </ul>
-</div>
-
-<style>
-    #redoc-container {
-        width: calc(100vw - 4rem);
-        position: relative;
-        left: 50%;
-        margin-left: calc(-50vw + 2rem);
-    }
-    #redoc-container code,
-    #redoc-container pre {
-        all: revert;
-    }
-</style>
-<div id="redoc-container"></div>
-
-<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
-<script>
-  Redoc.init(
-    'assets/openapi.json',
-    {
-      scrollYOffset: 80,
-      hideDownloadButton: false,
-      theme: {
-        colors: {
-          primary: {
-            main: '#003366' // BC Blue
-          },
-          success: {
-            main: '#2E8540' // BC Green
-          },
-          warning: {
-            main: '#FCBA19' // BC Gold
-          }
-        },
-        typography: {
-          fontSize: '16px',
-          fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif',
-          headings: {
-            fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif'
-          }
-        },
-        sidebar: {
-          backgroundColor: '#f8f9fa',
-          textColor: '#003366'
-        }
-      }
-    },
-    document.getElementById('redoc-container')
-  );
-</script>
+<h1>Project Wiki Index</h1>
+<p>This wiki is a compact map of the Document Intelligence Platform. Use it to find the right canonical source before editing docs or code.</p>
+<h2>Start Here</h2>
+<ul>
+<li><a href="wiki-system-overview.html">System overview</a>: service boundaries, platform shape, and major source paths.</li>
+<li><a href="wiki-graph-workflows.html">Graph workflows</a>: DAG workflow engine, activity registration, and workflow builder context.</li>
+<li><a href="wiki-hitl.html">HITL</a>: review sessions, locking, queue behavior, and correction tracking.</li>
+<li><a href="wiki-auth-and-groups.html">Auth and groups</a>: Keycloak/API key auth, group scoping, and authorization docs.</li>
+<li><a href="wiki-deployment-and-ops.html">Deployment and ops</a>: local/dev/OpenShift deployment, monitoring, load testing, and operational runbooks.</li>
+</ul>
+<h2>Maintenance Pages</h2>
+<ul>
+<li><a href="wiki-sources.html">Sources</a>: canonical source registry.</li>
+<li><a href="wiki-open-questions.html">Open questions</a>: known drift candidates and unresolved ownership.</li>
+<li><a href="wiki-log.html">Log</a>: append-only wiki maintenance history.</li>
+</ul>
+<h2>Reading Pattern</h2>
+<ol>
+<li>Read the relevant wiki topic for orientation.</li>
+<li>Follow <code>canonical_sources</code> to the detailed docs or code.</li>
+<li>Update the canonical source first.</li>
+<li>Update the wiki only when navigation, synthesis, or drift context changes.</li>
+</ol>
+<h2>Boundary</h2>
+<p>The wiki should not become a second implementation spec. If a page starts carrying detailed behavior, move that detail to the right <code>docs-md</code> document or code-adjacent README and link to it from here.</p>
     </main>
     <footer class="site-footer">
         <div class="footer-content">

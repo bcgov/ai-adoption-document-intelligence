@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APIReference | BC Gov Document Intelligence</title>
+    <title>Human-In-The-Loop | BC Gov Document Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -728,90 +728,66 @@
                     </a>
                 </div>
             </div>
-            <a href="api-reference.html" class="active">API Reference</a>
+            <a href="api-reference.html" class="">API Reference</a>
             <a href="diagrams.html" class="">Diagrams</a>
-            <a href="wiki.html" class="">Repo Wiki</a>
+            <a href="wiki.html" class="active">Repo Wiki</a>
         </nav>
     </header>
     <main>
 
-<h1>API Reference</h1>
 
-<p>Complete REST API documentation for the Document Intelligence Platform. All endpoints support Bearer token authentication (Keycloak SSO) or API key authentication.</p>
-
-<div class="alert alert-info" style="margin-bottom: 2rem;">
-    <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-    </div>
-    <div>
-        <strong>Authentication</strong><br>
-        This API supports two authentication methods: Bearer tokens (JWT from Keycloak SSO) or API keys passed via the <code>x-api-key</code> header.
-    </div>
+<div class="card card-gold">
+    <h3 style="margin-top: 0;">Repo Wiki</h3>
+    <p>This wiki routes readers to canonical docs and code. Use it as a map, not a replacement for implementation docs.</p>
+    <ul><li><a href="wiki.html">Project Wiki Index</a></li>
+<li><a href="wiki-system-overview.html">System Overview</a></li>
+<li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-hitl.html" style="font-weight: 700;">Human-In-The-Loop</a></li>
+<li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
+<li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
+<li><a href="wiki-sources.html">Canonical Source Registry</a></li>
+<li><a href="wiki-open-questions.html">Open Questions</a></li>
+<li><a href="wiki-log.html">Wiki Maintenance Log</a></li></ul>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">API Endpoints Overview</h3>
-    <ul>
-        <li><strong>Documents</strong> - Document management, OCR results, and metadata operations</li>
-        <li><strong>Upload</strong> - Multipart file upload with workflow execution</li>
-        <li><strong>Workflow</strong> - Graph-based workflow configuration and monitoring</li>
-        <li><strong>Template Models</strong> - Template model management and document annotation</li>
-        <li><strong>Training</strong> - Custom model training and evaluation</li>
-        <li><strong>HITL</strong> - Human-in-the-loop review queue operations</li>
-        <li><strong>API Keys</strong> - API key lifecycle management</li>
-        <li><strong>OCR</strong> - OCR model information and capabilities</li>
-    </ul>
+<div class="grid grid-2" style="margin: 1.5rem 0;">
+    <div class="card">
+        <h3 style="margin-top: 0;">Canonical Sources</h3>
+        <ul><li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/docs-md/HITL_ARCHITECTURE.md"><code>docs-md/HITL_ARCHITECTURE.md</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/backend-services/src/hitl/"><code>apps/backend-services/src/hitl/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/frontend/src/pages/"><code>apps/frontend/src/pages/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/frontend/src/features/"><code>apps/frontend/src/features/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/apps/shared/prisma/schema.prisma"><code>apps/shared/prisma/schema.prisma</code></a></li></ul>
+    </div>
+    <div class="card card-gold">
+        <h3 style="margin-top: 0;">Do Not Duplicate</h3>
+        <ul><li>Review session schema</li>
+<li>Locking algorithm details</li>
+<li>API endpoint details</li>
+<li>Full UI walkthroughs</li></ul>
+    </div>
 </div>
-
-<style>
-    #redoc-container {
-        width: calc(100vw - 4rem);
-        position: relative;
-        left: 50%;
-        margin-left: calc(-50vw + 2rem);
-    }
-    #redoc-container code,
-    #redoc-container pre {
-        all: revert;
-    }
-</style>
-<div id="redoc-container"></div>
-
-<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
-<script>
-  Redoc.init(
-    'assets/openapi.json',
-    {
-      scrollYOffset: 80,
-      hideDownloadButton: false,
-      theme: {
-        colors: {
-          primary: {
-            main: '#003366' // BC Blue
-          },
-          success: {
-            main: '#2E8540' // BC Green
-          },
-          warning: {
-            main: '#FCBA19' // BC Gold
-          }
-        },
-        typography: {
-          fontSize: '16px',
-          fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif',
-          headings: {
-            fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif'
-          }
-        },
-        sidebar: {
-          backgroundColor: '#f8f9fa',
-          textColor: '#003366'
-        }
-      }
-    },
-    document.getElementById('redoc-container')
-  );
-</script>
+<h1>Human-In-The-Loop</h1>
+<p>HITL routes low-confidence or review-required document results to humans. It is session-oriented: a reviewer works through a bounded review session for a document, records corrections, and completes or escalates the review.</p>
+<h2>Source Map</h2>
+<ul>
+<li>Architecture and lifecycle concepts live in <code>docs-md/HITL_ARCHITECTURE.md</code>.</li>
+<li>Backend session, queue, lock, correction, and analytics behavior lives in <code>apps/backend-services/src/hitl/</code>.</li>
+<li>Persisted model truth lives in <code>apps/shared/prisma/schema.prisma</code>.</li>
+<li>Frontend review entrypoints are split between page-level routes and feature components under <code>apps/frontend/src/</code>.</li>
+</ul>
+<h2>Design Notes</h2>
+<ul>
+<li>HITL is per-document-instance state, not group-level reusable configuration.</li>
+<li>It differs from Tables-style extensions because it involves session lifecycle, locking, and human completion decisions.</li>
+<li>Corrections are audit-like records of review actions, not a replacement for the original document record.</li>
+</ul>
+<h2>Common Drift Risks</h2>
+<ul>
+<li>Queue behavior, locking TTLs, and frontend session handling need to remain aligned.</li>
+<li>Workflow pause/resume expectations should be checked against current Temporal implementation before changing HITL behavior.</li>
+<li>Feature docs may lag behind the implemented session model; prefer stable <code>docs-md</code> and code paths.</li>
+</ul>
     </main>
     <footer class="site-footer">
         <div class="footer-content">

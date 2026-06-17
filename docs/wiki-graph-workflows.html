@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APIReference | BC Gov Document Intelligence</title>
+    <title>Graph Workflows | BC Gov Document Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -728,90 +728,71 @@
                     </a>
                 </div>
             </div>
-            <a href="api-reference.html" class="active">API Reference</a>
+            <a href="api-reference.html" class="">API Reference</a>
             <a href="diagrams.html" class="">Diagrams</a>
-            <a href="wiki.html" class="">Repo Wiki</a>
+            <a href="wiki.html" class="active">Repo Wiki</a>
         </nav>
     </header>
     <main>
 
-<h1>API Reference</h1>
 
-<p>Complete REST API documentation for the Document Intelligence Platform. All endpoints support Bearer token authentication (Keycloak SSO) or API key authentication.</p>
-
-<div class="alert alert-info" style="margin-bottom: 2rem;">
-    <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-    </div>
-    <div>
-        <strong>Authentication</strong><br>
-        This API supports two authentication methods: Bearer tokens (JWT from Keycloak SSO) or API keys passed via the <code>x-api-key</code> header.
-    </div>
+<div class="card card-gold">
+    <h3 style="margin-top: 0;">Repo Wiki</h3>
+    <p>This wiki routes readers to canonical docs and code. Use it as a map, not a replacement for implementation docs.</p>
+    <ul><li><a href="wiki.html">Project Wiki Index</a></li>
+<li><a href="wiki-system-overview.html">System Overview</a></li>
+<li><a href="wiki-graph-workflows.html" style="font-weight: 700;">Graph Workflows</a></li>
+<li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
+<li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
+<li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
+<li><a href="wiki-sources.html">Canonical Source Registry</a></li>
+<li><a href="wiki-open-questions.html">Open Questions</a></li>
+<li><a href="wiki-log.html">Wiki Maintenance Log</a></li></ul>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">API Endpoints Overview</h3>
-    <ul>
-        <li><strong>Documents</strong> - Document management, OCR results, and metadata operations</li>
-        <li><strong>Upload</strong> - Multipart file upload with workflow execution</li>
-        <li><strong>Workflow</strong> - Graph-based workflow configuration and monitoring</li>
-        <li><strong>Template Models</strong> - Template model management and document annotation</li>
-        <li><strong>Training</strong> - Custom model training and evaluation</li>
-        <li><strong>HITL</strong> - Human-in-the-loop review queue operations</li>
-        <li><strong>API Keys</strong> - API key lifecycle management</li>
-        <li><strong>OCR</strong> - OCR model information and capabilities</li>
-    </ul>
+<div class="grid grid-2" style="margin: 1.5rem 0;">
+    <div class="card">
+        <h3 style="margin-top: 0;">Canonical Sources</h3>
+        <ul><li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/docs-md/graph-workflows/"><code>docs-md/graph-workflows/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/docs-md/workflow-builder/"><code>docs-md/workflow-builder/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/docs-md/PATTERNS_NODE_AND_UI.md"><code>docs-md/PATTERNS_NODE_AND_UI.md</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/packages/graph-workflow/"><code>packages/graph-workflow/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/backend-services/src/workflow/"><code>apps/backend-services/src/workflow/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/backend-services/src/ocr/"><code>apps/backend-services/src/ocr/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/temporal/src/graph-engine/"><code>apps/temporal/src/graph-engine/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/apps/temporal/src/activity-registry.ts"><code>apps/temporal/src/activity-registry.ts</code></a></li></ul>
+    </div>
+    <div class="card card-gold">
+        <h3 style="margin-top: 0;">Do Not Duplicate</h3>
+        <ul><li>Full graph schema</li>
+<li>Activity registration checklist</li>
+<li>Workflow builder user guide</li>
+<li>Workflow template JSON</li></ul>
+    </div>
 </div>
-
-<style>
-    #redoc-container {
-        width: calc(100vw - 4rem);
-        position: relative;
-        left: 50%;
-        margin-left: calc(-50vw + 2rem);
-    }
-    #redoc-container code,
-    #redoc-container pre {
-        all: revert;
-    }
-</style>
-<div id="redoc-container"></div>
-
-<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
-<script>
-  Redoc.init(
-    'assets/openapi.json',
-    {
-      scrollYOffset: 80,
-      hideDownloadButton: false,
-      theme: {
-        colors: {
-          primary: {
-            main: '#003366' // BC Blue
-          },
-          success: {
-            main: '#2E8540' // BC Green
-          },
-          warning: {
-            main: '#FCBA19' // BC Gold
-          }
-        },
-        typography: {
-          fontSize: '16px',
-          fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif',
-          headings: {
-            fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif'
-          }
-        },
-        sidebar: {
-          backgroundColor: '#f8f9fa',
-          textColor: '#003366'
-        }
-      }
-    },
-    document.getElementById('redoc-container')
-  );
-</script>
+<h1>Graph Workflows</h1>
+<p>Graph workflows are the durable execution substrate for document processing. The shared package defines graph types and validation, backend services persist and validate workflow configs, and the Temporal worker executes graph nodes through registered activities.</p>
+<h2>Source Map</h2>
+<ul>
+<li>Engine behavior lives under <code>docs-md/graph-workflows/</code>, especially the DAG engine and adding-node guides.</li>
+<li>Workflow builder authoring context lives under <code>docs-md/workflow-builder/</code>.</li>
+<li>Shared graph types and validators live in <code>packages/graph-workflow/</code>.</li>
+<li>Backend save-time validation and workflow APIs live in <code>apps/backend-services/src/workflow/</code>.</li>
+<li>OCR starts workflow execution through <code>apps/backend-services/src/ocr/</code>.</li>
+<li>Temporal runtime execution lives in <code>apps/temporal/src/graph-engine/</code> and activity registration files.</li>
+</ul>
+<h2>Design Notes</h2>
+<ul>
+<li>Prefer adding a new activity when existing node semantics are enough.</li>
+<li>Add a new node type only when the graph engine needs new execution semantics.</li>
+<li>For user-managed configuration that drives a generic activity, follow the Tables pattern instead of creating feature-specific workflow machinery.</li>
+</ul>
+<h2>Common Drift Risks</h2>
+<ul>
+<li>Activity type lists must stay aligned across backend validation, Temporal worker registration, and workflow-safe constants.</li>
+<li>UI templates can make workflow authoring easier, but canonical workflow JSON remains the interchange format.</li>
+<li>Engine docs and builder docs intentionally overlap; keep engine semantics in graph-workflow docs and authoring guidance in workflow-builder docs.</li>
+</ul>
     </main>
     <footer class="site-footer">
         <div class="footer-content">

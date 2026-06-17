@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APIReference | BC Gov Document Intelligence</title>
+    <title>System Overview | BC Gov Document Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -728,90 +728,70 @@
                     </a>
                 </div>
             </div>
-            <a href="api-reference.html" class="active">API Reference</a>
+            <a href="api-reference.html" class="">API Reference</a>
             <a href="diagrams.html" class="">Diagrams</a>
-            <a href="wiki.html" class="">Repo Wiki</a>
+            <a href="wiki.html" class="active">Repo Wiki</a>
         </nav>
     </header>
     <main>
 
-<h1>API Reference</h1>
 
-<p>Complete REST API documentation for the Document Intelligence Platform. All endpoints support Bearer token authentication (Keycloak SSO) or API key authentication.</p>
-
-<div class="alert alert-info" style="margin-bottom: 2rem;">
-    <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-    </div>
-    <div>
-        <strong>Authentication</strong><br>
-        This API supports two authentication methods: Bearer tokens (JWT from Keycloak SSO) or API keys passed via the <code>x-api-key</code> header.
-    </div>
+<div class="card card-gold">
+    <h3 style="margin-top: 0;">Repo Wiki</h3>
+    <p>This wiki routes readers to canonical docs and code. Use it as a map, not a replacement for implementation docs.</p>
+    <ul><li><a href="wiki.html">Project Wiki Index</a></li>
+<li><a href="wiki-system-overview.html" style="font-weight: 700;">System Overview</a></li>
+<li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
+<li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
+<li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
+<li><a href="wiki-sources.html">Canonical Source Registry</a></li>
+<li><a href="wiki-open-questions.html">Open Questions</a></li>
+<li><a href="wiki-log.html">Wiki Maintenance Log</a></li></ul>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">API Endpoints Overview</h3>
-    <ul>
-        <li><strong>Documents</strong> - Document management, OCR results, and metadata operations</li>
-        <li><strong>Upload</strong> - Multipart file upload with workflow execution</li>
-        <li><strong>Workflow</strong> - Graph-based workflow configuration and monitoring</li>
-        <li><strong>Template Models</strong> - Template model management and document annotation</li>
-        <li><strong>Training</strong> - Custom model training and evaluation</li>
-        <li><strong>HITL</strong> - Human-in-the-loop review queue operations</li>
-        <li><strong>API Keys</strong> - API key lifecycle management</li>
-        <li><strong>OCR</strong> - OCR model information and capabilities</li>
-    </ul>
+<div class="grid grid-2" style="margin: 1.5rem 0;">
+    <div class="card">
+        <h3 style="margin-top: 0;">Canonical Sources</h3>
+        <ul><li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/README.md"><code>README.md</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/apps/README.md"><code>apps/README.md</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/backend-services/src/"><code>apps/backend-services/src/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/frontend/src/"><code>apps/frontend/src/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/temporal/src/"><code>apps/temporal/src/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/tree/main/apps/image-service/"><code>apps/image-service/</code></a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/apps/shared/prisma/schema.prisma"><code>apps/shared/prisma/schema.prisma</code></a></li></ul>
+    </div>
+    <div class="card card-gold">
+        <h3 style="margin-top: 0;">Do Not Duplicate</h3>
+        <ul><li>Full setup instructions</li>
+<li>Complete feature lists</li>
+<li>Database schema details</li>
+<li>API endpoint details</li></ul>
+    </div>
 </div>
-
-<style>
-    #redoc-container {
-        width: calc(100vw - 4rem);
-        position: relative;
-        left: 50%;
-        margin-left: calc(-50vw + 2rem);
-    }
-    #redoc-container code,
-    #redoc-container pre {
-        all: revert;
-    }
-</style>
-<div id="redoc-container"></div>
-
-<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
-<script>
-  Redoc.init(
-    'assets/openapi.json',
-    {
-      scrollYOffset: 80,
-      hideDownloadButton: false,
-      theme: {
-        colors: {
-          primary: {
-            main: '#003366' // BC Blue
-          },
-          success: {
-            main: '#2E8540' // BC Green
-          },
-          warning: {
-            main: '#FCBA19' // BC Gold
-          }
-        },
-        typography: {
-          fontSize: '16px',
-          fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif',
-          headings: {
-            fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif'
-          }
-        },
-        sidebar: {
-          backgroundColor: '#f8f9fa',
-          textColor: '#003366'
-        }
-      }
-    },
-    document.getElementById('redoc-container')
-  );
-</script>
+<h1>System Overview</h1>
+<p>The platform is a document intelligence monorepo with a React frontend, NestJS backend, Temporal worker, Python image service, shared Prisma schema, and supporting packages. The wiki should use this page as a routing layer, not as a replacement for the top-level READMEs.</p>
+<h2>Primary Boundaries</h2>
+<ul>
+<li>Backend services own REST APIs, document metadata, OCR orchestration, workflow configuration, training, HITL, auth, groups, and operational API behavior.</li>
+<li>The frontend owns the user workflow for document upload, labeling, workflow visualization, review, group context, and feature-specific administration.</li>
+<li>The Temporal worker owns durable DAG workflow execution and activity dispatch.</li>
+<li>The image service owns optional preprocessing behavior such as denoising, deskewing, orientation, and resizing.</li>
+<li>Shared packages and the shared Prisma schema hold cross-app types, validation, and persistence contracts.</li>
+</ul>
+<h2>Read First</h2>
+<ul>
+<li>Use <code>README.md</code> for platform overview, prerequisites, and root commands.</li>
+<li>Use <code>apps/README.md</code> for app-level responsibilities and development commands.</li>
+<li>Use <code>docs-md/SHARED_PACKAGES.md</code> before extracting cross-app TypeScript code.</li>
+<li>Use <code>apps/shared/prisma/schema.prisma</code> as the source of truth for persisted models.</li>
+</ul>
+<h2>Common Drift Risks</h2>
+<ul>
+<li>Top-level READMEs can drift from actual app boundaries as features move between backend, frontend, Temporal, and packages.</li>
+<li>Generated code under <code>apps/backend-services/src/generated/</code> and <code>apps/temporal/src/generated/</code> should not be hand-documented as stable source.</li>
+<li><code>feature-docs/</code> may describe intended behavior that has since changed in implementation.</li>
+</ul>
     </main>
     <footer class="site-footer">
         <div class="footer-content">

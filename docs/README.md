@@ -191,6 +191,14 @@ done
 
 ---
 
+## Repo Wiki Pages
+
+The repo wiki source lives in `../docs-md/wiki/*.md`. During `build.sh`, `../scripts/build-docs-wiki.js` renders those Markdown files into browsable `wiki*.html` pages in this directory.
+
+Do not hand-edit generated `wiki*.html` files. Update the source Markdown in `docs-md/wiki`, run `npm run docs:wiki:check`, then rebuild the docs site.
+
+---
+
 ## Adding New Pages
 
 ### 1. Create the Page File

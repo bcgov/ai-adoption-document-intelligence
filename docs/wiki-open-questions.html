@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APIReference | BC Gov Document Intelligence</title>
+    <title>Open Questions | BC Gov Document Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -728,90 +728,42 @@
                     </a>
                 </div>
             </div>
-            <a href="api-reference.html" class="active">API Reference</a>
+            <a href="api-reference.html" class="">API Reference</a>
             <a href="diagrams.html" class="">Diagrams</a>
-            <a href="wiki.html" class="">Repo Wiki</a>
+            <a href="wiki.html" class="active">Repo Wiki</a>
         </nav>
     </header>
     <main>
 
-<h1>API Reference</h1>
 
-<p>Complete REST API documentation for the Document Intelligence Platform. All endpoints support Bearer token authentication (Keycloak SSO) or API key authentication.</p>
-
-<div class="alert alert-info" style="margin-bottom: 2rem;">
-    <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-    </div>
-    <div>
-        <strong>Authentication</strong><br>
-        This API supports two authentication methods: Bearer tokens (JWT from Keycloak SSO) or API keys passed via the <code>x-api-key</code> header.
-    </div>
+<div class="card card-gold">
+    <h3 style="margin-top: 0;">Repo Wiki</h3>
+    <p>This wiki routes readers to canonical docs and code. Use it as a map, not a replacement for implementation docs.</p>
+    <ul><li><a href="wiki.html">Project Wiki Index</a></li>
+<li><a href="wiki-system-overview.html">System Overview</a></li>
+<li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
+<li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
+<li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
+<li><a href="wiki-sources.html">Canonical Source Registry</a></li>
+<li><a href="wiki-open-questions.html" style="font-weight: 700;">Open Questions</a></li>
+<li><a href="wiki-log.html">Wiki Maintenance Log</a></li></ul>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">API Endpoints Overview</h3>
-    <ul>
-        <li><strong>Documents</strong> - Document management, OCR results, and metadata operations</li>
-        <li><strong>Upload</strong> - Multipart file upload with workflow execution</li>
-        <li><strong>Workflow</strong> - Graph-based workflow configuration and monitoring</li>
-        <li><strong>Template Models</strong> - Template model management and document annotation</li>
-        <li><strong>Training</strong> - Custom model training and evaluation</li>
-        <li><strong>HITL</strong> - Human-in-the-loop review queue operations</li>
-        <li><strong>API Keys</strong> - API key lifecycle management</li>
-        <li><strong>OCR</strong> - OCR model information and capabilities</li>
-    </ul>
-</div>
-
-<style>
-    #redoc-container {
-        width: calc(100vw - 4rem);
-        position: relative;
-        left: 50%;
-        margin-left: calc(-50vw + 2rem);
-    }
-    #redoc-container code,
-    #redoc-container pre {
-        all: revert;
-    }
-</style>
-<div id="redoc-container"></div>
-
-<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
-<script>
-  Redoc.init(
-    'assets/openapi.json',
-    {
-      scrollYOffset: 80,
-      hideDownloadButton: false,
-      theme: {
-        colors: {
-          primary: {
-            main: '#003366' // BC Blue
-          },
-          success: {
-            main: '#2E8540' // BC Green
-          },
-          warning: {
-            main: '#FCBA19' // BC Gold
-          }
-        },
-        typography: {
-          fontSize: '16px',
-          fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif',
-          headings: {
-            fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif'
-          }
-        },
-        sidebar: {
-          backgroundColor: '#f8f9fa',
-          textColor: '#003366'
-        }
-      }
-    },
-    document.getElementById('redoc-container')
-  );
-</script>
+<h1>Open Questions</h1>
+<p>Use this page for contradictions, drift candidates, and ownership gaps that should not be hidden inside topic pages.</p>
+<h2>Current Questions</h2>
+<ul>
+<li>Should stable feature docs in <code>feature-docs/</code> be promoted, archived, or linked as historical context after implementation is complete?</li>
+<li>Which docs from <code>docs-md/</code> should eventually be published through the generated <code>docs/</code> site, and which should remain repo-only?</li>
+<li>~~Should the wiki validator become a CI check after the team has used it for a few PRs?~~ Resolved: <code>.github/workflows/wiki-check.yml</code> runs <code>npm run docs:wiki:check</code> on PRs to <code>main</code> and <code>develop</code>.</li>
+</ul>
+<h2>Drift Candidates</h2>
+<ul>
+<li><code>README.md</code>, <code>apps/README.md</code>, and <code>docs-md/wiki/system-overview.md</code> all describe platform shape at different levels.</li>
+<li><code>docs-md/graph-workflows/</code> and <code>docs-md/workflow-builder/</code> intentionally overlap; the wiki should keep routing clear between engine behavior and UI authoring.</li>
+<li>Operational docs under <code>docs-md/openshift-deployment/</code>, <code>scripts/README.md</code>, and workflow files in <code>.github/workflows/</code> should stay aligned.</li>
+</ul>
     </main>
     <footer class="site-footer">
         <div class="footer-content">
