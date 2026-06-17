@@ -1,3 +1,4 @@
+import { computeConfigHash } from "../config-hash";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
 import { getPrismaClient } from "./database-client";
 import { getWorkflowGraphConfig } from "./get-workflow-graph-config";
@@ -52,9 +53,11 @@ describe("getWorkflowGraphConfig activity", () => {
     const result = await getWorkflowGraphConfig({ workflowId: "wv-1" });
 
     expect(result.graph).toEqual(cfg);
+    expect(result.workflowVersionId).toBe("wv-1");
+    expect(result.configHash).toBe(computeConfigHash(cfg));
     expect(prismaMock.workflowVersion.findUnique).toHaveBeenCalledWith({
       where: { id: "wv-1" },
-      select: { config: true },
+      select: { id: true, config: true },
     });
     expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
   });
@@ -64,12 +67,13 @@ describe("getWorkflowGraphConfig activity", () => {
     prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
     prismaMock.workflowLineage.findUnique.mockResolvedValue({
       id: "lin-1",
-      headVersion: { config: cfg },
+      headVersion: { id: "wv-head", config: cfg },
     });
 
     const result = await getWorkflowGraphConfig({ workflowId: "lin-1" });
 
     expect(result.graph).toEqual(cfg);
+    expect(result.workflowVersionId).toBe("wv-head");
     expect(prismaMock.workflowLineage.findUnique).toHaveBeenCalledWith({
       where: { id: "lin-1" },
       include: { headVersion: true },
@@ -82,7 +86,7 @@ describe("getWorkflowGraphConfig activity", () => {
     prismaMock.workflowLineage.findUnique.mockResolvedValue(null);
     prismaMock.workflowLineage.findFirst.mockResolvedValue({
       id: "lin-1",
-      headVersion: { config: cfg },
+      headVersion: { id: "wv-head", config: cfg },
     });
 
     const result = await getWorkflowGraphConfig({
@@ -94,6 +98,37 @@ describe("getWorkflowGraphConfig activity", () => {
       where: { name: "standard-ocr-workflow" },
       include: { headVersion: true },
     });
+  });
+
+  it("applies workflowConfigOverrides before hashing", async () => {
+    const cfg = sampleConfig();
+    cfg.ctx = {
+      modelId: { type: "string", defaultValue: "prebuilt-layout" },
+    };
+    prismaMock.workflowVersion.findUnique.mockResolvedValue({
+      id: "wv-1",
+      config: cfg,
+    });
+
+    const result = await getWorkflowGraphConfig({
+      workflowId: "wv-1",
+      workflowConfigOverrides: {
+        "ctx.modelId.defaultValue": "prebuilt-read",
+      },
+    });
+
+    expect(
+      (result.graph.ctx.modelId as { defaultValue?: string }).defaultValue,
+    ).toBe("prebuilt-read");
+    expect(result.configHash).not.toBe(computeConfigHash(cfg));
+    expect(result.configHash).toBe(
+      computeConfigHash({
+        ...cfg,
+        ctx: {
+          modelId: { type: "string", defaultValue: "prebuilt-read" },
+        },
+      }),
+    );
   });
 
   it("throws when not found", async () => {

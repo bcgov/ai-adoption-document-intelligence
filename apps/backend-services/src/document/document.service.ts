@@ -280,7 +280,11 @@ export class DocumentService {
   }
 
   /**
-   * Deletes a document and its associated blob storage file.
+   * Deletes a document and its associated blob storage under the OCR prefix.
+   *
+   * Removes all objects under `{groupId}/ocr/{documentId}/` (workflow OCR payload
+   * refs: azure-response.json, ocr-result.json, cleaned-result.json, pages/, etc.)
+   * in addition to the document row. Deletion is best-effort if blob storage fails.
    *
    * Refuses to delete documents whose OCR pipeline is still in flight
    * (`pre_ocr` or `ongoing_ocr`) to avoid orphaning Temporal workflows. The

@@ -10,6 +10,16 @@
   },
   "overrides": [
     {
+      "includes": ["**/jest.setup.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/*.test.ts", "**/test/**"],
       "linter": {
         "rules": {

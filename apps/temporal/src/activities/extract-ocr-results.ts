@@ -1,29 +1,37 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import axios from "axios";
 import { createActivityLogger } from "../logger";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
+import {
+  isOcrPayloadRef,
+  loadOcrResponseFromPort,
+  makeOcrPayloadRef,
+  requireDocumentId,
+  resolveGroupIdForOcr,
+  writeOcrPayloadBlob,
+} from "../ocr-payload-ref";
 import type { OCRResponse, OCRResult, OcrOutputFormat } from "../types";
 
-/**
- * Normalize endpoint URL by removing trailing slash
- */
 function normalizeEndpoint(url: string | undefined): string {
   if (!url) return "";
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }
 
 /**
- * Activity: Extract OCR results from Azure response
- * Parses and structures the OCR data
+ * Activity: Extract OCR results from Azure response (blob ref or legacy inline).
  */
 export async function extractOCRResults(params: {
   apimRequestId: string;
   fileName: string;
   fileType: string;
   modelId: string;
+  documentId: string;
+  groupId?: string | null;
   outputFormat?: OcrOutputFormat;
-  ocrResponse?: OCRResponse;
-}): Promise<{ ocrResult: OCRResult }> {
+  ocrResponse?: OCRResponse | OcrPayloadRef;
+}): Promise<{ ocrResult: OcrPayloadRef }> {
   const activityName = "extractOCRResults";
+  const documentId = requireDocumentId(params);
   const {
     apimRequestId,
     fileName,
@@ -32,7 +40,7 @@ export async function extractOCRResults(params: {
     outputFormat,
     ocrResponse,
   } = params;
-  const log = createActivityLogger(activityName, { apimRequestId });
+  const log = createActivityLogger(activityName, { apimRequestId, documentId });
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 
@@ -44,13 +52,18 @@ export async function extractOCRResults(params: {
   });
 
   try {
-    let ocrResponseObj: OCRResponse | undefined = ocrResponse;
+    let ocrResponseObj: OCRResponse | undefined;
 
-    // If response not provided, fetch it
+    if (ocrResponse !== undefined && ocrResponse !== null) {
+      ocrResponseObj = isOcrPayloadRef(ocrResponse)
+        ? await loadOcrResponseFromPort(ocrResponse)
+        : ocrResponse;
+    }
+
     if (!ocrResponseObj) {
       if (!endpoint || !apiKey) {
         throw new Error(
-          "Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY environment variables.",
+          "Azure Document Intelligence credentials not configured.",
         );
       }
       const normalizedEndpoint = normalizeEndpoint(endpoint);
@@ -79,8 +92,6 @@ export async function extractOCRResults(params: {
       documents: [],
     };
 
-    // Azure's `analyzeResult.content` holds plain text by default, or markdown
-    // when the analyze call was made with outputContentFormat="markdown".
     const isMarkdown = outputFormat === "markdown";
     const azureContent = analyzeResult.content || "";
 
@@ -104,16 +115,30 @@ export async function extractOCRResults(params: {
       processedAt: new Date().toISOString(),
     };
 
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const { blobPath, byteLength } = await writeOcrPayloadBlob(
+      groupId,
+      documentId,
+      "ocr-result.json",
+      result,
+    );
+
     log.info("Extract OCR results complete", {
       event: "complete",
       fileName,
       status: result.status,
       pagesCount: result.pages.length,
-      tablesCount: result.tables.length,
+      byteLength,
     });
 
-    // Return with port name as key for output binding
-    return { ocrResult: result };
+    return {
+      ocrResult: makeOcrPayloadRef(
+        documentId,
+        blobPath,
+        "succeeded",
+        byteLength,
+      ),
+    };
   } catch (error) {
     const errorMessage = getErrorMessage(error);
     log.error("Extract OCR results error", {

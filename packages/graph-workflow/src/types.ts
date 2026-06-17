@@ -25,6 +25,8 @@ export interface GraphMetadata {
   description?: string;
   version?: string;
   tags?: string[];
+  /** SHA-256 of normalized config; set on save, excluded from hash input. */
+  configHash?: string;
 }
 
 export interface CtxDeclaration {

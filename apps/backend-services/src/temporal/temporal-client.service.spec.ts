@@ -3,9 +3,14 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { Client, Connection } from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import {
+  computeConfigHash,
+  computeConfigHashWithOverrides,
+} from "../workflow/config-hash";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
 import { TemporalClientService } from "./temporal-client.service";
+import { temporalDataConverter } from "./temporal-data-converter";
 
 const graphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",
@@ -155,6 +160,7 @@ describe("TemporalClientService", () => {
       expect(Client).toHaveBeenCalledWith({
         connection: mockConnection,
         namespace: "default",
+        dataConverter: temporalDataConverter,
       });
     });
 
@@ -187,6 +193,7 @@ describe("TemporalClientService", () => {
       expect(Client).toHaveBeenCalledWith({
         connection: mockConnection,
         namespace: "default",
+        dataConverter: temporalDataConverter,
       });
 
       await newService.onModuleDestroy();
@@ -257,19 +264,70 @@ describe("TemporalClientService", () => {
         expect.objectContaining({
           args: [
             {
-              graph: graphConfig,
+              workflowVersionId: "workflow-123",
               initialCtx: {
                 documentId: "doc-123",
                 fileName: "test.pdf",
                 fileType: "pdf",
               },
-              configHash: expect.any(String),
+              configHash: computeConfigHash(graphConfig),
               runnerVersion: "1.0.0",
               groupId: "g-test",
             },
           ],
           taskQueue: "ocr-processing",
           workflowId: "graph-doc-123",
+        }),
+      );
+    });
+
+    it("includes workflowConfigOverrides and merged configHash when provided", async () => {
+      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+
+      const overrides = { "ctx.modelId.defaultValue": "prebuilt-read" };
+      const graphWithModel: GraphWorkflowConfig = {
+        ...graphConfig,
+        ctx: {
+          ...graphConfig.ctx,
+          modelId: { type: "string", defaultValue: "prebuilt-layout" },
+        },
+      };
+      mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
+        id: "workflow-123",
+        workflowVersionId: "workflow-123",
+        slug: "graph-workflow",
+        name: "Graph Workflow",
+        description: "Test graph",
+        actorId: "user-1",
+        groupId: "g-test",
+        config: graphWithModel,
+        schemaVersion: "1.0",
+        version: 1,
+        configHash: computeConfigHash(graphWithModel),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await service.startGraphWorkflow(
+        "doc-123",
+        "workflow-123",
+        { documentId: "doc-123" },
+        "g-test",
+        overrides,
+      );
+
+      expect(mockClient.workflow.start).toHaveBeenCalledWith(
+        "graphWorkflow",
+        expect.objectContaining({
+          args: [
+            expect.objectContaining({
+              workflowConfigOverrides: overrides,
+              configHash: computeConfigHashWithOverrides(
+                graphWithModel,
+                overrides,
+              ),
+            }),
+          ],
         }),
       );
     });

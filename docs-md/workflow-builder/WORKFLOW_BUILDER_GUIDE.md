@@ -8,7 +8,7 @@ This document serves as the design reference for the visual workflow builder int
 
 A workflow is a pipeline of steps that processes documents. You build one by placing **nodes** on a canvas and connecting them with **edges**. When a document enters the workflow, the engine starts at the first node and follows the connections, executing each step in order. Where the path splits, the engine can run branches in parallel or choose a path based on conditions.
 
-Every workflow has a **context** — a shared data store that nodes read from and write to as the workflow runs. Think of it as a set of named variables (like `documentId`, `ocrResult`, `confidenceScore`) that flow through the pipeline. Each node declares what it reads and what it produces.
+Every workflow has a **context** — a shared data store that nodes read from and write to as the workflow runs. Think of it as a set of named variables (like `documentId`, `ocrResultRef`, `confidenceScore`) that flow through the pipeline. Each node declares what it reads and what it produces. For Azure OCR, large JSON lives in blob storage; context holds **refs** (`ocrResponseRef`, `ocrResultRef`, `cleanedResultRef`) — see [WORKFLOW_NODE_CATALOG.md](WORKFLOW_NODE_CATALOG.md) and [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md).
 
 ---
 
@@ -422,8 +422,7 @@ Before placing nodes, define the variables your workflow will use. At minimum, y
 
 For OCR workflows, you'll also typically need:
 - `modelId` (text, default: "prebuilt-layout") — which OCR model to use
-- `ocrResult` (object) — will hold the OCR output
-- `cleanedResult` (object) — will hold post-processed results
+- `ocrResponseRef`, `ocrResultRef`, `cleanedResultRef` (object) — blob references, not full OCR JSON
 
 ### Step 3: Place and Configure Nodes
 
@@ -436,21 +435,21 @@ For OCR workflows, you'll also typically need:
    - Bind output: write `apimRequestId` to context
 
 3. Add a **Poll Until** node for **Poll OCR Results**
-   - Bind input: `apimRequestId` from context
-   - Set condition: stop when status is no longer "running"
+   - Bind inputs: `apimRequestId`, `documentId`, `modelId`
+   - Set condition: stop when `ocrResponseRef.status` is not `running`
    - Set interval: 10 seconds, with a 5-second initial delay
-   - Bind output: write `ocrResponse` to context
+   - Bind output: port `response` → `ocrResponseRef`
 
 4. Add an **Extract OCR Results** activity node
-   - Bind inputs: `apimRequestId`, `ocrResponse`, `fileName`
-   - Bind output: write `ocrResult` to context
+   - Bind inputs: `apimRequestId`, `ocrResponse` ← `ocrResponseRef`, `fileName`, `documentId`
+   - Bind output: port `ocrResult` → `ocrResultRef`
 
 5. Add a **Post-OCR Cleanup** activity node
-   - Bind input: `ocrResult`
-   - Bind output: `cleanedResult`
+   - Bind `ocrResult` ← `ocrResultRef`, `documentId`
+   - Bind output: `cleanedResultRef`
 
 6. Add a **Store Results** activity node
-   - Bind inputs: `documentId`, `cleanedResult`
+   - Bind inputs: `documentId`, `cleanedResult` ← `cleanedResultRef`
 
 ### Step 4: Connect the Nodes
 
