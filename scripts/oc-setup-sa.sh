@@ -116,7 +116,7 @@ metadata:
 rules:
   # Core resources
   - apiGroups: [""]
-    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events", "replicationcontrollers"]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events", "replicationcontrollers", "serviceaccounts"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods/exec", "pods/portforward"]

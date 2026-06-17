@@ -7,6 +7,12 @@ import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
+import {
+  persistOcrArtifactRef,
+  requireDocumentId,
+  resolveGroupIdForOcr,
+} from "../ocr-payload-ref";
 import {
   fieldDefinitionsToMistralDocumentAnnotationFormat,
   type MistralDocumentAnnotationFormat,
@@ -184,6 +190,8 @@ function mockOcrResult(
 
 export interface MistralOcrProcessParams {
   fileData: PreparedFileData;
+  documentId: string;
+  groupId?: string | null;
   /** Labeling template model id; loads `field_schema` for `document_annotation_format`. */
   templateModelId?: string;
   /** Optional prompt forwarded to Mistral `document_annotation_prompt`. */
@@ -196,8 +204,9 @@ export interface MistralOcrProcessParams {
  */
 export async function mistralOcrProcess(
   params: MistralOcrProcessParams,
-): Promise<{ ocrResult: OCRResult }> {
+): Promise<{ ocrResult: OcrPayloadRef }> {
   const activityName = "mistralOcrProcess";
+  const documentId = requireDocumentId(params);
   const { fileData, documentAnnotationPrompt } = params;
   const templateModelIdRaw = params.templateModelId?.trim();
   const log = createActivityLogger(activityName, {
@@ -236,7 +245,14 @@ export async function mistralOcrProcess(
       requestId,
       durationMs: Date.now() - startTime,
     });
-    return { ocrResult };
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const ref = await persistOcrArtifactRef(
+      groupId,
+      documentId,
+      "ocr-result.json",
+      ocrResult,
+    );
+    return { ocrResult: ref };
   }
 
   if (!apiKey) {
@@ -317,7 +333,14 @@ export async function mistralOcrProcess(
       alertType: "mistral_ocr",
     });
 
-    return { ocrResult };
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const ref = await persistOcrArtifactRef(
+      groupId,
+      documentId,
+      "ocr-result.json",
+      ocrResult,
+    );
+    return { ocrResult: ref };
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;

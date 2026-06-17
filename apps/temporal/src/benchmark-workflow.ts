@@ -30,7 +30,6 @@ import {
   benchmarkExecuteWorkflow,
 } from "./activities/benchmark-execute";
 import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
 // Activity Types
@@ -39,7 +38,7 @@ import type { GraphWorkflowConfig } from "./graph-workflow-types";
 type BenchmarkActivities = {
   "benchmark.materializeDataset": (params: {
     datasetVersionId: string;
-  }) => Promise<{ materializedPath: string }>;
+  }) => Promise<{ materializedPath: string; groupId: string }>;
 
   "benchmark.loadDatasetManifest": (params: {
     materializedPath: string;
@@ -161,9 +160,6 @@ export interface BenchmarkRunWorkflowInput {
   /** Pinned workflow version (WorkflowVersion.id) for this run */
   workflowVersionId: string;
 
-  /** Workflow configuration */
-  workflowConfig: GraphWorkflowConfig;
-
   /** SHA-256 hash of workflow config */
   workflowConfigHash: string;
 
@@ -192,6 +188,9 @@ export interface BenchmarkRunWorkflowInput {
 
   /** Replay OCR from a prior completed run's cache rows (skips Azure submit/poll). */
   ocrCacheBaselineRunId?: string;
+
+  /** Exposed-param overrides merged when loading graph config in sample workflows. */
+  workflowConfigOverrides?: Record<string, unknown>;
 }
 
 export interface BenchmarkRunWorkflowResult {
@@ -350,13 +349,14 @@ export async function benchmarkRunWorkflow(
     datasetVersionId,
     splitId,
     sampleIds,
-    workflowConfig,
+    workflowVersionId,
     workflowConfigHash,
     evaluatorType,
     evaluatorConfig,
     runtimeSettings,
     persistOcrCache = false,
     ocrCacheBaselineRunId,
+    workflowConfigOverrides,
   } = input;
 
   // Create activity proxy with configurable timeouts and retries (US-023 Scenario 4 & 5)
@@ -382,6 +382,7 @@ export async function benchmarkRunWorkflow(
   );
 
   let materializedPath: string | undefined;
+  let datasetGroupId: string | undefined;
   const outputPaths: string[] = [];
   let flatMetrics: Record<string, number> = {};
   let aggregateResultForStorage: Record<string, unknown> = {};
@@ -399,12 +400,12 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     currentPhase = "materializing";
 
-    const { materializedPath: matPath } = await customActivities[
-      "benchmark.materializeDataset"
-    ]({
-      datasetVersionId,
-    });
+    const { materializedPath: matPath, groupId: matGroupId } =
+      await customActivities["benchmark.materializeDataset"]({
+        datasetVersionId,
+      });
     materializedPath = matPath;
+    datasetGroupId = matGroupId;
 
     // Load manifest via activity
     const { manifest } = await customActivities[
@@ -473,48 +474,20 @@ export async function benchmarkRunWorkflow(
                 sample.id,
               );
 
-              let ocrCachePayload: { ocrResponse: unknown } | undefined;
-              if (ocrCacheBaselineRunId) {
-                const loaded = await customActivities["benchmark.loadOcrCache"](
-                  {
-                    sourceRunId: ocrCacheBaselineRunId,
-                    sampleId: sample.id,
-                  },
-                );
-                if (
-                  loaded.ocrResponse === null ||
-                  loaded.ocrResponse === undefined
-                ) {
-                  throw ApplicationFailure.create({
-                    message:
-                      `OCR cache miss for sample ${sample.id} (baseline run ${ocrCacheBaselineRunId}). ` +
-                      `Run a completed benchmark on this definition with persistOcrCache: true first.`,
-                    nonRetryable: true,
-                  });
-                }
-                ocrCachePayload = { ocrResponse: loaded.ocrResponse };
-              }
-
-              // Execute workflow for this sample via the wrapper child workflow.
-              // The wrapper writes the prediction file and persists OCR cache
-              // (when configured) from inside its own context, so the heavy
-              // payloads stay in the wrapper's history, not this parent's.
               const executeInput: BenchmarkExecuteInput = {
                 sampleId: sample.id,
-                workflowConfig,
+                workflowVersionId,
                 configHash: workflowConfigHash,
                 inputPaths,
                 outputBaseDir,
-                sampleMetadata: {
-                  ...sample.metadata,
-                  ...(ocrCachePayload
-                    ? { __benchmarkOcrCache: ocrCachePayload }
-                    : {}),
-                },
+                sampleMetadata: sample.metadata,
                 predictionOutputDir: outputBaseDir,
+                groupId: datasetGroupId,
                 persistOcrCache: persistOcrCache
                   ? { sourceRunId: runId }
                   : undefined,
+                ocrCacheBaselineRunId,
+                workflowConfigOverrides,
                 timeoutMs,
                 taskQueue: childTaskQueue,
               };

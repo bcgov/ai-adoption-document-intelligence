@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { computeConfigHash, stampConfigWithPersistedHash } from "./config-hash";
 import { validateGraphConfig } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -37,6 +38,8 @@ export interface WorkflowInfo {
   schemaVersion: string;
   /** Immutable version number (WorkflowVersion.version_number) */
   version: number;
+  /** SHA-256 of normalized config (also stored in config.metadata.configHash). */
+  configHash: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,6 +122,7 @@ export class WorkflowService {
     },
   ): WorkflowInfo {
     const config = this.asGraphConfig(version.config);
+    const configHash = config.metadata?.configHash ?? computeConfigHash(config);
     return {
       id: lineage.id,
       workflowVersionId: version.id,
@@ -130,6 +134,7 @@ export class WorkflowService {
       config,
       schemaVersion: config.schemaVersion,
       version: version.version_number,
+      configHash,
       createdAt: lineage.created_at,
       updatedAt: lineage.updated_at,
     };
@@ -412,6 +417,7 @@ export class WorkflowService {
         errors: validation.errors,
       });
     }
+    const configToPersist = stampConfigWithPersistedHash(dto.config);
 
     const full = await this.prisma.$transaction(async (tx) => {
       const slug = await this.resolveUniqueSlug(dto.groupId, dto.name, tx);
@@ -428,7 +434,7 @@ export class WorkflowService {
         data: {
           lineage_id: lineageRow.id,
           version_number: 1,
-          config: dto.config as object,
+          config: configToPersist as object,
         },
       });
       await tx.workflowLineage.update({
@@ -538,7 +544,7 @@ export class WorkflowService {
               data: {
                 lineage_id: lineageId,
                 version_number: nextNum,
-                config: nextConfig as object,
+                config: stampConfigWithPersistedHash(nextConfig) as object,
               },
             });
             await tx.workflowLineage.update({
@@ -678,7 +684,7 @@ export class WorkflowService {
         data: {
           lineage_id: lineageRow.id,
           version_number: 1,
-          config: candidateConfig as object,
+          config: stampConfigWithPersistedHash(candidateConfig) as object,
         },
       });
       await tx.workflowLineage.update({

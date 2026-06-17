@@ -4,7 +4,7 @@
 	"description": "Temporal workflow for Azure OCR document processing using TypeScript",
 	"main": "dist/worker.js",
 	"scripts": {
-		"build": "npm run db:generate && tsc",
+		"build": "npm run db:generate && npm run build:graph-insertion-slots && npm run build:graph-workflow-config && npm run build:graph-workflow && tsc",
 		"build:logging": "cd ../../packages/logging && npm run build",
 		"start": "node dist/worker.js",
 		"start:worker": "node dist/worker.js",
@@ -14,7 +14,9 @@
 		"db:generate": "node ../shared/scripts/generate-prisma.js",
 		"lint": "npx @biomejs/biome check",
 		"lint:fix": "npm run lint -- --write",
+		"pretest": "npm run build:logging && npm run build:graph-insertion-slots && npm run build:graph-workflow-config && npm run build:graph-workflow",
 		"build:graph-workflow": "cd ../../packages/graph-workflow && npm run build",
+		"build:graph-workflow-config": "cd ../../packages/graph-workflow-config && npm run build",
 		"test": "jest",
 		"build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build"
 	},
@@ -29,6 +31,8 @@
 	"license": "MIT",
 	"dependencies": {
 		"@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
+		"@ai-di/graph-workflow-config": "file:../../packages/graph-workflow-config",
+		"@ai-di/temporal-payload-codec": "file:../../packages/temporal-payload-codec",
 		"@ai-di/graph-insertion-slots": "file:../../packages/graph-insertion-slots",
 		"@ai-di/graph-workflow": "file:../../packages/graph-workflow",
 		"@ai-di/monitoring": "file:../../packages/monitoring",
@@ -71,6 +75,9 @@
 		"typescript": "5.9.3"
 	},
 	"jest": {
+		"setupFilesAfterEnv": [
+			"<rootDir>/jest.setup.ts"
+		],
 		"moduleFileExtensions": [
 			"js",
 			"json",

@@ -34,6 +34,10 @@ import {
   tryCanonicalDateString,
 } from "../form-field-normalization";
 import { createActivityLogger } from "../logger";
+import {
+  finalizeCorrectionResult,
+  resolveOcrResultInput,
+} from "../ocr-activity-ref-utils";
 import type { EnrichmentChange, OCRResult } from "../types";
 import type { FieldMap } from "./enrichment-rules";
 import { loadFieldMapFromProject } from "./field-schema-loader";
@@ -454,7 +458,8 @@ export async function normalizeOcrFields(
   params: NormalizeFieldsParams,
 ): Promise<CorrectionResult> {
   const log = createActivityLogger("normalizeOcrFields");
-  const { ocrResult, fieldScope, documentType } = params;
+  const { documentId, fieldScope, documentType } = params;
+  const { ocrResult, groupId } = await resolveOcrResultInput(params);
   const rules = resolveActiveRules(params);
   const normalizeFullResult = params.normalizeFullResult === true;
   const emptyValueCoercion: EmptyValueCoercionMode =
@@ -609,16 +614,20 @@ export async function normalizeOcrFields(
     changesApplied: changes.length,
   });
 
-  return {
-    ocrResult: result,
-    changes,
-    metadata: {
-      enabledRules: rules.map((r) => r.id),
-      normalizeFullResult,
-      schemaAware: Boolean(fieldMap),
-      documentType: documentType ?? null,
-      schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
-      emptyValueCoercion,
+  return finalizeCorrectionResult(
+    {
+      ocrResult: result,
+      changes,
+      metadata: {
+        enabledRules: rules.map((r) => r.id),
+        normalizeFullResult,
+        schemaAware: Boolean(fieldMap),
+        documentType: documentType ?? null,
+        schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
+        emptyValueCoercion,
+      },
     },
-  };
+    documentId,
+    groupId,
+  );
 }

@@ -4,9 +4,10 @@ import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
-import { computeConfigHash } from "../workflow/config-hash";
+import { computeConfigHashWithOverrides } from "../workflow/config-hash";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
+import { temporalDataConverter } from "./temporal-data-converter";
 import { WORKFLOW_TYPES } from "./workflow-types";
 
 @Injectable()
@@ -161,6 +162,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       this.client = new Client({
         connection: this.connection,
         namespace: this.namespace,
+        dataConverter: temporalDataConverter,
       });
 
       this.logger.log("Temporal client connected successfully");
@@ -193,7 +195,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     workflowConfigId: string,
     initialCtx: Record<string, unknown>,
     groupId: string | null,
-    graphOverride?: GraphWorkflowConfig,
+    workflowConfigOverrides?: Record<string, unknown>,
   ): Promise<string> {
     this.ensureClientInitialized();
 
@@ -211,23 +213,29 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      const graph = (graphOverride ??
-        workflowConfig.config) as GraphWorkflowConfig;
-      const configHash = computeConfigHash(graph);
+      const graph = workflowConfig.config as GraphWorkflowConfig;
+      const configHash = computeConfigHashWithOverrides(
+        graph,
+        workflowConfigOverrides,
+      );
       const runnerVersion = "1.0.0";
 
       const workflowType = WORKFLOW_TYPES.GRAPH_WORKFLOW;
       const requestId = getRequestContext()?.requestId;
+      const hasOverrides =
+        workflowConfigOverrides !== undefined &&
+        Object.keys(workflowConfigOverrides).length > 0;
 
       const handle = await this.client!.workflow.start(workflowType, {
         args: [
           {
-            graph,
+            workflowVersionId: workflowConfigId,
             initialCtx,
             configHash,
             runnerVersion,
             groupId,
             ...(requestId && { requestId }),
+            ...(hasOverrides && { workflowConfigOverrides }),
           },
         ],
         taskQueue: this.taskQueue,

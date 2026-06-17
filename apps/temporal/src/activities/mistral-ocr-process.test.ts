@@ -1,9 +1,32 @@
+jest.mock("../logger", () => ({
+  createActivityLogger: () => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(),
+  }),
+}));
+
 import axios from "axios";
-import type { PreparedFileData } from "../types";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
+import * as ocrPayloadRef from "../ocr-payload-ref";
+import type { OCRResult, PreparedFileData } from "../types";
 import {
   mistralOcrProcess,
   resolveMistralOcrModelId,
 } from "./mistral-ocr-process";
+
+const DOC_ID = "doc-mistral-test";
+const ocrBodies = new Map<string, OCRResult>();
+
+function ocrFromRef(ref: OcrPayloadRef): OCRResult {
+  const body = ocrBodies.get(ref.blobPath);
+  if (!body) {
+    throw new Error(`missing OCR body for ${ref.blobPath}`);
+  }
+  return body;
+}
 
 jest.mock("axios");
 const axiosPost = axios.post as jest.MockedFunction<typeof axios.post>;
@@ -55,16 +78,37 @@ describe("mistralOcrProcess", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    ocrBodies.clear();
     process.env = { ...originalEnv, MOCK_MISTRAL_OCR: "true" };
     mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4"));
+    jest
+      .spyOn(ocrPayloadRef, "resolveGroupIdForOcr")
+      .mockResolvedValue("gtestgroupidfortests01");
+    jest
+      .spyOn(ocrPayloadRef, "persistOcrArtifactRef")
+      .mockImplementation(async (_groupId, documentId, _file, body) => {
+        const ref: OcrPayloadRef = {
+          documentId,
+          blobPath: `gtestgroupidfortests01/ocr/${documentId}/ocr-result.json`,
+          storage: "blob",
+          status: "succeeded",
+        };
+        ocrBodies.set(ref.blobPath, body as OCRResult);
+        return ref;
+      });
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    jest.restoreAllMocks();
   });
 
   it("returns mock OCRResult when MOCK_MISTRAL_OCR is true", async () => {
-    const { ocrResult } = await mistralOcrProcess({ fileData: baseFile });
+    const { ocrResult: ref } = await mistralOcrProcess({
+      fileData: baseFile,
+      documentId: DOC_ID,
+    });
+    const ocrResult = ocrFromRef(ref);
     expect(ocrResult.success).toBe(true);
     expect(ocrResult.extractedText).toContain("mock ocr");
     expect(axiosPost).not.toHaveBeenCalled();
@@ -103,23 +147,24 @@ describe("mistralOcrProcess", () => {
       },
     });
 
-    const { ocrResult } = await mistralOcrProcess({
+    const { ocrResult: ref } = await mistralOcrProcess({
       fileData: baseFile,
+      documentId: DOC_ID,
       templateModelId: "tm-1",
     });
 
     expect(axiosPost).toHaveBeenCalled();
     const callBody = axiosPost.mock.calls[0][1] as Record<string, unknown>;
     expect(callBody.document_annotation_format).toBeDefined();
-    expect(ocrResult.pages.length).toBeGreaterThan(0);
+    expect(ocrFromRef(ref).pages.length).toBeGreaterThan(0);
   });
 
   it("throws when API key missing and not mock", async () => {
     process.env = { ...originalEnv, MOCK_MISTRAL_OCR: "false" };
     delete process.env.MISTRAL_API_KEY;
 
-    await expect(mistralOcrProcess({ fileData: baseFile })).rejects.toThrow(
-      "MISTRAL_API_KEY",
-    );
+    await expect(
+      mistralOcrProcess({ fileData: baseFile, documentId: DOC_ID }),
+    ).rejects.toThrow("MISTRAL_API_KEY");
   });
 });

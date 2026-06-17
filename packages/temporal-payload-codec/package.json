@@ -1,0 +1,21 @@
+{
+  "name": "@ai-di/temporal-payload-codec",
+  "version": "1.0.0",
+  "description": "Shared Temporal PayloadCodec (gzip) for worker and clients",
+  "main": "dist/index.js",
+  "types": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@temporalio/common": "1.10.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

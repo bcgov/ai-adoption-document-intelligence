@@ -3,21 +3,43 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { ApplicationFailure } from "@temporalio/activity";
 import { createActivityLogger } from "../logger";
+import {
+  makeOcrPayloadRef,
+  requireDocumentId,
+  resolveGroupIdForOcr,
+  writeOcrPayloadBlob,
+} from "../ocr-payload-ref";
 import type { OCRResponse, PollResult } from "../types";
 
+function throwFailedOcrResponse(responseBody: OCRResponse): never {
+  const detail = responseBody.error?.message ?? "unknown error";
+  const code = responseBody.error?.code;
+  const suffix = code ? `${code}: ${detail}` : detail;
+
+  throw ApplicationFailure.create({
+    message: `Azure OCR analysis failed: ${suffix}`,
+    nonRetryable: true,
+    details: [responseBody],
+  });
+}
+
 /**
- * Activity: Poll Azure Document Intelligence for OCR results
- * Returns status and full response if available
+ * Activity: Poll Azure Document Intelligence for OCR results.
+ * Returns a lightweight OcrPayloadRef on port `response` (no inline JSON in history).
  */
 export async function pollOCRResults(params: {
   apimRequestId: string;
   modelId: string;
+  documentId: string;
+  groupId?: string | null;
   __benchmarkOcrCache?: { ocrResponse?: OCRResponse };
 }): Promise<PollResult> {
   const activityName = "pollOCRResults";
+  const documentId = requireDocumentId(params);
   const { apimRequestId, modelId } = params;
-  const log = createActivityLogger(activityName, { apimRequestId });
+  const log = createActivityLogger(activityName, { apimRequestId, documentId });
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
   const useMock = process.env.MOCK_AZURE_OCR === "true";
@@ -30,14 +52,30 @@ export async function pollOCRResults(params: {
       event: "benchmark_cache_skip",
       status,
     });
+    if (status === "running") {
+      return {
+        status: "running",
+        response: makeOcrPayloadRef(documentId, "", "running"),
+      };
+    }
+    if (status === "failed") {
+      throwFailedOcrResponse(body);
+    }
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const { blobPath, byteLength } = await writeOcrPayloadBlob(
+      groupId,
+      documentId,
+      "azure-response.json",
+      body,
+    );
     return {
-      status:
-        status === "failed"
-          ? "failed"
-          : status === "running"
-            ? "running"
-            : "succeeded",
-      response: body,
+      status: "succeeded",
+      response: makeOcrPayloadRef(
+        documentId,
+        blobPath,
+        "succeeded",
+        byteLength,
+      ),
     };
   }
 
@@ -47,7 +85,6 @@ export async function pollOCRResults(params: {
     useMock,
   });
 
-  // Mock mode for testing
   if (useMock) {
     const mockResponse: OCRResponse = {
       status: "succeeded",
@@ -76,6 +113,14 @@ export async function pollOCRResults(params: {
       },
     };
 
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const { blobPath, byteLength } = await writeOcrPayloadBlob(
+      groupId,
+      documentId,
+      "azure-response.json",
+      mockResponse,
+    );
+
     log.info("Poll OCR results complete (mock)", {
       event: "complete_mock",
       status: "succeeded",
@@ -83,7 +128,12 @@ export async function pollOCRResults(params: {
 
     return {
       status: "succeeded",
-      response: mockResponse,
+      response: makeOcrPayloadRef(
+        documentId,
+        blobPath,
+        "succeeded",
+        byteLength,
+      ),
     };
   }
 
@@ -100,12 +150,6 @@ export async function pollOCRResults(params: {
   }
 
   if (!apimRequestId || typeof apimRequestId !== "string") {
-    log.error("Poll OCR results: invalid APIM Request ID", {
-      event: "error",
-      modelId,
-      error: "invalid_apim_request_id",
-      message: "APIM Request ID not available for polling",
-    });
     throw new Error("APIM Request ID not available for polling");
   }
 
@@ -122,7 +166,6 @@ export async function pollOCRResults(params: {
       },
     );
 
-    // Poll for results
     const response = await client
       .path(
         "/documentModels/{modelId}/analyzeResults/{resultId}",
@@ -144,11 +187,6 @@ export async function pollOCRResults(params: {
     const responseBody = response.body as OCRResponse;
 
     if (!responseBody) {
-      log.error("Poll OCR results: empty response body", {
-        event: "error",
-        error: "empty_response_body",
-        message: "Empty response from Azure OCR polling endpoint",
-      });
       throw new Error("Empty response from Azure OCR polling endpoint");
     }
 
@@ -159,9 +197,33 @@ export async function pollOCRResults(params: {
       alertType: "azure_ocr_poll",
     });
 
+    if (status === "running") {
+      return {
+        status: "running",
+        response: makeOcrPayloadRef(documentId, "", "running"),
+      };
+    }
+
+    if (status === "failed") {
+      throwFailedOcrResponse(responseBody);
+    }
+
+    const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
+    const { blobPath, byteLength } = await writeOcrPayloadBlob(
+      groupId,
+      documentId,
+      "azure-response.json",
+      responseBody,
+    );
+
     return {
-      status: status as "running" | "succeeded" | "failed",
-      response: responseBody,
+      status: "succeeded",
+      response: makeOcrPayloadRef(
+        documentId,
+        blobPath,
+        "succeeded",
+        byteLength,
+      ),
     };
   } catch (error) {
     log.error("Poll OCR results error", {
