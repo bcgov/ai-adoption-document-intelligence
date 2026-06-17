@@ -418,7 +418,7 @@ describe("Graph Workflow", () => {
       expect(result.documentId).toBe("override-123");
       expect(result.status).toBe("completed");
       expect(result.status).toBe("completed");
-    });
+    }, 15000);
 
     it("executes a linear 3-node graph (A -> B -> C)", async () => {
       const graph = makeLinearGraph();

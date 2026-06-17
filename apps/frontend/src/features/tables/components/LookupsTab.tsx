@@ -1,3 +1,7 @@
+import { IconInfoCircle, IconPencil, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   ActionIcon,
   Alert,
@@ -8,11 +12,7 @@ import {
   Table,
   Text,
   Tooltip,
-} from "@mantine/core";
-import { IconInfoCircle, IconPencil, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { apiService } from "@/data/services/api.service";
+} from "../../../ui";
 import { LOOKUP_TEMPLATES } from "../lookup-templates";
 import type { ColumnDef, LookupDef } from "../types";
 import { LookupForm } from "./LookupForm";

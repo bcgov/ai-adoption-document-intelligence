@@ -23,7 +23,11 @@ ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 ENV VITE_SUPPORT_EMAIL=${VITE_SUPPORT_EMAIL}
 ENV VITE_ENV=${VITE_ENV}
 
-COPY apps/frontend/package.json ./
+# Copy workspace packages referenced as file: dependencies (file:../../packages/* resolves to /packages/*)
+COPY packages/graph-workflow /packages/graph-workflow
+RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
+
+COPY apps/frontend/package*.json ./
 RUN npm install --ignore-scripts
 COPY apps/frontend/ .
 RUN npm run build

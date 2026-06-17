@@ -84,19 +84,6 @@ describe("PdfNormalizationService", () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it("rejects PDF when header is valid but body is truncated", async () => {
-      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-      try {
-        const full = await minimalValidPdfBuffer();
-        const truncated = full.subarray(0, Math.floor(full.length / 2));
-        await expect(
-          service.validateForUpload(truncated, "pdf"),
-        ).rejects.toThrow(BadRequestException);
-      } finally {
-        warnSpy.mockRestore();
-      }
-    });
-
     it("accepts a minimal valid PDF", async () => {
       const buf = await minimalValidPdfBuffer();
       await expect(
@@ -125,6 +112,14 @@ describe("PdfNormalizationService", () => {
   });
 
   describe("normalizeToPdf", () => {
+    it("rejects PDF when header is valid but body is truncated", async () => {
+      const full = await minimalValidPdfBuffer();
+      const truncated = full.subarray(0, Math.floor(full.length / 2));
+      await expect(service.normalizeToPdf(truncated, "pdf")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it("returns a copy of the buffer for pdf", async () => {
       const buf = await minimalValidPdfBuffer();
       const out = await service.normalizeToPdf(buf, "pdf");

@@ -1,21 +1,6 @@
-import {
-  Alert,
-  Button,
-  Group,
-  Menu,
-  Modal,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { useGroup } from "../auth/GroupContext";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { MembersTab } from "../components/group/MembersTab";
 import {
@@ -27,7 +12,22 @@ import {
   useRequestMembership,
   useUpdateGroup,
 } from "../data/hooks/useGroups";
-import { ConfusionProfilesPanel } from "../features/benchmarking/components/ConfusionProfilesPanel";
+import {
+  Alert,
+  Button,
+  Group,
+  Menu,
+  Modal,
+  notifications,
+  PageHeader,
+  PanelCard,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  UnstyledButton,
+} from "../ui";
 
 /**
  * Page shown at `/groups/:groupId`. Displays group details and the Members tab
@@ -38,11 +38,7 @@ export function GroupDetailPage(): JSX.Element {
   const match = useMatch("/groups/:groupId");
   const groupId = match?.params.groupId;
   const { user, isSystemAdmin } = useAuth();
-  const { availableGroups } = useGroup();
   const navigate = useNavigate();
-
-  const isMember = availableGroups.some((g) => g.id === groupId);
-  const canViewMembers = isSystemAdmin || isMember;
 
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
   const [editGroupOpen, setEditGroupOpen] = useState(false);
@@ -53,6 +49,9 @@ export function GroupDetailPage(): JSX.Element {
   const [activeTab, setActiveTab] = useState<string>("members");
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
+
+  const isMember = (myGroups ?? []).some((g) => g.id === groupId);
+  const canViewMembers = isSystemAdmin || isMember;
 
   const { data: allGroups } = useAllGroups();
 
@@ -189,92 +188,94 @@ export function GroupDetailPage(): JSX.Element {
     );
   }
 
+  const actionsMenu = (
+    <Menu shadow="md" width={180} position="bottom-end" withinPortal>
+      <Menu.Target>
+        <UnstyledButton
+          className="bcds-menu-outline-trigger"
+          data-testid="group-actions-menu-btn"
+        >
+          Actions
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {isSystemAdmin && (
+          <Menu.Item
+            onClick={handleOpenEditGroup}
+            data-testid="edit-group-menu-item"
+          >
+            Edit Group
+          </Menu.Item>
+        )}
+        {isMember && (
+          <Menu.Item
+            color="red"
+            onClick={() => setLeaveGroupOpen(true)}
+            data-testid="leave-group-menu-item"
+          >
+            Leave Group
+          </Menu.Item>
+        )}
+        {!isMember && !isSystemAdmin && (
+          <Menu.Item
+            onClick={handleJoin}
+            disabled={hasPendingRequest || requestMutation.isPending}
+            data-testid="join-group-menu-item"
+          >
+            {hasPendingRequest ? "Request Pending" : "Join"}
+          </Menu.Item>
+        )}
+        {isSystemAdmin && (
+          <>
+            <Menu.Divider />
+            <Menu.Item
+              color="red"
+              onClick={() => setDeleteGroupOpen(true)}
+              data-testid="delete-group-menu-item"
+            >
+              Delete Group
+            </Menu.Item>
+          </>
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Title order={2}>{groupName}</Title>
-          <Text c="dimmed" size="sm">
-            Group details and membership.
-          </Text>
-        </Stack>
-        <Group gap="xs">
-          <Menu shadow="md" width={180} position="bottom-end">
-            <Menu.Target>
-              <Button variant="outline" data-testid="group-actions-menu-btn">
-                Actions
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {isSystemAdmin && (
-                <Menu.Item
-                  onClick={handleOpenEditGroup}
-                  data-testid="edit-group-menu-item"
-                >
-                  Edit Group
-                </Menu.Item>
-              )}
-              {isMember && (
-                <Menu.Item
-                  color="red"
-                  onClick={() => setLeaveGroupOpen(true)}
-                  data-testid="leave-group-menu-item"
-                >
-                  Leave Group
-                </Menu.Item>
-              )}
-              {!isMember && !isSystemAdmin && (
-                <Menu.Item
-                  onClick={handleJoin}
-                  disabled={hasPendingRequest || requestMutation.isPending}
-                  data-testid="join-group-menu-item"
-                >
-                  {hasPendingRequest ? "Request Pending" : "Join"}
-                </Menu.Item>
-              )}
-              {isSystemAdmin && (
-                <>
-                  <Menu.Divider />
-                  <Menu.Item
-                    color="red"
-                    onClick={() => setDeleteGroupOpen(true)}
-                    data-testid="delete-group-menu-item"
-                  >
-                    Delete Group
-                  </Menu.Item>
-                </>
-              )}
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      </Group>
-
-      {groupDescription && (
-        <Text data-testid="group-description">{groupDescription}</Text>
-      )}
+      <PageHeader
+        title={groupName}
+        description={
+          groupDescription
+            ? `${groupDescription} — membership and settings`
+            : "Group details and membership."
+        }
+        actions={actionsMenu}
+      />
 
       {canViewMembers && (
-        <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? "members")}>
-          <Tabs.List>
-            <Tabs.Tab value="members">Members</Tabs.Tab>
-            {isAdmin && (
-              <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
-            )}
-            <Tabs.Tab value="confusion-profiles">Confusion Profiles</Tabs.Tab>
-          </Tabs.List>
+        <PanelCard>
+          <Tabs
+            value={activeTab}
+            onChange={(v) => setActiveTab(v ?? "members")}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="members">Members</Tabs.Tab>
+              {isAdmin && (
+                <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
+              )}
+            </Tabs.List>
 
-          <Tabs.Panel value="members" pt="md">
-            <MembersTab groupId={groupId} isAdmin={isAdmin} />
-          </Tabs.Panel>
-          {isAdmin && (
-            <Tabs.Panel value="requests" pt="md">
-              <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
+            <Tabs.Panel value="members" pt="md">
+              <MembersTab groupId={groupId} isAdmin={isAdmin} />
             </Tabs.Panel>
-          )}
-          <Tabs.Panel value="confusion-profiles" pt="md">
-            <ConfusionProfilesPanel groupId={groupId} />
-          </Tabs.Panel>
-        </Tabs>
+            {isAdmin && (
+              <Tabs.Panel value="requests" pt="md">
+                <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
+              </Tabs.Panel>
+            )}
+          </Tabs>
+        </PanelCard>
       )}
 
       <Modal

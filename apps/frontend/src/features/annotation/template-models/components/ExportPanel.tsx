@@ -1,3 +1,5 @@
+import { FC, useState } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   Button,
   Checkbox,
@@ -6,9 +8,7 @@ import {
   Radio,
   Stack,
   Text,
-} from "@mantine/core";
-import { FC, useState } from "react";
-import { apiService } from "@/data/services/api.service";
+} from "../../../../ui";
 
 interface ExportPanelProps {
   templateModelId: string;

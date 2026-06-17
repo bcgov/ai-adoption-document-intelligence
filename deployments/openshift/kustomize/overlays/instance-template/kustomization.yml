@@ -137,6 +137,7 @@ patches:
         THROTTLE_AUTH_LIMIT: "__THROTTLE_AUTH_LIMIT__"
         THROTTLE_AUTH_REFRESH_TTL_MS: "__THROTTLE_AUTH_REFRESH_TTL_MS__"
         THROTTLE_AUTH_REFRESH_LIMIT: "__THROTTLE_AUTH_REFRESH_LIMIT__"
+        DB_POOL_MAX: "__DB_POOL_MAX__"
         AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__"
         AZURE_DOC_INTELLIGENCE_MODELS: "__AZURE_DOC_INTELLIGENCE_MODELS__"
         DOCUMENT_INTELLIGENCE_MODE: "__DOCUMENT_INTELLIGENCE_MODE__"
@@ -184,7 +185,7 @@ patches:
               - name: frontend
                 env:
                   - name: BACKEND_SERVICE_URL
-                    value: "http://__INSTANCE_NAME__-backend-services:3002"
+                    value: "http://__INSTANCE_NAME__-backend-services.__NAMESPACE__.svc.cluster.local:3002"
 
   # --- Crunchy Postgres secret name patches ---
   # The Crunchy operator auto-creates secrets named after the PostgresCluster CR.

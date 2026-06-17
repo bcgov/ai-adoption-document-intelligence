@@ -1,9 +1,9 @@
-import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "../../auth/AuthContext";
 import { apiService } from "../../data/services/api.service";
+import { MantineProvider } from "../../ui";
 import { DocumentUploadPanel } from "./DocumentUploadPanel";
 
 // ---------------------------------------------------------------------------
@@ -25,12 +25,6 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
 vi.mock("../../data/services/api.service", () => ({
   apiService: {
     post: vi.fn(),
-  },
-}));
-
-vi.mock("@mantine/notifications", () => ({
-  notifications: {
-    show: vi.fn(),
   },
 }));
 
@@ -158,13 +152,10 @@ describe("DocumentUploadPanel", () => {
       // Tooltip rendered as wrapper around the button; check the button is disabled
       expect(uploadBtn).toBeDisabled();
 
-      // Hover to trigger tooltip
-      fireEvent.mouseEnter(uploadBtn);
-      await waitFor(() => {
-        expect(
-          screen.getByText(/select a group before uploading/i),
-        ).toBeInTheDocument();
-      });
+      expect(
+        uploadBtn.parentElement?.getAttribute("title") ??
+          uploadBtn.getAttribute("title"),
+      ).toMatch(/select a group before uploading/i);
     });
 
     it("does not call apiService.post when activeGroup is null", async () => {

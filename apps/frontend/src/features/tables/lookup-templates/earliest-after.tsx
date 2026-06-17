@@ -1,4 +1,4 @@
-import { Select, Stack, TextInput } from "@mantine/core";
+import { Select, Stack, TextInput } from "../../../ui";
 import type { ColumnDef } from "../types";
 import type { LookupTemplate } from "./types";
 

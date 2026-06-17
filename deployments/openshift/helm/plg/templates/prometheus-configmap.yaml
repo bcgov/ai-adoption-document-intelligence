@@ -67,3 +67,10 @@ data:
             regex: (.*)
             target_label: __address__
             replacement: $1:{{ .Values.prometheus.scrapeTargets.temporalWorker.port }}
+
+      - job_name: "loki"
+        metrics_path: "/metrics"
+        scrape_interval: {{ .Values.prometheus.scrapeInterval }}
+        static_configs:
+          - targets:
+              - "{{ include "plg.loki.fullname" . }}:{{ .Values.loki.httpPort }}"

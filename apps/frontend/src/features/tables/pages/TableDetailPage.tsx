@@ -1,18 +1,19 @@
+import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { useAuth } from "@/auth/AuthContext";
+import { useGroup } from "@/auth/GroupContext";
 import {
   Button,
   Group,
   Modal,
+  PageHeader,
+  PanelCard,
   Stack,
   Tabs,
   Text,
   Textarea,
   TextInput,
-  Title,
-} from "@mantine/core";
-import { useState } from "react";
-import { useParams } from "react-router-dom";
-import { useAuth } from "@/auth/AuthContext";
-import { useGroup } from "@/auth/GroupContext";
+} from "../../../ui";
 import { ColumnsTab } from "../components/ColumnsTab";
 import { LookupSnippetPanel } from "../components/LookupSnippetPanel";
 import { LookupsTab } from "../components/LookupsTab";
@@ -58,13 +59,15 @@ export function TableDetailPage() {
 
   if (table.isLoading)
     return (
-      <Stack py="md">
+      <Stack gap="lg">
+        <PageHeader title="Table" description="Loading table details…" />
         <Text c="dimmed">Loading…</Text>
       </Stack>
     );
   if (table.isError)
     return (
-      <Stack py="md">
+      <Stack gap="lg">
+        <PageHeader title="Table" description="Table detail" />
         <Text c="red">
           Failed to load table: {(table.error as Error).message}
         </Text>
@@ -72,148 +75,148 @@ export function TableDetailPage() {
     );
   if (!table.data)
     return (
-      <Stack py="md">
+      <Stack gap="lg">
+        <PageHeader title="Table" description="Table detail" />
         <Text c="dimmed">Table not found.</Text>
       </Stack>
     );
 
   return (
-    <Stack py="md">
-      <Group justify="space-between" mb="md">
-        <Stack gap={0}>
-          <Title order={2}>{table.data.label}</Title>
-          <Text c="dimmed" size="sm" ff="monospace">
-            {table.data.table_id}
-          </Text>
-        </Stack>
-      </Group>
-      <Tabs defaultValue="rows">
-        <Tabs.List>
-          <Tabs.Tab value="rows">Rows</Tabs.Tab>
-          <Tabs.Tab value="columns">Columns</Tabs.Tab>
-          <Tabs.Tab value="lookups">Lookups</Tabs.Tab>
-          {isAdmin && <Tabs.Tab value="settings">Settings</Tabs.Tab>}
-        </Tabs.List>
-        <Tabs.Panel value="rows" pt="md">
-          {groupId && tableId && (
-            <RowsTab
-              groupId={groupId}
-              tableId={tableId}
-              columns={table.data.columns}
-              onCreate={() => {
-                setEditingRow(undefined);
-                setRowFormOpen(true);
-              }}
-              onEdit={(row) => {
-                setEditingRow(row);
-                setRowFormOpen(true);
-              }}
-            />
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="columns" pt="md">
-          {groupId && tableId && (
-            <ColumnsTab
-              groupId={groupId}
-              tableId={tableId}
-              columns={table.data.columns}
-              isAdmin={isAdmin}
-            />
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="lookups" pt="md">
-          {groupId && tableId && (
-            <LookupsTab
-              groupId={groupId}
-              tableId={tableId}
-              columns={table.data.columns}
-              lookups={table.data.lookups}
-              onShowSnippet={setSnippetLookup}
-              isAdmin={isAdmin}
-            />
-          )}
-        </Tabs.Panel>
-        {isAdmin && (
-          <Tabs.Panel value="settings" pt="md">
-            <Stack maw={500}>
-              <TextInput
-                label="Label"
-                value={currentLabel}
-                onChange={(e) => setSettingsLabel(e.currentTarget.value)}
+    <Stack gap="lg">
+      <PageHeader title={table.data.label} description={table.data.table_id} />
+      <PanelCard>
+        <Tabs defaultValue="rows">
+          <Tabs.List>
+            <Tabs.Tab value="rows">Rows</Tabs.Tab>
+            <Tabs.Tab value="columns">Columns</Tabs.Tab>
+            <Tabs.Tab value="lookups">Lookups</Tabs.Tab>
+            {isAdmin && <Tabs.Tab value="settings">Settings</Tabs.Tab>}
+          </Tabs.List>
+          <Tabs.Panel value="rows" pt="md">
+            {groupId && tableId && (
+              <RowsTab
+                groupId={groupId}
+                tableId={tableId}
+                columns={table.data.columns}
+                onCreate={() => {
+                  setEditingRow(undefined);
+                  setRowFormOpen(true);
+                }}
+                onEdit={(row) => {
+                  setEditingRow(row);
+                  setRowFormOpen(true);
+                }}
               />
-              <Textarea
-                label="Description"
-                value={currentDescription}
-                onChange={(e) => setSettingsDescription(e.currentTarget.value)}
+            )}
+          </Tabs.Panel>
+          <Tabs.Panel value="columns" pt="md">
+            {groupId && tableId && (
+              <ColumnsTab
+                groupId={groupId}
+                tableId={tableId}
+                columns={table.data.columns}
+                isAdmin={isAdmin}
               />
-              {updateMeta.isError && (
-                <Text c="red" size="sm">
-                  {(updateMeta.error as Error).message}
-                </Text>
-              )}
-              <Group>
-                <Button
-                  loading={updateMeta.isPending}
-                  onClick={() => {
-                    const label = currentLabel.trim();
-                    const description = currentDescription.trim() || null;
-                    if (!label) return;
-                    updateMeta.mutate(
-                      { label, description },
-                      {
-                        onSuccess: () => {
-                          setSettingsLabel(null);
-                          setSettingsDescription(null);
-                        },
-                      },
-                    );
-                  }}
-                >
-                  Save Settings
-                </Button>
-                <Button color="red" onClick={() => setConfirmDelete(true)}>
-                  Delete Table
-                </Button>
-              </Group>
-            </Stack>
-            <Modal
-              opened={confirmDelete}
-              onClose={closeDeleteModal}
-              title="Delete table?"
-            >
-              <Stack>
-                <Text>
-                  This deletes the table and all its rows. Cannot be undone.
-                </Text>
+            )}
+          </Tabs.Panel>
+          <Tabs.Panel value="lookups" pt="md">
+            {groupId && tableId && (
+              <LookupsTab
+                groupId={groupId}
+                tableId={tableId}
+                columns={table.data.columns}
+                lookups={table.data.lookups}
+                onShowSnippet={setSnippetLookup}
+                isAdmin={isAdmin}
+              />
+            )}
+          </Tabs.Panel>
+          {isAdmin && (
+            <Tabs.Panel value="settings" pt="md">
+              <Stack maw={500}>
                 <TextInput
-                  label='Type "delete" to confirm'
-                  placeholder="delete"
-                  value={tableDeleteConfirm}
-                  onChange={(e) => setTableDeleteConfirm(e.currentTarget.value)}
+                  label="Label"
+                  value={currentLabel}
+                  onChange={(e) => setSettingsLabel(e.currentTarget.value)}
                 />
-                {deleteTable.isError && (
+                <Textarea
+                  label="Description"
+                  value={currentDescription}
+                  onChange={(e) =>
+                    setSettingsDescription(e.currentTarget.value)
+                  }
+                />
+                {updateMeta.isError && (
                   <Text c="red" size="sm">
-                    {(deleteTable.error as Error).message}
+                    {(updateMeta.error as Error).message}
                   </Text>
                 )}
-                <Group justify="flex-end">
-                  <Button variant="default" onClick={closeDeleteModal}>
-                    Cancel
-                  </Button>
+                <Group>
                   <Button
-                    color="red"
-                    disabled={tableDeleteConfirm !== "delete"}
-                    loading={deleteTable.isPending}
-                    onClick={() => deleteTable.mutate()}
+                    loading={updateMeta.isPending}
+                    onClick={() => {
+                      const label = currentLabel.trim();
+                      const description = currentDescription.trim() || null;
+                      if (!label) return;
+                      updateMeta.mutate(
+                        { label, description },
+                        {
+                          onSuccess: () => {
+                            setSettingsLabel(null);
+                            setSettingsDescription(null);
+                          },
+                        },
+                      );
+                    }}
                   >
-                    Delete
+                    Save Settings
+                  </Button>
+                  <Button color="red" onClick={() => setConfirmDelete(true)}>
+                    Delete Table
                   </Button>
                 </Group>
               </Stack>
-            </Modal>
-          </Tabs.Panel>
-        )}
-      </Tabs>
+              <Modal
+                opened={confirmDelete}
+                onClose={closeDeleteModal}
+                title="Delete table?"
+              >
+                <Stack>
+                  <Text>
+                    This deletes the table and all its rows. Cannot be undone.
+                  </Text>
+                  <TextInput
+                    label='Type "delete" to confirm'
+                    placeholder="delete"
+                    value={tableDeleteConfirm}
+                    onChange={(e) =>
+                      setTableDeleteConfirm(e.currentTarget.value)
+                    }
+                  />
+                  {deleteTable.isError && (
+                    <Text c="red" size="sm">
+                      {(deleteTable.error as Error).message}
+                    </Text>
+                  )}
+                  <Group justify="flex-end">
+                    <Button variant="default" onClick={closeDeleteModal}>
+                      Cancel
+                    </Button>
+                    <Button
+                      color="red"
+                      disabled={tableDeleteConfirm !== "delete"}
+                      loading={deleteTable.isPending}
+                      onClick={() => deleteTable.mutate()}
+                    >
+                      Delete
+                    </Button>
+                  </Group>
+                </Stack>
+              </Modal>
+            </Tabs.Panel>
+          )}
+        </Tabs>
+      </PanelCard>
       {groupId && tableId && (
         <RowForm
           opened={rowFormOpen}

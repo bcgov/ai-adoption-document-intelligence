@@ -1,18 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  UnstyledButton,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconChevronDown,
   IconChevronUp,
@@ -23,6 +9,20 @@ import type {
   GroupRequest,
   MyMembershipRequest,
 } from "../../data/hooks/useGroups";
+import {
+  Alert,
+  Badge,
+  Button,
+  Center,
+  DataTable,
+  Group,
+  Loader,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+  UnstyledButton,
+} from "../../ui";
 
 /** Maps a request status string to a Mantine badge colour. */
 function statusColor(status: string): string {
@@ -45,7 +45,7 @@ const REQUEST_STATUS_OPTIONS = [
   { value: "APPROVED", label: "Approved" },
   { value: "DENIED", label: "Denied" },
   { value: "CANCELLED", label: "Cancelled" },
-  { value: "", label: "All" },
+  { value: "ALL", label: "All" },
 ];
 
 export interface RequestsTableColumn<T> {
@@ -167,12 +167,15 @@ export function makeGroupRequestColumns(
 /**
  * Returns the column definitions for the user's own membership requests table.
  * Includes group name, submitted date, status badge, reason, and a cancel action button.
+ * When `onApprove` is provided, an Approve button is also shown for PENDING requests.
  *
  * @param onCancel - Called when the user clicks Cancel on a pending request.
+ * @param onApprove - Optional. Called when the user clicks Approve on a pending request.
  * @returns An array of column definitions for use with {@link RequestsTable}.
  */
 export function makeMyRequestColumns(
   onCancel: (requestId: string) => void,
+  onApprove?: (request: MyMembershipRequest) => void,
 ): RequestsTableColumn<MyMembershipRequest>[] {
   return [
     {
@@ -204,14 +207,27 @@ export function makeMyRequestColumns(
       header: "Actions",
       render: (r) =>
         r.status === "PENDING" ? (
-          <Button
-            size="xs"
-            variant="light"
-            color="red"
-            onClick={() => onCancel(r.id)}
-          >
-            Cancel
-          </Button>
+          <Group gap="xs">
+            {onApprove && (
+              <Button
+                size="xs"
+                variant="light"
+                color="green"
+                data-testid={`my-approve-btn-${r.id}`}
+                onClick={() => onApprove(r)}
+              >
+                Approve
+              </Button>
+            )}
+            <Button
+              size="xs"
+              variant="light"
+              color="red"
+              onClick={() => onCancel(r.id)}
+            >
+              Cancel
+            </Button>
+          </Group>
         ) : null,
     },
   ];
@@ -262,7 +278,11 @@ export function RequestsTable<T extends { id: string }>({
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const { data: requests, isLoading, isError } = fetchData(statusFilter);
+  const {
+    data: requests,
+    isLoading,
+    isError,
+  } = fetchData(statusFilter === "ALL" ? "" : statusFilter);
 
   /**
    * Toggles sort direction for the same column, or activates a new sort column.
@@ -338,7 +358,7 @@ export function RequestsTable<T extends { id: string }>({
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
           data-testid="requests-search"
-          style={{ flex: 1 }}
+          style={{ flex: 1, alignSelf: "flex-end" }}
         />
       </Group>
 
@@ -347,11 +367,11 @@ export function RequestsTable<T extends { id: string }>({
           <Text c="dimmed">{emptyMessage}</Text>
         </Center>
       ) : (
-        <Table highlightOnHover data-testid="requests-table">
-          <Table.Thead>
-            <Table.Tr>
+        <DataTable highlightOnHover data-testid="requests-table">
+          <DataTable.Thead>
+            <DataTable.Tr>
               {columns.map((col) => (
-                <Table.Th key={col.key}>
+                <DataTable.Th key={col.key}>
                   {col.sortValue !== undefined ? (
                     <UnstyledButton
                       onClick={() => toggleSort(col.key)}
@@ -368,20 +388,20 @@ export function RequestsTable<T extends { id: string }>({
                   ) : (
                     col.header
                   )}
-                </Table.Th>
+                </DataTable.Th>
               ))}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
+            </DataTable.Tr>
+          </DataTable.Thead>
+          <DataTable.Tbody>
             {sorted.map((row) => (
-              <Table.Tr key={row.id}>
+              <DataTable.Tr key={row.id}>
                 {columns.map((col) => (
-                  <Table.Td key={col.key}>{col.render(row)}</Table.Td>
+                  <DataTable.Td key={col.key}>{col.render(row)}</DataTable.Td>
                 ))}
-              </Table.Tr>
+              </DataTable.Tr>
             ))}
-          </Table.Tbody>
-        </Table>
+          </DataTable.Tbody>
+        </DataTable>
       )}
     </Stack>
   );

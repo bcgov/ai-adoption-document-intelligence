@@ -1,4 +1,3 @@
-import { MantineProvider } from "@mantine/core";
 import {
   act,
   fireEvent,
@@ -9,19 +8,11 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type GroupMember,
-  type GroupRequest,
-  type UserGroup,
-} from "../data/hooks/useGroups";
+import { GroupMember, GroupRequest, UserGroup } from "../data/hooks/useGroups";
+import { changeFieldValue, getNativeInputWithin } from "../test/fieldHelpers";
+import { mockNotificationsShow } from "../test/mockNotifications";
+import { MantineProvider } from "../ui";
 import { GroupDetailPage } from "./GroupDetailPage";
-
-const { mockNotificationsShow } = vi.hoisted(() => ({
-  mockNotificationsShow: vi.fn(),
-}));
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: mockNotificationsShow },
-}));
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -57,14 +48,6 @@ vi.mock("../auth/AuthContext", () => ({
 
 vi.mock("../auth/GroupContext", () => ({
   useGroup: () => mockUseGroup(),
-}));
-
-vi.mock("../features/benchmarking/components/ConfusionProfilesPanel", () => ({
-  ConfusionProfilesPanel: ({ groupId }: { groupId: string }) => (
-    <div data-testid="confusion-profiles-panel">
-      Confusion Profiles for {groupId}
-    </div>
-  ),
 }));
 
 vi.mock("../data/hooks/useGroups", () => ({
@@ -923,9 +906,9 @@ describe("GroupDetailPage", () => {
         expect(
           screen.getByTestId("requests-status-filter"),
         ).toBeInTheDocument();
-        // Mantine Select renders a visible input with the label of the selected option
-        const inputs = screen.getAllByDisplayValue("Pending");
-        expect(inputs.length).toBeGreaterThan(0);
+        expect(screen.getByTestId("requests-status-filter")).toHaveTextContent(
+          /pending/i,
+        );
       });
     });
 
@@ -1162,9 +1145,7 @@ describe("GroupDetailPage", () => {
         expect(screen.getByTestId("approve-reason-input")).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByTestId("approve-reason-input"), {
-        target: { value: "Looks good" },
-      });
+      changeFieldValue("approve-reason-input", "Looks good");
 
       fireEvent.click(screen.getByTestId("approve-confirm-btn"));
 
@@ -1327,8 +1308,8 @@ describe("GroupDetailPage", () => {
         expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId("edit-group-name")).toHaveValue("Alpha Team");
-      expect(screen.getByTestId("edit-group-description")).toHaveValue(
+      expect(getNativeInputWithin("edit-group-name")).toHaveValue("Alpha Team");
+      expect(getNativeInputWithin("edit-group-description")).toHaveValue(
         "A great team",
       );
     });
@@ -1345,12 +1326,8 @@ describe("GroupDetailPage", () => {
         expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByTestId("edit-group-name"), {
-        target: { value: "Updated Team" },
-      });
-      fireEvent.change(screen.getByTestId("edit-group-description"), {
-        target: { value: "Updated description" },
-      });
+      changeFieldValue("edit-group-name", "Updated Team");
+      changeFieldValue("edit-group-description", "Updated description");
 
       fireEvent.click(screen.getByTestId("edit-group-submit-btn"));
 
@@ -1372,9 +1349,7 @@ describe("GroupDetailPage", () => {
         expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByTestId("edit-group-name"), {
-        target: { value: "" },
-      });
+      changeFieldValue("edit-group-name", "");
 
       fireEvent.click(screen.getByTestId("edit-group-submit-btn"));
 

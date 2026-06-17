@@ -12,6 +12,8 @@ import { validateGraphConfig } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS = 3;
+/** Max slug suffix probes (`-2`, `-3`, …) before giving up on auto-naming. */
+const WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS = 200;
 
 function isWorkflowVersionUniqueConflict(error: unknown): boolean {
   return (
@@ -162,12 +164,19 @@ export class WorkflowService {
     const base = this.slugifyName(name);
     let candidate = base;
     let counter = 2;
+    let attempts = 0;
     while (
       await tx.workflowLineage.findUnique({
         where: { group_id_slug: { group_id: groupId, slug: candidate } },
         select: { id: true },
       })
     ) {
+      attempts++;
+      if (attempts >= WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS) {
+        throw new ConflictException(
+          `Could not allocate a unique workflow slug for "${name}" in this group`,
+        );
+      }
       candidate = `${base}-${counter}`;
       counter++;
     }

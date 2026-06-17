@@ -1,18 +1,4 @@
 import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconChecklist,
   IconFileDownload,
@@ -22,6 +8,21 @@ import {
 import { useEffect, useState } from "react";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
 import { Document, DocumentField, ExtractedFields } from "../../shared/types";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  DataTable,
+  Group,
+  Loader,
+  Modal,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  Title,
+  Tooltip,
+} from "../../ui";
 import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
 
@@ -69,7 +70,7 @@ function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
   }
 
   return (
-    <Table
+    <DataTable
       striped
       highlightOnHover
       withTableBorder
@@ -79,31 +80,31 @@ function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
         marginBottom: "2rem",
       }}
     >
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th style={{ width: "25%" }}>Field</Table.Th>
-          <Table.Th style={{ width: "45%" }}>Value</Table.Th>
-          <Table.Th style={{ width: "15%" }}>Type</Table.Th>
-          <Table.Th style={{ width: "15%" }}>Confidence</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
+      <DataTable.Thead>
+        <DataTable.Tr>
+          <DataTable.Th style={{ width: "25%" }}>Field</DataTable.Th>
+          <DataTable.Th style={{ width: "45%" }}>Value</DataTable.Th>
+          <DataTable.Th style={{ width: "15%" }}>Type</DataTable.Th>
+          <DataTable.Th style={{ width: "15%" }}>Confidence</DataTable.Th>
+        </DataTable.Tr>
+      </DataTable.Thead>
+      <DataTable.Tbody>
         {entries.map(([name, field]) => (
-          <Table.Tr key={name}>
-            <Table.Td style={{ wordBreak: "break-word" }}>
+          <DataTable.Tr key={name}>
+            <DataTable.Td style={{ wordBreak: "break-word" }}>
               <Text size="sm" fw={500}>
                 {name}
               </Text>
-            </Table.Td>
-            <Table.Td style={{ wordBreak: "break-word" }}>
+            </DataTable.Td>
+            <DataTable.Td style={{ wordBreak: "break-word" }}>
               <Text size="sm">{getFieldDisplayValue(field)}</Text>
-            </Table.Td>
-            <Table.Td>
+            </DataTable.Td>
+            <DataTable.Td>
               <Badge size="xs" variant="light">
                 {field.type}
               </Badge>
-            </Table.Td>
-            <Table.Td>
+            </DataTable.Td>
+            <DataTable.Td>
               <Text
                 size="sm"
                 c={
@@ -116,11 +117,11 @@ function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
               >
                 {(field.confidence * 100).toFixed(1)}%
               </Text>
-            </Table.Td>
-          </Table.Tr>
+            </DataTable.Td>
+          </DataTable.Tr>
         ))}
-      </Table.Tbody>
-    </Table>
+      </DataTable.Tbody>
+    </DataTable>
   );
 }
 
@@ -230,9 +231,13 @@ export function DocumentViewerModal({
     <Modal
       opened={opened}
       onClose={handleClose}
+      centered
+      fullBleedBody
+      darkOverlay
       title={
         <Group
           justify="space-between"
+          pr={30}
           style={{ width: "100%", flex: 1 }}
           wrap="nowrap"
         >
@@ -240,13 +245,7 @@ export function DocumentViewerModal({
             {document?.title || "Document"}
           </Text>
           <Group gap="xs">
-            <Tooltip
-              label="Rotate 90°"
-              position="bottom"
-              withArrow
-              withinPortal
-              zIndex={10000}
-            >
+            <Tooltip label="Rotate 90°" position="bottom" withArrow>
               <ActionIcon
                 variant="subtle"
                 onClick={handleRotate}
@@ -257,13 +256,7 @@ export function DocumentViewerModal({
                 <IconRotateClockwise size={20} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip
-              label="Download document"
-              position="bottom"
-              withArrow
-              withinPortal
-              zIndex={10000}
-            >
+            <Tooltip label="Download document" position="bottom" withArrow>
               <ActionIcon
                 variant="subtle"
                 onClick={handleDownload}
@@ -281,17 +274,14 @@ export function DocumentViewerModal({
       size="90vw"
       styles={{
         body: {
-          height: "90vh",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
         },
         content: { height: "90vh", overflow: "hidden" },
-        overlay: { backgroundColor: "rgba(0, 0, 0, 0.8)" },
         header: { paddingRight: "1rem" },
         title: { flex: 1, width: "100%" },
       }}
-      withinPortal
       zIndex={9999}
       closeOnClickOutside={true}
       closeOnEscape={true}
@@ -336,7 +326,14 @@ export function DocumentViewerModal({
               overflow: "hidden",
             }}
           >
-            <Tabs.List className="flex-shrink-0 px-4 pt-2">
+            <Tabs.List
+              className="flex-shrink-0"
+              style={{
+                paddingLeft: "var(--layout-padding-large)",
+                paddingRight: "var(--layout-padding-large)",
+                paddingTop: "var(--layout-padding-small)",
+              }}
+            >
               <Tabs.Tab
                 value="viewer"
                 leftSection={<IconFileDownload size={16} />}

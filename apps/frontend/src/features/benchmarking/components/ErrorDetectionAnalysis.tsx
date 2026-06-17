@@ -1,5 +1,13 @@
-import { Card, Center, Loader, Stack, Table, Text, Title } from "@mantine/core";
 import { useMemo, useState } from "react";
+import {
+  Center,
+  DataTable,
+  Loader,
+  PanelCard,
+  Stack,
+  Text,
+  Title,
+} from "../../../ui";
 import type { ErrorDetectionField } from "../api/errorDetectionAnalysis";
 import { useErrorDetectionAnalysis } from "../api/errorDetectionAnalysis";
 
@@ -104,34 +112,34 @@ export function ErrorDetectionAnalysis({ projectId, runId }: Props) {
 
       {/* Roll-up summary */}
       {rollup && (
-        <Card withBorder padding="md">
+        <PanelCard p="md">
           <Text>
             Catching {rollup.totalTp} of {rollup.totalErrors} errors (
             {rollup.catchPct}%) &mdash; {rollup.reviewed} of{" "}
             {rollup.totalEvaluated} samples flagged for review
           </Text>
-        </Card>
+        </PanelCard>
       )}
 
       {/* Field table */}
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Field</Table.Th>
-            <Table.Th>Evaluated</Table.Th>
-            <Table.Th>Error rate</Table.Th>
-            <Table.Th>Threshold</Table.Th>
-            <Table.Th>Suggested</Table.Th>
-            <Table.Th title="How many real errors the model would catch at this threshold (true positives ÷ total errors). Higher is better for finding problems.">
+      <DataTable striped highlightOnHover>
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th>Field</DataTable.Th>
+            <DataTable.Th>Evaluated</DataTable.Th>
+            <DataTable.Th>Error rate</DataTable.Th>
+            <DataTable.Th>Threshold</DataTable.Th>
+            <DataTable.Th>Suggested</DataTable.Th>
+            <DataTable.Th title="How many real errors the model would catch at this threshold (true positives ÷ total errors). Higher is better for finding problems.">
               Errors caught
-            </Table.Th>
-            <Table.Th title="How many correct fields would be flagged for review when they are actually fine (false positives). Lower is better to reduce unnecessary review work.">
+            </DataTable.Th>
+            <DataTable.Th title="How many correct fields would be flagged for review when they are actually fine (false positives). Lower is better to reduce unnecessary review work.">
               False alarms
-            </Table.Th>
-            <Table.Th>Missed</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+            </DataTable.Th>
+            <DataTable.Th>Missed</DataTable.Th>
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {sortedFields.map((f) => {
             const t = thresholds[f.name] ?? f.suggestedBestBalance;
             const pt = curvePointAt(f, t);
@@ -140,11 +148,11 @@ export function ErrorDetectionAnalysis({ projectId, runId }: Props) {
               setThresholds((prev) => ({ ...prev, [f.name]: val }));
 
             return (
-              <Table.Tr key={f.name}>
-                <Table.Td>{f.name}</Table.Td>
-                <Table.Td>{f.evaluatedCount}</Table.Td>
-                <Table.Td>{pct(f.errorRate)}</Table.Td>
-                <Table.Td>
+              <DataTable.Tr key={f.name}>
+                <DataTable.Td>{f.name}</DataTable.Td>
+                <DataTable.Td>{f.evaluatedCount}</DataTable.Td>
+                <DataTable.Td>{pct(f.errorRate)}</DataTable.Td>
+                <DataTable.Td>
                   <div
                     style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
@@ -162,8 +170,8 @@ export function ErrorDetectionAnalysis({ projectId, runId }: Props) {
                       {t.toFixed(2)}
                     </Text>
                   </div>
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                     <button
                       type="button"
@@ -202,17 +210,17 @@ export function ErrorDetectionAnalysis({ projectId, runId }: Props) {
                       Minimize review
                     </button>
                   </div>
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   {pt.tp} of {f.errorCount} real errors
-                </Table.Td>
-                <Table.Td>{pt.fp}</Table.Td>
-                <Table.Td>{pt.fn}</Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+                <DataTable.Td>{pt.fp}</DataTable.Td>
+                <DataTable.Td>{pt.fn}</DataTable.Td>
+              </DataTable.Tr>
             );
           })}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
 
       {/* Excluded fields footnote */}
       {excludedCount > 0 && (

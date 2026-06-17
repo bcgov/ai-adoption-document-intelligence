@@ -1,5 +1,6 @@
 import { parse as parseCsv } from "csv/sync";
-import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { XMLParser } from "fast-xml-parser";
+import { SyntaxValidator } from "fast-xml-validator";
 
 /** Supported input formats for the data transform node. */
 export type InputFormat = "json" | "xml" | "csv";
@@ -78,9 +79,15 @@ function parseJson(input: string): Record<string, unknown> | unknown[] {
  * @throws {InputParseError} If the string is not valid XML.
  */
 function parseXml(input: string): Record<string, unknown> {
-  const validation = XMLValidator.validate(input);
-  if (validation !== true) {
-    throw new InputParseError("xml", validation.err.msg);
+  try {
+    const validation = SyntaxValidator.validate(input);
+    if (validation !== true) {
+      throw new InputParseError("xml", validation.err.msg);
+    }
+  } catch (err) {
+    if (err instanceof InputParseError) throw err;
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new InputParseError("xml", detail);
   }
 
   const parser = new XMLParser({
