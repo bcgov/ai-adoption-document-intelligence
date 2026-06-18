@@ -7,12 +7,11 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
-import { Document, DocumentField, ExtractedFields } from "../../shared/types";
+import { Document } from "../../shared/types";
 import {
   ActionIcon,
   Alert,
   Badge,
-  DataTable,
   Group,
   Loader,
   Modal,
@@ -25,6 +24,7 @@ import {
 } from "../../ui";
 import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
+import OcrResults from "./OcrResults";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) {
@@ -44,94 +44,13 @@ interface DocumentViewerModalProps {
   onClose: () => void;
 }
 
-function getFieldDisplayValue(field: DocumentField): string {
-  if (field.valueSelectionMark !== undefined) {
-    return field.valueSelectionMark === "selected"
-      ? "☑ Selected"
-      : "☐ Unselected";
-  }
-  if (field.valueNumber !== undefined) {
-    return field.valueNumber.toString();
-  }
-  if (field.valueDate !== undefined) {
-    return field.valueDate;
-  }
-  if (field.valueString !== undefined) {
-    return field.valueString;
-  }
-  return field.content || "—";
-}
-
-function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
-  const entries = Object.entries(fields);
-
-  if (entries.length === 0) {
-    return <Text c="dimmed">No fields extracted.</Text>;
-  }
-
-  return (
-    <DataTable
-      striped
-      highlightOnHover
-      withTableBorder
-      style={{
-        tableLayout: "fixed",
-        width: "100%",
-        marginBottom: "2rem",
-      }}
-    >
-      <DataTable.Thead>
-        <DataTable.Tr>
-          <DataTable.Th style={{ width: "25%" }}>Field</DataTable.Th>
-          <DataTable.Th style={{ width: "45%" }}>Value</DataTable.Th>
-          <DataTable.Th style={{ width: "15%" }}>Type</DataTable.Th>
-          <DataTable.Th style={{ width: "15%" }}>Confidence</DataTable.Th>
-        </DataTable.Tr>
-      </DataTable.Thead>
-      <DataTable.Tbody>
-        {entries.map(([name, field]) => (
-          <DataTable.Tr key={name}>
-            <DataTable.Td style={{ wordBreak: "break-word" }}>
-              <Text size="sm" fw={500}>
-                {name}
-              </Text>
-            </DataTable.Td>
-            <DataTable.Td style={{ wordBreak: "break-word" }}>
-              <Text size="sm">{getFieldDisplayValue(field)}</Text>
-            </DataTable.Td>
-            <DataTable.Td>
-              <Badge size="xs" variant="light">
-                {field.type}
-              </Badge>
-            </DataTable.Td>
-            <DataTable.Td>
-              <Text
-                size="sm"
-                c={
-                  field.confidence >= 0.9
-                    ? "green"
-                    : field.confidence >= 0.7
-                      ? "yellow"
-                      : "red"
-                }
-              >
-                {(field.confidence * 100).toFixed(1)}%
-              </Text>
-            </DataTable.Td>
-          </DataTable.Tr>
-        ))}
-      </DataTable.Tbody>
-    </DataTable>
-  );
-}
-
 export function DocumentViewerModal({
   document,
   opened,
   onClose,
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
-  const { data: ocrResult } = useDocumentOcr(documentId);
+  const { data: ocrResponse } = useDocumentOcr(documentId);
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -340,20 +259,12 @@ export function DocumentViewerModal({
               >
                 Document Viewer
               </Tabs.Tab>
-              {ocrResult?.ocr_result?.keyValuePairs && (
+              {ocrResponse?.ocr_result && (
                 <Tabs.Tab
                   value="ocr-results"
                   leftSection={<IconChecklist size={16} />}
                 >
                   OCR Results
-                </Tabs.Tab>
-              )}
-              {ocrResult?.ocr_result?.content.text && (
-                <Tabs.Tab
-                  value="raw-results"
-                  leftSection={<IconChecklist size={16} />}
-                >
-                  Raw Results
                 </Tabs.Tab>
               )}
               {(document?.status === "awaiting_review" ||
@@ -385,64 +296,24 @@ export function DocumentViewerModal({
               {imageUrl ? (
                 <DocumentViewer
                   imageUrl={imageUrl}
-                  extractedFields={ocrResult?.ocr_result?.keyValuePairs}
+                  extractedFields={ocrResponse?.ocr_result?.keyValuePairs}
                   pageNumber={1}
                   showOverlays={showOverlays}
                   rotation={rotation}
                 />
               ) : null}
             </Tabs.Panel>
-
-            {ocrResult?.ocr_result?.keyValuePairs && (
-              <Tabs.Panel
-                value="ocr-results"
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                    padding: "1rem",
-                    paddingBottom: "3rem",
-                  }}
-                >
-                  <ExtractedFieldsTable
-                    fields={ocrResult.ocr_result.keyValuePairs}
-                  />
-                </div>
-              </Tabs.Panel>
-            )}
-            {ocrResult?.ocr_result?.content.text && (
-              <Tabs.Panel
-                value="raw-results"
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                    padding: "1rem",
-                    paddingBottom: "3rem",
-                  }}
-                >
-                  {ocrResult?.ocr_result?.content.text.split("\n").map((l) => (
-                    <p>{l}</p>
-                  ))}
-                </div>
-              </Tabs.Panel>
-            )}
+            <Tabs.Panel
+              value="ocr-results"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <OcrResults ocr={ocrResponse?.ocr_result || null} />
+            </Tabs.Panel>
             {(document?.status === "awaiting_review" ||
               document?.needsReview) && (
               <Tabs.Panel
@@ -463,10 +334,10 @@ export function DocumentViewerModal({
                     paddingBottom: "3rem",
                   }}
                 >
-                  {ocrResult?.ocr_result ? (
+                  {ocrResponse?.ocr_result ? (
                     <DocumentValidation
                       document={document}
-                      ocrResult={ocrResult.ocr_result}
+                      ocrResult={ocrResponse.ocr_result}
                       onValidationComplete={() => {
                         // Refresh the document list and close modal after a short delay
                         setTimeout(() => {
