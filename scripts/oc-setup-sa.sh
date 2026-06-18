@@ -170,6 +170,10 @@ rules:
   - apiGroups: ["monitoring.coreos.com"]
     resources: ["prometheusrules", "servicemonitors", "podmonitors"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # RBAC (Helm charts for PLG create Roles and RoleBindings)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 EOF
 
 # ---------- create role binding (idempotent via apply) ----------
