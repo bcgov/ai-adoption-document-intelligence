@@ -4,7 +4,7 @@
  * Tests for the generic DAG workflow execution engine.
  */
 
-import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow-config";
+import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow";
 import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
