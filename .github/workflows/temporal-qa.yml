@@ -41,6 +41,11 @@ jobs:
       - name: Type Check
         working-directory: apps/temporal
         run: npm run type-check
+      - name: Build
+        working-directory: apps/temporal
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://localhost:5432/dummy"
       - name: Run tests
         working-directory: apps/temporal
         run: npm test

@@ -33,13 +33,18 @@ jobs:
         working-directory: apps/backend-services
         run: npm run db:generate
         env:
-          DATABASE_URL: "file:dev.db"
+          DATABASE_URL: "postgresql://localhost:5432/dummy"
       - name: Lint
         working-directory: apps/backend-services
         run: npm run lint
       - name: Type Check
         working-directory: apps/backend-services
         run: npm run type-check
+      - name: Build
+        working-directory: apps/backend-services
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://localhost:5432/dummy"
       - name: Test
         working-directory: apps/backend-services
         run: npm run test:cov
