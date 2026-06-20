@@ -5,7 +5,10 @@ This wiki is a compact map of the Document Intelligence Platform. Use it to find
 ## Start Here
 
 - [System overview](system-overview.md): service boundaries, platform shape, and major source paths.
-- [Graph workflows](graph-workflows.md): DAG workflow engine, activity registration, and workflow builder context.
+- [Graph workflows](graph-workflows.md): DAG workflow engine, activity registration, and execution semantics.
+- [Workflow builder](workflow-builder.md): frontend authoring UI, node palette, and workflow JSON editing.
+- [Tables and extensions](tables-and-extensions.md): reference data tables and the preferred workflow extension pattern.
+- [Blob storage](blob-storage.md): unified MinIO/Azure storage abstraction across backend and Temporal.
 - [HITL](hitl.md): review sessions, locking, queue behavior, and correction tracking.
 - [Auth and groups](auth-and-groups.md): Keycloak/API key auth, group scoping, and authorization docs.
 - [Deployment and ops](deployment-and-ops.md): local/dev/OpenShift deployment, monitoring, load testing, and operational runbooks.

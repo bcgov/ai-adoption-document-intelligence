@@ -5,6 +5,7 @@ canonical_sources:
   - docs-md/AUTHENTICATION.md
   - docs-md/GROUP_RESOURCE_AUTHORIZATION.md
   - docs-md/group/
+  - apps/backend-services/src/actor/
   - apps/backend-services/src/auth/
   - apps/backend-services/src/group/
   - apps/frontend/src/auth/
@@ -25,6 +26,7 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 - Group-scoped authorization behavior lives in `docs-md/GROUP_RESOURCE_AUTHORIZATION.md`.
 - Group UI and workflow context docs live under `docs-md/group/`.
 - Backend auth implementation, including API key guards, lives in `apps/backend-services/src/auth/`.
+- API key management (controller, service, DB) lives in `apps/backend-services/src/actor/`.
 - Group backend behavior lives in `apps/backend-services/src/group/`.
 - Frontend auth context lives in `apps/frontend/src/auth/`.
 
@@ -33,6 +35,12 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 - Do not expose or copy secret values into wiki pages.
 - Treat group authorization docs as the stable policy reference before changing access checks.
 - API keys and OIDC users have different entrypoints but must converge on clear actor and authorization behavior.
+
+## Related Topics
+
+- [Tables and extensions](tables-and-extensions.md): group-scoped table ownership and authorization.
+- [HITL](hitl.md): group context for review queues and sessions.
+- [System overview](system-overview.md): auth boundaries across frontend and backend.
 
 ## Common Drift Risks
 

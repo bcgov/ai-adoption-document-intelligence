@@ -742,6 +742,9 @@
     <ul><li><a href="wiki.html">Project Wiki Index</a></li>
 <li><a href="wiki-system-overview.html">System Overview</a></li>
 <li><a href="wiki-graph-workflows.html" style="font-weight: 700;">Graph Workflows</a></li>
+<li><a href="wiki-workflow-builder.html">Workflow Builder</a></li>
+<li><a href="wiki-tables-and-extensions.html">Tables and Extensions</a></li>
+<li><a href="wiki-blob-storage.html">Blob Storage</a></li>
 <li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
 <li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
 <li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
@@ -775,7 +778,7 @@
 <h2>Source Map</h2>
 <ul>
 <li>Engine behavior lives under <code>docs-md/graph-workflows/</code>, especially the DAG engine and adding-node guides.</li>
-<li>Workflow builder authoring context lives under <code>docs-md/workflow-builder/</code>.</li>
+<li>Workflow builder authoring context lives under <code>docs-md/workflow-builder/</code> and the <a href="wiki-workflow-builder.html">Workflow builder</a> wiki topic.</li>
 <li>Shared graph types and validators live in <code>packages/graph-workflow/</code>.</li>
 <li>Backend save-time validation and workflow APIs live in <code>apps/backend-services/src/workflow/</code>.</li>
 <li>OCR starts workflow execution through <code>apps/backend-services/src/ocr/</code>.</li>
@@ -785,7 +788,14 @@
 <ul>
 <li>Prefer adding a new activity when existing node semantics are enough.</li>
 <li>Add a new node type only when the graph engine needs new execution semantics.</li>
-<li>For user-managed configuration that drives a generic activity, follow the Tables pattern instead of creating feature-specific workflow machinery.</li>
+<li>For user-managed configuration that drives a generic activity, follow the <a href="wiki-tables-and-extensions.html">Tables and extensions</a> pattern instead of creating feature-specific workflow machinery.</li>
+</ul>
+<h2>Related Topics</h2>
+<ul>
+<li><a href="wiki-workflow-builder.html">Workflow builder</a>: frontend authoring UI and workflow JSON editing.</li>
+<li><a href="wiki-tables-and-extensions.html">Tables and extensions</a>: reference data lookups via <code>tables.lookup</code>.</li>
+<li><a href="wiki-blob-storage.html">Blob storage</a>: blob I/O activities and storage-backed workflow paths.</li>
+<li><a href="wiki-hitl.html">HITL</a>: human review nodes and pause/resume interactions with workflows.</li>
 </ul>
 <h2>Common Drift Risks</h2>
 <ul>
@@ -793,6 +803,7 @@
 <li>UI templates can make workflow authoring easier, but canonical workflow JSON remains the interchange format.</li>
 <li>Engine docs and builder docs intentionally overlap; keep engine semantics in graph-workflow docs and authoring guidance in workflow-builder docs.</li>
 </ul>
+
     </main>
     <footer class="site-footer">
         <div class="footer-content">
@@ -816,7 +827,7 @@
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>

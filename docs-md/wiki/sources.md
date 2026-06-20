@@ -1,15 +1,31 @@
 # Canonical Source Registry
 
-This registry names the places the wiki should route readers to before summarizing behavior.
+This registry names the places the wiki should route readers to before summarizing behavior. When a wiki topic exists, read it for cross-source orientation before opening the canonical paths below.
+
+## Wiki Topic Routing
+
+| Canonical area | Wiki topic |
+| --- | --- |
+| Platform shape and app boundaries | [System overview](system-overview.md) |
+| `docs-md/graph-workflows/` | [Graph workflows](graph-workflows.md) |
+| `docs-md/workflow-builder/` | [Workflow builder](workflow-builder.md) |
+| `docs-md/TABLES.md`, `docs-md/PATTERNS_NODE_AND_UI.md` | [Tables and extensions](tables-and-extensions.md) |
+| `docs-md/BLOB_STORAGE.md` | [Blob storage](blob-storage.md) |
+| `docs-md/HITL_ARCHITECTURE.md` | [HITL](hitl.md) |
+| `docs-md/AUTHENTICATION.md`, `docs-md/GROUP_RESOURCE_AUTHORIZATION.md`, `docs-md/group/` | [Auth and groups](auth-and-groups.md) |
+| `docs-md/openshift-deployment/`, load testing, monitoring, CI workflows | [Deployment and ops](deployment-and-ops.md) |
+
+Maintenance and registry pages: [Sources](sources.md), [Open questions](open-questions.md), [Log](log.md).
 
 ## Repo Orientation
 
 - `README.md`: high-level platform overview, setup, and feature list.
 - `apps/README.md`: app-level architecture and development workflow.
-- `CLAUDE.md`: contributor and agent rules.
+- `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`: contributor and agent rules.
 - `docs-md/`: stable Markdown documentation for implementation and operations.
-- `feature-docs/`: historical feature requirements, design context, user stories, and implementation notes.
-- `docs/`: generated/static documentation site; not the wiki source in v1.
+- `docs-md/ARCHIVE.md`: index of historical docs and stale patterns to avoid.
+- `feature-docs/`: historical feature requirements, design context, user stories, and implementation notes — see `docs-md/ARCHIVE.md`.
+- `docs/`: generated/static documentation site; wiki HTML is built at deploy time, not committed.
 
 ## System Areas
 
@@ -23,16 +39,16 @@ This registry names the places the wiki should route readers to before summarizi
 
 ## Stable Docs
 
-- Graph workflows: `docs-md/graph-workflows/`
-- Workflow builder: `docs-md/workflow-builder/`
-- HITL: `docs-md/HITL_ARCHITECTURE.md`
-- Authentication: `docs-md/AUTHENTICATION.md`
-- Group authorization: `docs-md/GROUP_RESOURCE_AUTHORIZATION.md`
-- Blob storage: `docs-md/BLOB_STORAGE.md`
-- Tables and extension pattern: `docs-md/TABLES.md`, `docs-md/PATTERNS_NODE_AND_UI.md`
-- Load testing: `docs-md/LOAD_TESTING.md`
-- Monitoring and alerting: `docs-md/LOCAL_MONITORING_STACK.md`, `docs-md/ALERTING.md`
-- OpenShift deployment: `docs-md/openshift-deployment/`
+- Graph workflows: `docs-md/graph-workflows/` — wiki: [Graph workflows](graph-workflows.md)
+- Workflow builder: `docs-md/workflow-builder/` — wiki: [Workflow builder](workflow-builder.md)
+- HITL: `docs-md/HITL_ARCHITECTURE.md` — wiki: [HITL](hitl.md)
+- Authentication: `docs-md/AUTHENTICATION.md` — wiki: [Auth and groups](auth-and-groups.md)
+- Group authorization: `docs-md/GROUP_RESOURCE_AUTHORIZATION.md` — wiki: [Auth and groups](auth-and-groups.md)
+- Blob storage: `docs-md/BLOB_STORAGE.md` — wiki: [Blob storage](blob-storage.md)
+- Tables and extension pattern: `docs-md/TABLES.md`, `docs-md/PATTERNS_NODE_AND_UI.md` — wiki: [Tables and extensions](tables-and-extensions.md)
+- Load testing: `docs-md/LOAD_TESTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)
+- Monitoring and alerting: `docs-md/LOCAL_MONITORING_STACK.md`, `docs-md/ALERTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)
+- OpenShift deployment: `docs-md/openshift-deployment/` — wiki: [Deployment and ops](deployment-and-ops.md)
 
 ## Code-Adjacent Sources
 

@@ -24,7 +24,7 @@ Graph workflows are the durable execution substrate for document processing. The
 ## Source Map
 
 - Engine behavior lives under `docs-md/graph-workflows/`, especially the DAG engine and adding-node guides.
-- Workflow builder authoring context lives under `docs-md/workflow-builder/`.
+- Workflow builder authoring context lives under `docs-md/workflow-builder/` and the [Workflow builder](workflow-builder.md) wiki topic.
 - Shared graph types and validators live in `packages/graph-workflow/`.
 - Backend save-time validation and workflow APIs live in `apps/backend-services/src/workflow/`.
 - OCR starts workflow execution through `apps/backend-services/src/ocr/`.
@@ -34,7 +34,14 @@ Graph workflows are the durable execution substrate for document processing. The
 
 - Prefer adding a new activity when existing node semantics are enough.
 - Add a new node type only when the graph engine needs new execution semantics.
-- For user-managed configuration that drives a generic activity, follow the Tables pattern instead of creating feature-specific workflow machinery.
+- For user-managed configuration that drives a generic activity, follow the [Tables and extensions](tables-and-extensions.md) pattern instead of creating feature-specific workflow machinery.
+
+## Related Topics
+
+- [Workflow builder](workflow-builder.md): frontend authoring UI and workflow JSON editing.
+- [Tables and extensions](tables-and-extensions.md): reference data lookups via `tables.lookup`.
+- [Blob storage](blob-storage.md): blob I/O activities and storage-backed workflow paths.
+- [HITL](hitl.md): human review nodes and pause/resume interactions with workflows.
 
 ## Common Drift Risks
 

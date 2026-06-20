@@ -28,6 +28,13 @@ The platform is a document intelligence monorepo with a React frontend, NestJS b
 - The image service owns optional preprocessing behavior such as denoising, deskewing, orientation, and resizing.
 - Shared packages and the shared Prisma schema hold cross-app types, validation, and persistence contracts.
 
+## Related Topics
+
+- [Graph workflows](graph-workflows.md): durable execution and activity boundaries.
+- [Blob storage](blob-storage.md): document bytes and artifact storage across services.
+- [Auth and groups](auth-and-groups.md): authentication and group scoping model.
+- [Deployment and ops](deployment-and-ops.md): running the platform locally and in OpenShift.
+
 ## Read First
 
 - Use `README.md` for platform overview, prerequisites, and root commands.

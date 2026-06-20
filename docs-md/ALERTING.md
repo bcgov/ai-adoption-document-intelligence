@@ -197,7 +197,7 @@ Then open `http://localhost:9093`. Use the **Silences** tab to create a silence 
 Start the full monitoring stack including ches-adapter:
 
 ```bash
-podman compose -f deployments/local/docker-compose.monitoring.yml up -d
+docker compose --profile monitoring up -d
 ```
 
 The ches-adapter is available at `http://localhost:3003/`. Set the required env vars in a `.env` file at the repo root or export them before starting. See `.env.sample` at the repo root for the full list of `CHES_*` variables.

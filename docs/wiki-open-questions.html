@@ -742,6 +742,9 @@
     <ul><li><a href="wiki.html">Project Wiki Index</a></li>
 <li><a href="wiki-system-overview.html">System Overview</a></li>
 <li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-workflow-builder.html">Workflow Builder</a></li>
+<li><a href="wiki-tables-and-extensions.html">Tables and Extensions</a></li>
+<li><a href="wiki-blob-storage.html">Blob Storage</a></li>
 <li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
 <li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
 <li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
@@ -754,16 +757,27 @@
 <p>Use this page for contradictions, drift candidates, and ownership gaps that should not be hidden inside topic pages.</p>
 <h2>Current Questions</h2>
 <ul>
-<li>Should stable feature docs in <code>feature-docs/</code> be promoted, archived, or linked as historical context after implementation is complete?</li>
-<li>Which docs from <code>docs-md/</code> should eventually be published through the generated <code>docs/</code> site, and which should remain repo-only?</li>
-<li>~~Should the wiki validator become a CI check after the team has used it for a few PRs?~~ Resolved: <code>.github/workflows/wiki-check.yml</code> runs <code>npm run docs:wiki:check</code> on PRs to <code>main</code> and <code>develop</code>.</li>
+<li>Should historical or audit folders (<code>docs-md/temp/</code>, <code>docs/superpowers/</code>, old feature specs) be promoted, archived, or linked as historical context after implementation is complete? <strong>Partially addressed:</strong> see <code>docs-md/ARCHIVE.md</code> for index and stale-pattern warnings; per-feature archive policy still TBD.</li>
+<li><del>Which docs from <code>docs-md/</code> should eventually be published through the generated <code>docs/</code> site, and which should remain repo-only?</del> Partially resolved: selected guides (benchmarking, authentication, integrations) are published via <code>docs/_pages/</code>; implementation docs and the repo wiki remain in <code>docs-md/</code> (wiki HTML is generated at deploy, not committed). Revisit when adding new public pages.</li>
+<li><del>Should the wiki validator become a CI check after the team has used it for a few PRs?</del> Resolved: <code>.github/workflows/wiki-check.yml</code> runs <code>npm run docs:wiki:check</code> on PRs to <code>main</code> and <code>develop</code>.</li>
+</ul>
+<h2>Documentation Ownership</h2>
+<ul>
+<li><strong>Root <code>README.md</code></strong>: local setup, prerequisites, development commands, project tree.</li>
+<li><strong><code>docs/_pages/</code></strong>: public site overview and links; defer detailed setup to root README.</li>
+<li><strong><code>apps/README.md</code></strong>: app boundaries and module map; link to root README for setup.</li>
+<li><strong><code>docs-md/wiki/</code></strong>: routing map for agents and contributors (see <code>AGENTS.md</code>).</li>
 </ul>
 <h2>Drift Candidates</h2>
 <ul>
-<li><code>README.md</code>, <code>apps/README.md</code>, and <code>docs-md/wiki/system-overview.md</code> all describe platform shape at different levels.</li>
+<li><del>Monitoring compose path in <code>docs-md/LOCAL_MONITORING_STACK.md</code> / <code>ALERTING.md</code></del> Resolved: root <code>docker compose --profile monitoring</code>.</li>
+<li><del><code>npm run dev</code> scope in README</del> Resolved: includes temporal worker per <code>package.json</code>.</li>
+<li><code>README.md</code>, <code>apps/README.md</code>, and <code>docs-md/wiki/system-overview.md</code> all describe platform shape at different levels — README owns setup; apps/README is module map; wiki routes only.</li>
 <li><code>docs-md/graph-workflows/</code> and <code>docs-md/workflow-builder/</code> intentionally overlap; the wiki should keep routing clear between engine behavior and UI authoring.</li>
 <li>Operational docs under <code>docs-md/openshift-deployment/</code>, <code>scripts/README.md</code>, and workflow files in <code>.github/workflows/</code> should stay aligned.</li>
+<li><code>docs-md/workflow-builder/WORKFLOW_BUILDER_GUIDE.md</code> describes target drag-and-drop authoring; current UI is read-only visualization — guide is marked as design reference.</li>
 </ul>
+
     </main>
     <footer class="site-footer">
         <div class="footer-content">
@@ -787,7 +801,7 @@
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>

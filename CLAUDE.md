@@ -7,12 +7,6 @@
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
 - All backend controllers must have full Swagger/OpenAPI documentation: use specific decorators (`@ApiOkResponse`, `@ApiForbiddenResponse`, `@ApiUnauthorizedResponse`, `@ApiConflictResponse`, etc.) instead of generic `@ApiResponse`, create dedicated DTO classes with `@ApiProperty` decorators for all request/response shapes, and reference those DTOs via the `type` field in response decorators.
-- To test API directly, use: `curl -H "x-api-key: 69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY" http://localhost:3002/api/...`
+- To test API directly, use: `curl -H "x-api-key: $API_KEY" http://localhost:3002/api/...` (read the key from your local env/config; never paste or log secret values).
 - NEVER read secrets from .env files directly, they should not be leaked into chat, terminal, etc., do not operate with secret values directly, only indirectly through variables.
-- The repo wiki in `/docs-md/wiki` is a compression layer: synthesize and route to canonical docs/code, do not replace canonical implementation docs.
-- Before broad doc or code exploration, read `docs-md/wiki/index.md` and the relevant wiki topic, then follow `canonical_sources` to detailed docs or code.
-- Follow wiki ingest, query, and lint workflows in `docs-md/wiki/README.md`.
-- Wiki pages must not copy full runbooks, schemas, endpoint lists, or implementation guides; link to the canonical source instead.
-- New wiki content must either replace scattered explanation or add useful source navigation/context. If it does neither, do not add it.
-- Append grep-friendly entries to `docs-md/wiki/log.md` (`## [YYYY-MM-DD] operation | Title`) when maintaining the wiki.
-- Run `npm run docs:wiki:check` after changing `/docs-md/wiki`.
+- Repo wiki rules: see `AGENTS.md` (Repo Wiki section).

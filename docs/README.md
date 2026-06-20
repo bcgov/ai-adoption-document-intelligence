@@ -1,6 +1,6 @@
 # Documentation System
 
-This folder contains the documentation site for the Document Intelligence Platform, built with a **zero-dependency template engine** using Bash.
+This folder contains the documentation site for the Document Intelligence Platform, built with a **Bash template engine** plus **Node.js build steps** for wiki pages and Mermaid diagrams.
 
 ## Table of Contents
 
@@ -43,13 +43,15 @@ This folder contains the documentation site for the Document Intelligence Platfo
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Bash Instead of Jekyll/Hugo/etc?
+### Why Bash for page assembly?
 
-1. **Zero Dependencies** - No Ruby, Node.js, or Go required
-2. **Runs Everywhere** - Works on any system with Bash (Linux, Mac, WSL, GitHub Actions)
-3. **Easy to Understand** - ~60 lines of readable shell script
-4. **Fast** - Builds in milliseconds
-5. **GitHub Pages Compatible** - No build plugins needed
+The static HTML shell uses Bash string substitution (~60 lines) to combine `_partials/` and `_pages/`. A **full docs build** also requires **Node.js** from the repo root:
+
+- `npx @mermaid-js/mermaid-cli` — compile `_diagrams/*.mmd` to SVG
+- `node scripts/build-docs-wiki.js` — render `docs-md/wiki/*.md` (uses `marked`)
+- `docs/generate-openapi.ts` — regenerate `assets/openapi.json` when the API changes
+
+Run `cd docs && bash build.sh` after editing sources. GitHub Pages deploy runs the same script via `.github/workflows/pages.yml`.
 
 ---
 
@@ -155,7 +157,12 @@ echo "$footer" >> "$OUTPUT"     # Append footer
 
 ```bash
 #!/bin/bash
-# build.sh - Zero-dependency static site generator
+# build.sh - Static site generator (Bash templates + Node/Mermaid/wiki steps)
+
+# Dependencies used during build:
+# - Bash: assembles _partials/ + _pages/ into HTML
+# - npx @mermaid-js/mermaid-cli: compiles _diagrams/*.mmd to SVG
+# - node scripts/build-docs-wiki.js: renders docs-md/wiki/*.md (uses marked from repo root)
 
 # Get current year for footer copyright
 CURRENT_YEAR=$(date +%Y)
@@ -193,9 +200,9 @@ done
 
 ## Repo Wiki Pages
 
-The repo wiki source lives in `../docs-md/wiki/*.md`. During `build.sh`, `../scripts/build-docs-wiki.js` renders those Markdown files into browsable `wiki*.html` pages in this directory.
+The repo wiki source lives in `../docs-md/wiki/*.md`. During `docs/build.sh` (run locally or in `.github/workflows/pages.yml`), `../scripts/build-docs-wiki.js` renders those Markdown files into browsable `wiki*.html` pages using [marked](https://marked.js.org/) for body conversion. Custom glue handles frontmatter cards, wiki navigation, and `.md` → `wiki-*.html` link rewriting.
 
-Do not hand-edit generated `wiki*.html` files. Update the source Markdown in `docs-md/wiki`, run `npm run docs:wiki:check`, then rebuild the docs site.
+Generated `wiki*.html` files are gitignored and built at docs deploy time. Do not commit them. Update the source Markdown in `docs-md/wiki`, run `npm run docs:wiki:check`, then rebuild locally with `cd docs && bash build.sh` if you need to preview the site.
 
 ---
 
@@ -574,6 +581,9 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'docs-md/wiki/**'
+      - 'scripts/build-docs-wiki.js'
+      - 'package.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:  # Manual trigger
 
@@ -582,6 +592,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-package-lock
 
       - name: Build documentation
         run: |

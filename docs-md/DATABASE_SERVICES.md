@@ -25,15 +25,15 @@ Each db service injects `PrismaService` and is a private provider scoped to its 
 
 Types are defined in `document/document-db.types.ts`. Callers outside the module inject `DocumentService`, which delegates to `DocumentDbService`.
 
-### Labeling Module
-`apps/backend-services/src/labeling/`
+### Template Model Module
+`apps/backend-services/src/template-model/`
 
 | File | Service | Responsibility |
 |------|---------|----------------|
 | `labeling-document-db.service.ts` | `LabelingDocumentDbService` | Labeling document CRUD: `createLabelingDocument`, `findLabelingDocument`, `updateLabelingDocument` |
-| `labeling-project-db.service.ts` | `LabelingProjectDbService` | Labeling projects, field definitions, labeled documents, document labels |
+| `template-model-db.service.ts` | `TemplateModelDbService` | Template models, field definitions, labeled documents, document labels |
 
-`LabelingService` injects both and is the public interface for the module.
+`TemplateModelService` injects both and is the public interface for the module.
 
 ### HITL Module
 `apps/backend-services/src/hitl/`
@@ -98,13 +98,13 @@ Service wiring in the benchmark module:
 - `HitlDatasetService` → `ReviewDbService` (cross-module, injected directly)
 
 ### ApiKey Module
-`apps/backend-services/src/api-key/`
+`apps/backend-services/src/actor/` (persistence via `api-key-db.service.ts`; auth via `apps/backend-services/src/auth/api-key-auth.guard.ts`)
 
 | File | Service | Responsibility |
 |------|---------|----------------|
 | `api-key-db.service.ts` | `ApiKeyDbService` | `ApiKey` CRUD: find by group/id/prefix, create, delete by group or id, update `last_used` |
 
-`ApiKeyService` injects `ApiKeyDbService` and is the public interface for the module.
+`ApiKeyService` (in `actor/`) injects `ApiKeyDbService` and is the public interface for the module.
 
 ### Audit Module
 `apps/backend-services/src/audit/`

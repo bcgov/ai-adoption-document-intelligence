@@ -742,6 +742,9 @@
     <ul><li><a href="wiki.html">Project Wiki Index</a></li>
 <li><a href="wiki-system-overview.html">System Overview</a></li>
 <li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-workflow-builder.html">Workflow Builder</a></li>
+<li><a href="wiki-tables-and-extensions.html">Tables and Extensions</a></li>
+<li><a href="wiki-blob-storage.html">Blob Storage</a></li>
 <li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
 <li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
 <li><a href="wiki-deployment-and-ops.html" style="font-weight: 700;">Deployment and Ops</a></li>
@@ -786,12 +789,19 @@
 <li>Keep environment variable inventories in canonical deployment docs or samples, not in the wiki.</li>
 <li>Treat load-test guidance as disposable-environment oriented unless a canonical doc says otherwise.</li>
 </ul>
+<h2>Related Topics</h2>
+<ul>
+<li><a href="wiki-blob-storage.html">Blob storage</a>: provider configuration across environments.</li>
+<li><a href="wiki-system-overview.html">System overview</a>: service topology that deployment docs must match.</li>
+<li><a href="wiki-graph-workflows.html">Graph workflows</a>: Temporal and worker deployment dependencies.</li>
+</ul>
 <h2>Common Drift Risks</h2>
 <ul>
 <li>Script options and OpenShift docs can drift when deployment workflow YAML changes.</li>
 <li>Monitoring rules may be generated into deployment paths; document generation sources rather than generated copies.</li>
 <li>Backup and restore docs should be reviewed after changes to database, blob storage, or deployment topology.</li>
 </ul>
+
     </main>
     <footer class="site-footer">
         <div class="footer-content">
@@ -815,7 +825,7 @@
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>

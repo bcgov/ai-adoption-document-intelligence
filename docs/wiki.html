@@ -742,6 +742,9 @@
     <ul><li><a href="wiki.html" style="font-weight: 700;">Project Wiki Index</a></li>
 <li><a href="wiki-system-overview.html">System Overview</a></li>
 <li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-workflow-builder.html">Workflow Builder</a></li>
+<li><a href="wiki-tables-and-extensions.html">Tables and Extensions</a></li>
+<li><a href="wiki-blob-storage.html">Blob Storage</a></li>
 <li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
 <li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
 <li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
@@ -755,7 +758,10 @@
 <h2>Start Here</h2>
 <ul>
 <li><a href="wiki-system-overview.html">System overview</a>: service boundaries, platform shape, and major source paths.</li>
-<li><a href="wiki-graph-workflows.html">Graph workflows</a>: DAG workflow engine, activity registration, and workflow builder context.</li>
+<li><a href="wiki-graph-workflows.html">Graph workflows</a>: DAG workflow engine, activity registration, and execution semantics.</li>
+<li><a href="wiki-workflow-builder.html">Workflow builder</a>: frontend authoring UI, node palette, and workflow JSON editing.</li>
+<li><a href="wiki-tables-and-extensions.html">Tables and extensions</a>: reference data tables and the preferred workflow extension pattern.</li>
+<li><a href="wiki-blob-storage.html">Blob storage</a>: unified MinIO/Azure storage abstraction across backend and Temporal.</li>
 <li><a href="wiki-hitl.html">HITL</a>: review sessions, locking, queue behavior, and correction tracking.</li>
 <li><a href="wiki-auth-and-groups.html">Auth and groups</a>: Keycloak/API key auth, group scoping, and authorization docs.</li>
 <li><a href="wiki-deployment-and-ops.html">Deployment and ops</a>: local/dev/OpenShift deployment, monitoring, load testing, and operational runbooks.</li>
@@ -775,6 +781,7 @@
 </ol>
 <h2>Boundary</h2>
 <p>The wiki should not become a second implementation spec. If a page starts carrying detailed behavior, move that detail to the right <code>docs-md</code> document or code-adjacent README and link to it from here.</p>
+
     </main>
     <footer class="site-footer">
         <div class="footer-content">
@@ -798,7 +805,7 @@
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>

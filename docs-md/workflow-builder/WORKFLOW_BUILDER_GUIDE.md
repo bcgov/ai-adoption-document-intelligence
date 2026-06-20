@@ -1,5 +1,7 @@
 # Workflow Builder Guide
 
+> **Status:** Design reference and target UX for a full drag-and-drop workflow editor. The current frontend provides **read-only** React Flow visualization of saved workflow JSON (`GraphVisualization.tsx`); canvas authoring described below is not fully implemented yet.
+
 This document serves as the design reference for the visual workflow builder interface. It describes what users can build, how the pieces fit together, and the rules the system enforces — all from the perspective of someone dragging nodes onto a canvas and wiring them together.
 
 ---

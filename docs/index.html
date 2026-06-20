@@ -776,7 +776,7 @@
             <li><strong>Backend</strong> - NestJS with Express, Prisma ORM, PostgreSQL</li>
             <li><strong>Frontend</strong> - React with TypeScript, Mantine UI</li>
             <li><strong>Orchestration</strong> - Temporal workflow engine with durable execution</li>
-            <li><strong>Storage</strong> - Pluggable blob storage (Azure, S3, filesystem)</li>
+            <li><strong>Storage</strong> - Unified blob storage (MinIO for local dev, Azure Blob for cloud)</li>
         </ul>
     </div>
 </div>
@@ -785,7 +785,7 @@
 
 <div class="card card-gold" style="margin-bottom: 2rem;">
     <h3 style="margin-top:0;">Graph-Based Workflow Engine</h3>
-    <p>The platform features a sophisticated DAG (Directed Acyclic Graph) workflow engine that enables complex, multi-step document processing pipelines. Workflows are defined as JSON graphs with nodes representing activities like OCR, validation, training, and review operations.</p>
+    <p>The platform features a DAG workflow engine for multi-step document processing. Workflows are defined as JSON graphs; the UI provides a JSON editor and a read-only React Flow visualization synced to that JSON.</p>
     <p><strong>30+ Built-in Activities:</strong> OCR processing, field extraction, validation, confidence filtering, model training, HITL routing, parallel execution, conditional branching, and more.</p>
 </div>
 
@@ -833,43 +833,40 @@
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </div>
     <div>
-        <strong>Prerequisites</strong><br>
-        Node.js 24+, PostgreSQL 14+, Temporal Server, Azure Document Intelligence resource (for OCR)
+        <strong>Full setup</strong><br>
+        This page is a public overview. For prerequisites, environment files, and complete local setup, use the root <a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/main/README.md">README.md</a> in the repository.
     </div>
 </div>
 
 <div class="card" style="margin-bottom: 2rem;">
     <h3 style="margin-top: 0;">1. Install Dependencies</h3>
-    <pre><code>npm install</code></pre>
+    <pre><code>npm run install:all</code></pre>
 </div>
 
 <div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">2. Configure Environment</h3>
-    <p>Set up environment variables for database, Temporal, Azure services, and authentication:</p>
-    <pre><code>DATABASE_URL=postgresql://user:pass@localhost:5432/docdb
-TEMPORAL_ADDRESS=localhost:7233
-AZURE_DI_ENDPOINT=https://your-instance.cognitiveservices.azure.com/
-AZURE_DI_KEY=your-key
-SSO_AUTH_SERVER_URL=https://your-keycloak.com/realms/your-realm</code></pre>
+    <h3 style="margin-top: 0;">2. Start Infrastructure</h3>
+    <pre><code># From repo root
+docker compose --profile infra up -d
+docker compose --profile temporal up -d</code></pre>
 </div>
 
 <div class="card" style="margin-bottom: 2rem;">
     <h3 style="margin-top: 0;">3. Initialize Database</h3>
     <pre><code>cd apps/backend-services
+cp .env.sample .env
 npm run db:migrate
 npm run db:generate</code></pre>
 </div>
 
 <div class="card" style="margin-bottom: 2rem;">
     <h3 style="margin-top: 0;">4. Start Services</h3>
-    <pre><code># Terminal 1: Backend API
-cd apps/backend-services && npm run start:dev
+    <pre><code># From repo root (backend + frontend + temporal worker)
+npm run dev
 
-# Terminal 2: Temporal Worker
-cd apps/temporal && npm run worker
-
-# Terminal 3: Frontend
-cd apps/frontend && npm run dev</code></pre>
+# Or individually:
+# npm run dev:backend
+# npm run dev:frontend
+# cd apps/temporal && npm run dev</code></pre>
 </div>
 
 <div class="card">
@@ -878,7 +875,7 @@ cd apps/frontend && npm run dev</code></pre>
         <li><strong>Frontend:</strong> http://localhost:3000</li>
         <li><strong>Backend API:</strong> http://localhost:3002</li>
         <li><strong>API Docs:</strong> http://localhost:3002/api</li>
-        <li><strong>Temporal UI:</strong> http://localhost:8233</li>
+        <li><strong>Temporal UI:</strong> http://localhost:8088</li>
     </ul>
 </div>
 
@@ -890,7 +887,7 @@ cd apps/frontend && npm run dev</code></pre>
     <a href="api-reference.html" class="card-link">
         <div class="card">
             <h3 style="margin-top:0;">📚 API Reference</h3>
-            <p>Interactive API documentation with request/response schemas, authentication details, and example requests for all 56 endpoints.</p>
+            <p>Interactive API documentation with request/response schemas, authentication details, and example requests from the OpenAPI spec.</p>
         </div>
     </a>
 
@@ -934,7 +931,7 @@ cd apps/frontend && npm run dev</code></pre>
 
 <div class="card">
     <pre><code>apps/
-├── backend-services/    # NestJS API server (14 modules)
+├── backend-services/    # NestJS REST API
 ├── frontend/            # React application
 ├── temporal/            # Temporal workflow workers
 ├── image-service/       # Python image preprocessing tools
@@ -956,7 +953,7 @@ deployments/             # OpenShift/Kubernetes manifests</code></pre>
         Detailed technical documentation is available in the <code>/docs-md</code> directory including:
         <ul style="margin-top: 0.5rem; margin-bottom: 0;">
             <li><strong>HITL_ARCHITECTURE.md:</strong> Human-in-the-loop system design</li>
-            <li><strong>TEMPLATE_TRAINING.md:</strong> Model training workflows</li>
+            <li><strong>TEMPLATE_MODELS.md:</strong> Template models and model training workflows</li>
             <li><strong>docs-md/graph-workflows/:</strong> Workflow engine architecture and activity development guides</li>
         </ul>
     </div>
@@ -984,7 +981,7 @@ deployments/             # OpenShift/Kubernetes manifests</code></pre>
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>

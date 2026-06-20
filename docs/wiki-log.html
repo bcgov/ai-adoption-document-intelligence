@@ -742,6 +742,9 @@
     <ul><li><a href="wiki.html">Project Wiki Index</a></li>
 <li><a href="wiki-system-overview.html">System Overview</a></li>
 <li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-workflow-builder.html">Workflow Builder</a></li>
+<li><a href="wiki-tables-and-extensions.html">Tables and Extensions</a></li>
+<li><a href="wiki-blob-storage.html">Blob Storage</a></li>
 <li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
 <li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
 <li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
@@ -755,10 +758,10 @@
 <p>Use grep-friendly headings: <code>## [YYYY-MM-DD] operation | Title</code> where operation is <code>ingest</code>, <code>query</code>, <code>lint</code>, or <code>maintenance</code>.</p>
 <h2>[2026-06-17] ingest | Initial wiki seed</h2>
 <ul>
-<li>Created the repo-only wiki compression layer under <code>docs-md/wiki/</code>.</li>
+<li>Created the wiki compression layer under <code>docs-md/wiki/</code>.</li>
 <li>Added seed topic pages for system overview, graph workflows, HITL, auth/groups, and deployment/ops.</li>
 <li>Added a source registry and anti-bloat maintenance rules.</li>
-<li>Integrated the wiki into the generated <code>docs/</code> site as browsable <code>wiki*.html</code> pages.</li>
+<li>Wiki pages publish to the docs site as generated <code>wiki*.html</code> at deploy time (not committed).</li>
 </ul>
 <h2>[2026-06-17] maintenance | Wiki operations and validation</h2>
 <ul>
@@ -766,6 +769,47 @@
 <li>Adopted grep-friendly <code>log.md</code> entry format and extended <code>scripts/validate-wiki.js</code> for links, index coverage, and source registry paths.</li>
 <li>Added <code>.github/workflows/wiki-check.yml</code> and removed maintainer-only <code>README.md</code> from docs site navigation.</li>
 </ul>
+<h2>[2026-06-17] maintenance | Wiki markdown renderer</h2>
+<ul>
+<li>Replaced custom Markdown-to-HTML body parser with <code>marked</code> in <code>scripts/build-docs-wiki.js</code>.</li>
+<li>Kept custom frontmatter cards, sidebar nav, and wiki link rewriting.</li>
+</ul>
+<h2>[2026-06-17] ingest | Topic pages and cross-links</h2>
+<ul>
+<li>Added wiki topic pages for blob storage, tables/extensions, and workflow builder.</li>
+<li>Linked repo wiki from root <code>README.md</code> and expanded <code>index.md</code>.</li>
+<li>Added Related Topics cross-links across all active topic pages.</li>
+</ul>
+<h2>[2026-06-17] maintenance | Deploy-time wiki HTML and agent parity</h2>
+<ul>
+<li>Stopped committing generated <code>docs/wiki*.html</code>; build via <code>docs/build.sh</code> at docs deploy (<code>.github/workflows/pages.yml</code>).</li>
+<li>Added <code>AGENTS.md</code> and wiki rules to <code>.github/copilot-instructions.md</code>.</li>
+<li>Added PR template wiki checklist item and <code>paths:</code> filters to <code>wiki-check.yml</code>.</li>
+<li>Added wiki topic routing table to <code>sources.md</code>.</li>
+</ul>
+<h2>[2026-06-19] maintenance | Documentation audit fixes</h2>
+<ul>
+<li>Removed embedded API key from contributor docs; canonical wiki rules consolidated in <code>AGENTS.md</code>.</li>
+<li>Untracked generated <code>docs/wiki*.html</code>; fixed root README compose paths and docs site quick start.</li>
+<li>Updated API key module references (<code>actor/</code>, <code>auth/</code>); deduplicated workflow builder guide.</li>
+<li>Documented docs build dependencies and documentation ownership in wiki open questions.</li>
+</ul>
+<h2>[2026-06-20] maintenance | Documentation audit phases 1–3</h2>
+<ul>
+<li>Phase 1: fixed dev script scope, Prisma order, monitoring compose paths, docs site stats, TESTING.md scripts.</li>
+<li>Phase 2: aligned workflow builder claims, wiki auth sources (<code>actor/</code>), docs build description.</li>
+<li>Phase 3: trimmed <code>apps/README.md</code>, aligned copilot with CLAUDE Swagger/API rules, added <code>docs-md/ARCHIVE.md</code>.</li>
+</ul>
+<h2>[2026-06-20] lint | Holistic docs-vs-code alignment</h2>
+<ul>
+<li>Verified backend routes, workflow engine, auth, and blob storage against code via exploration.</li>
+<li>Fixed API keys are group-scoped (not per user) in README and backend README.</li>
+<li>Replaced stale workflow node catalog (Start/OCR/HTTP/End) with real graph node types (<code>activity</code>, <code>switch</code>, <code>map</code>, <code>join</code>, <code>childWorkflow</code>, <code>pollUntil</code>, <code>humanGate</code>) in README and frontend README.</li>
+<li>Migrated labeling/training docs to the template-models API: README endpoints/tree, backend README, frontend README pages, <code>DATABASE_SERVICES.md</code>, and the <code>GROUP_RESOURCE_AUTHORIZATION.md</code> route tables.</li>
+<li>Fixed broken <code>TEMPLATE_TRAINING.md</code> links to <code>TEMPLATE_MODELS.md</code>.</li>
+<li>Noted workflow form editor (default) alongside JSON + read-only React Flow in wiki and READMEs.</li>
+</ul>
+
     </main>
     <footer class="site-footer">
         <div class="footer-content">
@@ -789,7 +833,7 @@
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>

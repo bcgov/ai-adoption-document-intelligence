@@ -67,7 +67,7 @@ The logs appear in Grafana under the `backend-services`, `frontend`, and `tempor
 Loki and Prometheus data is stored in named Docker volumes (`loki_data` and `prometheus_data`). Data survives container restarts and `docker compose down`. To clear all monitoring data:
 
 ```bash
-docker compose -f deployments/local/docker-compose.monitoring.yml down -v
+docker compose --profile monitoring down -v
 ```
 
 ### Log Collection
@@ -91,7 +91,7 @@ No manual configuration is required.
 
 | File                                                          | Purpose                       |
 |---------------------------------------------------------------|-------------------------------|
-| `deployments/local/docker-compose.monitoring.yml`             | Docker Compose service definitions |
+| `docker-compose.yml` (`--profile monitoring`)                 | Monitoring service definitions |
 | `deployments/local/loki/loki.yaml`                            | Loki server configuration     |
 | `deployments/local/prometheus/prometheus.yml`                  | Prometheus scrape targets      |
 | `deployments/local/promtail/promtail-config.yml`              | Promtail log discovery rules   |

@@ -742,6 +742,9 @@
     <ul><li><a href="wiki.html">Project Wiki Index</a></li>
 <li><a href="wiki-system-overview.html" style="font-weight: 700;">System Overview</a></li>
 <li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-workflow-builder.html">Workflow Builder</a></li>
+<li><a href="wiki-tables-and-extensions.html">Tables and Extensions</a></li>
+<li><a href="wiki-blob-storage.html">Blob Storage</a></li>
 <li><a href="wiki-hitl.html">Human-In-The-Loop</a></li>
 <li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
 <li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
@@ -779,6 +782,13 @@
 <li>The image service owns optional preprocessing behavior such as denoising, deskewing, orientation, and resizing.</li>
 <li>Shared packages and the shared Prisma schema hold cross-app types, validation, and persistence contracts.</li>
 </ul>
+<h2>Related Topics</h2>
+<ul>
+<li><a href="wiki-graph-workflows.html">Graph workflows</a>: durable execution and activity boundaries.</li>
+<li><a href="wiki-blob-storage.html">Blob storage</a>: document bytes and artifact storage across services.</li>
+<li><a href="wiki-auth-and-groups.html">Auth and groups</a>: authentication and group scoping model.</li>
+<li><a href="wiki-deployment-and-ops.html">Deployment and ops</a>: running the platform locally and in OpenShift.</li>
+</ul>
 <h2>Read First</h2>
 <ul>
 <li>Use <code>README.md</code> for platform overview, prerequisites, and root commands.</li>
@@ -792,6 +802,7 @@
 <li>Generated code under <code>apps/backend-services/src/generated/</code> and <code>apps/temporal/src/generated/</code> should not be hand-documented as stable source.</li>
 <li><code>feature-docs/</code> may describe intended behavior that has since changed in implementation.</li>
 </ul>
+
     </main>
     <footer class="site-footer">
         <div class="footer-content">
@@ -815,7 +826,7 @@
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>

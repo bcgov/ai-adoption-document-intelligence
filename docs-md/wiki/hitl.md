@@ -28,8 +28,14 @@ HITL routes low-confidence or review-required document results to humans. It is 
 ## Design Notes
 
 - HITL is per-document-instance state, not group-level reusable configuration.
-- It differs from Tables-style extensions because it involves session lifecycle, locking, and human completion decisions.
+- It differs from [Tables and extensions](tables-and-extensions.md) because it involves session lifecycle, locking, and human completion decisions.
 - Corrections are audit-like records of review actions, not a replacement for the original document record.
+
+## Related Topics
+
+- [Graph workflows](graph-workflows.md): workflow pause/resume and review routing in the DAG.
+- [Auth and groups](auth-and-groups.md): group-scoped access to review queues and sessions.
+- [System overview](system-overview.md): where HITL sits across frontend and backend boundaries.
 
 ## Common Drift Risks
 

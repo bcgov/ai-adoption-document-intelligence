@@ -14,6 +14,9 @@ const pageOrder = [
 	"index.md",
 	"system-overview.md",
 	"graph-workflows.md",
+	"workflow-builder.md",
+	"tables-and-extensions.md",
+	"blob-storage.md",
 	"hitl.md",
 	"auth-and-groups.md",
 	"deployment-and-ops.md",
@@ -100,27 +103,30 @@ function repoUrlForSource(source) {
 	return `${githubBase}/${route}/main/${source.replace(/\\/g, "/")}`;
 }
 
-function inlineMarkdown(value) {
-	let html = escapeHtml(value);
-	const codeParts = [];
-	html = html.replace(/`([^`]+)`/g, (_match, code) => {
-		codeParts.push(`<code>${code}</code>`);
-		return `\u0000CODE${codeParts.length - 1}\u0000`;
-	});
-
-	html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-	html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
-		let target = href;
-		if (href.endsWith(".md")) {
-			target = htmlFileForMarkdown(path.basename(href));
+function rewriteWikiLinks(html) {
+	return html.replace(/href="([^"]+)"/g, (match, href) => {
+		if (/^https?:\/\//i.test(href) || href.startsWith("#") || href.startsWith("mailto:")) {
+			return match;
 		}
-		return `<a href="${escapeHtml(target)}">${label}</a>`;
-	});
 
-	return html.replace(/\u0000CODE(\d+)\u0000/g, (_match, index) => codeParts[Number(index)]);
+		if (!href.endsWith(".md")) {
+			return match;
+		}
+
+		const target = htmlFileForMarkdown(path.basename(href));
+		return `href="${target}"`;
+	});
 }
 
-function renderFrontmatter(frontmatter) {
+function renderMarkdownBody(marked, markdown) {
+	return rewriteWikiLinks(marked.parse(markdown, { async: false }));
+}
+
+function renderInlineMarkdown(marked, value) {
+	return rewriteWikiLinks(marked.parseInline(value, { async: false }));
+}
+
+function renderFrontmatter(marked, frontmatter) {
 	if (!frontmatter) {
 		return "";
 	}
@@ -143,7 +149,7 @@ function renderFrontmatter(frontmatter) {
 		})
 		.join("\n");
 	const duplicateItems = doNotDuplicate
-		.map((item) => `<li>${inlineMarkdown(item)}</li>`)
+		.map((item) => `<li>${renderInlineMarkdown(marked, item)}</li>`)
 		.join("\n");
 
 	return `
@@ -157,94 +163,6 @@ function renderFrontmatter(frontmatter) {
         <ul>${duplicateItems}</ul>
     </div>
 </div>`;
-}
-
-function renderMarkdown(markdown) {
-	const lines = markdown.replace(/\r\n/g, "\n").split("\n");
-	const html = [];
-	let listType = null;
-	let paragraph = [];
-	let inCodeBlock = false;
-	let codeLines = [];
-
-	function flushParagraph() {
-		if (paragraph.length > 0) {
-			html.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
-			paragraph = [];
-		}
-	}
-
-	function closeList() {
-		if (listType) {
-			html.push(`</${listType}>`);
-			listType = null;
-		}
-	}
-
-	for (const line of lines) {
-		if (line.trim().startsWith("```")) {
-			if (inCodeBlock) {
-				html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
-				codeLines = [];
-				inCodeBlock = false;
-			} else {
-				flushParagraph();
-				closeList();
-				inCodeBlock = true;
-			}
-			continue;
-		}
-
-		if (inCodeBlock) {
-			codeLines.push(line);
-			continue;
-		}
-
-		if (line.trim() === "") {
-			flushParagraph();
-			closeList();
-			continue;
-		}
-
-		const heading = line.match(/^(#{1,4})\s+(.+)$/);
-		if (heading) {
-			flushParagraph();
-			closeList();
-			const level = heading[1].length;
-			html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
-			continue;
-		}
-
-		const unordered = line.match(/^\s*-\s+(.+)$/);
-		if (unordered) {
-			flushParagraph();
-			if (listType !== "ul") {
-				closeList();
-				html.push("<ul>");
-				listType = "ul";
-			}
-			html.push(`<li>${inlineMarkdown(unordered[1])}</li>`);
-			continue;
-		}
-
-		const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-		if (ordered) {
-			flushParagraph();
-			if (listType !== "ol") {
-				closeList();
-				html.push("<ol>");
-				listType = "ol";
-			}
-			html.push(`<li>${inlineMarkdown(ordered[1])}</li>`);
-			continue;
-		}
-
-		paragraph.push(line.trim());
-	}
-
-	flushParagraph();
-	closeList();
-	return html.join("\n");
 }
 
 function renderWikiNav(pages, currentFile) {
@@ -278,7 +196,14 @@ ${bodyHtml}
 ${footer}`;
 }
 
-function main() {
+async function main() {
+	const { marked } = await import("marked");
+
+	marked.setOptions({
+		gfm: true,
+		breaks: false,
+	});
+
 	if (!fs.existsSync(wikiDir)) {
 		console.log("Skipping wiki pages: docs-md/wiki does not exist.");
 		return;
@@ -295,8 +220,8 @@ function main() {
 	for (const page of pages) {
 		const { frontmatter, markdown } = splitFrontmatter(page.content);
 		const navHtml = renderWikiNav(pages, page.fileName);
-		const bodyHtml = `${renderFrontmatter(frontmatter)}
-${renderMarkdown(markdown)}`;
+		const bodyHtml = `${renderFrontmatter(marked, frontmatter)}
+${renderMarkdownBody(marked, markdown)}`;
 		const html = wrapPage(page.title, navHtml, bodyHtml);
 		const outputPath = path.join(docsDir, htmlFileForMarkdown(page.fileName));
 		fs.writeFileSync(outputPath, html);
@@ -304,4 +229,7 @@ ${renderMarkdown(markdown)}`;
 	}
 }
 
-main();
+main().catch((error) => {
+	console.error(error);
+	process.exit(1);
+});

@@ -742,6 +742,9 @@
     <ul><li><a href="wiki.html">Project Wiki Index</a></li>
 <li><a href="wiki-system-overview.html">System Overview</a></li>
 <li><a href="wiki-graph-workflows.html">Graph Workflows</a></li>
+<li><a href="wiki-workflow-builder.html">Workflow Builder</a></li>
+<li><a href="wiki-tables-and-extensions.html">Tables and Extensions</a></li>
+<li><a href="wiki-blob-storage.html">Blob Storage</a></li>
 <li><a href="wiki-hitl.html" style="font-weight: 700;">Human-In-The-Loop</a></li>
 <li><a href="wiki-auth-and-groups.html">Auth and Groups</a></li>
 <li><a href="wiki-deployment-and-ops.html">Deployment and Ops</a></li>
@@ -779,8 +782,14 @@
 <h2>Design Notes</h2>
 <ul>
 <li>HITL is per-document-instance state, not group-level reusable configuration.</li>
-<li>It differs from Tables-style extensions because it involves session lifecycle, locking, and human completion decisions.</li>
+<li>It differs from <a href="wiki-tables-and-extensions.html">Tables and extensions</a> because it involves session lifecycle, locking, and human completion decisions.</li>
 <li>Corrections are audit-like records of review actions, not a replacement for the original document record.</li>
+</ul>
+<h2>Related Topics</h2>
+<ul>
+<li><a href="wiki-graph-workflows.html">Graph workflows</a>: workflow pause/resume and review routing in the DAG.</li>
+<li><a href="wiki-auth-and-groups.html">Auth and groups</a>: group-scoped access to review queues and sessions.</li>
+<li><a href="wiki-system-overview.html">System overview</a>: where HITL sits across frontend and backend boundaries.</li>
 </ul>
 <h2>Common Drift Risks</h2>
 <ul>
@@ -788,6 +797,7 @@
 <li>Workflow pause/resume expectations should be checked against current Temporal implementation before changing HITL behavior.</li>
 <li>Feature docs may lag behind the implemented session model; prefer stable <code>docs-md</code> and code paths.</li>
 </ul>
+
     </main>
     <footer class="site-footer">
         <div class="footer-content">
@@ -811,7 +821,7 @@
             </div>
             <div class="footer-copyright">
                 <p>&copy; 2026 Province of British Columbia</p>
-                <p class="footer-meta">Built with zero dependencies</p>
+                <p class="footer-meta">Bash page assembly; Node.js for full site build</p>
             </div>
         </div>
     </footer>
