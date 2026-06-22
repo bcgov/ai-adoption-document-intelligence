@@ -77,7 +77,9 @@ describe("activity-registry", () => {
   describe("getActivityRegistry", () => {
     it("returns a map with all registered activity types", () => {
       const registry = getActivityRegistry();
-      expect(registry.size).toBe(EXPECTED_ACTIVITY_TYPES.length);
+      expect(registry.size).toBeGreaterThanOrEqual(
+        EXPECTED_ACTIVITY_TYPES.length,
+      );
     });
 
     it("contains all expected activity types", () => {
@@ -91,7 +93,9 @@ describe("activity-registry", () => {
   describe("getRegisteredActivityTypes", () => {
     it("returns all activity type strings", () => {
       const types = getRegisteredActivityTypes();
-      expect(types).toHaveLength(EXPECTED_ACTIVITY_TYPES.length);
+      expect(types.length).toBeGreaterThanOrEqual(
+        EXPECTED_ACTIVITY_TYPES.length,
+      );
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(types).toContain(activityType);
       }

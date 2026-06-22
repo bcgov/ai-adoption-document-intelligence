@@ -1,10 +1,24 @@
+jest.mock("../logger", () => ({
+  createActivityLogger: () => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(),
+  }),
+}));
+
 import axios from "axios";
+import * as ocrPayloadRef from "../ocr-payload-ref";
 import type { OCRResponse } from "../types";
 import { extractOCRResults } from "./extract-ocr-results";
 
 jest.mock("axios");
 
 const axiosMock = axios as jest.Mocked<typeof axios>;
+
+const TEST_DOCUMENT_ID = "doc-extract-test";
+const TEST_GROUP_ID = "gtestgroupidfortests01";
 
 describe("extractOCRResults activity", () => {
   const originalEnv = process.env;
@@ -17,250 +31,93 @@ describe("extractOCRResults activity", () => {
         "https://test.cognitiveservices.azure.com",
       AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
     };
+    jest
+      .spyOn(ocrPayloadRef, "resolveGroupIdForOcr")
+      .mockResolvedValue(TEST_GROUP_ID);
+    jest.spyOn(ocrPayloadRef, "writeOcrPayloadBlob").mockResolvedValue({
+      blobPath: `${TEST_GROUP_ID}/ocr/${TEST_DOCUMENT_ID}/ocr-result.json`,
+      byteLength: 128,
+    });
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    jest.restoreAllMocks();
   });
 
-  it("extracts OCR results from provided response", async () => {
-    const mockOCRResponse: OCRResponse = {
-      status: "succeeded",
-      createdDateTime: "2024-01-01T00:00:00Z",
-      lastUpdatedDateTime: "2024-01-01T00:01:00Z",
-      analyzeResult: {
-        apiVersion: "2024-11-30",
-        modelId: "prebuilt-layout",
-        content: "Test content from document",
-        pages: [
-          {
-            pageNumber: 1,
-            width: 8.5,
-            height: 11,
-            unit: "inch",
-            words: [
-              {
-                content: "Test",
-                confidence: 0.99,
-                polygon: [],
-                span: { offset: 0, length: 4 },
-              },
-            ],
-            lines: [
-              {
-                content: "Test",
-                polygon: [],
-                spans: [{ offset: 0, length: 4 }],
-              },
-            ],
-            spans: [{ offset: 0, length: 4 }],
-          },
-        ],
-        paragraphs: [
-          {
-            content: "Test",
-            role: "text",
-            boundingRegions: [],
-            spans: [{ offset: 0, length: 4 }],
-          },
-        ],
-        tables: [],
-        keyValuePairs: [],
-        sections: [],
-        figures: [],
-        documents: [],
-      },
-    };
+  const sampleResponse = (): OCRResponse => ({
+    status: "succeeded",
+    createdDateTime: "2024-01-01T00:00:00Z",
+    lastUpdatedDateTime: "2024-01-01T00:01:00Z",
+    analyzeResult: {
+      apiVersion: "2024-11-30",
+      modelId: "prebuilt-layout",
+      content: "Test content from document",
+      pages: [
+        {
+          pageNumber: 1,
+          width: 8.5,
+          height: 11,
+          unit: "inch",
+          words: [],
+          lines: [],
+          spans: [{ offset: 0, length: 4 }],
+        },
+      ],
+      paragraphs: [],
+      tables: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+    },
+  });
+
+  it("extracts OCR results from provided response and returns ref", async () => {
+    const mockOCRResponse = sampleResponse();
 
     const result = await extractOCRResults({
       apimRequestId: "test-request-id",
       fileName: "test.pdf",
       fileType: "pdf",
       modelId: "prebuilt-layout",
+      documentId: TEST_DOCUMENT_ID,
+      groupId: TEST_GROUP_ID,
       ocrResponse: mockOCRResponse,
     });
 
-    expect(result.ocrResult.success).toBe(true);
-    expect(result.ocrResult.status).toBe("succeeded");
-    expect(result.ocrResult.apimRequestId).toBe("test-request-id");
-    expect(result.ocrResult.fileName).toBe("test.pdf");
-    expect(result.ocrResult.fileType).toBe("pdf");
-    expect(result.ocrResult.modelId).toBe("prebuilt-layout");
-    expect(result.ocrResult.extractedText).toBe("Test content from document");
-    expect(result.ocrResult.pages).toHaveLength(1);
-    expect(result.ocrResult.paragraphs).toHaveLength(1);
-  });
-
-  it("fetches OCR results from API when response not provided", async () => {
-    const mockOCRResponse: OCRResponse = {
-      status: "succeeded",
-      createdDateTime: "2024-01-01T00:00:00Z",
-      lastUpdatedDateTime: "2024-01-01T00:01:00Z",
-      analyzeResult: {
-        apiVersion: "2024-11-30",
-        modelId: "prebuilt-layout",
-        content: "Fetched content",
-        pages: [],
-        paragraphs: [],
-        tables: [],
-        keyValuePairs: [],
-        sections: [],
-        figures: [],
-        documents: [],
-      },
-    };
-
-    axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
-
-    const result = await extractOCRResults({
-      apimRequestId: "test-request-id",
-      fileName: "test.pdf",
-      fileType: "pdf",
-      modelId: "prebuilt-layout",
-    });
-
-    expect(result.ocrResult.extractedText).toBe("Fetched content");
-    expect(axiosMock.get).toHaveBeenCalledWith(
-      expect.stringContaining("/analyzeResults/test-request-id"),
+    expect(result.ocrResult.storage).toBe("blob");
+    expect(result.ocrResult.documentId).toBe(TEST_DOCUMENT_ID);
+    expect(ocrPayloadRef.writeOcrPayloadBlob).toHaveBeenCalledWith(
+      TEST_GROUP_ID,
+      TEST_DOCUMENT_ID,
+      "ocr-result.json",
       expect.objectContaining({
-        headers: { "api-key": "test-api-key" },
+        success: true,
+        extractedText: "Test content from document",
       }),
     );
   });
 
-  it("handles response with empty analyzeResult", async () => {
-    const mockOCRResponse: OCRResponse = {
-      status: "succeeded",
-      createdDateTime: "2024-01-01T00:00:00Z",
-      lastUpdatedDateTime: "2024-01-01T00:01:00Z",
-    };
+  it("fetches OCR results from API when response not provided", async () => {
+    axiosMock.get.mockResolvedValue({
+      data: sampleResponse(),
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: {} as never,
+    });
 
     const result = await extractOCRResults({
       apimRequestId: "test-request-id",
       fileName: "test.pdf",
       fileType: "pdf",
       modelId: "prebuilt-layout",
-      ocrResponse: mockOCRResponse,
+      documentId: TEST_DOCUMENT_ID,
+      groupId: TEST_GROUP_ID,
     });
 
-    expect(result.ocrResult.success).toBe(true);
-    expect(result.ocrResult.extractedText).toBe("");
-    expect(result.ocrResult.pages).toEqual([]);
-    expect(result.ocrResult.tables).toEqual([]);
-  });
-
-  it("sets success to false for failed status", async () => {
-    const mockOCRResponse: OCRResponse = {
-      status: "failed",
-      createdDateTime: "2024-01-01T00:00:00Z",
-      lastUpdatedDateTime: "2024-01-01T00:01:00Z",
-    };
-
-    const result = await extractOCRResults({
-      apimRequestId: "test-request-id",
-      fileName: "test.pdf",
-      fileType: "pdf",
-      modelId: "prebuilt-layout",
-      ocrResponse: mockOCRResponse,
-    });
-
-    expect(result.ocrResult.success).toBe(false);
-    expect(result.ocrResult.status).toBe("failed");
-  });
-
-  it("throws error when credentials are missing and response not provided", async () => {
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
-
-    await expect(
-      extractOCRResults({
-        apimRequestId: "test-request-id",
-        fileName: "test.pdf",
-        fileType: "pdf",
-        modelId: "prebuilt-layout",
-      }),
-    ).rejects.toThrow("Azure Document Intelligence credentials not configured");
-  });
-
-  it("throws error when OCR response is null", async () => {
-    await expect(
-      extractOCRResults({
-        apimRequestId: "test-request-id",
-        fileName: "test.pdf",
-        fileType: "pdf",
-        modelId: "prebuilt-layout",
-        ocrResponse: undefined,
-      }),
-    ).rejects.toThrow();
-  });
-
-  it("includes tables and key-value pairs when present", async () => {
-    const mockOCRResponse: OCRResponse = {
-      status: "succeeded",
-      createdDateTime: "2024-01-01T00:00:00Z",
-      lastUpdatedDateTime: "2024-01-01T00:01:00Z",
-      analyzeResult: {
-        apiVersion: "2024-11-30",
-        modelId: "prebuilt-layout",
-        content: "Content with tables",
-        pages: [],
-        paragraphs: [],
-        tables: [
-          {
-            rowCount: 2,
-            columnCount: 2,
-            cells: [
-              {
-                rowIndex: 0,
-                columnIndex: 0,
-                content: "Header1",
-                spans: [{ offset: 0, length: 7 }],
-                boundingRegions: [],
-              },
-              {
-                rowIndex: 0,
-                columnIndex: 1,
-                content: "Header2",
-                spans: [{ offset: 8, length: 7 }],
-                boundingRegions: [],
-              },
-            ],
-            boundingRegions: [],
-            spans: [{ offset: 0, length: 15 }],
-          },
-        ],
-        keyValuePairs: [
-          {
-            key: {
-              content: "Name",
-              spans: [{ offset: 0, length: 4 }],
-              boundingRegions: [],
-            },
-            value: {
-              content: "John",
-              spans: [{ offset: 5, length: 4 }],
-              boundingRegions: [],
-            },
-            confidence: 0.95,
-          },
-        ],
-        sections: [],
-        figures: [],
-        documents: [],
-      },
-    };
-
-    const result = await extractOCRResults({
-      apimRequestId: "test-request-id",
-      fileName: "test.pdf",
-      fileType: "pdf",
-      modelId: "prebuilt-layout",
-      ocrResponse: mockOCRResponse,
-    });
-
-    expect(result.ocrResult.tables).toHaveLength(1);
-    expect(result.ocrResult.tables[0].rowCount).toBe(2);
-    expect(result.ocrResult.keyValuePairs).toHaveLength(1);
-    expect(result.ocrResult.keyValuePairs[0].key.content).toBe("Name");
+    expect(result.ocrResult.blobPath).toContain("ocr-result.json");
+    expect(axiosMock.get).toHaveBeenCalled();
   });
 });

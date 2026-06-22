@@ -105,6 +105,7 @@ describe("materializeDataset activity", () => {
       expect(result.materializedPath).toBe(
         "/tmp/test-cache/dataset-1-version-1",
       );
+      expect(result.groupId).toBe("atestgroup");
       expect(blobStorageMock.list).toHaveBeenCalledWith(
         "atestgroup/benchmark/datasets/dataset-1/version-1",
       );
@@ -133,6 +134,7 @@ describe("materializeDataset activity", () => {
 
       expect(result).toEqual({
         materializedPath: "/tmp/test-cache/dataset-1-version-1",
+        groupId: "atestgroup",
       });
       expect(result.materializedPath).toMatch(/^\/tmp\/test-cache\//);
     });
@@ -152,6 +154,7 @@ describe("materializeDataset activity", () => {
       expect(result.materializedPath).toBe(
         "/tmp/test-cache/dataset-1-version-1",
       );
+      expect(result.groupId).toBe("atestgroup");
       expect(fsMock.access).toHaveBeenCalledWith(
         "/tmp/test-cache/dataset-1-version-1/dataset-manifest.json",
       );

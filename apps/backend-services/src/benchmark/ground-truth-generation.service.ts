@@ -443,12 +443,12 @@ export class GroundTruthGenerationService {
       });
 
       // Start OCR workflow with confidenceThreshold=0 to skip humanGate.
-      // Pass the override-applied graph so exposed-param overrides take effect.
+      // Overrides are merged when the worker loads graph config.
       const ocrResult = await this.ocrService.requestOcr(
         documentId,
         { confidenceThreshold: 0 },
-        effectiveConfig && jobOverrides && Object.keys(jobOverrides).length > 0
-          ? effectiveConfig
+        jobOverrides && Object.keys(jobOverrides).length > 0
+          ? jobOverrides
           : undefined,
       );
 

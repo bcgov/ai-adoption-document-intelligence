@@ -1,4 +1,10 @@
-import { computeConfigHash } from "./config-hash";
+import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow-config";
+import {
+  computeConfigHash,
+  computeConfigHashWithOverrides,
+  stampConfigWithPersistedHash,
+  stripPersistedConfigHash,
+} from "./config-hash";
 import type { ActivityNode, GraphWorkflowConfig } from "./graph-workflow-types";
 
 function makeMinimalGraph(): GraphWorkflowConfig {
@@ -132,6 +138,57 @@ describe("config-hash", () => {
       const hash1 = computeConfigHash(config1);
       const hash2 = computeConfigHash(config2);
       expect(hash1).toBe(hash2);
+    });
+
+    it("ignores persisted metadata.configHash when hashing", () => {
+      const base: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        entryNodeId: "start",
+        metadata: { name: "Test" },
+        nodes: {
+          start: {
+            id: "start",
+            type: "activity",
+            label: "Start",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+        },
+        edges: [],
+        ctx: {},
+      };
+      const stamped = stampConfigWithPersistedHash(base);
+      expect(computeConfigHash(base)).toBe(computeConfigHash(stamped));
+      expect(stripPersistedConfigHash(stamped).metadata?.configHash).toBe(
+        undefined,
+      );
+    });
+
+    it("computeConfigHashWithOverrides matches merged config hash", () => {
+      const config = makeMinimalGraph();
+      config.ctx = {
+        modelId: { type: "string", defaultValue: "prebuilt-layout" },
+      };
+      const overrides = { "ctx.modelId.defaultValue": "prebuilt-read" };
+      expect(computeConfigHashWithOverrides(config, overrides)).not.toBe(
+        computeConfigHash(config),
+      );
+      expect(computeConfigHashWithOverrides(config, overrides)).toBe(
+        computeConfigHash(applyWorkflowConfigOverrides(config, overrides)),
+      );
+    });
+
+    it("benchmark definition stores base hash; run start uses merged hash", () => {
+      const config = makeMinimalGraph();
+      config.ctx = {
+        modelId: { type: "string", defaultValue: "prebuilt-layout" },
+      };
+      const overrides = { "ctx.modelId.defaultValue": "prebuilt-read" };
+      const storedDefinitionHash = computeConfigHash(config);
+      const runStartHash = computeConfigHashWithOverrides(config, overrides);
+      expect(storedDefinitionHash).not.toBe(runStartHash);
+      expect(runStartHash).toBe(
+        computeConfigHash(applyWorkflowConfigOverrides(config, overrides)),
+      );
     });
   });
 });

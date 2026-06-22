@@ -5,12 +5,12 @@ import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
  */
 
 import { createActivityLogger } from "../logger";
-import type {
-  EnrichmentChange,
-  EnrichmentResult,
-  EnrichmentSummary,
-  OCRResult,
-} from "../types";
+import {
+  resolveOcrResultInput,
+  toOcrResultPort,
+} from "../ocr-activity-ref-utils";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
+import type { EnrichmentChange, EnrichmentSummary, OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 import {
   callAzureOpenAI,
@@ -26,7 +26,8 @@ import {
 
 export interface EnrichResultsParams {
   documentId: string;
-  ocrResult: OCRResult;
+  ocrResult: OCRResult | OcrPayloadRef;
+  groupId?: string | null;
   documentType: string;
   confidenceThreshold?: number;
   enableLlmEnrichment?: boolean;
@@ -34,8 +35,9 @@ export interface EnrichResultsParams {
 
 export async function enrichResults(
   params: EnrichResultsParams,
-): Promise<EnrichmentResult> {
-  const { documentId, ocrResult, documentType } = params;
+): Promise<{ ocrResult: OcrPayloadRef; summary: EnrichmentSummary | null }> {
+  const { documentId, documentType } = params;
+  const { ocrResult, groupId } = await resolveOcrResultInput(params);
   const activityName = "enrichResults";
   const log = createActivityLogger(activityName, { documentId });
   const confidenceThreshold = params.confidenceThreshold ?? 0.85;
@@ -66,7 +68,12 @@ export async function enrichResults(
         reason: "template_model_not_found_or_empty_schema",
         documentType,
       });
-      return { ocrResult, summary: null };
+      const { ocrResult: ref } = await toOcrResultPort(
+        ocrResult,
+        documentId,
+        groupId,
+      );
+      return { ocrResult: ref, summary: null };
     }
 
     const fieldDefs: FieldDef[] = templateModel.field_schema.map(
@@ -196,7 +203,12 @@ export async function enrichResults(
       alertType: "enrich_results",
     });
 
-    return { ocrResult: finalResult, summary };
+    const { ocrResult: ocrResultRef } = await toOcrResultPort(
+      finalResult,
+      documentId,
+      groupId,
+    );
+    return { ocrResult: ocrResultRef, summary };
   } catch (error) {
     const errorMessage = getErrorMessage(error);
     log.error("Enrich results error", {
@@ -205,7 +217,12 @@ export async function enrichResults(
       stack: getErrorStack(error),
       alertType: "enrich_results",
     });
-    return { ocrResult, summary: null };
+    const { ocrResult: ocrResultRef } = await toOcrResultPort(
+      ocrResult,
+      documentId,
+      groupId,
+    );
+    return { ocrResult: ocrResultRef, summary: null };
   }
 }
 

@@ -17,6 +17,7 @@ import {
   ScheduleClient,
   type ScheduleDescription,
 } from "@temporalio/client";
+import { temporalDataConverter } from "../temporal/temporal-data-converter";
 import { WORKFLOW_TYPES } from "../temporal/workflow-types";
 import type { ScheduleInfoDto } from "./dto";
 
@@ -61,6 +62,7 @@ export class BenchmarkTemporalService {
       this.client = new Client({
         connection: this.connection,
         namespace: this.namespace,
+        dataConverter: temporalDataConverter,
       });
 
       this.logger.log("Temporal client connected successfully");
@@ -88,7 +90,6 @@ export class BenchmarkTemporalService {
       splitId?: string;
       sampleIds?: string[];
       workflowVersionId: string;
-      workflowConfig: Record<string, unknown>;
       workflowConfigHash: string;
       evaluatorType: string;
       evaluatorConfig: Record<string, unknown>;
@@ -98,6 +99,7 @@ export class BenchmarkTemporalService {
       workerImageDigest?: string;
       persistOcrCache?: boolean;
       ocrCacheBaselineRunId?: string;
+      workflowConfigOverrides?: Record<string, unknown>;
     },
   ): Promise<string> {
     await this.ensureClient();
@@ -121,7 +123,6 @@ export class BenchmarkTemporalService {
               splitId: benchmarkDefinition.splitId,
               sampleIds: benchmarkDefinition.sampleIds,
               workflowVersionId: benchmarkDefinition.workflowVersionId,
-              workflowConfig: benchmarkDefinition.workflowConfig,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,
               evaluatorType: benchmarkDefinition.evaluatorType,
               evaluatorConfig: benchmarkDefinition.evaluatorConfig,
@@ -131,6 +132,14 @@ export class BenchmarkTemporalService {
               workerImageDigest: benchmarkDefinition.workerImageDigest,
               persistOcrCache: benchmarkDefinition.persistOcrCache,
               ocrCacheBaselineRunId: benchmarkDefinition.ocrCacheBaselineRunId,
+              ...(benchmarkDefinition.workflowConfigOverrides &&
+              Object.keys(benchmarkDefinition.workflowConfigOverrides).length >
+                0
+                ? {
+                    workflowConfigOverrides:
+                      benchmarkDefinition.workflowConfigOverrides,
+                  }
+                : {}),
             },
           ],
           taskQueue: this.taskQueue,

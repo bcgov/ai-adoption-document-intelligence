@@ -7,6 +7,7 @@
 
 import type { Prisma } from "../generated";
 import { createActivityLogger } from "../logger";
+import { type OcrPayloadRef, readOcrPayloadBlob } from "../ocr-payload-ref";
 import { getPrismaClient } from "./database-client";
 
 export interface BenchmarkLoadOcrCacheInput {
@@ -21,7 +22,8 @@ export interface BenchmarkLoadOcrCacheOutput {
 export interface BenchmarkPersistOcrCacheInput {
   sourceRunId: string;
   sampleId: string;
-  ocrResponse: unknown;
+  ocrResponse?: unknown;
+  ocrResponseRef?: OcrPayloadRef;
 }
 
 export async function benchmarkLoadOcrCache(
@@ -59,6 +61,16 @@ export async function benchmarkPersistOcrCache(
   });
   const prisma = getPrismaClient();
 
+  let ocrResponse = input.ocrResponse;
+  if (input.ocrResponseRef) {
+    ocrResponse = await readOcrPayloadBlob(input.ocrResponseRef);
+  }
+  if (ocrResponse === undefined) {
+    throw new Error(
+      "benchmarkPersistOcrCache requires ocrResponse or ocrResponseRef",
+    );
+  }
+
   await prisma.benchmarkOcrCache.upsert({
     where: {
       sourceRunId_sampleId: {
@@ -69,10 +81,10 @@ export async function benchmarkPersistOcrCache(
     create: {
       sourceRunId: input.sourceRunId,
       sampleId: input.sampleId,
-      ocrResponse: input.ocrResponse as Prisma.InputJsonValue,
+      ocrResponse: ocrResponse as Prisma.InputJsonValue,
     },
     update: {
-      ocrResponse: input.ocrResponse as Prisma.InputJsonValue,
+      ocrResponse: ocrResponse as Prisma.InputJsonValue,
     },
   });
 

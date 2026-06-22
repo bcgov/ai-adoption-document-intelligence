@@ -1,4 +1,8 @@
+import * as ocrRefUtils from "../ocr-activity-ref-utils";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
+
+const mockBlobBodies = new Map<string, Buffer>();
 
 jest.mock("../logger", () => ({
   createActivityLogger: () => ({
@@ -12,11 +16,83 @@ jest.mock("./database-client", () => ({
   getPrismaClient: jest.fn(),
 }));
 
+jest.mock("../blob-storage/blob-storage-client", () => ({
+  getBlobStorageClient: () => ({
+    write: async (key: string, data: Buffer) => {
+      mockBlobBodies.set(key, data);
+    },
+    read: async (key: string) => {
+      const body = mockBlobBodies.get(key);
+      if (!body) {
+        throw new Error(`missing blob body for ${key}`);
+      }
+      return body;
+    },
+  }),
+}));
+
 import { buildFlatPredictionMapFromCtx } from "../azure-ocr-field-display-value";
 import { getPrismaClient } from "./database-client";
 import { normalizeOcrFields } from "./ocr-normalize-fields";
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
+
+const DOC_ID = "doc-normalize-test";
+const ocrBodiesByPath = new Map<string, OCRResult>();
+
+function ocrFromRef(ref: OcrPayloadRef): OCRResult {
+  const body = ocrBodiesByPath.get(ref.blobPath);
+  if (body) {
+    return body;
+  }
+  const blobBody = mockBlobBodies.get(ref.blobPath);
+  if (!blobBody) {
+    throw new Error(`missing OCR body for ${ref.blobPath}`);
+  }
+  return JSON.parse(blobBody.toString("utf8")) as OCRResult;
+}
+
+function normalize(
+  params: Omit<Parameters<typeof normalizeOcrFields>[0], "documentId"> & {
+    documentId?: string;
+  },
+) {
+  return normalizeOcrFields({ documentId: DOC_ID, ...params });
+}
+
+beforeEach(() => {
+  ocrBodiesByPath.clear();
+  mockBlobBodies.clear();
+  jest
+    .spyOn(ocrRefUtils, "resolveOcrResultInput")
+    .mockImplementation(async (params) => ({
+      ocrResult:
+        typeof params.ocrResult === "object" &&
+        params.ocrResult !== null &&
+        "storage" in params.ocrResult
+          ? ocrFromRef(params.ocrResult as OcrPayloadRef)
+          : (params.ocrResult as OCRResult),
+      groupId: "gtestgroupidfortests01",
+    }));
+  jest
+    .spyOn(ocrRefUtils, "toOcrResultPort")
+    .mockImplementation(async (body, documentId, groupId) => {
+      const blobPath = `${groupId}/ocr/${documentId}/ocr-result.json`;
+      ocrBodiesByPath.set(blobPath, body);
+      return {
+        ocrResult: {
+          documentId,
+          blobPath,
+          storage: "blob",
+          status: "succeeded",
+        },
+      };
+    });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 function makeOcrResult(
   kvps: Array<{ key: string; value: string; confidence: number }>,
@@ -98,9 +174,11 @@ describe("normalizeOcrFields", () => {
       { key: "Name", value: "  John   Doe  ", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({ ocrResult });
+    const result = await normalize({ ocrResult });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("John Doe");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "John Doe",
+    );
     expect(result.changes.length).toBe(1);
     expect(result.changes[0].reason).toContain("whitespace");
   });
@@ -110,17 +188,21 @@ describe("normalizeOcrFields", () => {
       { key: "Amount", value: "1 234 567", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({ ocrResult });
+    const result = await normalize({ ocrResult });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("1234567");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "1234567",
+    );
   });
 
   it("normalizes comma thousands separators", async () => {
     const ocrResult = makeOcrResult([
       { key: "Amount", value: "1, 234,567.89", confidence: 0.9 },
     ]);
-    const result = await normalizeOcrFields({ ocrResult });
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("1234567.89");
+    const result = await normalize({ ocrResult });
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "1234567.89",
+    );
   });
 
   it("normalizes date separators", async () => {
@@ -128,17 +210,19 @@ describe("normalizeOcrFields", () => {
       { key: "ShipDate", value: "01.15.2024", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({ ocrResult });
+    const result = await normalize({ ocrResult });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("01/15/2024");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "01/15/2024",
+    );
   });
 
   it("normalizes unicode and spacing artifacts", async () => {
     const ocrResult = makeOcrResult([
       { key: "Text", value: "hello\u00A0world", confidence: 0.9 },
     ]);
-    const result = await normalizeOcrFields({ ocrResult });
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
+    const result = await normalize({ ocrResult });
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
       "hello world",
     );
   });
@@ -149,7 +233,7 @@ describe("normalizeOcrFields", () => {
     ]);
     const originalValue = ocrResult.keyValuePairs[0].value?.content;
 
-    await normalizeOcrFields({ ocrResult });
+    await normalize({ ocrResult });
 
     expect(ocrResult.keyValuePairs[0].value?.content).toBe(originalValue);
   });
@@ -159,12 +243,14 @@ describe("normalizeOcrFields", () => {
       { key: "Name", value: "  John   Doe  ", confidence: 0.9 },
     ]);
 
-    const first = await normalizeOcrFields({ ocrResult });
-    const second = await normalizeOcrFields({
+    const first = await normalize({ ocrResult });
+    const second = await normalize({
       ocrResult: first.ocrResult,
     });
 
-    expect(second.ocrResult.keyValuePairs[0].value?.content).toBe("John Doe");
+    expect(ocrFromRef(second.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "John Doe",
+    );
     expect(second.changes).toHaveLength(0);
   });
 
@@ -174,13 +260,17 @@ describe("normalizeOcrFields", () => {
       { key: "Amount", value: "  world  ", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       fieldScope: ["Name"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("hello");
-    expect(result.ocrResult.keyValuePairs[1].value?.content).toBe("  world  ");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "hello",
+    );
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[1].value?.content).toBe(
+      "  world  ",
+    );
   });
 
   it("applies numeric rules heuristically outside fieldScope", async () => {
@@ -189,13 +279,17 @@ describe("normalizeOcrFields", () => {
       { key: "Amount", value: "1,234", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       fieldScope: ["Name"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("John Doe");
-    expect(result.ocrResult.keyValuePairs[1].value?.content).toBe("1234");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "John Doe",
+    );
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[1].value?.content).toBe(
+      "1234",
+    );
   });
 
   it("can disable specific normalizations", async () => {
@@ -203,13 +297,15 @@ describe("normalizeOcrFields", () => {
       { key: "ShipDate", value: "  01.15.2024  ", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       normalizeWhitespace: true,
       normalizeDateSeparators: false,
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("01.15.2024");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "01.15.2024",
+    );
   });
 
   it("supports enabledRules selection", async () => {
@@ -217,12 +313,14 @@ describe("normalizeOcrFields", () => {
       { key: "Amount", value: "$ 1,234", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       enabledRules: ["currencySpacing"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("$1,234");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "$1,234",
+    );
   });
 
   it("supports disabledRules selection", async () => {
@@ -230,12 +328,14 @@ describe("normalizeOcrFields", () => {
       { key: "Amount", value: "$ 1,234", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       disabledRules: ["currencySpacing"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("$ 1234");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "$ 1234",
+    );
   });
 
   it("supports normalizeFullResult", async () => {
@@ -243,7 +343,7 @@ describe("normalizeOcrFields", () => {
       { key: "Name", value: "John", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       normalizeFullResult: true,
       enabledRules: [
@@ -255,10 +355,18 @@ describe("normalizeOcrFields", () => {
       ],
     });
 
-    expect(result.ocrResult.pages[0].words[0].content).toBe("linebreak");
-    expect(result.ocrResult.pages[0].lines[0].content).toBe("A line");
-    expect(result.ocrResult.paragraphs[0].content).toBe("hello world");
-    expect(result.ocrResult.tables[0].cells[0].content).toBe("$1234");
+    expect(ocrFromRef(result.ocrResult).pages[0].words[0].content).toBe(
+      "linebreak",
+    );
+    expect(ocrFromRef(result.ocrResult).pages[0].lines[0].content).toBe(
+      "A line",
+    );
+    expect(ocrFromRef(result.ocrResult).paragraphs[0].content).toBe(
+      "hello world",
+    );
+    expect(ocrFromRef(result.ocrResult).tables[0].cells[0].content).toBe(
+      "$1234",
+    );
   });
 
   it("returns changes with correct structure", async () => {
@@ -266,7 +374,7 @@ describe("normalizeOcrFields", () => {
       { key: "Name", value: "  hello  ", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({ ocrResult });
+    const result = await normalize({ ocrResult });
 
     expect(result.changes[0]).toEqual({
       fieldKey: "Name",
@@ -283,10 +391,14 @@ describe("normalizeOcrFields", () => {
       { key: "spouse_phone", value: "970.838.608", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({ ocrResult });
+    const result = await normalize({ ocrResult });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("936688868");
-    expect(result.ocrResult.keyValuePairs[1].value?.content).toBe("970838608");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "936688868",
+    );
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[1].value?.content).toBe(
+      "970838608",
+    );
     expect(
       result.changes.some(
         (c) => c.reason === "Canonicalized identifier digits",
@@ -308,8 +420,9 @@ describe("normalizeOcrFields", () => {
       },
     ];
 
-    const result = await normalizeOcrFields({ ocrResult });
-    const field = result.ocrResult.documents![0].fields.spouse_phone;
+    const result = await normalize({ ocrResult });
+    const field = ocrFromRef(result.ocrResult).documents![0].fields
+      .spouse_phone;
 
     expect(field.content).toBe("981621268");
     expect(field.valueString).toBe("981621268");
@@ -328,8 +441,9 @@ describe("normalizeOcrFields", () => {
       },
     ];
 
-    const result = await normalizeOcrFields({ ocrResult });
-    const field = result.ocrResult.documents![0].fields.applicant_sin;
+    const result = await normalize({ ocrResult });
+    const field = ocrFromRef(result.ocrResult).documents![0].fields
+      .applicant_sin;
 
     expect(field.valueString).toBe("936688868");
     expect(field.content).toBeUndefined();
@@ -350,8 +464,9 @@ describe("normalizeOcrFields", () => {
       },
     ];
 
-    const result = await normalizeOcrFields({ ocrResult });
-    const field = result.ocrResult.documents![0].fields.spouse_phone as {
+    const result = await normalize({ ocrResult });
+    const field = ocrFromRef(result.ocrResult).documents![0].fields
+      .spouse_phone as {
       content?: string;
       valueString?: string;
       valueNumber?: number;
@@ -374,16 +489,17 @@ describe("normalizeOcrFields", () => {
       },
     ];
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       emptyValueCoercion: "blank",
     });
-    const fields = result.ocrResult.documents![0].fields;
+    const fields = ocrFromRef(result.ocrResult).documents![0].fields;
     expect(fields.empty_field.content).toBe("");
     expect(fields.filled.content).toBe("x");
     expect(
-      buildFlatPredictionMapFromCtx({ cleanedResult: result.ocrResult })
-        .empty_field,
+      buildFlatPredictionMapFromCtx({
+        cleanedResult: ocrFromRef(result.ocrResult),
+      }).empty_field,
     ).toBe("");
   });
 
@@ -398,12 +514,14 @@ describe("normalizeOcrFields", () => {
       },
     ];
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       emptyValueCoercion: "blank",
       fieldScope: ["other"],
     });
-    expect(result.ocrResult.documents![0].fields.empty_field.content).toBe("");
+    expect(
+      ocrFromRef(result.ocrResult).documents![0].fields.empty_field.content,
+    ).toBe("");
   });
 
   it("sets empty document field content to null when emptyValueCoercion is null", async () => {
@@ -415,12 +533,12 @@ describe("normalizeOcrFields", () => {
       },
     ];
 
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       emptyValueCoercion: "null",
     });
     expect(
-      result.ocrResult.documents![0].fields.empty_field.content,
+      ocrFromRef(result.ocrResult).documents![0].fields.empty_field.content,
     ).toBeNull();
   });
 
@@ -428,11 +546,13 @@ describe("normalizeOcrFields", () => {
     const ocrResult = makeOcrResult([
       { key: "Note", value: "   ", confidence: 0.9 },
     ]);
-    const result = await normalizeOcrFields({
+    const result = await normalize({
       ocrResult,
       emptyValueCoercion: "blank",
     });
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "",
+    );
   });
 
   it("canonicalizes date fields to YYYY-Mmm-DD", async () => {
@@ -440,9 +560,9 @@ describe("normalizeOcrFields", () => {
       { key: "date", value: "30/03/2016", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({ ocrResult });
+    const result = await normalize({ ocrResult });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
       "2016-Mar-30",
     );
     expect(
@@ -455,9 +575,11 @@ describe("normalizeOcrFields", () => {
       { key: "spouse_date", value: "$", confidence: 0.9 },
     ]);
 
-    const result = await normalizeOcrFields({ ocrResult });
+    const result = await normalize({ ocrResult });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "",
+    );
     expect(
       result.changes.some((c) => c.reason === "Cleared date-field OCR noise"),
     ).toBe(true);
@@ -502,14 +624,14 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
-      expect(result.ocrResult.documents![0].fields.sin_number.content).toBe(
-        "872318748",
-      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.sin_number.content,
+      ).toBe("872318748");
       expect(
         result.changes.some((c) =>
           c.reason.includes("Format spec canonicalization"),
@@ -545,14 +667,14 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
-      expect(result.ocrResult.documents![0].fields.phone_number.content).toBe(
-        "(442) 836-849",
-      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.phone_number.content,
+      ).toBe("(442) 836-849");
       expect(
         result.changes.some((c) =>
           c.reason.includes("Format spec canonicalization"),
@@ -585,14 +707,14 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
-      expect(result.ocrResult.documents![0].fields.birth_date.content).toBe(
-        "2009-04-22",
-      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.birth_date.content,
+      ).toBe("2009-04-22");
       expect(
         result.changes.some((c) =>
           c.reason.includes("Format spec canonicalization"),
@@ -625,14 +747,14 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
-      expect(result.ocrResult.documents![0].fields.description.content).toBe(
-        "avoid various.",
-      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.description.content,
+      ).toBe("avoid various.");
       expect(
         result.changes.some((c) =>
           c.reason.includes("Format spec canonicalization"),
@@ -665,15 +787,15 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
       // Should use heuristic identifier canonicalization (digits-only)
-      expect(result.ocrResult.documents![0].fields.applicant_sin.content).toBe(
-        "936688868",
-      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.applicant_sin.content,
+      ).toBe("936688868");
       expect(
         result.changes.some(
           (c) => c.reason === "Canonicalized identifier digits",
@@ -718,14 +840,14 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
-      expect(result.ocrResult.documents![0].fields.name.content).toBe(
-        "1,234.00",
-      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.name.content,
+      ).toBe("1,234.00");
       expect(result.metadata?.schemaAware).toBe(true);
       expect(result.metadata?.schemaFieldCount).toBe(1);
     });
@@ -752,12 +874,13 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
-      const out = result.ocrResult.documents![0].fields.amount.content;
+      const out = ocrFromRef(result.ocrResult).documents![0].fields.amount
+        .content;
       expect(out).not.toContain(",");
       expect(out).toMatch(/1234\.56/);
     });
@@ -784,14 +907,14 @@ describe("normalizeOcrFields", () => {
         },
       ];
 
-      const result = await normalizeOcrFields({
+      const result = await normalize({
         ocrResult,
         documentType: "proj-1",
       });
 
-      expect(result.ocrResult.documents![0].fields.birth.content).toBe(
-        "2016-Mar-30",
-      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.birth.content,
+      ).toBe("2016-Mar-30");
     });
   });
 });

@@ -9,7 +9,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# script lives at apps/backend-services/integration-tests/graph-workflow-tests
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+BACKEND_DIR="$PROJECT_ROOT/apps/backend-services"
 
 # Colors
 RED='\033[0;31m'
@@ -24,15 +26,18 @@ echo -e "${BLUE}===========================================================${NC}
 echo ""
 
 # Check if services are running
-check_service() {
+check_http_service() {
     local name=$1
     local url=$2
     local max_attempts=3
     local attempt=1
 
     while [ $attempt -le $max_attempts ]; do
-        if curl -s -f -o /dev/null "$url"; then
-            echo -e "${GREEN}✓${NC} $name is running"
+        # Backend health check: 200 or 401 both indicate the server is up.
+        local status
+        status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
+        if [ "$status" = "200" ] || [ "$status" = "401" ]; then
+            echo -e "${GREEN}✓${NC} $name is running (HTTP $status)"
             return 0
         fi
         attempt=$((attempt + 1))
@@ -45,6 +50,21 @@ check_service() {
     return 1
 }
 
+# Temporal gRPC endpoint is not HTTP; just check the TCP port is open.
+check_tcp_port() {
+    local name=$1
+    local host=$2
+    local port=$3
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z "$host" "$port" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} $name is listening on $host:$port"
+            return 0
+        fi
+    fi
+    echo -e "${YELLOW}⚠${NC} Could not verify $name port ($host:$port). Install netcat (nc) to enable this check."
+    return 0
+}
+
 # Service checks
 echo "Checking required services..."
 echo ""
@@ -52,11 +72,11 @@ echo ""
 TEMPORAL_OK=false
 BACKEND_OK=false
 
-if check_service "Temporal Server" "http://localhost:7233"; then
+if check_tcp_port "Temporal Server" "localhost" "7233"; then
     TEMPORAL_OK=true
 fi
 
-if check_service "Backend API" "http://localhost:3002/api/models"; then
+if check_http_service "Backend API" "http://localhost:3002/api/models"; then
     BACKEND_OK=true
 fi
 
