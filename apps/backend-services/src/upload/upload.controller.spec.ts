@@ -240,6 +240,12 @@ describe("UploadController", () => {
         workflow_slug: "ocr-only-minimal",
       };
       await controller.uploadDocument(dto, reqWithKey);
+      // The workflow default-model lookup must be scoped to the authorized
+      // group so another group's workflow default cannot be disclosed.
+      expect(workflowService.getModelIdDefault).toHaveBeenCalledWith(
+        "wv-2",
+        "group-from-key",
+      );
       expect(documentService.uploadDocument).toHaveBeenLastCalledWith(
         dto.title,
         dto.file,

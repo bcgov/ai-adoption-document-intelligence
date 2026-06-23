@@ -288,6 +288,7 @@ export class TemplateModelDbService {
    */
   async updateFieldDefinition(
     id: string,
+    templateModelId: string,
     data: {
       field_format?: string;
       format_spec?: string;
@@ -296,23 +297,17 @@ export class TemplateModelDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<FieldDefinition | null> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Updating field definition", { id });
-    try {
-      return await client.fieldDefinition.update({
-        where: { id },
-        data,
-      });
-    } catch (error: unknown) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code: string }).code === "P2025"
-      ) {
-        return null;
-      }
-      throw error;
+    this.logger.debug("Updating field definition", { id, templateModelId });
+    // Scope the write to the owning template model so a field belonging to
+    // another group's template cannot be mutated by guessing its id.
+    const result = await client.fieldDefinition.updateMany({
+      where: { id, template_model_id: templateModelId },
+      data,
+    });
+    if (result.count === 0) {
+      return null;
     }
+    return client.fieldDefinition.findUnique({ where: { id } });
   }
 
   /**
@@ -323,24 +318,17 @@ export class TemplateModelDbService {
    */
   async deleteFieldDefinition(
     id: string,
+    templateModelId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Deleting field definition", { id });
-    try {
-      await client.fieldDefinition.delete({ where: { id } });
-      return true;
-    } catch (error: unknown) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code: string }).code === "P2025"
-      ) {
-        return false;
-      }
-      throw error;
-    }
+    this.logger.debug("Deleting field definition", { id, templateModelId });
+    // Scope the delete to the owning template model so a field belonging to
+    // another group's template cannot be deleted by guessing its id.
+    const result = await client.fieldDefinition.deleteMany({
+      where: { id, template_model_id: templateModelId },
+    });
+    return result.count > 0;
   }
 
   /**
@@ -568,23 +556,23 @@ export class TemplateModelDbService {
    */
   async deleteDocumentLabel(
     labelId: string,
+    scope: { templateModelId: string; labelingDocumentId: string },
     tx?: Prisma.TransactionClient,
   ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Deleting document label", { labelId });
-    try {
-      await client.documentLabel.delete({ where: { id: labelId } });
-      return true;
-    } catch (error: unknown) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code: string }).code === "P2025"
-      ) {
-        return false;
-      }
-      throw error;
-    }
+    this.logger.debug("Deleting document label", { labelId, ...scope });
+    // Scope the delete to the owning labeled document (template model +
+    // labeling document) so a label on another group's document cannot be
+    // deleted by guessing its id.
+    const result = await client.documentLabel.deleteMany({
+      where: {
+        id: labelId,
+        labeled_doc: {
+          template_model_id: scope.templateModelId,
+          labeling_document_id: scope.labelingDocumentId,
+        },
+      },
+    });
+    return result.count > 0;
   }
 }

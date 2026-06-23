@@ -375,10 +375,10 @@ export class BenchmarkRunDbService {
    */
   async findWorkflowVersionConfig(
     workflowVersionId: string,
-  ): Promise<{ config: unknown } | null> {
+  ): Promise<{ config: unknown; lineage: { group_id: string } } | null> {
     return this.prisma.workflowVersion.findUnique({
       where: { id: workflowVersionId },
-      select: { config: true },
+      select: { config: true, lineage: { select: { group_id: true } } },
     });
   }
 

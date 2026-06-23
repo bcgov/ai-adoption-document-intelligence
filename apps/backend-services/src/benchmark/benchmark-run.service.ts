@@ -381,7 +381,13 @@ export class BenchmarkRunService {
       const candidateRow = await this.runDb.findWorkflowVersionConfig(
         dto.candidateWorkflowVersionId,
       );
-      if (!candidateRow) {
+      // The candidate must belong to the run's project group; a version owned
+      // by another group is reported as not found so its config cannot be
+      // executed or its hash disclosed cross-group.
+      if (
+        !candidateRow ||
+        candidateRow.lineage.group_id !== definition.project.group_id
+      ) {
         throw new BadRequestException(
           `candidateWorkflowVersionId "${dto.candidateWorkflowVersionId}" not found`,
         );

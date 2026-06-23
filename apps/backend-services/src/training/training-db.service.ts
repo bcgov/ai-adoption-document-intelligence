@@ -431,11 +431,22 @@ export class TrainingDbService {
    * template models. Used to populate the OCR model picker.
    */
   async findAllTrainedModelIds(
+    groupIds: string[] | undefined,
     tx?: Prisma.TransactionClient,
   ): Promise<string[]> {
     const client = tx ?? this.prisma;
+    // `groupIds === undefined` means an unrestricted (system-admin) caller, so
+    // no group filter is applied. Otherwise the result is constrained to models
+    // whose owning template model belongs to one of the caller's groups,
+    // preventing cross-group disclosure of trained model IDs. An empty array
+    // therefore matches nothing (fail-closed).
     const results = await client.trainedModel.findMany({
-      where: { deleted_at: null },
+      where: {
+        deleted_at: null,
+        ...(groupIds === undefined
+          ? {}
+          : { template_model: { group_id: { in: groupIds } } }),
+      },
       select: { model_id: true },
       distinct: ["model_id"],
     });
