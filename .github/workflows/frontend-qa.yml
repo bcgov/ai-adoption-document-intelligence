@@ -5,6 +5,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main, develop]
+    paths:
+      - 'apps/frontend/**'
+      - 'packages/**'
+      - '.github/workflows/frontend-qa.yml'
   workflow_dispatch:
 
 jobs:

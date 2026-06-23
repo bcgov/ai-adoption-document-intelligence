@@ -1,3 +1,7 @@
+/**
+ * Browser-safe entry point for @ai-di/graph-workflow.
+ * Excludes config-hash.ts which depends on node:crypto.
+ */
 export * from "./types";
 export { validateGraphConfig } from "./validator/validator";
 export type { ValidateGraphConfigOptions } from "./validator/validator";
@@ -7,12 +11,6 @@ export {
   getRefCtxRootKey,
 } from "./validator/context-utils";
 export { GraphWorkflowConfig, GraphValidationError } from "./types";
-export {
-  computeConfigHash,
-  computeConfigHashWithOverrides,
-  stampConfigWithPersistedHash,
-  stripPersistedConfigHash,
-} from "./config-hash";
 export {
   applyWorkflowConfigOverrides,
   isSafeOverridePathSegment,

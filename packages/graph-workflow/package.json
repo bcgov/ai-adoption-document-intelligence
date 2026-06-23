@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Shared graph workflow types and validation logic",
   "main": "dist/index.js",
+  "browser": "dist/index.browser.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
