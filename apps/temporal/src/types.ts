@@ -2,6 +2,8 @@
  * Type definitions for OCR activities and results.
  */
 
+import type { OcrPayloadRef } from "./ocr-payload-ref";
+
 // Enrichment (used by ocr.enrich activity and graph workflows)
 export interface EnrichmentStepParams {
   documentType: string; // TemplateModel ID -> fetches field_schema
@@ -218,5 +220,6 @@ export interface SubmissionResult {
 
 export interface PollResult {
   status: "running" | "succeeded" | "failed";
-  response?: OCRResponse;
+  /** Port `response` — ref only (no inline OCR JSON in history). */
+  response?: OcrPayloadRef;
 }

@@ -20,12 +20,14 @@ import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import {
   type CancelSignal,
   GRAPH_RUNNER_VERSION,
+  type GraphWorkflowExecutionInput,
   type GraphWorkflowInput,
   type GraphWorkflowProgress,
   type GraphWorkflowResult,
   type GraphWorkflowStatus,
   type NodeStatus,
 } from "./graph-workflow-types";
+import { isOcrPayloadRef } from "./ocr-payload-ref-types";
 
 type PreExecutionActivities = {
   "document.updateStatus": (params: {
@@ -33,6 +35,14 @@ type PreExecutionActivities = {
     status: string;
     apimRequestId?: string;
   }) => Promise<void>;
+  getWorkflowGraphConfig: (params: {
+    workflowId: string;
+    workflowConfigOverrides?: Record<string, unknown>;
+  }) => Promise<{
+    graph: GraphWorkflowExecutionInput["graph"];
+    workflowVersionId: string;
+    configHash: string;
+  }>;
   "document.getStatus": (params: { documentId: string }) => Promise<{
     status: string;
   }>;
@@ -48,6 +58,31 @@ export const getProgress = defineQuery<GraphWorkflowProgress>("getProgress");
 // Signal definitions
 export const cancelSignal = defineSignal<[CancelSignal]>("cancel");
 
+function redactCtxForQuery(
+  ctx: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(ctx).map(([key, value]) => {
+      if (isOcrPayloadRef(value)) {
+        return [
+          key,
+          {
+            documentId: value.documentId,
+            status: value.status,
+            byteLength: value.byteLength,
+            storage: value.storage,
+          },
+        ];
+      }
+      const valueStr = JSON.stringify(value);
+      if (valueStr.length > 1000) {
+        return [key, "<redacted: large value>"];
+      }
+      return [key, value];
+    }),
+  );
+}
+
 /**
  * Main graph workflow function
  *
@@ -56,7 +91,6 @@ export const cancelSignal = defineSignal<[CancelSignal]>("cancel");
 export async function graphWorkflow(
   input: GraphWorkflowInput,
 ): Promise<GraphWorkflowResult> {
-  // State variables for queries and signals
   const currentNodes: string[] = [];
   const completedNodeIds = new Set<string>();
   const nodeStatuses = new Map<string, NodeStatus>();
@@ -64,8 +98,9 @@ export async function graphWorkflow(
     "running";
   let cancelled = false;
   let cancelMode: "graceful" | "immediate" = "graceful";
-  let ctx: Record<string, unknown> = {};
+  const ctx: Record<string, unknown> = {};
   let workflowError: string | undefined;
+  let loadedGraph: GraphWorkflowExecutionInput["graph"] | undefined;
   const lastError: {
     current?: {
       nodeId: string;
@@ -75,31 +110,19 @@ export async function graphWorkflow(
     };
   } = {};
 
-  // Set up query handlers
   setHandler(getStatus, (): GraphWorkflowStatus => {
-    // Redact large ctx values for performance
-    const redactedCtx = Object.fromEntries(
-      Object.entries(ctx).map(([key, value]) => {
-        const valueStr = JSON.stringify(value);
-        if (valueStr.length > 1000) {
-          return [key, "<redacted: large value>"];
-        }
-        return [key, value];
-      }),
-    );
-
     return {
       currentNodes,
       nodeStatuses: Object.fromEntries(nodeStatuses),
       overallStatus,
-      ctx: redactedCtx,
+      ctx: redactCtxForQuery(ctx),
       error: workflowError,
       lastError: lastError.current,
     };
   });
 
   setHandler(getProgress, (): GraphWorkflowProgress => {
-    const totalCount = Object.keys(input.graph.nodes).length;
+    const totalCount = loadedGraph ? Object.keys(loadedGraph.nodes).length : 0;
     const completedCount = completedNodeIds.size;
     const progressPercentage =
       totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -112,7 +135,6 @@ export async function graphWorkflow(
     };
   });
 
-  // Set up signal handler for cancellation
   setHandler(cancelSignal, (signal: CancelSignal) => {
     cancelled = true;
     cancelMode = signal.mode;
@@ -124,8 +146,30 @@ export async function graphWorkflow(
   try {
     enforceRunnerVersion(input.runnerVersion);
 
-    // Step 1: Validate graph config
-    const validation = validateGraphConfigForExecution(input.graph);
+    const activityProxy = proxyActivities<PreExecutionActivities>({
+      startToCloseTimeout: "30s",
+      retry: { maximumAttempts: 3 },
+    });
+
+    const loaded = await activityProxy.getWorkflowGraphConfig({
+      workflowId: input.workflowVersionId,
+      ...(input.workflowConfigOverrides &&
+      Object.keys(input.workflowConfigOverrides).length > 0
+        ? { workflowConfigOverrides: input.workflowConfigOverrides }
+        : {}),
+    });
+
+    if (loaded.configHash !== input.configHash) {
+      throw ApplicationFailure.create({
+        type: "CONFIG_HASH_MISMATCH",
+        message: `Workflow config hash mismatch for ${input.workflowVersionId}`,
+        nonRetryable: true,
+      });
+    }
+
+    loadedGraph = loaded.graph;
+
+    const validation = validateGraphConfigForExecution(loadedGraph);
 
     if (!validation.valid) {
       const errorMessages = validation.errors
@@ -139,16 +183,10 @@ export async function graphWorkflow(
       });
     }
 
-    // Step 2: Pre-execution hook - automatically update document status
-    // This ensures status is set before workflow processing begins
     if (
       input.initialCtx.documentId &&
       typeof input.initialCtx.documentId === "string"
     ) {
-      const activityProxy = proxyActivities<PreExecutionActivities>({
-        startToCloseTimeout: "30s",
-        retry: { maximumAttempts: 5 },
-      });
       const updateStatusActivity = activityProxy["document.updateStatus"];
 
       await updateStatusActivity({
@@ -161,12 +199,17 @@ export async function graphWorkflow(
       );
     }
 
-    // Step 3: Run graph execution
-    for (const nodeId of Object.keys(input.graph.nodes)) {
+    for (const nodeId of Object.keys(loadedGraph.nodes)) {
       nodeStatuses.set(nodeId, { status: "pending" });
     }
 
-    const result = await runGraphExecution(input, {
+    const executionInput: GraphWorkflowExecutionInput = {
+      ...input,
+      workflowVersionId: loaded.workflowVersionId,
+      graph: loadedGraph,
+    };
+
+    const result = await runGraphExecution(executionInput, {
       currentNodes,
       completedNodeIds,
       nodeStatuses,
@@ -177,12 +220,14 @@ export async function graphWorkflow(
       mapBranchResults: new Map(),
       configHash: input.configHash,
       runnerVersion: input.runnerVersion,
+      workflowVersionId: loaded.workflowVersionId,
+      requestId: input.requestId,
+      groupId: input.groupId ?? null,
+      workflowConfigOverrides: input.workflowConfigOverrides,
       lastError,
     });
 
-    // Update final state
     overallStatus = result.status;
-    ctx = result.ctx;
 
     // Post-execution hook: If workflow completed successfully, transition documents
     // from extracted to complete (documents that didn't go through HITL).
@@ -193,36 +238,33 @@ export async function graphWorkflow(
       input.initialCtx.documentId &&
       typeof input.initialCtx.documentId === "string"
     ) {
-      const activityProxy = proxyActivities<PreExecutionActivities>({
+      const postExecutionProxy = proxyActivities<PreExecutionActivities>({
         startToCloseTimeout: "30s",
         retry: { maximumAttempts: 5 },
       });
 
       try {
-        // Check current document status
-        const getStatusActivity = activityProxy["document.getStatus"];
-        if (getStatusActivity) {
-          const { status: currentStatus } = await getStatusActivity({
+        const { status: currentStatus } = await postExecutionProxy[
+          "document.getStatus"
+        ]({
+          documentId: input.initialCtx.documentId,
+        });
+
+        // Only transition from extracted to complete
+        // Leave awaiting_review alone (HITL handles that transition)
+        if (currentStatus === "extracted") {
+          await postExecutionProxy["document.updateStatus"]({
             documentId: input.initialCtx.documentId,
+            status: "complete",
           });
 
-          // Only transition from extracted to complete
-          // Leave awaiting_review alone (HITL handles that transition)
-          if (currentStatus === "extracted") {
-            const updateStatusActivity = activityProxy["document.updateStatus"];
-            await updateStatusActivity({
-              documentId: input.initialCtx.documentId,
-              status: "complete",
-            });
-
-            console.log(
-              `[GraphWorkflow] Post-execution: Updated document ${input.initialCtx.documentId} from extracted to complete`,
-            );
-          } else {
-            console.log(
-              `[GraphWorkflow] Post-execution: Document ${input.initialCtx.documentId} at status ${currentStatus}, skipping transition to complete`,
-            );
-          }
+          console.log(
+            `[GraphWorkflow] Post-execution: Updated document ${input.initialCtx.documentId} from extracted to complete`,
+          );
+        } else {
+          console.log(
+            `[GraphWorkflow] Post-execution: Document ${input.initialCtx.documentId} at status ${currentStatus}, skipping transition to complete`,
+          );
         }
       } catch (error) {
         // Don't fail the workflow if post-execution hook fails

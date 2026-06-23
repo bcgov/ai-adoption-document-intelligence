@@ -422,8 +422,7 @@ Before placing nodes, define the variables your workflow will use. At minimum, y
 
 For OCR workflows, you'll also typically need:
 - `modelId` (text, default: "prebuilt-layout") — which OCR model to use
-- `ocrResult` (object) — will hold the OCR output
-- `cleanedResult` (object) — will hold post-processed results
+- `ocrResponseRef`, `ocrResultRef`, `cleanedResultRef` (object) — blob references (`OcrPayloadRef`), not inline OCR JSON
 
 ### Step 3: Place and Configure Nodes
 
@@ -436,21 +435,21 @@ For OCR workflows, you'll also typically need:
    - Bind output: write `apimRequestId` to context
 
 3. Add a **Poll Until** node for **Poll OCR Results**
-   - Bind input: `apimRequestId` from context
-   - Set condition: stop when status is no longer "running"
+   - Bind inputs: `apimRequestId`, `documentId`, `modelId` from context
+   - Set condition: stop when `ocrResponseRef.status` is no longer `running`
    - Set interval: 10 seconds, with a 5-second initial delay
-   - Bind output: write `ocrResponse` to context
+   - Bind output port `response` → context `ocrResponseRef`
 
 4. Add an **Extract OCR Results** activity node
-   - Bind inputs: `apimRequestId`, `ocrResponse`, `fileName`
-   - Bind output: write `ocrResult` to context
+   - Bind inputs: `apimRequestId`, `ocrResponse` ← `ocrResponseRef`, `fileName`, `documentId`
+   - Bind output port `ocrResult` → context `ocrResultRef`
 
 5. Add a **Post-OCR Cleanup** activity node
-   - Bind input: `ocrResult`
-   - Bind output: `cleanedResult`
+   - Bind input port `ocrResult` ← `ocrResultRef`; bind `documentId`
+   - Bind output port `cleanedResult` → context `cleanedResultRef`
 
 6. Add a **Store Results** activity node
-   - Bind inputs: `documentId`, `cleanedResult`
+   - Bind inputs: `documentId`, `cleanedResult` ← `cleanedResultRef`
 
 ### Step 4: Connect the Nodes
 

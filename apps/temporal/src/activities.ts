@@ -34,6 +34,7 @@ export {
   benchmarkAggregate,
   benchmarkEvaluate,
 } from "./activities/benchmark-evaluate";
+export { benchmarkFlattenPredictionFromRefs } from "./activities/benchmark-flatten-prediction";
 export type { DatasetManifest } from "./activities/benchmark-materialize";
 export {
   loadDatasetManifest,

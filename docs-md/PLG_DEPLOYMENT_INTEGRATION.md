@@ -74,6 +74,22 @@ The PLG deployment is completely independent of the Kustomize-based application 
 - No Kustomize base or overlay files are modified for PLG
 - If PLG deployment fails, the application deployment is unaffected
 
+## Prometheus RBAC
+
+Prometheus uses Kubernetes pod service discovery (`kubernetes_sd_configs`) to scrape `backend-services` and `temporal-worker` pods by IP across replicas. This requires permission to list and watch pods in the namespace.
+
+The chart creates a dedicated `ServiceAccount`, `Role` (pods: `get`/`list`/`watch`), and `RoleBinding` for the Prometheus StatefulSet. These are scoped to the release namespace only. The `default` service account is not used — it has no pod-list permissions on OpenShift.
+
+## ches-adapter and Alertmanager
+
+The ches-adapter Deployment, Service, PodDisruptionBudget, and sidecar ConfigMaps are only rendered when **both** `alertmanager.notificationsEnabled: true` and `alertmanager.notificationChannel: "ches"`. When notifications are disabled (the default), none of these resources are created and no ches-adapter image is required.
+
+Similarly, the `ches-notifications` and `teams-notifications` receivers in the Alertmanager config are only emitted when `notificationsEnabled: true`. This prevents Alertmanager from failing to start due to empty webhook URL validation when notifications are off.
+
+## Grafana Storage
+
+Grafana stores its SQLite database and alert history on a `ReadWriteOnce` PersistentVolumeClaim. The Deployment uses `strategy: Recreate` rather than the default `RollingUpdate`, so the old pod is terminated before the new one starts. This prevents `Multi-Attach` errors caused by two pods competing for the same RWO volume during an upgrade.
+
 ## Accessing Grafana
 
 Grafana is not exposed via an OpenShift Route. Access it via port-forwarding:

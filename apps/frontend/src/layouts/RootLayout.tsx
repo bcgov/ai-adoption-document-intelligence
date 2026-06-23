@@ -1,5 +1,6 @@
 import { Footer, Header } from "@bcgov/design-system-react-components";
 import {
+  IconAdjustments,
   IconChartBar,
   IconChevronLeft,
   IconChevronRight,
@@ -109,6 +110,12 @@ export function RootLayout() {
         label: "Groups",
         description: "Manage groups",
         icon: IconUsers,
+      },
+      {
+        path: "/confusion-profiles",
+        label: "Confusion Profiles",
+        description: "Manage OCR confusion profiles",
+        icon: IconAdjustments,
       },
     ],
     [],

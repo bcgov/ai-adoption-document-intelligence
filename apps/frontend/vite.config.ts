@@ -67,6 +67,9 @@ export default defineConfig({
       },
     },
   ],
+  optimizeDeps: {
+    include: ["@ai-di/graph-workflow"],
+  },
   // Resolve needed to address plugin-react v5 fast refresh issue.
   resolve: {
     dedupe: ["react", "react-dom"],
@@ -75,7 +78,10 @@ export default defineConfig({
       // Bundle graph-workflow from source: dist is CommonJS and Rollup cannot
       // resolve named exports (e.g. validateGraphConfig) from the compiled output.
       "@ai-di/graph-workflow": fileURLToPath(
-        new URL("../../packages/graph-workflow/src/index.ts", import.meta.url),
+        new URL(
+          "../../packages/graph-workflow/src/index.browser.ts",
+          import.meta.url,
+        ),
       ),
       // Explicit aliases so Vite/Vitest always resolves to the same React
       // instance in all environments (prevents "Invalid hook call" in CI).

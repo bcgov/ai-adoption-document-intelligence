@@ -6,3 +6,14 @@ export {
   getCtxRootKey,
   getRefCtxRootKey,
 } from "./validator/context-utils";
+export { GraphWorkflowConfig, GraphValidationError } from "./types";
+export {
+  computeConfigHash,
+  computeConfigHashWithOverrides,
+  stampConfigWithPersistedHash,
+  stripPersistedConfigHash,
+} from "./config-hash";
+export {
+  applyWorkflowConfigOverrides,
+  isSafeOverridePathSegment,
+} from "./workflow-config-overrides";

@@ -17,6 +17,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 import { DocumentDbService } from "./document-db.service";
 import type { DocumentData } from "./document-db.types";
 import { extensionForOriginalBlob } from "./original-blob-key.util";
@@ -55,6 +56,7 @@ export class DocumentService {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly pdfNormalization: PdfNormalizationService,
+    private readonly uploadNormalizationLimiter: UploadNormalizationLimiter,
     private readonly logger: AppLoggerService,
   ) {}
 
@@ -136,21 +138,30 @@ export class DocumentService {
         `original.${extension}`,
       );
 
-      await this.blobStorage.write(blobKey, fileBuffer);
-      this.logger.debug(`File saved to blob storage: ${blobKey}`);
-
       const normalizedKey = buildBlobFilePath(
         groupId,
         OperationCategory.OCR,
         [documentId],
         "normalized.pdf",
       );
+      const originalWrite = this.blobStorage.write(blobKey, fileBuffer);
+      // Normalization can run long enough for an early write failure to look
+      // unhandled; the original promise is still awaited below.
+      void originalWrite.catch(() => undefined);
+      this.logger.debug(`Original file write started: ${blobKey}`);
+
       try {
-        const pdfBuffer = await this.pdfNormalization.normalizeToPdf(
-          fileBuffer,
-          fileType,
+        const pdfBuffer = await this.uploadNormalizationLimiter.run(() =>
+          this.pdfNormalization.normalizeToPdf(fileBuffer, fileType),
         );
+        await originalWrite;
+        // Drop the decoded upload buffer before the normalized blob write so
+        // original bytes and pdf-lib workspace are not retained together.
+        fileBuffer = Buffer.alloc(0);
         await this.blobStorage.write(normalizedKey, pdfBuffer);
+        this.logger.debug(
+          `Files saved to blob storage: ${blobKey}, ${normalizedKey}`,
+        );
 
         const thumbnailKey = buildBlobFilePath(
           groupId,
@@ -160,10 +171,7 @@ export class DocumentService {
         );
         try {
           const thumbnailBuffer =
-            await this.pdfNormalization.generateThumbnailWebp(
-              fileBuffer,
-              fileType,
-            );
+            await this.pdfNormalization.generateThumbnailWebp(pdfBuffer, "pdf");
           await this.blobStorage.write(thumbnailKey, thumbnailBuffer);
           this.logger.debug(`Thumbnail saved: ${thumbnailKey}`);
         } catch (thumbErr) {
@@ -172,6 +180,12 @@ export class DocumentService {
           );
         }
       } catch (e) {
+        // Ensure the overlapping original write finished before we record failure.
+        // We intentionally keep the original blob (no rollback): the API returns
+        // conversion_failed, status is conversion_failed, normalized_file_path is
+        // null, OCR is not started, but GET .../download still serves the upload.
+        await originalWrite;
+
         if (e instanceof BadRequestException) {
           throw e;
         }
@@ -266,7 +280,11 @@ export class DocumentService {
   }
 
   /**
-   * Deletes a document and its associated blob storage file.
+   * Deletes a document and its associated blob storage under the OCR prefix.
+   *
+   * Removes all objects under `{groupId}/ocr/{documentId}/` (workflow OCR payload
+   * refs: azure-response.json, ocr-result.json, cleaned-result.json, pages/, etc.)
+   * in addition to the document row. Deletion is best-effort if blob storage fails.
    *
    * Refuses to delete documents whose OCR pipeline is still in flight
    * (`pre_ocr` or `ongoing_ocr`) to avoid orphaning Temporal workflows. The

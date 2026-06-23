@@ -139,6 +139,24 @@ describe("BenchmarkTemporalService", () => {
       expect(args.workerImageDigest).toBe("sha256:abc");
     });
 
+    it("includes workflowConfigOverrides in benchmark run workflow args", async () => {
+      mockWorkflowStart.mockResolvedValue({
+        workflowId: "benchmark-run-run-3",
+      });
+
+      await service.startBenchmarkRunWorkflow("run-3", {
+        ...benchmarkDefinition,
+        workflowConfigOverrides: {
+          "ctx.modelId.defaultValue": "prebuilt-read",
+        },
+      });
+
+      const args = mockWorkflowStart.mock.calls[0][1].args[0];
+      expect(args.workflowConfigOverrides).toEqual({
+        "ctx.modelId.defaultValue": "prebuilt-read",
+      });
+    });
+
     it("throws when workflow start fails", async () => {
       mockWorkflowStart.mockRejectedValue(new Error("Connection refused"));
 

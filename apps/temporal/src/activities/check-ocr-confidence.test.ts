@@ -78,6 +78,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "doc-1",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.95,
     });
@@ -135,6 +136,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "doc-2",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.95,
     });
@@ -191,6 +193,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "doc-3",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.95,
     });
@@ -243,6 +246,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "doc-4",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.95,
     });
@@ -282,6 +286,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "doc-5",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.95,
     });
@@ -311,6 +316,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "doc-6",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.95,
     });
@@ -357,6 +363,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "doc-7",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.85,
     });
@@ -409,6 +416,7 @@ describe("checkOcrConfidence activity", () => {
 
     const result = await checkOcrConfidence({
       documentId: "benchmark-form_image_1",
+      groupId: "gtestgroupidfortests01",
       ocrResult,
       threshold: 0.95,
     });

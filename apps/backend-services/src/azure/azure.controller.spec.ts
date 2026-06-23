@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
+  PayloadTooLargeException,
 } from "@nestjs/common";
 import { Request } from "express";
 import type { AuditService } from "@/audit/audit.service";
@@ -211,6 +212,22 @@ describe("AzureController", () => {
           "g1",
         ),
       ).rejects.toThrow(NotFoundException);
+    });
+    it("should throw PayloadTooLargeException when a file exceeds 100MB", async () => {
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
+      const oversizedFile = {
+        ...mockFile,
+        originalname: "large.pdf",
+        size: 100 * 1024 * 1024 + 1,
+      };
+      await expect(
+        controller.uploadClassifierDocuments(
+          [oversizedFile],
+          { name: "c1", label: "l1" },
+          "g1",
+        ),
+      ).rejects.toThrow(PayloadTooLargeException);
+      expect(storageService.write).not.toHaveBeenCalled();
     });
   });
 

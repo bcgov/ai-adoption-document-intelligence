@@ -9,7 +9,9 @@ import {
   RequestsTable,
 } from "../components/group/RequestsTable";
 import {
+  type MyMembershipRequest,
   useAllGroups,
+  useApproveMembershipRequest,
   useCancelMembershipRequest,
   useCreateGroup,
   useLeaveGroup,
@@ -305,7 +307,7 @@ function AllGroupsTab(): JSX.Element {
  * System admins see all groups; regular users see only their own groups.
  */
 function MyGroupsTab(): JSX.Element {
-  const { user, isSystemAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [pendingLeaveGroupId, setPendingLeaveGroupId] = useState<string | null>(
     null,
@@ -316,17 +318,45 @@ function MyGroupsTab(): JSX.Element {
     isLoading: myGroupsLoading,
     isError: myGroupsError,
   } = useMyGroups(user?.sub ?? "");
-  const {
-    data: allGroupsData,
-    isLoading: allGroupsLoading,
-    isError: allGroupsError,
-  } = useAllGroups();
 
-  const isLoading = isSystemAdmin ? allGroupsLoading : myGroupsLoading;
-  const isError = isSystemAdmin ? allGroupsError : myGroupsError;
-  const groups = isSystemAdmin ? allGroupsData : myGroupsData;
+  const isLoading = myGroupsLoading;
+  const isError = myGroupsError;
+  const groups = myGroupsData;
 
   const leaveMutation = useLeaveGroup(pendingLeaveGroupId ?? "");
+  const requestMutation = useRequestMembership();
+  const { data: myPendingRequests } = useMyRequests("PENDING");
+
+  const pendingRequestGroupIds = new Set(
+    (myPendingRequests ?? []).map((r) => r.groupId),
+  );
+
+  /**
+   * Submits a membership request for the given group and notifies on success or failure.
+   *
+   * @param groupId - The ID of the group to request membership for.
+   */
+  const handleJoin = (groupId: string) => {
+    requestMutation.mutate(
+      { groupId },
+      {
+        onSuccess: () => {
+          notifications.show({
+            title: "Request Submitted",
+            message: "Your membership request has been submitted.",
+            color: "green",
+          });
+        },
+        onError: () => {
+          notifications.show({
+            title: "Error",
+            message: "Failed to submit membership request. Please try again.",
+            color: "red",
+          });
+        },
+      },
+    );
+  };
 
   /**
    * Confirms and executes the leave action for the pending group.
@@ -376,15 +406,21 @@ function MyGroupsTab(): JSX.Element {
     );
   }
 
-  const memberGroupIds = new Set(groups.map((g) => g.id));
+  const memberGroupIds = new Set((groups ?? []).map((g) => g.id));
 
   return (
     <>
       <GroupsTable
         groups={groups}
         memberGroupIds={memberGroupIds}
-        pendingRequestGroupIds={new Set()}
+        pendingRequestGroupIds={pendingRequestGroupIds}
+        onJoin={handleJoin}
         onLeave={setPendingLeaveGroupId}
+        joinLoadingGroupId={
+          requestMutation.isPending
+            ? (requestMutation.variables?.groupId ?? null)
+            : null
+        }
         onRowClick={(id) => navigate(`/groups/${id}`)}
       />
 
@@ -420,10 +456,18 @@ function MyGroupsTab(): JSX.Element {
 /**
  * Tab panel showing all membership requests belonging to the authenticated user,
  * with a status filter (defaults to PENDING) and a cancel action for pending requests.
+ * System admins also see an Approve button, allowing them to self-approve.
  */
 function MyRequestsTab(): JSX.Element {
+  const { isSystemAdmin } = useAuth();
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [approveRequest, setApproveRequest] =
+    useState<MyMembershipRequest | null>(null);
+
   const cancelMutation = useCancelMembershipRequest();
+  const approveMutation = useApproveMembershipRequest(
+    approveRequest?.groupId ?? "",
+  );
 
   /**
    * Submits the cancel request after the user confirms the action in the dialog.
@@ -443,7 +487,38 @@ function MyRequestsTab(): JSX.Element {
     });
   };
 
-  const columns = makeMyRequestColumns((id) => setCancelConfirmId(id));
+  /**
+   * Submits the approve mutation after the user confirms in the modal.
+   */
+  const handleConfirmApprove = () => {
+    if (!approveRequest) return;
+    approveMutation.mutate(
+      { requestId: approveRequest.id },
+      {
+        onSuccess: () => {
+          setApproveRequest(null);
+          notifications.show({
+            title: "Request Approved",
+            message: "You have been added to the group.",
+            color: "green",
+          });
+        },
+        onError: () => {
+          notifications.show({
+            title: "Error",
+            message: "Failed to approve membership request. Please try again.",
+            color: "red",
+          });
+          setApproveRequest(null);
+        },
+      },
+    );
+  };
+
+  const columns = makeMyRequestColumns(
+    (id) => setCancelConfirmId(id),
+    isSystemAdmin ? (r) => setApproveRequest(r) : undefined,
+  );
 
   return (
     <>
@@ -474,6 +549,35 @@ function MyRequestsTab(): JSX.Element {
             data-testid="cancel-request-confirm-btn"
           >
             Confirm
+          </Button>
+        </Group>
+      </Modal>
+
+      <Modal
+        opened={approveRequest !== null}
+        onClose={() => setApproveRequest(null)}
+        title="Approve Membership Request"
+        data-testid="my-approve-request-modal"
+      >
+        <Text>
+          Approve your own request to join{" "}
+          <strong>{approveRequest?.groupName}</strong>?
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button
+            variant="default"
+            onClick={() => setApproveRequest(null)}
+            data-testid="my-approve-request-back-btn"
+          >
+            Back
+          </Button>
+          <Button
+            color="green"
+            loading={approveMutation.isPending}
+            onClick={handleConfirmApprove}
+            data-testid="my-approve-request-confirm-btn"
+          >
+            Approve
           </Button>
         </Group>
       </Modal>

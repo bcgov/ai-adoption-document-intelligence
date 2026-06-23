@@ -42,9 +42,14 @@ A definition can override:
 - Users edit the JSON to change values
 - Overrides are displayed in the definition detail view and run detail page
 
+## Security
+
+`applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow-config`) rejects unsafe dot-path segments: blocklisted names (`__proto__`, `constructor`, `prototype`), empty segments, and segments that are not plain identifiers (`^[a-zA-Z][a-zA-Z0-9_-]*$`). The config copy uses null-prototype objects so nested assignment cannot reach `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`.
+
 ## Key Implementation Files
 
-- `apps/backend-services/src/benchmark/workflow-config-overrides.ts` — utility functions
+- `packages/graph-workflow-config/src/workflow-config-overrides.ts` — deep-apply helper (shared with Temporal)
+- `apps/backend-services/src/benchmark/workflow-config-overrides.ts` — validation and re-exports
 - `apps/backend-services/src/benchmark/benchmark-definition.service.ts` — validation on create/update
 - `apps/backend-services/src/benchmark/benchmark-run.service.ts` — applies overrides at run start
 - `apps/frontend/src/features/benchmarking/components/CreateDefinitionDialog.tsx` — JSON editor

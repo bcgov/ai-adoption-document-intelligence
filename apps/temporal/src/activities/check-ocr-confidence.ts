@@ -1,5 +1,7 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../logger";
+import { resolveOcrResultInput } from "../ocr-activity-ref-utils";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 
@@ -9,12 +11,14 @@ import { getPrismaClient } from "./database-client";
  */
 export async function checkOcrConfidence(params: {
   documentId: string;
-  ocrResult: OCRResult;
+  ocrResult: OCRResult | OcrPayloadRef;
+  groupId?: string | null;
   threshold?: number;
   requestId?: string;
 }): Promise<{ averageConfidence: number; requiresReview: boolean }> {
   const activityName = "checkOcrConfidence";
-  const { documentId, ocrResult, threshold = 0.95, requestId } = params;
+  const { documentId, threshold = 0.95, requestId } = params;
+  const { ocrResult } = await resolveOcrResultInput(params);
   const confidenceThreshold = threshold;
   const log = createActivityLogger(activityName, {
     documentId,

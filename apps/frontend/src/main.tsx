@@ -21,18 +21,21 @@ import "@mantine/notifications/styles.css";
 import "./ui/bcds-mantine-fallbacks.css";
 import "./ui/bcds-upload-panel.css";
 import App from "./App";
+import { ErrorBoundary } from "./components";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AuthProvider>
-      <GroupProvider>
-        <QueryClientProvider client={queryClient}>
-          <MantineProvider defaultColorScheme="light" theme={appTheme}>
-            <Notifications position="top-right" />
-            <App />
-          </MantineProvider>
-        </QueryClientProvider>
-      </GroupProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <GroupProvider>
+          <QueryClientProvider client={queryClient}>
+            <MantineProvider defaultColorScheme="light" theme={appTheme}>
+              <Notifications position="top-right" />
+              <App />
+            </MantineProvider>
+          </QueryClientProvider>
+        </GroupProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

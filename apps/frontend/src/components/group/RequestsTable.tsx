@@ -167,12 +167,15 @@ export function makeGroupRequestColumns(
 /**
  * Returns the column definitions for the user's own membership requests table.
  * Includes group name, submitted date, status badge, reason, and a cancel action button.
+ * When `onApprove` is provided, an Approve button is also shown for PENDING requests.
  *
  * @param onCancel - Called when the user clicks Cancel on a pending request.
+ * @param onApprove - Optional. Called when the user clicks Approve on a pending request.
  * @returns An array of column definitions for use with {@link RequestsTable}.
  */
 export function makeMyRequestColumns(
   onCancel: (requestId: string) => void,
+  onApprove?: (request: MyMembershipRequest) => void,
 ): RequestsTableColumn<MyMembershipRequest>[] {
   return [
     {
@@ -204,14 +207,27 @@ export function makeMyRequestColumns(
       header: "Actions",
       render: (r) =>
         r.status === "PENDING" ? (
-          <Button
-            size="xs"
-            variant="light"
-            color="red"
-            onClick={() => onCancel(r.id)}
-          >
-            Cancel
-          </Button>
+          <Group gap="xs">
+            {onApprove && (
+              <Button
+                size="xs"
+                variant="light"
+                color="green"
+                data-testid={`my-approve-btn-${r.id}`}
+                onClick={() => onApprove(r)}
+              >
+                Approve
+              </Button>
+            )}
+            <Button
+              size="xs"
+              variant="light"
+              color="red"
+              onClick={() => onCancel(r.id)}
+            >
+              Cancel
+            </Button>
+          </Group>
         ) : null,
     },
   ];
