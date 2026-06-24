@@ -4,7 +4,7 @@ This document describes how group membership is enforced when creating or access
 
 ## Overview
 
-When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `LabelingProject`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, `ReviewSession`, `Dataset`, `BenchmarkProject`, or their child resources), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
+When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `TemplateModel`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, `ReviewSession`, `Dataset`, `BenchmarkProject`, or their child resources), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
 
 ## How to add a group
 
@@ -44,8 +44,8 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 |---|---|---|
 | Document | `POST /api/upload` | `UploadController.uploadDocument` |
 | Workflow | `POST /api/workflows` | `WorkflowController.createWorkflow` |
-| LabelingProject | `POST /api/labeling/projects` | `LabelingController.createProject` |
-| LabelingDocument | `POST /api/labeling/projects/:id/upload` | `LabelingController.uploadLabelingDocument` |
+| TemplateModel | `POST /api/template-models` | `TemplateModelController.createTemplateModel` |
+| LabelingDocument | `POST /api/template-models/:id/upload` | `TemplateModelController.uploadLabelingDocument` |
 | ApiKey | `POST /api/api-key` | `ApiKeyController.generateApiKey` |
 | ApiKey | `POST /api/api-key/regenerate` | `ApiKeyController.regenerateApiKey` |
 | ApiKey | `DELETE /api/api-key` | `ApiKeyController.deleteApiKey` |
@@ -63,29 +63,33 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | Workflow | `GET /api/workflows/:id` | `WorkflowController.getWorkflow` |
 | Workflow | `PUT /api/workflows/:id` | `WorkflowController.updateWorkflow` |
 | Workflow | `DELETE /api/workflows/:id` | `WorkflowController.deleteWorkflow` |
-| LabelingProject | `GET /api/labeling/projects/:id` | `LabelingController.getProject` |
-| LabelingProject | `PUT /api/labeling/projects/:id` | `LabelingController.updateProject` |
-| LabelingProject | `DELETE /api/labeling/projects/:id` | `LabelingController.deleteProject` |
-| LabelingDocument | `POST /api/labeling/projects/:id/documents` | `LabelingController.addDocumentToProject` |
-| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId` | `LabelingController.getProjectDocument` |
-| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId/download` | `LabelingController.downloadLabelingDocument` |
-| LabelingDocument | `DELETE /api/labeling/projects/:id/documents/:docId` | `LabelingController.removeDocumentFromProject` |
-| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId/labels` | `LabelingController.getDocumentLabels` |
-| LabelingDocument | `POST /api/labeling/projects/:id/documents/:docId/labels` | `LabelingController.saveDocumentLabels` |
-| LabelingDocument | `DELETE /api/labeling/projects/:id/documents/:docId/labels/:labelId` | `LabelingController.deleteLabel` |
-| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId/ocr` | `LabelingController.getDocumentOcr` |
-| LabelingProject | `GET /api/labeling/projects/:id/documents` | `LabelingController.getProjectDocuments` |
-| FieldDefinition | `GET /api/labeling/projects/:id/fields` | `LabelingController.getFieldSchema` |
-| FieldDefinition | `POST /api/labeling/projects/:id/fields` | `LabelingController.addField` |
-| FieldDefinition | `PUT /api/labeling/projects/:id/fields/:fieldId` | `LabelingController.updateField` |
-| FieldDefinition | `DELETE /api/labeling/projects/:id/fields/:fieldId` | `LabelingController.deleteField` |
-| LabelingProject | `POST /api/labeling/projects/:id/export` | `LabelingController.exportProject` |
-| TrainingJob | `GET /api/training/projects/:projectId/validate` | `TrainingController.validateProject` |
-| TrainingJob | `POST /api/training/projects/:projectId/train` | `TrainingController.startTraining` |
-| TrainingJob | `GET /api/training/projects/:projectId/jobs` | `TrainingController.getTrainingJobs` |
-| TrainingJob | `GET /api/training/jobs/:jobId` | `TrainingController.getJobStatus` |
-| TrainedModel | `GET /api/training/projects/:projectId/models` | `TrainingController.getTrainedModels` |
-| TrainingJob | `DELETE /api/training/jobs/:jobId` | `TrainingController.cancelJob` |
+| TemplateModel | `GET /api/template-models/:id` | `TemplateModelController.getTemplateModel` |
+| TemplateModel | `PUT /api/template-models/:id` | `TemplateModelController.updateTemplateModel` |
+| TemplateModel | `DELETE /api/template-models/:id` | `TemplateModelController.deleteTemplateModel` |
+| LabelingDocument | `POST /api/template-models/:id/documents` | `TemplateModelController.addDocumentToTemplateModel` |
+| LabelingDocument | `GET /api/template-models/:id/documents/:docId` | `TemplateModelController.getTemplateModelDocument` |
+| LabelingDocument | `GET /api/template-models/:id/documents/:docId/view` | `TemplateModelController.viewLabelingDocument` |
+| LabelingDocument | `GET /api/template-models/:id/documents/:docId/download` | `TemplateModelController.downloadLabelingDocument` |
+| LabelingDocument | `DELETE /api/template-models/:id/documents/:docId` | `TemplateModelController.removeDocumentFromTemplateModel` |
+| LabelingDocument | `GET /api/template-models/:id/documents/:docId/labels` | `TemplateModelController.getDocumentLabels` |
+| LabelingDocument | `POST /api/template-models/:id/documents/:docId/labels` | `TemplateModelController.saveDocumentLabels` |
+| LabelingDocument | `DELETE /api/template-models/:id/documents/:docId/labels/:labelId` | `TemplateModelController.deleteLabel` |
+| LabelingDocument | `GET /api/template-models/:id/documents/:docId/ocr` | `TemplateModelController.getDocumentOcr` |
+| TemplateModel | `GET /api/template-models/:id/documents` | `TemplateModelController.getTemplateModelDocuments` |
+| FieldDefinition | `GET /api/template-models/:id/fields` | `TemplateModelController.getFieldSchema` |
+| FieldDefinition | `POST /api/template-models/:id/fields` | `TemplateModelController.addField` |
+| FieldDefinition | `PUT /api/template-models/:id/fields/:fieldId` | `TemplateModelController.updateField` |
+| FieldDefinition | `DELETE /api/template-models/:id/fields/:fieldId` | `TemplateModelController.deleteField` |
+| TemplateModel | `POST /api/template-models/:id/export` | `TemplateModelController.exportTemplateModel` |
+| TrainingJob | `GET /api/template-models/:modelId/training/validate` | `TrainingController.validateTrainingData` |
+| TrainingJob | `POST /api/template-models/:modelId/training/train` | `TrainingController.startTraining` |
+| TrainingJob | `GET /api/template-models/:modelId/training/jobs` | `TrainingController.getTrainingJobs` |
+| TrainingJob | `GET /api/template-models/training/jobs/:jobId` | `TrainingController.getJobStatus` |
+| TrainingJob | `DELETE /api/template-models/training/jobs/:jobId` | `TrainingController.cancelJob` |
+| TrainedModel | `GET /api/template-models/:modelId/training/versions` | `TrainingController.listTrainedVersions` |
+| TrainedModel | `GET /api/template-models/:modelId/training/versions/:versionId/snapshot` | `TrainingController.getTrainedVersionSnapshot` |
+| TrainedModel | `POST /api/template-models/:modelId/training/versions/:versionId/activate` | `TrainingController.setActiveTrainedVersion` |
+| TrainedModel | `DELETE /api/template-models/:modelId/training/versions/:versionId` | `TrainingController.deleteTrainedVersion` |
 | ReviewSession | `POST /api/hitl/sessions` | `HitlController.startSession` |
 | ReviewSession | `GET /api/hitl/sessions/:id` | `HitlController.getSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/corrections` | `HitlController.submitCorrections` |
@@ -111,11 +115,11 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
-For `LabelingDocument` endpoints accessed via a project route (e.g. `GET /api/labeling/projects/:id/documents/:docId`), the `LabeledDocument` is fetched first to retrieve the nested `LabelingDocument.group_id`, which is then used for the group membership check.
+For `LabelingDocument` endpoints accessed via a template-model route (e.g. `GET /api/template-models/:id/documents/:docId`), the `LabeledDocument` is fetched first to retrieve the nested `LabelingDocument.group_id`, which is then used for the group membership check.
 
-For `FieldDefinition`, `GET /projects/:id/documents`, and `POST /projects/:id/export` endpoints, the parent `LabelingProject` is fetched first and its `group_id` is used for the check.
+For `FieldDefinition`, `GET /api/template-models/:id/documents`, and `POST /api/template-models/:id/export` endpoints, the parent `TemplateModel` is fetched first and its `group_id` is used for the check.
 
-For `TrainingJob` and `TrainedModel` endpoints accessed via project route (e.g. `GET /api/training/projects/:projectId/jobs`), the parent `LabelingProject` is fetched and its `group_id` is checked. For job-level endpoints (e.g. `GET /api/training/jobs/:jobId`), the job is fetched first to get its `project_id`, then the parent `LabelingProject` is fetched to obtain the `group_id`.
+For `TrainingJob` and `TrainedModel` endpoints accessed via a template-model route (e.g. `GET /api/template-models/:modelId/training/jobs`), the parent `TemplateModel` is fetched and its `group_id` is checked. For job-level endpoints (e.g. `GET /api/template-models/training/jobs/:jobId`), the job is fetched first to get its `templateModelId`, then the parent `TemplateModel` is fetched to obtain the `group_id`. The `GET /api/template-models/training/info` endpoint is not group-scoped (Azure resource metadata only).
 
 For `ReviewSession` endpoints, the parent `Document` is fetched (either directly from the request body for creation, or via the session record for existing sessions) and its `group_id` is used for the check.
 
@@ -141,7 +145,7 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 |---|---|
 | `UploadDocumentDto` | `group_id` |
 | `CreateWorkflowDto` | `groupId` |
-| `CreateProjectDto` | `group_id` |
+| `CreateTemplateModelDto` | `group_id` |
 | `LabelingUploadDto` | `group_id` |
 | `GenerateApiKeyRequestDto` | `groupId` |
 | `CreateProjectDto` (benchmark) | `groupId` |

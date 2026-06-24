@@ -73,37 +73,41 @@ The backend services provide a modular, scalable API for:
 - `PUT /api/workflows/:id` - Update workflow
 - `DELETE /api/workflows/:id` - Delete workflow
 
-### Labeling & Training Modules
+### Template Model & Training Modules
 
-#### `labeling/` - Document Labeling
-- Labeling project management
+> Labeling and training are organized around **template models** (the model-first architecture). There is no `/api/labeling` or standalone `/api/training` route prefix; all of these endpoints live under `/api/template-models`.
+
+#### `template-model/` - Template Models & Labeling
+- Template model management (model-first; replaces the old labeling-project concept)
 - Custom field schema definition (string, number, date, signature, selectionMark)
-- Document-to-project assignment
-- Bounding box label saving
-- Label export for training
+- Labeling document upload/assignment and bounding box label saving
+- AI label and format suggestions
+- Label export for training (azure/json)
 
 **Key Endpoints:**
-- `GET /api/labeling/projects` - List projects
-- `POST /api/labeling/projects` - Create project
-- `GET /api/labeling/projects/:id` - Get project details
-- `POST /api/labeling/projects/:id/fields` - Add field definition
-- `POST /api/labeling/projects/:projectId/documents` - Add document to project
-- `POST /api/labeling/projects/:projectId/documents/:docId/labels` - Save labels
-- `GET /api/labeling/projects/:projectId/export` - Export labels for training
+- `GET /api/template-models` - List template models (optional `?group_id=`)
+- `POST /api/template-models` - Create template model
+- `GET /api/template-models/:id` - Get template model with field schema
+- `POST /api/template-models/:id/fields` - Add field definition
+- `POST /api/template-models/:id/upload` - Upload a labeling document (OCR queued)
+- `POST /api/template-models/:id/documents/:docId/labels` - Save labels
+- `POST /api/template-models/:id/export` - Export labeled data for training
 
 #### `training/` - Model Training
-- Azure Document Intelligence custom model training
+- Azure Document Intelligence custom model training (nested under `/api/template-models`)
 - Training data validation
 - Training job management and monitoring
-- Blob container creation and SAS URL generation
-- Label file formatting (.labels.json)
+- Trained version lifecycle (list, snapshot, activate, tombstone)
+- Blob container creation and SAS URL generation; label file formatting (.labels.json)
 
 **Key Endpoints:**
-- `GET /api/training/projects/:projectId/validate` - Validate training readiness
-- `POST /api/training/projects/:projectId/train` - Start training job
-- `GET /api/training/projects/:projectId/jobs` - List training jobs
-- `GET /api/training/jobs/:jobId` - Get job status
-- `DELETE /api/training/jobs/:jobId` - Delete training job and resources
+- `GET /api/template-models/:modelId/training/validate` - Validate training readiness
+- `POST /api/template-models/:modelId/training/train` - Start training job
+- `GET /api/template-models/:modelId/training/jobs` - List training jobs
+- `GET /api/template-models/training/jobs/:jobId` - Get job status
+- `DELETE /api/template-models/training/jobs/:jobId` - Cancel a training job
+- `GET /api/template-models/:modelId/training/versions` - List trained versions
+- `POST /api/template-models/:modelId/training/versions/:versionId/activate` - Activate a trained version
 
 ### Azure Classifier Module
 
@@ -145,20 +149,20 @@ The backend services provide a modular, scalable API for:
 
 #### `auth/` - Authentication
 - Keycloak OIDC/SSO integration
-- JWT token validation
-- User context extraction
+- JWT token validation and user context extraction
+- API key authentication guard (`api-key-auth.guard.ts`)
 - Protected route decorators
 
-#### `api-key/` - API Key Management
-- API key generation and storage
-- bcrypt-based key hashing
-- API key authentication guard
+#### `actor/` - API Key Management
+- Group-scoped API key generation and storage (`api-key.service.ts`, `api-key-db.service.ts`)
+- One API key per group (`group_id` is unique); bcrypt-based key hashing
 - Last-used timestamp tracking
 
 **Key Endpoints:**
-- `GET /api/api-key` - Get user's API key info
-- `POST /api/api-key` - Generate new API key
-- `DELETE /api/api-key` - Revoke API key
+- `GET /api/api-key?groupId=:groupId` - Get a group's API key metadata
+- `POST /api/api-key` - Generate a new API key for a group
+- `POST /api/api-key/regenerate` - Regenerate a group's API key
+- `DELETE /api/api-key?id=:id` - Revoke an API key
 
 #### `temporal/` - Temporal Client
 - Temporal workflow client initialization
@@ -454,22 +458,15 @@ npm run db:seed
 ```
 apps/backend-services/
 ├── src/
-│   ├── api-key/              # API key authentication
+│   ├── actor/                # API key management
 │   │   ├── api-key.controller.ts
 │   │   ├── api-key.service.ts
-│   │   └── guards/           # API key guard
+│   │   └── api-key-db.service.ts
 │   │
-│   ├── azure/                # Azure Document Intelligence classifier
-│   │   ├── azure.module.ts
-│   │   ├── azure.controller.ts
-│   │   ├── azure.service.ts
-│   │   ├── blob.service.ts
-│   │   ├── classifier.service.ts
-│   │   └── dto/
-│   │
-│   ├── auth/                 # Keycloak SSO authentication
+│   ├── auth/                 # Keycloak SSO + API key auth guard
 │   │   ├── auth.controller.ts
 │   │   ├── auth.service.ts
+│   │   ├── api-key-auth.guard.ts
 │   │   └── guards/           # JWT guard
 │   │
 │   ├── blob-storage/         # Storage abstraction

@@ -17,12 +17,12 @@ Database: `file_path` → original blob; `normalized_file_path` → normalized P
 |----------|---------|
 | `GET .../documents/:id/view` | Normalized PDF (`application/pdf`). |
 | `GET .../documents/:id/download` | Original bytes; `Content-Type` from `original_filename` extension. |
-| `GET .../labeling/projects/:id/documents/:docId/view` | Normalized PDF for labeling. |
-| `GET .../labeling/projects/:id/documents/:docId/download` | Original labeling upload. |
+| `GET .../template-models/:id/documents/:docId/view` | Normalized PDF for labeling. |
+| `GET .../template-models/:id/documents/:docId/download` | Original labeling upload. |
 
 Upload may return **422** with `code: conversion_failed` when the original was stored but PDF normalization failed; status `conversion_failed` is set and OCR is not started. The original blob is **not** deleted on normalization failure: `file_path` remains valid so clients can still download the upload; only `normalized_file_path` and downstream OCR/view are absent until a future retry path exists.
 
-Labeling project upload (`POST .../labeling/projects/:id/upload`) requires `group_id` in the body to **match** the project’s group; the caller must also be allowed to access that group (same as other labeling routes).
+Labeling document upload (`POST .../template-models/:id/upload`) requires `group_id` in the body to **match** the template model’s group; the caller must also be allowed to access that group (same as other template-model routes).
 
 **Invalid or unsupported files** are rejected with **400** when validation fails before storage (bad PDF signature, corrupt image, etc.). PDFs with a valid `%PDF` header but an unreadable body fail during normalization (400) after the original blob write has started.
 

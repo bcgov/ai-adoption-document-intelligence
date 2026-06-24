@@ -58,26 +58,27 @@ The frontend provides a comprehensive UI for managing the entire document intell
 
 **Pages:**
 - `WorkflowListPage` - List all user workflows
-- `WorkflowEditorPage` - Visual workflow graph editor
+- `WorkflowEditorPage` - Workflow editor (form editor or raw JSON) with read-only graph visualization
 
 **Components:**
-- `WorkflowEditor` - React Flow-based graph editor
-- `NodeSelector` - Drag-and-drop node palette  (Future development)
-- Node types: Start, OCR, HTTP Request, Azure Blob Read/Write, Conditional, Transform, Join, End
+- `GraphConfigFormEditor` - Structured form editor for nodes and edges (default mode)
+- JSON editor (CodeMirror) - Raw workflow JSON editing, synced with the form editor
+- `GraphVisualization` - Read-only React Flow rendering (pan/zoom only; not editable)
+- Graph node types: `activity`, `switch`, `map`, `join`, `childWorkflow`, `pollUntil`, `humanGate`
+- Full drag-and-drop canvas authoring is a design target, not yet implemented
 
 **Capabilities:**
-- Create custom document processing workflows
-- Visual node-based editing with drag-and-drop (Future development)
-- Configure node parameters (OCR models, HTTP endpoints, conditions, transformations) 
+- Create custom document processing workflows via the form editor or raw JSON
+- `activity` nodes invoke registered activity types (OCR, blob read, transform, classify, table lookup, etc.)
 - Workflow validation and execution via Temporal
 - Save and version workflows
 - Execute workflows on document upload
 
 ### 4. Labeling Workspace
 
-**Pages:**
-- `ProjectListPage` - Manage labeling projects
-- `ProjectDetailPage` - Project overview with field schema and document list
+**Pages:** (under `features/annotation/template-models/`)
+- `ModelListPage` - Manage template models
+- `ModelDetailPage` - Template model overview with field schema and document list
 - `LabelingWorkspacePage` - Canvas-based labeling interface
 
 **Components:**
@@ -267,25 +268,23 @@ Full-screen modal for viewing documents with OCR overlays:
 
 ### Workflow Editor
 
-**Component:** `WorkflowEditor`
+**Components:** `GraphConfigFormEditor`, JSON editor, `GraphVisualization`
 
-Visual graph editor built with React Flow:
-- Drag-and-drop node creation (Future development)
-- Visual edge connections
-- Node configuration panel (Future development)
+Workflow editing via a structured form editor or raw JSON, with a read-only React Flow visualization:
+- Add/remove nodes and edges through the form editor
+- Raw JSON editing (CodeMirror), synced with the form
+- Read-only graph rendering with auto-layout (Dagre), zoom, and pan
 - Live validation
-- Auto-layout with Dagre
-- Zoom and pan controls
+- Drag-and-drop canvas node creation is a design target (not yet implemented)
 
-**Node Types:**
-- **Start** - Entry point with document context
-- **OCR** - Azure Document Intelligence processing
-- **HTTP Request** - External API calls
-- **Azure Blob Read/Write** - Storage operations
-- **Conditional** - Branching logic with expression evaluation
-- **Transform** - Data transformation with JSONata expressions
-- **Join** - Merge multiple branches
-- **End** - Workflow termination
+**Graph Node Types:**
+- **`activity`** - Run a registered activity (OCR, blob read, transform, classify, table lookup, etc.)
+- **`switch`** - Conditional branching via expression evaluation
+- **`map`** - Fan out over a collection for parallel processing
+- **`join`** - Merge parallel branches
+- **`childWorkflow`** - Invoke a child workflow
+- **`pollUntil`** - Poll an activity until a condition is met
+- **`humanGate`** - Pause for human-in-the-loop input
 
 ### Labeling Canvas
 

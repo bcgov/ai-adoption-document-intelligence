@@ -135,7 +135,7 @@ Every place where data-flow / routing behaviour is hardcoded rather than declare
 These are *node features*, not *typed ports*. The user picks a node type and configures it; the canvas renders the extra outgoing paths:
 
 1. **`switch` is a distinct node type with N labelled outgoing edges.** The user declares cases in the side panel; the canvas renders one outgoing edge per case + a default. This is what the schema already encodes ([graph-workflow-types.ts:112-121](apps/temporal/src/graph-workflow-types.ts#L112-L121)) and what every routing template uses today.
-2. **Error fallback edges**, drawn as `type: "error"` (red dashed) ([graph-workflow-types.ts:202](apps/temporal/src/graph-workflow-types.ts#L202)). Available **only** when the activity's `errorPolicy.onError` is set to `"fallback"`. The schema already supports it; no template uses it yet, but the design doc plans for it ([WORKFLOW_BUILDER_GUIDE.md:200, 391-403](docs-md/WORKFLOW_BUILDER_GUIDE.md#L200)).
+2. **Error fallback edges**, drawn as `type: "error"` (red dashed) ([graph-workflow-types.ts:202](apps/temporal/src/graph-workflow-types.ts#L202)). Available **only** when the activity's `errorPolicy.onError` is set to `"fallback"`. The schema already supports it; no template uses it yet, but the design doc plans for it ([WORKFLOW_BUILDER_GUIDE.md:200, 391-403](../workflow-builder/WORKFLOW_BUILDER_GUIDE.md#L200)).
 3. **`humanGate` timeout-fallback edge**, an extra outgoing edge appearing only when `onTimeout: "fallback"` is selected. Mechanism mirrors error fallback; already in the schema ([graph-workflow-types.ts:178](apps/temporal/src/graph-workflow-types.ts#L178)).
 
 ### Why not full Model B
