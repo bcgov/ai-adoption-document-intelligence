@@ -93,6 +93,7 @@ describe("TemporalClientService", () => {
       workflowService: {
         describeNamespace: jest.fn().mockResolvedValue(undefined),
         registerNamespace: jest.fn().mockResolvedValue(undefined),
+        deleteWorkflowExecution: jest.fn().mockResolvedValue(undefined),
       },
       operatorService: {
         addSearchAttributes: jest.fn().mockResolvedValue(undefined),
@@ -506,6 +507,51 @@ describe("TemporalClientService", () => {
       await expect(newService.cancelWorkflow("workflow-123")).rejects.toThrow(
         "Temporal client not initialized",
       );
+    });
+  });
+
+  describe("deleteWorkflowExecution", () => {
+    it("deletes the execution record via the workflow service", async () => {
+      await service.deleteWorkflowExecution("workflow-123");
+
+      expect(
+        mockConnection.workflowService.deleteWorkflowExecution,
+      ).toHaveBeenCalledWith({
+        namespace: "default",
+        workflowExecution: { workflowId: "workflow-123" },
+      });
+    });
+
+    it("treats a NOT_FOUND response as success (idempotent)", async () => {
+      mockConnection.workflowService.deleteWorkflowExecution.mockRejectedValueOnce(
+        new Error("workflow execution not found"),
+      );
+
+      await expect(
+        service.deleteWorkflowExecution("workflow-123"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws on other errors", async () => {
+      mockConnection.workflowService.deleteWorkflowExecution.mockRejectedValueOnce(
+        new Error("permission denied"),
+      );
+
+      await expect(
+        service.deleteWorkflowExecution("workflow-123"),
+      ).rejects.toThrow("delete Temporal execution workflow-123");
+    });
+
+    it("throws if the connection is not initialized", async () => {
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+        mockAppLogger,
+      );
+
+      await expect(
+        newService.deleteWorkflowExecution("workflow-123"),
+      ).rejects.toThrow("Temporal client not initialized");
     });
   });
 

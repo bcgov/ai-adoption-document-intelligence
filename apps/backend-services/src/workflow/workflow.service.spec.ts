@@ -52,6 +52,7 @@ const lineageRow = {
 const mockLineage = {
   findMany: jest.fn(),
   findUnique: jest.fn(),
+  findFirst: jest.fn(),
   create: jest.fn(),
   update: jest.fn(),
   delete: jest.fn(),
@@ -59,6 +60,7 @@ const mockLineage = {
 
 const mockVersion = {
   findUnique: jest.fn(),
+  findFirst: jest.fn(),
   findMany: jest.fn(),
   create: jest.fn(),
 };
@@ -83,7 +85,9 @@ describe("WorkflowService", () => {
     jest.clearAllMocks();
     mockLineage.findMany.mockResolvedValue([]);
     mockLineage.findUnique.mockResolvedValue(null);
+    mockLineage.findFirst.mockResolvedValue(null);
     mockVersion.findUnique.mockResolvedValue(null);
+    mockVersion.findFirst.mockResolvedValue(null);
     mockVersion.findMany.mockResolvedValue([]);
     mockLineage.create.mockImplementation(
       async (args: { data: { id?: string } }) => ({
@@ -209,6 +213,80 @@ describe("WorkflowService", () => {
     it("returns null when lineage or head missing", async () => {
       mockLineage.findUnique.mockResolvedValue(null);
       const result = await service.getWorkflowLineageHeadById("x");
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("resolveWorkflowVersionId — group scoping", () => {
+    it("resolves a workflow_config_id that is a version in the caller's group", async () => {
+      mockVersion.findFirst.mockResolvedValue({ id: "wv-1" });
+
+      const result = await service.resolveWorkflowVersionId({
+        groupId: "group-1",
+        workflowConfigId: "wv-1",
+      });
+
+      expect(result).toBe("wv-1");
+      expect(mockVersion.findFirst).toHaveBeenCalledWith({
+        where: { id: "wv-1", lineage: { group_id: "group-1" } },
+        select: { id: true },
+      });
+    });
+
+    it("resolves a workflow_config_id that is a lineage in the caller's group to its head", async () => {
+      mockVersion.findFirst.mockResolvedValue(null);
+      mockLineage.findFirst.mockResolvedValue({ head_version_id: "wv-9" });
+
+      const result = await service.resolveWorkflowVersionId({
+        groupId: "group-1",
+        workflowConfigId: "lin-9",
+      });
+
+      expect(result).toBe("wv-9");
+      expect(mockLineage.findFirst).toHaveBeenCalledWith({
+        where: { id: "lin-9", group_id: "group-1" },
+        select: { head_version_id: true },
+      });
+    });
+
+    it("throws NotFound when the workflow_config_id belongs to another group (cross-group IDOR blocked)", async () => {
+      // A version/lineage owned by another group is excluded by the group-scoped
+      // where clause, so both lookups return null and the id is treated as
+      // not found — it can never be resolved, executed, or disclosed.
+      mockVersion.findFirst.mockResolvedValue(null);
+      mockLineage.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.resolveWorkflowVersionId({
+          groupId: "group-1",
+          workflowConfigId: "wv-belongs-to-group-2",
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("getModelIdDefault — group scoping", () => {
+    it("returns the default model id for a version in the caller's group", async () => {
+      mockVersion.findFirst.mockResolvedValue({
+        config: { ctx: { modelId: { defaultValue: "prebuilt-read" } } },
+      });
+
+      const result = await service.getModelIdDefault("wv-1", "group-1");
+
+      expect(result).toBe("prebuilt-read");
+      expect(mockVersion.findFirst).toHaveBeenCalledWith({
+        where: { id: "wv-1", lineage: { group_id: "group-1" } },
+        select: { config: true },
+      });
+    });
+
+    it("returns null when the version belongs to another group (cross-group disclosure blocked)", async () => {
+      mockVersion.findFirst.mockResolvedValue(null);
+
+      const result = await service.getModelIdDefault(
+        "wv-belongs-to-group-2",
+        "group-1",
+      );
       expect(result).toBeNull();
     });
   });

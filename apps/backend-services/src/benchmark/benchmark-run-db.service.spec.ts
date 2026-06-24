@@ -337,15 +337,16 @@ describe("BenchmarkRunDbService", () => {
   });
 
   describe("findWorkflowVersionConfig", () => {
-    it("selects config only", async () => {
+    it("selects config and the owning lineage group for cross-group validation", async () => {
       mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
         config: {},
+        lineage: { group_id: "group-1" },
       });
       const result = await service.findWorkflowVersionConfig("wv-1");
-      expect(result).toEqual({ config: {} });
+      expect(result).toEqual({ config: {}, lineage: { group_id: "group-1" } });
       expect(mockPrismaClient.workflowVersion.findUnique).toHaveBeenCalledWith({
         where: { id: "wv-1" },
-        select: { config: true },
+        select: { config: true, lineage: { select: { group_id: true } } },
       });
     });
   });

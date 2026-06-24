@@ -394,6 +394,39 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Permanently deletes a workflow execution's history and visibility record
+   * from Temporal. Used by the ephemeral-document cleanup janitor to drop the
+   * Temporal footprint of completed documents ahead of the namespace retention
+   * window. Only valid for closed (completed/failed/terminated) executions.
+   *
+   * Idempotent: a NOT_FOUND response (already deleted or already expired by
+   * retention) is treated as success so callers can safely mark the work done.
+   *
+   * @param workflowId Workflow execution ID
+   */
+  async deleteWorkflowExecution(workflowId: string): Promise<void> {
+    if (!this.connection) {
+      throw new Error("Temporal client not initialized");
+    }
+
+    try {
+      await this.connection.workflowService.deleteWorkflowExecution({
+        namespace: this.namespace,
+        workflowExecution: { workflowId },
+      });
+      this.logger.log(`Deleted Temporal execution record for ${workflowId}`);
+    } catch (error) {
+      if (getErrorMessage(error).toLowerCase().includes("not found")) {
+        this.logger.debug(
+          `Temporal execution ${workflowId} already absent; nothing to delete`,
+        );
+        return;
+      }
+      throw this.handleError(error, `delete Temporal execution ${workflowId}`);
+    }
+  }
+
+  /**
    * Send human approval signal to a workflow
    * @param workflowId Workflow execution ID
    * @param approval Approval data with approved flag, reviewer, comments, rejection reason, and annotations

@@ -112,8 +112,10 @@ export class UploadController {
       let modelId: string | undefined = uploadDto.model_id;
       if (!modelId && workflowConfigId) {
         modelId =
-          (await this.workflowService.getModelIdDefault(workflowConfigId)) ??
-          undefined;
+          (await this.workflowService.getModelIdDefault(
+            workflowConfigId,
+            groupId,
+          )) ?? undefined;
       }
       if (!modelId) {
         throw new BadRequestException(

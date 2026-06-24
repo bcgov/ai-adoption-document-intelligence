@@ -31,6 +31,7 @@ function makePrismaMock() {
       confusionProfile: {
         create: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
@@ -113,22 +114,44 @@ describe("ConfusionProfileService", () => {
   // ── findById ────────────────────────────────────────────────────────
 
   describe("findById", () => {
-    it("returns a profile DTO when found", async () => {
+    it("returns a profile DTO when found, scoped to the group", async () => {
       (
-        prismaMock.prisma.confusionProfile.findUnique as jest.Mock
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(buildProfile());
 
-      const result = await service.findById("profile-1");
+      const result = await service.findById("profile-1", "group-1");
       expect(result.id).toBe("profile-1");
+      expect(prismaMock.prisma.confusionProfile.findFirst).toHaveBeenCalledWith(
+        {
+          where: { id: "profile-1", group_id: "group-1" },
+        },
+      );
     });
 
     it("throws NotFoundException when not found", async () => {
       (
-        prismaMock.prisma.confusionProfile.findUnique as jest.Mock
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(null);
 
-      await expect(service.findById("missing")).rejects.toThrow(
+      await expect(service.findById("missing", "group-1")).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it("throws NotFoundException when the profile belongs to another group (cross-group isolation)", async () => {
+      // A profile owned by group-2 must be invisible to a group-1 caller:
+      // the group_id filter yields no row, so findFirst returns null.
+      (
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
+      ).mockResolvedValue(null);
+
+      await expect(service.findById("profile-1", "group-1")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prismaMock.prisma.confusionProfile.findFirst).toHaveBeenCalledWith(
+        {
+          where: { id: "profile-1", group_id: "group-1" },
+        },
       );
     });
   });
@@ -141,14 +164,21 @@ describe("ConfusionProfileService", () => {
       const updated = buildProfile({ name: "Renamed" });
 
       (
-        prismaMock.prisma.confusionProfile.findUnique as jest.Mock
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(existing);
       (
         prismaMock.prisma.confusionProfile.update as jest.Mock
       ).mockResolvedValue(updated);
 
-      const result = await service.update("profile-1", { name: "Renamed" });
+      const result = await service.update("profile-1", "group-1", {
+        name: "Renamed",
+      });
       expect(result.name).toBe("Renamed");
+      expect(prismaMock.prisma.confusionProfile.findFirst).toHaveBeenCalledWith(
+        {
+          where: { id: "profile-1", group_id: "group-1" },
+        },
+      );
       expect(prismaMock.prisma.confusionProfile.update).toHaveBeenCalledWith({
         where: { id: "profile-1" },
         data: { name: "Renamed" },
@@ -157,12 +187,25 @@ describe("ConfusionProfileService", () => {
 
     it("throws NotFoundException when profile does not exist", async () => {
       (
-        prismaMock.prisma.confusionProfile.findUnique as jest.Mock
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(null);
 
-      await expect(service.update("missing", { name: "X" })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.update("missing", "group-1", { name: "X" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("does not update when the profile belongs to another group (cross-group isolation)", async () => {
+      // group_id filter excludes the foreign-group row → findFirst null → 404,
+      // and update() is never reached.
+      (
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.update("profile-1", "group-1", { name: "X" }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prismaMock.prisma.confusionProfile.update).not.toHaveBeenCalled();
     });
   });
 
@@ -171,13 +214,18 @@ describe("ConfusionProfileService", () => {
   describe("delete", () => {
     it("deletes a profile", async () => {
       (
-        prismaMock.prisma.confusionProfile.findUnique as jest.Mock
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(buildProfile());
       (
         prismaMock.prisma.confusionProfile.delete as jest.Mock
       ).mockResolvedValue(buildProfile());
 
-      await service.delete("profile-1");
+      await service.delete("profile-1", "group-1");
+      expect(prismaMock.prisma.confusionProfile.findFirst).toHaveBeenCalledWith(
+        {
+          where: { id: "profile-1", group_id: "group-1" },
+        },
+      );
       expect(prismaMock.prisma.confusionProfile.delete).toHaveBeenCalledWith({
         where: { id: "profile-1" },
       });
@@ -185,12 +233,23 @@ describe("ConfusionProfileService", () => {
 
     it("throws NotFoundException when profile does not exist", async () => {
       (
-        prismaMock.prisma.confusionProfile.findUnique as jest.Mock
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(null);
 
-      await expect(service.delete("missing")).rejects.toThrow(
+      await expect(service.delete("missing", "group-1")).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it("does not delete when the profile belongs to another group (cross-group isolation)", async () => {
+      (
+        prismaMock.prisma.confusionProfile.findFirst as jest.Mock
+      ).mockResolvedValue(null);
+
+      await expect(service.delete("profile-1", "group-1")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prismaMock.prisma.confusionProfile.delete).not.toHaveBeenCalled();
     });
   });
 

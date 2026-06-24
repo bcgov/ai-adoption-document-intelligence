@@ -149,7 +149,7 @@ export class ConfusionProfileController {
     this.logger.log(`GET /api/groups/${groupId}/confusion-profiles/${id}`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    return this.confusionProfileService.findById(id);
+    return this.confusionProfileService.findById(id, groupId);
   }
 
   @Patch(":id")
@@ -173,7 +173,7 @@ export class ConfusionProfileController {
     this.logger.log(`PATCH /api/groups/${groupId}/confusion-profiles/${id}`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    return this.confusionProfileService.update(id, dto);
+    return this.confusionProfileService.update(id, groupId, dto);
   }
 
   @Delete(":id")
@@ -194,6 +194,6 @@ export class ConfusionProfileController {
     this.logger.log(`DELETE /api/groups/${groupId}/confusion-profiles/${id}`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    await this.confusionProfileService.delete(id);
+    await this.confusionProfileService.delete(id, groupId);
   }
 }
