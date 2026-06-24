@@ -302,8 +302,10 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
     <div className="bcds-upload-panel">
       <PanelCard>
         <div className="bcds-upload-panel__intro">
-          <Title order={3}>Upload images</Title>
-          <Text c="dimmed" size="sm">
+          <Title order={3} mt={0} mb={0}>
+            Upload images
+          </Title>
+          <Text c="dimmed" size="sm" mt={0} mb={0}>
             Select a processing model, then drag and drop scans or mobile
             captures. Click Upload to start OCR processing.
           </Text>
@@ -373,10 +375,10 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             </Dropzone.Idle>
 
             <div>
-              <Text size="xl" inline>
+              <Text size="xl" mt={0} mb={0}>
                 Drag images or click to browse
               </Text>
-              <Text size="sm" c="dimmed" inline mt={7}>
+              <Text size="sm" c="dimmed" mt="xs" mb={0}>
                 Accepts {SUPPORTED_FILE_TYPES.join(", ")} up to{" "}
                 {Math.round(MAX_FILE_SIZE / (1024 * 1024))} MB
               </Text>
@@ -449,7 +451,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                           <IconFileDescription size={20} />
                         </Avatar>
                         <div className="bcds-upload-queue-row__meta">
-                          <Group gap={4} mb={4} wrap="nowrap">
+                          <Group gap="xs" mb="xs" wrap="nowrap">
                             <Text fw={600} truncate>
                               {item.file.name}
                             </Text>

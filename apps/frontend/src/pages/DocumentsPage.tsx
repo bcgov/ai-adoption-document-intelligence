@@ -15,7 +15,6 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
@@ -39,6 +38,7 @@ import { useDocuments } from "../data/hooks/useDocuments";
 import { useDocumentThumbnails } from "../data/hooks/useDocumentThumbnails";
 import type { Document, DocumentStatus } from "../shared/types";
 import { formatDate, formatFileSize } from "../shared/utils";
+import { PageHeader } from "../ui";
 
 const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -188,31 +188,29 @@ export function DocumentsPage() {
   return (
     <>
       <Stack gap="lg">
-        <Group justify="space-between">
-          <div>
-            <Title order={2}>Documents</Title>
-            <Text size="sm" c="dimmed">
-              View and manage all documents in your group
-            </Text>
-          </div>
-          <Group gap="xs">
-            <Tooltip label={statsOpen ? "Hide stats" : "Show stats"}>
-              <ActionIcon variant="light" onClick={toggleStats} size="lg">
-                <IconChartBar size={18} />
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Refresh now">
-              <ActionIcon
-                variant="light"
-                onClick={() => refetch()}
-                loading={isFetching}
-                size="lg"
-              >
-                <IconRefresh size={18} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </Group>
+        <PageHeader
+          title="Documents"
+          description="View and manage all documents in your group"
+          actions={
+            <Group gap="xs">
+              <Tooltip label={statsOpen ? "Hide stats" : "Show stats"}>
+                <ActionIcon variant="light" onClick={toggleStats} size="lg">
+                  <IconChartBar size={18} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Refresh now">
+                <ActionIcon
+                  variant="light"
+                  onClick={() => refetch()}
+                  loading={isFetching}
+                  size="lg"
+                >
+                  <IconRefresh size={18} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          }
+        />
 
         <Collapse in={statsOpen}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4, lg: 6 }}>
