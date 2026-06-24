@@ -48,6 +48,7 @@ const makeDocument = (overrides: Partial<DocumentData> = {}): DocumentData => ({
   group_id: "group-1",
   created_at: new Date("2024-01-01"),
   updated_at: new Date("2024-01-01"),
+  purged_at: null,
   ...overrides,
 });
 
@@ -308,6 +309,115 @@ describe("DocumentDbService", () => {
     it("should throw on other prisma errors", async () => {
       mockPrismaDocument.delete.mockRejectedValue(new Error("DB error"));
       await expect(service.deleteDocument("doc-1")).rejects.toThrow("DB error");
+    });
+  });
+
+  describe("findPurgeableEphemeralDocuments", () => {
+    it("matches any ephemeral target, filters status/unpurged, selects config", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([]);
+
+      await service.findPurgeableEphemeralDocuments(
+        [DocumentStatus.complete, DocumentStatus.failed],
+        50,
+      );
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
+        where: {
+          status: { in: [DocumentStatus.complete, DocumentStatus.failed] },
+          purged_at: null,
+          workflowVersion: {
+            is: {
+              OR: [
+                { config: { path: ["metadata", "ephemeral"], equals: true } },
+                {
+                  config: {
+                    path: ["metadata", "ephemeral", "files"],
+                    equals: true,
+                  },
+                },
+                {
+                  config: {
+                    path: ["metadata", "ephemeral", "temporalRecord"],
+                    equals: true,
+                  },
+                },
+              ],
+            },
+          },
+        },
+        select: {
+          id: true,
+          group_id: true,
+          workflow_execution_id: true,
+          workflowVersion: { select: { config: true } },
+        },
+        orderBy: { updated_at: "asc" },
+        take: 50,
+      });
+    });
+
+    it("extracts the ephemeral policy from each workflow config", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([
+        {
+          id: "d1",
+          group_id: "g1",
+          workflow_execution_id: "wf-1",
+          workflowVersion: { config: { metadata: { ephemeral: true } } },
+        },
+        {
+          id: "d2",
+          group_id: "g1",
+          workflow_execution_id: "wf-2",
+          workflowVersion: {
+            config: { metadata: { ephemeral: { files: true } } },
+          },
+        },
+        {
+          id: "d3",
+          group_id: "g1",
+          workflow_execution_id: null,
+          workflowVersion: { config: { metadata: {} } },
+        },
+      ]);
+
+      const result = await service.findPurgeableEphemeralDocuments(
+        [DocumentStatus.complete],
+        50,
+      );
+
+      expect(result).toEqual([
+        {
+          id: "d1",
+          group_id: "g1",
+          workflow_execution_id: "wf-1",
+          ephemeral: true,
+        },
+        {
+          id: "d2",
+          group_id: "g1",
+          workflow_execution_id: "wf-2",
+          ephemeral: { files: true, temporalRecord: false },
+        },
+        {
+          id: "d3",
+          group_id: "g1",
+          workflow_execution_id: null,
+          ephemeral: false,
+        },
+      ]);
+    });
+  });
+
+  describe("markDocumentPurged", () => {
+    it("stamps purged_at on the document", async () => {
+      mockPrismaDocument.update.mockResolvedValue({});
+
+      await service.markDocumentPurged("d1");
+
+      expect(mockPrismaDocument.update).toHaveBeenCalledWith({
+        where: { id: "d1" },
+        data: { purged_at: expect.any(Date) },
+      });
     });
   });
 
