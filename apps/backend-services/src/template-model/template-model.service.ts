@@ -196,11 +196,15 @@ export class TemplateModelService {
     this.logger.debug(
       `Updating field ${fieldId} in template model: ${templateModelId}`,
     );
-    const field = await this.templateModelDb.updateFieldDefinition(fieldId, {
-      field_format: dto.field_format,
-      format_spec: dto.format_spec,
-      display_order: dto.display_order,
-    });
+    const field = await this.templateModelDb.updateFieldDefinition(
+      fieldId,
+      templateModelId,
+      {
+        field_format: dto.field_format,
+        format_spec: dto.format_spec,
+        display_order: dto.display_order,
+      },
+    );
     if (!field) {
       throw new NotFoundException(`Field with id ${fieldId} not found`);
     }
@@ -211,7 +215,10 @@ export class TemplateModelService {
     this.logger.debug(
       `Deleting field ${fieldId} from template model: ${templateModelId}`,
     );
-    const deleted = await this.templateModelDb.deleteFieldDefinition(fieldId);
+    const deleted = await this.templateModelDb.deleteFieldDefinition(
+      fieldId,
+      templateModelId,
+    );
     if (!deleted) {
       throw new NotFoundException(`Field with id ${fieldId} not found`);
     }
@@ -368,7 +375,10 @@ export class TemplateModelService {
     this.logger.debug(
       `Deleting label ${labelId} from document ${documentId} in template model: ${templateModelId}`,
     );
-    const deleted = await this.templateModelDb.deleteDocumentLabel(labelId);
+    const deleted = await this.templateModelDb.deleteDocumentLabel(labelId, {
+      templateModelId,
+      labelingDocumentId: documentId,
+    });
     if (!deleted) {
       throw new NotFoundException(`Label with id ${labelId} not found`);
     }

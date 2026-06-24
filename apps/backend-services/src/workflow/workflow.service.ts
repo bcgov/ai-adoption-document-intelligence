@@ -239,15 +239,18 @@ export class WorkflowService {
 
     if (workflowConfigId) {
       // Could be a WorkflowVersion.id or a WorkflowLineage.id. Try version first.
-      const version = await this.prisma.workflowVersion.findUnique({
-        where: { id: workflowConfigId },
+      // Both lookups are scoped to the caller's group (via the owning lineage)
+      // so a config id belonging to another group cannot be resolved, executed,
+      // or have its configuration disclosed.
+      const version = await this.prisma.workflowVersion.findFirst({
+        where: { id: workflowConfigId, lineage: { group_id: groupId } },
         select: { id: true },
       });
       if (version) {
         return version.id;
       }
-      const lineage = await this.prisma.workflowLineage.findUnique({
-        where: { id: workflowConfigId },
+      const lineage = await this.prisma.workflowLineage.findFirst({
+        where: { id: workflowConfigId, group_id: groupId },
         select: { head_version_id: true },
       });
       if (lineage?.head_version_id) {
@@ -264,11 +267,15 @@ export class WorkflowService {
   /**
    * Look up the workflow's declared default `modelId` from its graph config
    * (`ctx.modelId.defaultValue`). Returns null when no version matches or no
-   * default is present.
+   * default is present. The lookup is scoped to the caller's group (via the
+   * owning lineage) so another group's workflow default cannot be disclosed.
    */
-  async getModelIdDefault(workflowVersionId: string): Promise<string | null> {
-    const row = await this.prisma.workflowVersion.findUnique({
-      where: { id: workflowVersionId },
+  async getModelIdDefault(
+    workflowVersionId: string,
+    groupId: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.workflowVersion.findFirst({
+      where: { id: workflowVersionId, lineage: { group_id: groupId } },
       select: { config: true },
     });
     if (!row) {

@@ -506,7 +506,7 @@ describe("TemplateModelService", () => {
 
       expect(
         mockTemplateModelDbService.updateFieldDefinition,
-      ).toHaveBeenCalledWith("field-1", {
+      ).toHaveBeenCalledWith("field-1", "tm-1", {
         field_format: "currency",
         format_spec: undefined,
         display_order: undefined,
@@ -535,7 +535,7 @@ describe("TemplateModelService", () => {
 
       expect(
         mockTemplateModelDbService.deleteFieldDefinition,
-      ).toHaveBeenCalledWith("field-1");
+      ).toHaveBeenCalledWith("field-1", "tm-1");
       expect(result).toEqual({ success: true, id: "field-1" });
     });
 
@@ -815,7 +815,10 @@ describe("TemplateModelService", () => {
 
       expect(
         mockTemplateModelDbService.deleteDocumentLabel,
-      ).toHaveBeenCalledWith("label-1");
+      ).toHaveBeenCalledWith("label-1", {
+        templateModelId: "tm-1",
+        labelingDocumentId: "labeled-doc-1",
+      });
       expect(result).toEqual({ success: true, id: "label-1" });
     });
 
