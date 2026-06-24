@@ -35,6 +35,9 @@ model Document {
   status                DocumentStatus         @default(pre_ocr)
   created_at            DateTime               @default(now())
   updated_at            DateTime               @updatedAt
+  /// Set by the ephemeral-document cleanup janitor once the document's blobs
+  /// and Temporal execution record have been purged. Null = not yet purged.
+  purged_at             DateTime?
   apim_request_id       String?
   workflow_id           String? // @deprecated: Use workflow_config_id and workflow_execution_id instead
   workflow_config_id    String? // Reference to WorkflowVersion.id (pinned graph config)
@@ -50,6 +53,10 @@ model Document {
 
   @@index([group_id])
   @@index([workflow_config_id])
+  // Partial index `documents_purge_scan_idx` on (workflow_config_id, status)
+  // WHERE purged_at IS NULL supports the ephemeral-cleanup janitor. Prisma
+  // cannot express partial indexes, so it is managed via the raw SQL migration
+  // 20260624000000_add_documents_purge_index. Do not let `migrate dev` drop it.
   @@map("documents")
 }
 

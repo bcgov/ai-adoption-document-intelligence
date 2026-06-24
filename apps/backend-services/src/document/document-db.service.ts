@@ -1,3 +1,4 @@
+import type { EphemeralConfig } from "@ai-di/graph-workflow";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   DocumentStatus,
@@ -15,6 +16,43 @@ import {
 } from "@/ocr/azure-types";
 import { PrismaService } from "../database/prisma.service";
 import type { DocumentData } from "./document-db.types";
+
+/** A terminal document to purge, with its workflow's ephemeral policy. */
+export interface PurgeableEphemeralDocument {
+  id: string;
+  group_id: string;
+  workflow_execution_id: string | null;
+  ephemeral: EphemeralConfig;
+}
+
+/**
+ * Extracts `metadata.ephemeral` from a workflow version config (stored as JSON),
+ * normalizing the object form to explicit booleans. Returns `false` when absent
+ * or malformed.
+ */
+function extractEphemeralConfig(
+  config: Prisma.JsonValue | null | undefined,
+): EphemeralConfig {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return false;
+  }
+  const metadata = (config as Record<string, unknown>).metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return false;
+  }
+  const ephemeral = (metadata as Record<string, unknown>).ephemeral;
+  if (ephemeral === true) {
+    return true;
+  }
+  if (ephemeral && typeof ephemeral === "object" && !Array.isArray(ephemeral)) {
+    const obj = ephemeral as Record<string, unknown>;
+    return {
+      files: obj.files === true,
+      temporalRecord: obj.temporalRecord === true,
+    };
+  }
+  return false;
+}
 
 @Injectable()
 export class DocumentDbService {
@@ -34,7 +72,7 @@ export class DocumentDbService {
    * @returns The created document record.
    */
   async createDocument(
-    data: Omit<DocumentData, "created_at" | "updated_at">,
+    data: Omit<DocumentData, "created_at" | "updated_at" | "purged_at">,
     tx?: Prisma.TransactionClient,
   ): Promise<DocumentData> {
     const client = tx ?? this.prisma;
@@ -359,6 +397,76 @@ export class DocumentDbService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Finds documents eligible for ephemeral cleanup: those processed by a
+   * workflow whose config declares an ephemeral policy that deletes at least
+   * one target (`metadata.ephemeral` is `true`, or an object with `files` or
+   * `temporalRecord` set to `true`), in a terminal status, and not yet purged.
+   * Ephemerality is configured on the workflow — there is no global or
+   * per-group setting. Each result carries its workflow's ephemeral policy so
+   * the janitor knows which targets to delete.
+   *
+   * @param statuses - Terminal statuses considered safe to purge.
+   * @param limit - Maximum number of documents to return in one batch.
+   * @returns Records (id, group, Temporal execution id, ephemeral policy).
+   */
+  async findPurgeableEphemeralDocuments(
+    statuses: DocumentStatus[],
+    limit: number,
+  ): Promise<PurgeableEphemeralDocument[]> {
+    const rows = await this.prisma.document.findMany({
+      where: {
+        status: { in: statuses },
+        purged_at: null,
+        workflowVersion: {
+          is: {
+            OR: [
+              { config: { path: ["metadata", "ephemeral"], equals: true } },
+              {
+                config: {
+                  path: ["metadata", "ephemeral", "files"],
+                  equals: true,
+                },
+              },
+              {
+                config: {
+                  path: ["metadata", "ephemeral", "temporalRecord"],
+                  equals: true,
+                },
+              },
+            ],
+          },
+        },
+      },
+      select: {
+        id: true,
+        group_id: true,
+        workflow_execution_id: true,
+        workflowVersion: { select: { config: true } },
+      },
+      orderBy: { updated_at: "asc" },
+      take: limit,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      group_id: row.group_id,
+      workflow_execution_id: row.workflow_execution_id,
+      ephemeral: extractEphemeralConfig(row.workflowVersion?.config),
+    }));
+  }
+
+  /**
+   * Stamps a document as purged so the cleanup janitor will not reprocess it.
+   *
+   * @param id - The document ID to mark purged.
+   */
+  async markDocumentPurged(id: string): Promise<void> {
+    await this.prisma.document.update({
+      where: { id },
+      data: { purged_at: new Date() },
+    });
   }
 
   /**
