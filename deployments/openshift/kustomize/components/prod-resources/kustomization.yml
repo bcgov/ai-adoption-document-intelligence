@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Production-only resource overrides.
+#
+# The base manifests carry conservative memory limits (512Mi) that suit
+# ephemeral PR and test instances and keep their quota usage low. Production
+# runs heavier, sustained document-processing workloads, so the main
+# application containers need more memory headroom to avoid OOMKills.
+#
+# This component is included by scripts/lib/generate-overlay.sh automatically
+# when the target namespace is *-prod. It only raises the memory *limit*
+# (requests are unchanged) so it has no effect on the namespace request quota.
+patches:
+  - path: backend-services-memory.yml
+  - path: temporal-worker-memory.yml

@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-services
+spec:
+  template:
+    spec:
+      containers:
+        - name: backend-services
+          resources:
+            limits:
+              memory: "1Gi"
