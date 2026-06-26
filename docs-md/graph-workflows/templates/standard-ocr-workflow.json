@@ -100,6 +100,52 @@
       "timeout": { "startToClose": "1m" },
       "retry": { "maximumAttempts": 3 }
     },
+    "recoverNumericZeros": {
+      "id": "recoverNumericZeros",
+      "type": "activity",
+      "label": "Recover Numeric Zeros from Checkboxes",
+      "activityType": "ocr.recoverNumericZerosFromCheckboxes",
+      "inputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
+      "outputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
+      "parameters": {
+        "tables": [
+          {
+            "find": { "firstCellTextContains": "Declare all income" },
+            "columns": [
+              { "prefix": "applicant_", "headerEquals": "Applicant" },
+              { "prefix": "spouse_", "headerEquals": "Spouse" }
+            ],
+            "rows": [
+              { "suffix": "net_employment_income", "labelEquals": "Net Employment Income" },
+              { "suffix": "employment_insurance", "labelEquals": "Employment Insurance" },
+              { "suffix": "spousal_support_alimony", "labelEquals": "Spousal Support / Alimony" },
+              { "suffix": "child_support", "labelEquals": "Child Support" },
+              { "suffix": "workbc_financial_support", "labelEquals": "WorkBC Financial Support" },
+              { "suffix": "student_funding_loans_bursaries", "labelEquals": "Student Funding (eg: Loans, Bursaries)" },
+              { "suffix": "rental_income", "labelEquals": "Rental Income" },
+              { "suffix": "room_board_income", "labelEquals": "Room / Board Income" },
+              { "suffix": "workers_compensation", "labelEquals": "Worker's Compensation" },
+              { "suffix": "private_pensions_retirement_disability", "labelEquals": "Private Pensions (eg: Retirement, Disability)" },
+              { "suffix": "oas_gis", "labelEquals": "OAS / GIS" },
+              { "suffix": "trust_income", "labelEquals": "Trust Income" },
+              { "suffix": "canada_pension_plan_cpp", "labelEquals": "Canada Pension Plan (CPP)" },
+              { "suffix": "tax_credits_gst_credit", "labelEquals": "Tax Credits (eg: GST Credit)" },
+              { "suffix": "child_tax_benefits", "labelEquals": "Child Tax Benefits" },
+              { "suffix": "income_tax_refund", "labelEquals": "Income Tax Refund" },
+              { "suffix": "other_income_money_received", "labelEquals": "All other income / money received" },
+              { "suffix": "income_of_dependent_children", "labelEquals": "Income of Dependent Children" }
+            ],
+            "fallbackTableFinder": {
+              "shape": { "minRowCount": 18, "maxRowCount": 21, "minColumnCount": 2, "maxColumnCount": 3 },
+              "labelAnchor": { "minLabelMatches": 12 },
+              "positionalAnchor": { "minVotes": 3, "dominanceRatio": 2.0 }
+            }
+          }
+        ]
+      },
+      "timeout": { "startToClose": "1m" },
+      "retry": { "maximumAttempts": 2 }
+    },
     "postOcrCleanup": {
       "id": "postOcrCleanup",
       "type": "activity",
@@ -182,7 +228,8 @@
     { "id": "e3", "source": "submitOcr", "target": "updateApimRequestId", "type": "normal" },
     { "id": "e4", "source": "updateApimRequestId", "target": "pollOcrResults", "type": "normal" },
     { "id": "e5", "source": "pollOcrResults", "target": "extractResults", "type": "normal" },
-    { "id": "e6", "source": "extractResults", "target": "postOcrCleanup", "type": "normal" },
+    { "id": "e6", "source": "extractResults", "target": "recoverNumericZeros", "type": "normal" },
+    { "id": "e6a", "source": "recoverNumericZeros", "target": "postOcrCleanup", "type": "normal" },
     { "id": "e7", "source": "postOcrCleanup", "target": "checkConfidence", "type": "normal" },
     { "id": "e8", "source": "checkConfidence", "target": "reviewSwitch", "type": "normal" },
     { "id": "edge-switch-to-humanGate", "source": "reviewSwitch", "target": "humanReview", "type": "conditional", "condition": "requiresReview" },
@@ -206,10 +253,10 @@
     },
     "cleanup": {
       "label": "Post-Processing",
-      "description": "Clean and normalize OCR results",
+      "description": "Recover misread numeric values, then clean and normalize OCR results",
       "icon": "cleanup",
       "color": "#22c55e",
-      "nodeIds": ["postOcrCleanup"]
+      "nodeIds": ["recoverNumericZeros", "postOcrCleanup"]
     },
     "quality-gate": {
       "label": "Quality Gate",

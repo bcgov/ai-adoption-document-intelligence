@@ -160,6 +160,22 @@ const TOOL_MANIFEST: ToolManifestEntry[] = [
     ],
     tags: ["whitespace", "formatting", "normalization"],
   },
+  {
+    toolId: "ocr.recoverNumericZerosFromCheckboxes",
+    label: "Recover Numeric Zeros from Checkboxes",
+    description:
+      "Recover numeric values (typically 0) for custom-model fields that Azure DI misread as selection marks. Per-table config in node parameters: locate the table (title anchor → row-label anchor → positional anchor with offset vote), map prefix→column and suffix→row, recover only cells with selection-mark markers (no digits/letters) that overlap a page-level selectionMark. Never overwrites populated fields. Fallback finders (labelAnchor, positionalAnchor) are opt-in via the fallbackTableFinder block.",
+    parameters: [
+      {
+        name: "tables",
+        type: "object",
+        description:
+          "Array of { find, columns, rows, recoveryValue?, cellEligibility?, fallbackTableFinder? }. See temporal correction-tool-registry for the full shape.",
+        required: false,
+      },
+    ],
+    tags: ["recovery", "checkbox", "numeric", "table"],
+  },
 ];
 
 @Injectable()
@@ -168,9 +184,17 @@ export class ToolManifestService {
     return TOOL_MANIFEST;
   }
 
-  /** Returns only tools that may be recommended by the AI (excludes ocr.normalizeFields). */
+  /**
+   * Returns only tools that may be recommended by the AI. Excludes:
+   * - `ocr.normalizeFields` (deterministic; always wired as a fixed pipeline node, not AI-selected)
+   * - `ocr.recoverNumericZerosFromCheckboxes` (requires per-form structural config the AI cannot author safely)
+   */
   getAiRecommendableTools(): ToolManifestEntry[] {
-    return TOOL_MANIFEST.filter((t) => t.toolId !== "ocr.normalizeFields");
+    const excluded = new Set([
+      "ocr.normalizeFields",
+      "ocr.recoverNumericZerosFromCheckboxes",
+    ]);
+    return TOOL_MANIFEST.filter((t) => !excluded.has(t.toolId));
   }
 
   getToolById(toolId: string): ToolManifestEntry | undefined {

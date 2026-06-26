@@ -94,6 +94,7 @@ export type {
 export { normalizeDocumentOrientation } from "./activities/normalize-document-orientation";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
+export { recoverNumericZerosFromCheckboxes } from "./activities/ocr-recover-numeric-zeros";
 // OCR correction tools (Feature 008)
 export { spellcheckOcrResult } from "./activities/ocr-spellcheck";
 export { pollOCRResults } from "./activities/poll-ocr-results";
