@@ -236,36 +236,60 @@ export function ProjectDetailPage() {
 
   return (
     <Stack gap="lg">
-      <Stack gap={2}>
-        <Group justify="space-between" align="center">
-          <Group gap="sm" align="center">
-            <Button
-              variant="subtle"
-              leftSection={<IconArrowLeft size={16} />}
-              onClick={() => navigate("/benchmarking/projects")}
-              data-testid="back-to-projects-btn"
-            >
-              Back
-            </Button>
-            <Title order={2} data-testid="project-name-title">
-              {project.name}
-            </Title>
-          </Group>
+      <Stack gap="xs">
+        <Group>
           <Button
-            variant="light"
-            color="red"
-            leftSection={<IconTrash size={16} />}
-            onClick={() => setDeleteProjectDialogOpen(true)}
-            data-testid="delete-project-btn"
+            variant="subtle"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate("/benchmarking/projects")}
+            data-testid="back-to-projects-btn"
           >
-            Delete Project
+            Back
           </Button>
         </Group>
-        {project.description && (
-          <Text c="dimmed" size="sm" data-testid="project-description">
-            {project.description}
+
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Stack
+            className="bcds-page-header__title-block"
+            style={{ gap: "var(--layout-margin-xsmall)" }}
+          >
+            <Title order={2} data-testid="project-name-title" mt={0} mb={0}>
+              {project.name}
+            </Title>
+            {project.description && (
+              <Text
+                c="dimmed"
+                size="sm"
+                data-testid="project-description"
+                mt={0}
+                mb={0}
+              >
+                {project.description}
+              </Text>
+            )}
+          </Stack>
+
+          <Group className="bcds-page-header__meta">
+            <Button
+              variant="light"
+              color="red"
+              leftSection={<IconTrash size={16} />}
+              onClick={() => setDeleteProjectDialogOpen(true)}
+              data-testid="delete-project-btn"
+            >
+              Delete Project
+            </Button>
+          </Group>
+        </Group>
+
+        <Group gap="xs" wrap="wrap">
+          <Text size="sm" c="dimmed" fw={500}>
+            Project ID
           </Text>
-        )}
+          <Text size="sm" c="dimmed" data-testid="project-id-text">
+            {project.id}
+          </Text>
+        </Group>
       </Stack>
 
       <Card>

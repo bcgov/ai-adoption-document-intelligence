@@ -256,9 +256,10 @@ export const ModelDetailPage: FC = () => {
       };
 
       const response = await apiService.post<{
-        labelingDocument?: { id: string };
+        labelingDocument: { id: string };
         code?: string;
-      }>(`/template-models/${routeModelId}/upload`, payload);
+        message?: string;
+      }>(`/template-models/${routeModelId}/documents`, payload);
 
       if (
         !response.success &&
@@ -479,7 +480,7 @@ export const ModelDetailPage: FC = () => {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
+      <Stack gap="xs">
         <Group>
           <Button
             variant="subtle"
@@ -488,55 +489,69 @@ export const ModelDetailPage: FC = () => {
           >
             Back
           </Button>
-          <Stack gap={2}>
-            <Title order={2}>{templateModel?.name || "Template Model"}</Title>
-            {copyableModelId && (
-              <Group gap="xs">
-                <Code>{copyableModelId}</Code>
-                {activeTrainedModel && (
-                  <Code c="dimmed">v{activeTrainedModel.version}</Code>
-                )}
-                <CopyButton value={copyableModelId}>
-                  {({ copied, copy }) => (
-                    <Tooltip
-                      label={
-                        copied
-                          ? "Copied!"
-                          : activeTrainedModel
-                            ? `Copy active model ID (v${activeTrainedModel.version})`
-                            : "Copy model ID"
-                      }
-                    >
-                      <ActionIcon
-                        color={copied ? "green" : "gray"}
-                        variant="subtle"
-                        size="sm"
-                        onClick={copy}
-                      >
-                        {copied ? (
-                          <IconCheck size={14} />
-                        ) : (
-                          <IconCopy size={14} />
-                        )}
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
-                </CopyButton>
-              </Group>
-            )}
-            <Text size="sm" c="dimmed">
-              {templateModel?.description ||
-                "Manage template model documents and schema"}
-            </Text>
-          </Stack>
         </Group>
-        <Badge
-          variant="light"
-          color={getStatusBadgeColor(templateModel?.status || "draft")}
+
+        <Stack
+          className="bcds-page-header__title-block"
+          style={{ gap: "var(--layout-margin-xsmall)" }}
         >
-          {templateModel?.status || "draft"}
-        </Badge>
-      </Group>
+          <Group gap="sm" align="center" wrap="wrap">
+            <Title order={2} mt={0} mb={0}>
+              {templateModel?.name || "Template Model"}
+            </Title>
+            <Badge
+              variant="light"
+              color={getStatusBadgeColor(templateModel?.status || "draft")}
+            >
+              {templateModel?.status || "draft"}
+            </Badge>
+          </Group>
+          <Text size="sm" c="dimmed" mt={0} mb={0}>
+            {templateModel?.description ||
+              "Manage template model documents and schema"}
+          </Text>
+        </Stack>
+
+        <Group gap="xs" wrap="wrap">
+          {copyableModelId && (
+            <>
+              <Text size="sm" c="dimmed" fw={500}>
+                Model ID
+              </Text>
+              <Code>{copyableModelId}</Code>
+              {activeTrainedModel && (
+                <Code c="dimmed">v{activeTrainedModel.version}</Code>
+              )}
+              <CopyButton value={copyableModelId}>
+                {({ copied, copy }) => (
+                  <Tooltip
+                    label={
+                      copied
+                        ? "Copied!"
+                        : activeTrainedModel
+                          ? `Copy active model ID (v${activeTrainedModel.version})`
+                          : "Copy model ID"
+                    }
+                  >
+                    <ActionIcon
+                      color={copied ? "green" : "gray"}
+                      variant="subtle"
+                      size="sm"
+                      onClick={copy}
+                    >
+                      {copied ? (
+                        <IconCheck size={14} />
+                      ) : (
+                        <IconCopy size={14} />
+                      )}
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+              </CopyButton>
+            </>
+          )}
+        </Group>
+      </Stack>
 
       <Tabs defaultValue="documents">
         <Tabs.List>
