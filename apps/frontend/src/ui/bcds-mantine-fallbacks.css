@@ -152,7 +152,9 @@
   padding: var(--layout-padding-small) var(--layout-padding-medium);
 }
 
-.bcds-mantine-table .mantine-Table-tr:where([data-hover]):hover {
+.bcds-mantine-table
+  .mantine-Table-tbody
+  .mantine-Table-tr:where([data-hover]):hover {
   background-color: var(--surface-color-background-light-blue);
 }
 
