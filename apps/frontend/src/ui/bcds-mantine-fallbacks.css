@@ -165,6 +165,7 @@
   background-color: var(--table-striped-color);
 }
 
+.rows-tab-table .rows-tab-row:hover > .mantine-Table-td,
 .rows-tab-table .rows-tab-row:where([data-hover]):hover > .mantine-Table-td,
 .rows-tab-table .rows-tab-row--selected > .mantine-Table-td {
   background-color: var(--surface-color-background-light-blue);
