@@ -545,6 +545,7 @@ export function DocumentsPage() {
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               onClick={handleConfirmDelete}
               loading={deleteDocument.isPending}
             >

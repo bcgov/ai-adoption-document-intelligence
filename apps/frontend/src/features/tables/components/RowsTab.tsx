@@ -1,4 +1,9 @@
-import { IconColumns, IconPencil, IconTrash } from "@tabler/icons-react";
+import {
+  IconColumns,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { apiService } from "@/data/services/api.service";
@@ -180,6 +185,7 @@ export function RowsTab({
             <Button
               color="red"
               variant="light"
+              leftSection={<IconTrash size={16} />}
               onClick={() => {
                 deleteRows.reset();
                 setConfirmBulkDelete(true);
@@ -212,7 +218,9 @@ export function RowsTab({
               </Stack>
             </Popover.Dropdown>
           </Popover>
-          <Button onClick={onCreate}>Create Row</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={onCreate}>
+            Create Row
+          </Button>
         </Group>
       </Group>
       {rows.data.rows.length === 0 ? (
@@ -366,6 +374,7 @@ export function RowsTab({
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               loading={deleteRows.isPending}
               onClick={() => {
                 if (rowToDelete) deleteRows.mutate([rowToDelete.id]);
@@ -400,6 +409,7 @@ export function RowsTab({
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               loading={deleteRows.isPending}
               onClick={() => deleteRows.mutate([...selectedIds])}
             >
