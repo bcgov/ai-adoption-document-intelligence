@@ -71,10 +71,22 @@ export interface DocumentField {
 
 export type ExtractedFields = Record<string, DocumentField>;
 
+/**
+ * Structured OCR text output, populated for prebuilt read/layout models where
+ * there are no key/value fields to extract. `format` indicates whether
+ * `markdown` is meaningful; `text` is always the plain-text rendering.
+ */
+export interface OcrContent {
+  format: "text" | "markdown";
+  text?: string | null;
+  markdown?: string | null;
+}
+
 export interface OcrResult {
   id: string;
   document_id: string;
   keyValuePairs?: ExtractedFields;
+  content?: OcrContent | null;
   processed_at: string;
 }
 

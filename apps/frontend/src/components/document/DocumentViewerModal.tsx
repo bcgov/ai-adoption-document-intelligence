@@ -25,6 +25,7 @@ import {
 } from "../../ui";
 import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
+import { ExtractedTextView } from "./ExtractedTextView";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) {
@@ -132,6 +133,13 @@ export function DocumentViewerModal({
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
   const { data: ocrResult } = useDocumentOcr(documentId);
+  const ocr = ocrResult?.ocr_result;
+  // Read/layout models save their output as `content` (markdown/text) with no
+  // keyValuePairs; field-extraction models save keyValuePairs. The OCR Results
+  // tab surfaces whichever is present.
+  const hasKeyValues = !!ocr?.keyValuePairs;
+  const hasOcrText = !!(ocr?.content?.markdown || ocr?.content?.text);
+  const hasOcrData = hasKeyValues || hasOcrText;
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -340,7 +348,7 @@ export function DocumentViewerModal({
               >
                 Document Viewer
               </Tabs.Tab>
-              {ocrResult?.ocr_result?.keyValuePairs && (
+              {hasOcrData && (
                 <Tabs.Tab
                   value="ocr-results"
                   leftSection={<IconChecklist size={16} />}
@@ -385,7 +393,7 @@ export function DocumentViewerModal({
               ) : null}
             </Tabs.Panel>
 
-            {ocrResult?.ocr_result?.keyValuePairs && (
+            {hasOcrData && (
               <Tabs.Panel
                 value="ocr-results"
                 style={{
@@ -404,9 +412,30 @@ export function DocumentViewerModal({
                     paddingBottom: "3rem",
                   }}
                 >
-                  <ExtractedFieldsTable
-                    fields={ocrResult.ocr_result.keyValuePairs}
-                  />
+                  <Stack gap="lg">
+                    {/* Extracted text (markdown) is the primary representation
+                        when present; key-value fields follow below. */}
+                    {hasOcrText && ocr?.content && (
+                      <div>
+                        {hasKeyValues && (
+                          <Title order={5} mb="xs">
+                            Extracted Text
+                          </Title>
+                        )}
+                        <ExtractedTextView content={ocr.content} />
+                      </div>
+                    )}
+                    {hasKeyValues && ocr?.keyValuePairs && (
+                      <div>
+                        {hasOcrText && (
+                          <Title order={5} mb="xs">
+                            Key-Value Fields
+                          </Title>
+                        )}
+                        <ExtractedFieldsTable fields={ocr.keyValuePairs} />
+                      </div>
+                    )}
+                  </Stack>
                 </div>
               </Tabs.Panel>
             )}
