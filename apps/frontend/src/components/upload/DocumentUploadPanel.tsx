@@ -414,6 +414,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                   activeGroup === null
                 }
                 loading={isUploading}
+                leftSection={<IconUpload size={16} />}
                 data-disabled={activeGroup === null || undefined}
               >
                 {isUploading ? "Uploading..." : "Upload"}

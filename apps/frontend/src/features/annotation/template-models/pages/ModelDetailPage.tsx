@@ -567,7 +567,7 @@ export const ModelDetailPage: FC = () => {
             <Group justify="space-between">
               <Text fw={600}>Template model documents</Text>
               <Button
-                leftSection={<IconPlus size={16} />}
+                leftSection={<IconUpload size={16} />}
                 onClick={() => setIsUploadOpen(true)}
               >
                 Upload documents
@@ -877,7 +877,11 @@ export const ModelDetailPage: FC = () => {
               >
                 Clear all
               </Button>
-              <Button onClick={handleUpload} loading={isUploading}>
+              <Button
+                onClick={handleUpload}
+                loading={isUploading}
+                leftSection={<IconUpload size={16} />}
+              >
                 {isUploading ? "Uploading..." : "Upload"}
               </Button>
             </Group>
