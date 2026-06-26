@@ -7,7 +7,6 @@ export type DocumentStatus =
   | "awaiting_review"
   | "complete"
   | "failed"
-  | "rejected_by_human"
   | "conversion_failed";
 
 export enum RejectionReason {

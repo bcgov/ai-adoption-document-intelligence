@@ -53,10 +53,20 @@ model Document {
 
   @@index([group_id])
   @@index([workflow_config_id])
+  // Supports the documents list endpoint's common access pattern:
+  // filter by group_id, order by created_at DESC, limit/offset. Lets Postgres
+  // serve the default sort from the index instead of sorting the group's rows.
+  @@index([group_id, created_at(sort: Desc)])
   // Partial index `documents_purge_scan_idx` on (workflow_config_id, status)
   // WHERE purged_at IS NULL supports the ephemeral-cleanup janitor. Prisma
   // cannot express partial indexes, so it is managed via the raw SQL migration
   // 20260624000000_add_documents_purge_index. Do not let `migrate dev` drop it.
+  //
+  // Trigram GIN indexes `documents_title_trgm_idx` /
+  // `documents_original_filename_trgm_idx` back the list endpoint's ILIKE
+  // search. Prisma cannot express GIN/trigram indexes, so they are managed via
+  // the raw SQL migration 20260626000000_add_documents_list_indexes. Do not let
+  // `migrate dev` drop them.
   @@map("documents")
 }
 
