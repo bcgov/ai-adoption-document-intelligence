@@ -1,4 +1,4 @@
-import { IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
@@ -90,7 +90,12 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
     <Stack>
       {isAdmin && (
         <Group justify="flex-end">
-          <Button onClick={() => setEditing("new")}>Add Column</Button>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => setEditing("new")}
+          >
+            Add Column
+          </Button>
         </Group>
       )}
       {columns.length === 0 ? (
@@ -211,6 +216,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               disabled={typeConfirm !== "delete"}
               loading={remove.isPending}
               onClick={() => {
