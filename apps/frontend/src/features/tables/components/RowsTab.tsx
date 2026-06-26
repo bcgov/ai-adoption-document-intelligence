@@ -243,7 +243,7 @@ export function RowsTab({
                     style={{
                       position: "sticky",
                       left: 0,
-                      background: "var(--mantine-color-body)",
+                      background: "var(--surface-color-background-light-gray)",
                       zIndex: 1,
                     }}
                   >
@@ -262,7 +262,7 @@ export function RowsTab({
                     style={{
                       position: "sticky",
                       right: 0,
-                      background: "var(--mantine-color-body)",
+                      background: "var(--surface-color-background-light-gray)",
                       zIndex: 1,
                     }}
                   />
