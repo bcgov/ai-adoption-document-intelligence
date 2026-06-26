@@ -4,6 +4,7 @@ import {
   IconCopy,
   IconFileDescription,
   IconFileImport,
+  IconPencil,
   IconPhoto,
   IconPlus,
   IconSparkles,
@@ -734,25 +735,29 @@ export const ModelDetailPage: FC = () => {
                       </DataTable.Td>
                       <DataTable.Td>{field.displayOrder}</DataTable.Td>
                       <DataTable.Td>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            onClick={() => {
-                              setEditingField(field);
-                              setSchemaEditorOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => deleteField(field.id)}
-                          >
-                            Delete
-                          </Button>
+                        <Group gap="xs" justify="flex-start" wrap="nowrap">
+                          <Tooltip label="Edit field" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              onClick={() => {
+                                setEditingField(field);
+                                setSchemaEditorOpen(true);
+                              }}
+                              aria-label={`Edit field ${field.fieldKey}`}
+                            >
+                              <IconPencil size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Delete field" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => deleteField(field.id)}
+                              aria-label={`Delete field ${field.fieldKey}`}
+                            >
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Tooltip>
                         </Group>
                       </DataTable.Td>
                     </DataTable.Tr>
