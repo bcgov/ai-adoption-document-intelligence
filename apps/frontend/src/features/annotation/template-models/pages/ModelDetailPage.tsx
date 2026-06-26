@@ -256,10 +256,10 @@ export const ModelDetailPage: FC = () => {
       };
 
       const response = await apiService.post<{
-        labelingDocument: { id: string };
+        labelingDocument?: { id: string };
         code?: string;
         message?: string;
-      }>(`/template-models/${routeModelId}/documents`, payload);
+      }>(`/template-models/${routeModelId}/upload`, payload);
 
       if (
         !response.success &&
