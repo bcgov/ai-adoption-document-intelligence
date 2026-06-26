@@ -14,3 +14,16 @@ kind: Component
 patches:
   - path: backend-services-memory.yml
   - path: temporal-worker-memory.yml
+  # Prod's temporal Postgres data volume was expanded in-place to 5Gi. The base
+  # manifest keeps 1.5Gi for ephemeral/test instances; match the live prod size
+  # here so the Crunchy operator stops trying to reconcile it down to 1.5Gi
+  # (PVCs cannot shrink) and stops emitting recurring
+  # "spec.resources.requests.storage: field can not be less than previous value"
+  # errors.
+  - target:
+      kind: PostgresCluster
+      name: temporal-pg
+    patch: |
+      - op: replace
+        path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
+        value: 5Gi
