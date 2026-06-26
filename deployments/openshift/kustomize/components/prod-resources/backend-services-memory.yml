@@ -8,5 +8,12 @@ spec:
       containers:
         - name: backend-services
           resources:
+            # Raise the request to match real prod usage (~280Mi avg, spikes
+            # higher) so the HPA's memory ratio is realistic. With a 256Mi
+            # request the HPA reads ~110% and pins backend at maxReplicas,
+            # which exhausts the namespace CPU-request quota. base/test keep
+            # 256Mi.
+            requests:
+              memory: "512Mi"
             limits:
               memory: "2Gi"
