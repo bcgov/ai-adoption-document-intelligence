@@ -48,7 +48,6 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "awaiting_review", label: "Awaiting Review" },
   { value: "complete", label: "Complete" },
   { value: "failed", label: "Failed" },
-  { value: "rejected_by_human", label: "Rejected" },
 ];
 
 const statusStyles: Record<string, { color: string; label: string }> = {
@@ -58,7 +57,7 @@ const statusStyles: Record<string, { color: string; label: string }> = {
   awaiting_review: { color: "orange", label: "Awaiting Review" },
   complete: { color: "green", label: "Complete" },
   failed: { color: "red", label: "Failed" },
-  rejected_by_human: { color: "red", label: "Rejected by Human" },
+  conversion_failed: { color: "red", label: "Conversion Failed" },
 };
 
 const PAGE_SIZE = 50;
@@ -259,7 +258,7 @@ export function DocumentsPage() {
                 Failed
               </Text>
               <Text fw={600} size="lg" c="red">
-                {statsData?.failed ?? 0}
+                {(statsData?.failed ?? 0) + (statsData?.conversion_failed ?? 0)}
               </Text>
             </Paper>
           </SimpleGrid>

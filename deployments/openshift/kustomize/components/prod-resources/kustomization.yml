@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Production-only resource overrides.
+#
+# The base manifests carry conservative memory limits (512Mi) that suit
+# ephemeral PR and test instances and keep their quota usage low. Production
+# runs heavier, sustained document-processing workloads, so the main
+# application containers need more memory headroom to avoid OOMKills.
+#
+# This component is included by scripts/lib/generate-overlay.sh automatically
+# when the target namespace is *-prod. It only raises the memory *limit*
+# (requests are unchanged) so it has no effect on the namespace request quota.
+patches:
+  - path: backend-services-memory.yml
+  - path: temporal-worker-memory.yml
+  # Prod's temporal Postgres data volume was expanded in-place to 5Gi. The base
+  # manifest keeps 1.5Gi for ephemeral/test instances; match the live prod size
+  # here so the Crunchy operator stops trying to reconcile it down to 1.5Gi
+  # (PVCs cannot shrink) and stops emitting recurring
+  # "spec.resources.requests.storage: field can not be less than previous value"
+  # errors.
+  - target:
+      kind: PostgresCluster
+      name: temporal-pg
+    patch: |
+      - op: replace
+        path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
+        value: 5Gi

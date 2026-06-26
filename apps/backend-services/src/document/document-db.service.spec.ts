@@ -239,6 +239,40 @@ describe("DocumentDbService", () => {
       });
     });
 
+    it("should expand the 'failed' status filter to include conversion_failed", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      await service.findAllDocuments(undefined, { status: "failed" });
+
+      const expectedWhere = {
+        status: { in: ["failed", "conversion_failed"] },
+      };
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrismaDocument.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
+    });
+
+    it("should match a non-failed status filter exactly", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      await service.findAllDocuments(undefined, {
+        status: DocumentStatus.complete,
+      });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: DocumentStatus.complete },
+        }),
+      );
+    });
+
     it("should throw if prisma throws", async () => {
       mockPrismaDocument.findMany.mockRejectedValue(new Error("DB error"));
       mockPrismaDocument.count.mockResolvedValue(0);

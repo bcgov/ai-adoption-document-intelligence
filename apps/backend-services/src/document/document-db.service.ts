@@ -178,8 +178,13 @@ export class DocumentDbService {
     }
 
     // Status filter
+    // The "failed" filter covers both failure states surfaced under a single
+    // "Failed" bucket in the UI: extraction failures and PDF conversion failures.
     if (options?.status && options.status !== "all") {
-      where.status = options.status;
+      where.status =
+        options.status === "failed"
+          ? { in: ["failed", "conversion_failed"] }
+          : options.status;
     }
 
     // Source filter
